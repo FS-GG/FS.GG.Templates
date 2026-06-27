@@ -1,15 +1,24 @@
 # Drop-in `.fsgg/providers.yml` registering the FS.GG.Rendering `fs-gg-ui` template
 # as a provider for `fsgg-sdd scaffold`. Copy this into your project's
-# `.fsgg/providers.yml` (or merge the entry) and set `source` to however you acquire
-# the template — a NuGet package id once published, or a local path / git checkout of
-# the FS.GG.Rendering template for now.
+# `.fsgg/providers.yml` (or merge the entry).
+#
+# `source` is the PUBLISHED FS.GG.UI.Template package, version-pinned with the
+# `dotnet new install` `id::version` syntax (SDD runs `dotnet new install <source>`).
+# The pin tracks the coherent template<->framework snapshot behind the immutable tag
+# `fs-gg-ui-template/v0.1.50-preview.1` (FS.GG.Rendering Feature 206; registry contract
+# `fs-gg-ui-template@0.1.50-preview.1`). Bump both the version and this comment together.
 schemaVersion: 1
 providers:
   - name: rendering
     contractVersion: "1.0.0"
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: __RENDERING_TEMPLATE_SOURCE__   # e.g. /abs/path/to/FS.GG.Rendering  | NuGet package id
+    source: FS.GG.UI.Template::0.1.50-preview.1   # published NuGet package, version-pinned
     parameters:
+      # lifecycle=sdd -> app-only product + SDD skeleton (ADR-0002 composition-by-scaffold).
+      # Override the template default (spec-kit) so Templates composition emits the SDD shape.
+      - key: lifecycle
+        required: false
+        default: sdd
       - key: profile
         required: false
         default: app
