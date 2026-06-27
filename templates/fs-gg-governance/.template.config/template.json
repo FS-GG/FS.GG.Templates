@@ -6,18 +6,26 @@
   "name": "FS.GG Governance overlay",
   "shortName": "fs-gg-governance",
   "tags": { "type": "item" },
-  "description": "Drops the optional FS.GG.Governance config (.fsgg/policy.yml, capabilities.yml, tooling.yml) into an existing SDD-managed project to activate Governance.",
+  "description": "Drops the populated FS.GG.Governance reference gate set (.fsgg/project.yml, policy.yml, capabilities.yml, tooling.yml) into an existing SDD-managed project to activate Governance. Ships the build + test + evidence gates, non-blocking by default (light).",
   "symbols": {
+    "appName": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "App",
+      "replaces": "<App>",
+      "description": "Project/solution name used in the governed command strings (e.g. 'dotnet build <App>.sln') and the governance project id."
+    },
     "defaultProfile": {
       "type": "parameter",
       "datatype": "choice",
-      "defaultValue": "standard",
+      "defaultValue": "light",
       "replaces": "GOV_DEFAULT_PROFILE",
-      "description": "Default Governance profile.",
+      "description": "Default Governance profile. 'light' is the deliberate non-blocking inner-loop posture; switch to 'strict'/'release' to make the block-on-ship gates block at Verify.",
       "choices": [
-        { "choice": "light", "description": "Lightest gate set." },
-        { "choice": "standard", "description": "Standard gate set (default)." },
-        { "choice": "strict", "description": "Strictest gate set." }
+        { "choice": "light", "description": "Non-blocking inner/verify loop (default)." },
+        { "choice": "standard", "description": "Standard gate set." },
+        { "choice": "strict", "description": "Tightens the blocking floor to Verify." },
+        { "choice": "release", "description": "Release ratchet." }
       ]
     }
   }

@@ -1,0 +1,11 @@
+schemaVersion: 1
+id: <App>
+governedRoot: .
+domains:
+  - build
+  - test
+  - evidence
+packageSurfaces:
+  - src
+policyRef: .fsgg/policy.yml
+capabilitiesRef: .fsgg/capabilities.yml

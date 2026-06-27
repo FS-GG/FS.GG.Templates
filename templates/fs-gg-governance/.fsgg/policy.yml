@@ -4,6 +4,7 @@ profiles:
   - light
   - standard
   - strict
+  - release
 branchPolicy:
   pattern: "main"
   requirePr: true
