@@ -1,0 +1,7 @@
+schemaVersion: 2
+domains:
+  - package-api
+pathMap:
+  - glob: "src/**"
+    capability: package-api
+checks: []

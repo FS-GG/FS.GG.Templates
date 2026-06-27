@@ -1,0 +1,18 @@
+# Drop-in `.fsgg/providers.yml` registering the FS.GG.Rendering `fs-gg-ui` template
+# as a provider for `fsgg-sdd scaffold`. Copy this into your project's
+# `.fsgg/providers.yml` (or merge the entry) and set `source` to however you acquire
+# the template — a NuGet package id once published, or a local path / git checkout of
+# the FS.GG.Rendering template for now.
+schemaVersion: 1
+providers:
+  - name: rendering
+    contractVersion: "1.0.0"
+    templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
+    source: __RENDERING_TEMPLATE_SOURCE__   # e.g. /abs/path/to/FS.GG.Rendering  | NuGet package id
+    parameters:
+      - key: profile
+        required: false
+        default: app
+      - key: designSystem
+        required: false
+        default: wcag

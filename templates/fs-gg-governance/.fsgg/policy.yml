@@ -1,0 +1,11 @@
+schemaVersion: 1
+defaultProfile: GOV_DEFAULT_PROFILE
+profiles:
+  - light
+  - standard
+  - strict
+branchPolicy:
+  pattern: "main"
+  requirePr: true
+reviewBudget:
+  maxReviews: 3
