@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Packs the `dotnet new` templates under templates/ into a single NuGet template
+       package. Installing the package (`dotnet new install FS.GG.Templates`) makes
+       `fs-gg-fullstack` and `fs-gg-governance` available and, crucially, updatable:
+       `dotnet new update` checks the feed and upgrades to the latest published
+       version. This is the update function for consumers. -->
+  <PropertyGroup>
+    <PackageType>Template</PackageType>
+    <PackageId>FS.GG.Templates</PackageId>
+    <Version>0.1.0</Version>
+    <Title>FS.GG project templates</Title>
+    <Authors>FS-GG</Authors>
+    <Description>dotnet new templates composing FS.GG.SDD + Rendering + Governance: fs-gg-fullstack (single monolithic full-stack product) and fs-gg-governance (Governance config overlay).</Description>
+    <PackageTags>dotnet-new;templates;fsgg;sdd;governance;rendering</PackageTags>
+    <PackageProjectUrl>https://github.com/FS-GG/FS.GG.Templates</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/FS-GG/FS.GG.Templates</RepositoryUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+
+    <TargetFramework>net10.0</TargetFramework>
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <!-- Template content includes dotfolders (.fsgg, .template.config, .specify, .agents). -->
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <!-- NU5128: no lib/deps in a template package. NU5110/NU5111: vendored .specify
+         PowerShell files are template *content*, not NuGet install scripts. -->
+    <NoWarn>$(NoWarn);NU5128;NU5110;NU5111</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="templates/**/*" Exclude="templates/**/bin/**;templates/**/obj/**" />
+    <Compile Remove="**/*" />
+  </ItemGroup>
+
+</Project>
