@@ -1,0 +1,20 @@
+name: composition
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  composition:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      # Owned stages (pack → install → instantiate → verify pins/links) run fully.
+      # The full fsgg-sdd scaffold+build stage skips here (CLI not installed) by design —
+      # see tests/composition/run.sh. It is exercised where the SDD CLI is available.
+      - name: composition test
+        run: tests/composition/run.sh
