@@ -1,7 +1,44 @@
 schemaVersion: 2
 domains:
-  - package-api
+  - build
+  - test
+  - evidence
 pathMap:
   - glob: "src/**"
-    capability: package-api
-checks: []
+    capability: build
+  - glob: "*.sln"
+    capability: build
+  - glob: "tests/**"
+    capability: test
+  - glob: "build.fsx"
+    capability: evidence
+surfaces:
+  - id: public-api
+    kind: package
+    paths: ["src/**/*.fsi"]
+    owner: platform
+    maturity: block-on-ship
+checks:
+  - id: build
+    domain: build
+    command: dotnet-build
+    owner: platform
+    cost: medium
+    environment: local-or-ci
+    maturity: block-on-ship
+    tier: restoreBuild
+  - id: test
+    domain: test
+    command: dotnet-test
+    owner: platform
+    cost: high
+    environment: ci
+    maturity: block-on-ship
+    tier: focusedTests
+  - id: evidence
+    domain: evidence
+    command: build-evidence
+    owner: platform
+    cost: medium
+    environment: local-or-ci
+    maturity: warn

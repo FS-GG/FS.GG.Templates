@@ -1,5 +1,20 @@
 schemaVersion: 1
-commands: []
+commands:
+  - id: dotnet-build
+    command: "dotnet build <App>.sln"
+    timeout: 600
+    environment: local-or-ci
+  - id: dotnet-test
+    command: "dotnet test <App>.sln"
+    timeout: 900
+    environment: ci
+  - id: build-evidence
+    command: "dotnet fsi build.fsx -- evidence"
+    timeout: 600
+    environment: local-or-ci
 environmentClasses:
   - local
   - ci
+externalTools:
+  - tool: dotnet
+    minVersion: "10.0.0"
