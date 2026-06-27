@@ -86,17 +86,6 @@ asserts the pins/links: parameter substitution lands, the governance gate set is
 `fsgg-sdd` CLI and a reachable template feed; that stage runs when they are available and
 otherwise **skips with a reason** (it never green-passes by omission).
 
-## Legacy: the vendored `fs-gg-fullstack` monolith
-
-> **Being retired.** `templates/fs-gg-fullstack/` and `scripts/sync-from-rendering.sh` are
-> the old hand-vendored single-template approach, kept only until the scaffold path fully
-> replaces it (tracked on the FS-GG Coordination board, P4). Prefer the composition path
-> above for new work; do not add to the vendored copy.
-
-The monolith emits all three layers in one `dotnet new fs-gg-fullstack`, at the cost of a
-vendored (and drift-prone) rendering payload refreshed by
-`scripts/sync-from-rendering.sh`. Rationale and tradeoff: `docs/design.md`.
-
 ## Install (the template package)
 
 The templates ship as a versioned NuGet **template package**, so the standard `dotnet new`
@@ -118,9 +107,7 @@ dotnet new update --check-only              # see what would update
 | `tests/composition/run.sh` | end-to-end composition test (pack→install→instantiate→build→verify pins/links). |
 | `scripts/new-fullstack.sh` | three-step wrapper for the `fsgg-sdd scaffold` composition path. |
 | `FS.GG.Templates.csproj` | packs the templates into the updatable NuGet package. |
-| `docs/design.md` | the composition-vs-monolith rationale. |
-| `templates/fs-gg-fullstack/` | *(legacy, being retired)* the vendored monolithic template. |
-| `scripts/sync-from-rendering.sh` | *(legacy, being retired)* re-vendors the monolith's rendering payload. |
+| `docs/design.md` | the composition-vs-monolith rationale (why the vendored monolith was retired). |
 
 ## License
 

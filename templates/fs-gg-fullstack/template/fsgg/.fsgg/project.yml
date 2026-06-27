@@ -1,7 +1,0 @@
-schemaVersion: 1
-project:
-  id: fs-gg-ui
-  defaultWorkRoot: work
-sdd:
-  config: .fsgg/sdd.yml
-  agents: .fsgg/agents.yml

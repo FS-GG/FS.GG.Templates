@@ -2,16 +2,16 @@
 
   <!-- Packs the `dotnet new` templates under templates/ into a single NuGet template
        package. Installing the package (`dotnet new install FS.GG.Templates`) makes
-       `fs-gg-fullstack` and `fs-gg-governance` available and, crucially, updatable:
-       `dotnet new update` checks the feed and upgrades to the latest published
-       version. This is the update function for consumers. -->
+       `fs-gg-governance` available and, crucially, updatable: `dotnet new update`
+       checks the feed and upgrades to the latest published version. This is the
+       update function for consumers. -->
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Templates</PackageId>
     <Version>0.2.0</Version>
     <Title>FS.GG project templates</Title>
     <Authors>FS-GG</Authors>
-    <Description>dotnet new templates composing FS.GG.SDD + Rendering + Governance: fs-gg-fullstack (single monolithic full-stack product) and fs-gg-governance (Governance config overlay).</Description>
+    <Description>dotnet new template for composing FS.GG.SDD + Rendering + Governance: fs-gg-governance (Governance config overlay). Full-stack composition happens at scaffold time via `fsgg-sdd scaffold` and the rendering provider descriptor (see README).</Description>
     <PackageTags>dotnet-new;templates;fsgg;sdd;governance;rendering</PackageTags>
     <PackageProjectUrl>https://github.com/FS-GG/FS.GG.Templates</PackageProjectUrl>
     <RepositoryUrl>https://github.com/FS-GG/FS.GG.Templates</RepositoryUrl>

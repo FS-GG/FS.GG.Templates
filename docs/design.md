@@ -20,47 +20,43 @@ deliberately decoupled:
 `FS.GG.Templates` sits **downstream of all three** and composes them as a plain
 consumer, with no reverse coupling back into any product.
 
-## Chosen approach: a single monolithic template
+## Chosen approach: compose at scaffold time
 
-`fs-gg-fullstack` is one `dotnet new` template that emits all three layers in a
-single invocation — no `fsgg-sdd` CLI required to scaffold:
+Per [ADR-0002](https://github.com/FS-GG/.github/blob/main/docs/adr/0002-composition-by-scaffold-lifecycle-parameter-governance-populated.md),
+composition happens **at scaffold time** — `fsgg-sdd scaffold` installs and drives the
+live, version-pinned upstream `fs-gg-ui` template; FS.GG.Templates ships **no vendored
+framework copy**. `scripts/new-fullstack.sh` + `providers/rendering.providers.yml` + the
+`fs-gg-governance` overlay produce a full-stack product by composition:
 
-- **Rendering** — the FS.GG.Rendering `fs-gg-ui` template payload is **vendored** into
-  `templates/fs-gg-fullstack/` (its `template/`, `.specify/`, `.agents/`,
-  `.template.config/generated/`), keeping `fs-gg-ui`'s own `template.json` substitution
-  rules (sourceName `Product`, `projectSlug`, the `copyOnly` governance-token guards).
-- **SDD + Governance** — layered as one extra source, `template/fsgg/` → `./`, emitting
-  `.fsgg/{project,sdd,agents}.yml` + `work/` + `readiness/` (SDD) and
-  `.fsgg/{policy,capabilities,tooling}.yml` (Governance). The SDD `project.id` reuses
-  the `projectSlug` substitution; `--governanceProfile` replaces the policy default.
+- **Rendering** — `fsgg-sdd scaffold --provider rendering` installs the **live,
+  un-vendored** `FS.GG.Rendering` app from the published `FS.GG.UI.Template` package
+  pinned by the provider descriptor, passing `lifecycle=sdd` so the product carries only
+  the runnable app (the `.fsgg/` lifecycle comes from the SDD skeleton, not a second
+  copy).
+- **SDD** — the lifecycle skeleton (`.fsgg/{project,sdd,agents}.yml` + `work/` +
+  `readiness/`), owned by `fsgg-sdd`.
+- **Governance** — the populated `fs-gg-governance` overlay
+  (`.fsgg/{policy,capabilities,tooling}.yml`), dropped in **after** scaffold so it is not
+  flagged as a provider writing into the SDD-owned `.fsgg/` tree.
 
-The monolith's `template.json` is the `fs-gg-ui` manifest with the identity/shortName
-changed (`FS.GG.Templates.FullStack` / `fs-gg-fullstack`), the `governanceProfile`
-symbol and the `template/fsgg/` source added, and **post-actions removed** (the
-upstream git-init/chmod scripts prompt interactively, which would hang non-interactive
-use such as `fsgg-sdd scaffold`).
-
-### Tradeoff (accepted)
-
-`dotnet new` cannot include or depend on another template, so a single self-contained
-template must **vendor** the rendering payload — a fork that goes stale when Rendering
-changes. We accept that for the one-invocation UX, and mitigate it with an explicit
-**update function** (below) rather than a hand copy.
+Because the rendering payload is installed live from its pinned upstream package, there
+is no fork to drift — the `FsSkiaUiVersion` staleness class (below) is structurally gone.
 
 ## Update function
 
-- **Consumers** — the templates ship as a versioned NuGet **template package**
-  (`FS.GG.Templates.csproj`, `PackageType=Template`). `dotnet new update` checks the
-  feed and upgrades to the latest published version. Validated: the package installs as
-  `FS.GG.Templates@<version>` and is recognized by `dotnet new update`.
-- **Maintainers** — `scripts/sync-from-rendering.sh <rendering-checkout>` re-vendors the
-  upstream `fs-gg-ui` payload (leaving the SDD/Governance overlay and the monolith
-  manifest intact); then bump `<Version>` and `dotnet pack`.
+- **Consumers** — the `fs-gg-governance` overlay ships as a versioned NuGet **template
+  package** (`FS.GG.Templates.csproj`, `PackageType=Template`). `dotnet new update`
+  checks the feed and upgrades to the latest published version. The rendering payload
+  updates independently, via the provider's package pin.
 
-## Alternative: compose via `fsgg-sdd scaffold`
+## Rejected alternative: a single monolithic template (retired)
 
-For users who already drive the SDD CLI, `scripts/new-fullstack.sh` +
-`providers/rendering.providers.yml` + the `fs-gg-governance` overlay achieve the same
-result by composition — `fsgg-sdd scaffold --provider rendering` (SDD skeleton + the
-live, un-vendored Rendering app) then the Governance overlay. No fork, but it needs the
-`fsgg-sdd` CLI and a reachable `fs-gg-ui` source. Kept as a secondary path.
+`fs-gg-fullstack` was one `dotnet new` template that emitted all three layers in a single
+invocation — no `fsgg-sdd` CLI required. Because `dotnet new` cannot include or depend on
+another template, a single self-contained template had to **vendor** the `fs-gg-ui`
+rendering payload into `templates/fs-gg-fullstack/`, refreshed by a
+`scripts/sync-from-rendering.sh` maintainer script. That vendored copy is a fork that
+goes stale whenever Rendering changes (the `FsSkiaUiVersion` staleness class). The
+one-invocation UX did not justify a perpetual drift liability, so the monolith and its
+sync script were **removed** in favor of scaffold-time composition (P4 on the FS-GG
+Coordination board).

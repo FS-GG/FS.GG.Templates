@@ -1,7 +1,0 @@
-name: sample-pack
-description: Optional examples and sample assets.
-capabilities: [scene, skiaviewer, elmish, samples, full-governance]
-governance: full
-samples: true
-sourceFrameworkMode: false
-validationCommands: [Dev, Test, Verify]
