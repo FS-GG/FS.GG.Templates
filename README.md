@@ -58,6 +58,22 @@ staleness class that broke the old monolith). Composing at scaffold time install
 pinned upstream package directly, so there is no fork to drift. See `docs/design.md` and
 the [architecture report](docs/reports/2026-06-27-fsgg-packaging-composition-and-governance-architecture.md).
 
+### Keeping the rendering pin fresh
+
+With the monolith gone, the only thing that can go stale is the **single
+`FS.GG.UI.Template` version pin** in `providers/rendering.providers.yml` (mirrored in this
+README; the composition test asserts the two agree). The retired `sync-from-rendering.sh`
+re-vendored a payload by hand; its successors only move that pin:
+
+- **[Renovate](.github/renovate.json)** — a custom manager tracks the pin against the
+  `nuget` datasource and opens a grouped `FS.GG.UI.*` (`rangeStrategy: bump`) PR when
+  Rendering publishes a newer `FS.GG.UI.Template`. The always-on path.
+- **[`upstream-bump` workflow](.github/workflows/upstream-bump.yml)** — `repository_dispatch`
+  (`fs-gg-ui-template-released`) lets Rendering push a bump on a release tag;
+  `workflow_dispatch` re-pins by hand. Both open a PR.
+- **`scripts/bump-rendering-pin.sh <version>`** — the shared, human-runnable primitive
+  both lean on; updates every coherence surface in one shot.
+
 ## Just add Governance to an existing project
 
 The `fs-gg-governance` overlay drops the populated FS.GG reference gate set into any
@@ -106,6 +122,9 @@ dotnet new update --check-only              # see what would update
 | `templates/fs-gg-governance/` | the populated Governance-config overlay (`fs-gg-governance`). |
 | `tests/composition/run.sh` | end-to-end composition test (pack→install→instantiate→build→verify pins/links). |
 | `scripts/new-fullstack.sh` | three-step wrapper for the `fsgg-sdd scaffold` composition path. |
+| `scripts/bump-rendering-pin.sh` | re-pins `FS.GG.UI.Template` coherently across provider + README (successor to the retired `sync-from-rendering.sh`). |
+| `.github/renovate.json` | Renovate config that bumps the `FS.GG.UI.*` pin automatically. |
+| `.github/workflows/upstream-bump.yml` | `repository_dispatch`/`workflow_dispatch` auto-PR that re-pins on an upstream release. |
 | `FS.GG.Templates.csproj` | packs the templates into the updatable NuGet package. |
 | `docs/design.md` | the composition-vs-monolith rationale (why the vendored monolith was retired). |
 

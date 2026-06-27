@@ -1,0 +1,35 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":dependencyDashboard"
+  ],
+  "description": "Replaces the retired scripts/sync-from-rendering.sh: instead of vendoring a fresh rendering payload, Renovate moves the single FS.GG.UI.Template version pin (providers/rendering.providers.yml + README) when Rendering publishes a new package. This structurally retires the FsSkiaUiVersion staleness class for this repo.",
+  "packageRules": [
+    {
+      "description": "Treat the FS.GG.UI.* set as one coherent snapshot: group any updates and rewrite the pinned value (rangeStrategy:bump) rather than widening a range. Currently only FS.GG.UI.Template is referenced (via the customManager below); the glob also covers any future FS.GG.UI.* package references added to this repo.",
+      "matchPackageNames": ["FS.GG.UI.*"],
+      "groupName": "FS.GG.UI.*",
+      "rangeStrategy": "bump"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Detect the FS.GG.UI.Template version pinned in the rendering provider descriptor and the README, in every surrounding form (`::`, `@`, `/v`). Renovate updates all matched occurrences for the dependency together, preserving the pin coherence that tests/composition/run.sh enforces.",
+      "managerFilePatterns": [
+        "/^providers/rendering\\.providers\\.yml$/",
+        "/^README\\.md$/"
+      ],
+      "matchStrings": [
+        "FS\\.GG\\.UI\\.Template::(?<currentValue>[^\\s`)]+)",
+        "FS\\.GG\\.UI\\.Template@(?<currentValue>[^\\s`)]+)",
+        "fs-gg-ui-template[/@]v?(?<currentValue>[^\\s`)]+)"
+      ],
+      "matchStringsStrategy": "any",
+      "depNameTemplate": "FS.GG.UI.Template",
+      "datasourceTemplate": "nuget",
+      "versioningTemplate": "nuget"
+    }
+  ]
+}

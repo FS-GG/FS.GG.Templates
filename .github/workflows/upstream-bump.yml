@@ -1,0 +1,65 @@
+name: upstream-bump
+
+# Re-pin FS.GG.UI.Template and open a PR. The on-demand / event-driven successor to the
+# retired scripts/sync-from-rendering.sh: where that vendored a fresh rendering payload,
+# this only moves the single version pin the scaffold provider installs.
+#
+# Two triggers:
+#   - repository_dispatch (event_type: fs-gg-ui-template-released): FS.GG.Rendering fires
+#     this on a release tag with { "client_payload": { "version": "<ver>" } } so the pin
+#     follows upstream automatically. (Renovate, .github/renovate.json, is the always-on
+#     path; this is the push-from-upstream path.)
+#   - workflow_dispatch: a maintainer re-pins by hand to a specific version.
+#
+# It never pushes to a protected branch — it opens a PR so the composition test
+# (tests/composition/run.sh) gates the bump.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "FS.GG.UI.Template version to pin (e.g. 0.1.51-preview.1)"
+        required: true
+        type: string
+  repository_dispatch:
+    types: [fs-gg-ui-template-released]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve target version
+        id: ver
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+          DISPATCH_VERSION: ${{ github.event.client_payload.version }}
+        run: |
+          VERSION="${INPUT_VERSION:-$DISPATCH_VERSION}"
+          if [ -z "$VERSION" ]; then
+            echo "::error::no version supplied (workflow_dispatch input or client_payload.version)"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Re-pin provider + README
+        run: scripts/bump-rendering-pin.sh "${{ steps.ver.outputs.version }}"
+
+      - name: Open PR
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: chore/bump-fs-gg-ui-template
+          title: "chore: bump FS.GG.UI.Template to ${{ steps.ver.outputs.version }}"
+          commit-message: "chore: bump FS.GG.UI.Template pin to ${{ steps.ver.outputs.version }}"
+          body: |
+            Re-pins `FS.GG.UI.Template` to `${{ steps.ver.outputs.version }}` across the
+            rendering provider descriptor and README (see `scripts/bump-rendering-pin.sh`).
+
+            Triggered by `${{ github.event_name }}`. The composition test
+            (`tests/composition/run.sh`) verifies the pin stays coherent before merge.
+          labels: cross-repo
