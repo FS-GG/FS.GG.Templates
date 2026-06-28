@@ -23,14 +23,19 @@ mkdir -p ./MyApp/.fsgg
 cp providers/rendering.providers.yml ./MyApp/.fsgg/providers.yml
 
 # 2. SDD skeleton + the live FS.GG.Rendering app (lifecycle=sdd → app-only product).
-fsgg-sdd scaffold --root ./MyApp --provider rendering --param productName=MyApp
+#    (the fs-gg-ui template takes --name; project names derive from it.)
+fsgg-sdd scaffold --root ./MyApp --provider rendering --param name=MyApp
 
 # 3. Activate Governance: drop the populated reference gate set into the project.
 dotnet new install ./templates/fs-gg-governance
 dotnet new fs-gg-governance -o ./MyApp --appName MyApp --defaultProfile light
 
-cd ./MyApp && dotnet build && dotnet run     # the runnable Skia/Elmish product
+cd ./MyApp && chmod +x fake.sh && ./fake.sh build -t Dev   # build the Skia/Elmish product
 ```
+
+The fs-gg-ui product is FAKE-backed (no root solution): `./fake.sh build -t Dev` (build),
+`-t Test`, `-t Verify` are the entry points (see the generated `README.md`). To compile a
+single project directly without FAKE, target it: `dotnet build src/MyApp/MyApp.fsproj`.
 
 `scripts/new-fullstack.sh <target> <product> <rendering-source>` wraps these three steps.
 
@@ -44,10 +49,13 @@ It produces:
   lifecycle comes from the SDD skeleton, not a second copy.
 - **SDD** — the lifecycle skeleton: `.fsgg/project.yml`, `.fsgg/sdd.yml`,
   `.fsgg/agents.yml`, `work/`, `readiness/` (drive it with `fsgg-sdd charter …`).
-- **Governance** — the populated reference gate set: `.fsgg/policy.yml`,
-  `.fsgg/capabilities.yml` (build/test/evidence checks), `.fsgg/tooling.yml`
-  (the matching commands). `--defaultProfile` sets the default profile; `light` is the
-  non-blocking inner-loop posture, `strict`/`release` make the block-on-ship gates block.
+- **Governance** — the populated reference gate set: `.fsgg/governance.yml` (the
+  governance project descriptor — its own file, since SDD owns `.fsgg/project.yml`),
+  `.fsgg/policy.yml`, `.fsgg/capabilities.yml` (build/test/evidence checks),
+  `.fsgg/tooling.yml` (the matching commands). `--defaultProfile` sets the default profile (one of
+  `light` / `standard` / `strict` / `release`); `light` is the non-blocking inner-loop
+  posture (default), `standard` is the standard gate set, and `strict`/`release` make
+  the block-on-ship gates block at Verify.
 
 ### Why composition, not a single template
 
@@ -84,6 +92,10 @@ dotnet new install ./templates/fs-gg-governance
 dotnet new fs-gg-governance -o ./MyApp --appName MyApp --defaultProfile light
 ```
 
+`--appName` rewrites the governed command strings (e.g. `dotnet build MyApp.sln`) and the
+governance project id; `--defaultProfile` defaults to `light`. Both have sensible defaults,
+so `dotnet new fs-gg-governance -o ./MyApp` alone works.
+
 ## Composition tests
 
 `tests/composition/run.sh` runs the standard packaging-repo checks
@@ -104,15 +116,28 @@ otherwise **skips with a reason** (it never green-passes by omission).
 
 ## Install (the template package)
 
-The templates ship as a versioned NuGet **template package**, so the standard `dotnet new`
-update path applies:
+The templates ship as a versioned NuGet **template package** (currently `FS.GG.Templates`
+**0.2.0**, see `FS.GG.Templates.csproj`), so the standard `dotnet new` update path applies:
 
 ```sh
 dotnet new install FS.GG.Templates          # from a feed, once published
-# or from a local pack:  dotnet new install ./artifacts/FS.GG.Templates.<version>.nupkg
 dotnet new update                           # upgrade to the latest published version
 dotnet new update --check-only              # see what would update
 ```
+
+### Build / pack from source
+
+To install from a local build instead of a feed, pack the package and install the `.nupkg`:
+
+```sh
+dotnet pack -c Release -o ./artifacts                       # -> ./artifacts/FS.GG.Templates.0.2.0.nupkg
+dotnet new install ./artifacts/FS.GG.Templates.0.2.0.nupkg
+```
+
+Restore is **locked** (`packages.lock.json`, FS-GG/.github#7 / Feature 211 parity). The
+packaging project has no `PackageReference`s today, so the committed lockfile is empty; a
+fresh local clone bootstraps it, and CI (`GITHUB_ACTIONS`) restores in locked mode so any
+future dependency change has to land in the committed lockfile instead of drifting silently.
 
 ## Contents
 
@@ -125,7 +150,8 @@ dotnet new update --check-only              # see what would update
 | `scripts/bump-rendering-pin.sh` | re-pins `FS.GG.UI.Template` coherently across provider + README (successor to the retired `sync-from-rendering.sh`). |
 | `.github/renovate.json` | Renovate config that bumps the `FS.GG.UI.*` pin automatically. |
 | `.github/workflows/upstream-bump.yml` | `repository_dispatch`/`workflow_dispatch` auto-PR that re-pins on an upstream release. |
-| `FS.GG.Templates.csproj` | packs the templates into the updatable NuGet package. |
+| `FS.GG.Templates.csproj` | packs the templates into the updatable NuGet package; enables locked restore. |
+| `packages.lock.json` | committed NuGet lockfile (empty today; locked restore in CI prevents silent dependency drift). |
 | `docs/design.md` | the composition-vs-monolith rationale (why the vendored monolith was retired). |
 
 ## License

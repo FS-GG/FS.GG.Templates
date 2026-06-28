@@ -82,14 +82,16 @@ fi
 
 # ── Stage 4: verify pins/links ───────────────────────────────────────────────
 step "verify — emitted files"
-for f in project.yml policy.yml capabilities.yml tooling.yml; do
+# governance.yml (NOT project.yml: SDD owns .fsgg/project.yml; the overlay uses its own
+# file so it composes onto an SDD-scaffolded project without a write collision).
+for f in governance.yml policy.yml capabilities.yml tooling.yml; do
   [[ -f "$APP/.fsgg/$f" ]] && ok ".fsgg/$f emitted" || bad ".fsgg/$f missing"
 done
 
 step "verify — parameter substitution (no stray tokens)"
 assert_absent "$APP/.fsgg" "<App>"             "appName token '<App>' fully substituted"
 assert_absent "$APP/.fsgg" "GOV_DEFAULT_PROFILE" "profile token 'GOV_DEFAULT_PROFILE' fully substituted"
-assert_contains "$APP/.fsgg/project.yml"  "id: Acme"            "appName -> project.yml id"
+assert_contains "$APP/.fsgg/governance.yml"  "id: Acme"          "appName -> governance.yml id"
 assert_contains "$APP/.fsgg/tooling.yml"  "dotnet build Acme.sln" "appName -> tooling build command"
 assert_contains "$APP/.fsgg/tooling.yml"  "dotnet test Acme.sln"  "appName -> tooling test command"
 assert_contains "$APP/.fsgg/policy.yml"   "defaultProfile: strict" "defaultProfile -> policy default"
@@ -121,7 +123,7 @@ if grep -A2 'key: lifecycle' "$PROV" | grep -q 'default: sdd'; then ok "provider
 if grep -A2 'key: profile'   "$PROV" | grep -q 'default: app'; then ok "provider default profile=app";          else bad "provider profile default is not 'app'";  fi
 
 # ── Stage 5: full scaffold + build (GATED) ───────────────────────────────────
-step "build — full fsgg-sdd scaffold + dotnet build (gated)"
+step "build — full fsgg-sdd scaffold + product build (gated)"
 if command -v fsgg-sdd >/dev/null 2>&1; then
   RUN_FULL=1
 elif [[ "${FSGG_COMPOSITION_FULL:-}" == "1" ]]; then
@@ -131,11 +133,20 @@ else
 fi
 if [[ "$RUN_FULL" == "1" ]]; then
   FULL="$WORKDIR/full"
-  if "$REPO_ROOT/scripts/new-fullstack.sh" "$FULL" Acme "$PIN_VER" >"$WORKDIR/scaffold.log" 2>&1 \
-     && dotnet build "$FULL" >"$WORKDIR/build.log" 2>&1; then
-    ok "scaffold + dotnet build of the composed product succeeded"
+  # No source override: exercise the self-pinned provider (FS.GG.UI.Template::$PIN_VER).
+  # The fs-gg-ui product is FAKE-backed and ships NO root solution (projects live under
+  # src/ and tests/), so `dotnet build <root>` cannot resolve a target. Build the emitted
+  # app project directly — a faithful "does the composed product compile" smoke. (The
+  # product's own full build is `./fake.sh build -t Dev`; that heavier path is not run here.)
+  if "$REPO_ROOT/scripts/new-fullstack.sh" "$FULL" Acme >"$WORKDIR/scaffold.log" 2>&1; then
+    APP_PROJ="$(find "$FULL/src" -name '*.fsproj' 2>/dev/null | head -1)"
+    if [[ -n "$APP_PROJ" ]] && dotnet build "$APP_PROJ" >"$WORKDIR/build.log" 2>&1; then
+      ok "scaffold + build of the composed product succeeded ($(basename "$APP_PROJ"))"
+    else
+      bad "composed product build failed (proj='${APP_PROJ:-<none found>}'; see $WORKDIR/build.log)"
+    fi
   else
-    bad "full scaffold/build failed (see $WORKDIR/scaffold.log, $WORKDIR/build.log)"
+    bad "full scaffold failed (see $WORKDIR/scaffold.log)"
   fi
 else
   skip "fsgg-sdd CLI not available — scaffold+build of the live rendering app not exercised here. Run with the SDD CLI installed (or FSGG_COMPOSITION_FULL=1) to require it. This stage validates the un-vendored composition path; the gate keeps CI honest rather than green-by-omission."

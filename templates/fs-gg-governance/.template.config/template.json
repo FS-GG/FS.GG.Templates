@@ -6,7 +6,7 @@
   "name": "FS.GG Governance overlay",
   "shortName": "fs-gg-governance",
   "tags": { "type": "item" },
-  "description": "Drops the populated FS.GG.Governance reference gate set (.fsgg/project.yml, policy.yml, capabilities.yml, tooling.yml) into an existing SDD-managed project to activate Governance. Ships the build + test + evidence gates, non-blocking by default (light).",
+  "description": "Drops the populated FS.GG.Governance reference gate set (.fsgg/governance.yml, policy.yml, capabilities.yml, tooling.yml) into an existing SDD-managed project to activate Governance. Uses .fsgg/governance.yml (not project.yml, which SDD owns) so it composes onto an SDD-scaffolded project without collision. Ships the build + test + evidence gates, non-blocking by default (light).",
   "symbols": {
     "appName": {
       "type": "parameter",
