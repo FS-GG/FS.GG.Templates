@@ -1,0 +1,98 @@
+name: acceptance-dispatch
+
+# Sender half of the drift-free composition-acceptance contract
+# (FS.GG.Templates#15 ⇄ FS.GG.SDD#10, epic FS-GG/.github#16 Pillar 4 / H4).
+#
+# Templates OWNS the provider registry (providers/rendering.providers.yml). Generic SDD
+# carries no rendering identity — its composition-acceptance reaches the real published
+# template only through that registry (SDD FR-009/FR-010). Historically SDD read the
+# registry from a hand-copied `FSGG_SDD_ACCEPTANCE_REGISTRY` secret, which silently drifts
+# from this file. This workflow closes that gap: on every change to the registry (and on
+# manual dispatch) it PUSHES the *current* registry content to SDD's composition-acceptance.
+# "No stale secret" — SDD tests the live registry, not a copy.
+#
+# The cross-repo POST is done by the org reusable sender
+# (FS-GG/.github → .github/workflows/dispatch-sender.yml, FS-GG/.github#22): a workflow's
+# GITHUB_TOKEN cannot trigger another repo's workflow, so it mints a least-privilege GitHub
+# App installation token scoped to SDD. That App + its two org secrets are provisioned by
+# org-admin in FS-GG/.github#21; until then the reusable sender fails closed with a pointer
+# to #21 and this stays dormant. Templates is the first adopter of the reusable sender, so
+# it establishes the org secret names FSGG_DISPATCH_APP_ID / FSGG_DISPATCH_APP_PRIVATE_KEY.
+#
+# The dispatch contract this producer defines (consumed by SDD#10):
+#   event_type:  composition-registry-updated
+#   client_payload:
+#     version             12-char sha256 of the registry file — the drift signal / identity
+#     registry_path       providers/rendering.providers.yml
+#     registry_sha256_12  same hash, explicit
+#     registry_content    the full registry YAML (SDD materializes it to a file → no secret)
+#     source_repo/sha/ref added automatically by the reusable sender
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - providers/rendering.providers.yml
+  workflow_dispatch: {}
+
+# Least privilege: prepare only needs to read the tree; the cross-repo write is performed by
+# the App installation token inside the reusable sender, never by this workflow's GITHUB_TOKEN.
+permissions:
+  contents: read
+
+concurrency:
+  # One in-flight dispatch per ref — a burst of registry edits collapses to the latest content.
+  group: acceptance-dispatch-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    name: Build dispatch payload from the current registry
+    runs-on: ubuntu-latest
+    # Canonical-repo guard: forks never send and never expose the org App secret (mirrors
+    # Rendering's template-dispatch.yml).
+    if: github.repository == 'FS-GG/FS.GG.Templates'
+    outputs:
+      version: ${{ steps.reg.outputs.version }}
+      payload: ${{ steps.reg.outputs.payload }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Encode the registry into the dispatch payload
+        id: reg
+        env:
+          REGISTRY: providers/rendering.providers.yml
+        run: |
+          set -euo pipefail
+          if [ ! -f "$REGISTRY" ]; then
+            echo "::error::registry file '$REGISTRY' not found — cannot dispatch." >&2
+            exit 1
+          fi
+          # version = content identity: changes iff the registry content changes, which is
+          # exactly the "registry drifted" signal SDD dedups/branches on.
+          version="$(sha256sum "$REGISTRY" | cut -c1-12)"
+          # --rawfile slurps the YAML verbatim into a JSON string; -c keeps it one line so it
+          # is safe to write to $GITHUB_OUTPUT as key=value. The reusable sender merges this
+          # object into client_payload last, so these keys win over its defaults.
+          payload="$(jq -cn \
+            --arg path "$REGISTRY" \
+            --arg sha "$version" \
+            --rawfile content "$REGISTRY" \
+            '{registry_path: $path, registry_sha256_12: $sha, registry_content: $content}')"
+          {
+            echo "version=$version"
+            echo "payload=$payload"
+          } >> "$GITHUB_OUTPUT"
+          echo "Prepared registry dispatch: version=$version ($REGISTRY)"
+
+  dispatch:
+    name: Dispatch composition-registry-updated → FS.GG.SDD
+    needs: prepare
+    uses: FS-GG/.github/.github/workflows/dispatch-sender.yml@main
+    with:
+      target-repo: FS-GG/FS.GG.SDD
+      event-type: composition-registry-updated
+      version: ${{ needs.prepare.outputs.version }}
+      payload: ${{ needs.prepare.outputs.payload }}
+    secrets:
+      app-id: ${{ secrets.FSGG_DISPATCH_APP_ID }}
+      app-private-key: ${{ secrets.FSGG_DISPATCH_APP_PRIVATE_KEY }}

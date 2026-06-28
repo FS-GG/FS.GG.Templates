@@ -122,6 +122,19 @@ to the published contract (canonical `name` parameter, providers `schemaVersion`
 malformed declared commands). It is gated on the package being restorable and otherwise
 **skips with a reason**, same as the scaffold stage.
 
+### Drift-free acceptance (registry → SDD)
+
+This repo owns the provider registry, so it is also the source of truth for FS.GG.SDD's
+network-gated **composition-acceptance** (which has no rendering identity of its own). On
+every change to `providers/rendering.providers.yml` — and on manual dispatch — the
+**[`acceptance-dispatch` workflow](.github/workflows/acceptance-dispatch.yml)** pushes the
+*current* registry content to SDD via the org reusable cross-repo sender
+([FS-GG/.github#22](https://github.com/FS-GG/.github/issues/22)), so SDD tests the live
+registry instead of a hand-copied secret that silently drifts. It stays dormant until
+org-admin provisions the cross-repo GitHub App secrets
+([FS-GG/.github#21](https://github.com/FS-GG/.github/issues/21)); the consuming half is
+[FS.GG.SDD#10](https://github.com/FS-GG/FS.GG.SDD/issues/10).
+
 ## Install (the template package)
 
 The templates ship as a versioned NuGet **template package** (currently `FS.GG.Templates`
@@ -159,6 +172,7 @@ future dependency change has to land in the committed lockfile instead of drifti
 | `scripts/bump-rendering-pin.sh` | re-pins `FS.GG.UI.Template` coherently across provider + README (successor to the retired `sync-from-rendering.sh`). |
 | `.github/renovate.json` | Renovate config that bumps the `FS.GG.UI.*` pin automatically. |
 | `.github/workflows/upstream-bump.yml` | `repository_dispatch`/`workflow_dispatch` auto-PR that re-pins on an upstream release. |
+| `.github/workflows/acceptance-dispatch.yml` | on a provider-registry change, pushes the current registry to FS.GG.SDD's composition-acceptance (drift-free, App-token authed). |
 | `FS.GG.Templates.csproj` | packs the templates into the updatable NuGet package; enables locked restore. |
 | `packages.lock.json` | committed NuGet lockfile (empty today; locked restore in CI prevents silent dependency drift). |
 | `docs/design.md` | the composition-vs-monolith rationale (why the vendored monolith was retired). |
