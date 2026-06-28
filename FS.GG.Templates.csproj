@@ -29,18 +29,17 @@
          PowerShell files are template *content*, not NuGet install scripts. -->
     <NoWarn>$(NoWarn);NU5128;NU5110;NU5111</NoWarn>
 
-    <!-- FS-GG/.github#7 / Feature 211 parity: lock restore for org-wide uniformity and as a
-         forward guardrail. This packaging project has NO PackageReferences today, so the
-         committed packages.lock.json is empty — the load-bearing FS.GG.UI.* enforcement for
-         *scaffolded* apps lives upstream in the rendering template (Feature 204/211) and the
-         scaffold path, not here. If a real dependency is ever added, locked restore forces the
-         lockfile update to be committed instead of silently drifting. Gated on GITHUB_ACTIONS +
-         an existing lockfile so a fresh local clone bootstraps the lockfile instead of failing.
-         These props live on the csproj (not a root Directory.Build.props) so they never leak
-         into the template *content* projects under templates/. -->
-    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
-    <RestoreLockedMode Condition="'$(GITHUB_ACTIONS)' == 'true' And Exists('$(MSBuildProjectDirectory)/packages.lock.json')">true</RestoreLockedMode>
-    <WarningsAsErrors>$(WarningsAsErrors);NU1603;NU1608</WarningsAsErrors>
+    <!-- Locked-restore enforcement (RestorePackagesWithLockFile / RestoreLockedMode gated on
+         GITHUB_ACTIONS / NU1603;NU1608→error) is now inherited from the org-shared
+         Directory.Build.props (FS-GG/.github → dist/dotnet, ADR-0006, contract
+         lockfile-restore-enforcement, synced via scripts/sync-build-config.sh). It is NOT
+         re-declared here: the csproj evaluates after the auto-imported Directory.Build.props,
+         so a local copy would shadow the org gate and break single-source-of-truth. This
+         packaging project has NO PackageReferences, so the committed packages.lock.json stays
+         empty; the load-bearing FS.GG.UI.* enforcement for *scaffolded* apps lives upstream in
+         the rendering template and the scaffold path. There are no buildable projects under
+         templates/, so CPM/locked-restore never leak into template content. Repo-specific
+         overrides, if ever needed, go in Directory.Build.local.props. -->
   </PropertyGroup>
 
   <ItemGroup>
