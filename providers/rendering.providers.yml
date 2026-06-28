@@ -5,14 +5,14 @@
 # `source` is the PUBLISHED FS.GG.UI.Template package, version-pinned with the
 # `dotnet new install` `id::version` syntax (SDD runs `dotnet new install <source>`).
 # The pin tracks the coherent template<->framework snapshot behind the immutable tag
-# `fs-gg-ui-template/v0.1.50-preview.1` (FS.GG.Rendering Feature 206; registry contract
-# `fs-gg-ui-template@0.1.50-preview.1`). Bump both the version and this comment together.
+# `fs-gg-ui-template/v0.1.52-preview.1` (FS.GG.Rendering Feature 206; registry contract
+# `fs-gg-ui-template@0.1.52-preview.1`). Bump both the version and this comment together.
 schemaVersion: 1
 providers:
   - name: rendering
     contractVersion: "1.0.0"
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.1.50-preview.1   # published NuGet package, version-pinned
+    source: FS.GG.UI.Template::0.1.52-preview.1   # published NuGet package, version-pinned
     parameters:
       # lifecycle=sdd -> app-only product + SDD skeleton (ADR-0002 composition-by-scaffold).
       # Override the template default (spec-kit) so Templates composition emits the SDD shape.
