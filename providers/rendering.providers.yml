@@ -7,12 +7,23 @@
 # The pin tracks the coherent template<->framework snapshot behind the immutable tag
 # `fs-gg-ui-template/v0.1.50-preview.1` (FS.GG.Rendering Feature 206; registry contract
 # `fs-gg-ui-template@0.1.50-preview.1`). Bump both the version and this comment together.
+#
+# This descriptor is the registry encoding of the canonical `FS.GG.Contracts` 1.0.0
+# provider surface (`Fsgg.Provider.ProviderDescriptor`): `schemaVersion` stays 1 and the
+# extended keys (`nameParameter`, and the optional `build`/`test`/`run`/`verify` declared
+# commands) are additive. `tests/composition/verify-contract.fsx` binds this file to the
+# typed records and validates it against the package — see that script and FS.GG.SDD
+# specs/038 `contracts/provider-registry-encoding.md`.
 schemaVersion: 1
 providers:
   - name: rendering
     contractVersion: "1.0.0"
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
     source: FS.GG.UI.Template::0.1.50-preview.1   # published NuGet package, version-pinned
+    # Canonical name parameter (FR-007): the `--param <key>=<ProjectName>` SDD forwards to
+    # the template as the project/product name. Encoded explicitly (not left to the "name"
+    # default) so the typed contract round-trips it. fs-gg-ui consumes `name`.
+    nameParameter: name
     parameters:
       # lifecycle=sdd -> app-only product + SDD skeleton (ADR-0002 composition-by-scaffold).
       # Override the template default (spec-kit) so Templates composition emits the SDD shape.

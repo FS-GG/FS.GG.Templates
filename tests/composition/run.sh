@@ -122,6 +122,37 @@ fi
 if grep -A2 'key: lifecycle' "$PROV" | grep -q 'default: sdd'; then ok "provider default lifecycle=sdd (ADR-0002)"; else bad "provider lifecycle default is not 'sdd'"; fi
 if grep -A2 'key: profile'   "$PROV" | grep -q 'default: app'; then ok "provider default profile=app";          else bad "provider profile default is not 'app'";  fi
 
+# ── Stage 4b: provider descriptor conforms to FS.GG.Contracts (GATED) ─────────
+step "contract — provider descriptor binds to the FS.GG.Contracts typed surface (gated)"
+# Genuinely *consume* the package (Tmpl#13 / H2): verify-contract.fsx binds
+# providers/rendering.providers.yml to Fsgg.Provider.ProviderDescriptor and validates it
+# with the contract's own functions (resolveNameParameter, isMalformed) + version constant
+# (Schemas.providersVersion) — so the descriptor can only pass if it actually conforms.
+# Gated on FS.GG.Contracts being restorable: it lives on the SDD local feed / global cache
+# locally but is not yet on nuget.org, so a feedless CI runner SKIPS with an explicit reason
+# rather than failing or silently passing (same honesty rule as the Stage 5 gate).
+CONTRACTS_PKG_VER="1.0.0"
+contracts_available() {
+  local cache="${NUGET_PACKAGES:-$HOME/.nuget/packages}/fs.gg.contracts/$CONTRACTS_PKG_VER"
+  [[ -d "$cache" ]] && return 0
+  local src
+  while read -r src; do
+    [[ -d "$src" && -f "$src/FS.GG.Contracts.$CONTRACTS_PKG_VER.nupkg" ]] && return 0
+  done < <(dotnet nuget list source --format short 2>/dev/null | sed -n 's/^E //p')
+  return 1
+}
+if [[ "${FSGG_COMPOSITION_NO_CONTRACT:-}" == "1" ]]; then
+  skip "FSGG_COMPOSITION_NO_CONTRACT=1 — provider/contract binding stage disabled by request"
+elif contracts_available; then
+  if dotnet fsi "$REPO_ROOT/tests/composition/verify-contract.fsx" "$PROV" >"$WORKDIR/contract.log" 2>&1; then
+    ok "provider descriptor conforms to FS.GG.Contracts $CONTRACTS_PKG_VER (name param + schema version + declared commands)"
+  else
+    bad "provider descriptor FAILS FS.GG.Contracts conformance (see $WORKDIR/contract.log)"; sed -n '2,$p' "$WORKDIR/contract.log"
+  fi
+else
+  skip "FS.GG.Contracts $CONTRACTS_PKG_VER not restorable (no local feed / global cache) — provider↔contract binding not exercised here. Run where the SDD local feed is registered (or the package is cached/published) to require it. The gate keeps CI honest rather than green-by-omission."
+fi
+
 # ── Stage 5: full scaffold + build (GATED) ───────────────────────────────────
 step "build — full fsgg-sdd scaffold + product build (gated)"
 if command -v fsgg-sdd >/dev/null 2>&1; then

@@ -114,6 +114,14 @@ asserts the pins/links: parameter substitution lands, the governance gate set is
 `fsgg-sdd` CLI and a reachable template feed; that stage runs when they are available and
 otherwise **skips with a reason** (it never green-passes by omission).
 
+A separate **contract** stage binds `providers/rendering.providers.yml` to the canonical
+[`FS.GG.Contracts`](https://github.com/FS-GG/FS.GG.SDD) `1.0.0` typed provider surface
+(`tests/composition/verify-contract.fsx`) and validates it with the package's own
+functions and version constant — so the descriptor can only pass if it genuinely conforms
+to the published contract (canonical `name` parameter, providers `schemaVersion`, no
+malformed declared commands). It is gated on the package being restorable and otherwise
+**skips with a reason**, same as the scaffold stage.
+
 ## Install (the template package)
 
 The templates ship as a versioned NuGet **template package** (currently `FS.GG.Templates`
@@ -145,7 +153,8 @@ future dependency change has to land in the committed lockfile instead of drifti
 |---|---|
 | `providers/rendering.providers.yml` | the SDD scaffold-provider descriptor, pinned to `FS.GG.UI.Template` and passing `lifecycle=sdd` (the **primary** composition path). |
 | `templates/fs-gg-governance/` | the populated Governance-config overlay (`fs-gg-governance`). |
-| `tests/composition/run.sh` | end-to-end composition test (pack→install→instantiate→build→verify pins/links). |
+| `tests/composition/run.sh` | end-to-end composition test (pack→install→instantiate→build→verify pins/links + contract conformance). |
+| `tests/composition/verify-contract.fsx` | binds the provider descriptor to the typed `FS.GG.Contracts` surface and validates it against the package (the canonical-`name`/schema-version/declared-command checks). |
 | `scripts/new-fullstack.sh` | three-step wrapper for the `fsgg-sdd scaffold` composition path. |
 | `scripts/bump-rendering-pin.sh` | re-pins `FS.GG.UI.Template` coherently across provider + README (successor to the retired `sync-from-rendering.sh`). |
 | `.github/renovate.json` | Renovate config that bumps the `FS.GG.UI.*` pin automatically. |
