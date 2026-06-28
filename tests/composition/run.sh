@@ -153,6 +153,40 @@ else
   skip "FS.GG.Contracts $CONTRACTS_PKG_VER not restorable (no local feed / global cache) — provider↔contract binding not exercised here. Run where the SDD local feed is registered (or the package is cached/published) to require it. The gate keeps CI honest rather than green-by-omission."
 fi
 
+# ── Stage 4c: governance overlay is generated from the pinned gate set (GATED) ─
+step "drift — fs-gg-governance overlay regenerates byte-identical from ReferenceGateSet (gated)"
+# The overlay (templates/fs-gg-governance/.fsgg/) is GENERATED, not hand-copied (Tmpl#14 / H3):
+# scripts/generate-governance-overlay.sh pulls the pinned FS.GG.Governance.ReferenceGateSet content
+# package and re-parameterizes it into the two template tokens. This gate is the literal acceptance
+# — regenerate, then `git diff --exit-code` — so a Governance gate-set change that isn't re-pinned
+# here fails CI instead of silently drifting from the committed overlay.
+# Gated on the same restorability rule as the contract stage: the gate set lives on the SDD/
+# Governance local feed locally but is not yet on nuget.org, so a feedless CI runner SKIPS with an
+# explicit reason rather than failing or passing-by-omission.
+GATE_SET_PKG_VER="$(GATE_SET_VERSION="${GATE_SET_VERSION:-1.2.1.1}"; echo "$GATE_SET_VERSION")"
+gateset_available() {
+  local cache="${NUGET_PACKAGES:-$HOME/.nuget/packages}/fs.gg.governance.referencegateset/$GATE_SET_PKG_VER"
+  [[ -d "$cache" ]] && return 0
+  local src
+  while read -r src; do
+    [[ -d "$src" && -f "$src/FS.GG.Governance.ReferenceGateSet.$GATE_SET_PKG_VER.nupkg" ]] && return 0
+  done < <(dotnet nuget list source --format short 2>/dev/null | sed -n 's/^E //p')
+  return 1
+}
+if [[ "${FSGG_COMPOSITION_NO_DRIFT:-}" == "1" ]]; then
+  skip "FSGG_COMPOSITION_NO_DRIFT=1 — governance overlay drift gate disabled by request"
+elif gateset_available; then
+  # Non-mutating --check (regenerate to a temp dir + diff) — equivalent to the documented
+  # `generate-governance-overlay.sh && git diff --exit-code` but it never touches the working tree.
+  if "$REPO_ROOT/scripts/generate-governance-overlay.sh" --check >"$WORKDIR/drift.log" 2>&1; then
+    ok "fs-gg-governance overlay is in sync with ReferenceGateSet $GATE_SET_PKG_VER (no drift)"
+  else
+    bad "fs-gg-governance overlay DRIFTED from ReferenceGateSet $GATE_SET_PKG_VER — re-run scripts/generate-governance-overlay.sh and commit"; sed -n '2,$p' "$WORKDIR/drift.log"
+  fi
+else
+  skip "FS.GG.Governance.ReferenceGateSet $GATE_SET_PKG_VER not restorable (no local feed / global cache) — overlay drift not exercised here. Run where the Governance local feed is registered (or the package is published) to require it. The gate keeps CI honest rather than green-by-omission."
+fi
+
 # ── Stage 5: full scaffold + build (GATED) ───────────────────────────────────
 step "build — full fsgg-sdd scaffold + product build (gated)"
 if command -v fsgg-sdd >/dev/null 2>&1; then
