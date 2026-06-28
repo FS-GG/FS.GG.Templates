@@ -69,7 +69,8 @@ that fork is what went stale.
 the feed. NuGet did not fail; it emitted **NU1603** and floated each `FS.GG.UI.*` package
 to a *different* nearest version, so the vendored sample source compiled against a
 mismatched Scene API and the build failed with 19 errors. It was resolved by re-pinning to
-the coherent 16-package set behind tag `fs-skia-ui/v0.1.50-preview.1`.
+the coherent 16-package set behind tag `fs-gg-ui/v0.1.50-preview.1` (renamed from
+`fs-skia-ui/v0.1.50-preview.1` per ADR-0003; re-pointed at the same commits).
 
 The root cause is **not** a bad number. It is that **Templates holds a hand-copied fork of
 an upstream payload**, so upstream drift is invisible until a consumer compiles it, and
@@ -289,10 +290,10 @@ no-blocking default for first-touch.
 Producer side (Rendering already does most of this):
 
 - **Lockstep, single version property.** All `FS.GG.UI.*` packages + the template package
-  pack under one `<Version>`/`FsSkiaUiVersion` from `Directory.Build.props`. This is what
+  pack under one `<Version>`/`FsGgUiVersion` from `Directory.Build.props`. This is what
   makes "the v0.1.50 set" a meaningful, verifiable thing.
   ([CPM](https://learn.microsoft.com/en-us/nuget/consume-packages/central-package-management))
-- **Tag the coherent snapshot** (`fs-skia-ui/v<ver>`), as already done. The tag is the
+- **Tag the coherent snapshot** (`fs-gg-ui/v<ver>`), as already done. The tag is the
   human snapshot; the pin is its machine form.
 - **Optional: a `FS.GG.UI` BOM/metapackage** that depends on the exact 16-package set at one
   version. The template's `fsproj` then references one package, not sixteen, and the pin is

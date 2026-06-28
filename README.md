@@ -53,7 +53,7 @@ It produces:
 
 `dotnet new` cannot include or depend on another template, so a one-invocation
 "full-stack" template could only exist by **vendoring** a copy of the rendering payload —
-a fork that goes stale when Rendering changes (this is exactly the `FsSkiaUiVersion`
+a fork that goes stale when Rendering changes (this is exactly the `FsGgUiVersion`
 staleness class that broke the old monolith). Composing at scaffold time installs the
 pinned upstream package directly, so there is no fork to drift. See `docs/design.md` and
 the [architecture report](docs/reports/2026-06-27-fsgg-packaging-composition-and-governance-architecture.md).
