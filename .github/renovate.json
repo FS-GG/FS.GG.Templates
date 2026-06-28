@@ -1,11 +1,15 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["github>FS-GG/.github"],
-  "description": "Extends the org-shared FS-GG preset (github>FS-GG/.github), which provides config:recommended + dependency dashboard + semantic commits, the GitHub Packages registry for FS.GG.*, the FS.GG.UI coherent-set grouping, the -preview channel, and the shared custom managers. This repo adds only the manager that moves the single FS.GG.UI.Template version pin in providers/rendering.providers.yml + README when Rendering publishes — replacing the retired scripts/sync-from-rendering.sh.",
+  "extends": [
+    "github>FS-GG/.github"
+  ],
+  "description": "Extends the org-shared FS-GG preset (github>FS-GG/.github), which provides config:recommended + dependency dashboard + semantic commits, the GitHub Packages registry for FS.GG.*, the FS.GG.UI coherent-set grouping, the -preview channel, and the shared custom managers. This repo adds only the manager that moves the single FS.GG.UI.Template version pin in providers/rendering.providers.yml + README when Rendering publishes \u2014 replacing the retired scripts/sync-from-rendering.sh.",
   "packageRules": [
     {
       "description": "Rewrite the exact pinned FS.GG.UI.* value rather than widening a range (the pin coherence that tests/composition/run.sh enforce).",
-      "matchPackageNames": ["FS.GG.UI.*"],
+      "matchPackageNames": [
+        "FS.GG.UI.*"
+      ],
       "rangeStrategy": "bump"
     }
   ],
@@ -26,6 +30,14 @@
       "depNameTemplate": "FS.GG.UI.Template",
       "datasourceTemplate": "nuget",
       "versioningTemplate": "nuget"
+    }
+  ],
+  "hostRules": [
+    {
+      "description": "read:packages auth for the private org GitHub Packages NuGet feed (FS.GG.* are not on nuget.org). Lives in this repo's own config \u2014 NOT the shared preset \u2014 because Renovate does not substitute {{ secrets }} inside presets pulled via extends. Value = org-level Mend App Secret FSGG_PACKAGES_READ_TOKEN.",
+      "matchHost": "nuget.pkg.github.com",
+      "hostType": "nuget",
+      "token": "{{ secrets.FSGG_PACKAGES_READ_TOKEN }}"
     }
   ]
 }
