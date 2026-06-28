@@ -40,7 +40,7 @@ framework copy**. `scripts/new-fullstack.sh` + `providers/rendering.providers.ym
   flagged as a provider writing into the SDD-owned `.fsgg/` tree.
 
 Because the rendering payload is installed live from its pinned upstream package, there
-is no fork to drift — the `FsSkiaUiVersion` staleness class (below) is structurally gone.
+is no fork to drift — the `FsGgUiVersion` staleness class (below) is structurally gone.
 
 ## Update function
 
@@ -56,7 +56,7 @@ invocation — no `fsgg-sdd` CLI required. Because `dotnet new` cannot include o
 another template, a single self-contained template had to **vendor** the `fs-gg-ui`
 rendering payload into `templates/fs-gg-fullstack/`, refreshed by a
 `scripts/sync-from-rendering.sh` maintainer script. That vendored copy is a fork that
-goes stale whenever Rendering changes (the `FsSkiaUiVersion` staleness class). The
+goes stale whenever Rendering changes (the `FsGgUiVersion` staleness class). The
 one-invocation UX did not justify a perpetual drift liability, so the monolith and its
 sync script were **removed** in favor of scaffold-time composition (P4 on the FS-GG
 Coordination board).
