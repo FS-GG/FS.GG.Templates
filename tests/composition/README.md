@@ -33,18 +33,27 @@ each independently gated and never green-by-omission:
   `2`) over a contract-v1 handoff fixture and holds the product fixed while varying only
   *(handoff, profile)*:
 
-  | profile | handoff | expected | proves |
-  |---|---|---|---|
-  | `strict` | failing | exit `2` | the overlay **consumes and enforces** the handoff |
-  | `strict` | satisfied | exit `0` | the verdict tracks the declared facts (consumption is real, not just populated) |
-  | `light` | failing | exit `0` | the profile shifts the blocking boundary (`light` is non-blocking) |
+  | profile | handoff | expected | proves | gated on |
+  |---|---|---|---|---|
+  | `strict` | failing | exit `2` | the overlay **consumes and enforces** the handoff | consumer (#28) |
+  | `strict` | satisfied | exit `0` | the verdict tracks the declared facts (consumption is real, not just populated) | consumer (#28) |
+  | `light` | failing | exit `0` | the profile shifts the blocking boundary (`light` relaxes the gate) | profile-aware enforcement (#34) |
 
-  The stage first **probes**: it runs `strict + failing` and, if that does **not** block
-  (exit `0`), the installed CLI's build omits the SDD-handoff consumer
-  (`FS.GG.Governance.Adapters.SddHandoff`, spec `081`) — so it **skips with a reason**
-  (tracking: `FS-GG/FS.GG.Governance#28`) rather than asserting a matrix the tool cannot
-  satisfy. It flips to asserting the full matrix automatically once a consumer-bearing CLI
-  is on `PATH`. A usage/input/tool exit (`64`/`66`/`70`) is a hard failure, never a skip.
+  Two capabilities are gated **independently**, because consumption and profile-awareness ship
+  separately upstream — a coarse "consumption ⇒ whole matrix" assumption would false-fail
+  against the strict-only baseline:
+
+  - **Consumption probe** — the stage runs `strict + failing` first. If it does **not** block
+    (exit `0`), the installed CLI's build omits the SDD-handoff consumer
+    (`FS.GG.Governance.Adapters.SddHandoff`, spec `081`) — so the whole matrix **skips with a
+    reason** (tracking: `FS-GG/FS.GG.Governance#28`). It flips to asserting the consumption rows
+    automatically once a consumer-bearing CLI (`FS.GG.Governance.Cli >= 1.1.0`) is on `PATH`.
+  - **Profile-aware probe** — with consumption confirmed, the stage runs `light + failing`. The
+    strict-only baseline (`1.1.0`) consumes the handoff but blocks regardless of profile, so this
+    row **skips with a reason** (tracking: `FS-GG/FS.GG.Governance#34`) while `light` still blocks,
+    and flips to asserting `exit 0` once profile-aware enforcement ships.
+
+  A usage/input/tool exit (`64`/`66`/`70`) is always a hard failure, never a skip.
 
 ```sh
 tests/composition/run.sh                          # owned stages only; gated stages skip

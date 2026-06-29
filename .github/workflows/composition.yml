@@ -8,11 +8,27 @@ on:
 jobs:
   composition:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read   # pull the published Governance CLI from the org feed (below)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      # Install the published consumer-bearing Governance CLI so the `govern` stage ASSERTS
+      # the SDD→Governance enforcement loop instead of skipping. FS.GG.Governance.Cli >= 1.1.0
+      # carries the spec-081 handoff consumer (FS.GG.Governance#28). Tolerant by design: if the
+      # org feed or token is unavailable the tool stays absent and the stage SKIPs with a reason
+      # rather than breaking CI — never green-by-omission, never false-fail.
+      - name: Install Governance CLI (enables the govern enforcement stage)
+        continue-on-error: true
+        run: |
+          dotnet nuget add source \
+            --username FS-GG --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text \
+            --name fs-gg-github "https://nuget.pkg.github.com/FS-GG/index.json" || true
+          dotnet tool install --global FS.GG.Governance.Cli || true
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       # FS-GG/.github#7 (Feature 211 parity): locked restore against the committed
       # packages.lock.json. The packaging project has no NuGet dependencies today, so this is a
       # forward guardrail — if a PackageReference is ever added, drift fails CI instead of

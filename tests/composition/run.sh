@@ -257,18 +257,31 @@ JSON
   ES="$(govern_exit)"
   case "$ES" in
     2)
-      # The installed CLI consumes & enforces the handoff — assert the full matrix.
+      # The installed CLI consumes & enforces the handoff (capability #28: shipped in
+      # FS.GG.Governance.Cli >= 1.1.0). Assert the consumption rows now.
       ok "strict + failing handoff → blocked (exit 2): the overlay consumed the handoff and ENFORCED it"
       write_handoff "$HANDOFF" satisfied
       assert_exit 0 "$(govern_exit)" "strict + satisfied handoff → clean verdict — the verdict tracks the declared facts, so consumption is real (not just overlay-populated)"
+
+      # Profile-aware relaxation is a SEPARATE upstream capability from consumption: `light`
+      # must shift the blocking boundary so the same failing handoff stops blocking. The
+      # strict-only baseline (1.1.0) consumes the handoff but does not yet relax by profile
+      # (FS.GG.Governance#34). So probe this row independently — a coarse "consumption ⇒ whole
+      # matrix" assumption would false-fail against the strict-only baseline. SKIP-with-reason
+      # while light still blocks; flip to a hard assertion automatically once #34 ships.
       write_handoff "$HANDOFF" failing; set_profile light
-      assert_exit 0 "$(govern_exit)" "light + same failing handoff → not blocked — profile shifts the blocking boundary; the overlay enforces only when the profile says so"
+      LES="$(govern_exit)"
+      case "$LES" in
+        0) ok "light + same failing handoff → not blocked (exit 0): the profile shifts the blocking boundary — the overlay enforces only when the profile says so" ;;
+        2) skip "light + same failing handoff still blocks (route --mode gate exited 2) — the installed CLI consumes the handoff but is not yet profile-aware (strict-only baseline; light does not relax the gate boundary). The light-passes row is asserted automatically once profile-aware enforcement ships. Tracking: FS-GG/FS.GG.Governance#34." ;;
+        *) bad "fsgg-governance route (light + failing) returned exit $LES (usage/input/tool error, not a verdict) — see $WORKDIR/govern.log" ;;
+      esac
       ;;
     0)
       # A failing handoff did not block ⇒ the installed CLI's build does not consume the handoff.
       # Honest SKIP (not a false pass, not a false fail): the loop is asserted in full the moment
       # a consumer-bearing CLI is on PATH. See the cross-repo tracking issue.
-      skip "installed fsgg-governance did NOT enforce a failing handoff (route --mode gate exited 0, selecting no handoff gate) — its build omits the SDD-handoff consumer (FS.GG.Governance spec 081, FS.GG.Governance.Adapters.SddHandoff). The strict-blocks/light-passes matrix is asserted automatically once a consumer-bearing CLI is published. Tracking: FS-GG/FS.GG.Governance#28."
+      skip "installed fsgg-governance did NOT enforce a failing handoff (route --mode gate exited 0, selecting no handoff gate) — its build omits the SDD-handoff consumer (FS.GG.Governance spec 081, FS.GG.Governance.Adapters.SddHandoff). The strict-blocks/strict-passes consumption rows assert automatically once a consumer-bearing CLI (FS.GG.Governance.Cli >= 1.1.0) is on PATH; the light-relaxation row is gated separately on #34. Tracking: FS-GG/FS.GG.Governance#28."
       ;;
     *)
       bad "fsgg-governance route returned exit $ES (usage/input/tool error, not a verdict) — see $WORKDIR/govern.log"
