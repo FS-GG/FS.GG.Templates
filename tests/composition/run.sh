@@ -93,14 +93,19 @@ fi
 
 # ── Stage 4: verify pins/links ───────────────────────────────────────────────
 step "verify — emitted files"
-for f in project.yml policy.yml capabilities.yml tooling.yml; do
+# The governance descriptor lives in the Governance-owned `.fsgg/governance.yml` slot
+# (ADR-0005; registry `governance-descriptor` surface) — NOT the SDD-owned `.fsgg/project.yml`,
+# which it would otherwise collide with in a composed product's shared `.fsgg/`.
+for f in governance.yml policy.yml capabilities.yml tooling.yml; do
   [[ -f "$APP/.fsgg/$f" ]] && ok ".fsgg/$f emitted" || bad ".fsgg/$f missing"
 done
+# Guard the ADR-0005 slot: the overlay must NOT write the SDD-owned project.yml.
+[[ -f "$APP/.fsgg/project.yml" ]] && bad ".fsgg/project.yml present — overlay wrote the SDD-owned slot (ADR-0005 violation)" || ok "no stray .fsgg/project.yml (SDD slot left to SDD)"
 
 step "verify — parameter substitution (no stray tokens)"
 assert_absent "$APP/.fsgg" "<App>"             "appName token '<App>' fully substituted"
 assert_absent "$APP/.fsgg" "GOV_DEFAULT_PROFILE" "profile token 'GOV_DEFAULT_PROFILE' fully substituted"
-assert_contains "$APP/.fsgg/project.yml"  "id: Acme"            "appName -> project.yml id"
+assert_contains "$APP/.fsgg/governance.yml"  "id: Acme"          "appName -> governance.yml id"
 assert_contains "$APP/.fsgg/tooling.yml"  "dotnet build Acme.sln" "appName -> tooling build command"
 assert_contains "$APP/.fsgg/tooling.yml"  "dotnet test Acme.sln"  "appName -> tooling test command"
 assert_contains "$APP/.fsgg/policy.yml"   "defaultProfile: strict" "defaultProfile -> policy default"
@@ -263,17 +268,18 @@ JSON
       write_handoff "$HANDOFF" satisfied
       assert_exit 0 "$(govern_exit)" "strict + satisfied handoff → clean verdict — the verdict tracks the declared facts, so consumption is real (not just overlay-populated)"
 
-      # Profile-aware relaxation is a SEPARATE upstream capability from consumption: `light`
-      # must shift the blocking boundary so the same failing handoff stops blocking. The
-      # strict-only baseline (1.1.0) consumes the handoff but does not yet relax by profile
-      # (FS.GG.Governance#34). So probe this row independently — a coarse "consumption ⇒ whole
-      # matrix" assumption would false-fail against the strict-only baseline. SKIP-with-reason
-      # while light still blocks; flip to a hard assertion automatically once #34 ships.
+      # Profile-aware relaxation is a SEPARATE capability from consumption: `light` must shift the
+      # blocking boundary so the same failing handoff stops blocking. This requires BOTH (a) the
+      # overlay shipping its descriptor in the Governance-owned `.fsgg/governance.yml` slot so the
+      # CLI can read `defaultProfile` (Templates#28 — fixed here; absent it, the loader falls back
+      # to the Strict fail-safe and over-blocks under every profile), and (b) a profile-aware CLI
+      # (FS.GG.Governance.Cli >= 1.2.0, FS.GG.Governance#34). With (a) fixed this asserts against a
+      # profile-aware CLI; an older profile-unaware CLI (1.1.0) still over-blocks → honest SKIP.
       write_handoff "$HANDOFF" failing; set_profile light
       LES="$(govern_exit)"
       case "$LES" in
         0) ok "light + same failing handoff → not blocked (exit 0): the profile shifts the blocking boundary — the overlay enforces only when the profile says so" ;;
-        2) skip "light + same failing handoff still blocks (route --mode gate exited 2) — the installed CLI consumes the handoff but is not yet profile-aware (strict-only baseline; light does not relax the gate boundary). The light-passes row is asserted automatically once profile-aware enforcement ships. Tracking: FS-GG/FS.GG.Governance#34." ;;
+        2) skip "light + same failing handoff still blocks (route --mode gate exited 2) — the descriptor slot is correct (governance.yml), so this is an older profile-unaware CLI (pre-1.2.0 strict-only baseline; light does not yet relax the gate boundary). The light-passes row asserts automatically once a profile-aware CLI (>= 1.2.0) is on PATH. Tracking: FS-GG/FS.GG.Governance#34." ;;
         *) bad "fsgg-governance route (light + failing) returned exit $LES (usage/input/tool error, not a verdict) — see $WORKDIR/govern.log" ;;
       esac
       ;;
