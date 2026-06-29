@@ -150,6 +150,10 @@ child should carry acceptance criteria, `Contract`, and `Blocked by`.
 - `governance`: **ship the handoff *consumer*** (ADR-0002 queued work) — today
   `governance-handoff.json` is *produced* by SDD but not *enforced*. This is the real gap;
   track it explicitly. (`Contract`: `governance-handoff`.)
+  > **Update (2026-06-29): shipped.** The consumer landed (FS.GG.Governance specs 081/082;
+  > epic FS-GG/FS.GG.Governance#8 closed) and the loop is enforced end-to-end through the
+  > composed product (Templates#25 composition `govern` stage, matrix GREEN). The gap is
+  > closed.
 
 ### P4 — Templates: retire the monolith · repo `templates` · Workstream Composition
 **Epic:** "Templates becomes registry + populated overlay, not a fork host."
@@ -251,6 +255,9 @@ Notes / caveats:
   P1–P5 before approval risks churn — keep them `Backlog`/draft until P0 lands.
 - **Governance enforcement is not wired yet** (P3 / Governance ADR-0002): the board should
   show this as open work, not a done capability.
+  > **Update (2026-06-29): no longer a risk.** Enforcement is wired and proven end-to-end
+  > (consumer shipped — Governance specs 081/082, epic #8 closed; Templates#25 composition
+  > test GREEN). The board shows P3 as Done.
 - **Automation noise:** prefer label-scoped `auto-add` (e.g. a `roadmap` label) over
   add-everything, given repos also carry routine PRs.
 
