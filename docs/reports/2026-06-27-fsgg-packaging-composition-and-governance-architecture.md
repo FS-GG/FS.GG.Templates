@@ -226,6 +226,17 @@ A thin **composition + registry** repo, not a fork host:
 
 ## 6. How governance actually turns on (it currently does not)
 
+> **Update (2026-06-29):** it now does. The Governance-side handoff *consumer* shipped
+> (FS.GG.Governance specs `081-sdd-handoff-consumer` + `082-route-governed-refs`; epic
+> FS-GG/FS.GG.Governance#8 closed; `governance-handoff@1.0.0` registered in the registry),
+> and the overlay was repointed at the **populated** reference gate set. The full
+> SDD→Governance enforcement loop is now proven **end-to-end through the composed product**:
+> the Templates#25 composition `govern` stage installs the published `FS.GG.Governance.Cli`
+> from the org feed in CI and asserts the matrix GREEN (`tests/composition/run.sh` — 32
+> passed: strict+failing→exit2, strict+satisfied→exit0, light+failing→exit0). The section
+> below records the original (empty-stub) state and the recommendation that produced this;
+> read it as history.
+
 The governed product's `.fsgg/capabilities.yml` and `tooling.yml` ship **empty**
 (`checks: []`, `commands: []`). Per FS.GG.SDD's `adopting-governance.md` this is *valid* —
 SDD never reads them to gate; they are optional compatibility facts (state
@@ -277,6 +288,12 @@ and `deriveEffectiveSeverity` decides where a `block-on-*` finding becomes block
 `fsgg-governance` consumes it and decides. Note the Governance-side consumer is **queued
 work** (FS.GG.Governance ADR-0002), so the handoff is *produced* today but not yet
 *enforced* — a real gap to track, not assume closed.
+
+> **Update (2026-06-29):** the consumer shipped (specs 081/082; epic
+> FS-GG/FS.GG.Governance#8 closed) and the seam is closed — `fsgg-governance` consumes the
+> emitted `governance-handoff.json` and decides, verified end-to-end by the Templates#25
+> composition test. The residual work is no longer the consumer but keeping that
+> composed-product end-to-end test green as the CLI and gate set version forward.
 
 **Recommendation:** ship a populated default gate set (build + test + the in-process
 `EvidenceGraph`/`EvidenceAudit` already in `build.fsx`) in the `fs-gg-governance` overlay so
@@ -378,6 +395,12 @@ Each step is a normal PR in its repo; cross-repo asks go through the issue proto
 - **Governance enforcement is not actually wired yet** — the handoff *consumer* is queued
   (Governance ADR-0002). "Governance-driven" is partly forward-looking; the doc should not
   claim gates run end-to-end until that ships.
+  > **Update (2026-06-29): resolved.** The consumer shipped (Governance specs 081/082; epic
+  > FS-GG/FS.GG.Governance#8 closed) and gates now run end-to-end through the composed
+  > product, proven by the Templates#25 composition test (`tests/composition/run.sh`, 32
+  > passed). "Governance-driven" is no longer forward-looking. The residual work is the
+  > composed-product end-to-end test itself — already delivered — kept green as the CLI and
+  > gate set version forward, not the consumer.
 - **Two-tool install** (`fsgg-sdd` + `fsgg-governance`) for the full governed experience.
   Acceptable: governance is opt-in; `light`/absent is a no-op.
 - **`fs-gg-ui` default stays `spec-kit`** to avoid breaking Rendering's own tests — so the
