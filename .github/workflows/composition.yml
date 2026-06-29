@@ -16,18 +16,23 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      # Install the published consumer-bearing Governance CLI so the `govern` stage ASSERTS
-      # the SDD→Governance enforcement loop instead of skipping. FS.GG.Governance.Cli >= 1.1.0
-      # carries the spec-081 handoff consumer (FS.GG.Governance#28). Tolerant by design: if the
-      # org feed or token is unavailable the tool stays absent and the stage SKIPs with a reason
-      # rather than breaking CI — never green-by-omission, never false-fail.
-      - name: Install Governance CLI (enables the govern enforcement stage)
-        continue-on-error: true
+      # Install the published FS-GG CLIs from the org feed so the gated stages ASSERT instead of
+      # skipping (never green-by-omission). Both consume the org GitHub Packages feed via the
+      # run-scoped GITHUB_TOKEN (packages: read).
+      #   - Governance CLI (>= 1.1.0, spec-081 consumer; FS.GG.Governance#28): drives the `govern`
+      #     consumer/enforcement matrix. Tolerant — an unreachable feed degrades to an honest SKIP
+      #     (the matrix never false-fails on a missing tool).
+      #   - SDD CLI: puts `fsgg-sdd` on PATH, which flips BOTH the full scaffold+build stage and the
+      #     producer seam (`fsgg-sdd ship` emits readiness/<id>/governance-handoff.json) from SKIP to
+      #     a hard gate. Required (no `|| true`): if it cannot install we want CI to surface it, not
+      #     silently drop the producer-seam coverage we are explicitly enabling here.
+      - name: Install FS-GG CLIs (governance enforcement + sdd producer/scaffold)
         run: |
           dotnet nuget add source \
             --username FS-GG --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text \
             --name fs-gg-github "https://nuget.pkg.github.com/FS-GG/index.json" || true
           dotnet tool install --global FS.GG.Governance.Cli || true
+          dotnet tool install --global FS.GG.SDD.Cli
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       # FS-GG/.github#7 (Feature 211 parity): locked restore against the committed
       # packages.lock.json. The packaging project has no NuGet dependencies today, so this is a
@@ -35,8 +40,9 @@ jobs:
       # resolving silently. Regenerate with: dotnet restore FS.GG.Templates.csproj --force-evaluate
       - name: Restore (locked)
         run: dotnet restore FS.GG.Templates.csproj --locked-mode
-      # Owned stages (pack → install → instantiate → verify pins/links) run fully.
-      # The full fsgg-sdd scaffold+build stage skips here (CLI not installed) by design —
-      # see tests/composition/run.sh. It is exercised where the SDD CLI is available.
+      # Owned stages (pack → install → instantiate → verify pins/links) run fully. With both
+      # CLIs installed above, the gated stages also run as hard gates: the full fsgg-sdd
+      # scaffold+build of the live rendering app (Stage 5), the producer seam (`fsgg-sdd ship`,
+      # Stage 6a), and the governance enforcement matrix (Stage 6b). See tests/composition/run.sh.
       - name: composition test
         run: tests/composition/run.sh
