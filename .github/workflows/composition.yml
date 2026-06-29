@@ -34,6 +34,14 @@ jobs:
           dotnet tool install --global FS.GG.Governance.Cli || true
           dotnet tool install --global FS.GG.SDD.Cli
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+      # (diag, temporary) reproduce exactly what the rendering provider does, to surface the
+      # real error behind fsgg-sdd's opaque "provider exited 103". Remove once green.
+      - name: (diag) reproduce provider template install
+        continue-on-error: true
+        run: |
+          set -x
+          dotnet new install "FS.GG.UI.Template::0.1.52-preview.1"; echo "install exit=$?"
+          dotnet new list 2>&1 | grep -iE "fs-gg-ui|FS.GG.UI" || echo "no fs-gg-ui template registered"
       # FS-GG/.github#7 (Feature 211 parity): locked restore against the committed
       # packages.lock.json. The packaging project has no NuGet dependencies today, so this is a
       # forward guardrail — if a PackageReference is ever added, drift fails CI instead of
