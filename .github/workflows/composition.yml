@@ -40,18 +40,6 @@ jobs:
           dotnet tool install --global FS.GG.Governance.Cli || true
           dotnet tool install --global FS.GG.SDD.Cli
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
-      # (diag, temporary) reproduce the rendering provider's template steps directly to surface
-      # the real cause behind fsgg-sdd's opaque "provider exited 127". Remove once green.
-      - name: (diag) run the real fsgg-sdd scaffold with full output
-        continue-on-error: true
-        env:
-          FEED_TOKEN: ${{ secrets.FSGG_PACKAGES_PAT }}
-        run: |
-          export PATH="$HOME/.dotnet/tools:$PATH"
-          echo "=== fsgg-sdd scaffold --help ==="; fsgg-sdd scaffold --help 2>&1 | head -50
-          echo "=== run new-fullstack.sh (full stdout+stderr) ==="
-          bash scripts/new-fullstack.sh /tmp/full2 Acme 0.1.52-preview.1 2>&1 | tail -80
-          echo "new-fullstack exit=${PIPESTATUS[0]}"
       # FS-GG/.github#7 (Feature 211 parity): locked restore against the committed
       # packages.lock.json. The packaging project has no NuGet dependencies today, so this is a
       # forward guardrail — if a PackageReference is ever added, drift fails CI instead of
