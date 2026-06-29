@@ -23,11 +23,14 @@ mkdir -p ./MyApp/.fsgg
 cp providers/rendering.providers.yml ./MyApp/.fsgg/providers.yml
 
 # 2. SDD skeleton + the live FS.GG.Rendering app (lifecycle=sdd → app-only product).
-fsgg-sdd scaffold --root ./MyApp --provider rendering --param productName=MyApp
+#    The product name rides the rendering template's standard `--name` option
+#    (fsgg-sdd maps `--param name=…` → `--name …`).
+fsgg-sdd scaffold --root ./MyApp --provider rendering --param name=MyApp
 
 # 3. Activate Governance: drop the populated reference gate set into the project.
+#    `--force` lets the overlay's .fsgg/project.yml land over the SDD skeleton's.
 dotnet new install ./templates/fs-gg-governance
-dotnet new fs-gg-governance -o ./MyApp --appName MyApp --defaultProfile light
+dotnet new fs-gg-governance -o ./MyApp --appName MyApp --defaultProfile light --force
 
 cd ./MyApp && dotnet build && dotnet run     # the runnable Skia/Elmish product
 ```

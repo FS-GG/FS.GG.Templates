@@ -26,13 +26,20 @@ sed "s|__RENDERING_TEMPLATE_SOURCE__|$RENDERING_SOURCE|" \
 # 2. SDD skeleton + full Rendering app, recorded in scaffold-provenance.
 #    (fsgg-sdd installs/updates and runs the provider template; produced runtime
 #    files are marked externally owned.)
-fsgg-sdd scaffold --root "$TARGET" --provider rendering --param "productName=$PRODUCT"
+#    The product name is forwarded to the rendering template's standard `--name`
+#    option (fsgg-sdd maps `--param <k>=<v>` -> `--<k> <v>`). The pinned
+#    FS.GG.UI.Template derives all generated project names from `--name`; it has
+#    no `productName` parameter, so passing `productName=` makes `dotnet new`
+#    reject an unknown option (exit 127).
+fsgg-sdd scaffold --root "$TARGET" --provider rendering --param "name=$PRODUCT"
 
 # 3. Activate Governance: drop policy/capabilities/tooling config into the project.
 #    Done after scaffold (not via the provider) so it is not flagged as a provider
-#    writing into the SDD-owned .fsgg/ tree.
+#    writing into the SDD-owned .fsgg/ tree. `--force` lets the overlay land its
+#    own .fsgg/project.yml over the one the SDD skeleton already wrote (otherwise
+#    dotnet new refuses the overwrite with exit 73 and the gate set never lands).
 dotnet new install "$REPO_ROOT/templates/fs-gg-governance" >/dev/null 2>&1 || true
-dotnet new fs-gg-governance -o "$TARGET"
+dotnet new fs-gg-governance -o "$TARGET" --appName "$PRODUCT" --force
 
 echo "Full-stack product created in $TARGET (SDD + Rendering + Governance)."
 echo "Next: cd $TARGET && dotnet build && dotnet run; then fsgg-sdd charter."

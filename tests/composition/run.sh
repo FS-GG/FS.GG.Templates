@@ -137,6 +137,17 @@ if [[ "$RUN_FULL" == "1" ]]; then
   else
     bad "full scaffold/build failed (see $WORKDIR/scaffold.log, $WORKDIR/build.log)"
   fi
+  # The scaffold installs the rendering app via the template's standard --name; a
+  # parameter-key drift (e.g. productName vs name) fails the provider with exit 127.
+  # Assert the composed product carries the rendering app proper (the .slnx is named
+  # after the product) so a green build can't mask a half-scaffolded tree.
+  [[ -f "$FULL/Acme.slnx" ]] && ok "rendering app scaffolded into composed product (Acme.slnx)" || bad "rendering app missing from composed product (Acme.slnx absent — provider scaffold likely failed)"
+  # Governance is applied AFTER the SDD skeleton, on top of its .fsgg/project.yml.
+  # Without --force the overlay refuses the overwrite (exit 73) and the gate set
+  # silently never lands — which a plain build does not catch. Assert it landed.
+  for f in policy.yml capabilities.yml tooling.yml; do
+    [[ -f "$FULL/.fsgg/$f" ]] && ok "governance overlay landed on the composed product (.fsgg/$f)" || bad ".fsgg/$f missing from composed product (governance overlay did not land over the SDD skeleton)"
+  done
 else
   skip "fsgg-sdd CLI not available — scaffold+build of the live rendering app not exercised here. Run with the SDD CLI installed (or FSGG_COMPOSITION_FULL=1) to require it. This stage validates the un-vendored composition path; the gate keeps CI honest rather than green-by-omission."
 fi
