@@ -153,8 +153,8 @@ if [[ "$RUN_FULL" == "1" ]]; then
     ok "scaffold + dotnet build of the composed product succeeded"; FULL_OK=1
   else
     bad "full scaffold/build failed (see $WORKDIR/scaffold.log, $WORKDIR/build.log)"
-    echo "  --- scaffold.log (tail) ---"; tail -n 40 "$WORKDIR/scaffold.log" 2>/dev/null | sed 's/^/  | /'
-    echo "  --- build.log (tail) ---";    tail -n 40 "$WORKDIR/build.log"    2>/dev/null | sed 's/^/  | /'
+    echo "  --- scaffold.log (full) ---"; sed 's/^/  | /' "$WORKDIR/scaffold.log" 2>/dev/null
+    echo "  --- build.log (tail) ---";     tail -n 60 "$WORKDIR/build.log" 2>/dev/null | sed 's/^/  | /'
   fi
 else
   skip "fsgg-sdd CLI not available — scaffold+build of the live rendering app not exercised here. Run with the SDD CLI installed (or FSGG_COMPOSITION_FULL=1) to require it. This stage validates the un-vendored composition path; the gate keeps CI honest rather than green-by-omission."
