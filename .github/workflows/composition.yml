@@ -16,9 +16,21 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+      # Mint an installation token from the org's GitHub App (the cross-repo dispatch App; org
+      # secrets FSGG_DISPATCH_APP_ID / FSGG_DISPATCH_APP_PRIVATE_KEY). Scoped to the org owner, it
+      # can read ALL private org packages the App is installed for — unlike the run-scoped
+      # GITHUB_TOKEN, which only reads public packages + packages that grant THIS repo. The full
+      # rendering scaffold restores the private FS.GG.UI.* closure, so this token is what makes the
+      # build stage installable. (Requires the App to have `packages: read`.)
+      - name: Mint org App token (reads private org packages)
+        id: pkgtoken
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.FSGG_DISPATCH_APP_ID }}
+          private-key: ${{ secrets.FSGG_DISPATCH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
       # Install the published FS-GG CLIs from the org feed so the gated stages ASSERT instead of
-      # skipping (never green-by-omission). Both consume the org GitHub Packages feed via the
-      # run-scoped GITHUB_TOKEN (packages: read).
+      # skipping (never green-by-omission). The feed is authenticated with the App token above.
       #   - Governance CLI (>= 1.1.0, spec-081 consumer; FS.GG.Governance#28): drives the `govern`
       #     consumer/enforcement matrix. Tolerant — an unreachable feed degrades to an honest SKIP
       #     (the matrix never false-fails on a missing tool).
@@ -27,9 +39,11 @@ jobs:
       #     a hard gate. Required (no `|| true`): if it cannot install we want CI to surface it, not
       #     silently drop the producer-seam coverage we are explicitly enabling here.
       - name: Install FS-GG CLIs (governance enforcement + sdd producer/scaffold)
+        env:
+          FEED_TOKEN: ${{ steps.pkgtoken.outputs.token }}
         run: |
           dotnet nuget add source \
-            --username FS-GG --password "${{ secrets.GITHUB_TOKEN }}" --store-password-in-clear-text \
+            --username fs-gg-app --password "$FEED_TOKEN" --store-password-in-clear-text \
             --name fs-gg-github "https://nuget.pkg.github.com/FS-GG/index.json" || true
           dotnet tool install --global FS.GG.Governance.Cli || true
           dotnet tool install --global FS.GG.SDD.Cli
