@@ -32,7 +32,10 @@ fsgg-sdd scaffold --root "$TARGET" --provider rendering --param "productName=$PR
 #    Done after scaffold (not via the provider) so it is not flagged as a provider
 #    writing into the SDD-owned .fsgg/ tree.
 dotnet new install "$REPO_ROOT/templates/fs-gg-governance" >/dev/null 2>&1 || true
-dotnet new fs-gg-governance -o "$TARGET"
+# Pass --appName so the governed command strings (e.g. 'dotnet build <App>.sln') name the
+# solution this scaffold actually produces — otherwise the overlay would govern a phantom
+# 'App.sln' instead of "$PRODUCT".sln.
+dotnet new fs-gg-governance -o "$TARGET" --appName "$PRODUCT"
 
 echo "Full-stack product created in $TARGET (SDD + Rendering + Governance)."
 echo "Next: cd $TARGET && dotnet build && dotnet run; then fsgg-sdd charter."

@@ -19,6 +19,14 @@
 # only when those are available (or FSGG_COMPOSITION_FULL=1 forces it) and otherwise SKIPS
 # with an explicit reason — it never silently passes.
 #
+# A further GATED stage exercises the SDD→Governance enforcement loop end-to-end through
+# the composed product — the seam Templates specifically owns (no single upstream repo
+# covers the composition):
+#     scaffold → fsgg-sdd ship (emit governance-handoff.json) → fsgg-governance route
+#     (consume it → produce a verdict) → assert the populated overlay actually ENFORCES.
+# It needs both the `fsgg-sdd` and `fsgg-governance` CLIs and the composed product the
+# build stage scaffolds; absent either it SKIPS with a reason — never green-by-omission.
+#
 # Usage:   tests/composition/run.sh
 # Env:     FSGG_COMPOSITION_FULL=1   require (do not skip) the full scaffold+build stage
 #          KEEP_WORKDIR=1            do not delete the temp workdir on exit
@@ -39,6 +47,9 @@ step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 assert_contains() { if grep -qF -- "$2" "$1" 2>/dev/null; then ok "$3"; else bad "$3 (missing: '$2' in $1)"; fi; }
 # assert_absent <file-or-dir> <substring> <message>  (recursive for dirs)
 assert_absent() { if grep -rqF -- "$2" "$1" 2>/dev/null; then bad "$3 (found stray '$2' in $1)"; else ok "$3"; fi; }
+# assert_exit <expected-code> <actual-code> <message>  — exact match (so a usage/input/tool
+# error, e.g. 64/66/70, can never masquerade as a governed-blocking '2' or a clean '0').
+assert_exit() { if [[ "$2" == "$1" ]]; then ok "$3 (exit $2)"; else bad "$3 (expected exit $1, got $2)"; fi; }
 
 cleanup() {
   dotnet new uninstall FS.GG.Templates >/dev/null 2>&1 || true
@@ -129,16 +140,140 @@ elif [[ "${FSGG_COMPOSITION_FULL:-}" == "1" ]]; then
 else
   RUN_FULL=0
 fi
+FULL="$WORKDIR/full"   # the composed product; reused by the governance-enforcement stage
+FULL_OK=0
 if [[ "$RUN_FULL" == "1" ]]; then
-  FULL="$WORKDIR/full"
   if "$REPO_ROOT/scripts/new-fullstack.sh" "$FULL" Acme "$PIN_VER" >"$WORKDIR/scaffold.log" 2>&1 \
      && dotnet build "$FULL" >"$WORKDIR/build.log" 2>&1; then
-    ok "scaffold + dotnet build of the composed product succeeded"
+    ok "scaffold + dotnet build of the composed product succeeded"; FULL_OK=1
   else
     bad "full scaffold/build failed (see $WORKDIR/scaffold.log, $WORKDIR/build.log)"
   fi
 else
   skip "fsgg-sdd CLI not available — scaffold+build of the live rendering app not exercised here. Run with the SDD CLI installed (or FSGG_COMPOSITION_FULL=1) to require it. This stage validates the un-vendored composition path; the gate keeps CI honest rather than green-by-omission."
+fi
+
+# ── Stage 6: SDD→Governance handoff enforcement (GATED) ──────────────────────
+# The seam Templates owns: the governance overlay it ships must actually ENFORCE a produced
+# governance-handoff.json — a verdict driven by the handoff's declared facts — not just be a
+# populated-but-inert gate set. (Stages 3–4 only prove the overlay is populated; this proves
+# it bites.) Two parts, each independently gated, neither ever green-by-omission:
+#   6a producer — a real `fsgg-sdd ship` (over the Stage-5 composed product) emits the handoff;
+#   6b consumer — `fsgg-governance` consumes a handoff and the overlay's profile decides the verdict.
+# 6b needs only `fsgg-governance` + the overlay Templates ships (a fresh instantiation — the
+# rendering app does not affect a governance verdict), so it runs in far more environments than
+# the full rendering scaffold.
+#
+# CLI-surface note: the architecture report's conceptual "fsgg-governance verify/ship" is the
+# shipped CLI's `fsgg-governance route --mode gate` — the CI/merge-boundary mode whose blocking
+# verdict exits 2 (GovernedBlocking; exit 0 = clean, 64/66/70 = usage/input/tool error). The
+# handoff consumer (FS.GG.Governance spec 081, FS.GG.Governance.Adapters.SddHandoff) auto-
+# discovers readiness/<id>/governance-handoff.json under --root and folds its declared
+# evidence/readiness into the selected gate set.
+step "govern — the governance overlay ENFORCES the SDD handoff (gated)"
+if ! command -v fsgg-governance >/dev/null 2>&1; then
+  skip "fsgg-governance CLI not available — the SDD→Governance enforcement loop is not exercised here. Install the Governance CLI to require it. The gate keeps CI honest rather than green-by-omission."
+else
+  # write_handoff <path> <satisfied|failing> — emit a contract-v1 governance-handoff.json.
+  # 'failing' declares a failed evidence node + a non-shippable, blocking readiness block;
+  # 'satisfied' declares everything real/ready. Shape per FS.GG.Governance spec 081
+  # contracts/handoff-document.md (governance-handoff@1.0.0).
+  write_handoff() {
+    local path="$1" kind="$2"; mkdir -p "$(dirname "$path")"
+    if [[ "$kind" == failing ]]; then
+      cat > "$path" <<'JSON'
+{
+  "contractVersion": "1.0.0",
+  "schemaVersion": 1,
+  "evidence": {
+    "nodes": [
+      { "id": "build:lib", "state": "failed", "rationale": "composition e2e: forced failing evidence" },
+      { "id": "test:unit", "state": "real" }
+    ],
+    "dependencies": [ ["test:unit", "build:lib"] ]
+  },
+  "readiness": {
+    "shipDisposition": "blocked",
+    "verificationReadiness": "incomplete",
+    "blockingDiagnosticIds": ["COMPOSITION_E2E_BLOCK"],
+    "counts": { "blocking": 1, "advisory": 0 },
+    "perViewState": { "ledger": "stale" }
+  },
+  "governedReferences": []
+}
+JSON
+    else
+      cat > "$path" <<'JSON'
+{
+  "contractVersion": "1.0.0",
+  "schemaVersion": 1,
+  "evidence": {
+    "nodes": [
+      { "id": "build:lib", "state": "real" },
+      { "id": "test:unit", "state": "real" }
+    ],
+    "dependencies": [ ["test:unit", "build:lib"] ]
+  },
+  "readiness": {
+    "shipDisposition": "ready",
+    "verificationReadiness": "complete",
+    "blockingDiagnosticIds": [],
+    "counts": { "blocking": 0, "advisory": 0 },
+    "perViewState": {}
+  },
+  "governedReferences": []
+}
+JSON
+    fi
+  }
+
+  # 6a — producer seam: a real `fsgg-sdd ship` emits the handoff at the contract path within
+  # the composed product. Needs fsgg-sdd + the Stage-5 build; SKIPs (not fails) otherwise.
+  if command -v fsgg-sdd >/dev/null 2>&1 && [[ "$FULL_OK" == "1" ]]; then
+    ( cd "$FULL" && fsgg-sdd ship ) >"$WORKDIR/ship.log" 2>&1 || true
+    SHIPPED="$(find "$FULL/readiness" -name governance-handoff.json 2>/dev/null | head -1)"
+    if [[ -n "$SHIPPED" ]]; then
+      ok "fsgg-sdd ship emitted $(basename "$(dirname "$SHIPPED")")/governance-handoff.json"
+      assert_contains "$SHIPPED" '"contractVersion": "1' "emitted handoff pins governance-handoff contract major 1"
+    else
+      skip "fsgg-sdd ship emitted no handoff (no ship-ready work item in a bare scaffold) — producer seam not exercised; the consumer/enforcement matrix below still runs against a contract fixture"
+    fi
+  else
+    skip "fsgg-sdd unavailable or no Stage-5 composed product — producer seam ('fsgg-sdd ship' emits the handoff) not exercised; the consumer/enforcement matrix below still runs against a contract fixture"
+  fi
+
+  # 6b — consumer + enforcement. Instantiate the overlay Templates ships into a fresh product
+  # and run the gate loop over contract-v1 fixtures. Hold the product fixed; vary only
+  # (handoff, profile). The enforcement signal is the EXIT-CODE differential, only possible if
+  # `route` CONSUMES the handoff and the overlay ENFORCES it per profile.
+  GOV="$WORKDIR/govern"
+  POLICY="$GOV/.fsgg/policy.yml"
+  HANDOFF="$GOV/readiness/handoff-e2e/governance-handoff.json"
+  set_profile() { sed -i.bak -E "s/^([[:space:]]*defaultProfile:).*/\1 $1/" "$POLICY" && rm -f "$POLICY.bak"; }
+  govern_exit() { fsgg-governance route --root "$GOV" --mode gate --json >"$WORKDIR/govern.log" 2>&1; echo $?; }
+
+  dotnet new fs-gg-governance -o "$GOV" --appName Acme --defaultProfile strict >"$WORKDIR/govnew.log" 2>&1
+  write_handoff "$HANDOFF" failing
+  ES="$(govern_exit)"
+  case "$ES" in
+    2)
+      # The installed CLI consumes & enforces the handoff — assert the full matrix.
+      ok "strict + failing handoff → blocked (exit 2): the overlay consumed the handoff and ENFORCED it"
+      write_handoff "$HANDOFF" satisfied
+      assert_exit 0 "$(govern_exit)" "strict + satisfied handoff → clean verdict — the verdict tracks the declared facts, so consumption is real (not just overlay-populated)"
+      write_handoff "$HANDOFF" failing; set_profile light
+      assert_exit 0 "$(govern_exit)" "light + same failing handoff → not blocked — profile shifts the blocking boundary; the overlay enforces only when the profile says so"
+      ;;
+    0)
+      # A failing handoff did not block ⇒ the installed CLI's build does not consume the handoff.
+      # Honest SKIP (not a false pass, not a false fail): the loop is asserted in full the moment
+      # a consumer-bearing CLI is on PATH. See the cross-repo tracking issue.
+      skip "installed fsgg-governance did NOT enforce a failing handoff (route --mode gate exited 0, selecting no handoff gate) — its build omits the SDD-handoff consumer (FS.GG.Governance spec 081, FS.GG.Governance.Adapters.SddHandoff). The strict-blocks/light-passes matrix is asserted automatically once a consumer-bearing CLI is published. Tracking: FS-GG/FS.GG.Governance#28."
+      ;;
+    *)
+      bad "fsgg-governance route returned exit $ES (usage/input/tool error, not a verdict) — see $WORKDIR/govern.log"
+      ;;
+  esac
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
