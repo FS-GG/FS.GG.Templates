@@ -14,7 +14,7 @@ pack → install → instantiate → (restore/build) → verify pins/links
 | **pack** | `FS.GG.Templates` packs to a `.nupkg` | no |
 | **install** | the package installs as a `dotnet new` source; `fs-gg-governance` registers | no |
 | **instantiate** | the `fs-gg-governance` overlay generates with `--appName` / `--defaultProfile` | no |
-| **verify pins/links** | parameter substitution lands; the governance gate set is **populated** (not inert `checks: []`/`commands: []`); the `rendering` provider pin is coherent (version tag + `lifecycle=sdd` / `profile=app`) | no |
+| **verify pins/links** | parameter substitution lands; the descriptor is in the Governance-owned `.fsgg/governance.yml` slot (ADR-0005 — **not** the SDD-owned `project.yml`); the governance gate set is **populated** (not inert `checks: []`/`commands: []`); the `rendering` provider pin is coherent (version tag + `lifecycle=sdd` / `profile=app`) | no |
 | **build** | full `fsgg-sdd scaffold` of the live rendering app + `dotnet build` | **yes** |
 | **govern** | the overlay does not just *exist* — it **enforces**: a produced `governance-handoff.json` actually drives a Governance verdict (strict **blocks**, `light` does not) | **yes** |
 
@@ -33,25 +33,28 @@ each independently gated and never green-by-omission:
   `2`) over a contract-v1 handoff fixture and holds the product fixed while varying only
   *(handoff, profile)*:
 
-  | profile | handoff | expected | proves | gated on |
+  | profile | handoff | expected | proves | needs |
   |---|---|---|---|---|
-  | `strict` | failing | exit `2` | the overlay **consumes and enforces** the handoff | consumer (#28) |
-  | `strict` | satisfied | exit `0` | the verdict tracks the declared facts (consumption is real, not just populated) | consumer (#28) |
-  | `light` | failing | exit `0` | the profile shifts the blocking boundary (`light` relaxes the gate) | profile-aware enforcement (#34) |
+  | `strict` | failing | exit `2` | the overlay **consumes and enforces** the handoff | consumer-bearing CLI (≥ 1.1.0, #28) |
+  | `strict` | satisfied | exit `0` | the verdict tracks the declared facts (consumption is real, not just populated) | consumer-bearing CLI (≥ 1.1.0, #28) |
+  | `light` | failing | exit `0` | the profile shifts the blocking boundary (`light` relaxes the gate) | descriptor in the `governance.yml` slot (#28) **+** profile-aware CLI (≥ 1.2.0, #34) |
 
-  Two capabilities are gated **independently**, because consumption and profile-awareness ship
-  separately upstream — a coarse "consumption ⇒ whole matrix" assumption would false-fail
-  against the strict-only baseline:
+  Two capabilities are probed **independently**, because consumption and profile-awareness ship
+  separately upstream — a coarse "consumption ⇒ whole matrix" assumption would false-fail against
+  an older CLI:
 
   - **Consumption probe** — the stage runs `strict + failing` first. If it does **not** block
     (exit `0`), the installed CLI's build omits the SDD-handoff consumer
     (`FS.GG.Governance.Adapters.SddHandoff`, spec `081`) — so the whole matrix **skips with a
-    reason** (tracking: `FS-GG/FS.GG.Governance#28`). It flips to asserting the consumption rows
-    automatically once a consumer-bearing CLI (`FS.GG.Governance.Cli >= 1.1.0`) is on `PATH`.
-  - **Profile-aware probe** — with consumption confirmed, the stage runs `light + failing`. The
-    strict-only baseline (`1.1.0`) consumes the handoff but blocks regardless of profile, so this
-    row **skips with a reason** (tracking: `FS-GG/FS.GG.Governance#34`) while `light` still blocks,
-    and flips to asserting `exit 0` once profile-aware enforcement ships.
+    reason**. It flips to asserting the consumption rows automatically once a consumer-bearing CLI
+    (`FS.GG.Governance.Cli >= 1.1.0`) is on `PATH`.
+  - **Profile-aware probe** — with consumption confirmed, the stage runs `light + failing`. This
+    relaxes only if the overlay ships its descriptor in the Governance-owned `.fsgg/governance.yml`
+    slot (so the CLI can read `defaultProfile` — else it falls back to the Strict fail-safe and
+    over-blocks every profile) **and** the CLI is profile-aware (`>= 1.2.0`). The slot is correct
+    in this repo; against an older profile-unaware CLI (`1.1.0`) the row **skips with a reason**
+    (tracking: `FS-GG/FS.GG.Governance#34`) and flips to asserting `exit 0` once `>= 1.2.0` is on
+    `PATH`.
 
   A usage/input/tool exit (`64`/`66`/`70`) is always a hard failure, never a skip.
 
