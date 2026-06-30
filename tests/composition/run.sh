@@ -132,9 +132,10 @@ if [[ -n "$PIN_VER" ]]; then
 else
   bad "could not parse FS.GG.UI.Template version pin from provider yml"
 fi
-# lifecycle=sdd and profile=app are the composition-by-scaffold defaults (ADR-0002)
-if grep -A2 'key: lifecycle' "$PROV" | grep -q 'default: sdd'; then ok "provider default lifecycle=sdd (ADR-0002)"; else bad "provider lifecycle default is not 'sdd'"; fi
-if grep -A2 'key: profile'   "$PROV" | grep -q 'default: app'; then ok "provider default profile=app";          else bad "provider profile default is not 'app'";  fi
+# lifecycle=sdd (ADR-0002) and profile=game (game/rendering default starter, ADR
+# FS.GG.Rendering 0010; flipped app->game per issue #39 / SDD#44) are the defaults.
+if grep -A2 'key: lifecycle' "$PROV" | grep -q 'default: sdd';  then ok "provider default lifecycle=sdd (ADR-0002)"; else bad "provider lifecycle default is not 'sdd'"; fi
+if grep -A4 'key: profile'   "$PROV" | grep -q 'default: game'; then ok "provider default profile=game";          else bad "provider profile default is not 'game'"; fi
 
 # ── Stage 5: full scaffold + build (GATED) ───────────────────────────────────
 step "build — full fsgg-sdd scaffold + dotnet build (gated)"

@@ -38,8 +38,8 @@ It produces:
 
 - **Rendering** — the FS.GG.Rendering `fs-gg-ui` app (Skia/OpenGL, Elmish/MVU, Scene,
   SkiaViewer, Controls), installed live from the published `FS.GG.UI.Template` package
-  pinned by the provider (currently `FS.GG.UI.Template@0.1.53-preview.1`, behind the
-  immutable tag `fs-gg-ui-template/v0.1.53-preview.1`). The provider passes
+  pinned by the provider (currently `FS.GG.UI.Template@0.1.55-preview.1`, behind the
+  immutable tag `fs-gg-ui-template/v0.1.55-preview.1`). The provider passes
   `lifecycle=sdd` so the product carries **only the runnable app** — the `.fsgg/`
   lifecycle comes from the SDD skeleton, not a second copy.
 - **SDD** — the lifecycle skeleton: `.fsgg/project.yml`, `.fsgg/sdd.yml`,
@@ -98,7 +98,7 @@ It packs `FS.GG.Templates`, installs it, instantiates the `fs-gg-governance` ove
 asserts the pins/links: parameter substitution lands, the governance gate set is
 **populated** (not the inert `checks: []`/`commands: []` it used to ship), and the
 `rendering` provider pin is internally coherent (version tag + `lifecycle=sdd` /
-`profile=app`). The full scaffold + `dotnet build` of the live rendering app needs the
+`profile=game`). The full scaffold + `dotnet build` of the live rendering app needs the
 `fsgg-sdd` CLI and a reachable template feed; that stage runs when they are available and
 otherwise **skips with a reason** (it never green-passes by omission).
 
