@@ -151,6 +151,29 @@ if [[ "$RUN_FULL" == "1" ]]; then
   if "$REPO_ROOT/scripts/new-fullstack.sh" "$FULL" Acme "$PIN_VER" >"$WORKDIR/scaffold.log" 2>&1; then
     if dotnet build "$FULL" >"$WORKDIR/build.log" 2>&1; then
       ok "scaffold + dotnet build of the composed product succeeded"; FULL_OK=1
+
+      # Family-agnostic default-entrypoint governance expectation (FS-GG/FS.GG.Templates#36).
+      # The fs-gg-ui `game` default starter relaxes the durable entrypoint assertion: the
+      # composed product's default launch must be satisfiable by BOTH the unmodified minimal
+      # skeleton AND a developer's Pong swap. So accept EITHER family's governed entrypoint —
+      # game `Viewer.runApp viewerOptions generatedHost` OR controls
+      # `ControlsElmish.runInteractiveApp viewerOptions interactiveHost` — and require that NO
+      # `-- pong`-style flag is a precondition for the default launch (FR-002/FR-003/FR-008).
+      # This is the composition-layer projection of the assertion the generated product carries
+      # upstream; it accepts the current controls default AND the future game default, so it does
+      # not need to wait on the `fs-gg-ui-template` republish that flips the default app→game
+      # (owned by FS-GG/FS.GG.SDD#44; registry FS-GG/.github#77).
+      PROG="$(find "$FULL" -path '*/src/*/Program.fs' 2>/dev/null | head -1)"
+      if [[ -n "$PROG" ]]; then
+        if grep -qE 'Viewer\.runApp viewerOptions generatedHost|ControlsElmish\.runInteractiveApp viewerOptions interactiveHost' "$PROG"; then
+          ok "composed product default launch uses an accepted family entrypoint (game Viewer.runApp generatedHost | controls runInteractiveApp interactiveHost)"
+        else
+          bad "composed product default launch is neither accepted family entrypoint — durable assertion not family-agnostic (#36, see $PROG)"
+        fi
+        assert_absent "$PROG" "-- pong" "no '-- pong'-style flag gates the default launch (entrypoint relaxation, #36)"
+      else
+        bad "could not locate the composed product's src/<Product>/Program.fs to check the default entrypoint (#36)"
+      fi
     else
       bad "scaffold succeeded but dotnet build of the composed product failed (see $WORKDIR/build.log)"
       tail -n 60 "$WORKDIR/build.log" 2>/dev/null | sed 's/^/  | /'

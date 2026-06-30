@@ -15,7 +15,7 @@ pack → install → instantiate → (restore/build) → verify pins/links
 | **install** | the package installs as a `dotnet new` source; `fs-gg-governance` registers | no |
 | **instantiate** | the `fs-gg-governance` overlay generates with `--appName` / `--defaultProfile` | no |
 | **verify pins/links** | parameter substitution lands; the descriptor is in the Governance-owned `.fsgg/governance.yml` slot (ADR-0005 — **not** the SDD-owned `project.yml`); the governance gate set is **populated** (not inert `checks: []`/`commands: []`); the `rendering` provider pin is coherent (version tag + `lifecycle=sdd` / `profile=app`) | no |
-| **build** | full `fsgg-sdd scaffold` of the live rendering app + `dotnet build` | **yes** |
+| **build** | full `fsgg-sdd scaffold` of the live rendering app + `dotnet build`; the composed product's default launch satisfies the **family-agnostic** entrypoint expectation (game `Viewer.runApp … generatedHost` **or** controls `runInteractiveApp … interactiveHost`, with no `-- pong`-style flag gating the default — #36) | **yes** |
 | **govern** | the overlay does not just *exist* — it **enforces**: a produced `governance-handoff.json` actually drives a Governance verdict (strict **blocks**, `light` does not) | **yes** |
 
 The **build** stage needs the `fsgg-sdd` CLI and a reachable `FS.GG.UI.Template` feed. It
