@@ -102,21 +102,28 @@ asserts the pins/links: parameter substitution lands, the governance gate set is
 `fsgg-sdd` CLI and a reachable template feed; that stage runs when they are available and
 otherwise **skips with a reason** (it never green-passes by omission).
 
-To make the full path (Stage 5 build + Stage 6 governance enforcement) run locally, first
-hydrate this box with the published, coherent package set:
+On a provisioned container the full path needs no extra setup. `~/.nuget/NuGet/NuGet.Config`
+binds `FS.GG.*` to the published FS.GG org feed (`packageSourceMapping`), and the container
+entrypoint floats `fsgg-sdd` / `fsgg-governance` to the latest published version on every
+start. The scaffold then resolves `FS.GG.UI.Template::<pin>` and the coherent `FS.GG.UI.*`
+set straight from the org feed:
 
 ```sh
-scripts/hydrate-local-feed.sh                    # repack the pinned FS.GG.UI.* set into the
-                                                 # local feed + pull the consumer-bearing
-                                                 # fsgg-governance (>= 1.2.0) from the org feed
-FSGG_COMPOSITION_FULL=1 tests/composition/run.sh # now 33/33 — full scaffold/build + enforcement
+FSGG_COMPOSITION_FULL=1 tests/composition/run.sh # 33/33 — full scaffold/build + enforcement
 ```
 
-It is **not** a republish: the FS.GG products are independently versioned (ADR-0002) and
-already coherent where it matters (the `FS.GG.UI.*` family ships as one locked set behind
-`fs-gg-ui-template/v<ver>`). The script only pulls that coherent published set down to a
-local box whose feed/CLI have gone stale. The governance step needs a GitHub PAT with
-`read:packages` (`GH_TOKEN`/`GITHUB_TOKEN`) and otherwise skips with a reason.
+The org feed is private, so this needs a GitHub token with `read:packages` (baked into the
+container's NuGet config — `%GH_TOKEN%`, read at restore time, never stored in an image
+layer). Absent it the gated stages skip with a reason rather than green-passing. Because
+`FS.GG.*` is pinned to the org feed, a stale local snapshot can never shadow the published
+CLIs — that was the old drift class, and the source mapping closes it structurally.
+
+To test an **unpublished** local FS.GG.Rendering build before it reaches the org feed, use
+`scripts/dev-repack-ui-feed.sh` (repacks the pinned `FS.GG.UI.*` set from a Rendering checkout
+into the local cache; you then map `FS.GG.UI.*` to that cache in NuGet.Config so the test
+consults it). It is a dev convenience, not part of provisioning, and per ADR-0002 it is **not**
+a republish — the `FS.GG.UI.*` family already ships as one locked set behind
+`fs-gg-ui-template/v<ver>`.
 
 ## Install (the template package)
 
@@ -138,7 +145,7 @@ dotnet new update --check-only              # see what would update
 | `templates/fs-gg-governance/` | the populated Governance-config overlay (`fs-gg-governance`). |
 | `tests/composition/run.sh` | end-to-end composition test (pack→install→instantiate→build→verify pins/links). |
 | `scripts/new-fullstack.sh` | three-step wrapper for the `fsgg-sdd scaffold` composition path. |
-| `scripts/hydrate-local-feed.sh` | pulls the published, coherent package set (pinned `FS.GG.UI.*` + consumer-bearing `fsgg-governance`) down to a local box so the full composition test runs end-to-end. |
+| `scripts/dev-repack-ui-feed.sh` | DEV-ONLY: repacks the pinned `FS.GG.UI.*` set from a local FS.GG.Rendering checkout into the local cache, for testing an unpublished UI build before it reaches the org feed. The CLIs and the published UI set come from the org feed (container provisioning), not this script. |
 | `scripts/bump-rendering-pin.sh` | re-pins `FS.GG.UI.Template` coherently across provider + README (successor to the retired `sync-from-rendering.sh`). |
 | `.github/renovate.json` | Renovate config that bumps the `FS.GG.UI.*` pin automatically. |
 | `.github/workflows/upstream-bump.yml` | `repository_dispatch`/`workflow_dispatch` auto-PR that re-pins on an upstream release. |
