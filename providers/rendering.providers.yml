@@ -5,17 +5,17 @@
 # `source` is the PUBLISHED FS.GG.UI.Template package, version-pinned with the
 # `dotnet new install` `id::version` syntax (SDD runs `dotnet new install <source>`).
 # The pin tracks the coherent template<->framework snapshot behind the immutable tag
-# `fs-gg-ui-template/v0.1.56-preview.1` (FS.GG.Rendering Feature 224/225; registry contract
-# `fs-gg-ui-template@0.1.56-preview.1`, the current coherent set — it carries the consumer
-# skill-catalog currency fix (Feature 224 / FS.GG.Rendering#36) + product-skill vocabulary
-# de-leak (Feature 225 / #37), content-only over the `game` starter default released
-# @0.1.54-preview.1 by Feature 222). Bump both the version and this comment together.
+# `fs-gg-ui-template/v0.1.57-preview.1` (FS.GG.Rendering Feature 226; registry contract
+# `fs-gg-ui-template@0.1.57-preview.1`, the current coherent set — it ADDS the new consumer
+# `fs-gg-styling` theming/styling product skill (Feature 226 / FS.GG.Rendering#38), content-only
+# over the consumer skill-catalog currency + vocabulary de-leak (Features 224/225, @0.1.56) and
+# the `game` starter default (Feature 222, @0.1.54). Bump both the version and this comment together.
 schemaVersion: 1
 providers:
   - name: rendering
     contractVersion: "1.0.0"
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.1.56-preview.1   # published NuGet package, version-pinned
+    source: FS.GG.UI.Template::0.1.57-preview.1   # published NuGet package, version-pinned
     parameters:
       # lifecycle=sdd -> app-only product + SDD skeleton (ADR-0002 composition-by-scaffold).
       # Override the template default (spec-kit) so Templates composition emits the SDD shape.
