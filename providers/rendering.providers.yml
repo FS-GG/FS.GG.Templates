@@ -5,23 +5,28 @@
 # `source` is the PUBLISHED FS.GG.UI.Template package, version-pinned with the
 # `dotnet new install` `id::version` syntax (SDD runs `dotnet new install <source>`).
 # The pin tracks the coherent template<->framework snapshot behind the immutable tag
-# `fs-gg-ui-template/v0.1.53-preview.1` (FS.GG.Rendering Feature 206; registry contract
-# `fs-gg-ui-template@0.1.53-preview.1`). Bump both the version and this comment together.
+# `fs-gg-ui-template/v0.1.55-preview.1` (FS.GG.Rendering Feature 223; registry contract
+# `fs-gg-ui-template@0.1.55-preview.1`, the current coherent set — it carries the `game`
+# profile released @0.1.54-preview.1 by Feature 222). Bump both the version and this
+# comment together.
 schemaVersion: 1
 providers:
   - name: rendering
     contractVersion: "1.0.0"
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.1.53-preview.1   # published NuGet package, version-pinned
+    source: FS.GG.UI.Template::0.1.55-preview.1   # published NuGet package, version-pinned
     parameters:
       # lifecycle=sdd -> app-only product + SDD skeleton (ADR-0002 composition-by-scaffold).
       # Override the template default (spec-kit) so Templates composition emits the SDD shape.
       - key: lifecycle
         required: false
         default: sdd
+      # Default starter flipped app -> game (issue #39 / SDD#44): the fs-gg-ui `game`
+      # profile is the game/rendering default starter (ADR FS.GG.Rendering 0010, Accepted).
+      # `app` (controls showcase) stays explicitly selectable via --param profile=app.
       - key: profile
         required: false
-        default: app
+        default: game
       - key: designSystem
         required: false
         default: wcag
