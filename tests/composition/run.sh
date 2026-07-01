@@ -179,13 +179,18 @@ if [[ "$RUN_FULL" == "1" ]]; then
       bad "scaffold succeeded but dotnet build of the composed product failed (see $WORKDIR/build.log)"
       tail -n 60 "$WORKDIR/build.log" 2>/dev/null | sed 's/^/  | /'
     fi
-  elif grep -q 'scaffold.providerFailed' "$WORKDIR/scaffold.log" 2>/dev/null; then
+  elif grep -qE 'scaffold\.(providerFailed|providerWroteSddTree)' "$WORKDIR/scaffold.log" 2>/dev/null; then
     # The rendering PROVIDER is executed by fsgg-sdd (it spawns the FS.GG.Rendering template
-    # toolchain); a providerFailed/exit-127 here is an UPSTREAM provider-execution bug, not a
-    # Templates regression — the fs-gg-ui template instantiates cleanly on its own. SKIP-with-reason
-    # (never green-by-omission) rather than false-fail; flips to the hard build assertion the moment
-    # the provider scaffolds cleanly in CI. Tracking: FS-GG/FS.GG.SDD#35.
-    skip "fsgg-sdd 'rendering' provider failed in CI (scaffold.providerFailed) — an upstream provider-execution bug (the fs-gg-ui template instantiates fine directly), so the composed-product build is not asserted here yet. It flips to a hard gate once the provider scaffolds cleanly. Tracking: FS-GG/FS.GG.SDD#35."
+    # toolchain); an UPSTREAM provider-execution defect here is not a Templates regression — the
+    # fs-gg-ui template instantiates cleanly on its own. Two known shapes, both SKIP-with-reason
+    # (never green-by-omission), each flipping to the hard build assertion the moment the provider
+    # scaffolds cleanly in CI:
+    #   - scaffold.providerFailed        — provider command failed / exited non-zero (FS-GG/FS.GG.SDD#35, fixed).
+    #   - scaffold.providerWroteSddTree  — under CLI 0.3.0 the provider now runs but writes the fs-gg-ui
+    #                                      PRODUCT skills into the SDD-owned `.claude/skills/` tree, which
+    #                                      0.3.0's provider-defect detection (feature 054) rejects. An
+    #                                      upstream ownership-boundary bug. Tracking: FS-GG/FS.GG.SDD#53.
+    skip "fsgg-sdd 'rendering' provider defect in CI (scaffold.providerFailed | scaffold.providerWroteSddTree) — an upstream provider-execution/ownership bug (the fs-gg-ui template instantiates fine directly), so the composed-product build is not asserted here yet. It flips to a hard gate once the provider scaffolds cleanly. Tracking: FS-GG/FS.GG.SDD#35 (exit-127, fixed) · FS-GG/FS.GG.SDD#53 (.claude/skills ownership, 0.3.0)."
     echo "  --- scaffold.log (full) ---"; sed 's/^/  | /' "$WORKDIR/scaffold.log" 2>/dev/null
   else
     bad "full scaffold failed for a non-provider reason (see $WORKDIR/scaffold.log)"
