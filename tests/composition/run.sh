@@ -186,11 +186,20 @@ if [[ "$RUN_FULL" == "1" ]]; then
     # (never green-by-omission), each flipping to the hard build assertion the moment the provider
     # scaffolds cleanly in CI:
     #   - scaffold.providerFailed        — provider command failed / exited non-zero (FS-GG/FS.GG.SDD#35, fixed).
-    #   - scaffold.providerWroteSddTree  — under CLI 0.3.0 the provider now runs but writes the fs-gg-ui
-    #                                      PRODUCT skills into the SDD-owned `.claude/skills/` tree, which
-    #                                      0.3.0's provider-defect detection (feature 054) rejects. An
-    #                                      upstream ownership-boundary bug. Tracking: FS-GG/FS.GG.SDD#53.
-    skip "fsgg-sdd 'rendering' provider defect in CI (scaffold.providerFailed | scaffold.providerWroteSddTree) — an upstream provider-execution/ownership bug (the fs-gg-ui template instantiates fine directly), so the composed-product build is not asserted here yet. It flips to a hard gate once the provider scaffolds cleanly. Tracking: FS-GG/FS.GG.SDD#35 (exit-127, fixed) · FS-GG/FS.GG.SDD#53 (.claude/skills ownership, 0.3.0)."
+    #   - scaffold.providerWroteSddTree  — under CLI 0.3.0 the provider runs but the pinned fs-gg-ui template
+    #                                      (Feature 219 / FR-001) writes its PRODUCT UI skills into BOTH
+    #                                      `.agents/skills/` AND the SDD-owned `.claude/skills/` tree, and
+    #                                      SDD's provider-defect guard rejects the `.claude/` write. Per the
+    #                                      ADR-0011 decision (recorded on FS-GG/FS.GG.Templates#47 +
+    #                                      FS-GG/FS.GG.SDD#55) the guard stays CORRECTLY STRICT — this is a
+    #                                      provider ownership-boundary violation, NOT an over-matching guard.
+    #                                      It unblocks when BOTH land: (a) Rendering re-releases fs-gg-ui-template
+    #                                      emitting UI skills to `.agents/skills/` ONLY (drop the `.claude/`
+    #                                      destination) and Templates re-pins providers/rendering.providers.yml,
+    #                                      and (b) fsgg-sdd ships orchestrator-owned skill fan-out that mirrors
+    #                                      the union into all three agent roots (FS-GG/FS.GG.SDD#55).
+    #                                      Tracking: FS-GG/FS.GG.Templates#47 · FS-GG/FS.GG.SDD#55.
+    skip "fsgg-sdd 'rendering' provider defect in CI (scaffold.providerFailed | scaffold.providerWroteSddTree) — an upstream provider-execution/ownership issue (the fs-gg-ui template instantiates fine directly), so the composed-product build is not asserted here yet. It flips to a hard gate once the provider scaffolds cleanly. Tracking: FS-GG/FS.GG.SDD#35 (exit-127, fixed) · FS-GG/FS.GG.Templates#47 + FS-GG/FS.GG.SDD#55 (.claude/skills ownership → ADR-0011 orchestrator-owned fan-out; guard stays strict, template drops .claude/ + CLI fans out)."
     echo "  --- scaffold.log (full) ---"; sed 's/^/  | /' "$WORKDIR/scaffold.log" 2>/dev/null
   else
     bad "full scaffold failed for a non-provider reason (see $WORKDIR/scaffold.log)"
