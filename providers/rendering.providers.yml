@@ -27,11 +27,13 @@ providers:
     # Mirrors registry `fs-gg-ui-template.minimum-fsgg-sdd` (coherence id
     # `fsgg-sdd-orchestrator-axis`, coherent:false). Bump `version` in lockstep with the registry.
     minimumFsggSdd:
-      version: null            # PENDING PUBLISH (FR-007): no released fsgg-sdd yet seeds Features
-                               # 049+051 — feed newest 0.2.1 (Feature 045) PREDATES them (both
-                               # merged to FS.GG.SDD main 2026-06-30, unreleased). Recording an
-                               # unserved version would violate publish-before-flip; pinned to the
-                               # concrete version when FS.GG.SDD publishes the post-051 CLI (#49).
+      version: "0.3.0"         # PINNED (FR-007 satisfied): FS.GG.SDD released v0.3.0 (2026-07-01;
+                               # FS.GG.SDD.Cli 0.3.0 on the org feed), shipping Features 046-054 —
+                               # incl. 049 (early-stage-guidance) + 051 (seeded fs-gg-sdd-* skills)
+                               # + 052 (CLI stamps used+minimum into scaffold-provenance, warns when
+                               # behind). 0.3.0 is the OLDEST published CLI that seeds the artifacts a
+                               # product on this pin is expected to contain (0.2.1 predated them).
+                               # Mirrors registry pin fs-gg-ui-template.minimum-fsgg-sdd (FS-GG/.github#95).
       requires: "FS.GG.SDD Feature 049 (early-stage-guidance) + Feature 051 (seeded fs-gg-sdd-* process skills)"
       adr: "FS-GG/.github docs/adr/0008-fsgg-sdd-cli-first-class-member-of-coherent-set.md"
       registry: "FS-GG/.github registry/dependencies.yml -> fs-gg-ui-template.minimum-fsgg-sdd"
