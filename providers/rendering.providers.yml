@@ -16,6 +16,26 @@ providers:
     contractVersion: "1.0.0"
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
     source: FS.GG.UI.Template::0.1.57-preview.1   # published NuGet package, version-pinned
+    # ADR-0008 (FS-GG/.github#86, epic #85): the ORCHESTRATOR axis of the coherent set. A
+    # scaffold has TWO inputs — this template@<source pin> (governed above) AND the fsgg-sdd
+    # CLI@<installed> (was ungoverned). The CLI seeds artifacts a product on this pin is
+    # EXPECTED to contain: the fs-gg-sdd-* process skills (FS.GG.SDD Feature 051) and
+    # .fsgg/early-stage-guidance.md (Feature 049). So the coherent set carries a MINIMUM
+    # coherent fsgg-sdd version — the oldest CLI that seeds them — recorded here alongside
+    # `source` so a scaffold can check the installed CLI against the coherent-set minimum
+    # (fsgg-sdd stamps used+minimum into scaffold-provenance + warns when behind — FS.GG.SDD#49).
+    # Mirrors registry `fs-gg-ui-template.minimum-fsgg-sdd` (coherence id
+    # `fsgg-sdd-orchestrator-axis`, coherent:false). Bump `version` in lockstep with the registry.
+    minimumFsggSdd:
+      version: null            # PENDING PUBLISH (FR-007): no released fsgg-sdd yet seeds Features
+                               # 049+051 — feed newest 0.2.1 (Feature 045) PREDATES them (both
+                               # merged to FS.GG.SDD main 2026-06-30, unreleased). Recording an
+                               # unserved version would violate publish-before-flip; pinned to the
+                               # concrete version when FS.GG.SDD publishes the post-051 CLI (#49).
+      requires: "FS.GG.SDD Feature 049 (early-stage-guidance) + Feature 051 (seeded fs-gg-sdd-* process skills)"
+      adr: "FS-GG/.github docs/adr/0008-fsgg-sdd-cli-first-class-member-of-coherent-set.md"
+      registry: "FS-GG/.github registry/dependencies.yml -> fs-gg-ui-template.minimum-fsgg-sdd"
+      tracking: "https://github.com/FS-GG/FS.GG.SDD/issues/49"
     parameters:
       # lifecycle=sdd -> app-only product + SDD skeleton (ADR-0002 composition-by-scaffold).
       # Override the template default (spec-kit) so Templates composition emits the SDD shape.
