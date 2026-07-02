@@ -1,11 +1,15 @@
 schemaVersion: 1
+# The rendering `fs-gg-ui` scaffold ships the solution in the modern XML format `<App>.slnx`
+# (not the classic `<App>.sln`) — supported by the .NET SDK pinned in global.json (>= 10). Govern
+# what the composed product actually produces so `dotnet build/test <App>.slnx` is runnable, not a
+# phantom (FS-GG/FS.GG.Templates#59, review A4). Asserted by tests/composition/run.sh Stage 5.
 commands:
   - id: dotnet-build
-    command: "dotnet build <App>.sln"
+    command: "dotnet build <App>.slnx"
     timeout: 600
     environment: local-or-ci
   - id: dotnet-test
-    command: "dotnet test <App>.sln"
+    command: "dotnet test <App>.slnx"
     timeout: 900
     environment: ci
   - id: build-evidence
