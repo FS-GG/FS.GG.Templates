@@ -3,11 +3,26 @@ name: composition
 on:
   push:
     branches: [main]
+    # README.md is a genuine coherence surface (the test greps it) and lives at the repo root, so
+    # it stays in scope; only docs/** (incl. docs/TestSpecs/**, docs/reports/**) is exempt — a
+    # docs-only edit must not pay for a full pack→scaffold→build→govern run. Everything else that
+    # can affect the composed product still triggers the gate.
+    paths-ignore: ['docs/**']
   pull_request:
+    paths-ignore: ['docs/**']
+
+# One in-flight run per ref: a force-pushed PR (or rapid re-push) cancels its own stale run rather
+# than stacking redundant full-composition runs that each pack, scaffold, and build the live app.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   composition:
     runs-on: ubuntu-latest
+    # A hung feed/scaffold/build must not hold a runner for the 6-hour default; a healthy full run
+    # is well under this.
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: read   # pull the published Governance CLI from the org feed (below)
@@ -50,5 +65,24 @@ jobs:
       # CLIs installed above, the gated stages also run as hard gates: the full fsgg-sdd
       # scaffold+build of the live rendering app (Stage 5), the producer seam (`fsgg-sdd ship`,
       # Stage 6a), and the governance enforcement matrix (Stage 6b). See tests/composition/run.sh.
+      # KEEP_WORKDIR=1 stops run.sh's EXIT trap from rm -rf'ing the temp workdir, so the
+      # pack/install/scaffold/build/govern logs survive for the failure-artifact upload below.
+      # TMPDIR pins the mktemp base to a known path the upload step can glob (run.sh creates
+      # $TMPDIR/fsgg-composition.XXXXXX). On green runs the workdir is just discarded with the runner.
       - name: composition test
-        run: tests/composition/run.sh
+        env:
+          KEEP_WORKDIR: '1'
+          TMPDIR: ${{ runner.temp }}/composition
+        run: |
+          mkdir -p "$TMPDIR"
+          tests/composition/run.sh
+      # Red runs otherwise leave only inline log tails; ship the full log set wholesale so a failure
+      # is diagnosable without a re-run. Scoped to *.log to skip the built app tree.
+      - name: Upload composition diagnostics on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: composition-logs-${{ github.run_id }}
+          path: ${{ runner.temp }}/composition/fsgg-composition.*/**/*.log
+          if-no-files-found: warn
+          retention-days: 7
