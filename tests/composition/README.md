@@ -56,6 +56,12 @@ each independently gated and never green-by-omission:
     (tracking: `FS-GG/FS.GG.Governance#34`) and flips to asserting `exit 0` once `>= 1.2.0` is on
     `PATH`.
 
+  > **Status (as of 2026-07-02):** a profile-aware CLI (`>= 1.2.0`) is on `PATH` in CI, so the
+  > full matrix — including the `light`-relaxation row — **asserts**; no row currently skips
+  > (`FSGG_COMPOSITION_FULL=1 tests/composition/run.sh` → 45/45). The generation-conditional
+  > framing above is retained on purpose: it keeps the gate honest if an older CLI is ever the
+  > one on `PATH`.
+
   A usage/input/tool exit (`64`/`66`/`70`) is always a hard failure, never a skip.
 
 ```sh
