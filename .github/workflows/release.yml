@@ -1,0 +1,111 @@
+name: release
+
+# Tag-driven publish for the FS.GG.Templates NuGet template package. This is the producer
+# side of the org "publish-before-flip" release dance (FS-GG/.github coordination protocol,
+# FR-007): the package goes LIVE on the org feed here, and only then does a downstream
+# registry/pin flip say so. Mirrors Rendering's fs-gg-ui-template/v<ver> flow — Templates
+# publishes behind fs-gg-templates/v<ver>.
+#
+# Cut a release by pushing an annotated tag whose version matches <Version> in
+# FS.GG.Templates.csproj, e.g.:
+#   git tag fs-gg-templates/v0.2.0 && git push origin fs-gg-templates/v0.2.0
+#
+# The `gate` job is the release-only safety net: it re-runs the full composition suite and
+# the tag⇔csproj coherence assert, and it FAILS CLOSED — a red gate skips `publish`, so the
+# package can never reach the feed on a broken commit or a mismatched version.
+
+on:
+  push:
+    tags:
+      - 'fs-gg-templates/v*'
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read   # pull the published FS-GG CLIs from the org feed (as composition.yml)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # The cheapest, most load-bearing gate: the tag's version must equal <Version> in the
+      # csproj we are about to pack. Without this the feed could advertise a version the
+      # package does not carry (or a hand-edited <Version> could drift from the tag). Fail
+      # here before doing any of the expensive work below.
+      - name: Assert tag ⇔ csproj version coherence
+        run: |
+          TAG_VERSION="${GITHUB_REF#refs/tags/fs-gg-templates/v}"
+          CSPROJ_VERSION="$(grep -oE '<Version>[0-9][^<]*</Version>' FS.GG.Templates.csproj | head -1 | sed -E 's#</?Version>##g')"
+          echo "tag version:    $TAG_VERSION"
+          echo "csproj version: $CSPROJ_VERSION"
+          if [ -z "$CSPROJ_VERSION" ]; then
+            echo "::error::could not read <Version> from FS.GG.Templates.csproj"; exit 1
+          fi
+          if [ "$TAG_VERSION" != "$CSPROJ_VERSION" ]; then
+            echo "::error::release tag ($TAG_VERSION) != <Version> in FS.GG.Templates.csproj ($CSPROJ_VERSION). Bump the csproj to match the tag before tagging (publish-before-flip)."
+            exit 1
+          fi
+
+      # Same authenticated CLI setup as composition.yml so the gated stages ASSERT instead of
+      # skipping (never green-by-omission). See composition.yml for why a classic PAT is the
+      # only credential that reads the private FS.GG.UI.* closure the scaffold restores.
+      - name: Install FS-GG CLIs (governance enforcement + sdd producer/scaffold)
+        env:
+          FEED_TOKEN: ${{ secrets.FSGG_PACKAGES_PAT }}
+        run: |
+          dotnet nuget add source \
+            --username fs-gg --password "$FEED_TOKEN" --store-password-in-clear-text \
+            --name fs-gg-github "https://nuget.pkg.github.com/FS-GG/index.json" || true
+          dotnet tool install --global FS.GG.Governance.Cli || true
+          dotnet tool install --global FS.GG.SDD.Cli
+          echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
+
+      - name: Restore (locked)
+        run: dotnet restore FS.GG.Templates.csproj --locked-mode
+
+      # The generated-product gate: pack → install → instantiate → scaffold/build → verify
+      # pins/links + governance enforcement. If this is red we do NOT publish.
+      - name: composition test
+        run: tests/composition/run.sh
+
+  publish:
+    needs: gate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # create the GitHub Release
+      packages: write   # push the package to the org feed
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Pack
+        run: dotnet pack FS.GG.Templates.csproj -c Release -o artifacts
+
+      # Publish to the org GitHub Packages NuGet feed. Publishing THIS repo's own package
+      # works with the run-scoped GITHUB_TOKEN (packages: write above) — unlike READING the
+      # private FS.GG.UI.* closure, which needs the classic PAT (see composition.yml).
+      # --skip-duplicate makes a re-run idempotent (a re-pushed tag never fails on 409).
+      - name: Push to GitHub Packages (org feed)
+        run: |
+          dotnet nuget push "artifacts/*.nupkg" \
+            --api-key "${{ secrets.GITHUB_TOKEN }}" \
+            --source "https://nuget.pkg.github.com/FS-GG/index.json" \
+            --skip-duplicate
+
+      # Confirm the push landed before cutting the Release, so a GitHub Release never
+      # advertises a version the feed cannot serve (publish-before-flip, at this repo's seam).
+      - name: GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" artifacts/*.nupkg \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
