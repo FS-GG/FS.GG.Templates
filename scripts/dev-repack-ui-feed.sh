@@ -39,15 +39,17 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROV="$ROOT/providers/rendering.providers.yml"
 FEED="${NUGET_LOCAL_FEED:-$HOME/.local/share/nuget-local}"
 
+# shellcheck source=scripts/lib/read-pin.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/read-pin.sh"
+
 step() { printf '\n\033[1m== %s ==\033[0m\n' "$1"; }
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$1"; }
 
 command -v dotnet >/dev/null || { echo "FATAL: dotnet not on PATH" >&2; exit 2; }
 
-# The pin is the single source of truth — read it from the provider `source:` line, exactly
-# as tests/composition/run.sh and bump-rendering-pin.sh do.
-PIN="$(grep -oE 'FS\.GG\.UI\.Template::[^ ]+' "$PROV" | head -1 | sed 's/.*:://')"
-[ -n "$PIN" ] || { echo "FATAL: could not read FS.GG.UI.Template pin from $PROV" >&2; exit 1; }
+# The pin is the single source of truth — read it from the provider `source:` line via the
+# shared helper (scripts/lib/read-pin.sh), exactly as run.sh and bump-rendering-pin.sh do.
+PIN="$(read_pin "$PROV")" || { echo "FATAL: could not read FS.GG.UI.Template pin from $PROV" >&2; exit 1; }
 echo "Pinned FS.GG.UI.Template version: $PIN"
 echo "Local feed:                       $FEED"
 mkdir -p "$FEED"
