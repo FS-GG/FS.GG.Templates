@@ -72,3 +72,25 @@ KEEP_WORKDIR=1 tests/composition/run.sh            # keep the temp workdir for i
 
 Exit code is non-zero if any assertion fails. CI runs this on every push/PR
 (`.github/workflows/composition.yml`).
+
+## Layout
+
+`run.sh` is a thin orchestrator; the gate was split out of a single ~600-line file
+(review A3) so each stage, helper, and fixture is independently readable and the next
+ADR stage drops in as one new `stages/` file:
+
+```
+run.sh              orchestrator — sets the run-globals, sources the libs + stages in order
+                    (they share one shell, so PASS/FAIL and stage vars persist), summarizes
+lib/helpers.sh      PASS/FAIL counters + ok/bad/skip/step/assert_*/installed_template_version
+lib/skill-union.sh  the pinned FS-GG/.github ref (SKILL_ASSERT_REF, Renovate-bumped) +
+                    fetch_skill_assert + assert_skill_union
+fixtures/*.json     the contract-v1 governance-handoff documents Stage 6b enforces
+stages/NN-*.sh      one file per stage: 01 pack · 02 install · 03 instantiate · 04 verify ·
+                    05 build · 05b standalone · 06 govern
+```
+
+The stage files are **sourced, not executed** — they run in `run.sh`'s shell and share its
+globals (`NUPKG`, `PIN_VER`, `FULL`, `FULL_OK`, …), so order matters and an `exit` in a stage
+ends the whole run. Helpers and fixtures are the only two things a new stage needs from the
+prelude.

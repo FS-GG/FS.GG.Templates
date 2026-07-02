@@ -112,7 +112,7 @@ byte-identical union of process + product skills (via the reusable FS-GG/.github
 canonical-body sha256, and nothing undeclared ships (dangling fails).
 
 That shared script is fetched at a **pinned FS-GG/.github commit SHA** (`SKILL_ASSERT_REF`
-in `run.sh`), never `@main` (issue #56): a full-SHA raw fetch is content-addressed, so the
+in `tests/composition/lib/skill-union.sh`), never `@main` (issue #56): a full-SHA raw fetch is content-addressed, so the
 gate is both deterministic (its semantics can't change under this repo without a reviewable
 pin bump) and integrity-checked (GitHub can't serve different bytes for a SHA — no separate
 content hash needed). Renovate moves the pin against the `main` head like the `FS.GG.UI.*`

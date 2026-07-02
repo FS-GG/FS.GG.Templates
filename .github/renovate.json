@@ -3,7 +3,7 @@
   "extends": [
     "github>FS-GG/.github"
   ],
-  "description": "Extends the org-shared FS-GG preset (github>FS-GG/.github), which provides config:recommended + dependency dashboard + semantic commits, the GitHub Packages registry for FS.GG.*, the FS.GG.UI coherent-set grouping, the -preview channel, and the shared custom managers. This repo adds two managers: (1) moves the single FS.GG.UI.Template version pin in providers/rendering.providers.yml + README when Rendering publishes (replacing the retired scripts/sync-from-rendering.sh), and (2) moves the FS-GG/.github commit SHA that tests/composition/run.sh fetches skill-union-assert.sh at (issue #56 \u2014 a pinned ref, never @main).",
+  "description": "Extends the org-shared FS-GG preset (github>FS-GG/.github), which provides config:recommended + dependency dashboard + semantic commits, the GitHub Packages registry for FS.GG.*, the FS.GG.UI coherent-set grouping, the -preview channel, and the shared custom managers. This repo adds two managers: (1) moves the single FS.GG.UI.Template version pin in providers/rendering.providers.yml + README when Rendering publishes (replacing the retired scripts/sync-from-rendering.sh), and (2) moves the FS-GG/.github commit SHA that the composition gate fetches skill-union-assert.sh at, pinned in tests/composition/lib/skill-union.sh (issue #56 \u2014 a pinned ref, never @main; the pin moved out of run.sh into the skill-union lib in review A3).",
   "packageRules": [
     {
       "description": "Rewrite the exact pinned FS.GG.UI.* value rather than widening a range (the pin coherence that tests/composition/run.sh enforce).",
@@ -33,9 +33,9 @@
     },
     {
       "customType": "regex",
-      "description": "Bump the FS-GG/.github commit SHA that tests/composition/run.sh fetches the shared skill-union-assert.sh at (issue #56, review F4). @main is a moving target; this tracks the main branch head via the git-refs datasource and rewrites the 40-char SHA in place, keeping ONE source of truth AND a deterministic gate. The inline `# renovate:` annotation next to SKILL_ASSERT_REF supplies datasource/depName/packageName.",
+      "description": "Bump the FS-GG/.github commit SHA that the composition gate fetches the shared skill-union-assert.sh at (issue #56, review F4). @main is a moving target; this tracks the main branch head via the git-refs datasource and rewrites the 40-char SHA in place, keeping ONE source of truth AND a deterministic gate. The pin (SKILL_ASSERT_REF) and its inline `# renovate:` annotation live in tests/composition/lib/skill-union.sh (moved out of run.sh in review A3's split).",
       "managerFilePatterns": [
-        "/^tests/composition/run\\.sh$/"
+        "/^tests/composition/lib/skill-union\\.sh$/"
       ],
       "matchStrings": [
         "renovate:\\s*datasource=(?<datasource>\\S+)\\s+depName=(?<depName>\\S+)\\s+packageName=(?<packageName>\\S+)\\s+SKILL_ASSERT_REF=\"(?<currentDigest>[0-9a-f]{40})\""

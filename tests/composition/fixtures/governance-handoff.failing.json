@@ -1,0 +1,19 @@
+{
+  "contractVersion": "1.0.0",
+  "schemaVersion": 1,
+  "evidence": {
+    "nodes": [
+      { "id": "build:lib", "state": "failed", "rationale": "composition e2e: forced failing evidence" },
+      { "id": "test:unit", "state": "real" }
+    ],
+    "dependencies": [ ["test:unit", "build:lib"] ]
+  },
+  "readiness": {
+    "shipDisposition": "blocked",
+    "verificationReadiness": "incomplete",
+    "blockingDiagnosticIds": ["COMPOSITION_E2E_BLOCK"],
+    "counts": { "blocking": 1, "advisory": 0 },
+    "perViewState": { "ledger": "stale" }
+  },
+  "governedReferences": []
+}
