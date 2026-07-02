@@ -49,6 +49,20 @@ is no fork to drift — the `FsGgUiVersion` staleness class (below) is structura
   checks the feed and upgrades to the latest published version. The rendering payload
   updates independently, via the provider's package pin.
 
+## Documentation convention: link the registry, don't restate it
+
+Cross-repo state — package pins, minimum coherent versions, release dates, CLI capability
+thresholds — is owned by `FS-GG/.github` `registry/dependencies.yml` (and its ADRs). When a
+comment or doc needs to name that state, **link the registry entry (plus any tracking issue
+or ADR) rather than restating the value**. A restated version or date is a dated claim that
+silently rots when the upstream moves; a link stays correct by construction. Where a value
+genuinely must be duplicated for a machine — e.g. the `FS.GG.UI.Template` pin the composition
+test asserts, or the `minimumFsggSdd` mirror in `providers/rendering.providers.yml` — mark it
+explicitly as a registry **mirror** and keep the coherence assertion that fails when the two
+disagree (see "Keeping the rendering pin fresh" in the README). One authoritative source with
+a checked mirror beats many prose copies. Prefer this when writing new comments; retrofit old
+dated claims opportunistically as you touch them, not in a sweep.
+
 ## Rejected alternative: a single monolithic template (retired)
 
 `fs-gg-fullstack` was one `dotnet new` template that emitted all three layers in a single
