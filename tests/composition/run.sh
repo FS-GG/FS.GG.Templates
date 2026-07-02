@@ -22,14 +22,17 @@
 # Skill-union assertion (ADR-0014 P3.T3.2 — FS-GG/FS.GG.Templates#49): in BOTH lanes —
 # orchestrated (fsgg-sdd scaffold, Stage 5) and standalone (direct `dotnet new fs-gg-ui`
 # spec-kit, Stage 5b) — the three agent-skill roots (.claude/.codex/.agents skills) must be
-# the BYTE-IDENTICAL UNION of process + product skills. Cross-root identity is asserted with
-# the reusable P3.G3.1 script (FS-GG/.github scripts/skill-union-assert.sh); the producer
-# manifest (.agents/skills/skill-manifest.json, canonical SKILL.md-body sha256) is
-# cross-checked with the producers' semantics: every declared+present skill matches its
-# digest, and every skill in the union is either manifest-declared or an expected lane
-# co-tenant (fs-gg-sdd-* under sdd, speckit-* under spec-kit) — anything else is a dangling
-# skill and FAILS. This replaced the former "grep scaffold.providerWroteSddTree and SKIP"
-# lockstep (#47): a provider writing outside .agents/skills/ is now a hard failure.
+# the BYTE-IDENTICAL UNION of process + product skills. This is asserted end-to-end by the ONE
+# reusable P3.G3.1 script (FS-GG/.github scripts/skill-union-assert.sh): cross-root identity via
+# `--product` (checks 1–2), and the producer manifest (.agents/skills/skill-manifest.json,
+# canonical SKILL.md-body sha256) via `--manifest --co-tenants` (check 3, producer semantics) —
+# every declared+present skill matches its digest, and every skill in the union is either
+# manifest-declared or an expected lane co-tenant (fs-gg-sdd-* under sdd, speckit-* under
+# spec-kit) — anything else is a dangling skill and FAILS. The manifest cross-check is the shared
+# script's own `--manifest` arm (issue #52): the earlier inline bash reimplementation was retired
+# once that arm adopted the shipped producer semantics (FS-GG/.github#120). This replaced the
+# former "grep scaffold.providerWroteSddTree and SKIP" lockstep (#47): a provider writing outside
+# .agents/skills/ is now a hard failure.
 #
 # A further GATED stage exercises the SDD→Governance enforcement loop end-to-end through
 # the composed product — the seam Templates specifically owns (no single upstream repo
@@ -83,23 +86,28 @@ fetch_skill_assert() {
   SKILL_ASSERT=""; return 1
 }
 
-# assert_skill_union <product-dir> <lane> <co-tenant-regex>
-# The T3.2 assertion, two arms:
-#   (a) consumer arm — the reusable P3.G3.1 script: every union skill present in EVERY root ∧
-#       byte-identical across .claude/.codex/.agents (checks 1–2; its --manifest check 3 is not
-#       used: it expects a tree-hash + exact-set manifest, while the shipped producers emit a
-#       canonical SKILL.md-body sha256 over a conditioned superset catalog — see the
-#       cross-repo tracking issue on FS-GG/.github referenced from #49);
-#   (b) manifest arm — producer semantics (mirrors Fsgg.SkillMirror.verify): every
-#       manifest-declared skill that is materialized matches its canonical-body sha256
-#       ([drifted] otherwise), and every skill in the union is manifest-declared OR an
-#       expected lane co-tenant process skill ([dangling] otherwise — the ADR-0014 F3 class).
+# assert_skill_union <product-dir> <lane> <co-tenant-glob>
+# The T3.2 assertion, driven ENTIRELY by the one shared P3.G3.1 script — no inline
+# reimplementation (issue #52; the former inline manifest arm is retired now that the shared
+# script's --manifest adopted the shipped producer semantics per FS-GG/.github#120, PR #123):
+#   (a) consumer arm  — `--product`: every union skill present in EVERY root ∧ byte-identical
+#       across .claude/.codex/.agents (checks 1–2);
+#   (b) manifest arm  — `--product --manifest <mf> --co-tenants <glob>` (check 3, producer
+#       semantics = canonical SKILL.md-body sha256, superset-catalog set semantics): every
+#       manifest-declared skill that is materialized matches its digest ([drifted] otherwise),
+#       and every skill in the union is manifest-declared OR a --co-tenants co-tenant process
+#       skill ([dangling] otherwise — the ADR-0014 F3 class). Declared-but-absent ids are
+#       legitimate (the manifest is an upper-bound catalog) and the script reports their count.
+# The manifest arm re-runs checks 1–2 (idempotent), so it is the single source of the verdict
+# when a manifest is present; the standalone (a) call keeps the byte-identity signal explicit
+# and still fires on hosts without jq (where the manifest arm SKIPs).
 assert_skill_union() {
   local prod="$1" lane="$2" cotenant="$3"
   if ! fetch_skill_assert; then
     bad "$lane: cannot obtain the shared skill-union assertion (FS-GG/.github scripts/skill-union-assert.sh: raw.githubusercontent.com unreachable and no ../.github sibling clone) — the union cannot be verified, so this lane FAILS rather than passing unverified"
     return
   fi
+  # (a) consumer arm — checks 1–2 (present-in-each-root ∧ byte-identical-across-roots).
   if "$SKILL_ASSERT" --product "$prod" >"$WORKDIR/skill-union.$lane.log" 2>&1; then
     ok "$lane: the three agent-skill roots are the byte-identical union (P3.G3.1: present-in-each-root ∧ byte-identical-across-roots)"
   else
@@ -107,6 +115,7 @@ assert_skill_union() {
     sed 's/^/  | /' "$WORKDIR/skill-union.$lane.log" 2>/dev/null
     return
   fi
+  # (b) manifest arm — check 3 via the shared script's --manifest/--co-tenants (was inline; #52).
   local mf="$prod/.agents/skills/skill-manifest.json"
   if [[ ! -f "$mf" ]]; then
     bad "$lane: .agents/skills/skill-manifest.json missing — FS.GG.UI.Template >= 0.1.61-preview.1 ships the product skill-manifest in every lifecycle (ADR-0014 P2)"
@@ -114,35 +123,18 @@ assert_skill_union() {
   fi
   ok "$lane: producer skill-manifest present (.agents/skills/skill-manifest.json)"
   if ! command -v jq >/dev/null 2>&1; then
-    skip "$lane: jq not on PATH — manifest digest/dangling cross-check not exercised here (CI has jq; cross-root byte-identity above still asserted)"
+    skip "$lane: jq not on PATH — manifest digest/dangling cross-check not exercised here (the shared --manifest arm requires jq; CI has it, and cross-root byte-identity above is still asserted)"
     return
   fi
-  local dir id want got matched=0 drifted=0 dangling=0 absent=""
-  for dir in "$prod"/.agents/skills/*/; do
-    [[ -f "$dir/SKILL.md" ]] || continue
-    id="$(basename "$dir")"
-    want="$(jq -r --arg id "$id" '[.skills[] | select(.id == $id) | .sha256][0] // empty' "$mf")"
-    if [[ -n "$want" ]]; then
-      got="$(sha256sum "$dir/SKILL.md" | cut -d' ' -f1)"
-      if [[ "$got" == "$want" ]]; then
-        matched=$((matched + 1))
-      else
-        bad "$lane: [drifted] skill '$id' SKILL.md sha256 $got != manifest $want"
-        drifted=1
-      fi
-    elif [[ ! "$id" =~ $cotenant ]]; then
-      bad "$lane: [dangling] skill '$id' is in the union but neither manifest-declared nor an expected co-tenant ($cotenant) — undeclared skills must not ship (ADR-0014 F3)"
-      dangling=1
-    fi
-  done
-  [[ "$drifted" -eq 0 ]]  && ok "$lane: every materialized manifest-declared skill matches its canonical-body sha256 ($matched checked)"
-  [[ "$dangling" -eq 0 ]] && ok "$lane: no dangling skill — the union is manifest-declared ∪ lane co-tenants ($cotenant)"
-  # Manifest ids not materialized in this lane are producer-conditioned (lifecycle/profile) —
-  # the manifest is an upper-bound catalog, so absence is informational, not a failure.
-  while IFS= read -r id; do
-    [[ -d "$prod/.agents/skills/$id" ]] || absent="$absent $id"
-  done < <(jq -r '.skills[].id' "$mf")
-  [[ -n "$absent" ]] && printf '  (note: manifest declares skills not materialized in this lane:%s)\n' "$absent"
+  if "$SKILL_ASSERT" --product "$prod" --manifest "$mf" --co-tenants "$cotenant" \
+       >"$WORKDIR/skill-union-manifest.$lane.log" 2>&1; then
+    ok "$lane: manifest cross-check green — every materialized manifest-declared skill matches its canonical-body sha256, and the union is manifest-declared ∪ lane co-tenants ($cotenant)"
+    # Surface the script's own count line (present/byte-identical/manifest-matched/co-tenant/declared-absent).
+    grep -E '^skill-union-assert: [0-9]+ skill' "$WORKDIR/skill-union-manifest.$lane.log" 2>/dev/null | sed 's/^/  | /'
+  else
+    bad "$lane: manifest cross-check FAILED — a [drifted] digest mismatch or a [dangling] undeclared skill (ADR-0014 F3); see below"
+    sed 's/^/  | /' "$WORKDIR/skill-union-manifest.$lane.log" 2>/dev/null
+  fi
 }
 
 cleanup() {
@@ -274,7 +266,7 @@ if [[ "$RUN_FULL" == "1" ]]; then
       # authority per Feature 056) fanned the union (seeded fs-gg-sdd-* ∪ provider
       # .agents/skills/*) into .claude/.codex/.agents. Assert it, content-checked.
       step "verify — skill-union (orchestrated lane, ADR-0014 P3.T3.2)"
-      assert_skill_union "$FULL" "orchestrated" '^fs-gg-sdd-'
+      assert_skill_union "$FULL" "orchestrated" 'fs-gg-sdd-*'
     else
       bad "scaffold succeeded but dotnet build of the composed product failed (see $WORKDIR/build.log)"
       tail -n 60 "$WORKDIR/build.log" 2>/dev/null | sed 's/^/  | /'
@@ -314,7 +306,7 @@ if dotnet new install "FS.GG.UI.Template::$PIN_VER" >"$WORKDIR/standalone-instal
         bad "materialize-skill-roots.fsx --enforce failed — per-skill drift below (see $WORKDIR/materialize.log)"
         tail -n 30 "$WORKDIR/materialize.log" 2>/dev/null | sed 's/^/  | /'
       fi
-      assert_skill_union "$STAND" "standalone" '^speckit-'
+      assert_skill_union "$STAND" "standalone" 'speckit-*'
     else
       bad "standalone product lacks .specify/scripts/fs-gg/materialize-skill-roots.fsx — FS.GG.UI.Template >= 0.1.61-preview.1 ships the one materialize step in the spec-kit lane (ADR-0014 P2)"
     fi
