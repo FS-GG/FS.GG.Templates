@@ -138,11 +138,28 @@ The templates ship as a versioned NuGet **template package**, so the standard `d
 update path applies:
 
 ```sh
-dotnet new install FS.GG.Templates          # from a feed, once published
+dotnet new install FS.GG.Templates          # from the org feed
 # or from a local pack:  dotnet new install ./artifacts/FS.GG.Templates.<version>.nupkg
 dotnet new update                           # upgrade to the latest published version
 dotnet new update --check-only              # see what would update
 ```
+
+### Release (publishing a new version)
+
+The package is published by `.github/workflows/release.yml`, tag-driven and symmetric with
+Rendering's `fs-gg-ui-template/v<ver>` flow — Templates publishes behind
+`fs-gg-templates/v<ver>`. To cut a release, bump `<Version>` in `FS.GG.Templates.csproj`,
+then push a matching tag:
+
+```sh
+git tag fs-gg-templates/v0.2.0 && git push origin fs-gg-templates/v0.2.0
+```
+
+The workflow's `gate` job re-runs the composition suite and asserts the tag version equals
+`<Version>` (fail-closed — a red gate or a version mismatch skips the publish). The `publish`
+job then packs, pushes to `nuget.pkg.github.com/FS-GG`, and cuts a GitHub Release. This is
+the producer side of the org **publish-before-flip** dance: the package is LIVE on the feed
+before any downstream registry/pin flip advertises it.
 
 ## Contents
 
@@ -156,6 +173,7 @@ dotnet new update --check-only              # see what would update
 | `scripts/bump-rendering-pin.sh` | re-pins `FS.GG.UI.Template` coherently across provider + README (successor to the retired `sync-from-rendering.sh`). |
 | `.github/renovate.json` | Renovate config that bumps the `FS.GG.UI.*` pin automatically. |
 | `.github/workflows/upstream-bump.yml` | `repository_dispatch`/`workflow_dispatch` auto-PR that re-pins on an upstream release. |
+| `.github/workflows/release.yml` | tag-driven (`fs-gg-templates/v*`) publish: gate (composition + version⇔tag assert) → pack → push to the org feed → GitHub Release. |
 | `FS.GG.Templates.csproj` | packs the templates into the updatable NuGet package. |
 | `docs/design.md` | the composition-vs-monolith rationale (why the vendored monolith was retired). |
 
