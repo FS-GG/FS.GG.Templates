@@ -127,7 +127,7 @@ start. The scaffold then resolves `FS.GG.UI.Template::<pin>` and the coherent `F
 set straight from the org feed:
 
 ```sh
-FSGG_COMPOSITION_FULL=1 tests/composition/run.sh # 45/45 — full scaffold/build + skill-union (both lanes) + enforcement
+FSGG_COMPOSITION_FULL=1 tests/composition/run.sh # 47/47 — full scaffold/build + skill-union (both lanes) + enforcement
 ```
 
 The org feed is private, so this needs a GitHub token with `read:packages` (baked into the

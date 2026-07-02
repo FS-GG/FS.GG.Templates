@@ -13,7 +13,7 @@
       "datatype": "text",
       "defaultValue": "App",
       "replaces": "<App>",
-      "description": "Project/solution name used in the governed command strings (e.g. 'dotnet build <App>.sln') and the governance project id."
+      "description": "Project/solution name used in the governed command strings (e.g. 'dotnet build <App>.slnx') and the governance project id."
     },
     "defaultProfile": {
       "type": "parameter",
