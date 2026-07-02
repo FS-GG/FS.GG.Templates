@@ -19,6 +19,18 @@
 # only when those are available (or FSGG_COMPOSITION_FULL=1 forces it) and otherwise SKIPS
 # with an explicit reason — it never silently passes.
 #
+# Skill-union assertion (ADR-0014 P3.T3.2 — FS-GG/FS.GG.Templates#49): in BOTH lanes —
+# orchestrated (fsgg-sdd scaffold, Stage 5) and standalone (direct `dotnet new fs-gg-ui`
+# spec-kit, Stage 5b) — the three agent-skill roots (.claude/.codex/.agents skills) must be
+# the BYTE-IDENTICAL UNION of process + product skills. Cross-root identity is asserted with
+# the reusable P3.G3.1 script (FS-GG/.github scripts/skill-union-assert.sh); the producer
+# manifest (.agents/skills/skill-manifest.json, canonical SKILL.md-body sha256) is
+# cross-checked with the producers' semantics: every declared+present skill matches its
+# digest, and every skill in the union is either manifest-declared or an expected lane
+# co-tenant (fs-gg-sdd-* under sdd, speckit-* under spec-kit) — anything else is a dangling
+# skill and FAILS. This replaced the former "grep scaffold.providerWroteSddTree and SKIP"
+# lockstep (#47): a provider writing outside .agents/skills/ is now a hard failure.
+#
 # A further GATED stage exercises the SDD→Governance enforcement loop end-to-end through
 # the composed product — the seam Templates specifically owns (no single upstream repo
 # covers the composition):
@@ -50,6 +62,88 @@ assert_absent() { if grep -rqF -- "$2" "$1" 2>/dev/null; then bad "$3 (found str
 # assert_exit <expected-code> <actual-code> <message>  — exact match (so a usage/input/tool
 # error, e.g. 64/66/70, can never masquerade as a governed-blocking '2' or a clean '0').
 assert_exit() { if [[ "$2" == "$1" ]]; then ok "$3 (exit $2)"; else bad "$3 (expected exit $1, got $2)"; fi; }
+
+# ── skill-union assertion (ADR-0014 P3.T3.2, issue #49) ─────────────────────────────────────
+# fetch_skill_assert — obtain the shared P3.G3.1 assertion (FS-GG/.github#111). One source of
+# truth: fetched from FS-GG/.github@main (public repo), falling back to a sibling clone for
+# offline dev. NOT vendored here — vendoring is exactly the drift class ADR-0014 retires.
+SKILL_ASSERT=""
+fetch_skill_assert() {
+  [[ -n "$SKILL_ASSERT" && -x "$SKILL_ASSERT" ]] && return 0
+  SKILL_ASSERT="$WORKDIR/skill-union-assert.sh"
+  if curl -fsSL --max-time 30 \
+       "https://raw.githubusercontent.com/FS-GG/.github/main/scripts/skill-union-assert.sh" \
+       -o "$SKILL_ASSERT" 2>/dev/null && [[ -s "$SKILL_ASSERT" ]]; then
+    chmod +x "$SKILL_ASSERT"; return 0
+  fi
+  if [[ -f "$REPO_ROOT/../.github/scripts/skill-union-assert.sh" ]]; then
+    cp "$REPO_ROOT/../.github/scripts/skill-union-assert.sh" "$SKILL_ASSERT"
+    chmod +x "$SKILL_ASSERT"; return 0
+  fi
+  SKILL_ASSERT=""; return 1
+}
+
+# assert_skill_union <product-dir> <lane> <co-tenant-regex>
+# The T3.2 assertion, two arms:
+#   (a) consumer arm — the reusable P3.G3.1 script: every union skill present in EVERY root ∧
+#       byte-identical across .claude/.codex/.agents (checks 1–2; its --manifest check 3 is not
+#       used: it expects a tree-hash + exact-set manifest, while the shipped producers emit a
+#       canonical SKILL.md-body sha256 over a conditioned superset catalog — see the
+#       cross-repo tracking issue on FS-GG/.github referenced from #49);
+#   (b) manifest arm — producer semantics (mirrors Fsgg.SkillMirror.verify): every
+#       manifest-declared skill that is materialized matches its canonical-body sha256
+#       ([drifted] otherwise), and every skill in the union is manifest-declared OR an
+#       expected lane co-tenant process skill ([dangling] otherwise — the ADR-0014 F3 class).
+assert_skill_union() {
+  local prod="$1" lane="$2" cotenant="$3"
+  if ! fetch_skill_assert; then
+    bad "$lane: cannot obtain the shared skill-union assertion (FS-GG/.github scripts/skill-union-assert.sh: raw.githubusercontent.com unreachable and no ../.github sibling clone) — the union cannot be verified, so this lane FAILS rather than passing unverified"
+    return
+  fi
+  if "$SKILL_ASSERT" --product "$prod" >"$WORKDIR/skill-union.$lane.log" 2>&1; then
+    ok "$lane: the three agent-skill roots are the byte-identical union (P3.G3.1: present-in-each-root ∧ byte-identical-across-roots)"
+  else
+    bad "$lane: agent-skill roots are NOT the byte-identical union (see below)"
+    sed 's/^/  | /' "$WORKDIR/skill-union.$lane.log" 2>/dev/null
+    return
+  fi
+  local mf="$prod/.agents/skills/skill-manifest.json"
+  if [[ ! -f "$mf" ]]; then
+    bad "$lane: .agents/skills/skill-manifest.json missing — FS.GG.UI.Template >= 0.1.61-preview.1 ships the product skill-manifest in every lifecycle (ADR-0014 P2)"
+    return
+  fi
+  ok "$lane: producer skill-manifest present (.agents/skills/skill-manifest.json)"
+  if ! command -v jq >/dev/null 2>&1; then
+    skip "$lane: jq not on PATH — manifest digest/dangling cross-check not exercised here (CI has jq; cross-root byte-identity above still asserted)"
+    return
+  fi
+  local dir id want got matched=0 drifted=0 dangling=0 absent=""
+  for dir in "$prod"/.agents/skills/*/; do
+    [[ -f "$dir/SKILL.md" ]] || continue
+    id="$(basename "$dir")"
+    want="$(jq -r --arg id "$id" '[.skills[] | select(.id == $id) | .sha256][0] // empty' "$mf")"
+    if [[ -n "$want" ]]; then
+      got="$(sha256sum "$dir/SKILL.md" | cut -d' ' -f1)"
+      if [[ "$got" == "$want" ]]; then
+        matched=$((matched + 1))
+      else
+        bad "$lane: [drifted] skill '$id' SKILL.md sha256 $got != manifest $want"
+        drifted=1
+      fi
+    elif [[ ! "$id" =~ $cotenant ]]; then
+      bad "$lane: [dangling] skill '$id' is in the union but neither manifest-declared nor an expected co-tenant ($cotenant) — undeclared skills must not ship (ADR-0014 F3)"
+      dangling=1
+    fi
+  done
+  [[ "$drifted" -eq 0 ]]  && ok "$lane: every materialized manifest-declared skill matches its canonical-body sha256 ($matched checked)"
+  [[ "$dangling" -eq 0 ]] && ok "$lane: no dangling skill — the union is manifest-declared ∪ lane co-tenants ($cotenant)"
+  # Manifest ids not materialized in this lane are producer-conditioned (lifecycle/profile) —
+  # the manifest is an upper-bound catalog, so absence is informational, not a failure.
+  while IFS= read -r id; do
+    [[ -d "$prod/.agents/skills/$id" ]] || absent="$absent $id"
+  done < <(jq -r '.skills[].id' "$mf")
+  [[ -n "$absent" ]] && printf '  (note: manifest declares skills not materialized in this lane:%s)\n' "$absent"
+}
 
 cleanup() {
   dotnet new uninstall FS.GG.Templates >/dev/null 2>&1 || true
@@ -175,38 +269,63 @@ if [[ "$RUN_FULL" == "1" ]]; then
       else
         bad "could not locate the composed product's src/<Product>/Program.fs to check the default entrypoint (#36)"
       fi
+
+      # T3.2 (ADR-0014 P3, issue #49) — orchestrated lane: fsgg-sdd (>= 0.4.0, the sole mirror
+      # authority per Feature 056) fanned the union (seeded fs-gg-sdd-* ∪ provider
+      # .agents/skills/*) into .claude/.codex/.agents. Assert it, content-checked.
+      step "verify — skill-union (orchestrated lane, ADR-0014 P3.T3.2)"
+      assert_skill_union "$FULL" "orchestrated" '^fs-gg-sdd-'
     else
       bad "scaffold succeeded but dotnet build of the composed product failed (see $WORKDIR/build.log)"
       tail -n 60 "$WORKDIR/build.log" 2>/dev/null | sed 's/^/  | /'
     fi
-  elif grep -qE 'scaffold\.(providerFailed|providerWroteSddTree)' "$WORKDIR/scaffold.log" 2>/dev/null; then
-    # The rendering PROVIDER is executed by fsgg-sdd (it spawns the FS.GG.Rendering template
-    # toolchain); an UPSTREAM provider-execution defect here is not a Templates regression — the
-    # fs-gg-ui template instantiates cleanly on its own. Two known shapes, both SKIP-with-reason
-    # (never green-by-omission), each flipping to the hard build assertion the moment the provider
-    # scaffolds cleanly in CI:
-    #   - scaffold.providerFailed        — provider command failed / exited non-zero (FS-GG/FS.GG.SDD#35, fixed).
-    #   - scaffold.providerWroteSddTree  — under CLI 0.3.0 the provider runs but the pinned fs-gg-ui template
-    #                                      (Feature 219 / FR-001) writes its PRODUCT UI skills into BOTH
-    #                                      `.agents/skills/` AND the SDD-owned `.claude/skills/` tree, and
-    #                                      SDD's provider-defect guard rejects the `.claude/` write. Per the
-    #                                      ADR-0011 decision (recorded on FS-GG/FS.GG.Templates#47 +
-    #                                      FS-GG/FS.GG.SDD#55) the guard stays CORRECTLY STRICT — this is a
-    #                                      provider ownership-boundary violation, NOT an over-matching guard.
-    #                                      It unblocks when BOTH land: (a) Rendering re-releases fs-gg-ui-template
-    #                                      emitting UI skills to `.agents/skills/` ONLY (drop the `.claude/`
-    #                                      destination) and Templates re-pins providers/rendering.providers.yml,
-    #                                      and (b) fsgg-sdd ships orchestrator-owned skill fan-out that mirrors
-    #                                      the union into all three agent roots (FS-GG/FS.GG.SDD#55).
-    #                                      Tracking: FS-GG/FS.GG.Templates#47 · FS-GG/FS.GG.SDD#55.
-    skip "fsgg-sdd 'rendering' provider defect in CI (scaffold.providerFailed | scaffold.providerWroteSddTree) — an upstream provider-execution/ownership issue (the fs-gg-ui template instantiates fine directly), so the composed-product build is not asserted here yet. It flips to a hard gate once the provider scaffolds cleanly. Tracking: FS-GG/FS.GG.SDD#35 (exit-127, fixed) · FS-GG/FS.GG.Templates#47 + FS-GG/FS.GG.SDD#55 (.claude/skills ownership → ADR-0011 orchestrator-owned fan-out; guard stays strict, template drops .claude/ + CLI fans out)."
-    echo "  --- scaffold.log (full) ---"; sed 's/^/  | /' "$WORKDIR/scaffold.log" 2>/dev/null
   else
-    bad "full scaffold failed for a non-provider reason (see $WORKDIR/scaffold.log)"
+    # The former "grep scaffold.providerFailed|scaffold.providerWroteSddTree and SKIP" lockstep
+    # (#47) is RETIRED (T3.2): FS.GG.UI.Template >= 0.1.61-preview.1 emits UI skills into
+    # .agents/skills/ ONLY on the sdd path, and fsgg-sdd >= 0.4.0 owns the 3-root fan-out — so
+    # ANY scaffold failure, including a provider writing into an SDD-owned tree, is now a hard
+    # composition failure, not an acknowledged upstream defect.
+    bad "full scaffold failed (see $WORKDIR/scaffold.log) — provider-defect SKIPs are retired (#49); a recurrence of scaffold.providerWroteSddTree is a regression"
     sed 's/^/  | /' "$WORKDIR/scaffold.log" 2>/dev/null
   fi
 else
   skip "fsgg-sdd CLI not available — scaffold+build of the live rendering app not exercised here. Run with the SDD CLI installed (or FSGG_COMPOSITION_FULL=1) to require it. This stage validates the un-vendored composition path; the gate keeps CI honest rather than green-by-omission."
+fi
+
+# ── Stage 5b: standalone spec-kit lane skill-union (GATED) ───────────────────
+# The OTHER lane ADR-0014 covers: a direct `dotnet new fs-gg-ui` (no fsgg-sdd — default
+# spec-kit lifecycle). Here the template itself must produce the union via its ONE
+# materialize step (the vendored Fsgg.SkillMirror byte-equivalent, run by the
+# FsGgMaterializeSkillRoots MSBuild target on first build; `--enforce` for gates). We run
+# that producer step directly, then assert the union with the same shared assertion.
+# Needs only dotnet + the published template package; gated on the pin being installable
+# (already satisfied when Stage 5 ran — fsgg-sdd installs the same pin).
+step "standalone — spec-kit lane: one materialize step + skill-union (ADR-0014 P3.T3.2, gated)"
+STAND="$WORKDIR/standalone"
+if dotnet new install "FS.GG.UI.Template::$PIN_VER" >"$WORKDIR/standalone-install.log" 2>&1 \
+   || dotnet new list 2>/dev/null | grep -q 'fs-gg-ui'; then
+  if dotnet new fs-gg-ui -o "$STAND" --name Acme >"$WORKDIR/standalone-new.log" 2>&1; then
+    ok "standalone fs-gg-ui instantiation succeeded (default spec-kit lifecycle)"
+    MAT="$STAND/.specify/scripts/fs-gg/materialize-skill-roots.fsx"
+    if [[ -f "$MAT" ]]; then
+      if (cd "$STAND" && dotnet fsi .specify/scripts/fs-gg/materialize-skill-roots.fsx --enforce) >"$WORKDIR/materialize.log" 2>&1; then
+        ok "producer-side materialize+verify green (materialize-skill-roots.fsx --enforce — the one standalone materialize step)"
+      else
+        bad "materialize-skill-roots.fsx --enforce failed — per-skill drift below (see $WORKDIR/materialize.log)"
+        tail -n 30 "$WORKDIR/materialize.log" 2>/dev/null | sed 's/^/  | /'
+      fi
+      assert_skill_union "$STAND" "standalone" '^speckit-'
+    else
+      bad "standalone product lacks .specify/scripts/fs-gg/materialize-skill-roots.fsx — FS.GG.UI.Template >= 0.1.61-preview.1 ships the one materialize step in the spec-kit lane (ADR-0014 P2)"
+    fi
+  else
+    bad "standalone fs-gg-ui instantiation failed (see $WORKDIR/standalone-new.log)"
+    sed -n '$p' "$WORKDIR/standalone-new.log"
+  fi
+elif [[ "$RUN_FULL" == "1" || "${FSGG_COMPOSITION_FULL:-}" == "1" ]]; then
+  bad "cannot install FS.GG.UI.Template::$PIN_VER for the standalone lane (see $WORKDIR/standalone-install.log) — with the full environment present this lane is required"
+else
+  skip "FS.GG.UI.Template::$PIN_VER not installable here (no feed access) — the standalone-lane union is not exercised. CI (and any host with feed access) asserts it; the gate keeps CI honest rather than green-by-omission."
 fi
 
 # ── Stage 6: SDD→Governance handoff enforcement (GATED) ──────────────────────

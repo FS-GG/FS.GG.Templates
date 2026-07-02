@@ -5,39 +5,45 @@
 # `source` is the PUBLISHED FS.GG.UI.Template package, version-pinned with the
 # `dotnet new install` `id::version` syntax (SDD runs `dotnet new install <source>`).
 # The pin tracks the coherent template<->framework snapshot behind the immutable tag
-# `fs-gg-ui-template/v0.1.60-preview.1` (FS.GG.Rendering Feature 226; registry contract
-# `fs-gg-ui-template@0.1.60-preview.1`, the current coherent set — it ADDS the new consumer
-# `fs-gg-styling` theming/styling product skill (Feature 226 / FS.GG.Rendering#38), content-only
-# over the consumer skill-catalog currency + vocabulary de-leak (Features 224/225, @0.1.56) and
-# the `game` starter default (Feature 222, @0.1.54). Bump both the version and this comment together.
+# `fs-gg-ui-template/v0.1.61-preview.1` (FS.GG.Rendering Feature 231 / ADR-0014 P2; registry
+# contract `fs-gg-ui-template@0.1.61-preview.1`, the current coherent set — it ships the
+# provider PRODUCT skill-manifest at `.agents/skills/skill-manifest.json` in every lifecycle,
+# replaces the standalone per-skill twin matrix with ONE materialize step (vendored
+# Fsgg.SkillMirror, `FsGgMaterializeSkillRoots` on first build), drops the dangling dev-surface
+# wrappers, and emits UI skills into `.agents/skills/` ONLY on the sdd path — over the
+# `fs-gg-styling` product skill (Feature 226, @0.1.60) and the consumer skill-catalog
+# currency/de-leak set (Features 224/225, @0.1.56). Bump both the version and this comment together.
 schemaVersion: 1
 providers:
   - name: rendering
     contractVersion: "1.0.0"
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.1.60-preview.1   # published NuGet package, version-pinned
+    source: FS.GG.UI.Template::0.1.61-preview.1   # published NuGet package, version-pinned
     # ADR-0008 (FS-GG/.github#86, epic #85): the ORCHESTRATOR axis of the coherent set. A
     # scaffold has TWO inputs — this template@<source pin> (governed above) AND the fsgg-sdd
     # CLI@<installed> (was ungoverned). The CLI seeds artifacts a product on this pin is
-    # EXPECTED to contain: the fs-gg-sdd-* process skills (FS.GG.SDD Feature 051) and
+    # EXPECTED to contain: the fs-gg-sdd-* process skills (FS.GG.SDD Feature 051/056) and
     # .fsgg/early-stage-guidance.md (Feature 049). So the coherent set carries a MINIMUM
     # coherent fsgg-sdd version — the oldest CLI that seeds them — recorded here alongside
     # `source` so a scaffold can check the installed CLI against the coherent-set minimum
     # (fsgg-sdd stamps used+minimum into scaffold-provenance + warns when behind — FS.GG.SDD#49).
     # Mirrors registry `fs-gg-ui-template.minimum-fsgg-sdd` (coherence id
-    # `fsgg-sdd-orchestrator-axis`, coherent:false). Bump `version` in lockstep with the registry.
+    # `fsgg-sdd-orchestrator-axis`). Bump `version` in lockstep with the registry.
     minimumFsggSdd:
-      version: "0.3.0"         # PINNED (FR-007 satisfied): FS.GG.SDD released v0.3.0 (2026-07-01;
-                               # FS.GG.SDD.Cli 0.3.0 on the org feed), shipping Features 046-054 —
-                               # incl. 049 (early-stage-guidance) + 051 (seeded fs-gg-sdd-* skills)
-                               # + 052 (CLI stamps used+minimum into scaffold-provenance, warns when
-                               # behind). 0.3.0 is the OLDEST published CLI that seeds the artifacts a
-                               # product on this pin is expected to contain (0.2.1 predated them).
-                               # Mirrors registry pin fs-gg-ui-template.minimum-fsgg-sdd (FS-GG/.github#95).
-      requires: "FS.GG.SDD Feature 049 (early-stage-guidance) + Feature 051 (seeded fs-gg-sdd-* process skills)"
+      version: "0.4.0"         # PINNED (FR-007 satisfied): FS.GG.SDD released v0.4.0 (2026-07-01;
+                               # FS.GG.SDD.Cli 0.4.0 on the org feed), shipping Feature 056
+                               # (orchestrator skill fan-out): fsgg-sdd is the SOLE mirror authority —
+                               # it seeds the fs-gg-sdd-* process skills into the THIRD agent-skill
+                               # root .agents/skills/ and fans the byte-identical UNION (seeded ∪
+                               # provider .agents/skills/*) into .claude/.codex/.agents. 0.4.0 is the
+                               # OLDEST published CLI that seeds the 3-root skill union a product on
+                               # this pin is expected to contain (0.3.0 seeded fewer roots). Mirrors
+                               # registry pin fs-gg-ui-template.minimum-fsgg-sdd (FS.GG.SDD#57,
+                               # re-mirrored here by FS.GG.Templates#49 — closes the #47 chain).
+      requires: "FS.GG.SDD Feature 049 (early-stage-guidance) + Feature 051 (seeded fs-gg-sdd-* process skills) + Feature 056 (3-root byte-identical union fan-out)"
       adr: "FS-GG/.github docs/adr/0008-fsgg-sdd-cli-first-class-member-of-coherent-set.md"
       registry: "FS-GG/.github registry/dependencies.yml -> fs-gg-ui-template.minimum-fsgg-sdd"
-      tracking: "https://github.com/FS-GG/FS.GG.SDD/issues/49"
+      tracking: "https://github.com/FS-GG/FS.GG.SDD/issues/57"
     parameters:
       # lifecycle=sdd -> app-only product + SDD skeleton (ADR-0002 composition-by-scaffold).
       # Override the template default (spec-kit) so Templates composition emits the SDD shape.

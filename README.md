@@ -38,8 +38,8 @@ It produces:
 
 - **Rendering** — the FS.GG.Rendering `fs-gg-ui` app (Skia/OpenGL, Elmish/MVU, Scene,
   SkiaViewer, Controls), installed live from the published `FS.GG.UI.Template` package
-  pinned by the provider (currently `FS.GG.UI.Template@0.1.60-preview.1`, behind the
-  immutable tag `fs-gg-ui-template/v0.1.60-preview.1`). The provider passes
+  pinned by the provider (currently `FS.GG.UI.Template@0.1.61-preview.1`, behind the
+  immutable tag `fs-gg-ui-template/v0.1.61-preview.1`). The provider passes
   `lifecycle=sdd` so the product carries **only the runnable app** — the `.fsgg/`
   lifecycle comes from the SDD skeleton, not a second copy.
 - **SDD** — the lifecycle skeleton: `.fsgg/project.yml`, `.fsgg/sdd.yml`,
@@ -102,6 +102,13 @@ asserts the pins/links: parameter substitution lands, the governance gate set is
 `fsgg-sdd` CLI and a reachable template feed; that stage runs when they are available and
 otherwise **skips with a reason** (it never green-passes by omission).
 
+In both composition lanes — orchestrated (`fsgg-sdd scaffold`) and standalone (direct
+`dotnet new fs-gg-ui`, spec-kit) — the gate asserts the **skill-union invariant** (ADR-0014,
+issue #49): the three agent-skill roots (`.claude`/`.codex`/`.agents` `skills/`) are the
+byte-identical union of process + product skills (via the reusable FS-GG/.github
+`skill-union-assert.sh`), every materialized manifest-declared skill matches its
+canonical-body sha256, and nothing undeclared ships (dangling fails).
+
 On a provisioned container the full path needs no extra setup. `~/.nuget/NuGet/NuGet.Config`
 binds `FS.GG.*` to the published FS.GG org feed (`packageSourceMapping`), and the container
 entrypoint floats `fsgg-sdd` / `fsgg-governance` to the latest published version on every
@@ -109,7 +116,7 @@ start. The scaffold then resolves `FS.GG.UI.Template::<pin>` and the coherent `F
 set straight from the org feed:
 
 ```sh
-FSGG_COMPOSITION_FULL=1 tests/composition/run.sh # 33/33 — full scaffold/build + enforcement
+FSGG_COMPOSITION_FULL=1 tests/composition/run.sh # 45/45 — full scaffold/build + skill-union (both lanes) + enforcement
 ```
 
 The org feed is private, so this needs a GitHub token with `read:packages` (baked into the
