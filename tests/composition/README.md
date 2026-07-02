@@ -58,7 +58,7 @@ each independently gated and never green-by-omission:
 
   > **Status (as of 2026-07-02):** a profile-aware CLI (`>= 1.2.0`) is on `PATH` in CI, so the
   > full matrix — including the `light`-relaxation row — **asserts**; no row currently skips
-  > (`FSGG_COMPOSITION_FULL=1 tests/composition/run.sh` → 45/45). The generation-conditional
+  > (`FSGG_COMPOSITION_FULL=1 tests/composition/run.sh` → 47/47). The generation-conditional
   > framing above is retained on purpose: it keeps the gate honest if an older CLI is ever the
   > one on `PATH`.
 
