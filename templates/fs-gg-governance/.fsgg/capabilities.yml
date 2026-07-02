@@ -6,7 +6,7 @@ domains:
 pathMap:
   - glob: "src/**"
     capability: build
-  - glob: "*.sln"
+  - glob: "*.slnx"
     capability: build
   - glob: "tests/**"
     capability: test

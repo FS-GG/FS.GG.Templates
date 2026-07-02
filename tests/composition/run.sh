@@ -17,7 +17,10 @@
 # The full rendering product (scaffold → restore/build of the live FS.GG.UI app) needs
 # the `fsgg-sdd` CLI and a reachable FS.GG.UI.Template feed. That stage is GATED: it runs
 # only when those are available (or FSGG_COMPOSITION_FULL=1 forces it) and otherwise SKIPS
-# with an explicit reason — it never silently passes.
+# with an explicit reason — it never silently passes. When it does run, it also asserts the
+# overlay's governed commands are RUNNABLE against the composed product (A4, issue #59): the
+# governed `<App>.slnx` and `build.fsx` actually exist at the product root, so the overlay
+# governs real commands, not phantoms whose first check-run in a scaffolded product would fail.
 #
 # Skill-union assertion (ADR-0014 P3.T3.2 — FS-GG/FS.GG.Templates#49): in BOTH lanes —
 # orchestrated (fsgg-sdd scaffold, Stage 5) and standalone (direct `dotnet new fs-gg-ui`
@@ -245,8 +248,8 @@ step "verify — parameter substitution (no stray tokens)"
 assert_absent "$APP/.fsgg" "<App>"             "appName token '<App>' fully substituted"
 assert_absent "$APP/.fsgg" "GOV_DEFAULT_PROFILE" "profile token 'GOV_DEFAULT_PROFILE' fully substituted"
 assert_contains "$APP/.fsgg/governance.yml"  "id: Acme"          "appName -> governance.yml id"
-assert_contains "$APP/.fsgg/tooling.yml"  "dotnet build Acme.sln" "appName -> tooling build command"
-assert_contains "$APP/.fsgg/tooling.yml"  "dotnet test Acme.sln"  "appName -> tooling test command"
+assert_contains "$APP/.fsgg/tooling.yml"  "dotnet build Acme.slnx" "appName -> tooling build command"
+assert_contains "$APP/.fsgg/tooling.yml"  "dotnet test Acme.slnx"  "appName -> tooling test command"
 assert_contains "$APP/.fsgg/policy.yml"   "defaultProfile: strict" "defaultProfile -> policy default"
 
 step "verify — governance gate set is POPULATED (not inert)"
@@ -313,6 +316,45 @@ if [[ "$RUN_FULL" == "1" ]]; then
         assert_absent "$PROG" "-- pong" "no '-- pong'-style flag gates the default launch (entrypoint relaxation, #36)"
       else
         bad "could not locate the composed product's src/<Product>/Program.fs to check the default entrypoint (#36)"
+      fi
+
+      # A4 (issue #59, report §5) — governed commands must be RUNNABLE against the composed
+      # product, not merely present in the overlay. tooling.yml governs `dotnet build <App>.slnx`,
+      # `dotnet test <App>.slnx` (capabilities build/test, block-on-ship) and `dotnet fsi build.fsx
+      # -- evidence` (evidence, warn). Stages 3–4 prove the overlay is *populated* and Stage 6b that
+      # it *enforces* — but neither proves the Stage-5 scaffold actually PRODUCES the artifacts those
+      # commands resolve. If it ships neither, the overlay governs phantom commands and the first
+      # real check-run in a scaffolded product fails. We derive the governed names from the composed
+      # product's OWN .fsgg/tooling.yml (so the check tracks --appName, not a hardcoded 'Acme') and
+      # require each at the product root — the directory the governed command runs from. A red here
+      # is the intended signal: it graduates into a cross-repo ask on FS.GG.Rendering (fs-gg-ui ships
+      # the artifact) or an overlay change (govern what the scaffold produces).
+      step "verify — governed commands are runnable against the composed product (A4, #59)"
+      GOV_TOOLING="$FULL/.fsgg/tooling.yml"
+      if [[ ! -f "$GOV_TOOLING" ]]; then
+        bad "composed product lacks .fsgg/tooling.yml — cannot check governed-command runnability (A4)"
+      else
+        # dotnet-build / dotnet-test → the governed solution (block-on-ship). Parse the exact name
+        # the overlay governs — classic `.sln` OR the modern `.slnx` the fs-gg-ui scaffold ships —
+        # then require it where `dotnet build <App>.slnx` would resolve it (the `x?` keeps the check
+        # honest to whichever extension the overlay names, so it can't silently truncate `.slnx`).
+        GOV_SLN="$(grep -oE 'dotnet build [^ "]+\.slnx?' "$GOV_TOOLING" 2>/dev/null | head -1 | awk '{print $3}')"
+        if [[ -z "$GOV_SLN" ]]; then
+          bad "could not parse the governed 'dotnet build <App>.slnx' solution from $GOV_TOOLING (A4)"
+        elif [[ -f "$FULL/$GOV_SLN" ]]; then
+          ok "governed solution '$GOV_SLN' exists at the composed-product root — dotnet-build/dotnet-test are runnable, not phantom (A4)"
+        else
+          bad "governed solution '$GOV_SLN' is ABSENT from the composed-product root — the overlay governs a phantom 'dotnet build/test $GOV_SLN' and the first check-run in a scaffolded product would fail (A4). Fix upstream (FS.GG.Rendering fs-gg-ui ships the solution) or the overlay (govern what the scaffold produces — e.g. the '.slnx' the current fs-gg-ui ships)."
+        fi
+        # build-evidence → `dotnet fsi build.fsx -- evidence` (evidence gate, maturity warn). Only
+        # assert when the overlay actually governs it, so dropping the command also drops this check.
+        if grep -q 'dotnet fsi build.fsx' "$GOV_TOOLING" 2>/dev/null; then
+          if [[ -f "$FULL/build.fsx" ]]; then
+            ok "governed 'build.fsx' exists at the composed-product root — the evidence gate is runnable out-of-the-box (A4)"
+          else
+            bad "governed 'build.fsx' is ABSENT from the composed-product root — the evidence gate ('dotnet fsi build.fsx -- evidence') governs a phantom script (A4). Fix upstream (fs-gg-ui ships build.fsx) or drop/rehome the evidence command."
+          fi
+        fi
       fi
 
       # T3.2 (ADR-0014 P3, issue #49) — orchestrated lane: fsgg-sdd (>= 0.4.0, the sole mirror
