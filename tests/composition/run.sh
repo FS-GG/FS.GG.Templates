@@ -42,6 +42,14 @@
 # It needs both the `fsgg-sdd` and `fsgg-governance` CLIs and the composed product the
 # build stage scaffolds; absent either it SKIPS with a reason — never green-by-omission.
 #
+# Hermetic (issue #55, review F3): every `dotnet new` — this script's own AND those in the
+# child processes it spawns (scripts/new-fullstack.sh and the `fsgg-sdd scaffold` it drives) —
+# runs against a per-run ISOLATED template hive. We relocate the whole template-engine hive by
+# exporting DOTNET_CLI_HOME under the temp workdir: it moves ~/.templateengine wholesale and is
+# inherited by every child process, so the test never mutates the developer's global hive and
+# parallel runs never collide. Disposing of WORKDIR disposes of every installed template — so no
+# uninstall bookkeeping in cleanup(), and no stale versions can accumulate to arm the F2 fallback.
+#
 # Usage:   tests/composition/run.sh
 # Env:     FSGG_COMPOSITION_FULL=1   require (do not skip) the full scaffold+build stage
 #          KEEP_WORKDIR=1            do not delete the temp workdir on exit
@@ -52,6 +60,13 @@ WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/fsgg-composition.XXXXXX")"
 ARTIFACTS="$WORKDIR/artifacts"
 APP="$WORKDIR/app"
 mkdir -p "$ARTIFACTS"
+
+# Isolated, per-run template hive (F3) — see the header note. DOTNET_CLI_HOME relocates
+# ~/.templateengine under WORKDIR and is inherited by child processes; the *_OPTOUT/NOLOGO/
+# SKIP_FIRST_TIME vars keep a fresh home from spewing the .NET first-run banner into the logs.
+export DOTNET_CLI_HOME="$WORKDIR/dotnet-home"
+export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
+mkdir -p "$DOTNET_CLI_HOME"
 
 PASS=0 FAIL=0
 ok()   { PASS=$((PASS+1)); printf '  \033[32m✓\033[0m %s\n' "$1"; }
@@ -65,6 +80,15 @@ assert_absent() { if grep -rqF -- "$2" "$1" 2>/dev/null; then bad "$3 (found str
 # assert_exit <expected-code> <actual-code> <message>  — exact match (so a usage/input/tool
 # error, e.g. 64/66/70, can never masquerade as a governed-blocking '2' or a clean '0').
 assert_exit() { if [[ "$2" == "$1" ]]; then ok "$3 (exit $2)"; else bad "$3 (expected exit $1, got $2)"; fi; }
+# installed_template_version <package-id> — echo the version of an installed `dotnet new` template
+# package (empty if not installed). Parses `dotnet new uninstall` (no args), which prints each
+# installed package id followed by an indented `Version: <v>` line. Used to verify the standalone
+# lane runs against the *pinned* FS.GG.UI.Template, not whatever the hive happens to hold (F2).
+installed_template_version() {
+  dotnet new uninstall 2>/dev/null | awk -v pkg="$1" '
+    $1==pkg      { inpkg=1; next }
+    inpkg && $1=="Version:" { print $2; exit }'
+}
 
 # ── skill-union assertion (ADR-0014 P3.T3.2, issue #49) ─────────────────────────────────────
 # fetch_skill_assert — obtain the shared P3.G3.1 assertion (FS-GG/.github#111). One source of
@@ -138,9 +162,12 @@ assert_skill_union() {
 }
 
 cleanup() {
-  dotnet new uninstall FS.GG.Templates >/dev/null 2>&1 || true
+  # No global-hive uninstall needed (F3): every `dotnet new` in this run — and in the child
+  # processes it spawns — uses the isolated hive under DOTNET_CLI_HOME (=$WORKDIR/dotnet-home),
+  # so removing WORKDIR removes every installed template. The developer's real ~/.templateengine
+  # is never touched, and no per-run FS.GG.UI.Template::<pin> / fs-gg-governance copies leak.
   if [[ "${KEEP_WORKDIR:-}" == "1" ]]; then
-    printf '\n(workdir kept at %s)\n' "$WORKDIR"
+    printf '\n(workdir kept at %s; isolated template hive at %s)\n' "$WORKDIR" "$DOTNET_CLI_HOME"
   else
     rm -rf "$WORKDIR"
   fi
@@ -294,10 +321,23 @@ fi
 # (already satisfied when Stage 5 ran — fsgg-sdd installs the same pin).
 step "standalone — spec-kit lane: one materialize step + skill-union (ADR-0014 P3.T3.2, gated)"
 STAND="$WORKDIR/standalone"
-if dotnet new install "FS.GG.UI.Template::$PIN_VER" >"$WORKDIR/standalone-install.log" 2>&1 \
-   || dotnet new list 2>/dev/null | grep -q 'fs-gg-ui'; then
-  if dotnet new fs-gg-ui -o "$STAND" --name Acme >"$WORKDIR/standalone-new.log" 2>&1; then
-    ok "standalone fs-gg-ui instantiation succeeded (default spec-kit lifecycle)"
+# F2 guard (issue #55): an empty pin (Stage-4 parse failure) must NOT fall into the install line
+# below — `FS.GG.UI.Template::` fails to install and the `||` fallback would then accept any
+# already-installed fs-gg-ui, asserting the union against an unknown version. Fail explicitly.
+if [[ -z "$PIN_VER" ]]; then
+  bad "standalone lane: no FS.GG.UI.Template pin parsed in Stage 4 — cannot install a version-coherent payload (an empty pin would otherwise accept any installed fs-gg-ui, F2)"
+elif dotnet new install "FS.GG.UI.Template::$PIN_VER" >"$WORKDIR/standalone-install.log" 2>&1 \
+     || dotnet new list 2>/dev/null | grep -q 'fs-gg-ui'; then
+  # F2: the `||` fallback reuses whatever fs-gg-ui the (isolated, F3) hive already holds — e.g.
+  # from Stage 5's `fsgg-sdd scaffold`, which shares this run's DOTNET_CLI_HOME and installs the
+  # same pin. That reuse is only sound if the INSTALLED version IS the pin; otherwise the lane
+  # would assert the skill-union against an off-pin payload — a hole in the exact version-
+  # coherence invariant this repo guards. Verify it before instantiating.
+  INSTALLED_UI_VER="$(installed_template_version FS.GG.UI.Template)"
+  if [[ "$INSTALLED_UI_VER" != "$PIN_VER" ]]; then
+    bad "standalone lane: installed FS.GG.UI.Template is '${INSTALLED_UI_VER:-<none>}', not the pinned $PIN_VER — refusing to assert the skill-union against an off-pin payload (F2; see $WORKDIR/standalone-install.log)"
+  elif dotnet new fs-gg-ui -o "$STAND" --name Acme >"$WORKDIR/standalone-new.log" 2>&1; then
+    ok "standalone fs-gg-ui instantiation succeeded at the pinned $PIN_VER (default spec-kit lifecycle)"
     MAT="$STAND/.specify/scripts/fs-gg/materialize-skill-roots.fsx"
     if [[ -f "$MAT" ]]; then
       if (cd "$STAND" && dotnet fsi .specify/scripts/fs-gg/materialize-skill-roots.fsx --enforce) >"$WORKDIR/materialize.log" 2>&1; then
