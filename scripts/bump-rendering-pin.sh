@@ -30,9 +30,11 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROV="$ROOT/providers/rendering.providers.yml"
 README="$ROOT/README.md"
 
+# shellcheck source=scripts/lib/read-pin.sh
+. "$(dirname "${BASH_SOURCE[0]}")/lib/read-pin.sh"
+
 # Current pin is the single source of truth; read it from the provider `source:` line.
-OLD="$(grep -oE 'FS\.GG\.UI\.Template::[^ ]+' "$PROV" | head -1 | sed 's/.*:://')"
-[ -n "$OLD" ] || { echo "error: could not read current pin from $PROV" >&2; exit 1; }
+OLD="$(read_pin "$PROV")" || { echo "error: could not read current pin from $PROV" >&2; exit 1; }
 
 if [ "$OLD" = "$NEW" ]; then
   echo "already pinned at FS.GG.UI.Template::$NEW; nothing to do."

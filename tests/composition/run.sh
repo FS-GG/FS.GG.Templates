@@ -59,6 +59,8 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# shellcheck source=scripts/lib/read-pin.sh
+. "$REPO_ROOT/scripts/lib/read-pin.sh"   # read_pin <yml> — the one shared FS.GG.UI.Template pin parser (A2)
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/fsgg-composition.XXXXXX")"
 ARTIFACTS="$WORKDIR/artifacts"
 APP="$WORKDIR/app"
@@ -168,6 +170,26 @@ assert_skill_union() {
     sed 's/^/  | /' "$WORKDIR/skill-union.$lane.log" 2>/dev/null
     return
   fi
+  # (a-floor) minimum-cardinality floor (F6, issue #60): checks (a)/(b) verify that whatever the
+  # union HOLDS is coherent, but an empty union is trivially byte-identical, so the shared script
+  # only fails a TOTALLY empty union (its "no skills under any root" die) — not a lane that
+  # materialized product skills yet NONE of its expected process co-tenants. Assert the lane's own
+  # co-tenants exist: >= 1 dir matching the lane glob ($cotenant) under a (byte-identical) root —
+  # exactly what minimumFsggSdd promises for the orchestrated lane (fs-gg-sdd-*), and symmetrically
+  # for the standalone lane (speckit-*). Runs independent of jq so it fires even when (b) SKIPs.
+  local cotenant_ct=0 r
+  for r in .claude/skills .codex/skills .agents/skills; do
+    if [[ -d "$prod/$r" ]]; then
+      cotenant_ct=$(find "$prod/$r" -maxdepth 1 -type d -name "$cotenant" 2>/dev/null | wc -l | tr -d ' ')
+      break
+    fi
+  done
+  if [[ "$cotenant_ct" -ge 1 ]]; then
+    ok "$lane: $cotenant_ct co-tenant skill(s) matching '$cotenant' present — the union is non-vacuous (minimum-cardinality floor)"
+  else
+    bad "$lane: NO co-tenant skill matching '$cotenant' under the skill roots — the union is byte-identical only because the lane materialized none of its own process skills (minimumFsggSdd floor, F6, issue #60)"
+    return
+  fi
   # (b) manifest arm — check 3 via the shared script's --manifest/--co-tenants (was inline; #52).
   local mf="$prod/.agents/skills/skill-manifest.json"
   if [[ ! -f "$mf" ]]; then
@@ -265,7 +287,7 @@ if grep -Eq '^\s*commands:\s*\[\s*\]' "$APP/.fsgg/tooling.yml";    then bad "too
 
 step "verify — rendering provider pin coherence"
 PROV="$REPO_ROOT/providers/rendering.providers.yml"
-PIN_VER="$(grep -oE 'FS\.GG\.UI\.Template::[^ ]+' "$PROV" | head -1 | sed 's/.*:://')"
+PIN_VER="$(read_pin "$PROV" || true)"
 if [[ -n "$PIN_VER" ]]; then
   ok "provider pins FS.GG.UI.Template::$PIN_VER"
   # the file's own comment (and the README) must name the same version — guards 'bump both together'
@@ -527,7 +549,13 @@ JSON
   set_profile() { sed -i.bak -E "s/^([[:space:]]*defaultProfile:).*/\1 $1/" "$POLICY" && rm -f "$POLICY.bak"; }
   govern_exit() { fsgg-governance route --root "$GOV" --mode gate --json >"$WORKDIR/govern.log" 2>&1; echo $?; }
 
-  dotnet new fs-gg-governance -o "$GOV" --appName Acme --defaultProfile strict >"$WORKDIR/govnew.log" 2>&1
+  # Guard the overlay instantiation (F5): without it a `dotnet new` failure here leaves $GOV
+  # with no policy/handoff, and the govern_exit below would report a confusing usage/input/tool
+  # exit code (the `*)` arm) instead of a first-cause diagnostic. Stages 3/5 model this pattern.
+  if ! dotnet new fs-gg-governance -o "$GOV" --appName Acme --defaultProfile strict >"$WORKDIR/govnew.log" 2>&1; then
+    bad "Stage 6b: dotnet new fs-gg-governance failed to instantiate the overlay into $GOV (see $WORKDIR/govnew.log) — enforcement loop not exercised"
+    sed -n '$p' "$WORKDIR/govnew.log"
+  else
   write_handoff "$HANDOFF" failing
   ES="$(govern_exit)"
   case "$ES" in
@@ -563,6 +591,7 @@ JSON
       bad "fsgg-governance route returned exit $ES (usage/input/tool error, not a verdict) — see $WORKDIR/govern.log"
       ;;
   esac
+  fi   # close the Stage-6b overlay-instantiation guard (F5)
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
