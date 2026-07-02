@@ -5,23 +5,42 @@
 # owned; this script just glues them.
 #
 # Usage:
-#   scripts/new-fullstack.sh <target-dir> <product-name> <rendering-template-source>
+#   scripts/new-fullstack.sh <target-dir> <product-name> [--source <path-or-nuget-id>]
 #
-#   <rendering-template-source>  a local path or NuGet id for `dotnet new install`
-#                                of FS.GG.Rendering's `fs-gg-ui` template.
+#   --source <path-or-nuget-id>  OPTIONAL override of the Rendering `fs-gg-ui`
+#                                template `fsgg-sdd scaffold` installs. Defaults to the
+#                                published, version-pinned package in
+#                                providers/rendering.providers.yml — the single source of
+#                                truth per ADR-0002. Point it at a local path or an
+#                                unpublished build only for the dev-repack flow.
 set -euo pipefail
 
 TARGET="${1:?target dir required}"
 PRODUCT="${2:?product name required}"
-RENDERING_SOURCE="${3:?rendering template source (path or nuget id) required}"
+shift 2
+
+RENDERING_SOURCE=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --source)   RENDERING_SOURCE="${2:?--source requires a path or nuget id}"; shift 2 ;;
+    --source=*) RENDERING_SOURCE="${1#--source=}"; shift ;;
+    *) echo "unknown argument: $1" >&2; exit 2 ;;
+  esac
+done
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 mkdir -p "$TARGET/.fsgg"
 
-# 1. Register the Rendering provider so `fsgg-sdd scaffold` can drive it.
-sed "s|__RENDERING_TEMPLATE_SOURCE__|$RENDERING_SOURCE|" \
-    "$REPO_ROOT/providers/rendering.providers.yml" > "$TARGET/.fsgg/providers.yml"
+# 1. Register the Rendering provider so `fsgg-sdd scaffold` can drive it. The provider
+#    yml carries the published, version-pinned template source (ADR-0002 single source of
+#    truth); --source rewrites that `source:` line in place for the dev-repack flow only.
+if [[ -n "$RENDERING_SOURCE" ]]; then
+  sed "s|^\( *source:\).*|\1 $RENDERING_SOURCE|" \
+      "$REPO_ROOT/providers/rendering.providers.yml" > "$TARGET/.fsgg/providers.yml"
+else
+  cp "$REPO_ROOT/providers/rendering.providers.yml" "$TARGET/.fsgg/providers.yml"
+fi
 
 # 2. SDD skeleton + full Rendering app, recorded in scaffold-provenance.
 #    (fsgg-sdd installs/updates and runs the provider template; produced runtime

@@ -235,7 +235,7 @@ fi
 FULL="$WORKDIR/full"   # the composed product; reused by the governance-enforcement stage
 FULL_OK=0
 if [[ "$RUN_FULL" == "1" ]]; then
-  if "$REPO_ROOT/scripts/new-fullstack.sh" "$FULL" Acme "$PIN_VER" >"$WORKDIR/scaffold.log" 2>&1; then
+  if "$REPO_ROOT/scripts/new-fullstack.sh" "$FULL" Acme >"$WORKDIR/scaffold.log" 2>&1; then
     if dotnet build "$FULL" >"$WORKDIR/build.log" 2>&1; then
       ok "scaffold + dotnet build of the composed product succeeded"; FULL_OK=1
 

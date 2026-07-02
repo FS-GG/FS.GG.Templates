@@ -32,7 +32,9 @@ dotnet new fs-gg-governance -o ./MyApp --appName MyApp --defaultProfile light
 cd ./MyApp && dotnet build && dotnet run     # the runnable Skia/Elmish product
 ```
 
-`scripts/new-fullstack.sh <target> <product> <rendering-source>` wraps these three steps.
+`scripts/new-fullstack.sh <target> <product>` wraps these three steps (installing the
+provider-pinned template). Pass `--source <path-or-nuget-id>` only to override that pin
+for a local/unpublished Rendering build (the dev-repack flow).
 
 It produces:
 
