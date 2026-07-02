@@ -16,6 +16,16 @@
 set -euo pipefail
 
 NEW="${1:?new FS.GG.UI.Template version required, e.g. 0.1.51-preview.1}"
+
+# Validate before NEW reaches the sed below: its `s#...#${NEW}#g` uses `#` as the
+# delimiter and does not escape the replacement, so a value containing `#`, `&`, or `\`
+# would corrupt the provider yml / README. This guard closes that for every caller
+# (upstream-bump.yml, a human run); Renovate edits the files directly and never calls here.
+if ! [[ "$NEW" =~ ^[0-9]+\.[0-9]+\.[0-9]+([-.][A-Za-z0-9.]+)?$ ]]; then
+  echo "error: '$NEW' is not a valid FS.GG.UI.Template version (expected e.g. 0.1.51-preview.1)" >&2
+  exit 1
+fi
+
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROV="$ROOT/providers/rendering.providers.yml"
 README="$ROOT/README.md"
