@@ -111,6 +111,15 @@ byte-identical union of process + product skills (via the reusable FS-GG/.github
 `skill-union-assert.sh`), every materialized manifest-declared skill matches its
 canonical-body sha256, and nothing undeclared ships (dangling fails).
 
+That shared script is fetched at a **pinned FS-GG/.github commit SHA** (`SKILL_ASSERT_REF`
+in `run.sh`), never `@main` (issue #56): a full-SHA raw fetch is content-addressed, so the
+gate is both deterministic (its semantics can't change under this repo without a reviewable
+pin bump) and integrity-checked (GitHub can't serve different bytes for a SHA — no separate
+content hash needed). Renovate moves the pin against the `main` head like the `FS.GG.UI.*`
+pin. **CI runbook note:** this couples the gate to `raw.githubusercontent.com` reachability
+at that SHA — an outage (or an offline host with no sibling `../.github` clone at the ref)
+**fails the lane by design**, it never green-passes unverified.
+
 On a provisioned container the full path needs no extra setup. `~/.nuget/NuGet/NuGet.Config`
 binds `FS.GG.*` to the published FS.GG org feed (`packageSourceMapping`), and the container
 entrypoint floats `fsgg-sdd` / `fsgg-governance` to the latest published version on every
@@ -173,7 +182,7 @@ before any downstream registry/pin flip advertises it.
 | `scripts/new-fullstack.sh` | three-step wrapper for the `fsgg-sdd scaffold` composition path. |
 | `scripts/dev-repack-ui-feed.sh` | DEV-ONLY: repacks the pinned `FS.GG.UI.*` set from a local FS.GG.Rendering checkout into the local cache, for testing an unpublished UI build before it reaches the org feed. The CLIs and the published UI set come from the org feed (container provisioning), not this script. |
 | `scripts/bump-rendering-pin.sh` | re-pins `FS.GG.UI.Template` coherently across provider + README (successor to the retired `sync-from-rendering.sh`). |
-| `.github/renovate.json` | Renovate config that bumps the `FS.GG.UI.*` pin automatically. |
+| `.github/renovate.json` | Renovate config that bumps the `FS.GG.UI.*` pin and the pinned FS-GG/.github `skill-union-assert.sh` ref (issue #56) automatically. |
 | `.github/workflows/upstream-bump.yml` | `repository_dispatch`/`workflow_dispatch` auto-PR that re-pins on an upstream release. |
 | `.github/workflows/release.yml` | tag-driven (`fs-gg-templates/v*`) publish: gate (composition + version⇔tag assert) → pack → push to the org feed → GitHub Release. |
 | `FS.GG.Templates.csproj` | packs the templates into the updatable NuGet package. |

@@ -92,19 +92,45 @@ installed_template_version() {
 
 # ── skill-union assertion (ADR-0014 P3.T3.2, issue #49) ─────────────────────────────────────
 # fetch_skill_assert — obtain the shared P3.G3.1 assertion (FS-GG/.github#111). One source of
-# truth: fetched from FS-GG/.github@main (public repo), falling back to a sibling clone for
-# offline dev. NOT vendored here — vendoring is exactly the drift class ADR-0014 retires.
+# truth: fetched from FS-GG/.github at a PINNED COMMIT (SKILL_ASSERT_REF), falling back to a
+# sibling clone at that same ref for offline dev. NOT vendored here — a pinned ref is not a
+# vendored copy; vendoring is exactly the drift class ADR-0014 retires.
+#
+# Pinning (issue #56, review F4): the ref is a full 40-char commit SHA, never @main. This closes
+# both holes the review named. (1) DETERMINISM — @main is a moving target, so the gate's own
+# semantics could change under this repo with no commit here; a SHA freezes exactly which
+# assertion runs, and moving it is a reviewable commit like any other pin. (2) INTEGRITY — a
+# raw.githubusercontent fetch at a full commit SHA is content-addressed: GitHub cannot serve
+# different bytes for that SHA, so the fetch carries its own cryptographic integrity check (that
+# is the "sha256 alongside" the review floated, folded into the ref itself — a separate content
+# hash would only go stale on every bump and defeat Renovate). Renovate moves the pin against the
+# main head via the git-refs manager in .github/renovate.json; the fetch still FAILS-not-skips a
+# lane when unreachable (see assert_skill_union). CI runbook: this couples the gate to
+# raw.githubusercontent.com reachability at the pinned SHA — an outage FAILS the lane by design.
+#
+# renovate: datasource=git-refs depName=FS-GG/.github packageName=https://github.com/FS-GG/.github
+SKILL_ASSERT_REF="ab6d9289bf6f71a72d3593c1309de5d5c45e20cb"   # FS-GG/.github@main as of 2026-07-02
 SKILL_ASSERT=""
 fetch_skill_assert() {
   [[ -n "$SKILL_ASSERT" && -x "$SKILL_ASSERT" ]] && return 0
   SKILL_ASSERT="$WORKDIR/skill-union-assert.sh"
+  # (1) authoritative path — content-addressed fetch at the pinned commit SHA.
   if curl -fsSL --max-time 30 \
-       "https://raw.githubusercontent.com/FS-GG/.github/main/scripts/skill-union-assert.sh" \
+       "https://raw.githubusercontent.com/FS-GG/.github/$SKILL_ASSERT_REF/scripts/skill-union-assert.sh" \
        -o "$SKILL_ASSERT" 2>/dev/null && [[ -s "$SKILL_ASSERT" ]]; then
     chmod +x "$SKILL_ASSERT"; return 0
   fi
-  if [[ -f "$REPO_ROOT/../.github/scripts/skill-union-assert.sh" ]]; then
-    cp "$REPO_ROOT/../.github/scripts/skill-union-assert.sh" "$SKILL_ASSERT"
+  # (2) offline-dev fallback — a sibling FS-GG/.github clone. Prefer the file AT THE PINNED REF
+  #     (git object → same determinism as the curl); only if that commit isn't present locally
+  #     fall back to the working copy (a dev's trusted checkout), which may be off-pin.
+  local sib="$REPO_ROOT/../.github"
+  if git -C "$sib" cat-file -e "$SKILL_ASSERT_REF:scripts/skill-union-assert.sh" 2>/dev/null \
+     && git -C "$sib" show "$SKILL_ASSERT_REF:scripts/skill-union-assert.sh" >"$SKILL_ASSERT" 2>/dev/null \
+     && [[ -s "$SKILL_ASSERT" ]]; then
+    chmod +x "$SKILL_ASSERT"; return 0
+  fi
+  if [[ -f "$sib/scripts/skill-union-assert.sh" ]]; then
+    cp "$sib/scripts/skill-union-assert.sh" "$SKILL_ASSERT"
     chmod +x "$SKILL_ASSERT"; return 0
   fi
   SKILL_ASSERT=""; return 1
