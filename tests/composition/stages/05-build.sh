@@ -14,7 +14,7 @@ FULL="$WORKDIR/full"   # the composed product; reused by the governance-enforcem
 FULL_OK=0
 
 # Compose a full-stack product inline. This was scripts/new-fullstack.sh, now retired — the
-# checkout-free FS-GG/.github scripts/new-sdd-fullstack.sh is the sole full-stack scaffolder, but it
+# checkout-free FS-GG/.github new-sdd-fullstack tool is the sole full-stack scaffolder, but it
 # fetches the descriptor over the network and so cannot drive this repo's hermetic, LOCAL-providers.yml
 # composition test. So the test carries the ADR-0002 composition-by-scaffold steps directly: register the
 # provider-pinned descriptor -> fsgg-sdd scaffold -> governance overlay AFTER (so it is not flagged writing
