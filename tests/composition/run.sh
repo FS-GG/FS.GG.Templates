@@ -46,7 +46,7 @@
 # build stage scaffolds; absent either it SKIPS with a reason — never green-by-omission.
 #
 # Hermetic (issue #55, review F3): every `dotnet new` — this script's own AND those in the
-# child processes it spawns (scripts/new-fullstack.sh and the `fsgg-sdd scaffold` it drives) —
+# child processes it spawns (Stage 5's inlined compose_full and the `fsgg-sdd scaffold` it drives) —
 # runs against a per-run ISOLATED template hive. We relocate the whole template-engine hive by
 # exporting DOTNET_CLI_HOME under the temp workdir: it moves ~/.templateengine wholesale and is
 # inherited by every child process, so the test never mutates the developer's global hive and
