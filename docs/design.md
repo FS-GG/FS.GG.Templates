@@ -25,7 +25,7 @@ consumer, with no reverse coupling back into any product.
 Per [ADR-0002](https://github.com/FS-GG/.github/blob/main/docs/adr/0002-composition-by-scaffold-lifecycle-parameter-governance-populated.md),
 composition happens **at scaffold time** — `fsgg-sdd scaffold` installs and drives the
 live, version-pinned upstream `fs-gg-ui` template; FS.GG.Templates ships **no vendored
-framework copy**. `scripts/new-fullstack.sh` + `providers/rendering.providers.yml` + the
+framework copy**. `providers/rendering.providers.yml` + the
 `fs-gg-governance` overlay produce a full-stack product by composition:
 
 - **Rendering** — `fsgg-sdd scaffold --provider rendering` installs the **live,

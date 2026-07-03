@@ -1,6 +1,6 @@
 # shellcheck shell=bash
 # ── Stage 5: full scaffold + build (GATED) ───────────────────────────────────
-# Uses REPO_ROOT, WORKDIR, and (via new-fullstack.sh child) the isolated hive. Sets RUN_FULL,
+# Uses REPO_ROOT, WORKDIR, and (via the inlined compose_full scaffold) the isolated hive. Sets RUN_FULL,
 # FULL, FULL_OK for the standalone (5b) and govern (6) stages. Uses assert_skill_union (lib).
 step "build — full fsgg-sdd scaffold + dotnet build (gated)"
 if command -v fsgg-sdd >/dev/null 2>&1; then
@@ -12,8 +12,27 @@ else
 fi
 FULL="$WORKDIR/full"   # the composed product; reused by the governance-enforcement stage
 FULL_OK=0
+
+# Compose a full-stack product inline. This was scripts/new-fullstack.sh, now retired — the
+# checkout-free FS-GG/.github scripts/new-sdd-fullstack.sh is the sole full-stack scaffolder, but it
+# fetches the descriptor over the network and so cannot drive this repo's hermetic, LOCAL-providers.yml
+# composition test. So the test carries the ADR-0002 composition-by-scaffold steps directly: register the
+# provider-pinned descriptor -> fsgg-sdd scaffold -> governance overlay AFTER (so it is not flagged writing
+# into the SDD-owned .fsgg/ tree). Runs in a subshell with `set -e` so ANY step failing fails the compose
+# (the fail-fast the standalone script gave us) without touching run.sh's shell. The dev-only --source pin
+# override retired with the script; this test never passed it.
+compose_full() (
+  set -euo pipefail
+  target="$1"; product="$2"
+  mkdir -p "$target/.fsgg"
+  cp "$REPO_ROOT/providers/rendering.providers.yml" "$target/.fsgg/providers.yml"
+  fsgg-sdd scaffold --root "$target" --provider rendering --param "productName=$product"
+  dotnet new install "$REPO_ROOT/templates/fs-gg-governance" >/dev/null 2>&1 || true
+  dotnet new fs-gg-governance -o "$target" --appName "$product"
+)
+
 if [[ "$RUN_FULL" == "1" ]]; then
-  if "$REPO_ROOT/scripts/new-fullstack.sh" "$FULL" Acme >"$WORKDIR/scaffold.log" 2>&1; then
+  if compose_full "$FULL" Acme >"$WORKDIR/scaffold.log" 2>&1; then
     if dotnet build "$FULL" >"$WORKDIR/build.log" 2>&1; then
       ok "scaffold + dotnet build of the composed product succeeded"; FULL_OK=1
 

@@ -32,9 +32,10 @@ dotnet new fs-gg-governance -o ./MyApp --appName MyApp --defaultProfile light
 cd ./MyApp && dotnet build && dotnet run     # the runnable Skia/Elmish product
 ```
 
-`scripts/new-fullstack.sh <target> <product>` wraps these three steps (installing the
-provider-pinned template). Pass `--source <path-or-nuget-id>` only to override that pin
-for a local/unpublished Rendering build (the dev-repack flow).
+For the common case, [`scripts/new-sdd-fullstack.sh <target> <product>`](https://github.com/FS-GG/.github/blob/main/scripts/new-sdd-fullstack.sh)
+(in FS-GG/.github) wraps these three steps with **no FS.GG.Templates checkout** — it fetches the
+provider-pinned descriptor over the network. Run the three steps above by hand only when working from a
+Templates checkout (e.g. testing an unpublished Rendering build via the local feed / `dev-repack-ui-feed.sh`).
 
 It produces:
 
@@ -179,7 +180,6 @@ before any downstream registry/pin flip advertises it.
 | `providers/rendering.providers.yml` | the SDD scaffold-provider descriptor, pinned to `FS.GG.UI.Template` and passing `lifecycle=sdd` (the **primary** composition path). |
 | `templates/fs-gg-governance/` | the populated Governance-config overlay (`fs-gg-governance`). |
 | `tests/composition/run.sh` | end-to-end composition test (pack→install→instantiate→build→verify pins/links). |
-| `scripts/new-fullstack.sh` | three-step wrapper for the `fsgg-sdd scaffold` composition path. |
 | `scripts/dev-repack-ui-feed.sh` | DEV-ONLY: repacks the pinned `FS.GG.UI.*` set from a local FS.GG.Rendering checkout into the local cache, for testing an unpublished UI build before it reaches the org feed. The CLIs and the published UI set come from the org feed (container provisioning), not this script. |
 | `scripts/bump-rendering-pin.sh` | re-pins `FS.GG.UI.Template` coherently across provider + README (successor to the retired `sync-from-rendering.sh`). |
 | `.github/renovate.json` | Renovate config that bumps the `FS.GG.UI.*` pin and the pinned FS-GG/.github `skill-union-assert.sh` ref (issue #56) automatically. |
