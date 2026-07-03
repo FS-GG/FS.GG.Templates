@@ -29,7 +29,7 @@ jobs:
       contents: read
       packages: read   # pull the published FS-GG CLIs from the org feed (as composition.yml)
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
@@ -81,7 +81,7 @@ jobs:
       contents: write   # create the GitHub Release
       packages: write   # push the package to the org feed
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
