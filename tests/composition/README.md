@@ -15,7 +15,7 @@ pack → install → instantiate → (restore/build) → verify pins/links
 | **install** | the package installs as a `dotnet new` source; `fs-gg-governance` registers | no |
 | **instantiate** | the `fs-gg-governance` overlay generates with `--appName` / `--defaultProfile` | no |
 | **verify pins/links** | parameter substitution lands; the descriptor is in the Governance-owned `.fsgg/governance.yml` slot (ADR-0005 — **not** the SDD-owned `project.yml`); the governance gate set is **populated** (not inert `checks: []`/`commands: []`); the `rendering` provider pin is coherent (version tag + `lifecycle=sdd` / `profile=game`) | no |
-| **build** | full `fsgg-sdd scaffold` of the live rendering app + `dotnet build`; the composed product's default launch satisfies the **family-agnostic** entrypoint expectation (game `Viewer.runApp … generatedHost` **or** controls `runInteractiveApp … interactiveHost`, with no `-- pong`-style flag gating the default — #36); the overlay's **governed commands are runnable** against the composed product — the governed `<App>.slnx` and `build.fsx` actually exist at the product root, so `dotnet build/test <App>.slnx` and `dotnet fsi build.fsx -- evidence` are real, not phantom (#59; the fs-gg-ui scaffold ships the solution in the modern `.slnx` format, which the overlay governs) | **yes** |
+| **build** | full `fsgg-sdd scaffold` of the live rendering app + `dotnet build`; the composed workspace's default launch satisfies the **family-agnostic** entrypoint expectation (game `Viewer.runApp … generatedHost` **or** controls `runInteractiveApp … interactiveHost`, with no `-- pong`-style flag gating the default — #36); the overlay's **governed commands are runnable** against the composed workspace — the governed `<App>.slnx` and `build.fsx` actually exist at the workspace root, so `dotnet build/test <App>.slnx` and `dotnet fsi build.fsx -- evidence` are real, not phantom (#59; the fs-gg-ui scaffold ships the solution in the modern `.slnx` format, which the overlay governs) | **yes** |
 | **govern** | the overlay does not just *exist* — it **enforces**: a produced `governance-handoff.json` actually drives a Governance verdict (strict **blocks**, `light` does not) | **yes** |
 
 The **build** stage needs the `fsgg-sdd` CLI and a reachable `FS.GG.UI.Template` feed. It
@@ -25,12 +25,12 @@ runs when the CLI is on `PATH` (or `FSGG_COMPOSITION_FULL=1` forces it) and othe
 The **govern** stage closes the gap between *populated* and *enforcing*. It has two parts,
 each independently gated and never green-by-omission:
 
-- **producer** — a real `fsgg-sdd ship` over the composed product emits
+- **producer** — a real `fsgg-sdd ship` over the composed workspace emits
   `readiness/<id>/governance-handoff.json` (needs `fsgg-sdd` + a successful **build** stage).
 - **consumer/enforcement** — needs only `fsgg-governance` (and the overlay this repo ships,
   instantiated fresh — the rendering app does not affect a governance verdict). It runs
   `fsgg-governance route --mode gate` (the CI/merge-boundary mode; a blocking verdict exits
-  `2`) over a contract-v1 handoff fixture and holds the product fixed while varying only
+  `2`) over a contract-v1 handoff fixture and holds the workspace fixed while varying only
   *(handoff, profile)*:
 
   | profile | handoff | expected | proves | needs |

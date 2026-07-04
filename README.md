@@ -1,9 +1,15 @@
 # FS.GG.Templates
 
-Composes the FS.GG products into a ready-to-run product: the
+Composes the FS.GG components into a ready-to-run workspace: the
 [FS.GG.SDD](https://github.com/FS-GG/FS.GG.SDD) spec-driven lifecycle, a runnable
 [FS.GG.Rendering](https://github.com/FS-GG/FS.GG.Rendering) app, and
 [FS.GG.Governance](https://github.com/FS-GG/FS.GG.Governance) config.
+
+> **Platform vs. workspace.** FS-GG is a **platform** — five repositories; Templates
+> is the **composition component** of it. What you scaffold *with* the platform is a
+> **workspace**: a generated repo with a runnable **app**, the `.fsgg/` lifecycle,
+> skills, and optional governance. See the
+> [vocabulary (ADR-0020)](https://github.com/FS-GG/.github/blob/main/docs/adr/0020-platform-workspace-component-vocabulary.md).
 
 Per [ADR-0002](https://github.com/FS-GG/.github/blob/main/docs/adr/0002-composition-by-scaffold-lifecycle-parameter-governance-populated.md),
 composition happens **at scaffold time** — `fsgg-sdd scaffold` installs and drives the
@@ -11,10 +17,10 @@ live, version-pinned upstream template; FS.GG.Templates is the thin **compositio
 registry** layer (a provider descriptor, a populated governance overlay, and these
 composition tests), **not** a fork host. This repo ships no vendored framework copy.
 
-## Create a full-stack product (composition, primary path)
+## Create a full-stack workspace (composition, primary path)
 
 Drive the [FS.GG.SDD](https://github.com/FS-GG/FS.GG.SDD) CLI (`fsgg-sdd`, a `dotnet tool`)
-with the `rendering` provider from this repo. Each product stays decoupled and
+with the `rendering` provider from this repo. Each component stays decoupled and
 independently owned; the scaffold just glues them:
 
 ```sh
@@ -22,14 +28,14 @@ independently owned; the scaffold just glues them:
 mkdir -p ./MyApp/.fsgg
 cp providers/rendering.providers.yml ./MyApp/.fsgg/providers.yml
 
-# 2. SDD skeleton + the live FS.GG.Rendering app (lifecycle=sdd → app-only product).
+# 2. SDD skeleton + the live FS.GG.Rendering app (lifecycle=sdd → app-only workspace).
 fsgg-sdd scaffold --root ./MyApp --provider rendering --param productName=MyApp
 
 # 3. Activate Governance: drop the populated reference gate set into the project.
 dotnet new install ./templates/fs-gg-governance
 dotnet new fs-gg-governance -o ./MyApp --appName MyApp --defaultProfile light
 
-cd ./MyApp && dotnet build && dotnet run     # the runnable Skia/Elmish product
+cd ./MyApp && dotnet build && dotnet run     # the runnable Skia/Elmish app
 ```
 
 For the common case, the [`new-sdd-fullstack <target> <product>`](https://github.com/FS-GG/.github/tree/main/scripts/NewSddFullstack)
@@ -44,7 +50,7 @@ It produces:
   SkiaViewer, Controls), installed live from the published `FS.GG.UI.Template` package
   pinned by the provider (currently `FS.GG.UI.Template@0.1.63-preview.1`, behind the
   immutable tag `fs-gg-ui-template/v0.1.63-preview.1`). The provider passes
-  `lifecycle=sdd` so the product carries **only the runnable app** — the `.fsgg/`
+  `lifecycle=sdd` so the workspace carries **only the runnable app** — the `.fsgg/`
   lifecycle comes from the SDD skeleton, not a second copy.
 - **SDD** — the lifecycle skeleton: `.fsgg/project.yml`, `.fsgg/sdd.yml`,
   `.fsgg/agents.yml`, `work/`, `readiness/` (drive it with `fsgg-sdd charter …`).
@@ -78,10 +84,10 @@ re-vendored a payload by hand; its successors only move that pin:
 - **`scripts/bump-rendering-pin.sh <version>`** — the shared, human-runnable primitive
   both lean on; updates every coherence surface in one shot.
 
-## Just add Governance to an existing project
+## Just add Governance to an existing workspace
 
 The `fs-gg-governance` overlay drops the populated FS.GG reference gate set into any
-existing SDD-managed project:
+existing SDD-managed workspace:
 
 ```sh
 dotnet new install ./templates/fs-gg-governance
