@@ -1,0 +1,19 @@
+# coordination-coherence — assert this repo's copy of the coordination kit matches canonical.
+#
+# FS.GG.Templates is a `coordination-kit` receiver (FS-GG/.github registry/repos.yml). This caller
+# invokes the reusable gate in FS-GG/.github, which checks out canonical + this repo and fails CI if
+# the cross-repo-coordination skill or the scripts/fsgg-coord client here drifts from — or is missing
+# against — the canonical source. See ADR-0019 and the cross-repo-coordination skill.
+name: coordination-coherence
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  kit:
+    uses: FS-GG/.github/.github/workflows/coordination-coherence.yml@main
