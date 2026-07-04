@@ -2,23 +2,23 @@
 
 ## Why this repo exists
 
-A "full-stack" FS.GG product wants three things at once:
+A "full-stack" FS.GG workspace wants three things at once:
 
 - the **FS.GG.SDD** spec-driven lifecycle (skeleton + `fsgg-sdd` commands),
 - a runnable **FS.GG.Rendering** app (Skia/OpenGL + Elmish/MVU), and
 - **FS.GG.Governance** rule/evidence/gate config.
 
-None of the three product repos can own that combination, because they are
+None of the three component repos can own that combination, because they are
 deliberately decoupled:
 
 - **FS.GG.Rendering never depends on Governance** (org-stated).
 - **FS.GG.SDD stays provider-agnostic** — generic SDD contains no Rendering/Governance
   id, path, or docs URL (FR-002 / SC-005).
 - **FS.GG.Governance is the optional downstream**, not an upstream that ships
-  product templates.
+  scaffold templates.
 
 `FS.GG.Templates` sits **downstream of all three** and composes them as a plain
-consumer, with no reverse coupling back into any product.
+consumer, with no reverse coupling back into any component.
 
 ## Chosen approach: compose at scaffold time
 
@@ -26,11 +26,11 @@ Per [ADR-0002](https://github.com/FS-GG/.github/blob/main/docs/adr/0002-composit
 composition happens **at scaffold time** — `fsgg-sdd scaffold` installs and drives the
 live, version-pinned upstream `fs-gg-ui` template; FS.GG.Templates ships **no vendored
 framework copy**. `providers/rendering.providers.yml` + the
-`fs-gg-governance` overlay produce a full-stack product by composition:
+`fs-gg-governance` overlay produce a full-stack workspace by composition:
 
 - **Rendering** — `fsgg-sdd scaffold --provider rendering` installs the **live,
   un-vendored** `FS.GG.Rendering` app from the published `FS.GG.UI.Template` package
-  pinned by the provider descriptor, passing `lifecycle=sdd` so the product carries only
+  pinned by the provider descriptor, passing `lifecycle=sdd` so the workspace carries only
   the runnable app (the `.fsgg/` lifecycle comes from the SDD skeleton, not a second
   copy).
 - **SDD** — the lifecycle skeleton (`.fsgg/{project,sdd,agents}.yml` + `work/` +
