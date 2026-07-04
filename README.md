@@ -38,8 +38,8 @@ dotnet new fs-gg-governance -o ./MyApp --appName MyApp --defaultProfile light
 cd ./MyApp && dotnet build && dotnet run     # the runnable Skia/Elmish app
 ```
 
-For the common case, the [`new-sdd-fullstack <target> <product>`](https://github.com/FS-GG/.github/tree/main/scripts/NewSddFullstack)
-dotnet tool (in FS-GG/.github: `dotnet tool install --global FS.GG.NewSddFullstack`) wraps these three
+For the common case, the [`new-sdd-workspace <target> <product>`](https://github.com/FS-GG/.github/tree/main/scripts/NewSddWorkspace)
+dotnet tool (in FS-GG/.github: `dotnet tool install --global FS.GG.NewSddWorkspace`) wraps these three
 steps with **no FS.GG.Templates checkout** — it fetches the provider-pinned descriptor over the network.
 Run the three steps above by hand only when working from a Templates checkout (e.g. testing an unpublished
 Rendering build via the local feed / `dev-repack-ui-feed.sh`).
