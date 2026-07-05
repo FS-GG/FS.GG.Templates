@@ -5,8 +5,8 @@
 # `source` is the PUBLISHED FS.GG.UI.Template package, version-pinned with the
 # `dotnet new install` `id::version` syntax (SDD runs `dotnet new install <source>`).
 # The pin tracks the coherent template<->framework snapshot behind the immutable tag
-# `fs-gg-ui-template/v0.1.64-preview.1` (FS.GG.Rendering Feature 231 / ADR-0014 P2; registry
-# contract `fs-gg-ui-template@0.1.64-preview.1`, the current coherent set — it ships the
+# `fs-gg-ui-template/v0.1.66-preview.1` (FS.GG.Rendering Feature 231 / ADR-0014 P2; registry
+# contract `fs-gg-ui-template@0.1.66-preview.1`, the current coherent set — it ships the
 # provider PRODUCT skill-manifest at `.agents/skills/skill-manifest.json` in every lifecycle,
 # replaces the standalone per-skill twin matrix with ONE materialize step (vendored
 # Fsgg.SkillMirror, `FsGgMaterializeSkillRoots` on first build), drops the dangling dev-surface
