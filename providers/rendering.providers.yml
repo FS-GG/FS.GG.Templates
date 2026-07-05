@@ -19,6 +19,15 @@ providers:
     contractVersion: "1.0.0"
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
     source: FS.GG.UI.Template::0.1.64-preview.1   # published NuGet package, version-pinned
+    # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
+    # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
+    # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
+    # template imprints into every `namespace`/`module`/`open`/`let` position. This makes a product
+    # whose name is a legal product name but an illegal F# identifier (e.g. hyphenated
+    # `Roquelike-DungeonCrawler`) compile. Older SDD ignores `identifierParameter` → no derivation,
+    # identical to before (the template is byte-identical for names already valid as F# identifiers).
+    nameParameter: productName        # source: the raw product name (string/path/.fsproj/.slnx)
+    identifierParameter: rootNamespace  # sink: the derived valid-F# namespace (identifier positions)
     # ADR-0008 (FS-GG/.github#86, epic #85): the ORCHESTRATOR axis of the coherent set. A
     # scaffold has TWO inputs — this template@<source pin> (governed above) AND the fsgg-sdd
     # CLI@<installed> (was ungoverned). The CLI seeds artifacts a product on this pin is
