@@ -37,6 +37,11 @@
 #                                             # auto-routing by the field's dataType
 #   fsgg-coord issues <repo> [--label L] [--state open|closed|all] [--refresh] [--jq EXPR]
 #                                             # list issues over REST with ETag revalidation
+#   fsgg-coord ready [--status S] [--repo R] [--json]
+#                                             # scan the board for actionable items (default
+#                                             # Status=Ready) — thrifty: ONE field value per item
+#   fsgg-coord next  [--repo R]               # print the single next item to pick up
+#                                             # (first Ready, else first Backlog) — thrifty
 #   fsgg-coord budget                         # print GraphQL + REST rate-limit meters (free)
 #
 #   <issue> is a full URL, `owner/repo#n`, or `repo#n` (owner defaults to FS-GG).
@@ -209,6 +214,97 @@ set_field() {
   gh project item-edit --id "$item" --project-id "$pid" --field-id "$fid" "${vflag[@]}"
 }
 
+# ---- ready/next: thrifty "what's actionable" board scan ----------------------------------------
+# The trap `gh project item-list` falls into is nesting `fieldValues(first:100)` INSIDE
+# `items(first:N)` — a connection under a connection, so its node cost is O(items x 100) (a
+# full Coordination scan cost ~2,500 pts and drained the hourly budget). We ask for exactly what
+# "what's next" needs and nothing more: the Status value via `fieldValueByName` (a RESOLVER field,
+# not a connection — it does NOT multiply) plus the item's content id/title/url/repo. No nested
+# connection means cost stays ~O(pages): a whole-board scan is a few points, not thousands.
+# `ready` lists every item at a Status (default Ready); `next` prints the single top pick.
+_scan_board() {   # -> JSON array of {status,repo,number,title,url,state}; args: none (whole board)
+  ensure_board >/dev/null
+  local num; num="$(board_get '.number')"
+  local q='query($owner:String!, $number:Int!, $cursor:String){
+    organization(login:$owner){ projectV2(number:$number){
+      items(first:100, after:$cursor){
+        pageInfo{ hasNextPage endCursor }
+        nodes{
+          status: fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } }
+          content{
+            __typename
+            ... on Issue       { number title url state repository{ nameWithOwner } }
+            ... on PullRequest { number title url state repository{ nameWithOwner } }
+            ... on DraftIssue  { title }
+          }
+        }
+      }
+    } }
+    rateLimit{ cost remaining }
+  }'
+  local cursor="" hasNext="true" out all="[]"
+  while [ "$hasNext" = "true" ]; do
+    if [ -n "$cursor" ]; then out="$(gql "$q" -f owner="$OWNER" -F number="$num" -f cursor="$cursor")"
+    else                       out="$(gql "$q" -f owner="$OWNER" -F number="$num")"; fi
+    all="$(jq -n --argjson a "$all" \
+      --argjson b "$(jq '[.data.organization.projectV2.items.nodes[]
+        | { status: (.status.name // null),
+            repo:   (.content.repository.nameWithOwner // null),
+            number: (.content.number // null),
+            title:  (.content.title // null),
+            url:    (.content.url // null),
+            state:  (.content.state // null) }]' <<<"$out")" '$a + $b')"
+    hasNext="$(jq -r '.data.organization.projectV2.items.pageInfo.hasNextPage' <<<"$out")"
+    cursor="$(jq -r  '.data.organization.projectV2.items.pageInfo.endCursor'  <<<"$out")"
+  done
+  printf '%s' "$all"
+}
+
+ready() {
+  local status="Ready" repo="" jqout=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --status) status="${2?--status needs a value}"; shift 2 ;;   # empty = match all statuses
+      --repo)   repo="${2?--repo needs a value}"; shift 2 ;;
+      --json)   jqout=1; shift ;;
+      -*)       die "ready: unknown flag '$1'." ;;
+      *)        die "ready: unexpected argument '$1'." ;;
+    esac
+  done
+  local rows; rows="$(_scan_board | jq --arg st "$status" --arg repo "$repo" '
+    [ .[]
+      | select($st  == "" or ((.status // "") | ascii_downcase) == ($st   | ascii_downcase))
+      | select($repo== "" or (((.repo   // "") | ascii_downcase) | contains($repo | ascii_downcase))) ]')"
+  if [ -n "$jqout" ]; then printf '%s\n' "$rows"; return 0; fi
+  local n; n="$(jq 'length' <<<"$rows")"
+  [ "$n" -gt 0 ] || { echo "no items matching Status='$status'${repo:+ repo~'$repo'} on board '$TITLE'." >&2; return 0; }
+  jq -r '.[] | "\(.status // "—")\t\(.repo // "—")\t#\(.number // "—")\t\(.title // "—")\n  \(.url // "—")"' <<<"$rows"
+}
+
+# `next`: the single item to pick up — first Ready, else first Backlog (board order). Optional --repo.
+next_item() {
+  local repo=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --repo) repo="${2:?--repo needs a value}"; shift 2 ;;
+      -*)     die "next: unknown flag '$1'." ;;
+      *)      die "next: unexpected argument '$1'." ;;
+    esac
+  done
+  local all; all="$(_scan_board)"
+  local pick
+  for st in Ready Backlog; do
+    pick="$(jq -c --arg st "$st" --arg repo "$repo" '
+      [ .[]
+        | select(((.status // "") | ascii_downcase) == ($st | ascii_downcase))
+        | select($repo == "" or (((.repo // "") | ascii_downcase) | contains($repo | ascii_downcase))) ]
+      | first // empty' <<<"$all")"
+    [ -n "$pick" ] && break
+  done
+  [ -n "$pick" ] || { echo "no Ready or Backlog item${repo:+ for repo~'$repo'} on board '$TITLE'." >&2; return 0; }
+  jq -r '"\(.status)\t\(.repo)\t#\(.number)\t\(.title)\n  \(.url)"' <<<"$pick"
+}
+
 # ---- issues: REST list with ETag revalidation (GraphQL-budget-free; 304s are free) --------------
 issues() {
   local repo="" label="" state="open" refresh="" jqexpr=""
@@ -288,6 +384,8 @@ case "$cmd" in
   item-id)   [ $# -ge 1 ] || die "item-id: <issue> required.";  item_id "$1" "${2:-}" ;;
   set-field) [ $# -ge 3 ] || die "set-field: <issue> <Field> <Value> required."; set_field "$1" "$2" "$3" "${4:-}" ;;
   issues)    issues "$@" ;;
+  ready)     ready "$@" ;;
+  next)      next_item "$@" ;;
   budget)    budget ;;
   -h|--help|help|"") usage ;;
   *)         die "unknown command '$cmd' (try: fsgg-coord --help)." ;;
