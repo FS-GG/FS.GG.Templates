@@ -5,8 +5,9 @@
 # `source` is the PUBLISHED FS.GG.UI.Template package, version-pinned with the
 # `dotnet new install` `id::version` syntax (SDD runs `dotnet new install <source>`).
 # The pin tracks the coherent template<->framework snapshot behind the immutable tag
-# `fs-gg-ui-template/v0.1.63-preview.1` (FS.GG.Rendering Feature 231 / ADR-0014 P2; registry
-# contract `fs-gg-ui-template@0.1.63-preview.1`, the current coherent set — it ships the
+# `fs-gg-ui-template/v0.1.64-preview.1` (FS.GG.Rendering #110; registry
+# contract `fs-gg-ui-template@0.1.64-preview.1`, the current coherent set — it adds the
+# `FS.GG.UI.Canvas.Pathfinding` + `FS.GG.UI.Canvas.SpatialGrid` grid sim primitives, and it ships the
 # provider PRODUCT skill-manifest at `.agents/skills/skill-manifest.json` in every lifecycle,
 # replaces the standalone per-skill twin matrix with ONE materialize step (vendored
 # Fsgg.SkillMirror, `FsGgMaterializeSkillRoots` on first build), drops the dangling dev-surface
@@ -18,7 +19,7 @@ providers:
   - name: rendering
     contractVersion: "1.0.0"
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.1.63-preview.1   # published NuGet package, version-pinned
+    source: FS.GG.UI.Template::0.1.64-preview.1   # published NuGet package, version-pinned
     # ADR-0008 (FS-GG/.github#86, epic #85): the ORCHESTRATOR axis of the coherent set. A
     # scaffold has TWO inputs — this template@<source pin> (governed above) AND the fsgg-sdd
     # CLI@<installed> (was ungoverned). The CLI seeds artifacts a product on this pin is
