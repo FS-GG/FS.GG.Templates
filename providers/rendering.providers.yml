@@ -16,9 +16,9 @@
 schemaVersion: 1
 providers:
   - name: rendering
-    contractVersion: "1.0.0"
+    contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.1.64-preview.1   # published NuGet package, version-pinned
+    source: FS.GG.UI.Template::0.1.66-preview.1   # published NuGet package, version-pinned. 0.1.66-preview.1 (2026-07-05, FS.GG.Rendering#142/#144, release run 28749394980, publish-before-flip FR-007): the template honors identifierParameter -> rootNamespace (the identifier split below). Template-only (framework FsGgUiVersion held at 0.1.64); supersedes the 0.1.65 fragments+skills re-pin. PRIOR 0.1.64-preview.1.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
