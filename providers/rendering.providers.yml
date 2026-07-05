@@ -30,20 +30,21 @@ providers:
     # Mirrors registry `fs-gg-ui-template.minimum-fsgg-sdd` (coherence id
     # `fsgg-sdd-orchestrator-axis`). Bump `version` in lockstep with the registry.
     minimumFsggSdd:
-      version: "0.4.0"         # PINNED (FR-007 satisfied): FS.GG.SDD released v0.4.0 (2026-07-01;
-                               # FS.GG.SDD.Cli 0.4.0 on the org feed), shipping Feature 056
-                               # (orchestrator skill fan-out): fsgg-sdd is the SOLE mirror authority —
-                               # it seeds the fs-gg-sdd-* process skills into the THIRD agent-skill
-                               # root .agents/skills/ and fans the byte-identical UNION (seeded ∪
-                               # provider .agents/skills/*) into .claude/.codex/.agents. 0.4.0 is the
-                               # OLDEST published CLI that seeds the 3-root skill union a product on
-                               # this pin is expected to contain (0.3.0 seeded fewer roots). Mirrors
-                               # registry pin fs-gg-ui-template.minimum-fsgg-sdd (FS.GG.SDD#57,
-                               # re-mirrored here by FS.GG.Templates#49 — closes the #47 chain).
-      requires: "FS.GG.SDD Feature 049 (early-stage-guidance) + Feature 051 (seeded fs-gg-sdd-* process skills) + Feature 056 (3-root byte-identical union fan-out)"
+      version: "0.6.0"         # PINNED (FR-007 satisfied): FS.GG.SDD released v0.6.0 (FS.GG.SDD.Cli
+                               # 0.6.0 on the org feed; dual-published to nuget.org), shipping
+                               # Feature 073 (transient-artifact taxonomy): the CLI now SEEDS a
+                               # `.gitignore` for regenerable output into scaffolded products. That
+                               # grows the seeded-artifact surface a product on this pin is EXPECTED
+                               # to contain, so per FR-011 the minimum coherent CLI advances
+                               # 0.4.0 -> 0.6.0. 0.6.0 is the OLDEST published CLI that seeds the
+                               # `.gitignore` (0.5.0 did not). Supersedes the prior 0.4.0 pin
+                               # (Feature 056, 3-root skill union — still seeded, floor now higher).
+                               # Mirrors registry pin fs-gg-ui-template.minimum-fsgg-sdd
+                               # (FS-GG/.github#189), re-mirrored here by FS.GG.Templates#99.
+      requires: "FS.GG.SDD Feature 049 (early-stage-guidance) + Feature 051 (seeded fs-gg-sdd-* process skills) + Feature 056 (3-root byte-identical union fan-out) + Feature 073 (seeded .gitignore for regenerable output)"
       adr: "FS-GG/.github docs/adr/0008-fsgg-sdd-cli-first-class-member-of-coherent-set.md"
       registry: "FS-GG/.github registry/dependencies.yml -> fs-gg-ui-template.minimum-fsgg-sdd"
-      tracking: "https://github.com/FS-GG/FS.GG.SDD/issues/57"
+      tracking: "https://github.com/FS-GG/FS.GG.Templates/issues/99"
     parameters:
       # lifecycle=sdd -> app-only product + SDD skeleton (ADR-0002 composition-by-scaffold).
       # Override the template default (spec-kit) so Templates composition emits the SDD shape.
