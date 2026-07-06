@@ -5,8 +5,11 @@
 # `source` is the PUBLISHED FS.GG.UI.Template package, version-pinned with the
 # `dotnet new install` `id::version` syntax (SDD runs `dotnet new install <source>`).
 # The pin tracks the coherent template<->framework snapshot behind the immutable tag
-# `fs-gg-ui-template/v0.1.70-preview.1` (FS.GG.Rendering Feature 231 / ADR-0014 P2; registry
-# contract `fs-gg-ui-template@0.1.70-preview.1`, the current coherent set — it ships the
+# `fs-gg-ui-template/v0.2.0-preview.1` (FS.GG.Rendering#155 / ADR-0022 P5 — the FRAMEWORK MAJOR:
+# the game-sim primitives were EXTRACTED to FS.GG.Game.Core 0.1.0-preview.1, so a `--profile game`
+# scaffold now also restores that BCL-only bottom-layer package; see the `source:` note below.
+# Carries forward Feature 231 / ADR-0014 P2; registry
+# contract `fs-gg-ui-template@0.2.0-preview.1`, the current coherent set — it ships the
 # provider PRODUCT skill-manifest at `.agents/skills/skill-manifest.json` in every lifecycle,
 # replaces the standalone per-skill twin matrix with ONE materialize step (vendored
 # Fsgg.SkillMirror, `FsGgMaterializeSkillRoots` on first build), drops the dangling dev-surface
@@ -18,7 +21,7 @@ providers:
   - name: rendering
     contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.1.70-preview.1   # published NuGet package, version-pinned. 0.1.70-preview.1 (2026-07-06, FS.GG.Rendering#152/#153, release run 28775303484, publish-before-flip FR-007): TRULY completes the identifierParameter split — a SECOND instance of the #142/#149 leak class the 0.1.69 gate could not see: the game/sample-pack TEST project's `let readProductFile` helper in BehaviorTests.fs, with `Product` EMBEDDED mid-identifier and in tests/ (both blind spots of #149's src-only/start-anchored gate), scaffolded `let readRoquelike-DungeonCrawlerFile` -> FS0010 at 215,30 (caught by the SDD#150 smoke against 0.1.69); 0.1.70 routes it through `AppRoot` + widens the leak gate to scan tests/ + fragments/*/tests and match embedded tokens. Template-only (framework FsGgUiVersion held at 0.1.64). PRIOR 0.1.69-preview.1 (FS.GG.Rendering#149/#150, the src EvidenceCommands.fs binding).
+    source: FS.GG.UI.Template::0.2.0-preview.1   # published NuGet package, version-pinned. 0.2.0-preview.1 (2026-07-06, FS.GG.Rendering#155, release run 28807190647, publish-before-flip FR-007): the FRAMEWORK MAJOR (ADR-0022 P5 — the FS.GG.Game extraction). The render-independent game-sim primitives (Rng/FixedStep/Pathfinding/SpatialGrid from FS.GG.UI.Canvas; the Geometry collision module from FS.GG.UI.Scene) were REMOVED from Rendering and now live in the new bottom-layer package FS.GG.Game.Core 0.1.0-preview.1 (BCL-only). Canvas + Scene each take a SemVer major (0.x preview channel; ApiCompat gate green on the removals). A scaffolded `--profile game` product's collision/visibility/line-drawing/grids fragments are re-homed to consume FS.GG.Game.Core (on the template's own $(FsGgGameVersion) axis) — so this pin now brings TWO packages down: FS.GG.UI.* @ 0.2.0-preview.1 AND FS.GG.Game.Core @ 0.1.0-preview.1 (both dual-published to nuget.org). The framework version pin + package RE-COUPLE at 0.2.0 (a real src/ release, unlike the 0.1.65->0.1.70 template-only bumps). Registry contract fs-gg-ui-template@0.2.0-preview.1 + new game-sim-core@0.1.0-preview.1 (FS-GG/.github#228). PRIOR 0.1.70-preview.1 (template-only, FS.GG.Rendering#152/#153 — the second identifier-leak instance; framework held at 0.1.64).
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
