@@ -5,8 +5,8 @@
 # `source` is the PUBLISHED FS.GG.UI.Template package, version-pinned with the
 # `dotnet new install` `id::version` syntax (SDD runs `dotnet new install <source>`).
 # The pin tracks the coherent template<->framework snapshot behind the immutable tag
-# `fs-gg-ui-template/v0.1.70-preview.1` (FS.GG.Rendering Feature 231 / ADR-0014 P2; registry
-# contract `fs-gg-ui-template@0.1.70-preview.1`, the current coherent set — it ships the
+# `fs-gg-ui-template/v0.2.0-preview.1` (FS.GG.Rendering Feature 231 / ADR-0014 P2; registry
+# contract `fs-gg-ui-template@0.2.0-preview.1`, the current coherent set — it ships the
 # provider PRODUCT skill-manifest at `.agents/skills/skill-manifest.json` in every lifecycle,
 # replaces the standalone per-skill twin matrix with ONE materialize step (vendored
 # Fsgg.SkillMirror, `FsGgMaterializeSkillRoots` on first build), drops the dangling dev-surface
@@ -18,7 +18,7 @@ providers:
   - name: rendering
     contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.1.70-preview.1   # published NuGet package, version-pinned. 0.1.70-preview.1 (2026-07-06, FS.GG.Rendering#152/#153, release run 28775303484, publish-before-flip FR-007): TRULY completes the identifierParameter split — a SECOND instance of the #142/#149 leak class the 0.1.69 gate could not see: the game/sample-pack TEST project's `let readProductFile` helper in BehaviorTests.fs, with `Product` EMBEDDED mid-identifier and in tests/ (both blind spots of #149's src-only/start-anchored gate), scaffolded `let readRoquelike-DungeonCrawlerFile` -> FS0010 at 215,30 (caught by the SDD#150 smoke against 0.1.69); 0.1.70 routes it through `AppRoot` + widens the leak gate to scan tests/ + fragments/*/tests and match embedded tokens. Template-only (framework FsGgUiVersion held at 0.1.64). PRIOR 0.1.69-preview.1 (FS.GG.Rendering#149/#150, the src EvidenceCommands.fs binding).
+    source: FS.GG.UI.Template::0.2.0-preview.1   # published NuGet package, version-pinned. 0.2.0-preview.1 (2026-07-06, FS.GG.Rendering#152/#153, release run 28775303484, publish-before-flip FR-007): TRULY completes the identifierParameter split — a SECOND instance of the #142/#149 leak class the 0.1.69 gate could not see: the game/sample-pack TEST project's `let readProductFile` helper in BehaviorTests.fs, with `Product` EMBEDDED mid-identifier and in tests/ (both blind spots of #149's src-only/start-anchored gate), scaffolded `let readRoquelike-DungeonCrawlerFile` -> FS0010 at 215,30 (caught by the SDD#150 smoke against 0.1.69); 0.1.70 routes it through `AppRoot` + widens the leak gate to scan tests/ + fragments/*/tests and match embedded tokens. Template-only (framework FsGgUiVersion held at 0.1.64). PRIOR 0.1.69-preview.1 (FS.GG.Rendering#149/#150, the src EvidenceCommands.fs binding).
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
