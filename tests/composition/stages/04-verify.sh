@@ -39,6 +39,10 @@ if [[ -n "$PIN_VER" ]]; then
   # the file's own comment (and the README) must name the same version — guards 'bump both together'
   assert_contains "$PROV" "fs-gg-ui-template/v$PIN_VER" "provider comment tag matches the pinned version"
   assert_contains "$REPO_ROOT/README.md" "$PIN_VER" "README names the pinned template version"
+  # scripts/bump-rendering-pin.sh moves the pin but cannot know WHY the release happened, so it
+  # leaves a stub in the provider's PIN HISTORY block. Fail while one remains: an unexplained pin
+  # is how the file came to claim 0.3.1-preview.1 was the ADR-0022 framework major (it was not).
+  assert_absent "$PROV" "PIN HISTORY ENTRY REQUIRED" "provider PIN HISTORY has no unwritten entry"
 else
   bad "could not parse FS.GG.UI.Template version pin from provider yml"
 fi

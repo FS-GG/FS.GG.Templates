@@ -4,24 +4,70 @@
 #
 # `source` is the PUBLISHED FS.GG.UI.Template package, version-pinned with the
 # `dotnet new install` `id::version` syntax (SDD runs `dotnet new install <source>`).
-# The pin tracks the coherent template<->framework snapshot behind the immutable tag
-# `fs-gg-ui-template/v0.3.1-preview.1` (FS.GG.Rendering#155 / ADR-0022 P5 — the FRAMEWORK MAJOR:
-# the game-sim primitives were EXTRACTED to FS.GG.Game.Core 0.1.0-preview.1, so a `--profile game`
-# scaffold now also restores that BCL-only bottom-layer package; see the `source:` note below.
-# Carries forward Feature 231 / ADR-0014 P2; registry
-# contract `fs-gg-ui-template@0.3.1-preview.1`, the current coherent set — it ships the
-# provider PRODUCT skill-manifest at `.agents/skills/skill-manifest.json` in every lifecycle,
-# replaces the standalone per-skill twin matrix with ONE materialize step (vendored
-# Fsgg.SkillMirror, `FsGgMaterializeSkillRoots` on first build), drops the dangling dev-surface
-# wrappers, and emits UI skills into `.agents/skills/` ONLY on the sdd path — over the
-# `fs-gg-styling` product skill (Feature 226, @0.1.60) and the consumer skill-catalog
-# currency/de-leak set (Features 224/225, @0.1.56). Bump both the version and this comment together.
+# The pin tracks the coherent template<->framework snapshot behind an immutable
+# `fs-gg-ui-template/v<ver>` tag cut by FS.GG.Rendering's release.
+#
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# MACHINE-MAINTAINED. `scripts/bump-rendering-pin.sh` rewrites exactly three tokens: the two
+# lines below and the `source:` value. Put NO prose on them — a bumper cannot keep prose true.
+#
+# This block exists because the bumper used to `sed s/OLD/NEW/g` the WHOLE FILE. On the
+# 0.2.0 -> 0.3.1 bump that rewrote *history*: the comment then claimed 0.3.1-preview.1 was
+# released 2026-07-06 by FS.GG.Rendering#155 as the ADR-0022 P5 FRAMEWORK MAJOR, and that the
+# pin brings `FS.GG.UI.* @ 0.3.1` down (those libraries are at 0.3.0; no 0.3.1 of them exists).
+# It left "RE-COUPLE at 0.2.0" untouched beside it, because the sed matched only the full
+# `0.2.0-preview.1` token — a self-contradicting line, and the tell that no human wrote it.
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# pin-tag: fs-gg-ui-template/v0.3.1-preview.1
+# pin-contract: fs-gg-ui-template@0.3.1-preview.1
+#
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+# PIN HISTORY — hand-authored, newest first. The bumper NEVER edits at or below this line; it only
+# inserts a placeholder entry, which the composition test rejects until a human replaces it.
+# A release's *story* is not derivable from its version number. Write it, or the PR stays red.
+# (This header must never quote the placeholder's sentinel text verbatim — that would trip the
+#  very check it describes. It caught exactly that on first run.)
+# ─────────────────────────────────────────────────────────────────────────────────────────────
+#
+# 0.3.1-preview.1 — 2026-07-08. FS.GG.Rendering#162 / PR #163, release run 28937999798.
+#   TEMPLATE-ONLY (no `src/` change): the framework pin `$(FsGgUiVersion)` HOLDS at 0.3.0-preview.1
+#   and the 16 `FS.GG.UI.*` libraries are NOT republished — this pin still brings them down at
+#   0.3.0-preview.1. No `fs-gg-ui/v0.3.1` tag exists. What moved: the template's game/sample-pack
+#   profiles now declare `$(FsGgAudioVersion)` 0.1.0-preview.1 and reference the four
+#   `FS.GG.Audio.Core/.Host/.Engine/.Elmish` packages under the `game || sample-pack` gate
+#   (ADR-0024 step 3, the FS.GG.Audio wire-in). Registry contract `fs-gg-ui-template` moves to
+#   0.3.1 in FS-GG/.github#238, which also lands the `rendering -> audio` consumer edge.
+#
+# 0.3.0-preview.1 — NEVER PINNED HERE. FS.GG.Rendering#158 / PR #159, 2026-07-07, run 28882426507.
+#   The FRAMEWORK MAJOR that retired the Audio request surface (`AudioEffect`/`SoundId`/`TrackId`/
+#   the `Audio.*` module) from `FS.GG.UI.Canvas` to the standalone `FS.GG.Audio.Core` (ADR-0024
+#   step 2, ADR-0023). Templates skipped it: 0.3.1 superseded it before this pin moved. It is the
+#   version the `FS.GG.UI.*` libraries sit at today (registry flip: FS-GG/.github#250).
+#
+# 0.2.0-preview.1 — 2026-07-06. FS.GG.Rendering#155 / ADR-0022 P5, release run 28807190647.
+#   The FRAMEWORK MAJOR for the FS.GG.Game extraction: the render-independent game-sim primitives
+#   (`Rng`/`FixedStep`/`Pathfinding`/`SpatialGrid` from `FS.GG.UI.Canvas`; the `Geometry` collision
+#   module from `FS.GG.UI.Scene`) were REMOVED from Rendering and now live in the new BCL-only
+#   bottom-layer package `FS.GG.Game.Core` 0.1.0-preview.1. Canvas + Scene each took a SemVer major
+#   (ApiCompat gate green on the removals). A `--profile game` scaffold's collision/visibility/
+#   line-drawing/grids fragments re-homed onto `FS.GG.Game.Core` (its own `$(FsGgGameVersion)`
+#   axis), so from here the pin brings TWO packages down. Framework pin + package RE-COUPLED at
+#   0.2.0 (a real `src/` release). Registry: `fs-gg-ui-template@0.2.0` + new
+#   `game-sim-core@0.1.0-preview.1` (FS-GG/.github#228).
+#
+# 0.1.70-preview.1 — TEMPLATE-ONLY (framework held at 0.1.64). FS.GG.Rendering#152/#153 — the
+#   second identifier-leak instance. Carries Feature 231 / ADR-0014 P2: the provider PRODUCT
+#   skill-manifest at `.agents/skills/skill-manifest.json` in every lifecycle, ONE materialize step
+#   (vendored `Fsgg.SkillMirror`, `FsGgMaterializeSkillRoots` on first build) replacing the
+#   per-skill twin matrix, dangling dev-surface wrappers dropped, and UI skills emitted into
+#   `.agents/skills/` ONLY on the sdd path. Over `fs-gg-styling` (Feature 226, @0.1.60) and the
+#   consumer skill-catalog currency/de-leak set (Features 224/225, @0.1.56).
 schemaVersion: 1
 providers:
   - name: rendering
     contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.3.1-preview.1   # published NuGet package, version-pinned. 0.3.1-preview.1 (2026-07-06, FS.GG.Rendering#155, release run 28807190647, publish-before-flip FR-007): the FRAMEWORK MAJOR (ADR-0022 P5 — the FS.GG.Game extraction). The render-independent game-sim primitives (Rng/FixedStep/Pathfinding/SpatialGrid from FS.GG.UI.Canvas; the Geometry collision module from FS.GG.UI.Scene) were REMOVED from Rendering and now live in the new bottom-layer package FS.GG.Game.Core 0.1.0-preview.1 (BCL-only). Canvas + Scene each take a SemVer major (0.x preview channel; ApiCompat gate green on the removals). A scaffolded `--profile game` product's collision/visibility/line-drawing/grids fragments are re-homed to consume FS.GG.Game.Core (on the template's own $(FsGgGameVersion) axis) — so this pin now brings TWO packages down: FS.GG.UI.* @ 0.3.1-preview.1 AND FS.GG.Game.Core @ 0.1.0-preview.1 (both dual-published to nuget.org). The framework version pin + package RE-COUPLE at 0.2.0 (a real src/ release, unlike the 0.1.65->0.1.70 template-only bumps). Registry contract fs-gg-ui-template@0.3.1-preview.1 + new game-sim-core@0.1.0-preview.1 (FS-GG/.github#228). PRIOR 0.1.70-preview.1 (template-only, FS.GG.Rendering#152/#153 — the second identifier-leak instance; framework held at 0.1.64).
+    source: FS.GG.UI.Template::0.3.1-preview.1   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
