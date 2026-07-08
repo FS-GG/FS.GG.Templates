@@ -55,13 +55,21 @@
 #   0.2.0 (a real `src/` release). Registry: `fs-gg-ui-template@0.2.0` + new
 #   `game-sim-core@0.1.0-preview.1` (FS-GG/.github#228).
 #
-# 0.1.70-preview.1 — TEMPLATE-ONLY (framework held at 0.1.64). FS.GG.Rendering#152/#153 — the
-#   second identifier-leak instance. Carries Feature 231 / ADR-0014 P2: the provider PRODUCT
-#   skill-manifest at `.agents/skills/skill-manifest.json` in every lifecycle, ONE materialize step
-#   (vendored `Fsgg.SkillMirror`, `FsGgMaterializeSkillRoots` on first build) replacing the
-#   per-skill twin matrix, dangling dev-surface wrappers dropped, and UI skills emitted into
-#   `.agents/skills/` ONLY on the sdd path. Over `fs-gg-styling` (Feature 226, @0.1.60) and the
-#   consumer skill-catalog currency/de-leak set (Features 224/225, @0.1.56).
+# 0.1.70-preview.1 — TEMPLATE-ONLY (framework held at 0.1.64). FS.GG.Rendering#152/#153: the second
+#   raw-slug identifier-leak instance — the game-starter TEST project's `let readProductFile` binding
+#   carried `Product` mid-identifier, routed through `AppRoot`, and the leak guard widened to scan
+#   `tests/`. That is ALL this cut introduced.
+#
+#   Content it carries CUMULATIVELY (each introduced by an earlier template-only cut, NOT by 0.1.70 —
+#   the pre-corruption comment misattributed these, and the old bumper then rewrote the numbers):
+#     0.1.61  Feature 231 / ADR-0014 P2 — provider PRODUCT skill-manifest at
+#             `.agents/skills/skill-manifest.json` in every lifecycle; ONE materialize step (vendored
+#             `Fsgg.SkillMirror`, `FsGgMaterializeSkillRoots` on first build) replacing the per-skill
+#             twin matrix; dangling dev-surface wrappers dropped.
+#     0.1.60  Features 229 + 230 — UI skills emitted into `.agents/skills/` ONLY on the sdd/none path.
+#     0.1.58  Feature 227 — `fs-gg-layout` consumer product skill.
+#     0.1.57  Feature 226 — `fs-gg-styling` consumer product skill. (The old comment said @0.1.60.)
+#     0.1.56  Features 224/225 — consumer skill-catalog currency + product-skill vocabulary de-leak.
 schemaVersion: 1
 providers:
   - name: rendering
