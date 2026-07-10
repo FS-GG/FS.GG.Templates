@@ -88,8 +88,10 @@
 #                                             # worktree/branch to isolate on. --force steals.
 #   fsgg-coord heartbeat <issue>              # renew this worker's lease on a claim
 #   fsgg-coord release <issue> [--status S] [--force]
-#                                             # drop the lock: delete the marker, unassign, Status
-#                                             # (default Ready, so the item returns to the pool)
+#                                             # drop the lock: delete the marker, unassign, and reset
+#                                             # the `In progress` claim set -> Ready. Any OTHER status
+#                                             # the caller chose (Blocked, Backlog, ...) is PRESERVED;
+#                                             # --status S overrides. See release_cmd.
 #   fsgg-coord who [--repo R] [--local] [--json]
 #                                             # WHO holds WHAT, right now: worker, age, lease
 #                                             # health, declared paths, branch. Finds work by its
@@ -149,6 +151,9 @@ set -euo pipefail
 
 OWNER="${FSGG_COORD_OWNER:-FS-GG}"
 TITLE="${FSGG_COORD_PROJECT:-Coordination}"
+# The ONLY Status a claim writes. Undoing a claim (`release`, `reap`) resets this column and no
+# other — see unclaim_status.
+CLAIM_STATUS="In progress"
 CACHE="${FSGG_COORD_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/fsgg-coord}"
 BOARD_TTL_MIN="${FSGG_COORD_BOARD_TTL_MIN:-1440}"
 CLAIM_LEASE_MIN="${FSGG_CLAIM_LEASE_MIN:-120}"
@@ -628,6 +633,69 @@ item_id() {
   printf '%s\n' "$iid"
 }
 
+# ---- the item's CURRENT Status, read fresh (never cached — `release` decides on it) -------------
+# Deliberately NOT folded into `item_id`: that caches its answer to a file, and a stale Status is
+# worse than none. One narrow query, no blocker resolution.
+#
+# Echoes the Status name — empty when the item is on the board with no Status set.
+#   rc 0 -> read it    rc 1 -> the read failed    rc 2 -> the issue is not on this board
+#
+# Callers must invoke this in a command substitution: `gql`/`ensure_board` `die` on failure, and the
+# substitution's subshell is what turns that into rc 1 rather than killing the caller mid-release.
+item_status() {
+  local ref="$1"
+  parse_ref "$ref"
+  ensure_board >/dev/null
+  local boardnum out node
+  boardnum="$(board_get '.number')"
+  local q='query($owner:String!, $repo:String!, $num:Int!){
+    repository(owner:$owner, name:$repo){ issue(number:$num){
+      projectItems(first:20){ nodes{
+        project{ number }
+        status: fieldValueByName(name:"Status"){ ... on ProjectV2ItemFieldSingleSelectValue{ name } }
+      } } } }
+    rateLimit{ cost remaining }
+  }'
+  # Check the read EXPLICITLY. `gql` dies, but its `exit` only unwinds the `$( )` it runs in, leaving
+  # `out` empty here — and an empty payload yields no board node, which is indistinguishable from
+  # "not on this board" (rc 2) unless we catch it first. That mistake is the whole bug in miniature:
+  # a failed read must never be reported as a known, benign state.
+  out="$(gql "$q" -f owner="$R_OWNER" -f repo="$R_REPO" -F num="$R_NUM")" || return 1
+  [ -n "$out" ] || return 1
+  node="$(jq -c --argjson pn "$boardnum" \
+    '[ .data.repository.issue.projectItems.nodes[]? | select(.project.number == $pn) ] | first // empty' \
+    <<<"$out")" || return 1
+  [ -n "$node" ] || return 2
+  jq -r '.status.name // ""' <<<"$node"
+}
+
+# ---- what Status should an item carry once its claim is UNDONE? (#331) --------------------------
+# `release` and `reap` are the two ways a claim goes away, so they owe the board the same answer —
+# and both used to force `Ready`. But "the lease is gone" and "this item is startable" are DIFFERENT
+# claims. A claim's only Status footprint is the `$CLAIM_STATUS` it wrote; that is the one column
+# undoing it may reset. `Blocked`, `Backlog`, `In review`, `Done` were each chosen by somebody, and
+# overwriting them is how the board came to assert `Ready` on rows whose `Blocked by` named an open
+# issue — silently, every time a worker followed the documented blocked-item sequence.
+#
+# And a Status we could not READ is not a Status we may overwrite: guessing `Ready` over an unknown
+# column is the same fail-open one turn in (#266).
+#
+# Echoes one TAB-separated verdict; always rc 0, because every outcome here is a decision:
+#   write<TAB>Ready   reset the claim's own column
+#   keep<TAB><name>   leave a deliberately-chosen column alone
+#   offboard<TAB>     the item is on no board; there is nothing to reset
+#   unreadable<TAB>   the read failed; do not touch the column
+unclaim_status() {
+  local cur rc=0
+  cur="$(item_status "$1" 2>/dev/null)" || rc=$?
+  case "$rc" in
+    0) if [ -z "$cur" ] || [ "$cur" = "$CLAIM_STATUS" ]; then printf 'write\tReady\n'
+       else printf 'keep\t%s\n' "$cur"; fi ;;
+    2) printf 'offboard\t\n' ;;
+    *) printf 'unreadable\t\n' ;;
+  esac
+}
+
 # ---- set-field: resolve project/field/item/option ids from cache, one narrow mutation -----------
 set_field() {
   local ref="$1" field="$2" value="$3" refresh="${4:-}"
@@ -1001,7 +1069,14 @@ lint_items() {
 #                           issue) that is not in its sub-issue graph. Rollup reads the graph, so such
 #                           a child is invisible to it and the epic can complete over an open child.
 #                           Scoped to epics whose child list is not truncated — otherwise the missing
-#                           children are an artifact of the scan, not of the link. Fix: `coord child`.
+#                           children are an artifact of the scan, not of the link. A body ref that
+#                           resolves to a PULL REQUEST is skipped, not flagged: GitHub refuses to link
+#                           a PR as a sub-issue, so citing the PR that closed a checklist line is not
+#                           an unlinked child (FS-GG/.github#346). Deliberately NOT scoped to OPEN
+#                           epics (unlike EPIC-NO-CHILDREN): a CLOSED epic whose body declares an
+#                           unlinked child that is itself still open is the one case EPIC-DONE-OPEN-
+#                           CHILD cannot catch, because that child is absent from the graph it reads.
+#                           Fix: `coord child`.
 #
 # A NOTE (not a failure) is printed for `Status: Done` on an issue that is still open: it is how the
 # board legitimately looks between "the PR merged" and "someone closed the epic", so it fails only
@@ -1047,11 +1122,18 @@ lint() {
           | ($declared - [ $e.children[].ref ]) as $unlinked
           | select($unlinked | length > 0)
           | { code:"EPIC-UNLINKED-CHILD", severity:"error", id:.id, status:.status, url:.url,
+              unlinked:$unlinked,
               detail:"body declares child(ren) absent from the sub-issue graph, so rollup cannot see them: \([$unlinked[]|short]|join(", "))" } ),
         ( .[] | select(.status == "Done" and .state == "OPEN")
           | { code:"DONE-STATUS-OPEN-ISSUE", severity:"note", id:.id, status:.status, url:.url,
               detail:"board Status is Done but the issue is still open" } )
       ]' <<<"$items")"
+
+  # A body-declared ref that resolves to a PR is not an unlinked child — a PR can never be a
+  # sub-issue. Drop those before counting or printing, so the gate stops going red on an epic that
+  # merely cites the PR that closed a checklist line (FS-GG/.github#346). Also strips the internal
+  # `unlinked` scratch field, restoring the finding schema.
+  findings="$(prune_pr_unlinked "$findings")"
 
   if [ -n "$json" ]; then jq '.' <<<"$findings"; else
     jq -r '.[] | "FSGG-LINT \(.severity|ascii_upcase)  \(.code)  \(.id|sub("^[^/]+/";""))  — \(.detail)"' <<<"$findings"
@@ -1124,6 +1206,56 @@ def body_child_refs($self):
   | unique;
 '
 
+# ---- ref_is_pr / drop_pr_refs / prune_pr_unlinked: a body-declared "child" that is really a PR ----
+# `lint` (EPIC-UNLINKED-CHILD) and `epic_rollup` both take the epic's body refs MINUS its sub-issue
+# graph and treat the remainder as unlinked children. But GitHub refuses to link a PULL REQUEST as a
+# sub-issue, so a task-list line citing the PR that closed it — `- [x] … (PR #243)` — declares a ref
+# the graph can NEVER hold. Left alone it wedges the gate red forever on genuinely-complete work, and
+# a gate that is red on correct work is one people learn to ignore (FS-GG/.github#346, arriving at
+# #266 from the other side). So re-resolve the OTHERWISE-UNLINKED refs — only that set, typically
+# empty, so a healthy board pays nothing — and drop the ones GitHub reports as PRs.
+#
+# A ref that will not resolve (404, network, rate-limit) is KEPT, not dropped: per FS-GG/.github#266
+# an unverifiable subject must not clear a gate, and "I could not check" is not "it is a PR". One
+# REST call each (the separate 5,000/hr budget), and only for refs that would otherwise fail the gate.
+ref_is_pr() {  # <owner/repo#n> — exit 0 iff GitHub confirms the ref is a pull request
+  local ref="$1" o r n pr
+  [[ "$ref" =~ ^([^/]+)/([^#]+)#([0-9]+)$ ]] || return 1
+  o="${BASH_REMATCH[1]}"; r="${BASH_REMATCH[2]}"; n="${BASH_REMATCH[3]}"
+  pr="$(gh api "repos/$o/$r/issues/$n" --jq '.pull_request.url // empty' 2>/dev/null)" || return 1
+  [ -n "$pr" ]
+}
+drop_pr_refs() {  # filter refs on stdin (one per line) to those that are NOT pull requests
+  local ref
+  while IFS= read -r ref; do
+    [ -n "$ref" ] || continue
+    ref_is_pr "$ref" && continue
+    printf '%s\n' "$ref"
+  done
+}
+# Rewrite a lint findings array: drop PR refs from every EPIC-UNLINKED-CHILD, delete a finding left
+# with no genuine unlinked child, and rebuild its detail line. Each ref is probed at most once.
+prune_pr_unlinked() {  # <findings-json> -> findings-json
+  local findings="$1" refs ref prs="" prjson
+  refs="$(jq -r '[.[] | select(.code=="EPIC-UNLINKED-CHILD") | .unlinked[]] | unique[]?' <<<"$findings")"
+  [ -n "$refs" ] || { printf '%s' "$findings"; return 0; }
+  while IFS= read -r ref; do
+    [ -n "$ref" ] || continue
+    ref_is_pr "$ref" && prs="$prs$ref"$'\n'
+  done <<<"$refs"
+  prjson="$(printf '%s' "$prs" | jq -R -s 'split("\n") | map(select(length > 0))')"
+  jq --argjson prs "$prjson" '
+    def short: sub("^[^/]+/";"");
+    map( if .code == "EPIC-UNLINKED-CHILD"
+         then (.unlinked - $prs) as $u
+              | if ($u | length) == 0 then empty
+                else .unlinked = $u
+                     | .detail = "body declares child(ren) absent from the sub-issue graph, so rollup cannot see them: " + ([$u[] | short] | join(", "))
+                end
+         else . end )
+    | map(del(.unlinked))' <<<"$findings"
+}
+
 # ---- epic_rollup: after a child flips to Done, walk parents UPWARD and flip each epic whose children
 # are now ALL board-Done AND CLOSED, stamping each one that rolls up. One thrifty query per level (subIssues +
 # a Status resolver each); runs only from `done --flip`. Bounded to 10 levels as a cycle backstop.
@@ -1195,6 +1327,10 @@ epic_rollup() {
       | ($p.body | body_child_refs($self)) as $declared
       | [ $p.subIssues.nodes[]? | "\(.repository.nameWithOwner)#\(.number)" ] as $linked
       | ($declared - $linked)[]' <<<"$out")"
+    # A body ref that is really a PR can never be a sub-issue, so it is not a missing child — dropping
+    # it lets an epic that cites the PR which delivered a checklist line still roll up (.github#346).
+    # An unresolvable ref is kept, so the rollup still refuses rather than guessing (#266).
+    unlinked="$(printf '%s\n' "$unlinked" | drop_pr_refs)"
     if [ -n "$unlinked" ]; then
       # `paste -sd', '` would CYCLE the two delimiters (a,b c,d). Join on ',' and space it after.
       printf '  epic %s: body declares %s child(ren) the sub-issue graph does not contain — not rolling up: %s\n' \
@@ -1515,8 +1651,8 @@ claim_cmd() {
   # A SUBSHELL, not just a redirect: set_field's `die` is an `exit`, and the board flip is strictly
   # best-effort — the lock is already held, so a board that rejects the write must not unwind a claim.
   local boardnote
-  if ( set_field "$ref" Status "In progress" ) >/dev/null 2>&1; then
-    boardnote="board: In progress"
+  if ( set_field "$ref" Status "$CLAIM_STATUS" ) >/dev/null 2>&1; then
+    boardnote="board: $CLAIM_STATUS"
   else
     boardnote="note: not on board '$TITLE' (the marker is the lock; add it to sequence it)"
   fi
@@ -1565,11 +1701,29 @@ heartbeat_cmd() {
 # ---- release: drop the lock. Delete our marker, unassign, and return the item to the pool. --------
 # Releasing a claim held by ANOTHER worker needs --force: an accidental release is how two workers end
 # up on one item, which is the failure this protocol exists to prevent.
+# ---- release: "drop the lease" and "this item is startable" are two different claims (#331) ------
+# `claim` sets Status=In progress. Releasing the lease undoes THAT, and only that. Every other status
+# on the item was chosen deliberately — Blocked, Backlog, In review, Done — and a release that forced
+# `Ready` over it silently reverted its author. The documented blocked-item sequence
+#
+#     set-field <i> 'Blocked by' <ref>;  set-field <i> Status Blocked;  release <i>
+#
+# therefore could not produce its own documented end state: the board ended up asserting `Ready` on a
+# row whose `Blocked by` named an open issue. Self-contradicting, and regenerated every time a worker
+# followed the protocol. (Not a scheduler fail-open — `batch` derives blockedness from `Blocked by`,
+# not from `Status` — but the board is a record humans read, and `check-board` had to keep repairing
+# what `release` kept breaking.)
+#
+# A status we could not READ is not a status we may overwrite: forcing `Ready` over an unknown one is
+# the same defect a turn further in. An unreadable Status writes nothing and says so.
+#
+# `--status S` still wins outright. That is the caller stating the end state, rather than release
+# guessing it.
 release_cmd() {
-  local ref="" status="Ready" force=""
+  local ref="" status="" explicit="" force=""
   while [ $# -gt 0 ]; do
     case "$1" in
-      --status) status="${2:?--status needs a value}"; shift 2 ;;
+      --status) status="${2:?--status needs a value}"; explicit=1; shift 2 ;;
       --force)  force=1; shift ;;
       -*)       die "release: unknown flag '$1'." ;;
       *)        [ -z "$ref" ] && ref="$1" || die "release: unexpected argument '$1'."; shift ;;
@@ -1596,9 +1750,28 @@ release_cmd() {
   done < <(jq -r --arg w "$w" --arg f "${force:-}" '.[] | select($f != "" or .worker == $w) | .id' <<<"$claims")
 
   gh issue edit "$R_NUM" --repo "$R_OWNER/$R_REPO" --remove-assignee "@me" >/dev/null 2>&1 || true
-  local boardnote
-  if ( set_field "$ref" Status "$status" ) >/dev/null 2>&1; then boardnote="board: $status"
-  else boardnote="note: not on board '$TITLE'"; fi
+
+  # The marker is gone by here, so the lease is ALREADY dropped. Nothing below may abort the release
+  # — a board that cannot be read or written leaves the column alone and reports that, exactly as it
+  # has always done for a board write that failed.
+  local boardnote=""
+  if [ -z "$explicit" ]; then
+    local act val
+    IFS=$'\t' read -r act val < <(unclaim_status "$ref")
+    case "$act" in
+      write) status="$val" ;;
+      keep)  boardnote="board: $val (preserved — release resets only the '$CLAIM_STATUS' claim set)" ;;
+      offboard) boardnote="note: not on board '$TITLE'" ;;
+      *)     boardnote="note: Status unchanged — could not read it"
+             echo "fsgg-coord: release: could not read $R_REPO#$R_NUM Status. The lease IS dropped; the board column is untouched." >&2
+             echo "  set it yourself if it still says '$CLAIM_STATUS': fsgg-coord set-field $ref Status Ready" >&2 ;;
+    esac
+  fi
+
+  if [ -z "$boardnote" ]; then
+    if ( set_field "$ref" Status "$status" ) >/dev/null 2>&1; then boardnote="board: $status"
+    else boardnote="note: not on board '$TITLE'"; fi
+  fi
   printf 'released %s (worker %s)  ·  %s\n' "$R_REPO#$R_NUM" "$w" "$boardnote"
 }
 
@@ -2105,12 +2278,19 @@ reap_cmd() {
     # `reap` now collects claims on items the board never had (that is the point of finding them by
     # marker), so the Status write can legitimately have nothing to write to. Report what actually
     # happened rather than asserting a board mutation we may not have performed.
-    local rnote
-    if ( set_field "$r#$num" Status Ready ) >/dev/null 2>&1; then
-      rnote="board: Ready"
-    else
-      rnote="not on board (marker cleared; nothing to reset)"
-    fi
+    #
+    # Reaping UNDOES a claim, exactly as `release` does, so it owes the board the same answer and
+    # asks the same question (#331). A worker whose lease expired on an item it had marked `Blocked`
+    # must not have that column reset to `Ready` on its way out.
+    local rnote ract rval
+    IFS=$'\t' read -r ract rval < <(unclaim_status "$r#$num")
+    case "$ract" in
+      write) if ( set_field "$r#$num" Status "$rval" ) >/dev/null 2>&1; then rnote="board: $rval"
+             else rnote="not on board (marker cleared; nothing to reset)"; fi ;;
+      keep)  rnote="board: $rval (preserved)" ;;
+      offboard)   rnote="not on board (marker cleared; nothing to reset)" ;;
+      *)          rnote="board: Status unchanged — could not read it (marker cleared)" ;;
+    esac
     printf 'reaped  %s#%s  worker %s  (idle %sm)  ·  %s\n' "$rp" "$num" "$cw" "$age" "$rnote"
   done
   [ -z "$apply" ] && echo "fsgg-coord: dry run — pass --apply to release these." >&2
