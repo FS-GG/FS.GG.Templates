@@ -909,9 +909,19 @@ board_annotate() {
 }
 
 # Resolve a --repo value to the actual GitHub repo name the board items carry. Accepts the registry
-# short-id used everywhere else in the roster (sdd/rendering/governance/templates/.github — see
-# registry/repos.yml), an `owner/repo`, or the literal repo name. Without this, `--repo templates`
-# would silently match nothing (the repo is `FS.GG.Templates`, not `templates`) — a quiet footgun.
+# short-id used everywhere else in the roster (sdd/rendering/governance/templates/game/audio, and
+# .github via the literal fall-through — see registry/repos.yml), an `owner/repo`, or the literal
+# repo name. Without this, `--repo templates` would silently match nothing (the repo is
+# `FS.GG.Templates`, not `templates`) — a quiet footgun.
+#
+# This map is EMBEDDED, not read from registry/repos.yml at run time, because fsgg-coord is a
+# `kind: client` kit item mirrored into every receiver repo (the four skills + this script) WITHOUT
+# the roster — a worker in FS.GG.Rendering running `--repo game` has no registry/repos.yml to read.
+# So the roster short-ids are duplicated here, and tests/fsgg-coord/run.sh carries a coherence check
+# that reads repos.yml (present in the .github checkout where CI runs) and FAILS if this case handles
+# fewer ids than the roster rosters — turning "added a repo, forgot this map" from a silent empty
+# queue (.github#381) into a red check. Adding a repo is a data change to repos.yml PLUS a one-line
+# case here, and the guard makes forgetting the second half impossible.
 resolve_repo() {
   case "$1" in
     */*)        printf '%s' "${1#*/}" ;;      # owner/repo -> repo part
@@ -919,6 +929,8 @@ resolve_repo() {
     rendering)  printf '%s' "FS.GG.Rendering" ;;
     governance) printf '%s' "FS.GG.Governance" ;;
     templates)  printf '%s' "FS.GG.Templates" ;;
+    game)       printf '%s' "FS.GG.Game" ;;
+    audio)      printf '%s' "FS.GG.Audio" ;;
     *)          printf '%s' "$1" ;;           # .github or an already-literal repo name
   esac
 }
@@ -1444,7 +1456,8 @@ done_cmd() {
     repository(owner:$owner, name:$repo){ issue(number:$num){
       number title url state
       closedByPullRequestsReferences(first:10, includeClosedPrs:true){
-        nodes{ number url merged mergedAt mergeCommit{ abbreviatedOid } }
+        nodes{ number url merged mergedAt mergeCommit{ abbreviatedOid }
+          closingIssuesReferences(first:10){ nodes{ number repository{ nameWithOwner } } } }
       }
       projectItems(first:20){ nodes{
         project{ number title }
@@ -1467,11 +1480,28 @@ done_cmd() {
   status="$(jq -r --argjson pn "$boardnum" \
     '[.data.repository.issue.projectItems.nodes[]? | select(.project.number==$pn) | .status.name] | first // ""' <<<"$out")"
 
-  # the closing PR: an explicit --pr, else the first MERGED PR that closes the issue
-  local prfilter="select(.merged==true)"
-  [ -n "$pr" ] && prfilter="select(.number==$pr)"
-  local prsel; prsel="$(jq -c \
-    "[.data.repository.issue.closedByPullRequestsReferences.nodes[]? | $prfilter] | first // null" <<<"$out")"
+  # The closing PR. `closedByPullRequestsReferences` also lists PRs that merely MENTION the issue in
+  # prose (our "Filed, not fixed: #N" convention is exactly this), and GitHub returns them
+  # lowest-number-first — so taking the first merged one stamped the wrong commit, or stamped green
+  # off an unrelated merge that never touched the work (.github#342). Provenance, not just outcome:
+  #   - keep only PRs whose `closingIssuesReferences` actually contains THIS issue (`Closes #N`, the
+  #     field that distinguishes a closer from a mention), in this repo;
+  #   - among those, take the one merged LAST, not the lowest-numbered;
+  #   - if none survive, fall through to the existing "no merged PR closes this issue" refusal below
+  #     (merged="" -> false) — never fall back to a mention.
+  # An explicit --pr is a human override: honour it by number and let the merged-check below judge it.
+  local prsel
+  if [ -n "$pr" ]; then
+    prsel="$(jq -c --argjson prn "$pr" \
+      '[.data.repository.issue.closedByPullRequestsReferences.nodes[]? | select(.number==$prn)] | first // null' <<<"$out")"
+  else
+    prsel="$(jq -c --argjson num "$R_NUM" --arg repo "$R_OWNER/$R_REPO" '
+      [ .data.repository.issue.closedByPullRequestsReferences.nodes[]?
+        | select(.merged==true)
+        | select([.closingIssuesReferences.nodes[]?
+                    | select(.number==$num and .repository.nameWithOwner==$repo)] | length > 0) ]
+      | sort_by(.mergedAt) | last // null' <<<"$out")"
+  fi
   local merged prnum prsha prday
   merged="$(jq -r '.merged // false' <<<"$prsel")"
   prnum="$(jq -r '.number // ""' <<<"$prsel")"
