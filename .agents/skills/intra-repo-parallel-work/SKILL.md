@@ -69,7 +69,7 @@ If the work is cross-repo (needs a change/release from *another* FS-GG repo), us
 ```sh
 export FSGG_WORKER=finch-a3f                   # or let the worktree name you
 scripts/fsgg-coord take --repo <this-repo>     # pick + claim the next SCHEDULABLE item, retrying a lost race
-git worktree add ../<repo>-<n> -b item/<n>-<slug>   # `take` prints this
+git worktree add ../<repo>-<n> -b item/<n>-<slug> origin/main   # `take` prints this; name the base
 # ...implement, commit with the printed FSGG-Worker trailer, PR into main...
 scripts/fsgg-coord done <issue> --flip         # earn the stamp
 ```
@@ -135,6 +135,7 @@ scripts/fsgg-coord claim <issue>            # marker + assignee + Status=In prog
 scripts/fsgg-coord claim <issue> --force    # steal an item another worker holds
 scripts/fsgg-coord heartbeat <issue>        # renew the lease on a long-running claim
 scripts/fsgg-coord release <issue>          # drop it back into the pool
+scripts/fsgg-coord child <parent> <issue>   # link <issue> as a sub-issue — see §5
 ```
 
 The **marker is the lock**. The assignee is set only so a human sees it on the board.
@@ -156,6 +157,13 @@ scripts/fsgg-coord reap --repo <r> --apply    # release them, and tell the reape
 Work on `item/<n>-<slug>` in its **own git worktree**. Agents: prefer the harness's built-in
 worktree isolation (`isolation: "worktree"`) — the same discipline, managed for you. Commit with the
 trailer `claim` prints (`FSGG-Worker: <id>`) so attribution survives into history.
+
+**Always name the base ref** — `git worktree add … -b item/<n>-<slug> origin/main`. With no
+commit-ish, `-b` branches from the *shared checkout's* `HEAD`, and this protocol's whole premise is
+that N workers pass through that checkout: its `HEAD` is routinely another worker's unmerged branch,
+not `main`. Omit the base and the item's PR silently carries that branch's commits too. Nothing warns
+you: `verify-paths` reports the resulting drift only as an advisory, and only for as long as that
+sibling branch stays unmerged (.github#319).
 
 Keep `main` green. **Disjoint** items merge in any order; **overlapping** items (which you
 sequenced) merge in `Blocked by` order and rebase.
@@ -195,6 +203,28 @@ scripts/fsgg-coord done <issue> --flip     # green FSGG-DONE only after PR merge
 ```
 
 Same stamp and epic roll-up as cross-repo. Check your PR stayed inside its declaration:
+
+### If you filed an issue, LINK it — a mention is not a link
+
+`done --flip` rolls an epic up from its **native sub-issue graph**. A `(j) child of #266` title, a
+`Child of #266` comment, a line in the epic's body — each *looks* like a link, and none of them is
+one. File a child of an epic without linking it and the roll-up cannot see it, so the epic can be
+stamped `Done` over your still-open issue. That happened: an epic completed thirty minutes after an
+open child of it was filed (#325).
+
+```sh
+scripts/fsgg-coord child <parent> <new>    # the ONLY thing that creates the edge rollup reads
+```
+
+Run it the moment you file, not at close-out — the whole failure is a worker who moved on. `child`
+is idempotent, so re-running it is free. It also puts the REST API's two traps in one place: the
+endpoint keys on the child's **id**, not its number, and `gh api -f sub_issue_id=…` sends that id as
+a string and gets a 422 — it needs `-F`.
+
+`done --flip` now **refuses to roll up** an epic whose body declares a child that is not linked, and
+names it; `fsgg-coord lint` reports the same as `EPIC-UNLINKED-CHILD`. Both read the epic's body
+task-list (`- [ ]` / `- [x]` lines naming an issue) as its second, human-legible record of what its
+children are, and hold the two records to agreement.
 
 ```sh
 scripts/fsgg-coord verify-paths --pr <n>   # files changed outside the issue's `Paths:`
