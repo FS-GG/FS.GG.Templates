@@ -69,6 +69,7 @@ jobs:
           private-key: ${{ secrets.FSGG_DISPATCH_APP_PRIVATE_KEY }}
 
       - name: Open PR
+        id: cpr
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           token: ${{ steps.app-token.outputs.token }}
@@ -81,4 +82,18 @@ jobs:
 
             Triggered by `${{ github.event_name }}`. The composition test
             (`tests/composition/run.sh`) verifies the pin stays coherent before merge.
-          labels: cross-repo
+
+      # Labelling is deliberately NOT create-pull-request's `labels:` input. That input applies
+      # labels through the Issues API using the PR-authoring token — now the App's — and the action
+      # does not guard the call (unlike reviewers, which it try/catches). The fs-gg-cross-repo-dispatch
+      # App is provisioned for contents/pull-requests; nothing in the org grants it `issues: write`,
+      # and no other workflow asks it to label. A 403 there would red the bump AFTER the PR was
+      # already opened — a confusing half-failure on a purely cosmetic step. No gate reads this label,
+      # so it must never be able to fail the bump: apply it with GITHUB_TOKEN, and tolerate failure.
+      - name: Label the PR
+        if: steps.cpr.outputs.pull-request-number != ''
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ steps.cpr.outputs.pull-request-number }}
+        run: gh pr edit "$PR" --add-label cross-repo
