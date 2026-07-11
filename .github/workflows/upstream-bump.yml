@@ -13,6 +13,15 @@ name: upstream-bump
 #
 # It never pushes to a protected branch — it opens a PR so the composition test
 # (tests/composition/run.sh) gates the bump.
+#
+# The PR is authored with the fs-gg-cross-repo-dispatch App token, NOT the default GITHUB_TOKEN,
+# and that is load-bearing: GitHub does not run `pull_request` workflows for a PR authored by
+# GITHUB_TOKEN. Those runs land `completed/action_required` and produce NO check runs on the head
+# SHA, so the gate this workflow exists to trip never fires. bump-rendering-pin.sh appends a
+# `PIN HISTORY ENTRY REQUIRED` stub and relies on composition failing while it remains — inert
+# unless composition actually runs. Since FS.GG.Templates#135 made composition a REQUIRED check,
+# a bump PR with no checks is also permanently unmergeable (`Expected`, with enforce_admins on).
+# See FS.GG.Templates#144.
 
 on:
   workflow_dispatch:
@@ -52,9 +61,17 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: scripts/bump-rendering-pin.sh "$VERSION"
 
+      - name: Mint App installation token (so the PR's checks actually run)
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.FSGG_DISPATCH_APP_ID }}
+          private-key: ${{ secrets.FSGG_DISPATCH_APP_PRIVATE_KEY }}
+
       - name: Open PR
         uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
+          token: ${{ steps.app-token.outputs.token }}
           branch: chore/bump-fs-gg-ui-template
           title: "chore: bump FS.GG.UI.Template to ${{ steps.ver.outputs.version }}"
           commit-message: "chore: bump FS.GG.UI.Template pin to ${{ steps.ver.outputs.version }}"
