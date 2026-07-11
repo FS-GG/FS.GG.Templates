@@ -74,3 +74,5 @@ goes stale whenever Rendering changes (the `FsGgUiVersion` staleness class). The
 one-invocation UX did not justify a perpetual drift liability, so the monolith and its
 sync script were **removed** in favor of scaffold-time composition (P4 on the FS-GG
 Coordination board).
+
+<!-- scratch: verifying that a docs-only PR still reports the required `composition` check (FS.GG.Templates#135) -->
