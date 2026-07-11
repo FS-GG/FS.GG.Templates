@@ -40,17 +40,27 @@ if [[ "$RUN_FULL" == "1" ]]; then
       # The fs-gg-ui `game` default starter relaxes the durable entrypoint assertion: the
       # composed product's default launch must be satisfiable by BOTH the unmodified minimal
       # skeleton AND a developer's Pong swap. So accept EITHER family's governed entrypoint —
-      # game `Viewer.runApp viewerOptions generatedHost` OR controls
+      # game `Viewer.runApp[WithAudio] viewerOptions [audioSink] generatedHost` OR controls
       # `ControlsElmish.runInteractiveApp viewerOptions interactiveHost` — and require that NO
       # `-- pong`-style flag is a precondition for the default launch (FR-002/FR-003/FR-008).
       # This is the composition-layer projection of the assertion the generated product carries
-      # upstream; it accepts the current controls default AND the future game default, so it does
-      # not need to wait on the `fs-gg-ui-template` republish that flips the default app->game
-      # (owned by FS-GG/FS.GG.SDD#44; registry FS-GG/.github#77).
+      # upstream; it accepts the current controls default AND the game default, so it does not
+      # need to track which is pinned (default flipped app->game per FS-GG/FS.GG.SDD#44; registry
+      # FS-GG/.github#77).
+      #
+      # Audio-seam evolution (pin >= 0.8.0, ADR-0024 / FS.GG.Rendering#245): the game default now
+      # threads an `audioSink` through the durable launch — `Viewer.runAppWithAudio viewerOptions
+      # audioSink generatedHost` — instead of the pre-audio `Viewer.runApp viewerOptions
+      # generatedHost`. This is the SAME governed keyboard-only persistent default host (the
+      # generated code preserves it under FR-006), only with the audio sink wired in; it is NOT a
+      # regression, so the accepted-entrypoint set tracks it. Both spellings stay accepted so the
+      # check remains family- AND pin-agnostic. The load-bearing anti-regression invariant #36
+      # guards — that NO `-- pong`-style flag gates the default launch — is the assert_absent below
+      # and is deliberately left untouched.
       PROG="$(find "$FULL" -path '*/src/*/Program.fs' 2>/dev/null | head -1)"
       if [[ -n "$PROG" ]]; then
-        if grep -qE 'Viewer\.runApp viewerOptions generatedHost|ControlsElmish\.runInteractiveApp viewerOptions interactiveHost' "$PROG"; then
-          ok "composed product default launch uses an accepted family entrypoint (game Viewer.runApp generatedHost | controls runInteractiveApp interactiveHost)"
+        if grep -qE 'Viewer\.runApp viewerOptions generatedHost|Viewer\.runAppWithAudio viewerOptions audioSink generatedHost|ControlsElmish\.runInteractiveApp viewerOptions interactiveHost' "$PROG"; then
+          ok "composed product default launch uses an accepted family entrypoint (game Viewer.runApp[WithAudio] generatedHost | controls runInteractiveApp interactiveHost)"
         else
           bad "composed product default launch is neither accepted family entrypoint — durable assertion not family-agnostic (#36, see $PROG)"
         fi
