@@ -8,8 +8,12 @@ on:
     # docs-only edit must not pay for a full pack→scaffold→build→govern run. Everything else that
     # can affect the composed product still triggers the gate.
     paths-ignore: ['docs/**']
+  # NO paths-ignore on pull_request, deliberately. `composition` is a REQUIRED check on main, and a
+  # workflow skipped by a path filter never reports at all — its check sits "Expected" forever and
+  # the PR can never merge (not even for an admin: enforce_admins is on). The docs-only exemption is
+  # therefore applied INSIDE the job (see the `scope` step) rather than at the trigger: the job always
+  # runs and always reports, but a docs-only PR skips the expensive stages and passes for free.
   pull_request:
-    paths-ignore: ['docs/**']
 
 # One in-flight run per ref: a force-pushed PR (or rapid re-push) cancels its own stale run rather
 # than stacking redundant full-composition runs that each pack, scaffold, and build the live app.
@@ -25,10 +29,38 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
-      packages: read   # pull the published Governance CLI from the org feed (below)
+      packages: read         # pull the published Governance CLI from the org feed (below)
+      pull-requests: read    # `scope` reads the PR's file list to apply the docs-only exemption
     steps:
       - uses: actions/checkout@v7
+      # The docs-only exemption that used to be a `paths-ignore` on the trigger. Same rule — only
+      # docs/** is exempt, and README.md stays in scope because the test greps it — but expressed as
+      # a step, so the job still reports `composition` on a docs-only PR instead of never running.
+      # A job whose steps all skip still concludes `success`, which is exactly what a required check
+      # needs; a workflow that never starts reports nothing and wedges the PR.
+      - name: Scope
+        id: scope
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != 'pull_request' ]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"     # push: the trigger's paths-ignore already filtered
+            exit 0
+          fi
+          files="$(gh api --paginate \
+            "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+            --jq '.[].filename')"
+          # An empty file list means "we could not tell" — run the gate. Never skip on ambiguity.
+          if [ -n "$files" ] && ! printf '%s\n' "$files" | grep -qv '^docs/'; then
+            echo 'Docs-only change — skipping the full composition run (reporting success).'
+            printf '%s\n' "$files" | sed 's/^/  /'
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          else
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/setup-dotnet@v5
+        if: steps.scope.outputs.run == 'true'
         with:
           dotnet-version: '10.0.x'
       # Install the published FS-GG CLIs from the org feed so the gated stages ASSERT instead of
@@ -46,6 +78,7 @@ jobs:
       #     a hard gate. Required (no `|| true`): if it cannot install we want CI to surface it, not
       #     silently drop the producer-seam coverage we are explicitly enabling here.
       - name: Install FS-GG CLIs (governance enforcement + sdd producer/scaffold)
+        if: steps.scope.outputs.run == 'true'
         env:
           FEED_TOKEN: ${{ secrets.FSGG_PACKAGES_PAT }}
         run: |
@@ -60,6 +93,7 @@ jobs:
       # forward guardrail — if a PackageReference is ever added, drift fails CI instead of
       # resolving silently. Regenerate with: dotnet restore FS.GG.Templates.csproj --force-evaluate
       - name: Restore (locked)
+        if: steps.scope.outputs.run == 'true'
         run: dotnet restore FS.GG.Templates.csproj --locked-mode
       # Owned stages (pack → install → instantiate → verify pins/links) run fully. With both
       # CLIs installed above, the gated stages also run as hard gates: the full fsgg-sdd
@@ -70,6 +104,7 @@ jobs:
       # TMPDIR pins the mktemp base to a known path the upload step can glob (run.sh creates
       # $TMPDIR/fsgg-composition.XXXXXX). On green runs the workdir is just discarded with the runner.
       - name: composition test
+        if: steps.scope.outputs.run == 'true'
         env:
           KEEP_WORKDIR: '1'
           TMPDIR: ${{ runner.temp }}/composition
