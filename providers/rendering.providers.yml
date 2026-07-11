@@ -18,8 +18,8 @@
 # It left "RE-COUPLE at 0.2.0" untouched beside it, because the sed matched only the full
 # `0.2.0-preview.1` token — a self-contradicting line, and the tell that no human wrote it.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# pin-tag: fs-gg-ui-template/v0.3.1-preview.1
-# pin-contract: fs-gg-ui-template@0.3.1-preview.1
+# pin-tag: fs-gg-ui-template/v0.8.0
+# pin-contract: fs-gg-ui-template@0.8.0
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 # PIN HISTORY — hand-authored, newest first. The bumper NEVER edits at or below this line; it only
@@ -29,6 +29,21 @@
 #  very check it describes. It caught exactly that on first run.)
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 #
+#
+# 0.8.0 — 2026-07-11. FS.GG.Rendering#426, the coordinated full-platform release. FRAMEWORK release,
+#   re-COUPLED to the pin: `$(FsGgUiVersion)` == package == 0.8.0, so the 17 `FS.GG.UI.*` libraries are
+#   republished at 0.8.0 and this pin brings them down at 0.8.0 (library snapshot tag `fs-gg-ui/v0.8.0`;
+#   the release cut the triple `fs-gg-ui/v0.8.0 -> fs-gg-ui-template/v0.8.0 -> v0.8.0`). Additive
+#   framework surface (ApiCompat green, no removals): design-token control dimensions (the `Theme`
+#   control-height/spacing fields), `FontDelta` themeable typography + `StyleClass.Font`, and
+#   native-resolution HiDPI. The template payload ALSO re-pins the two bottom-layer axes onto their
+#   fresh stable coherent sets: `$(FsGgGameVersion)` 0.3.0 -> 0.4.0 (FS.GG.Game.Core/.Render —
+#   Physics/Effects/input-keymap) and `$(FsGgAudioVersion)` 0.1.0 -> 0.2.0 (FS.GG.Audio —
+#   `Audio.Cmd.ofEngine` + OpenAL spatialization). Big jump from the prior pin 0.3.1-preview.1: it
+#   SKIPS the never-pinned-here framework cuts 0.4.0 (stable channel promotion), 0.4.1/0.4.2
+#   (template-only), 0.5.0 (KeyboardInput Keymap surface), 0.6.0 (Canvas Loop/StepState retirement) and
+#   0.7.0 (DesignSystem ContrastRequiredRatio removal) — crossing the preview->stable boundary and those
+#   framework majors in one move. Registry contract `fs-gg-ui-template` is at 0.8.0 (FS-GG/.github).
 # 0.3.1-preview.1 — 2026-07-08. FS.GG.Rendering#162 / PR #163, release run 28937999798.
 #   TEMPLATE-ONLY (no `src/` change): the framework pin `$(FsGgUiVersion)` HOLDS at 0.3.0-preview.1
 #   and the 16 `FS.GG.UI.*` libraries are NOT republished — this pin still brings them down at
@@ -75,7 +90,7 @@ providers:
   - name: rendering
     contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.3.1-preview.1   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
+    source: FS.GG.UI.Template::0.8.0   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
