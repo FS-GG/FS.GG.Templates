@@ -18,8 +18,8 @@
 # It left "RE-COUPLE at 0.2.0" untouched beside it, because the sed matched only the full
 # `0.2.0-preview.1` token — a self-contradicting line, and the tell that no human wrote it.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# pin-tag: fs-gg-ui-template/v0.3.1-preview.1
-# pin-contract: fs-gg-ui-template@0.3.1-preview.1
+# pin-tag: fs-gg-ui-template/v0.8.0
+# pin-contract: fs-gg-ui-template@0.8.0
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 # PIN HISTORY — hand-authored, newest first. The bumper NEVER edits at or below this line; it only
@@ -29,6 +29,11 @@
 #  very check it describes. It caught exactly that on first run.)
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 #
+#
+# 0.8.0 — PIN HISTORY ENTRY REQUIRED. Describe what this release changed and why the pin moved: template-only
+#   or a framework bump? which $(FsGgUiVersion) do the FS.GG.UI.* libraries sit at? which Rendering
+#   issue/PR and release run? Delete this notice once written — the composition test fails while it
+#   remains. (Bumped from 0.3.1-preview.1 by scripts/bump-rendering-pin.sh; a bumper cannot know the story.)
 # 0.3.1-preview.1 — 2026-07-08. FS.GG.Rendering#162 / PR #163, release run 28937999798.
 #   TEMPLATE-ONLY (no `src/` change): the framework pin `$(FsGgUiVersion)` HOLDS at 0.3.0-preview.1
 #   and the 16 `FS.GG.UI.*` libraries are NOT republished — this pin still brings them down at
@@ -75,7 +80,7 @@ providers:
   - name: rendering
     contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.3.1-preview.1   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
+    source: FS.GG.UI.Template::0.8.0   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
