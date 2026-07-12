@@ -34,8 +34,8 @@ on:
     types: [fs-gg-ui-template-released]
 
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read          # the App token minted below performs the branch push + PR create
+  pull-requests: write    # the `Label the PR` step, which deliberately uses GITHUB_TOKEN
 
 jobs:
   bump:
