@@ -92,7 +92,7 @@ jobs:
           fi
       - uses: actions/checkout@v7
         if: steps.scope.outputs.run == 'true'
-      - uses: actions/setup-dotnet@v5
+      - uses: actions/setup-dotnet@v6
         if: steps.scope.outputs.run == 'true'
         with:
           dotnet-version: '10.0.x'
