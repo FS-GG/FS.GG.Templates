@@ -3,7 +3,19 @@
   "extends": [
     "github>FS-GG/.github"
   ],
-  "description": "Extends the org-shared FS-GG preset (github>FS-GG/.github), which provides config:recommended + dependency dashboard + semantic commits, the GitHub Packages registry for FS.GG.*, the FS.GG.UI coherent-set grouping, the -preview channel, and the shared custom managers. This repo adds two managers: (1) moves the single FS.GG.UI.Template version pin in providers/rendering.providers.yml + README when Rendering publishes (replacing the retired scripts/sync-from-rendering.sh), and (2) moves the FS-GG/.github commit SHA that the composition gate fetches skill-union-assert.sh at, pinned in tests/composition/lib/skill-union.sh (issue #56 \u2014 a pinned ref, never @main; the pin moved out of run.sh into the skill-union lib in review A3).",
+  "description": [
+    "Extends the org-shared FS-GG preset (github>FS-GG/.github), which provides config:recommended + dependency dashboard + semantic commits, the FS.GG.* registry routing, the FS.GG.UI coherent-set grouping, and the shared custom managers. This repo adds two managers: (1) moves the single FS.GG.UI.Template version pin in providers/rendering.providers.yml + README when Rendering publishes (replacing the retired scripts/sync-from-rendering.sh), and (2) moves the FS-GG/.github commit SHA that the composition gate fetches skill-union-assert.sh at, pinned in tests/composition/lib/skill-union.sh (issue #56 \u2014 a pinned ref, never @main; the pin moved out of run.sh into the skill-union lib in review A3).",
+    "ignorePaths RESTATES config:recommended's :ignoreModulesAndTests list MINUS `**/tests/**`, and that one omission is the entire point of the field. Manager (2)'s pin lives at tests/composition/lib/skill-union.sh, which `**/tests/**` matched \u2014 so Renovate skipped the file before any manager ran and the manager NEVER fired once. The regex was never wrong: it matches the file today. The path was excluded underneath it, which is why this failed SILENTLY rather than erroring, with this same config file asserting the pin was tracked. Cost: SKILL_ASSERT_REF froze at ab6d9289 (2026-07-02) while FS-GG/.github@main moved 9 commits ahead \u2014 including a skill-union fail-open fix (.github#385, quoted-literal predicate) \u2014 so the composition gate ran a two-week-old assertion it believed was current. This repo keeps a load-bearing pin under tests/, so it cannot use the stock ignore list. Do NOT re-add `**/tests/**`."
+  ],
+  "ignorePaths": [
+    "**/node_modules/**",
+    "**/bower_components/**",
+    "**/vendor/**",
+    "**/examples/**",
+    "**/__tests__/**",
+    "**/test/**",
+    "**/__fixtures__/**"
+  ],
   "packageRules": [
     {
       "description": "Rewrite the exact pinned FS.GG.UI.* value rather than widening a range (the pin coherence that tests/composition/run.sh enforce).",
