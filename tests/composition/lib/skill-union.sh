@@ -22,29 +22,48 @@
 # raw.githubusercontent.com reachability at the pinned SHA — an outage FAILS the lane by design.
 #
 # renovate: datasource=git-refs depName=FS-GG/.github packageName=https://github.com/FS-GG/.github
-SKILL_ASSERT_REF="ab6d9289bf6f71a72d3593c1309de5d5c45e20cb"   # FS-GG/.github@main as of 2026-07-02
+SKILL_ASSERT_REF="5ade5dd695562869c7f49ea48d595dd66799a279"   # FS-GG/.github@main as of 2026-07-16
+# The shared assertion is NOT A SINGLE FILE any more. FS-GG/.github#358 hoisted need_val into
+# scripts/lib/args.sh, and #524 the root resolution into scripts/lib/roots.sh; skill-union-assert.sh
+# sources both RELATIVE TO ITS OWN dirname. Fetching the script alone therefore dies on a missing
+# lib/args.sh — which is exactly how the 2026-07-02 → 2026-07-16 pin bump first failed. So fetch the
+# CLOSED SET into one directory reproducing the upstream `scripts/` layout (verified at the pinned
+# ref: neither lib sources anything further, so the set terminates). If upstream adds a `source`,
+# this list is what goes stale — the gate then FAILS loudly on the missing file, which is the
+# intended direction: a gate that cannot obtain its assertion must never pass unverified.
+SKILL_ASSERT_FILES=("skill-union-assert.sh" "lib/args.sh" "lib/roots.sh")
 SKILL_ASSERT=""
 fetch_skill_assert() {
   [[ -n "$SKILL_ASSERT" && -x "$SKILL_ASSERT" ]] && return 0
-  SKILL_ASSERT="$WORKDIR/skill-union-assert.sh"
-  # (1) authoritative path — content-addressed fetch at the pinned commit SHA.
-  if curl -fsSL --max-time 30 \
-       "https://raw.githubusercontent.com/FS-GG/.github/$SKILL_ASSERT_REF/scripts/skill-union-assert.sh" \
-       -o "$SKILL_ASSERT" 2>/dev/null && [[ -s "$SKILL_ASSERT" ]]; then
-    chmod +x "$SKILL_ASSERT"; return 0
+  local dir="$WORKDIR/skill-assert" f ok
+  mkdir -p "$dir/lib" || return 1
+  # (1) authoritative path — content-addressed fetch of every file at the pinned commit SHA.
+  ok=1
+  for f in "${SKILL_ASSERT_FILES[@]}"; do
+    curl -fsSL --max-time 30 \
+      "https://raw.githubusercontent.com/FS-GG/.github/$SKILL_ASSERT_REF/scripts/$f" \
+      -o "$dir/$f" 2>/dev/null && [[ -s "$dir/$f" ]] || { ok=0; break; }
+  done
+  if [[ "$ok" -eq 1 ]]; then
+    SKILL_ASSERT="$dir/skill-union-assert.sh"; chmod +x "$SKILL_ASSERT"; return 0
   fi
-  # (2) offline-dev fallback — a sibling FS-GG/.github clone. Prefer the file AT THE PINNED REF
+  # (2) offline-dev fallback — a sibling FS-GG/.github clone. Prefer the files AT THE PINNED REF
   #     (git object → same determinism as the curl); only if that commit isn't present locally
   #     fall back to the working copy (a dev's trusted checkout), which may be off-pin.
   local sib="$REPO_ROOT/../.github"
-  if git -C "$sib" cat-file -e "$SKILL_ASSERT_REF:scripts/skill-union-assert.sh" 2>/dev/null \
-     && git -C "$sib" show "$SKILL_ASSERT_REF:scripts/skill-union-assert.sh" >"$SKILL_ASSERT" 2>/dev/null \
-     && [[ -s "$SKILL_ASSERT" ]]; then
-    chmod +x "$SKILL_ASSERT"; return 0
+  ok=1
+  for f in "${SKILL_ASSERT_FILES[@]}"; do
+    git -C "$sib" show "$SKILL_ASSERT_REF:scripts/$f" >"$dir/$f" 2>/dev/null && [[ -s "$dir/$f" ]] || { ok=0; break; }
+  done
+  if [[ "$ok" -eq 1 ]]; then
+    SKILL_ASSERT="$dir/skill-union-assert.sh"; chmod +x "$SKILL_ASSERT"; return 0
   fi
-  if [[ -f "$sib/scripts/skill-union-assert.sh" ]]; then
-    cp "$sib/scripts/skill-union-assert.sh" "$SKILL_ASSERT"
-    chmod +x "$SKILL_ASSERT"; return 0
+  ok=1
+  for f in "${SKILL_ASSERT_FILES[@]}"; do
+    [[ -f "$sib/scripts/$f" ]] && cp "$sib/scripts/$f" "$dir/$f" || { ok=0; break; }
+  done
+  if [[ "$ok" -eq 1 ]]; then
+    SKILL_ASSERT="$dir/skill-union-assert.sh"; chmod +x "$SKILL_ASSERT"; return 0
   fi
   SKILL_ASSERT=""; return 1
 }
