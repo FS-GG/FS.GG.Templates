@@ -8,7 +8,7 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Templates</PackageId>
-    <Version>0.4.0</Version>
+    <Version>0.5.0</Version>
     <Title>FS.GG project templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new template for composing FS.GG.SDD + Rendering + Governance: fs-gg-governance (Governance config overlay). Full-stack composition happens at scaffold time via `fsgg-sdd scaffold` and the rendering provider descriptor (see README).</Description>
