@@ -21,8 +21,18 @@
 # lane when unreachable (see assert_skill_union). CI runbook: this couples the gate to
 # raw.githubusercontent.com reachability at the pinned SHA — an outage FAILS the lane by design.
 #
+# MACHINE-MAINTAINED. Renovate rewrites exactly ONE token below — the 40-char SHA inside the
+# quotes (the `currentDigest` capture of the git-refs manager in .github/renovate.json). It cannot
+# rewrite anything else, so put NO prose on that line: a date or a "@main as of" note is a claim the
+# bumper has no way to keep true, and it rots silently on the next bump. This line used to carry
+# `# FS-GG/.github@main as of 2026-07-02`; the pin then sat still for two weeks because the manager
+# never fired, which is the one circumstance that keeps such a comment accidentally honest. Same rule,
+# and same reason, as the pin block in providers/rendering.providers.yml — read that banner for the
+# incident that taught it. WHEN the pin moved is git's job, and ask it in a form that cannot rot either
+# — `git log -S SKILL_ASSERT_REF -- tests/composition/lib/skill-union.sh` (a line number would go stale
+# the moment this comment block changes length, as it did while being written).
 # renovate: datasource=git-refs depName=FS-GG/.github packageName=https://github.com/FS-GG/.github
-SKILL_ASSERT_REF="19500bc8e8ed9cae972b20563e15a056f9ad5809"   # FS-GG/.github@main as of 2026-07-16
+SKILL_ASSERT_REF="19500bc8e8ed9cae972b20563e15a056f9ad5809"
 # The shared assertion is NOT A SINGLE FILE any more. FS-GG/.github#358 hoisted need_val into
 # scripts/lib/args.sh, and #524 the root resolution into scripts/lib/roots.sh; skill-union-assert.sh
 # sources both RELATIVE TO ITS OWN dirname. Fetching the script alone therefore dies on a missing
