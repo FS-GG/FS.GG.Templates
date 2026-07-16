@@ -22,7 +22,7 @@
 # raw.githubusercontent.com reachability at the pinned SHA — an outage FAILS the lane by design.
 #
 # renovate: datasource=git-refs depName=FS-GG/.github packageName=https://github.com/FS-GG/.github
-SKILL_ASSERT_REF="5ade5dd695562869c7f49ea48d595dd66799a279"   # FS-GG/.github@main as of 2026-07-16
+SKILL_ASSERT_REF="19500bc8e8ed9cae972b20563e15a056f9ad5809"   # FS-GG/.github@main as of 2026-07-16
 # The shared assertion is NOT A SINGLE FILE any more. FS-GG/.github#358 hoisted need_val into
 # scripts/lib/args.sh, and #524 the root resolution into scripts/lib/roots.sh; skill-union-assert.sh
 # sources both RELATIVE TO ITS OWN dirname. Fetching the script alone therefore dies on a missing
