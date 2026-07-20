@@ -119,7 +119,14 @@ jobs:
             --username fs-gg --password "$FEED_TOKEN" --store-password-in-clear-text \
             --name fs-gg-github "https://nuget.pkg.github.com/FS-GG/index.json" || true
           dotnet tool install --global FS.GG.Governance.Cli || true
-          dotnet tool install --global FS.GG.SDD.Cli
+          # INTERIM PIN (#260): float-to-latest drifted the orchestrated lane past the coherent
+          # set for the pinned FS.GG.UI.Template@0.11.0. CLI 0.16.0+ populates the SDD-owned
+          # .agents/skills root without mirroring the newer skills into the ADR-0011 .claude/.codex
+          # roots this template/composition expects, so the orchestrated skill-union assertion goes
+          # red — wedging this required check on main. 0.15.0 is the last version that ran green
+          # against the 0.11.0 pin (main composition run 2026-07-19). Pin to it until the durable
+          # coherence strategy (bump the template pin vs. fix CLI fan-out upstream) is decided in #260.
+          dotnet tool install --global FS.GG.SDD.Cli --version 0.15.0
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       # FS-GG/.github#7 (Feature 211 parity): locked restore against the committed
       # packages.lock.json. The packaging project has no NuGet dependencies today, so this is a
