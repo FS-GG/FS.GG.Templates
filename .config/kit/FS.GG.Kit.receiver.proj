@@ -1,0 +1,50 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    FS.GG.Kit receiver (ADR-0062, .github#1262). This repo is a `coordination-kit` receiver: it holds
+    the shared coordination skills, the `fsgg-coord` client, and the engine tool manifest on disk. It
+    used to take them by byte-copy sync PR (`coordination-propagate`); it now REFERENCES the versioned
+    `FS.GG.Kit` package and MATERIALIZES that kit onto disk from its pin. A hub change reaches this repo
+    as an ordinary Renovate bump of the pin below, and `kit-materialize.yml` re-runs the materialize on
+    that PR — the same shape lockfile-sync uses for packages.lock.json.
+
+    This project exists ONLY to reference the package and drive its materialize. It compiles nothing and
+    is deliberately NOT part of FS.GG.Templates.csproj, so the normal build never touches it. Materialize:
+
+        dotnet build .config/kit/FS.GG.Kit.receiver.proj -t:FsggKitMaterialize
+
+    The materialized files (skills, scripts/fsgg-coord, .config/dotnet-tools.json) are COMMITTED: the
+    materialize is the write arm that replaces the byte-copy, not a live per-build input, so it does NOT
+    run on every build (FsggKitMaterializeOnBuild=false). The committed bytes are content-addressed and
+    byte-identical to canonical, so `coordination-coherence` stays green.
+
+    This repo does NOT `receive: build-config`, so FsggKitMaterializeBuildConfig stays off (its default).
+    Unlike the other receivers it does NOT use Central Package Management (no Directory.Packages.props),
+    so the FS.GG.Kit version is pinned DIRECTLY on the PackageReference below — Renovate updates it there.
+    FS.GG.Kit is restored anonymously from nuget.org (the repo has no nuget.config, so the default source
+    applies); the package is dual-published there (ADR-0062), so no credential is needed.
+  -->
+
+  <PropertyGroup>
+    <!-- A TFM is required by the SDK; nothing is compiled. net10.0 is the org band; the SDK is the one
+         setup-dotnet installs in kit-materialize.yml (10.0.x) — this repo pins no global.json. -->
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <!-- Tooling-only: no source, no output, no lockfile of its own. -->
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <!-- No CPM in this repo, so do not let an inherited/implicit central-management setting reject the
+         version-bearing PackageReference below (NU1008). -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+
+    <!-- Materialize into the repo ROOT (two levels up from .config/kit/), on demand — never on build. -->
+    <FsggKitReceiverRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)../../'))</FsggKitReceiverRoot>
+    <FsggKitMaterializeOnBuild>false</FsggKitMaterializeOnBuild>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Version pinned directly (no CPM). Renovate-managed. -->
+    <PackageReference Include="FS.GG.Kit" Version="0.1.0" />
+  </ItemGroup>
+
+</Project>
