@@ -162,7 +162,16 @@ providers:
       tracking: "https://github.com/FS-GG/FS.GG.Templates/issues/99"
     parameters:
       # lifecycle=sdd -> app-only product + SDD skeleton (ADR-0002 composition-by-scaffold).
-      # Override the template default (spec-kit) so Templates composition emits the SDD shape.
+      # Pin the lane to sdd. As of ADR-0056 (FS-GG/.github#1244) sdd is the org-wide default and
+      # the `fs-gg-ui-template` registry default lane flipped spec-kit->sdd (contract change
+      # FS-GG/.github#1246), so this pin now AGREES with the contract default rather than
+      # overriding it. Kept as an EXPLICIT pin, not left to inherit: the flipped
+      # `lifecycle.defaultValue: sdd` ships only in FS.GG.UI.Template >= 0.15.0, and the `source`
+      # pin below still predates it (a raw `dotnet new fs-gg-ui` at this pin still defaults to
+      # spec-kit — which is why the standalone composition stage asserts the spec-kit tree). The
+      # explicit pin keeps Templates composition on the sdd shape independent of the pinned
+      # template's own default; when `source` next moves to >= 0.15.0, the standalone stage's
+      # "default spec-kit lifecycle" expectation flips with it.
       - key: lifecycle
         required: false
         default: sdd
