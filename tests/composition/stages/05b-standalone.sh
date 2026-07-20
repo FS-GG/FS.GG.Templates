@@ -3,8 +3,12 @@
 # Uses PIN_VER (Stage 4), WORKDIR, RUN_FULL (Stage 5), installed_template_version + assert_skill_union
 # (libs). Sets STAND, INSTALLED_UI_VER.
 #
-# The OTHER lane ADR-0014 covers: a direct `dotnet new fs-gg-ui` (no fsgg-sdd — default
-# spec-kit lifecycle). Here the template itself must produce the union via its ONE
+# The OTHER lane ADR-0014 covers: a direct `dotnet new fs-gg-ui` (no fsgg-sdd) on the
+# spec-kit lifecycle. ADR-0056 (2026-07-20) flipped the template default lifecycle
+# spec-kit -> sdd and reclassified spec-kit as legacy (frozen, still emitted), so this
+# lane must REQUEST `--lifecycle spec-kit` explicitly — the bare default now yields an
+# sdd product with no `.specify/` tree, which has no materialize step to exercise.
+# Here the template itself must produce the union via its ONE
 # materialize step (the vendored Fsgg.SkillMirror byte-equivalent, run by the
 # FsGgMaterializeSkillRoots MSBuild target on first build; `--enforce` for gates). We run
 # that producer step directly, then assert the union with the same shared assertion.
@@ -27,8 +31,8 @@ elif dotnet new install "FS.GG.UI.Template::$PIN_VER" >"$WORKDIR/standalone-inst
   INSTALLED_UI_VER="$(installed_template_version FS.GG.UI.Template)"
   if [[ "$INSTALLED_UI_VER" != "$PIN_VER" ]]; then
     bad "standalone lane: installed FS.GG.UI.Template is '${INSTALLED_UI_VER:-<none>}', not the pinned $PIN_VER — refusing to assert the skill-union against an off-pin payload (F2; see $WORKDIR/standalone-install.log)"
-  elif dotnet new fs-gg-ui -o "$STAND" --name Acme >"$WORKDIR/standalone-new.log" 2>&1; then
-    ok "standalone fs-gg-ui instantiation succeeded at the pinned $PIN_VER (default spec-kit lifecycle)"
+  elif dotnet new fs-gg-ui -o "$STAND" --name Acme --lifecycle spec-kit >"$WORKDIR/standalone-new.log" 2>&1; then
+    ok "standalone fs-gg-ui instantiation succeeded at the pinned $PIN_VER (explicit spec-kit lifecycle; ADR-0056 default is now sdd)"
     MAT="$STAND/.specify/scripts/fs-gg/materialize-skill-roots.fsx"
     if [[ -f "$MAT" ]]; then
       if (cd "$STAND" && dotnet fsi .specify/scripts/fs-gg/materialize-skill-roots.fsx --enforce) >"$WORKDIR/materialize.log" 2>&1; then

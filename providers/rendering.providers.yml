@@ -18,8 +18,8 @@
 # It left "RE-COUPLE at 0.2.0" untouched beside it, because the sed matched only the full
 # `0.2.0-preview.1` token — a self-contradicting line, and the tell that no human wrote it.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# pin-tag: fs-gg-ui-template/v0.11.0
-# pin-contract: fs-gg-ui-template@0.11.0
+# pin-tag: fs-gg-ui-template/v0.16.0
+# pin-contract: fs-gg-ui-template@0.16.0
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 # PIN HISTORY — hand-authored, newest first. The bumper NEVER edits at or below this line; it only
@@ -32,6 +32,25 @@
 #
 #
 #
+#
+# 0.16.0 — 2026-07-20. FS.GG.Rendering#957 (release: bump FS.GG.UI.Template 0.15.0 -> 0.16.0, merge
+#   commit 215f606e; release-tags run 29736801285), carrying PR #955 (fix #954).
+#   TEMPLATE-ONLY (no `src/`/framework-library change): the framework pin `$(FsGgUiVersion)` HOLDS at
+#   0.15.0 and the `FS.GG.UI.*` libraries are NOT republished — this pin still brings them down at
+#   0.15.0. No `fs-gg-ui/v0.16.0` tag exists; the release cut only the package-lane pair
+#   `fs-gg-ui-template/v0.16.0 -> v0.16.0` (pin held), and only the template package's `<Version>`
+#   rev'd 0.15.0 -> 0.16.0. What moved: #955 relocated the ADR-0056 sdd-lane guard sentinel
+#   (`lifecycle-scaffolding-pending.md`) OUT of the SDD-owned `readiness/` tree to the product root
+#   (`./`), where it is ordinary generatedProduct content. Under the orchestrated `fsgg-sdd scaffold
+#   --provider rendering` lane the old location made the provider write into an SDD-owned tree, tripping
+#   SDD's `scaffold.providerWroteSddTree` guard — which ended `outcome: blocked` before the
+#   `.agents/skills/* -> .claude/.codex` union mirror ran, so composition went red (present=16). Only
+#   template-package content changed (`.template.config/template.json`, `template/base/**`,
+#   `scripts/**`). Publishing this unblocks FS.GG.SDD#609, FS.GG.Templates#258 and #260. Jump from the
+#   prior pin here (0.11.0) crosses four never-pinned-here FRAMEWORK cuts — `fs-gg-ui/v0.12.0`,
+#   `v0.13.0`, `v0.14.0` and `v0.15.0` (the last the sdd-default-template set, FS.GG.Rendering#946 /
+#   #944) — so the framework axis moved 0.11.0 -> 0.15.0 across them; 0.16.0 then layers the
+#   template-only sentinel fix on top of the 0.15.0 framework.
 # 0.11.0 — 2026-07-16. FS.GG.Rendering#842 (release(ui): FS.GG.UI 0.11.0, merge commit d82e63cc;
 #   release-tags run 29508139501). FRAMEWORK MINOR, ADDITIVE, coupled to the pin: `$(FsGgUiVersion)` ==
 #   package == 0.11.0, so the 17 `FS.GG.UI.*` members + BOM + `FS.GG.UI.Template` are republished at 0.11.0
@@ -124,7 +143,7 @@ providers:
   - name: rendering
     contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.11.0   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
+    source: FS.GG.UI.Template::0.16.0   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
