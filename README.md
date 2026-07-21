@@ -5,11 +5,13 @@ Composes the FS.GG components into a ready-to-run workspace: the
 [FS.GG.Rendering](https://github.com/FS-GG/FS.GG.Rendering) app, and
 [FS.GG.Governance](https://github.com/FS-GG/FS.GG.Governance) config.
 
-> **Platform vs. workspace.** FS-GG is a **platform** — five repositories; Templates
-> is the **composition component** of it. What you scaffold *with* the platform is a
-> **workspace**: a generated repo with a runnable **app**, the `.fsgg/` lifecycle,
-> skills, and optional governance. See the
-> [vocabulary (ADR-0020)](https://github.com/FS-GG/.github/blob/main/docs/adr/0020-platform-workspace-component-vocabulary.md).
+> **Platform vs. workspace.** FS-GG is a **platform** of independently-owned
+> components; Templates is the **composition component** of it. What you scaffold
+> *with* the platform is a **workspace**: a generated repo with a runnable **app**,
+> the `.fsgg/` lifecycle, skills, and optional governance. For the platform
+> vocabulary and the live component inventory see the
+> [vocabulary (ADR-0020)](https://github.com/FS-GG/.github/blob/main/docs/adr/0020-platform-workspace-component-vocabulary.md)
+> and [`docs/architecture.md`](https://github.com/FS-GG/.github/blob/main/docs/architecture.md).
 
 Per [ADR-0002](https://github.com/FS-GG/.github/blob/main/docs/adr/0002-composition-by-scaffold-lifecycle-parameter-governance-populated.md),
 composition happens **at scaffold time** — `fsgg-sdd scaffold` installs and drives the
