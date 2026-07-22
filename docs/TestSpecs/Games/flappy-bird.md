@@ -417,3 +417,101 @@ by default.
 5. **Daily seed challenge** — fixed seed of the day, leaderboard by score.
 6. **Alternate birds / skins** (cosmetic palette swaps).
 7. **Gamepad + touch** input parity for handheld/mobile builds.
+
+## Menu & configuration — the shared game shell
+
+Flappy Bird uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game
+menu. Flappy Bird supplies only its **name**, its **key→command map** (the rebindable
+actions from §3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Flappy Bird**) as the title label, with
+  **Start**, **Config**, and **Exit**. This supersedes the bespoke Ready-screen "Tap / Space
+  to flap" launch affordance of §9 for beginning a run (the first in-run flap that starts a
+  round is unchanged; the shell owns the pre-run entry point).
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the
+  same shell; `Esc` again resumes. This is the shell home for the §3 `Esc` pause action and
+  the §9 Paused screen.
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that letterboxes the logical 1280×720 playfield (§6, §8) to the window so physics stays
+    resolution-independent.
+  - **Key rebinding** — the player remaps Flappy Bird's controls (the §3 actions: flap
+    (Space / Up / click) and pause) via the `Controls.KeyRebind` UI over the
+    `KeyboardInput.Keymap` mechanism; bindings persist via `KeymapCodec` (JSON), beside
+    Flappy Bird's other saved config (e.g. `flappy.best`, §13).
+  - (Game-specific rows such as difficulty or volume may be added as extra Config rows, but
+    the menu, Esc routing, display settings, and rebind screen come from the shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Flappy Bird
+does **not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic simulation core; later ones
+layer feel, the shared shell, audio, and the acceptance harness.
+
+### M0 — Scaffold & fixed-step loop
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton,
+the fixed 60 Hz `Tick (1/60)` subscription driven by an accumulator (§13), and an empty
+1280×720 logical canvas (§6, §8) clearing to the cyan sky each frame. No gameplay yet — just
+a deterministic, steppable loop with `Phase = Ready`.
+
+### M1 — Bird gravity & flap impulse
+Implement the bird (§4.1, §4.2, §5): constant `gravity = 2400 px/s²` with the `vyMax = 900`
+terminal clamp, the edge-triggered flap that **sets** `vy = -620` (override, not additive,
+no auto-repeat), and the ceiling clamp at `y = -birdHeight` with `vy = max(vy, 0)`. Derive
+the cosmetic velocity-based rotation.
+
+### M2 — Horizontal scroll & pipe spawning
+Add the world scroll and pipe pairs (§4.3, §4.4, §4.5, §5): pipes moving left at
+`scrollSpeed = 180 px/s`, the `pipeSpacing = 360 px` spawn cadence off the right edge at
+`x = 1360`, despawn past the left edge, and the per-pair `gapCenterY` randomized in the safe
+band `[180, 460]` from the seeded RNG with derived top/bottom rects. The bird stays fixed at
+`birdX = 320`.
+
+### M3 — Scoring on pass
+Implement pass-scoring (§4.6): each pair's `scored` flag flips and `score += 1` when its
+right edge passes `birdX`, looping **all** unpassed pairs so multiple can score in one tick.
+No multipliers or combos.
+
+### M4 — Collision, ground & instant death
+Add the inset AABB bird box (§4.7) and AABB-vs-AABB tests against every pipe rect plus the
+ground strip at `groundY = 640`. Any overlap is instant death: freeze scrolling, transition
+to `GameOver`, and let the bird fall to rest (cosmetic). Ceiling is clamped, not lethal.
+
+### M5 — Phase flow: ready / playing / game-over & restart lockout
+Wire the full phase machine (§7.3): `Ready` (gentle bob, first flap starts the run and
+resets score/pipes) → `Playing` → `GameOver(finalScore)` with `Best = max(Best, score)`
+persisted (§13). Enforce the `restartLockoutMs = 600 ms` input lockout on game-over, and the
+`TogglePause` freeze.
+
+### M6 — Rendering & HUD
+Complete the back-to-front draw list (§8): cyan sky with optional parallax clouds, green
+mushroom-capped pipes, the scrolling ground strip, the rotated flapping bird, the large
+outlined top-center score, and optional collision flash / flap dust particles. Render the
+§9 Ready / Playing / Paused / Game Over screens with the best-score readout and medal slot.
+
+### M7 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Flappy Bird** +
+Start/Config/Exit), `Esc` pause routing (Resume · Config · Exit to menu), Settings with
+screen resolution + fullscreen through the SkiaViewer + `LogicalCanvas` letterbox seam, and
+in-game key rebinding of the §3 controls (flap, pause), persisted via `KeymapCodec`. Flappy
+Bird provides its name + key→command map + play `update`/`view`; the shell provides the rest.
+No bespoke menu system — this replaces the ad-hoc Ready/Pause affordances of §9.
+
+### M8 — Audio
+Wire the SFX table (§10): the flap "wing" whoosh, the bright pass/score blip, the pipe-hit
+thud, the ground-impact splat, and the new-best fanfare on game-over, plus the optional
+title-screen ambient. A silent build must still pass acceptance; a shell Config volume row
+may drive levels.
+
+### M9 — Acceptance & determinism
+Land the acceptance harness against all 15 scenarios (§14): gravity, terminal clamp, flap
+override no-stacking, held-key no-auto-flap, single- and multi-pipe scoring, pipe and ground
+instant death, ceiling clamp, spawn cadence, gap-band bounds over 1000 seeded spawns, the
+restart lockout, best-score persistence, pause freeze, and the seed + input-sequence
+**determinism** replay yielding identical pipe layouts and scores (§13).

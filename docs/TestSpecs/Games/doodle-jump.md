@@ -455,3 +455,104 @@ Weights are data-driven so balancing is config, not code.
 6. **Power-up shield** that absorbs one lethal enemy hit.
 7. **Cosmetic skins** unlocked by best-score milestones.
 8. **Online high-score board** with ghost replay of the run path.
+
+## Menu & configuration — the shared game shell
+
+Doodle Jump uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game
+menu. Doodle Jump supplies only its **name**, its **key→command map** (the rebindable
+actions from §3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Doodle Jump**) as the title label, with
+  **Start**, **Config**, and **Exit**. This supersedes the bespoke Title-screen "Press Space
+  to Start" affordance of §9 for launching a run.
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the
+  same shell; `Esc` again resumes. This is the shell home for the §3 `Esc` / `P` pause action
+  and the §9 Pause overlay.
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that letter/pillarboxes the logical 720×1280 portrait playfield (§4.1, §8) to the window.
+  - **Key rebinding** — the player remaps Doodle Jump's controls (the §3 actions: steer
+    left/right, start/restart, pause, and the stretch shoot) via the `Controls.KeyRebind`
+    UI over the `KeyboardInput.Keymap` mechanism; bindings persist via `KeymapCodec` (JSON),
+    beside Doodle Jump's other saved config (e.g. the best score, §13).
+  - (Game-specific rows such as difficulty or volume may be added as extra Config rows, but
+    the menu, Esc routing, display settings, and rebind screen come from the shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Doodle Jump
+does **not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic simulation core; later ones
+layer feel, the shared shell, audio, and the acceptance harness.
+
+### M0 — Scaffold & fixed-step loop
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton,
+the fixed-timestep 60 Hz `Tick` subscription with the accumulator clamped to ≤4 steps/frame
+(§13), and an empty 720×1280 portrait logical canvas (§4.1, §8) clearing every frame. No
+gameplay yet — just a deterministic, steppable loop with `Phase = Title` and the
+`worldY` up-negative convention established.
+
+### M1 — Doodle motion: gravity, steering & screen-wrap
+Implement the doodle's kinematics (§4.2, §4.4, §5): gravity `g = 2400 px/s²` with the
+`vyMax = 1600` terminal clamp, held-steer horizontal velocity (520 px/s, optional smoothing
+toward target), and the horizontal screen-wrap that re-enters the opposite edge. No
+platforms yet — the doodle falls and steers in a static view.
+
+### M2 — Auto-bounce & one-way platform landing
+Add Static platforms (§4.7) and the core auto-bounce rule (§4.3): the AABB feet-sensor swept
+previous→current collision (§4.5) that fires **only** while falling (`vy > 0`) within the
+contact band, sets `vy = -1150`, and passes through platforms from below (top-only
+colliders). This is the signature fixed-rhythm feel.
+
+### M3 — Camera & scoring by altitude
+Implement the up-only camera (§4.6): track the doodle at ~40% from top, `cameraY` monotonically
+decreasing, driven by `MaxClimb`. Derive `Score = floor(-MaxClimb)` (never decreases, §11),
+and add the death check — doodle top edge below `cameraY + 1280` → `GameOver`, with `Best`
+update and persistence (§13).
+
+### M4 — Procedural platform generation & types
+Build the band generator (§4.8): altitude-scaled vertical gap (`baseGap 90 → maxGap 230`),
+X-placement constraints, off-screen culling below `cameraY + 1380`, and the altitude-driven
+type-weight schedule (§12). Add Moving (±90 px/s patrol), Breakable (no bounce, 0.25 s break
+then removed), and Spring (super-bounce `vy = -1900`) platforms (§4.7).
+
+### M5 — Enemies, stomp & jetpack
+Add enemies (§4.9): spawn from altitude ≥3000 px, lethal body contact vs. falling-feet
+**stomp** (destroy enemy + normal bounce). Add the Jetpack pickup and its overlay state
+(§5): 2.2 s of sustained `vy = -2200`, gravity suppressed, platform/enemy interactions
+overridden, then resume falling.
+
+### M6 — Rendering & HUD
+Complete the world→screen draw list (§8): gradient background hue-shifting by altitude,
+rounded-rect platforms colored per kind (with crack overlay when breaking, spring coil
+glyph), jetpack/pickup art, enemies, the squash/stretch doodle with facing flip and jetpack
+flame, break/spring/smoke particles, and the screen-space HUD (score, best, jetpack timer).
+Render the §9 Title / Pause / Game Over screens.
+
+### M7 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Doodle Jump** +
+Start/Config/Exit), `Esc` pause routing (Resume · Config · Exit to menu), Settings with
+screen resolution + fullscreen through the SkiaViewer + `LogicalCanvas` letterbox seam, and
+in-game key rebinding of the §3 controls (steer left/right, start, pause), persisted via
+`KeymapCodec`. Doodle Jump provides its name + key→command map + play `update`/`view`; the
+shell provides the rest. No bespoke menu system — this replaces the ad-hoc Title/Pause
+affordances of §9.
+
+### M8 — Audio
+Wire the SFX checklist (§10): the normal-bounce "boing" (pitch-jittered), the higher spring
+twang, the looping jetpack thrust, breakable crumble, enemy stomp/death, pickup chime, the
+game-over descending tone, the new-best fanfare, and the optional looping background track
+with a mute toggle. A shell Config volume row may drive levels.
+
+### M9 — Acceptance & determinism
+Land the acceptance harness against all 14 scenarios (§14): auto-bounce on falling contact,
+no-bounce-while-rising, spring super-bounce apex, breakable no-bounce+removal, score =
+max-altitude monotonicity, camera up-only, death-by-falling, horizontal wrap, held steering,
+altitude-thinned spacing staying reachable, enemy stomp vs. lethal contact, jetpack
+override, frame-rate independence, and the seed **determinism** replay yielding identical
+platform layouts (§13).
