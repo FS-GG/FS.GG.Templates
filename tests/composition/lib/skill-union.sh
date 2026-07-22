@@ -32,7 +32,7 @@
 # — `git log -S SKILL_ASSERT_REF -- tests/composition/lib/skill-union.sh` (a line number would go stale
 # the moment this comment block changes length, as it did while being written).
 # renovate: datasource=git-refs depName=FS-GG/.github packageName=https://github.com/FS-GG/.github
-SKILL_ASSERT_REF="19500bc8e8ed9cae972b20563e15a056f9ad5809"
+SKILL_ASSERT_REF="6db76a7c26cc9657b2e2f71796d36a86944d1d31"
 # The shared assertion is NOT A SINGLE FILE any more. FS-GG/.github#358 hoisted need_val into
 # scripts/lib/args.sh, and #524 the root resolution into scripts/lib/roots.sh; skill-union-assert.sh
 # sources both RELATIVE TO ITS OWN dirname. Fetching the script alone therefore dies on a missing
