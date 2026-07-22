@@ -632,3 +632,153 @@ Ranked, out of scope for v1:
 8. **Controller rumble + dynamic music layers** that intensify in combat.
 9. **New Game+** with remixed enemy placements and a damage modifier.
 10. **Lore tablets** and an in-game bestiary populated by kills.
+
+## Menu & configuration — the shared game shell
+
+Hollowveil uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game
+menu. Hollowveil supplies only its **name**, its **key→command map** (the rebindable actions
+from §3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Hollowveil**) as the title label, with
+  **Start**, **Config**, and **Exit**. This supersedes the bespoke Title-screen
+  "New Game / Continue / Quit" launch affordance of §9.1 (save-slot selection remains a
+  game-specific step reached from Start / Continue).
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the
+  same shell; `Esc` again resumes. This is the shell home for the §3 `Esc` pause action and
+  the §9.1 Paused menu; the game's own **Map overlay** (`Tab`, §9.1) and contextual prompts
+  remain game-specific and sit alongside the shell.
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that letterboxes the logical 1280×720 world view (§6, §8) to the window.
+  - **Key rebinding** — the player remaps Hollowveil's controls (the §3 actions: move,
+    jump, dash, melee, bolt, grapple, look/crouch, interact, map, pause) via the
+    `Controls.KeyRebind` UI over the `KeyboardInput.Keymap` mechanism; bindings persist via
+    `KeymapCodec` (JSON), stored separately from the save slots (§13, "settings/keybinds
+    stored separately").
+  - (Game-specific rows such as the difficulty modes of §12 or volume may be added as extra
+    Config rows, but the menu, Esc routing, display settings, and rebind screen come from the
+    shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Hollowveil
+does **not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic simulation core and the
+traversal kit; later ones layer content, the shared shell, audio, and the acceptance
+harness. This is a complex spec, so the mechanics of §4 are unpacked one milestone at a time.
+
+### M0 — Scaffold, fixed-step loop & MVU boundary
+Stand up the layered Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg`
+skeleton with the persistent `Save` vs. transient sim separation, the fixed-timestep 60 Hz
+accumulator subscription (§7.5, §13), and the §7.6 boundary — MVU owns discrete/eventful
+state while a self-contained pure `simulate` step (internal local mutation allowed) runs the
+hot loop. Empty 1280×720 letterboxed canvas (§6, §8) at `Mode = Title`.
+
+### M1 — Horizontal movement & tile collision
+Implement the player capsule (§4.1, §5.1) on a solid tilemap (§6): max run 240 px/s, ground
+vs. air acceleration/friction, the turn-around bonus, and swept axis-separated AABB collision
+(resolve X then Y) against the solid layer with a tile-grid broadphase (§13). The player runs
+and stops crisply against walls and floors.
+
+### M2 — Jump, gravity & assists
+Add the full jump feel (§4.2): split rise/fall gravity, the 620 px/s impulse, variable jump
+height (cut to `-180` on early release), terminal fall clamp, coyote time (6 frames), jump
+buffering (6 frames), and apex hang. Grounded/airborne state and the coyote/buffer timers
+(§7.1) drive it.
+
+### M3 — Wall slide & wall jump
+Implement always-available wall tech (§4.3): wall-slide fall clamp to 120 px/s on
+wall-contact + toward-wall input while airborne, and the wall jump (`vy = -560`, `vx = ±300`
+away) with the 8-frame 40%-authority window that enforces the arc.
+
+### M4 — Dash & i-frames
+Add the ability-gated dash (§4.4): 140 px over 0.18 s flat (gravity off, `vy = 0`), the
+first-10-frame invulnerability folded into the shared `invulnUntil` timer, the 0.35 s
+cooldown, the one-per-airborne air dash refreshed on land/wall, edge-triggered + buffered,
+and dash cancels on land/wall/hitstun.
+
+### M5 — Grapple
+Implement the ability-gated grapple (§4.5): a hook up to 320 px in the aim direction,
+reel toward a Grapple Node at 600 px/s released into a momentum-preserving arc, enemy
+gap-close pulls, the 0.25 s cooldown, and one active hook.
+
+### M6 — Melee combat & pogo
+Add the melee kit (§4.6): the directional 34×28 hitbox with startup/active/recovery frames,
+base 10 damage with the 3rd-hit-15 combo window, 3-frame hitstop on connect, enemy
+knockback, and the **pogo** — a connecting Down-melee bounces the player (`vy = -520`) and
+refreshes the air dash (core traversal tech).
+
+### M7 — Ranged Bolt & mana
+Implement the ranged Bolt (§4.7) and the mana economy (§4.9): 8×8 projectiles at 520 px/s
+with 1.2 s lifetime, destroyed on solid tiles, capped at 4 live, costing mana; the 100-pool
+Veil with 8/s out-of-combat regen (0 in combat), +6 mana per melee connect, and the
+`AbilityId.Bolt` gate.
+
+### M8 — Damage, i-frames, health & focus heal
+Add the player damage model (§4.8, §4.9): HP masks, hitstun (8 frames, input-locked except
+dash-cancel), knockback + upward pop, the 60-frame post-hit invulnerability flashing at
+12 Hz merged into `invulnUntil`, and the Focus heal (hold Interact 0.8 s grounded, spend
+33 mana for 10 HP, interrupted by damage/movement).
+
+### M9 — Enemies & AI roster
+Build the enemy roster and AI types (§5.2): Crawler (Patroller), Lunger (Ambusher with
+telegraph/lunge/recover), Floater (Drifter, death-burst bolts), Slinger (Ranger standoff +
+arc shots), Sentinel (Bruiser, shielded front + charge), Spore Pod, and Wraith (phasing).
+Combat resolution wires melee/bolt hitboxes vs. enemies and enemy/hazard vs. player.
+
+### M10 — Rooms, world graph, ability gates & fast-travel
+Implement the interconnected world (§6, §7.3): authored rooms loaded on `EnterRoom` (spawn
+from `SpawnTable` minus collected/defeated, place at destination door), the 6-zone graph,
+`Locked(ability)` edges re-evaluated on `AbilityAcquired` (§4.11), the Ability Pickup
+acquire sequence, and the Vein-Gate fast-travel network unlocked as gates are visited.
+
+### M11 — Currency, death cache, Save Veins & persistence
+Add the run economy and persistence (§4.10, §5.3, §13): Embers dropped by enemies and in
+caches, the single recoverable **Shade** death-cache, the Tinker vendor upgrades, Save Veins
+(save + refill + respawn point + room-enemy respawn), and the atomic JSON `Save`
+serialization across 3 slots with the load round-trip.
+
+### M12 — Bosses
+Implement the two major bosses (§11): **Boss A — The Warden** (300 HP, 3 phases: charges,
+slam shockwave, arc fans, spore adds, enrage) and **Boss B — Veil Echo** (480 HP, 3 phases:
+mirror dashes with i-frames, grapple-pulls + bolt volleys + Wraith adds, the "Veil collapse"
+darkened arena), each threshold emitting `BossPhaseChanged` with an invulnerable roar and
+screen shake, and the win-on-Echo condition.
+
+### M13 — Rendering, HUD & map overlay
+Complete the back-to-front draw list (§8): parallax backgrounds, batched `drawAtlas` tile
+layers (back/solid/foreground), hazards, pickups/Save Vein glow, per-kind enemies with
+hit-flash, the player with i-frame flash and dash ghosts, glowing projectiles, pooled
+particles, screen shake, and the HUD (health masks, Veil bar, Ember count, prompts). Render
+the §9.1 world **Map overlay** (explored rooms, icons, ability-color-coded locked gates,
+fast-travel selection) and the Game Over / Win cards.
+
+### M14 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Hollowveil** +
+Start/Config/Exit), `Esc` pause routing (Resume · Config · Exit to menu), Settings with
+screen resolution + fullscreen through the SkiaViewer + `LogicalCanvas` letterbox seam, and
+in-game key rebinding of the §3 controls (move, jump, dash, melee, bolt, grapple,
+look/crouch, interact, map, pause), persisted via `KeymapCodec` separately from save slots.
+Hollowveil provides its name + key→command map + play `update`/`view`; the shell provides the
+rest. No bespoke menu system — this replaces the ad-hoc Title/Pause launch affordances of
+§9.1 while the game-specific Map overlay and difficulty modes remain as game rows.
+
+### M15 — Audio
+Wire the SFX checklist (§10): jump/double-jump/land, dash/wall-slide/grapple, melee
+swing/hit (+hitstop)/pogo, bolt fire/impact, hurt/death, enemy death and Sentinel block,
+ember pickup and ability-acquire fanfare, Save Vein chime and Focus heal, and the boss
+phase-change roar; plus the per-zone ambient loops, boss themes, and title/victory cues with
+combat ducking. A shell Config volume row may drive levels.
+
+### M16 — Acceptance & determinism
+Land the acceptance harness against all 15 scenarios (§14): run-accel cap, variable jump
+height, coyote time, jump buffering, ability-gate block-then-unlock, dash i-frames, post-hit
+invulnerability window, melee combo, pogo + air-dash refresh, save/load round-trip, Shade
+death cache, Boss A phase transition, camera room-lock clamp, input edge-vs-held for dash,
+and the seed + recorded-input **fixed-timestep determinism** yielding bit-identical
+`Player.Pos`/`Entities` at every frame regardless of real frame rate (§7.5, §13).

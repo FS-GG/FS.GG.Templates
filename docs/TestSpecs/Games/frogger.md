@@ -481,3 +481,109 @@ On death: lose 1 life, respawn at start, reset timer & `MaxRowReached`. **Lives 
 6. **Daily seed challenge** — fixed seed leaderboard using the deterministic RNG.
 7. **Variable canvas / responsive grid** — recompute cell size for non-1280×720 windows.
 8. **Touch/swipe controls** — directional swipes map to hops for mobile.
+
+## Menu & configuration — the shared game shell
+
+Frogger uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game
+menu. Frogger supplies only its **name**, its **key→command map** (the rebindable actions
+from §3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Frogger**) as the title label, with
+  **Start**, **Config**, and **Exit**. This supersedes the bespoke Title-screen "PRESS ENTER"
+  affordance of §9 for launching a run.
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the
+  same shell; `Esc` again resumes. This is the shell home for the §3 `P` pause and `Esc`
+  return-to-title actions and the §9 Paused screen.
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that scales the logical 1280×720 grid canvas (§4, §8) to the window.
+  - **Key rebinding** — the player remaps Frogger's controls (the §3 actions: hop
+    up/down/left/right, start, pause) via the `Controls.KeyRebind` UI over the
+    `KeyboardInput.Keymap` mechanism; bindings persist via `KeymapCodec` (JSON), beside
+    Frogger's other saved config (e.g. `highscore.json`, §13).
+  - (Game-specific rows such as difficulty or volume may be added as extra Config rows, but
+    the menu, Esc routing, display settings, and rebind screen come from the shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Frogger
+does **not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic simulation core; later ones
+layer feel, the shared shell, audio, and the acceptance harness.
+
+### M0 — Scaffold & fixed-step loop + grid
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton,
+the 60 FPS `Tick` subscription with `dt` clamped ≤0.05 s (or a fixed-step accumulator for
+determinism, §13), and the 20×12 cell grid over the 1280×720 logical canvas (§4, §8) with a
+static row layout (§6). No gameplay yet — a deterministic, steppable loop at `Phase = Title`.
+
+### M1 — Grid hopping movement
+Implement the frog's hop (§4.1, §5.1): edge-triggered one-cell hops in four directions
+lerped over `HopDuration = 0.12 s`, occupying the destination cell for collision at hop end,
+input dropped while mid-hop (no buffering in v1), and wall/edge rejection consuming no time.
+The `MaxRowReached` new-furthest-row tracking is set up here.
+
+### M2 — Road section: vehicles, wrap & lethal collision
+Build the five road lanes (§4.2) and the safe median (§4.3): per-lane vehicles at the table's
+speeds/counts/spacing scrolling in alternating directions with toroidal X wrap, AABB overlap
+lethality (including a car driving into a stationary frog), and the median as a hazard-free
+rest row.
+
+### M3 — River: platforms, riding & drowning
+Build the five river lanes (§4.4, §5.3): logs and turtle groups drifting with wrap, water
+lethal by default (drown on a hop resolving on an uncovered water cell), platform riding
+(`frog.x += platform.vx·dt`, exact velocity inheritance), off-screen-ride death, and the
+snap-column-keep-`subX` footing re-evaluation after each hop.
+
+### M4 — Diving turtles
+Add the turtle dive cycle (§4.5, §5.4): the Up 4.0 s → Sinking 0.6 s → Down 2.0 s →
+Rising 0.6 s phase machine, footing withdrawn only while fully Down (drown at the end of
+Sinking), and the level-gated dive schedule (lane 2 non-diving until level 2).
+
+### M5 — Home slots, level clear & per-life timer
+Implement home (§4.6) and the run economy: the 5 fixed home slots with lethal hedges,
+empty-slot scoring vs. occupied/hedge death, filling all 5 → level clear with reset slots
+and the §6 difficulty ramp (speed multiplier capped ×1.6, shrinking `LifeTime`, tightening
+gaps). Add the per-life countdown timer (§4.8) with timer-zero death, lives, respawn, and
+`GameOver`/high-score commit (§11, §13).
+
+### M6 — Bonus targets: fly & lady frog
+Add the timed **fly** in a random empty slot (`FlyDuration = 6 s`, +200 on home there) and
+the **lady frog** rider escorted home for a bonus (§4.7), both driven from the seeded RNG.
+Wire the full scoring table (§11): per-row, home, time bonus, fly, lady, level clear, spare
+lives.
+
+### M7 — Rendering & HUD
+Complete the back-to-front draw list (§8): road/median/river/home/start background bands,
+logs and turtles (with submerge fade), per-kind vehicles, bonus riders, the frog with
+hop-pop and death flash, parked-frog home fills, splash/squash particles, and the HUD
+(score/level/high band, lives icons, draining timer bar). Render the §9 Title / Paused /
+Game Over screens.
+
+### M8 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Frogger** +
+Start/Config/Exit), `Esc` pause routing (Resume · Config · Exit to menu), Settings with
+screen resolution + fullscreen through the SkiaViewer + `LogicalCanvas` letterbox seam, and
+in-game key rebinding of the §3 controls (hop up/down/left/right, start, pause), persisted
+via `KeymapCodec`. Frogger provides its name + key→command map + play `update`/`view`; the
+shell provides the rest. No bespoke menu system — this replaces the ad-hoc Title/Pause
+affordances of §9.
+
+### M9 — Audio
+Wire the SFX checklist (§10): the hop "boop", the water-death plunk, the vehicle-death
+squash, the home-reached chime, the fly/lady sparkle, the sub-5-second timer ticking, the
+level-clear fanfare, the game-over descending tone, and the optional looping arcade theme
+with a toggle. A shell Config volume row may drive levels.
+
+### M10 — Acceptance & determinism
+Land the acceptance harness against all 16 scenarios (§14): grid hop + row scoring,
+edge-triggered single hop, wall rejection, vehicle kill + respawn, drown on water, safe on
+log, velocity inheritance, carried off-screen, diving-turtle drown, reach-home scoring +
+time bonus, occupied-slot lethality, fly bonus, timer death, level clear + ramp, game over +
+high score, and the seed + `Tick`/`Hop` **determinism** replay yielding bit-identical spawns
+and positions (§13).

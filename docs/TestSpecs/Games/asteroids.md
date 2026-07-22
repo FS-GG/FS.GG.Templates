@@ -511,3 +511,112 @@ Verifiable Given/When/Then. `dt` steps are `1/60 s` unless noted.
 6. **CRT/vector post-processing** (glow, scanlines, line bloom) via a Skia shader pass.
 7. **Online high-score leaderboard** + replay sharing (leveraging deterministic seeds).
 8. **Screen-clear "smart bomb"** as a rare, limited-use panic button.
+
+## Menu & configuration — the shared game shell
+
+Asteroids uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game
+menu. Asteroids supplies only its **name**, its **key→command map** (the rebindable actions
+from §3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Asteroids**) as the title label, with
+  **Start**, **Config**, and **Exit**. This supersedes the bespoke Title-screen "PRESS ENTER
+  TO START" affordance of §9 for launching a run.
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the
+  same shell; `Esc` again resumes. This is the shell home for the §3 `Esc` / `P` pause action
+  and the §9 Pause overlay.
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that scales the logical 1280×720 toroidal playfield (§4, §8) to the window.
+  - **Key rebinding** — the player remaps Asteroids' controls (the §3 actions: rotate
+    left/right, thrust, fire, hyperspace, start/restart, pause) via the `Controls.KeyRebind`
+    UI over the `KeyboardInput.Keymap` mechanism; bindings persist via `KeymapCodec` (JSON),
+    beside Asteroids' other saved config (e.g. the high score, §13).
+  - (Game-specific rows such as difficulty or volume may be added as extra Config rows, but
+    the menu, Esc routing, display settings, and rebind screen come from the shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Asteroids
+does **not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic simulation core; later ones
+layer feel, the shared shell, audio, and the acceptance harness.
+
+### M0 — Scaffold & fixed-step loop
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton,
+the 60 FPS `Tick (1/60)` subscription with the accumulator pattern capped at ~5 steps/frame
+(§7, §13), and an empty 1280×720 logical canvas (§4, §8) that clears to black every frame.
+No gameplay yet — just a deterministic, steppable loop with `Phase = Title`.
+
+### M1 — Ship movement & toroidal wrap
+Implement the ship (§4.1, §5.1): 270 deg/s held rotation, 220 px/s² thrust along the nose
+vector, per-tick drag (`vel *= 0.99`), the 600 px/s max-speed clamp, and position
+integration. Add the toroidal screen wrap (§4.6) with per-axis wrap and the wrap-aware
+shortest-delta distance used later for all collisions. No firing or rocks yet — just a
+ship that drifts around a wrapping field.
+
+### M2 — Firing & bullets
+Add bullets (§4.2, §5.3): muzzle velocity `vel + noseVec·700` (momentum-inherited, not
+speed-clamped), the nose-tip spawn point, 250 ms fire cooldown, the 4-concurrent-bullet
+cap, 1.1 s lifetime despawn, and bullet wrapping. Fire is edge-triggered off `KeyDown`
+(§3) with no auto-repeat.
+
+### M3 — Asteroids: splitting & waves
+Build the three-size asteroid class (§4.3, §5.2) with per-size radius/speed/points, the
+2-children-on-death split with `±[15°,45°]` velocity offsets and fresh speed magnitudes,
+cosmetic spin, and the wave spawner (§6): `min(4+(n−1), 11)` Large rocks per wave at edge
+positions ≥150 px from spawn center, the wave-clear check, the 2.0 s inter-wave pause, and
+the per-wave speed ramp.
+
+### M4 — Collisions, death, respawn & invulnerability
+Wire circle-vs-circle collision (§4.4) over the wrap-aware distance: bullet↔asteroid (split
++ score), ship↔asteroid (death). Add the death/respawn cycle (§4.5): decrement lives,
+explosion particles, 1.5 s freeze, center-clear respawn gating, 2.5 s blinking spawn
+invulnerability, and `Lives = 0 → GameOver`. Scoring (§11) and the every-10,000 extra life.
+
+### M5 — Hyperspace
+Add the hyperspace escape (§4.7): teleport to a uniformly random position with zeroed
+velocity, 1.0 s cooldown, the 12% bad-warp death roll resolved after placement, and the
+0.3 s arrival invulnerability so a landed-on rock doesn't insta-kill except via the roll.
+Edge-triggered off `KeyDown`.
+
+### M6 — UFO enemy
+Implement the flying saucer (§4.8, §5.4): Large/Small types with score-scaled Small
+probability, edge-entry horizontal travel with the 1.0 s vertical jog zig-zag, 1.2 s
+firing with UFO bullets (350 px/s, 1.4 s), the spawn schedule (30 s or ≤3 rocks, ≤1 at a
+time), and the remaining collision cases (bullet↔UFO, ship↔UFO/UFO-bullet, UFO-bullet
+passes through rocks).
+
+### M7 — Rendering, HUD & vector look
+Complete the back-to-front vector draw list (§8): black clear, fading particle lines,
+white asteroid polygons rotated by `Angle`, red saucer outline, player/UFO bullet dots,
+the `#00FFAA` ship triangle with `#FFAA00` exhaust and invulnerability blink, plus the
+edge-duplicate wrap rendering. Render the HUD (score, high score, ship-icon lives, wave)
+and the §9 Title / Pause / Game Over screens.
+
+### M8 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Asteroids** +
+Start/Config/Exit), `Esc` pause routing (Resume · Config · Exit to menu), Settings with
+screen resolution + fullscreen through the SkiaViewer + `LogicalCanvas` letterbox seam, and
+in-game key rebinding of the §3 controls (rotate, thrust, fire, hyperspace, start, pause),
+persisted via `KeymapCodec`. Asteroids provides its name + key→command map + play
+`update`/`view`; the shell provides the rest. No bespoke menu system — this replaces the
+ad-hoc Title/Pause affordances of §9.
+
+### M9 — Audio
+Wire the SFX checklist (§10): the fire "pew", three-pitch asteroid explosions, the looping
+thrust rumble, the ship-destroyed explosion, the per-size UFO warble loop and its
+destruction, the extra-life chime, and the two-note background "heartbeat" that speeds up
+as a wave is cleared down. A shell Config volume row may drive levels.
+
+### M10 — Acceptance & determinism
+Land the acceptance harness against all 20 scenarios (§14): thrust/drag/max-speed, rotation
+rate, position wrap, bullet momentum/expiry, fire cooldown & cap, the full split chain and
+points, ship death and respawn invulnerability, wave progression, game over/restart, extra
+life, hyperspace survival/death rolls, UFO scoring and bullet behavior, edge-trigger no
+auto-fire, and the seed + input-sequence **determinism** replay yielding identical spawns
+and final Score (§13).
