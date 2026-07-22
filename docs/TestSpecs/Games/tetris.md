@@ -477,3 +477,105 @@ All scenarios assume a fixed RNG seed and the default tunables unless stated.
 6. **Garbage / versus mode** — sent lines for local or networked 2-player.
 7. **Replays & leaderboards** — record the deterministic input stream; persist top runs.
 8. **Themes & skins** — swappable block palettes and backgrounds.
+
+## Menu & configuration — the shared game shell
+
+Tetris uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game
+menu. Tetris supplies only its **name**, its **key→command map** (the rebindable actions
+from §3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Tetris**) as the title label, with
+  **Start**, **Config**, and **Exit**. This supersedes the bespoke Title-screen "Press Enter
+  to Start" affordance of §9 for launching a game.
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the same
+  shell; `Esc` again resumes. This is the shell home for the §3 `P` / `Esc` pause toggle and
+  the §9 Pause overlay.
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that scales the logical 1280×720 canvas and centered well (§6.1, §8) to the window.
+  - **Key rebinding** — the player remaps Tetris' controls (the §3 actions: move left/right,
+    soft drop, rotate CW/CCW, hard drop, hold, pause, start/restart) via the
+    `Controls.KeyRebind` UI over the `KeyboardInput.Keymap` mechanism; bindings persist via
+    `KeymapCodec` (JSON), beside Tetris' other saved config (e.g. the persisted high score and
+    start level, §13).
+  - (Game-specific rows such as start level or volume may be added as extra Config rows, but
+    the menu, Esc routing, display settings, and rebind screen come from the shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Tetris does
+**not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic simulation core; later ones
+layer feel, the shared shell, audio, and the acceptance harness.
+
+### M0 — Scaffold & fixed-step loop
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton, the
+60 FPS `Tick` subscription dispatching `Tick dt` in seconds with `dt` clamped to ≤ 0.05 s
+(§7.5), and an empty 1280×720 logical canvas (§6.1, §8) that clears to `#101018` every frame.
+No gameplay yet — just a deterministic, steppable loop with `Phase = Title`.
+
+### M1 — The well, tetrominoes & spawn
+Build the 10×22 grid (10×20 visible + 2 hidden buffer rows, §4.1) and the 7 guideline
+tetrominoes with their colors and spawn shapes (§4.2): centered spawn in columns 3–6, the
+top-out collision check, and `cellsOf` for a piece at a given pos + rotation (§5.2).
+
+### M2 — Horizontal movement (DAS/ARR) & gravity
+Implement piece control (§3, §4.3): edge-trigger shift on key-down then DAS = 170 ms delay →
+ARR = 50 ms repeat while held, collision-checked left/right; gravity stepping one cell per
+level-derived interval; soft drop (`interval / 20`, +1 pt/cell) while ↓ held; and hard drop
+(teleport to lowest legal row, lock immediately, +2 pts/cell).
+
+### M3 — Rotation (SRS) & wall kicks
+Implement the Super Rotation System (§4.4): the four rotation states, the JLSTZ and I kick
+tables tested at 5 candidate offsets (first collision-free applied, else rejected), O never
+rotating — with the simpler 3-kick fallback documented as acceptable for v1.
+
+### M4 — Lock delay
+Add the 500 ms lock timer (§4.5): starts when the cell below is blocked, resets on a
+move/rotate that lets the piece fall again but only up to 15 resets per piece, then locks
+(writing cells to the grid and triggering line-clear evaluation) on expiry or hard drop.
+
+### M5 — Line clears & scoring
+Scan for full rows after each lock and clear them, shifting rows above down and inserting empty
+rows at top (§4.6). Score Single / Double / Triple / Tetris at `100 / 300 / 500 / 800 × (level+1)`
+plus soft/hard-drop points (§11), with the optional ~120 ms white flash before collapse (§8).
+
+### M6 — 7-bag randomizer, hold & next queue
+Add the seeded 7-bag Fisher–Yates randomizer (§4.7), the 5-piece next-queue preview (§4.8), and
+the hold slot: swap active ↔ hold (or pull from queue) with the once-per-spawn `holdUsed` flag
+that resets on a fresh spawn but not on a swap.
+
+### M7 — Levels & gravity ramp
+Wire the level curve (§6.2): start at level 0–9, level up every 10 cumulative lines, and drive
+the gravity interval from the per-level frames/cell table (0.800 s at L0 down to 0.017 s at
+L29+). Board, scoring multipliers, and piece set stay constant — only gravity speed changes.
+
+### M8 — Rendering, ghost piece & HUD
+Complete the back-to-front draw list (§8): well frame + grid, beveled locked cells, the 30%-alpha
+ghost piece at its hard-drop landing row, the live active piece, the Hold and Next side panels at
+half scale, and the HUD (score / lines / level / high, §9) plus the Title / Pause / Game Over
+overlays.
+
+### M9 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Tetris** +
+Start/Config/Exit), `Esc` pause routing (Resume · Config · Exit to menu), Settings with screen
+resolution + fullscreen through the SkiaViewer + `LogicalCanvas` letterbox seam, and in-game key
+rebinding of the §3 controls, persisted via `KeymapCodec`. Tetris provides its name + key→command
+map + play `update`/`view`; the shell provides the rest. No bespoke menu system — this replaces
+the ad-hoc Title/Pause launch affordances of §9.
+
+### M10 — Audio
+Wire the SFX checklist (§10): move tick, rotate click, soft-drop tick, hard-drop thud, lock
+clack, line-clear chime, the bigger Tetris fanfare, level-up cue, hold whoosh, game-over tone,
+and the optional looping theme whose tempo may rise with level.
+
+### M11 — Acceptance & determinism
+Land the acceptance harness against the §14 scenarios: spawn/top-out, DAS/ARR shifting, gravity
+and soft/hard drop, rotation + kicks, lock-delay reset cap, line clears and per-clear scoring,
+7-bag distribution, hold once-per-spawn, level-up gravity change — and the seeded + input-log
+**determinism** replay yielding identical final Score / Lines / Level and board state (§13).

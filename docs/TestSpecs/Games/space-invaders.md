@@ -455,3 +455,115 @@ Data-driven tunables (load from a config record so balance is editable without c
 5. **Difficulty presets** (Easy/Classic/Insane) driven entirely by the section-12 table.
 6. **Online high-score leaderboard**.
 7. **Boss wave** every 5th wave (armored alien that takes multiple hits).
+
+## Menu & configuration — the shared game shell
+
+Space Invaders uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game
+menu. Space Invaders supplies only its **name**, its **key→command map** (the rebindable
+actions from §3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Space Invaders**) as the title label,
+  with **Start**, **Config**, and **Exit**. This supersedes the bespoke Title-screen "PRESS
+  ENTER" affordance of §9 for launching a run.
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the
+  same shell; `Esc` again resumes. This is the shell home for the §3 `P` / `Esc` pause
+  toggle and the §9 Paused screen.
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that scales the logical 1280×720 playfield (§4, §8) to the window.
+  - **Key rebinding** — the player remaps Space Invaders' controls (the §3 actions: move
+    cannon left/right, fire, start/restart, pause) via the `Controls.KeyRebind` UI over the
+    `KeyboardInput.Keymap` mechanism; bindings persist via `KeymapCodec` (JSON), beside
+    Space Invaders' other saved config (e.g. the persisted high score, §13).
+  - (Game-specific rows such as difficulty or volume may be added as extra Config rows, but
+    the menu, Esc routing, display settings, and rebind screen come from the shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Space
+Invaders does **not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic simulation core; later ones
+layer feel, the shared shell, audio, and the acceptance harness.
+
+### M0 — Scaffold & fixed-step loop
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton, the
+60 FPS `Tick` subscription with variable-dt motion clamped to ≤ 0.05 s plus the separate
+fixed-step accumulator that drives the march (§13), and an empty 1280×720 logical canvas
+(§4, §8) that clears to `#000000` every frame. No gameplay yet — just a deterministic,
+steppable loop with `Phase = Title`.
+
+### M1 — Player cannon movement
+Implement the cannon (§4.1, §5): held Left/Right at 320 px/s with instant start/stop and no
+acceleration, simultaneous-left+right cancels to zero horizontal velocity, and the
+`[24, 1256]` center-x clamp on the rail at y = 640. Draw the phosphor ground line at y = 660.
+
+### M2 — Player shot & fire rules
+Add the player laser (§4.2): edge-triggered `Space` fire, the one-bullet-in-flight rule, the
+0.30 s cooldown even after a bullet clears, the 4×16 bullet at −620 px/s spawned at the muzzle
+(y = 636), and destruction on top-edge exit (y < 0).
+
+### M3 — Alien formation, collision & scoring
+Build the 5×11 = 55-alien grid (§4.3) with the Squid/Crab/Octopus rows and their 30 / 20 / 10
+point values, the living-only formation bounding box, bullet→alien AABB collision with the
+`Dying → Dead` transition, and score accrual (§11). Two-frame walk-cycle swap on each step.
+
+### M4 — March step, acceleration, edge drop & invasion
+Implement the heart (§4.4, §4.5): the fixed-step accumulator march at
+`intervalMs = 48 + (800−48)·(n/55)` (faster as aliens die), the per-wave `0.92^(wave−1)`
+speedup clamped ≥ 40 ms, 8 px discrete steps, edge detection against x = 24 / 1256, the 24 px
+drop + direction reverse (one per step, no double-bounce), and immediate `GameOver` when any
+living alien crosses the invasion line y ≥ 620.
+
+### M5 — Alien bombs, player death & lives
+Add enemy fire (§4.6): lowest-alien-per-column bomb drops on the 1.0 s cadence with `pFire`
+scaling by wave and living count, max 3 bombs at +220 px/s (+10 px/s per wave), bullet↔bomb
+mutual cancel, cannon hit → `PlayerDying` (1.0 s) → respawn at center, 3 starting lives,
+`GameOver` at 0 lives, and the one-time extra life at 10,000 pts (§11).
+
+### M6 — Bunkers (destructible cover)
+Build the 4 bunkers (§4.7): 22×16 grids of 4×4 px cells pre-carved into the classic arch
+silhouette, 6 px-radius cluster erosion from any bullet (player or bomb) that consumes the
+bullet, no regeneration between lives, a full reset each new wave, and alien-overlap erosion.
+
+### M7 — Mystery UFO
+Add the UFO (§4.8): the 20–30 s randomized spawn while ≥ 8 aliens remain, 150 px/s horizontal
+cross at y = 80 from a random side, seeded bonus-table scoring on hit `{50,100,150,200,300}`
+keyed on shot count, and suppression once fewer than 8 aliens remain.
+
+### M8 — Waves, difficulty & persistence
+Wire wave progression: `WaveCleared` (1.5 s) → full 5×11 respawn one formation-drop lower with
+the `0.92^(wave−1)` interval multiplier and added bomb speed per wave (§4.4 / §4.6), the
+data-driven tunables table (§12) so balance is config not code, and high-score persistence
+(§13).
+
+### M9 — Rendering, HUD & screens
+Complete the back-to-front draw list (§8): phosphor ground line, bunker cells, per-type alien
+glyphs + the `Dying` splat, red UFO, green cannon, laser / bomb glyphs, and the HUD (score /
+high / wave / life icons, §9) plus the Title / Paused / Game Over overlays with scrims.
+
+### M10 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Space Invaders**
++ Start/Config/Exit), `Esc` pause routing (Resume · Config · Exit to menu), Settings with
+screen resolution + fullscreen through the SkiaViewer + `LogicalCanvas` letterbox seam, and
+in-game key rebinding of the §3 controls, persisted via `KeymapCodec`. Space Invaders provides
+its name + key→command map + play `update`/`view`; the shell provides the rest. No bespoke
+menu system — this replaces the ad-hoc Title/Pause launch affordances of §9.
+
+### M11 — Audio
+Wire the SFX checklist (§10): the accelerating 4-note march heartbeat tracking the step
+interval, the player-fire pew, the alien-explosion noise burst, the descending player-death
+tone, the UFO warble + hit jingle, the optional bunker tick, and the wave-clear / game-over
+stings.
+
+### M12 — Acceptance & determinism
+Land the acceptance harness against all 17 scenarios (§14): cannon movement + clamp, the
+one-bullet and cooldown rules, alien kill/score and row values, march-acceleration
+monotonicity, edge detect & drop, invasion loss, bomb→life-loss and last-life Game Over,
+bunker erosion + wave reset, UFO scoring + suppression, wave advance, extra life, and the
+seeded + input-log **determinism** replay yielding identical final Score / Wave / Lives
+(§14.17, §13).
