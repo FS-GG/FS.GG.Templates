@@ -11,6 +11,7 @@ else
   RUN_FULL=0
 fi
 FULL="$WORKDIR/full"   # the composed product; reused by the governance-enforcement stage
+FULL_PRODUCT="Acme"    # deliberately non-default: proves product-name substitution in README/FSI paths
 FULL_OK=0
 
 # Compose a full workspace inline. This was scripts/new-fullstack.sh, now retired — the
@@ -32,9 +33,50 @@ compose_full() (
 )
 
 if [[ "$RUN_FULL" == "1" ]]; then
-  if compose_full "$FULL" Acme >"$WORKDIR/scaffold.log" 2>&1; then
-    if dotnet build "$FULL" >"$WORKDIR/build.log" 2>&1; then
-      ok "scaffold + dotnet build of the composed product succeeded"; FULL_OK=1
+  if compose_full "$FULL" "$FULL_PRODUCT" >"$WORKDIR/scaffold.log" 2>&1; then
+    GENERATED_README="$FULL/README.md"
+    LOAD_SCRIPT="load-${FULL_PRODUCT}.fsx"
+
+    # Rendering#1010 / Templates#275: execute the generated README contract, not an equivalent
+    # test-only spelling. The clean output directory and non-default product name catch the two
+    # regressions that the old `dotnet build "$FULL"` smoke test missed: root discovery and the
+    # product-named FSI loader path.
+    assert_contains "$GENERATED_README" "dotnet build" "generated README documents the stock root build command"
+    assert_contains "$GENERATED_README" "dotnet fsi $LOAD_SCRIPT" "generated README documents the product-named FSI loader command"
+    if (cd "$FULL" && dotnet build) >"$WORKDIR/build.log" 2>&1; then
+      ok "exact generated README build command succeeded from the composed-product root"; FULL_OK=1
+
+      if [[ -f "$FULL/$LOAD_SCRIPT" ]]; then
+        ok "generated README FSI load script '$LOAD_SCRIPT' exists for the non-default product name"
+        if (cd "$FULL" && dotnet fsi "$LOAD_SCRIPT") >"$WORKDIR/fsi-load.log" 2>&1; then
+          ok "exact generated README FSI loader command succeeded"
+        else
+          bad "generated README FSI loader command failed (see $WORKDIR/fsi-load.log)"
+          tail -n 60 "$WORKDIR/fsi-load.log" 2>/dev/null | sed 's/^/  | /'
+        fi
+      else
+        bad "generated README names '$LOAD_SCRIPT' but the composed product did not emit it"
+      fi
+
+      TOOL_MANIFEST="$FULL/.config/dotnet-tools.json"
+      if [[ ! -f "$TOOL_MANIFEST" ]]; then
+        bad "composed product lacks .config/dotnet-tools.json — cannot verify the advertised tool contract"
+      elif jq -e '.. | strings | ascii_downcase | select(test("fake-cli|dotnet[ -]fake"))' "$TOOL_MANIFEST" >/dev/null; then
+        bad "composed tool manifest advertises fake-cli/dotnet fake although the provider does not install it"
+      else
+        ok "composed tool manifest does not advertise fake-cli or dotnet fake"
+      fi
+
+      if find "$FULL" -type d -name .fake -print -quit | grep -q .; then
+        bad "composed product contains unsupported shared .fake state"
+      else
+        ok "composed product contains no unsupported shared .fake state"
+      fi
+      if grep -rqF -- '.fake' "$GENERATED_README" "$FULL/docs" 2>/dev/null; then
+        bad "generated guidance claims shared .fake state without a real writer"
+      else
+        ok "generated guidance makes no shared .fake-state claim"
+      fi
 
       # Family-agnostic default-entrypoint governance expectation (FS-GG/FS.GG.Templates#36).
       # The fs-gg-ui `game` default starter relaxes the durable entrypoint assertion: the
@@ -59,8 +101,8 @@ if [[ "$RUN_FULL" == "1" ]]; then
       # and is deliberately left untouched.
       PROG="$(find "$FULL" -path '*/src/*/Program.fs' 2>/dev/null | head -1)"
       if [[ -n "$PROG" ]]; then
-        if grep -qE 'Viewer\.runApp viewerOptions generatedHost|Viewer\.runAppWithAudio viewerOptions audioSink generatedHost|ControlsElmish\.runInteractiveApp viewerOptions interactiveHost' "$PROG"; then
-          ok "composed product default launch uses an accepted family entrypoint (game Viewer.runApp[WithAudio] generatedHost | controls runInteractiveApp interactiveHost)"
+        if grep -qE 'Viewer\.runApp viewerOptions generatedHost|Viewer\.runAppWithAudio viewerOptions audioSink generatedHost|ControlsElmish\.runInteractiveApp viewerOptions interactiveHost|ControlsElmish\.runInteractiveAppWith(Audio|WindowBehaviorAndAudio)' "$PROG"; then
+          ok "composed product default launch uses an accepted family entrypoint (Viewer generatedHost | Controls interactive/audio host)"
         else
           bad "composed product default launch is neither accepted family entrypoint — durable assertion not family-agnostic (#36, see $PROG)"
         fi

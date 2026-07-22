@@ -50,8 +50,8 @@ It produces:
 
 - **Rendering** — the FS.GG.Rendering `fs-gg-ui` app (Skia/OpenGL, Elmish/MVU, Scene,
   SkiaViewer, Controls), installed live from the published `FS.GG.UI.Template` package
-  pinned by the provider (currently `FS.GG.UI.Template@0.16.0`, behind the
-  immutable tag `fs-gg-ui-template/v0.16.0`). The provider passes
+  pinned by the provider (currently `FS.GG.UI.Template@0.18.1`, behind the
+  immutable tag `fs-gg-ui-template/v0.18.1`). The provider passes
   `lifecycle=sdd` so the workspace carries **only the runnable app** — the `.fsgg/`
   lifecycle comes from the SDD skeleton, not a second copy.
 - **SDD** — the lifecycle skeleton: `.fsgg/project.yml`, `.fsgg/sdd.yml`,
