@@ -768,3 +768,134 @@ Ranked, out of scope for v1:
 8. **Co-op (local 2-player)** twin-stick.
 9. **Render interpolation** between fixed sim steps for ultra-smooth motion at high refresh.
 10. **Mod/data-pack support** — items, enemies, room templates as external data files.
+
+## Menu & configuration — the shared game shell
+
+Hollow Depths uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game menu.
+Hollow Depths supplies only its **name**, its **key→command map** (the rebindable actions
+from §3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Hollow Depths**) as the title label,
+  with **Start**, **Config**, and **Exit**. This is the shell home for the §9 Title actions
+  (Start Run / Daily Seed / Stats / Quit); Hollow-Depths-specific entries such as Daily Seed
+  and Stats can be surfaced as extra menu rows over the shell.
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the
+  same shell; `Esc` again resumes. This is the shell home for the §3 `Esc` / gamepad Start
+  pause action and the §9 Paused screen.
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that scales the logical 1280×720 playfield (§6, §8) to the window.
+  - **Key rebinding** — the player remaps Hollow Depths's controls (the §3 actions: move,
+    aim/fire, dodge roll, use active item, drop bomb, interact, map toggle, pause) via the
+    `Controls.KeyRebind` UI over the `KeyboardInput.Keymap` mechanism; bindings persist via
+    `KeymapCodec` (JSON), stored alongside the persisted `MetaProfile` (§13). Mouse/right-
+    stick aiming stays as the analog aim input; the rebindable set is the keyboard/gamepad
+    command map (the twin-stick decoupling of §3 is preserved across rebinds).
+  - (Game-specific rows such as difficulty mode (§12) or volume may be added as extra Config
+    rows, but the menu, Esc routing, display settings, and rebind screen come from the shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Hollow Depths
+does **not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic bullet-heavy simulation core;
+later ones layer the build system, procedural floors, meta-progression, the shared shell,
+audio, and the acceptance harness.
+
+### M0 — Scaffold & fixed-step loop
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton, the
+render `Tick dt` subscription (clamped ≤ 0.1 s), and the **fixed-timestep accumulator** that
+runs whole `1/120 s` `stepSim` steps with `MAX_STEPS = 5` per frame (§7.3, §13). An empty
+1280×720 logical room (§6, §8) clears every frame. No gameplay yet — a deterministic,
+steppable loop with `Screen = Title`.
+
+### M1 — Player movement & wall collision
+Implement player locomotion (§4.1, §5.1): normalized move input, accel/friction velocity
+lerp to `moveSpeed`, diagonal normalization, and the axis-separated circle-vs-AABB sweep
+against room walls/obstacles so the player slides instead of sticking. The `InputChanged`
+snapshot with `PressedThisTick` edge detection (§7.3) lands here.
+
+### M2 — Dodge roll & i-frames
+Add the dodge roll (§4.2): edge-triggered impulse along move/facing at `rollSpeed`, the
+`iFrameDur` invincibility window, the `rollCooldown` no-chain rule, and the fire-lockout
+during the roll (the commitment cost).
+
+### M3 — Shots & auto-fire
+Implement the player projectile (§4.3, §5.4): auto-repeat firing at `1/fireRate` cadence,
+straight-line travel with `0.25×` velocity inheritance, lifetime by `range`/room-bounds, and
+the multishot spread arc, pierce, bounce, and homing steering — all derived from the stat
+block so §M6 items can mutate them.
+
+### M4 — Enemies, AI & combat collision
+Build the enemy roster and state machines (§5.2, §4.4): grid-broad-phased shot→enemy circle
+overlap with damage/knockback/hit-flash and pierce decrement, plus enemy contact and enemy-
+bullet → player collision with the post-hit invuln gating (distinct from roll i-frames).
+Enemies animate in at template anchors and drop-roll on death; splitters enqueue children.
+
+### M5 — Hearts, damage & permadeath
+Implement the health pool (§4.6): red/soul/black half-hearts with soul-consumed-first
+ordering, per-hit damage under the invuln gates, and death at 0 half-hearts → `GameOver`
+with a populated `RunSummary` (§4.10 permadeath; no continues). Bombs (§4.4) land here as a
+damage source.
+
+### M6 — Build system: stats & item modifiers
+Add the flat stat block and item modifiers (§4.5): additive-then-multiplicative recompute in
+pickup order with the clamps, the `tearDelay`→`fireRate` curve, and passive-item pickup
+appending to `Player.Items`. Prove order-independence of the two phases (§14.3).
+
+### M7 — Currency, pickups & drop tables
+Wire coins/keys/bombs (§4.7, capped 99) and the weighted room-clear/obstacle drop tables
+(§4.9) drawn from the dedicated `DropRng` sub-stream, plus pickup collection, hearts/heart-
+type pickups, and shop purchase via edge-triggered Interact (§14.11).
+
+### M8 — Procedural floor generation
+Implement the deterministic seeded generator (§4.8): `floorSeed = hash(runSeed, floorIndex)`,
+the branching floor-plan walk, special-room assignment (boss/treasure/shop/secret), template-
+driven interior population under the threat budget, and door carving — all from `LayoutRng`
+so layout is independent of combat RNG (§14.1, §14.2).
+
+### M9 — Rooms, doors, bosses & floor flow
+Wire room/floor navigation (§6, §7.3): room-clear gating that seals doors on entry and opens
+them only when `Enemies = []` (§14.5), the room-transition camera slide, `EnterRoom` /
+`DescendFloor` carrying the player (not room state) across floors, boss rooms with data-
+driven bullet patterns and the floor reward + trapdoor (§5.3), and the per-floor difficulty
+scaling (§6).
+
+### M10 — Meta-progression & unlocks
+Add the persisted `MetaProfile` (§4.10, §13): end-of-run unlock evaluation against `RunStats`
+(items/characters/achievements), `ProfileLoaded` on boot, and debounced atomic `SaveProfile`
+writes. Explicit-seed (daily/shared) run launch respects the player's unlock pool.
+
+### M11 — Rendering, HUD & minimap
+Complete the back-to-front draw list (§8): themed floor/decals, obstacles, pickups, shadows,
+enemies with hit-flash, player with roll/invuln alpha, player shots and enemy bullets,
+capped particles, and the room-transition transform. Render the HUD (hearts row, currency,
+active-item charge meter, minimap, floor name, pickup banners, §9) and the
+Title/Hub/Paused/GameOver/Victory overlays.
+
+### M12 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Hollow Depths**
++ Start/Config/Exit), `Esc` pause routing (Resume · Config · Exit to menu), Settings with
+screen resolution + fullscreen through the SkiaViewer + `LogicalCanvas` letterbox seam, and
+in-game key rebinding of the §3 controls (move, fire, dodge, active item, bomb, interact, map,
+pause), persisted via `KeymapCodec`. Hollow Depths provides its name + key→command map + play
+`update`/`view`; the shell provides the rest. No bespoke menu system — this hosts the §9 Title
+and Pause screens.
+
+### M13 — Audio
+Wire the SFX checklist (§10): shot fire/hit/kill cues, player-hit and death stings, dodge
+whoosh, pickup and power-up jingles, bomb boom + shake, door lock/unlock, boss intro/phase/
+death cues, and floor-descend fwoomp, plus the per-floor/shop/boss music loops. Audio is
+mutable and ships silent-capable; a shell Config volume row may drive levels.
+
+### M14 — Acceptance & determinism
+Land the acceptance harness against all §14 scenarios: seeded generation determinism,
+layout-vs-combat-RNG independence, stat-modifier stacking, multishot spread, room-clear
+gating, damage/i-frame protection, permadeath + unlock evaluation, the fixed-timestep
+accumulator (exact steps + `MAX_STEPS` clamp), twin-stick decoupling, shot lifetime/pierce,
+and currency/shop purchase — proving the same `runSeed` yields byte-identical floors (§13).

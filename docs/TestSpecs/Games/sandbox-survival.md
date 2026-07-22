@@ -849,3 +849,140 @@ Ranked, out of scope for v1:
 8. **Map/quest progression**, accessory slots, buff system, fishing.
 9. **Procedural structures** — dungeons, abandoned mineshafts with loot and traps.
 10. **Controller support & remappable bindings.**
+
+## Menu & configuration — the shared game shell
+
+Hollowreach uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game menu.
+Hollowreach supplies only its **name**, its **key→command map** (the rebindable actions from
+§3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Hollowreach**) as the title label, with
+  **Start**, **Config**, and **Exit**. This is the shell home for the §9 Title actions (New
+  World with seed field / Load slot list / Quit); the new-world seed field and load-slot list
+  are surfaced as Hollowreach-specific rows over the shell's Start entry.
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the
+  same shell; `Esc` again resumes. This is the shell home for the §3 `Esc` pause / close-
+  panel action and the §9 Paused screen (the `E` inventory panel remains a separate in-game
+  overlay, not a shell menu).
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that scales the logical 1280×720 viewport (§6, §8) to the window.
+  - **Key rebinding** — the player remaps Hollowreach's controls (the §3 actions: walk
+    left/right, jump, fast-fall/drop-through, mine/attack, place, hotbar cycle/select,
+    inventory, drop, interact, eat, wall-mine modifier, minimap, pause) via the
+    `Controls.KeyRebind` UI over the `KeyboardInput.Keymap` mechanism; bindings persist via
+    `KeymapCodec` (JSON), beside Hollowreach's save data (§13). Mouse move/LMB/RMB stay as
+    the primary aim-and-act inputs; the rebindable set is the keyboard command map.
+  - (Game-specific rows such as hardcore mode (§11) or volume may be added as extra Config
+    rows, but the menu, Esc routing, display settings, and rebind screen come from the shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Hollowreach
+does **not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic tile-world simulation core;
+later ones layer survival, enemies, lighting, the shared shell, audio, save/load, and the
+acceptance harness.
+
+### M0 — Scaffold & fixed-step loop
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton, the
+**fixed 60 Hz accumulator** dispatching constant `Tick (1/60)` with up to 5 catch-up ticks
+(§7.5, §7.7, §13), the camera transform, and an empty 1280×720 viewport (§6, §8) that clears
+every frame. No world yet — a deterministic, steppable loop with `Ui = Title`.
+
+### M1 — Chunk store, worldgen & streaming
+Build the tile substrate (§7.1, §7.2, §13): the `Chunk` flat-array model with the documented
+mutable-buffer discipline (only the sim step writes tiles; `Version`/`Dirty` flags; the
+`WorldEvent` stream), the deterministic hashed-coordinate worldgen pipeline (heightmap →
+strata → caves → ore veins → liquids → decor → spawn, §13) evaluated per tile so any chunk is
+reproducible from `Seed`, and camera-driven active-set streaming with async `ChunkGenerated`
+(§14.1, §14.13).
+
+### M2 — Platformer physics & tilemap collision
+Implement player locomotion (§4.1, §4.2): walk accel/friction, gravity + terminal velocity,
+variable-height jump with coyote time and jump buffer, fast-fall, step-up, and the swept
+axis-separated AABB-vs-tilemap collision (integrate X then Y, resolve, set grounded) with no
+tunneling at terminal velocity (§14.6, §14.7).
+
+### M3 — Mining, tool tiers & drops
+Add mining (§4.3): `toolPower × dt` progress per held tick, the tool-tier gate (under-tier =
+0 progress + red flash), off-target decay, wall-mining with `Ctrl`, and on-break tile→Air +
+chunk `Version` bump + `TileChanged` event. Spawn dropped-item entities with gravity, the
+64 px magnet pickup, merge and despawn rules (§4.4, §14.2, §14.3, §14.4).
+
+### M4 — Placement & building
+Implement right-click placement (§4.5): the reach/support/no-self-overlap validity rules,
+foreground-block vs background-wall layers, stack decrement, and the special placeables
+(door/torch/platform/chest/station) with their footprints and interactions (§14.11).
+
+### M5 — Inventory, hotbar & crafting
+Wire the inventory model (§7.2 `Inventory`, §9): 10-slot hotbar + 30-slot main, selection via
+wheel/digits, drag/split/drop, the `E` inventory+crafting panel, and the recipe table
+(§12) — craftable-list gating on inventory + in-range station, input consumption, output
+addition, and rejection on insufficient materials (§14.5).
+
+### M6 — Health, hunger & damage
+Add survival state (§4.6): max-100 HP with conditional regen, hunger drain and starvation,
+fall damage, contact damage with the 0.7 s invuln window and knockback, eating consumables,
+and death → configurable inventory drop + respawn at bed/world-spawn after the fade (§4.6
+death, §14.9, §14.10, §14.15).
+
+### M7 — Combat
+Implement weapons (§4.7): the 90° melee swing arc with capsule hit-test and tier-scaled
+damage, the ranged bow/arrow projectile with gravity and despawn-on-hit, and enemy HP,
+knockback, and hit-flash.
+
+### M8 — Day/night cycle
+Add the time system (§4.8): `DayTime` advance over `dayLengthSeconds` with the Dawn/Day/Dusk/
+Night/Pre-dawn phases, `Day`/`DaysSurvived` increment on wrap, ambient sky-light lerp by
+phase, and bed-sleep fast-forward to next dawn when no enemies are near.
+
+### M9 — Enemy spawning & AI
+Wire the spawner and enemy roster (§4.9, §5): the 1 s spawn cadence gated to night/dark,
+off-screen floored columns 240–640 px from the player under the `daysSurvived`-scaled cap,
+the per-archetype `Idle→Patrol→Chase→Attack→(Flee|Dead)` state machines (walker/flyer/jumper/
+ranged/brute), greedy local pathing, and despawn rules (§14.8).
+
+### M10 — Lighting
+Implement the per-tile light field (§4.10, §8.5): sky flood scaled by day phase plus torch/
+lava emitters, BFS flood-fill propagation with air/solid attenuation recomputed incrementally
+on tile change, driving both the render darkness multiply and spawn eligibility (§4.9). Ships
+behind a toggle (flat day-phase ambient when disabled), per the v1/v1.1 note.
+
+### M11 — Rendering, chunk-surface caching & HUD
+Complete the back-to-front draw list (§8.1): sky, parallax, wall/foreground tile layers with
+auto-tiling and variant hashing, drops, enemies/projectiles, player + tool-swing arc, cursor/
+mining-crack overlay, lighting multiply, and particles. Implement the off-screen chunk-surface
+cache invalidated on `Version` (§8.2) and the HUD (hearts/hunger/hotbar/clock/minimap, §9).
+
+### M12 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Hollowreach** +
+Start/Config/Exit), `Esc` pause routing (Resume · Config · Exit to menu), Settings with screen
+resolution + fullscreen through the SkiaViewer + `LogicalCanvas` letterbox seam, and in-game
+key rebinding of the §3 controls, persisted via `KeymapCodec`. Hollowreach provides its name +
+key→command map + play `update`/`view`; the shell provides the rest. No bespoke menu system —
+this hosts the §9 Title and Pause screens (the seed/load-slot rows sit over the Start entry).
+
+### M13 — Audio
+Wire the SFX checklist (§10): per-material mining hits, tile break/place, pickup chime, craft
+clatter, player-hurt grunt, enemy hurt/die, jump/land, eat crunch, inventory flap, low-HP
+heartbeat, plus the Day/Night/Cave music loops with 2 s cross-fade on phase/band change. A
+shell Config volume row may drive levels.
+
+### M14 — Save/load persistence
+Implement the async save/load service (§13): the header + chunk-delta store (only chunks that
+differ from the deterministic worldgen baseline, RLE-compressed) with pristine chunks
+regenerated from `seed`, snapshot-under-update-thread then compress-off-thread, and the
+`load(save(model))` round-trip guarantee for world/player/inventory/time/chests (§14.12).
+
+### M15 — Acceptance & determinism
+Land the acceptance harness against all 15 scenarios (§14): worldgen determinism + seed
+sensitivity, mining/drops, tool-tier gate, pickup, crafting, tilemap collision, jump/coyote/
+buffer, night spawn + day suppression, contact damage/invuln, hunger/starvation, placement
+validity, save/load round-trip, chunk streaming, death/respawn, and the fixed-timestep
+input-replay **determinism** yielding bit-identical player/inventory/enemy state (§13).
