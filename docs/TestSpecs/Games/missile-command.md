@@ -485,3 +485,114 @@ All tunables live in a single `Config` record so balance is data-driven and test
 7. **Difficulty selects** (rookie/veteran) preloading different `Config` records.
 8. **Touch/trackpad mode:** tap-to-fire mapping for non-mouse devices.
 9. **Per-battery missile-speed differences** (a "fast" central battery) for tactical depth.
+
+## Menu & configuration — the shared game shell
+
+Missile Command uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game menu.
+Missile Command supplies only its **name**, its **key→command map** (the rebindable actions
+from §3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Missile Command**) as the title label,
+  with **Start**, **Config**, and **Exit**. This supersedes the bespoke §9 Title-screen
+  "Click / Enter to defend" affordance for launching a run.
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the
+  same shell; `Esc` again resumes. This is the shell home for the §3 `P` / `Esc` pause
+  action and the §9 Paused screen.
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that scales the logical 1280×720 playfield (§4.1, §8) to the window.
+  - **Key rebinding** — the player remaps Missile Command's controls (the §3 actions: fire
+    counter-missile / left click, force-fire Alpha / Bravo / Charlie batteries, pause,
+    start/restart) via the `Controls.KeyRebind` UI over the `KeyboardInput.Keymap`
+    mechanism; bindings persist via `KeymapCodec` (JSON), beside Missile Command's other
+    saved config (e.g. the persisted high score, §13). Mouse aim/click stays as the primary
+    input; the rebindable set is the keyboard command map.
+  - (Game-specific rows such as difficulty or volume may be added as extra Config rows, but
+    the menu, Esc routing, display settings, and rebind screen come from the shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Missile
+Command does **not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic simulation core; later ones
+layer the threats, feel, the shared shell, audio, and the acceptance harness.
+
+### M0 — Scaffold & fixed-step loop
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton,
+the 60 FPS `Tick` subscription with real-delta `dt` clamped to ≤ 0.05 s (§7, §13), and an
+empty 1280×720 logical canvas (§4.1, §8) that clears every frame with the ground line at
+`y = 680`. No gameplay yet — just a deterministic, steppable loop with `Phase = Title`.
+
+### M1 — Crosshair & aiming
+Implement the reticle (§4.2): mouse-move → `MouseMoved`, clamped to `x ∈ [0,1280]`,
+`y ∈ [0,660]` so it can never aim into the ground, rendered as the 24×24 px "+" with a
+center dot. This is the pure spatial-input spine every later mechanic hangs off.
+
+### M2 — Batteries, firing & counter-missiles
+Place the three batteries (Alpha/Bravo/Charlie, §4.8, §5.2) with per-wave ammo of 10, and
+implement firing (§4.3, §5.3): `Fire` auto-selects the nearest battery with ammo > 0 (with
+fall-through to next-nearest), `FireFrom` force-fires a named battery, dry-click when no
+ammo. Counter-missiles travel straight at 900 px/s toward the click target with a fading
+trail and detonate within 6 px of the target.
+
+### M3 — Blast lifecycle & kills
+Add the fireball (§4.4, §5.4): grow 0→60 px at 160 px/s, hold at max 0.25 s, shrink back to
+0 (≈1.0 s total), with the ≤ 12 simultaneous-blast cap (§13). Implement the point-in-circle
+kill rule so an enemy head within the current radius is destroyed and scored.
+
+### M4 — Incoming missiles, impacts & cities
+Spawn ICBMs (§4.5, §5.5) from random top-edge X toward a random alive ground target, moving
+straight at wave-scaled speed with a colored trail; on `Head.Y ≥ 680` they impact and
+destroy the targeted city or battery (§4.9, §5.1). Wire the loss rule: all **6 cities**
+`Rubble` → `GameOver` (surviving batteries do not matter).
+
+### M5 — MIRV split
+Add MIRVs (§4.6): from wave 3, a seeded fraction of incoming split **once** at a random
+altitude `y ∈ [220,380]` into 2–3 child missiles that each retarget an alive ground point
+and inherit parent speed; killing the parent before split prevents the children.
+
+### M6 — Planes & smart bombs
+Add bombers and evaders (§4.7, §5.6): from wave 5 at most one plane crosses horizontally at
+130 px/s dropping a bomb every 1.5 s; from wave 7 rare smart bombs dodge up to twice when a
+blast center is within 90 px. Score planes at 100× and smart bombs at 125× the wave
+multiplier.
+
+### M7 — Waves, bonus tally & difficulty escalation
+Wire the wave scheduler and phase flow (§6, §7.3): release the wave's incoming budget over
+the spawn window, detect wave-clear → `WaveBonus`, animate the surviving-city + unused-ammo
+tally (§11), then reload surviving batteries to 10, bump `Wave`, and recompute the
+data-driven escalation table (count/speed/interval/MIRV/plane/multiplier caps, §6, §12).
+
+### M8 — Rendering, HUD & juice
+Complete the back-to-front draw list (§8): sky gradient, ground band, cities (alive/rubble),
+batteries with ammo dots, incoming/counter trails and heads (MIRV/smart-bomb tints), plane,
+two-color blast flicker with ring outline, and the crosshair. Render the HUD (score / high
+score / wave / multiplier / per-battery ammo, §9) and the Title/Paused/WaveBonus/GameOver
+overlays with scrims.
+
+### M9 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Missile
+Command** + Start/Config/Exit), `Esc` pause routing (Resume · Config · Exit to menu),
+Settings with screen resolution + fullscreen through the SkiaViewer + `LogicalCanvas`
+letterbox seam, and in-game key rebinding of the §3 controls (force-fire keys, pause,
+start/restart), persisted via `KeymapCodec`. Missile Command provides its name + key→command
+map + play `update`/`view`; the shell provides the rest. No bespoke menu system — this
+replaces the ad-hoc Title/Pause launch affordances of §9.
+
+### M10 — Audio
+Wire the SFX checklist (§10): counter launch whoosh, blast boom (pitch-randomized), heavy
+city/battery-impact explosion + rumble, light kill pop, MIRV crackle, plane engine drone,
+dry-click cue, wave-start chime, per-line bonus-tally ticks, and the game-over descending
+tone. A shell Config volume row may drive levels.
+
+### M11 — Acceptance & determinism
+Land the acceptance harness against all 16 scenarios (§14): aim clamp, auto-select and
+fall-through firing, counter detonation, blast kill + lifecycle, incoming impact and
+cities-only game over, MIRV split and pre-split kill, wave-bonus math, wave escalation,
+dry-click, force-fire, pause-freezes-simulation, and the seeded-RNG + input-log
+**determinism** replay yielding identical `Score`/`Wave`/entity positions (§13).

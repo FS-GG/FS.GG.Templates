@@ -409,3 +409,110 @@ All live in `Config` so balance is data-driven and testable without code changes
 7. **Animated interpolation** — smooth sub-cell head movement between steps for visual
    polish (purely cosmetic; sim stays grid-discrete).
 8. **Replay/ghost** — record input+seed to replay a run.
+
+## Menu & configuration — the shared game shell
+
+Snake uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game
+menu. Snake supplies only its **name**, its **key→command map** (the rebindable actions from
+§3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Snake**) as the title label, with
+  **Start**, **Config**, and **Exit**. This supersedes the bespoke §9 Title-screen "Press
+  Enter to Start" affordance for launching a run. (The `wrapWalls` mode toggle of §9 remains
+  a Snake-specific choice, exposed either on the shell menu as an extra row or as a Config
+  row — see below.)
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the
+  same shell; `Esc` again resumes. This is the shell home for the §3 `Space` / `P` pause and
+  the §3 `Esc` quit-to-title action and the §9 Pause overlay.
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that scales the logical 1280×720 playfield (§4.1, §8) to the window.
+  - **Key rebinding** — the player remaps Snake's controls (the §3 actions: turn
+    Up/Down/Left/Right, pause, start/restart, quit-to-title, toggle wrap mode) via the
+    `Controls.KeyRebind` UI over the `KeyboardInput.Keymap` mechanism; bindings persist via
+    `KeymapCodec` (JSON), beside Snake's other saved config (e.g. `snake_highscore.json`,
+    §13). The 180°-reversal and direction-queue rules (§4.3) apply to whatever keys are bound
+    to each turn.
+  - (Game-specific rows such as the `wrapWalls` walls-death/wrap mode may be added as extra
+    Config rows, but the menu, Esc routing, display settings, and rebind screen come from the
+    shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Snake does
+**not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic simulation core; later ones
+layer feel, the shared shell, audio, and the acceptance harness.
+
+### M0 — Scaffold & fixed-step loop
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton,
+the 60 FPS `Tick dt` subscription, the **step accumulator** that banks real time and runs
+one `step` per `StepSeconds` with catch-up clamped to ≤ 4 steps/frame (§4.6, §7, §13), and
+an empty 1280×720 / 32×18 logical grid (§4.1, §8) that clears every frame. No gameplay yet —
+just a deterministic, steppable loop with `Screen = Title`.
+
+### M1 — Grid, snake & basic stepping
+Place the length-3 snake at center `(16,9)` heading Right (§5.1) and implement discrete
+one-cell-per-step movement (§4.2): prepend head, drop tail, integer `(col,row)` math on the
+40×40 cell grid. This is the core "turn" verb's substrate before food or death exist.
+
+### M2 — Direction queue & 180° reversal guard
+Implement the capacity-2 direction queue (§4.3): `TurnRequested` enqueues a turn only if it
+is not the opposite of the most-recent committed/queued direction; each step dequeues at
+most one turn (defense-in-depth reversal check). This is what lets a player buffer a two-step
+corner without folding the snake onto itself.
+
+### M3 — Food, eating, growth & scoring
+Add the single food pellet (§4.4, §5.2) spawned uniformly on an unoccupied cell; on the head
+stepping onto it, grow by +1 (retain tail this step, §4.5), `Score += 10`, `FoodEaten += 1`,
+and respawn a new pellet. Maintain the `HashSet<Cell>` occupancy mirror (§13) for O(1)
+collision and spawn checks.
+
+### M4 — Speed ramp
+Wire the time-based acceleration (§4.6): `StepSeconds = max(minStepSeconds, baseStepSeconds −
+foodEaten·stepDecrement)` (0.18 → 0.06 floor over 20 pellets), recomputed on each eat, fed
+through the accumulator so speed is identical regardless of render FPS.
+
+### M5 — Collision, death & wrap mode
+Implement the loss rules (§4.7): wall death when the next head cell exits `[0,31]×[0,17]`
+(Wall mode), self-collision death with the vacating-tail exception, and the `wrapWalls`
+option (§4.8) that wraps edges instead of dying. Death transitions to `GameOver`; add the
+perfect-game **win** when the snake fills all 576 cells (§11).
+
+### M6 — Phase flow & high score
+Wire the full `Screen` machine (§7): `Title → Playing → (Paused | GameOver)` plus quit-to-
+title and the `ToggleWrapMode` Title option, `StartGame`/`Restart` building a fresh centered
+run while preserving `HighScore` and `Config`, pause freezing the accumulator (§13), and
+high-score persistence keyed per wrap mode (§13).
+
+### M7 — Rendering, HUD & overlays
+Complete the back-to-front draw list (§8): background, inset playfield frame, optional subtle
+grid, the rounded-rect food with highlight, snake body/head (brighter head + heading-oriented
+eye dots), the HUD score/best (§9), and the Title/Pause/GameOver overlays with dim panels
+(including "NEW BEST!" and the "PERFECT!" win state).
+
+### M8 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Snake** +
+Start/Config/Exit), `Esc` pause routing (Resume · Config · Exit to menu), Settings with
+screen resolution + fullscreen through the SkiaViewer + `LogicalCanvas` letterbox seam, and
+in-game key rebinding of the §3 controls (turn keys, pause, start/restart, quit, wrap
+toggle), persisted via `KeymapCodec`. Snake provides its name + key→command map + play
+`update`/`view`; the shell provides the rest. No bespoke menu system — this replaces the
+ad-hoc Title/Pause launch affordances of §9.
+
+### M9 — Audio
+Wire the SFX checklist (§10): eat-pellet rising blip, optional soft turn tick, death
+descending buzz/thud, new-high-score 3-note jingle, menu-confirm click, and the optional low
+ambient loop during Play (silence on menus). A shell Config volume row may drive levels.
+
+### M10 — Acceptance & determinism
+Land the acceptance harness against all 12 scenarios (§14): basic step, eat/grow/score, speed
+ramp, blocked 180° reversal, two-turn queue buffering, wall death, wrap survival,
+self-collision with tail-follow exception, high-score persistence, pause-freezes-simulation,
+food-never-on-snake, and the perfect-game win — plus the seeded-RNG + input-sequence
+**determinism** replay yielding an identical food sequence and final state (§13).
