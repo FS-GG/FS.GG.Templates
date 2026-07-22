@@ -403,3 +403,100 @@ Data-driven tunables (all defined as named constants / a config record):
 6. **Best-of-N matches** and a simple tournament bracket.
 7. **Online two-player** via rollback netcode (deterministic core already supports it).
 8. **Power-ups** (multi-ball, paddle grow/shrink) as an optional arcade variant mode.
+
+## Menu & configuration — the shared game shell
+
+Pong uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game
+menu. Pong supplies only its **name**, its **key→command map** (the rebindable actions from
+§3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Pong**) as the title label, with
+  **Start**, **Config**, and **Exit**. The 1P/2P mode toggle (§9.1) is presented as the
+  Start affordance (or a Config row); the shell owns the surrounding menu chrome that the
+  bespoke §9.1 Title screen used to draw.
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the
+  same shell; `Esc` again resumes. This is the shell home for the §3 `P` / `Esc` pause
+  action and the §9.3 Pause overlay.
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that scales the logical 1280×720 playfield (§4.1, §8) to the window with aspect-preserving
+    letterbox bars.
+  - **Key rebinding** — the player remaps Pong's controls (the §3 actions: left paddle
+    up/down `W`/`S`, right paddle up/down `↑`/`↓`, pause) via the `Controls.KeyRebind` UI
+    over the `KeyboardInput.Keymap` mechanism; bindings persist via `KeymapCodec` (JSON),
+    beside Pong's other saved config (§13).
+  - (Game-specific rows such as AI difficulty (§12 presets) or volume may be added as extra
+    Config rows, but the menu, Esc routing, display settings, and rebind screen come from the
+    shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Pong does
+**not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic simulation core; later ones
+layer the AI, feel, the shared shell, audio, and the acceptance harness.
+
+### M0 — Scaffold & fixed-step loop
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton,
+the fixed 60 Hz `Tick` subscription with `dt` clamped to ≤ 0.05 s (§7.5, §13), and an empty
+1280×720 logical canvas (§4.1, §8) clearing to black each frame. No gameplay yet — just a
+deterministic, steppable loop with `Screen = Title`.
+
+### M1 — Playfield, walls & paddle movement
+Draw the top/bottom walls and cosmetic center net (§4.1), and implement both paddles (§4.2,
+§5.1): velocity-based 600 px/s movement with instant on/off, the `[12, 598]` clamp, and the
+both-keys-held → net-zero rule. Held keys tracked in `KeysDown` and applied during `Tick`.
+
+### M2 — Ball movement, serve & wall bounce
+Add the ball (§4.3, §5.2) and its `Frozen → Live` serve machine (§4.4): spawn at centre, the
+0.8 s freeze telegraph, the `θ ∈ [8°, 35°]` launch toward `ServeTo` at 420 px/s, constant-
+velocity integration, and top/bottom `vy`-flip wall bounces (§4.5) with reposition-inside
+anti-sticking and radius-bounded sub-stepping (§13).
+
+### M3 — Paddle collision, angle control & rally speed-up
+Implement AABB ball–paddle collision considered only when the ball moves **toward** the
+paddle (no double-hit), the contact-offset angle control (`θ = u · 50°`, clamped ±1), the
+`vx` reflect + reposition-flush, and the ×1.05 per-hit speed-up capped at 1100 px/s (§4.6,
+§6). This is the milestone that gives each rally its escalating skill curve.
+
+### M4 — Scoring, match flow & win condition
+Wire the scoring planes (§4.7) and the full `Screen` machine (§7.3): award a point when the
+ball crosses a goal line, the 1.0 s `PointPause`, re-serve toward the scored-on side, and
+`GameOver winner` at the first-to-11 `winScore` (§11). Ball physics stop on game over.
+
+### M5 — AI opponent (single-player)
+Implement the beatable tracking AI on the right paddle (§4.8): the `ballX > 640` + moving-
+toward dead zone, idle recentre to y = 360, per-rally `aiError` re-rolled on each hit,
+520 px/s tracking with a 16 px hysteresis band, and the Easy/Normal/Hard knob presets (§12).
+1P vs 2P selection drives whether this step runs.
+
+### M6 — Rendering & juice
+Complete the back-to-front draw list (§8): black field, dashed net, hard-cornered white
+paddles and 16×16 ball, the 72 px score digits (§9.2), and the cheap optional feel — the
+1-frame goal-edge flash and the 80 ms paddle squash on a hit. Render the §9 screen overlays.
+
+### M7 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Pong** +
+Start/Config/Exit with the 1P/2P mode choice), `Esc` pause routing (Resume · Config · Exit
+to menu), Settings with screen resolution + fullscreen through the SkiaViewer +
+`LogicalCanvas` letterbox seam, and in-game key rebinding of the §3 controls, persisted via
+`KeymapCodec`. Pong provides its name + key→command map + play `update`/`view`; the shell
+provides the rest. No bespoke menu system — this replaces the ad-hoc §9.1/§9.3 Title and
+Pause chrome.
+
+### M8 — Audio
+Wire the SFX checklist (§10): paddle-hit and wall-bounce blips, the descending two-tone
+point cue, the serve tick, and the match-win jingle. Classic Pong stays silent between
+events (no background music); a shell Config volume row may drive levels.
+
+### M9 — Acceptance & determinism
+Land the acceptance harness against all 14 scenarios (§14): serve telegraph/launch, paddle
+clamp and held-key net-zero, speed-preserving wall bounce, centre and edge deflection
+angles, per-hit speed-up and cap, no-double-hit, scoring and win condition, the beatable-but-
+tracking AI, pause-freezes-the-world, the tunneling guard, and the same-seed + same-input-log
+**determinism** replay yielding identical ball positions and final score (§13).

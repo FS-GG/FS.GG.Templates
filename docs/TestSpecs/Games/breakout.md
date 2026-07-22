@@ -511,3 +511,112 @@ Data-driven tunables (defaults shown):
 6. **"Win" mode** — finish all unique layouts twice for a victory screen + ranking.
 7. **Screen-shake & juicier particles**, ball trails scaling with speed.
 8. **Accessibility:** colorblind-safe brick palette toggle, adjustable ball speed.
+
+## Menu & configuration — the shared game shell
+
+Breakout uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game
+menu. Breakout supplies only its **name**, its **key→command map** (the rebindable actions
+from §3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Breakout**) as the title label, with
+  **Start**, **Config**, and **Exit**. This supersedes the bespoke Title-screen "PRESS
+  ENTER TO START" affordance of §9 for launching a run.
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the
+  same shell; `Esc` again resumes. This is the shell home for the §3 `P` / `Esc` pause
+  action and the §9 Pause screen.
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that scales the logical 1280×720 playfield (§4.1, §8) to the window.
+  - **Key rebinding** — the player remaps Breakout's controls (the §3 actions: move
+    paddle left/right, launch/fire, pause, start/restart, mute) via the `Controls.KeyRebind`
+    UI over the `KeyboardInput.Keymap` mechanism; bindings persist via `KeymapCodec` (JSON),
+    beside Breakout's other saved config (e.g. `breakout.highscore`, §13).
+  - (Game-specific rows such as difficulty or volume may be added as extra Config rows, but
+    the menu, Esc routing, display settings, and rebind screen come from the shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe). It is a shared dependency, so Breakout
+does **not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic simulation core; later ones
+layer feel, the shared shell, audio, and the acceptance harness.
+
+### M0 — Scaffold & fixed-step loop
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton,
+the 60 FPS `Tick` subscription with real-delta `dt` clamped to ≤ 0.05 s (§7.5, §13), and an
+empty 1280×720 logical canvas (§4.1, §8) that clears to `#101018` every frame. No gameplay
+yet — just a deterministic, steppable loop with `Phase = Title`.
+
+### M1 — Playfield, walls & paddle movement
+Draw the 16 px wall border and HUD band (§4.1), and implement the paddle (§4.2, §5.1):
+velocity-based 620 px/s keyboard movement with instant start/stop, the optional mouse-X
+follow, most-recent-input-wins arbitration, both-keys-cancel, and the `x ∈ [16, 1280 − 16 −
+width]` clamp. Paddle fixed at y = 680.
+
+### M2 — Ball physics & wall bounce
+Add the ball (§4.3, §5.2): constant-speed straight-line motion, perfectly-elastic left/right
+(`vx` flip) and top (`vy` flip) wall reflections with reposition-outside-wall anti-tunneling,
+the `|vy| ≥ 60 px/s` anti-stall guard, and radius-bounded sub-stepping (§13) so no ball moves
+more than 7 px per substep at high speed.
+
+### M3 — Paddle deflection & angle control
+Implement the skill mechanic (§4.4): rebound angle from the impact offset (`offset · 60°`,
+clamped to ±1), `vy` always forced upward, speed magnitude preserved on contact, plus the
+15%-of-paddle-velocity "english" capped at 75°. This is the milestone that makes Breakout an
+offensive game, not just a defensive one.
+
+### M4 — Bricks: collision, destruction & scoring
+Build the brick grid (§6.1, §5.3) and swept/AABB ball–brick collision with dominant-axis
+reflection and reposition-out-of-brick de-duping (§4.5). HP model (yellow/green/orange/red
+HP 1, silver HP 2, gold indestructible), per-color scoring (§11), the cumulative
+`BricksDestroyed` speed-up (+8% every 8, top-wall-touch and orange/red triggers, 620 px/s
+cap), and `LevelClear` when no breakable bricks remain.
+
+### M5 — Lives, serving & phase flow
+Wire the full phase machine (§7.3): `Title → Serve → Playing → (LevelClear | Paused |
+GameOver)`. Serve places a stuck ball centered on the paddle; `LaunchBall` releases it; a
+life is lost only when the **last** ball exits the gutter (§4.7); 3 starting lives, one-time
+bonus life at 20,000 pts, `GameOver` at 0 lives, high-score persistence (§13).
+
+### M6 — Power-ups & capsules
+Add the four power-ups (§4.6, §5.4, §5.5): 12% seeded drop rolls, falling capsules at
+140 px/s collected on paddle overlap, the 3-capsule on-screen cap, and Sticky (catch),
+Multiball (3-ball ±25° split), Widen (104→168 for 15 s), and Laser (twin cannons, 700 px/s
+bolts, 4/s cap, 12 s). Timed effects expire off `ElapsedMs` and clear on life loss.
+
+### M7 — Levels, progression & difficulty ramp
+Author the ≥4 cycling layouts (Classic Wall / Fortress / Checkerboard / Tunnels, §6.2), the
+per-level serve-speed step (`360 + 20·(level−1)`, §6.3), the tapering drop chance, and the
+data-driven tunables table (§12) so balancing is config, not code.
+
+### M8 — Rendering, HUD & juice
+Complete the back-to-front draw list (§8): beveled bricks, capsule glyphs, paddle states,
+additive laser glow, white ball with a 3-sample motion trail, and 6–8 brick-destruction
+particles with gravity. Render the HUD (score/high/lives icons/level) and the §9 screen
+overlays with scrims.
+
+### M9 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Breakout** +
+Start/Config/Exit), `Esc` pause routing (Resume · Config · Exit to menu), Settings with
+screen resolution + fullscreen through the SkiaViewer + `LogicalCanvas` letterbox seam, and
+in-game key rebinding of the §3 controls, persisted via `KeymapCodec`. Breakout provides its
+name + key→command map + play `update`/`view`; the shell provides the rest. No bespoke menu
+system — this replaces the ad-hoc Title/Pause launch affordances of §9.
+
+### M10 — Audio
+Wire the SFX checklist (§10): wall/paddle/brick blips with pitch keyed to offset and row
+color, multi-HP crunch, per-kind power-up chimes, laser pew/zap, life-lost and level-clear
+and game-over stingers, bonus-life sparkle, optional low ambient loop, and the `M` mute
+toggle (a shell Config volume row may drive this).
+
+### M11 — Acceptance & determinism
+Land the acceptance harness against all 17 scenarios (§14): serve/launch, speed-preserving
+bounces, angle control, scoring per color, silver/gold behavior, level-clear advance, lives
+and multiball-last-ball rules, power-up drop/collect, laser, anti-stall, held-input clamp,
+pause-freezes-timers, and the seed + input-log **determinism** replay yielding identical
+final `Score`/`Lives`/`Level`/surviving-brick set (§13).
