@@ -15,7 +15,7 @@ pack → install → instantiate → (restore/build) → verify pins/links
 | **install** | the package installs as a `dotnet new` source; `fs-gg-governance` registers | no |
 | **instantiate** | the `fs-gg-governance` overlay generates with `--appName` / `--defaultProfile` | no |
 | **verify pins/links** | parameter substitution lands; the descriptor is in the Governance-owned `.fsgg/governance.yml` slot (ADR-0005 — **not** the SDD-owned `project.yml`); the governance gate set is **populated** (not inert `checks: []`/`commands: []`); the `rendering` provider pin is coherent (version tag + `lifecycle=sdd` / `profile=game`) | no |
-| **build** | full `fsgg-sdd scaffold` of the live rendering app + `dotnet build`; the composed workspace's default launch satisfies the **family-agnostic** entrypoint expectation (game `Viewer.runApp … generatedHost` **or** controls `runInteractiveApp … interactiveHost`, with no `-- pong`-style flag gating the default — #36); the overlay's **governed commands are runnable** against the composed workspace — the governed `<App>.slnx` and `build.fsx` actually exist at the workspace root, so `dotnet build/test <App>.slnx` and `dotnet fsi build.fsx -- evidence` are real, not phantom (#59; the fs-gg-ui scaffold ships the solution in the modern `.slnx` format, which the overlay governs) | **yes** |
+| **build** | full `fsgg-sdd scaffold` of the live rendering app with a non-default product name; executes the generated README's exact root `dotnet build` and product-named `dotnet fsi load-<Name>.fsx` commands; proves the tool manifest does not advertise fake-cli and neither output nor guidance claims unsupported shared `.fake` state; checks the composed workspace's family-agnostic default entrypoint (Viewer host or Controls interactive/audio host, with no `-- pong` gate — #36); and proves the governed `<App>.slnx` / `build.fsx` commands resolve to real root artifacts (#59) | **yes** |
 | **govern** | the overlay does not just *exist* — it **enforces**: a produced `governance-handoff.json` actually drives a Governance verdict (strict **blocks**, `light` does not) | **yes** |
 
 The **build** stage needs the `fsgg-sdd` CLI and a reachable `FS.GG.UI.Template` feed. It
@@ -58,7 +58,7 @@ each independently gated and never green-by-omission:
 
   > **Status (as of 2026-07-02):** a profile-aware CLI (`>= 1.2.0`) is on `PATH` in CI, so the
   > full matrix — including the `light`-relaxation row — **asserts**; no row currently skips
-  > (`FSGG_COMPOSITION_FULL=1 tests/composition/run.sh` → 47/47). The generation-conditional
+  > (`FSGG_COMPOSITION_FULL=1 tests/composition/run.sh` → 55/55). The generation-conditional
   > framing above is retained on purpose: it keeps the gate honest if an older CLI is ever the
   > one on `PATH`.
 
