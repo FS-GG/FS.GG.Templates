@@ -749,3 +749,124 @@ Ranked, out-of-scope for v1:
    (grant temporary armor aura).
 8. **Meta-progression:** unlock tower branches/maps across runs; daily seeded challenge.
 9. **Co-op two-warden** mode sharing one economy.
+
+## Menu & configuration — the shared game shell
+
+Tower Defense uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the same
+menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game
+menu. Tower Defense supplies only its **name**, its **key→command map** (the rebindable
+actions from §3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Tower Defense**) as the title label, with
+  **Start**, **Config**, and **Exit**. The shell's Start hands off to the game's own Map
+  Select / difficulty flow (§9).
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the same
+  shell; `Esc` again resumes. This is the shell home for the §3 `P` / `Esc` pause action and
+  the §9 Pause screen (note `Esc` during an active placement still cancels the placement first,
+  per §3).
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that scales the logical 1280×720 board (§4.1, §8) to the window.
+  - **Key rebinding** — the player remaps Tower Defense's controls (the §3 keyboard actions:
+    select tower types 1–4, upgrade `U`, branch `B`/`V`, sell `S`, cycle targeting `T`, start
+    wave `Space`, fast-forward `F`, toggle grid `G`, pause) via the `Controls.KeyRebind` UI
+    over the `KeyboardInput.Keymap` mechanism; bindings persist via `KeymapCodec` (JSON),
+    beside Tower Defense's other saved config (e.g. per-map high scores, §13).
+  - (Game-specific rows such as difficulty or volume may be added as extra Config rows, but
+    the menu, Esc routing, display settings, and rebind screen come from the shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe) — this game is mouse-native for placement, so
+the shell's pointer host is a natural fit. It is a shared dependency, so Tower Defense does
+**not** re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic simulation core; later ones layer
+feel, the shared shell, audio, and the acceptance harness.
+
+### M0 — Scaffold, fixed-step loop & phases
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the layered `Model`/`Msg`
+skeleton, the **60 Hz fixed-step accumulator** (dt = 1/60 s) with the fast-forward "2 steps per
+frame" multiplier that never changes dt (§4.2, §13), the phase machine
+(`Building`/`Combat`/`Paused`/`WaveCleared`/`Victory`/`GameOver`), and an empty 1280×720 canvas
+(§4.1, §8). No gameplay yet — just a deterministic, steppable loop.
+
+### M1 — Board, grid, tiles & fixed path
+Build the 40×22 tile grid of 32×32 tiles with the `TileKind` set
+(Buildable/Path/Blocked/Spawn/Goal) and tile↔pixel-center mapping (§4.1), and load a
+fixed-path map (`mazeBuilding=false`) as an authored `Waypoint[]` polyline from Spawn to Goal.
+Ships the *Serpentine* map (§6).
+
+### M2 — Wave scheduler & enemy movement
+Implement enemy movement along the waypoint polyline (§4.3): per-step `pathIndex` advance with
+snap-and-advance, `effectiveSpeed` integration, and leak on reaching the last waypoint. Add the
+wave scheduler (§6): `SpawnGroup`/`Wave` timelines emitting enemies at the Spawn tile off
+`waveClock`, and the `Combat → WaveCleared (1.5 s) → Building` transition when all groups are
+exhausted and the board is clear.
+
+### M3 — Tower placement, validation & economy
+Add tower placement (§4.7): the build palette, the placement ghost + range circle, and the
+validity rules (in-grid Buildable, unoccupied, affordable, off-panel, spawn no-build margin) on
+left-click, with an error blip on invalid. Wire the economy (§4.9): starting gold, per-tower
+cost deduction, 70% sell refund, and end-of-Build interest (`floor(gold·0.08)` capped +40,
+disabled on wave 1) + wave-clear bonus.
+
+### M4 — Tower targeting, firing & targeting modes
+Implement the per-step tower loop (§4.4): cooldown decrement, in-range + `canHitAir`-gated
+target acquisition, sticky targeting, and firing at `1/fireRate` cadence with cosmetic turret
+aim. Add the targeting modes (§4.8): First / Last / Strongest / Closest with the deterministic
+`progress` metric and tie-breaks, cycled live with `T`.
+
+### M5 — Projectiles, hitscan, splash & chain
+Add the two firing models (§4.10): moving projectiles (Arrow re-homing 1×/0.1 s, Cannon
+ballistic with `splashRadius` center-100%→edge-50% falloff) with the 2.0 s lifetime cap, and
+hitscan beams (Tesla chaining to `chainCount` nearest un-hit enemies at `damage·chainFalloff^k`;
+Frost beam upgrade) drawn for 0.08 s.
+
+### M6 — Damage, armor, resistances & status effects
+Implement damage resolution (§4.5): physical `max(1, damage − armor)` vs elemental
+`damage·(1−resist)` with full-immunity handling, damage types (Physical/Frost/Poison/Electric),
+and the status-effect list — Slow (strongest wins, refresh), Poison DoT (stacks to 3, bypasses
+armor), Stun, and Vulnerable — ticking before movement each step with expiry removal.
+
+### M7 — Lives, leaks, upgrades & win/loss
+Wire lives and leaks (§4.6): 20 starting lives, `leakCost` on Goal reach, immediate `GameOver`
+at `lives ≤ 0`. Add tower upgrades (`U`, branch `B`/`V` at the tier-2→3 fork, §4.9 economy /
+tower table), and the win/loss + scoring model (§11): Victory on clearing Wave 20 with lives > 0,
+the additive score (bounty, wave-clear, no-leak, lives/gold-at-victory bonuses) and difficulty
+multiplier, persisted as a per-map high score (§13).
+
+### M8 — Maze maps & dynamic A* re-pathing
+Add maze maps (`mazeBuilding=true`, §4.1): A* over the grid treating tower footprints as
+`Blocked`, placement rejection when it would seal Spawn→Goal (§4.7.5), path recompute on
+place/sell, and in-flight ground-enemy re-targeting to the nearest node without teleporting
+(§4.3). Ships *The Labyrinth* map (§6).
+
+### M9 — Rendering, HUD & build panel
+Complete the layered draw list (§8): terrain tiles, range overlays, towers with turret + tier
+pips, enemies with HP bars + effect glyphs, projectiles / beams / explosions, particles + gold
+floats, and the HUD — top bar (lives / gold / score / wave preview) and the right build panel /
+tower inspector (§9) — plus pause / victory / game-over scrims.
+
+### M10 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Tower Defense** +
+Start/Config/Exit handing off to Map Select), `Esc` pause routing (Resume · Config · Exit to
+menu), Settings with screen resolution + fullscreen through the SkiaViewer + `LogicalCanvas`
+letterbox seam, and in-game key rebinding of the §3 keyboard controls, persisted via
+`KeymapCodec`. Tower Defense provides its name + key→command map + play `update`/`view`; the
+shell provides the rest. No bespoke menu system.
+
+### M11 — Audio
+Wire the SFX + music checklist (§10): tower placed / invalid, per-tower fire and splash, enemy
+and boss death, leak alarm, wave start / cleared, gold + interest, upgrade / sell, game-over and
+victory stings, plus the Build / Combat / boss music layers with the boss-roar duck.
+
+### M12 — Acceptance & determinism
+Land the acceptance harness against the §14 scenarios: enemy path-follow + leak, wave scheduling,
+placement validity + economy math, targeting modes, projectile splash + Tesla chain, damage /
+armor / resist + status effects, lives / leaks / win-loss, and maze A* re-path + seal rejection —
+plus the seeded + input-log **determinism** replay (fast-forward preserving dt) yielding
+identical final board state, score, and lives (§13).

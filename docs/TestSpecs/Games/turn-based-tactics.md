@@ -862,3 +862,130 @@ Ranked, out of scope for v1:
 7. **Replay & "ghost solution"** — record the `Msg` sequence and replay/share optimal
    solutions (trivial given determinism).
 8. **Online asynchronous puzzle leaderboards** ranked by grade/rounds for shared seeds.
+
+## Menu & configuration — the shared game shell
+
+Turn-Based Tactics uses the **generic FS.GG game shell** (FS-GG/FS.GG.Rendering#991) — the
+same menu/start screen and settings every FS.GG game shares — rather than a bespoke per-game
+menu. The game supplies only its **name**, its **key→command map** (the rebindable actions
+from §3 Controls), and its play `update`/`view`; the shell provides everything below.
+
+- **Main menu / start screen** — the game's name (**Turn-Based Tactics**) as the title label,
+  with **Start**, **Config**, and **Exit**. The shell's Start hands off to the game's own
+  Mission Select / Deploy flow (§9).
+- **`Esc` from gameplay** opens the pause menu (Resume · Config · Exit to menu) over the same
+  shell; `Esc` again resumes. This is the shell home for the §3 `P` / `Esc` `OpenPause` action
+  (note that when a preview is armed, `Esc` still cancels the preview first, per §3, before it
+  can open pause).
+- **Config / Settings**, all applied live and persisted across restarts:
+  - **Screen resolution** and **fullscreen** (windowed / borderless / fullscreen), driven
+    through the SkiaViewer window-behavior + `LogicalCanvas` letterbox seam — the same seam
+    that scales the logical 1280×720 surface and centered 8×8 board (§6, §8) to the window.
+  - **Key rebinding** — the player remaps this game's controls (the §3 keyboard actions: undo
+    `U`/`Ctrl+Z`, redo `R`, cycle unit `Tab`, select slots 1–3, arm ability `Q`/`E`, end turn
+    `Space`/`Enter`, threat overlay `H`, grid labels `G`, pause) via the `Controls.KeyRebind`
+    UI over the `KeyboardInput.Keymap` mechanism; bindings persist via `KeymapCodec` (JSON),
+    beside this game's other saved config (e.g. campaign progress / per-mission grades, §13).
+  - (Game-specific rows such as animation speed or volume may be added as extra Config rows,
+    but the menu, Esc routing, display settings, and rebind screen come from the shell.)
+
+The shell is pointer- and keyboard-navigable over the interactive Controls host (the
+`fs-gg-skiaviewer` "game → pointer host" recipe) — this grid game is mouse-native, so the
+shell's pointer host is a natural fit. It is a shared dependency, so the game does **not**
+re-specify menu-stack/cursor/settings machinery of its own.
+
+## 16. Milestone Roadmap
+
+Delivery is milestone-sequenced (M0..Mn), each a small, demonstrable slice grounded in the
+sections above. Earlier milestones stand up the deterministic tactics core; later ones layer
+feel, the shared shell, audio, and the acceptance harness.
+
+### M0 — Scaffold, MVU model & round loop
+Stand up the Elmish/MVU app (§7) on the FS.GG.Rendering host: the `Model`/`Msg` skeleton and
+the **round loop** skeleton (Player Phase ↔ Enemy Phase, §4.3). This game is **turn-based** —
+input is edge-triggered `Msg` with no held-key polling and no continuous simulation (§3) — so
+there is no fixed-step physics; the only timer is the `AnimTick` that drives movement/impact
+animation and is never authoritative (§8). Renders an empty 1280×720 canvas clearing to
+`#0E1116` with `Phase = Title`.
+
+### M1 — Tile grid, terrain & units
+Build the 8×8 tile grid with the terrain table (Ground / Road / Rough / Forest / Water / Chasm
+/ Mountain-Wall / Lava) carrying move cost, passability, and cover (§4.1), and the unit model —
+`hp`/`maxHp`, `moveRange`, abilities, and traits (`Flying`/`Armored`/`Mobile`/`Massive`), one
+occupant per tile (§4.2, §5 roster).
+
+### M2 — Selection, movement & reachable-tile pathfinding
+Implement selection and the Dijkstra reachability over the 4-neighbour graph within `moveRange`,
+respecting terrain cost, impassable terrain, path-through-allies-but-not-onto, and enemy
+blocking (§4.4). Render the cyan reachable set, the previewed path polyline + destination ghost,
+and (for ranged units) the attack range recomputed live from the previewed destination.
+
+### M3 — Attack resolution, abilities & cover
+Implement declared attacks (§4.5): range validity (Manhattan / Chebyshev), LoS blocking
+(Forest / Mountain / Wall, `Massive` units) for ranged abilities, the `ab.shape` hit set,
+`dealt = max(0, damage − cover)` applied simultaneously across the hit set (friendly fire
+possible), and the resolve-all-then-remove death check.
+
+### M4 — Push, knockback & environmental kills
+Implement knockback (§4.6, the core hook): per-tile push resolution with 1 collision damage to
+both participants on a block, instant death on being pushed into water / chasm (non-flyers),
+3 dmg on lava entry, the `Flying` / `Massive` / `Armored` trait rules, and non-propagating
+chains (v1). This is the milestone that makes environmental kills the primary pattern.
+
+### M5 — Enemy AI & telegraph generation
+Implement the pure `computeTelegraph : Board -> Enemy -> Telegraph` (§4.9): enumerate candidate
+positions × ability targets, score by player/building damage (×3 / ×5), killing-blow bonus, and
+self-exposure penalty, with deterministic tie-breaks; fall back to "advance toward nearest
+objective" when no attack is possible. Archetype weight variants (Bomber / Hunter).
+
+### M6 — Turn structure, telegraphs & enemy phase
+Wire the full round (§4.3): the start-of-round telegraph step rendering locked danger overlays,
+the freely-previewable Player Phase ending on `EndTurn`, and the deterministic Enemy Phase
+executing telegraphs by ascending `enemyId` — including telegraph reconciliation (§4.5): dead
+attacker cancels, empty target tile still fires at the tile, pushed attacker fires from its new
+position only if still in range.
+
+### M7 — Objectives, Grid Power & win/loss
+Add the "protect the grid" layer (§4.7): Buildings sharing a Grid Power meter (default 7) that
+drains when a telegraphed attack hits a building tile, with `GridPower ≤ 0` = immediate loss.
+Wire the per-mission win conditions (Survival / Elimination), the all-units-dead loss, and the
+score → letter-grade model rewarding preserved grid, no losses, and environmental kills (§11).
+
+### M8 — Undo/redo & action history
+Implement the current-turn action history (§4.8): confirmed actions push `(actorId, before,
+after)` snapshots, `Undo` restores the previous `Model` snapshot and moves the entry to a redo
+stack, `Redo` re-applies, `CancelPreview` discards transient previews, and `EndTurn` clears both
+stacks (no undo across the committed Enemy Phase).
+
+### M9 — Missions, waves & campaign
+Author the mission format (§6): the `char[8][8]` terrain legend, the `round → spawns` wave
+schedule spawning at vents, per-mission win conditions, and the 4-mission campaign ramp (First
+Contact → Floodworks → The Foundry → Breachpoint) with its escalating enemy pool, hazards, and
+Grid Power budget.
+
+### M10 — Rendering, HUD & overlays
+Complete the back-to-front draw list (§8): terrain tiles, buildings, player-phase highlights,
+the hatched telegraph / push-arrow danger overlays, unit tokens with HP pips + trait icons,
+selection ring, floating combat text, and the HUD — phase banner, Grid Power meter, unit cards,
+context action bar with Undo/Redo depth, and tile tooltips (§9).
+
+### M11 — Menus, settings & key rebinding (shared game shell)
+Adopt the generic game shell (FS-GG/FS.GG.Rendering#991): main menu (title **Turn-Based
+Tactics** + Start/Config/Exit handing off to Mission Select / Deploy), `Esc` pause routing
+(Resume · Config · Exit to menu), Settings with screen resolution + fullscreen through the
+SkiaViewer + `LogicalCanvas` letterbox seam, and in-game key rebinding of the §3 keyboard
+controls, persisted via `KeymapCodec`. The game provides its name + key→command map + play
+`update`/`view`; the shell provides the rest. No bespoke menu system.
+
+### M12 — Audio
+Wire the SFX + music checklist (§10): select / move / melee / ranged attack, the knockback
+collision clang, drown-fall and lava-sizzle hazard cues, building-hit / Grid-Power-drop alarm,
+the once-per-round telegraph sting, the Enemy-Phase drum, unit death, and mission win / lose
+chords, plus the Player-Phase / Enemy-Phase / Title music beds.
+
+### M13 — Acceptance & determinism
+Land the acceptance harness against the §14 scenarios: reachability + terrain costs, attack
+resolution + cover, push into hazards / walls, telegraph generation + reconciliation, Grid Power
+loss, undo/redo across the turn, and win/loss + grading — plus, because the engine is fully
+deterministic (immutable model, no RNG at runtime beyond the mission seed), a replay of the `Msg`
+sequence yielding an identical final board, Grid Power, and grade (§11, §13).
