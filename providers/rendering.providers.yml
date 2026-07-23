@@ -18,8 +18,8 @@
 # It left "RE-COUPLE at 0.2.0" untouched beside it, because the sed matched only the full
 # `0.2.0-preview.1` token — a self-contradicting line, and the tell that no human wrote it.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# pin-tag: fs-gg-ui-template/v0.18.6
-# pin-contract: fs-gg-ui-template@0.18.6
+# pin-tag: fs-gg-ui-template/v0.18.7
+# pin-contract: fs-gg-ui-template@0.18.7
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 # PIN HISTORY — hand-authored, newest first. The bumper NEVER edits at or below this line; it only
@@ -35,6 +35,10 @@
 #
 #
 #
+# 0.18.7 — 2026-07-23. FS.GG.Rendering#1030 / PR #1032 (merge 4ea58be5; release run
+#   29977189289). TEMPLATE-ONLY PATCH: `--view-image` accepts explicit positive logical dimensions,
+#   records requested versus PNG-header size, and rejects unsafe CPU-raster allocations before
+#   rendering. The framework packages and generated `$(FsGgUiVersion)` remain at 0.18.6.
 # 0.18.6 — 2026-07-23. FS.GG.Rendering#1022 / PR #1028 (merge 8ccb2c0a; release run
 #   29972319057). FRAMEWORK PATCH, COUPLED: `$(FsGgUiVersion)` and the FS.GG.UI.* libraries move
 #   to 0.18.6 with the template pin. The release cut the ordered triple
@@ -160,7 +164,7 @@ providers:
   - name: rendering
     contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.18.6   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
+    source: FS.GG.UI.Template::0.18.7   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
