@@ -44,7 +44,7 @@
 
   <ItemGroup>
     <!-- Version pinned directly (no CPM). Renovate-managed. -->
-    <PackageReference Include="FS.GG.Kit" Version="0.2.2" />
+    <PackageReference Include="FS.GG.Kit" Version="0.2.3" />
   </ItemGroup>
 
 </Project>
