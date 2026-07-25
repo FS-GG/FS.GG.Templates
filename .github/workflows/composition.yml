@@ -104,8 +104,8 @@ jobs:
       # scaffold restores the PRIVATE FS.GG.UI.* closure. A classic PAT is the only credential that
       # reads private GitHub Packages NuGet here.
       #   - Governance CLI (>= 1.1.0, spec-081 consumer; FS.GG.Governance#28): drives the `govern`
-      #     consumer/enforcement matrix. Tolerant — an unreachable feed degrades to an honest SKIP
-      #     (the matrix never false-fails on a missing tool).
+      #     consumer/enforcement matrix. Required: an install failure reports the requested version
+      #     and the tool inventory at the point of failure instead of becoming a later SKIP.
       #   - SDD CLI: puts `fsgg-sdd` on PATH, which flips BOTH the full scaffold+build stage and the
       #     producer seam (`fsgg-sdd ship` emits readiness/<id>/governance-handoff.json) from SKIP to
       #     a hard gate. Required (no `|| true`): if it cannot install we want CI to surface it, not
@@ -118,8 +118,36 @@ jobs:
           dotnet nuget add source \
             --username fs-gg --password "$FEED_TOKEN" --store-password-in-clear-text \
             --name fs-gg-github "https://nuget.pkg.github.com/FS-GG/index.json" || true
-          dotnet tool install --global FS.GG.Governance.Cli || true
-          dotnet tool install --global FS.GG.SDD.Cli
+
+          export PATH="$HOME/.dotnet/tools:$PATH"
+          install_global_tool() {
+            package="$1"
+            command_name="$2"
+            requested_version='latest stable'
+            installed_version="$(dotnet tool list --global |
+              awk -v package="$package" 'tolower($1) == tolower(package) { print $2; exit }')"
+
+            if [ -n "$installed_version" ]; then
+              echo "$package $installed_version is already installed; requested $requested_version."
+            elif dotnet tool install --global "$package"; then
+              installed_version="$(dotnet tool list --global |
+                awk -v package="$package" 'tolower($1) == tolower(package) { print $2; exit }')"
+              echo "Installed $package ${installed_version:-unknown}; requested $requested_version."
+            else
+              install_status="$?"
+              echo "::error title=$package installation failed::Requested version: $requested_version; dotnet tool install exited $install_status. Full diagnostics are above; the global tool inventory follows."
+              dotnet tool list --global || true
+              exit "$install_status"
+            fi
+
+            if ! command -v "$command_name" >/dev/null 2>&1; then
+              echo "::error title=$package unavailable::$package is listed as ${installed_version:-unknown}, but '$command_name' is not available on PATH."
+              exit 1
+            fi
+          }
+
+          install_global_tool FS.GG.Governance.Cli fsgg-governance
+          install_global_tool FS.GG.SDD.Cli fsgg-sdd
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       # FS-GG/.github#7 (Feature 211 parity): locked restore against the committed
       # packages.lock.json. The packaging project has no NuGet dependencies today, so this is a

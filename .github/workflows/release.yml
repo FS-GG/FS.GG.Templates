@@ -115,8 +115,36 @@ jobs:
           dotnet nuget add source \
             --username fs-gg --password "$FEED_TOKEN" --store-password-in-clear-text \
             --name fs-gg-github "https://nuget.pkg.github.com/FS-GG/index.json" || true
-          dotnet tool install --global FS.GG.Governance.Cli || true
-          dotnet tool install --global FS.GG.SDD.Cli
+
+          export PATH="$HOME/.dotnet/tools:$PATH"
+          install_global_tool() {
+            package="$1"
+            command_name="$2"
+            requested_version='latest stable'
+            installed_version="$(dotnet tool list --global |
+              awk -v package="$package" 'tolower($1) == tolower(package) { print $2; exit }')"
+
+            if [ -n "$installed_version" ]; then
+              echo "$package $installed_version is already installed; requested $requested_version."
+            elif dotnet tool install --global "$package"; then
+              installed_version="$(dotnet tool list --global |
+                awk -v package="$package" 'tolower($1) == tolower(package) { print $2; exit }')"
+              echo "Installed $package ${installed_version:-unknown}; requested $requested_version."
+            else
+              install_status="$?"
+              echo "::error title=$package installation failed::Requested version: $requested_version; dotnet tool install exited $install_status. Full diagnostics are above; the global tool inventory follows."
+              dotnet tool list --global || true
+              exit "$install_status"
+            fi
+
+            if ! command -v "$command_name" >/dev/null 2>&1; then
+              echo "::error title=$package unavailable::$package is listed as ${installed_version:-unknown}, but '$command_name' is not available on PATH."
+              exit 1
+            fi
+          }
+
+          install_global_tool FS.GG.Governance.Cli fsgg-governance
+          install_global_tool FS.GG.SDD.Cli fsgg-sdd
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
       # The generated-product gate: install the downloaded archive → instantiate →
