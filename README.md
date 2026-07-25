@@ -5,6 +5,27 @@ Composes the FS.GG components into a ready-to-run workspace: the
 [FS.GG.Rendering](https://github.com/FS-GG/FS.GG.Rendering) app, and
 [FS.GG.Governance](https://github.com/FS-GG/FS.GG.Governance) config.
 
+## NuGet package quickstart
+
+Acquire or update the template package through the standard `dotnet new` flow:
+
+```sh
+dotnet new install FS.GG.Templates
+dotnet new update
+```
+
+Use the packaged `fs-gg-governance` overlay with an existing SDD-managed workspace:
+
+```sh
+dotnet new fs-gg-governance -o ./MyApp --appName MyApp --defaultProfile light
+```
+
+`FS.GG.Templates` is the thin governance/composition package; it does not vendor the
+Rendering runtime or the SDD CLI. Full-stack workspaces are created through `fsgg-sdd
+scaffold` as shown below. The rendering provider pins a compatible
+`FS.GG.UI.Template` release, while `dotnet new update` keeps this independently
+versioned package current.
+
 > **Platform vs. workspace.** FS-GG is a **platform** of independently-owned
 > components; Templates is the **composition component** of it. What you scaffold
 > *with* the platform is a **workspace**: a generated repo with a runnable **app**,

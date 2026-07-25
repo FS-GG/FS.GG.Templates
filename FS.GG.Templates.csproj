@@ -8,7 +8,7 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Templates</PackageId>
-    <Version>0.6.0</Version>
+    <Version>0.6.1</Version>
     <Title>FS.GG project templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new template for composing FS.GG.SDD + Rendering + Governance: fs-gg-governance (Governance config overlay). Full-stack composition happens at scaffold time via `fsgg-sdd scaffold` and the rendering provider descriptor (see README).</Description>
@@ -16,6 +16,7 @@
     <PackageProjectUrl>https://github.com/FS-GG/FS.GG.Templates</PackageProjectUrl>
     <RepositoryUrl>https://github.com/FS-GG/FS.GG.Templates</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
 
     <TargetFramework>net10.0</TargetFramework>
     <IncludeContentInPack>true</IncludeContentInPack>
@@ -45,6 +46,7 @@
 
   <ItemGroup>
     <Content Include="templates/**/*" Exclude="templates/**/bin/**;templates/**/obj/**" />
+    <None Include="README.md" Pack="true" PackagePath="\" />
     <Compile Remove="**/*" />
   </ItemGroup>
 

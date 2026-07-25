@@ -10,3 +10,11 @@ else
 fi
 NUPKG="$(ls -1 "$ARTIFACTS"/FS.GG.Templates.*.nupkg 2>/dev/null | head -1)"
 [[ -f "$NUPKG" ]] && ok "produced $(basename "$NUPKG")" || { bad "no FS.GG.Templates nupkg produced"; exit 1; }
+
+PACKAGE_ENTRIES="$(unzip -Z1 "$NUPKG")"
+if grep -Fxq 'README.md' <<<"$PACKAGE_ENTRIES"; then
+  ok "package contains the NuGet README.md declared by PackageReadmeFile"
+else
+  bad "package is missing root README.md (PackageReadmeFile contract)"
+  exit 1
+fi
