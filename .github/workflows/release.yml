@@ -10,9 +10,10 @@ name: release
 # FS.GG.Templates.csproj, e.g.:
 #   git tag fs-gg-templates/v0.2.0 && git push origin fs-gg-templates/v0.2.0
 #
-# The `gate` job is the release-only safety net: it re-runs the full composition suite and
-# the tag⇔csproj coherence assert, and it FAILS CLOSED — a red gate skips `publish`, so the
-# package can never reach the feed on a broken commit or a mismatched version.
+# The release pipeline restores locked inputs, packs exactly once, checksums that archive, and
+# uploads it as an immutable workflow artifact. The `gate` job runs the full composition suite
+# against those exact downloaded bytes; `publish` independently downloads and verifies the same
+# artifact before sending it to both feeds and the GitHub Release.
 
 on:
   push:
@@ -23,11 +24,12 @@ permissions:
   contents: read
 
 jobs:
-  gate:
+  pack:
     runs-on: ubuntu-latest
+    outputs:
+      package-version: ${{ steps.version.outputs.package-version }}
     permissions:
       contents: read
-      packages: read   # pull the published FS-GG CLIs from the org feed (as composition.yml)
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -39,6 +41,7 @@ jobs:
       # package does not carry (or a hand-edited <Version> could drift from the tag). Fail
       # here before doing any of the expensive work below.
       - name: Assert tag ⇔ csproj version coherence
+        id: version
         run: |
           TAG_VERSION="${GITHUB_REF#refs/tags/fs-gg-templates/v}"
           CSPROJ_VERSION="$(grep -oE '<Version>[0-9][^<]*</Version>' FS.GG.Templates.csproj | head -1 | sed -E 's#</?Version>##g')"
@@ -51,6 +54,56 @@ jobs:
             echo "::error::release tag ($TAG_VERSION) != <Version> in FS.GG.Templates.csproj ($CSPROJ_VERSION). Bump the csproj to match the tag before tagging (publish-before-flip)."
             exit 1
           fi
+          echo "package-version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Restore (locked)
+        run: dotnet restore FS.GG.Templates.csproj --locked-mode
+
+      - name: Pack once and checksum
+        run: |
+          dotnet pack FS.GG.Templates.csproj \
+            -c Release \
+            --no-restore \
+            -p:ContinuousIntegrationBuild=true \
+            -o artifacts
+          (
+            cd artifacts
+            sha256sum FS.GG.Templates.*.nupkg > SHA256SUMS
+            sha256sum --check SHA256SUMS
+          )
+
+      - name: Upload immutable release artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: fs-gg-templates-${{ github.sha }}
+          path: |
+            artifacts/FS.GG.Templates.*.nupkg
+            artifacts/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+
+  gate:
+    needs: pack
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read   # pull the published FS-GG CLIs from the org feed (as composition.yml)
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Download immutable release artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: fs-gg-templates-${{ github.sha }}
+          path: artifacts
+
+      - name: Verify release artifact checksum
+        run: |
+          cd artifacts
+          sha256sum --check SHA256SUMS
 
       # Same authenticated CLI setup as composition.yml so the gated stages ASSERT instead of
       # skipping (never green-by-omission). See composition.yml for why a classic PAT is the
@@ -66,12 +119,11 @@ jobs:
           dotnet tool install --global FS.GG.SDD.Cli
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
-      - name: Restore (locked)
-        run: dotnet restore FS.GG.Templates.csproj --locked-mode
-
-      # The generated-product gate: pack → install → instantiate → scaffold/build → verify
-      # pins/links + governance enforcement. If this is red we do NOT publish.
-      - name: composition test
+      # The generated-product gate: install the downloaded archive → instantiate →
+      # scaffold/build → verify pins/links + governance enforcement.
+      - name: Composition test the release artifact
+        env:
+          FSGG_TEMPLATES_NUPKG: ${{ github.workspace }}/artifacts/FS.GG.Templates.${{ needs.pack.outputs.package-version }}.nupkg
         run: tests/composition/run.sh
 
   publish:
@@ -82,13 +134,20 @@ jobs:
       packages: write   # push the package to the org feed
       id-token: write   # ADR-0013: mint the GitHub OIDC token for nuget.org Trusted Publishing
     steps:
-      - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
 
-      - name: Pack
-        run: dotnet pack FS.GG.Templates.csproj -c Release -o artifacts
+      - name: Download verified release artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: fs-gg-templates-${{ github.sha }}
+          path: artifacts
+
+      - name: Verify release artifact checksum
+        run: |
+          cd artifacts
+          sha256sum --check SHA256SUMS
 
       # Publish to the org GitHub Packages NuGet feed. Publishing THIS repo's own package
       # works with the run-scoped GITHUB_TOKEN (packages: write above) — unlike READING the
