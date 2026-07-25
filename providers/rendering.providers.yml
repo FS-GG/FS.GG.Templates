@@ -21,6 +21,12 @@
 # pin-tag: fs-gg-ui-template/v0.19.0
 # pin-contract: fs-gg-ui-template@0.19.0
 #
+# BEGIN GENERATED: effective-providers
+# Effective providers — generated; ordered by unique provider name.
+# Review this block for the current selection; the release narrative remains in PIN HISTORY.
+# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.19.0 | contract=1.1.0
+# END GENERATED: effective-providers
+#
 # ─────────────────────────────────────────────────────────────────────────────────────────────
 # PIN HISTORY — hand-authored, newest first. The bumper NEVER edits at or below this line; it only
 # inserts a placeholder entry, which the composition test rejects until a human replaces it.

@@ -33,6 +33,16 @@ if grep -Eq '^\s*commands:\s*\[\s*\]' "$APP/.fsgg/tooling.yml";    then bad "too
 
 step "verify — rendering provider pin coherence"
 PROV="$REPO_ROOT/providers/rendering.providers.yml"
+if "$REPO_ROOT/tests/effective-providers/run.sh"; then
+  ok "effective-provider generator forward fixture passes"
+else
+  bad "effective-provider generator forward fixture failed"
+fi
+if "$REPO_ROOT/scripts/generate-effective-providers.py" --provider "$PROV" --check; then
+  ok "effective-provider summary is deterministic, unique, and ordered"
+else
+  bad "effective-provider summary is stale or structurally invalid"
+fi
 PIN_VER="$(read_pin "$PROV" || true)"
 if [[ -n "$PIN_VER" ]]; then
   ok "provider pins FS.GG.UI.Template::$PIN_VER"

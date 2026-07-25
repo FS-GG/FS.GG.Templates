@@ -98,6 +98,11 @@ sed -i -E "\%^# pin-contract:% s#(fs-gg-ui-template@)${OLD_RE}#\1${NEW}#" "$PROV
 sed -i -E "\%currently .FS\.GG\.UI\.Template@% s#(FS\.GG\.UI\.Template@)${OLD_RE}#\1${NEW}#" "$README"
 sed -i -E "\%immutable tag .fs-gg-ui-template/v% s#(fs-gg-ui-template/v)${OLD_RE}#\1${NEW}#" "$README"
 
+# The concise effective-provider view is machine-owned and must move before read_pin verifies the
+# new source below. The generator also validates unique, ordinal provider names before rewriting
+# its bounded block.
+"$ROOT/scripts/generate-effective-providers.py" --provider "$PROV" --write
+
 # Verify, don't assume. Every machine-owned site must carry NEW; the history must be byte-identical.
 [ "$(read_pin "$PROV")" = "$NEW" ]                          || fail "provider source: pin did not move to $NEW"
 grep -qF "# pin-tag: fs-gg-ui-template/v${NEW}" "$PROV"     || fail "provider '# pin-tag:' line did not move to $NEW"
