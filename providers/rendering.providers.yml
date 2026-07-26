@@ -18,13 +18,13 @@
 # It left "RE-COUPLE at 0.2.0" untouched beside it, because the sed matched only the full
 # `0.2.0-preview.1` token — a self-contradicting line, and the tell that no human wrote it.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# pin-tag: fs-gg-ui-template/v0.19.3
-# pin-contract: fs-gg-ui-template@0.19.3
+# pin-tag: fs-gg-ui-template/v0.20.0
+# pin-contract: fs-gg-ui-template@0.20.0
 #
 # BEGIN GENERATED: effective-providers
 # Effective providers — generated; ordered by unique provider name.
 # Review this block for the current selection; the release narrative remains in PIN HISTORY.
-# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.19.3 | contract=1.1.0
+# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.20.0 | contract=1.1.0
 # END GENERATED: effective-providers
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -45,6 +45,12 @@
 #
 #
 #
+#
+# 0.20.0 — 2026-07-26. FS.GG.Rendering#1064 / PR #1065 (merge 327b6bfe; release-tags run
+#   30197339103). FRAMEWORK + TEMPLATE RELEASE: the 17-package `FS.GG.UI.*` coherent set and
+#   `FS.GG.UI.Template` move together to 0.20.0. The release carries the public pointer-pacing
+#   surface and its product-skill/API documentation, and hardens release-window consumers to restore
+#   the exact runner-local coherent set before publication.
 # 0.19.3 — 2026-07-26. FS.GG.Rendering#1060 / PR #1061 (merge 6cd447a9; release run
 #   30189605806). TEMPLATE-ONLY PATCH: generated game products now project one typed
 #   `FS.GG.Contracts` 7.0.0 performance-intent declaration into both SDD-ready YAML and the
@@ -199,7 +205,7 @@ providers:
   - name: rendering
     contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.19.3   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
+    source: FS.GG.UI.Template::0.20.0   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
