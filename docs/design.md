@@ -35,9 +35,12 @@ framework copy**. `providers/rendering.providers.yml` + the
   copy).
 - **SDD** — the lifecycle skeleton (`.fsgg/{project,sdd,agents}.yml` + `work/` +
   `readiness/`), owned by `fsgg-sdd`.
-- **Governance** — the populated `fs-gg-governance` overlay
-  (`.fsgg/{policy,capabilities,tooling}.yml`), dropped in **after** scaffold so it is not
-  flagged as a provider writing into the SDD-owned `.fsgg/` tree.
+- **Governance** — the populated `fs-gg-governance` overlay, derived from the exact
+  published `FS.GG.Governance.ReferenceGateSet` pin recorded beside `template.json`.
+  It carries `.fsgg/{policy,capabilities,tooling,controlled-imports}.…`, including the
+  command-free `gameplay:fr-covered` and `gameplay:production-journey` organization
+  floors, plus the package's root schema manifest. It is dropped in **after** scaffold
+  so it is not flagged as a provider writing into the SDD-owned `.fsgg/` tree.
 
 Because the rendering payload is installed live from its pinned upstream package, there
 is no fork to drift — the `FsGgUiVersion` staleness class (below) is structurally gone.
@@ -48,6 +51,12 @@ is no fork to drift — the `FsGgUiVersion` staleness class (below) is structura
   package** (`FS.GG.Templates.csproj`, `PackageType=Template`). `dotnet new update`
   checks the feed and upgrades to the latest published version. The rendering payload
   updates independently, via the provider's package pin.
+- **Authority drift** — `tests/composition/lib/reference-gate-set-overlay.sh --check`
+  downloads the recorded package version, verifies its archive digest, and compares all
+  governed payload bytes. Only four declared template adaptations are permitted:
+  application-id tokenization, default-profile tokenization, and `.sln` → `.slnx`
+  adaptation in the path map and command strings for the product shape Rendering
+  actually emits.
 
 ## Documentation convention: link the registry, don't restate it
 

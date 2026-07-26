@@ -1,0 +1,13 @@
+{
+  "packageId": "FS.GG.Governance.ReferenceGateSet",
+  "version": "1.5.0",
+  "publicPackageSha256": "a19ca14d780da98299821dd6d4e092eee669165de402baa557ac85e10c69c1db",
+  "sourceRepository": "FS-GG/FS.GG.Governance",
+  "sourceCommit": "9243c07a578c86bbc4f1b1409f56cc1e965d94c0",
+  "allowedTransformations": [
+    "governance.yml:id -> <App>",
+    "policy.yml:defaultProfile -> GOV_DEFAULT_PROFILE",
+    "capabilities.yml:*.sln -> *.slnx",
+    "tooling.yml:<App>.sln -> <App>.slnx"
+  ]
+}

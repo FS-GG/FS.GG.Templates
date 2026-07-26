@@ -77,10 +77,15 @@ It produces:
   lifecycle comes from the SDD skeleton, not a second copy.
 - **SDD** — the lifecycle skeleton: `.fsgg/project.yml`, `.fsgg/sdd.yml`,
   `.fsgg/agents.yml`, `work/`, `readiness/` (drive it with `fsgg-sdd charter …`).
-- **Governance** — the populated reference gate set: `.fsgg/policy.yml`,
-  `.fsgg/capabilities.yml` (build/test/evidence checks), `.fsgg/tooling.yml`
-  (the matching commands). `--defaultProfile` sets the default profile; `light` is the
-  non-blocking inner-loop posture, `strict`/`release` make the block-on-ship gates block.
+- **Governance** — the populated reference gate set from the immutable
+  `FS.GG.Governance.ReferenceGateSet` authority pinned in
+  `templates/fs-gg-governance/.template.config/reference-gate-set.json`:
+  `.fsgg/policy.yml`, `.fsgg/capabilities.yml` (build/test/evidence plus the command-free
+  `gameplay:fr-covered` and `gameplay:production-journey` organization floors),
+  `.fsgg/tooling.yml`, and the controlled-import verifier/manifest. The package's
+  `schema-manifest.json` is emitted beside `.fsgg/`. `--defaultProfile` sets the default
+  profile; `light` is the non-blocking inner-loop posture, while `strict`/`release`
+  enforce block-on-ship gates.
 
 ### Why composition, not a single template
 
@@ -129,7 +134,9 @@ FSGG_COMPOSITION_FULL=1 tests/composition/run.sh   # require the fsgg-sdd scaffo
 
 It packs `FS.GG.Templates`, installs it, instantiates the `fs-gg-governance` overlay, and
 asserts the pins/links: parameter substitution lands, the governance gate set is
-**populated** (not the inert `checks: []`/`commands: []` it used to ship), and the
+**populated** (not the inert `checks: []`/`commands: []` it used to ship), both gameplay
+floors remain command-free, controlled-import/schema payloads execute and materialize, the
+committed overlay matches its exact published authority with only declared template transforms, and the
 `rendering` provider pin is internally coherent (version tag + `lifecycle=sdd` /
 `profile=game`). The full scaffold + `dotnet build` of the live rendering app needs the
 `fsgg-sdd` CLI and a reachable template feed; that stage runs when they are available and
@@ -161,11 +168,14 @@ set straight from the org feed:
 FSGG_COMPOSITION_FULL=1 tests/composition/run.sh # 47/47 — full scaffold/build + skill-union (both lanes) + enforcement
 ```
 
-The org feed is private, so this needs a GitHub token with `read:packages` (baked into the
+The org feed is private, so the full composition lane needs a GitHub token with
+`read:packages` (baked into the
 container's NuGet config — `%GH_TOKEN%`, read at restore time, never stored in an image
 layer). Absent it the gated stages skip with a reason rather than green-passing. Because
 `FS.GG.*` is pinned to the org feed, a stale local snapshot can never shadow the published
 CLIs — that was the old drift class, and the source mapping closes it structurally.
+The governance-overlay drift gate independently downloads its exact public nuget.org pin
+and verifies the recorded archive digest, so it never follows a mutable latest version.
 
 To test an **unpublished** local FS.GG.Rendering build before it reaches the org feed, use
 `scripts/dev-repack-ui-feed.sh` (repacks the pinned `FS.GG.UI.*` set from a Rendering checkout
@@ -194,7 +204,7 @@ Rendering's `fs-gg-ui-template/v<ver>` flow — Templates publishes behind
 then push a matching tag:
 
 ```sh
-git tag fs-gg-templates/v0.2.0 && git push origin fs-gg-templates/v0.2.0
+git tag "fs-gg-templates/v<version>" && git push origin "fs-gg-templates/v<version>"
 ```
 
 The workflow's `gate` job re-runs the composition suite and asserts the tag version equals
