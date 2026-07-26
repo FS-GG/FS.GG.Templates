@@ -18,13 +18,13 @@
 # It left "RE-COUPLE at 0.2.0" untouched beside it, because the sed matched only the full
 # `0.2.0-preview.1` token — a self-contradicting line, and the tell that no human wrote it.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# pin-tag: fs-gg-ui-template/v0.19.1
-# pin-contract: fs-gg-ui-template@0.19.1
+# pin-tag: fs-gg-ui-template/v0.19.2
+# pin-contract: fs-gg-ui-template@0.19.2
 #
 # BEGIN GENERATED: effective-providers
 # Effective providers — generated; ordered by unique provider name.
 # Review this block for the current selection; the release narrative remains in PIN HISTORY.
-# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.19.1 | contract=1.1.0
+# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.19.2 | contract=1.1.0
 # END GENERATED: effective-providers
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -43,6 +43,13 @@
 #
 #
 #
+#
+# 0.19.2 — 2026-07-26. FS.GG.Rendering#1057 / PR #1058 (merge 2a5718da; release run
+#   30187326272). TEMPLATE-ONLY PATCH: required game performance workloads now start as explicit
+#   failing placeholders, and an authored declaration is bound to the real initial-state/message
+#   route digest so changed or ambiguous source fails stale. Linked performance debt preserves only
+#   a failing baseline. `$(FsGgUiVersion)` and the FS.GG.UI.* libraries remain at 0.19.0, while only
+#   FS.GG.UI.Template advances from 0.19.1 to 0.19.2.
 # 0.19.1 — 2026-07-26. FS.GG.Rendering#1054 / PR #1056 (merge db9bc7cf; release run
 #   30184202520). TEMPLATE-ONLY PATCH: the generated product refreshes its platform pins to
 #   FS.GG.Game 0.10.1 and FS.GG.Audio 0.5.0. The UI framework axis does not move:
@@ -184,7 +191,7 @@ providers:
   - name: rendering
     contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.19.1   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
+    source: FS.GG.UI.Template::0.19.2   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
