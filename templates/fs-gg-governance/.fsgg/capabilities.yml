@@ -3,6 +3,7 @@ domains:
   - build
   - test
   - evidence
+  - gameplay
 pathMap:
   - glob: "src/**"
     capability: build
@@ -12,6 +13,8 @@ pathMap:
     capability: test
   - glob: "build.fsx"
     capability: evidence
+  - glob: "specs/**"
+    capability: gameplay
 surfaces:
   - id: public-api
     kind: package
@@ -42,3 +45,22 @@ checks:
     cost: medium
     environment: local-or-ci
     maturity: warn
+  # The per-FR gameplay-obligation gate (epic FS-GG/.github#1190, ADR-0049 / WI-8). Command-unbound
+  # by design: satisfied by per-FR gameplay test evidence in the SDD handoff, not by a local tooling
+  # command — the identical shape the embedded reference floor (Inheritance.referenceChecks) inherits
+  # onto every `game` product. Binds at `block-on-ship`: a non-lowerable floor (WI-8 flip).
+  - id: fr-covered
+    domain: gameplay
+    owner: platform
+    cost: high
+    environment: ci
+    maturity: block-on-ship
+  # Stronger than generic observed gameplay coverage: when SDD classifies a requirement as a
+  # production journey, only a compatible runner-issued boot/input/update receipt satisfies it.
+  # The game profile inherits this organization-owned floor and local products cannot lower it.
+  - id: production-journey
+    domain: gameplay
+    owner: platform
+    cost: high
+    environment: ci
+    maturity: block-on-ship

@@ -5,6 +5,7 @@ domains:
   - build
   - test
   - evidence
+  - gameplay
 packageSurfaces:
   - src
 policyRef: .fsgg/policy.yml
