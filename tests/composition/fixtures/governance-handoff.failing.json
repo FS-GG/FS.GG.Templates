@@ -1,19 +1,20 @@
 {
-  "contractVersion": "1.0.0",
+  "contractVersion": "2.0.0",
   "schemaVersion": 1,
   "evidence": {
     "nodes": [
-      { "id": "build:lib", "state": "failed", "rationale": "composition e2e: forced failing evidence" },
-      { "id": "test:unit", "state": "real" }
+      { "id": "build:lib", "state": "real" },
+      { "id": "test:unit", "state": "failed", "rationale": "composition e2e: forced failing evidence" },
+      { "id": "doc:api", "state": "skipped", "rationale": "no API surface change" }
     ],
-    "dependencies": [ ["test:unit", "build:lib"] ]
+    "dependencies": [ { "dependent": "test:unit", "dependency": "build:lib" } ]
   },
   "readiness": {
-    "shipDisposition": "blocked",
-    "verificationReadiness": "incomplete",
-    "blockingDiagnosticIds": ["COMPOSITION_E2E_BLOCK"],
-    "counts": { "blocking": 1, "advisory": 0 },
-    "perViewState": { "ledger": "stale" }
+    "shipDisposition": "shippable",
+    "verificationReadiness": "complete",
+    "blockingDiagnosticIds": [],
+    "counts": { "blocking": 0, "advisory": 0 },
+    "perViewState": { "ledger": "fresh" }
   },
-  "governedReferences": []
+  "governedReferences": [ { "workItem": "WI-1", "paths": ["src/Ledger.fs"] } ]
 }

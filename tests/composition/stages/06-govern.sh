@@ -22,11 +22,11 @@ step "govern — the governance overlay ENFORCES the SDD handoff (gated)"
 if ! command -v fsgg-governance >/dev/null 2>&1; then
   skip "fsgg-governance CLI not available — the SDD→Governance enforcement loop is not exercised here. Install the Governance CLI to require it. The gate keeps CI honest rather than green-by-omission."
 else
-  # write_handoff <path> <failing|satisfied> — install a contract-v1 governance-handoff.json from
+  # write_handoff <path> <failing|satisfied> — install a contract-v2 governance-handoff.json from
   # the checked-in fixtures (tests/composition/fixtures/governance-handoff.<kind>.json — extracted
   # from inline heredocs in review A3). 'failing' declares a failed evidence node + a non-shippable,
   # blocking readiness block; 'satisfied' declares everything real/ready. Shape per FS.GG.Governance
-  # spec 081 contracts/handoff-document.md (governance-handoff@1.0.0).
+  # governance-handoff@2.0.0.
   write_handoff() {
     local path="$1" kind="$2"; mkdir -p "$(dirname "$path")"
     cp "$FIXTURES/governance-handoff.$kind.json" "$path"
@@ -39,7 +39,7 @@ else
     SHIPPED="$(find "$FULL/readiness" -name governance-handoff.json 2>/dev/null | head -1)"
     if [[ -n "$SHIPPED" ]]; then
       ok "fsgg-sdd ship emitted $(basename "$(dirname "$SHIPPED")")/governance-handoff.json"
-      assert_contains "$SHIPPED" '"contractVersion": "1' "emitted handoff pins governance-handoff contract major 1"
+      assert_contains "$SHIPPED" '"contractVersion": "2' "emitted handoff pins governance-handoff contract major 2"
     else
       skip "fsgg-sdd ship emitted no handoff (no ship-ready work item in a bare scaffold) — producer seam not exercised; the consumer/enforcement matrix below still runs against a contract fixture"
     fi
@@ -48,7 +48,7 @@ else
   fi
 
   # 6b — consumer + enforcement. Instantiate the overlay Templates ships into a fresh product
-  # and run the gate loop over contract-v1 fixtures. Hold the product fixed; vary only
+  # and run the gate loop over contract-v2 fixtures. Hold the product fixed; vary only
   # (handoff, profile). The enforcement signal is the EXIT-CODE differential, only possible if
   # `route` CONSUMES the handoff and the overlay ENFORCES it per profile.
   GOV="$WORKDIR/govern"
