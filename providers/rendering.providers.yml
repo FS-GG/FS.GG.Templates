@@ -46,10 +46,11 @@
 #
 #
 #
-# 0.20.0 — PIN HISTORY ENTRY REQUIRED. Describe what this release changed and why the pin moved: template-only
-#   or a framework bump? which $(FsGgUiVersion) do the FS.GG.UI.* libraries sit at? which Rendering
-#   issue/PR and release run? Delete this notice once written — the composition test fails while it
-#   remains. (Bumped from 0.19.3 by scripts/bump-rendering-pin.sh; a bumper cannot know the story.)
+# 0.20.0 — 2026-07-26. FS.GG.Rendering#1064 / PR #1065 (merge 327b6bfe; release-tags run
+#   30197339103). FRAMEWORK + TEMPLATE RELEASE: the 17-package `FS.GG.UI.*` coherent set and
+#   `FS.GG.UI.Template` move together to 0.20.0. The release carries the public pointer-pacing
+#   surface and its product-skill/API documentation, and hardens release-window consumers to restore
+#   the exact runner-local coherent set before publication.
 # 0.19.3 — 2026-07-26. FS.GG.Rendering#1060 / PR #1061 (merge 6cd447a9; release run
 #   30189605806). TEMPLATE-ONLY PATCH: generated game products now project one typed
 #   `FS.GG.Contracts` 7.0.0 performance-intent declaration into both SDD-ready YAML and the
