@@ -45,10 +45,13 @@
 #
 #
 #
-# 0.19.3 — PIN HISTORY ENTRY REQUIRED. Describe what this release changed and why the pin moved: template-only
-#   or a framework bump? which $(FsGgUiVersion) do the FS.GG.UI.* libraries sit at? which Rendering
-#   issue/PR and release run? Delete this notice once written — the composition test fails while it
-#   remains. (Bumped from 0.19.2 by scripts/bump-rendering-pin.sh; a bumper cannot know the story.)
+# 0.19.3 — 2026-07-26. FS.GG.Rendering#1060 / PR #1061 (merge 6cd447a9; release run
+#   30189605806). TEMPLATE-ONLY PATCH: generated game products now project one typed
+#   `FS.GG.Contracts` 7.0.0 performance-intent declaration into both SDD-ready YAML and the
+#   executable performance-evidence route. Placeholder, duplicate, missing and stale workload
+#   declarations fail closed, and the declared target FPS drives the catch-up threshold.
+#   `$(FsGgUiVersion)` and the FS.GG.UI.* libraries remain at 0.19.0, while only
+#   FS.GG.UI.Template advances from 0.19.2 to 0.19.3.
 # 0.19.2 — 2026-07-26. FS.GG.Rendering#1057 / PR #1058 (merge 2a5718da; release run
 #   30187326272). TEMPLATE-ONLY PATCH: required game performance workloads now start as explicit
 #   failing placeholders, and an authored declaration is bound to the real initial-state/message
