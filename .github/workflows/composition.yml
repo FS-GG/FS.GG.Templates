@@ -185,6 +185,12 @@ jobs:
           # PIN HISTORY block is 200 lines of prose that names this key repeatedly. This walks the
           # `minimumFsggSdd:` block by INDENTATION and ignores comment lines, so a prose mention
           # can never be mistaken for the declaration.
+          #
+          # BOUND, stated rather than left implicit: it returns the FIRST such block in the file.
+          # The descriptor declares exactly one provider (`rendering`) and
+          # scripts/generate-effective-providers.py enforces that provider names are unique and
+          # ordered, so today that is exact. If a second provider ever declares its own floor, this
+          # asserts the first one's — widen it here in the same change.
           read_min_coherent_sdd() {
             awk '
               function indent(s,   n) { n = 0; while (substr(s, n + 1, 1) == " ") n++; return n }
