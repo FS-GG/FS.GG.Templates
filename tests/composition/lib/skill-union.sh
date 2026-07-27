@@ -53,7 +53,7 @@
 # — `git log -S SKILL_ASSERT_REF -- tests/composition/lib/skill-union.sh` (a line number would go stale
 # the moment this comment block changes length, as it did while being written).
 # renovate: datasource=git-refs depName=FS-GG/.github packageName=https://github.com/FS-GG/.github
-SKILL_ASSERT_REF="a476af7ddd37030df4c1d3e86249277b09217134"
+SKILL_ASSERT_REF="fe8261b96a0e9ae0a4b739f4779563988abfc134"
 # FETCH THE BUNDLE, NOT A HAND-WRITTEN DEPENDENCY LIST (#309). This used to be
 #   SKILL_ASSERT_FILES=("skill-union-assert.sh" "lib/args.sh" "lib/roots.sh")
 # fetched out of upstream `scripts/` — a closed set that was correct at the pinned ref and correct
