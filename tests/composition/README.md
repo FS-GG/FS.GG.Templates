@@ -90,7 +90,15 @@ each independently gated and never green-by-omission:
   *hard* prerequisite with #315. Previously `git` was only used by `fetch_skill_assert`'s
   offline fallback, so a git-less host still passed via the `curl` path; now it cannot.
 
-Everything else the gate needs is gated, not preflighted, and skips with a reason.
+Nothing else is preflighted, and the rest do **not** all behave the same way — worth knowing
+before reading a red:
+
+- **`curl`** — used unguarded by `fetch_skill_assert` for the raw-fetch arm. Absent (or blocked),
+  a sibling `../.github` clone still covers it; with neither, the lane **fails**, it does not skip.
+- **`jq`** — the manifest arm sits behind a `command -v jq` check and **skips with a reason**.
+- **`timeout`** — optional. Without it the `git fetch` still runs, just unbounded;
+  `GIT_TERMINAL_PROMPT=0` plus an emptied credential helper removes the one way it hangs forever.
+- **`fsgg-sdd` / `fsgg-governance`** — gated, and skip with a reason (see the table above).
 
 **Offline runs:** clone `FS-GG/.github` as a sibling of this repo —
 
@@ -104,6 +112,8 @@ read the sibling clone at the pinned ref. This is the single most useful thing t
 because without it an offline run now **reds** the `pin` stage where both lanes previously just
 skipped. Note that a `git worktree` checkout is *not* a sibling clone: `../.github` resolves
 relative to the worktree, not to the main checkout.
+
+## Running
 
 ```sh
 tests/composition/run.sh                          # owned stages only; gated stages skip
