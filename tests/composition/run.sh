@@ -57,7 +57,8 @@
 #   run.sh              this orchestrator — sets the run-globals, sources the libs + stages in
 #                       order (they share this shell, so PASS/FAIL and stage vars persist), summarizes.
 #   lib/helpers.sh      PASS/FAIL counters + ok/bad/skip/step/assert_*/installed_template_version.
-#   lib/skill-union.sh  the pinned FS-GG/.github ref + fetch_skill_assert + assert_skill_union.
+#   lib/skill-union.sh  the pinned FS-GG/.github ref + its staleness alarm (#315) +
+#                       fetch_skill_assert + assert_skill_union.
 #   fixtures/*.json     the contract-v1 governance-handoff documents Stage 6b enforces.
 #   stages/NN-*.sh      one file per pipeline stage (sourced, not executed): 01 pack · 02 install ·
 #                       03 instantiate · 04 verify · 05 build · 05b standalone · 06 govern.
@@ -75,7 +76,7 @@ FIXTURES="$COMPOSITION_DIR/fixtures"
 # shellcheck source=tests/composition/lib/helpers.sh
 . "$COMPOSITION_DIR/lib/helpers.sh"           # PASS/FAIL + ok/bad/skip/step/assert_* (A3)
 # shellcheck source=tests/composition/lib/skill-union.sh
-. "$COMPOSITION_DIR/lib/skill-union.sh"       # SKILL_ASSERT_REF + fetch_skill_assert + assert_skill_union (A3)
+. "$COMPOSITION_DIR/lib/skill-union.sh"       # SKILL_ASSERT_REF + the #315 staleness alarm + fetch_skill_assert + assert_skill_union (A3)
 
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/fsgg-composition.XXXXXX")"
 ARTIFACTS="$WORKDIR/artifacts"
@@ -103,6 +104,25 @@ cleanup() {
 trap cleanup EXIT
 
 command -v dotnet >/dev/null || { echo "FATAL: dotnet not on PATH"; exit 2; }
+# `git` joined `dotnet` as a hard prerequisite when the #315 staleness alarm landed: resolving the
+# pinned commit's date uses git in BOTH arms (a sibling clone, or a --depth 1 fetch of that one
+# commit). Preflighted here so a git-less host says so once, instead of surfacing as an
+# unresolvable-ref RED whose message sends the reader looking at network reachability.
+command -v git >/dev/null || { echo "FATAL: git not on PATH (needed to resolve SKILL_ASSERT_REF's commit date — #315)"; exit 2; }
+
+# ── SKILL_ASSERT_REF staleness alarm (#315) ──────────────────────────────────────────────────
+# Runs HERE — once, unconditionally, before any stage — and deliberately not from
+# assert_skill_union. It is a fact about the PIN, not about a scaffolded product, and
+# assert_skill_union is reached only from two GATED stages (05 needs fsgg-sdd plus a successful
+# scaffold and build; 05b needs the pinned template to install and instantiate). Hanging the alarm
+# off those would mean that on any host where both lanes SKIP — the ordinary local dev run — the
+# pin's freshness is never evaluated and the run still reports green. That is the very failure
+# #315 exists to close, rebuilt one level up. Running it at the top also means the verdict is the
+# FIRST thing in the log when the gate reds for this reason, and that the network probe happens
+# once per run rather than once per lane.
+step "pin — the shared skill-union assertion is not frozen (#315)"
+assert_skill_assert_ref_alarm_can_fire "pin"
+assert_skill_assert_ref_fresh "pin"
 
 # Stages run in order in THIS shell (sourced, not executed): each sees the globals the
 # previous set (NUPKG, PIN_VER, FULL, FULL_OK, …) and an `exit` in a stage ends the run.
