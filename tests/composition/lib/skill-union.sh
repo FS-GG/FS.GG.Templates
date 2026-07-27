@@ -39,7 +39,7 @@
 #      whose `byte-identical=` covers a population it never examined — is now a hard red here, in
 #      this repo's own gate, offline, with no dependency on anyone noticing upstream landed something.
 #      It is a SEMANTIC backstop, not a staleness alarm: it is silent on a pin that simply stops
-#      moving, which is this file's actual observed failure mode three times over.
+#      moving, which is this file's actual observed failure mode both times it has happened.
 #   2. assert_skill_assert_ref_fresh (below, #315) FAILS the lane when the pinned commit is older
 #      than SKILL_ASSERT_MAX_AGE_DAYS, and when its date cannot be resolved at all. This is the one
 #      that closes the detection gap the other two leave open; its threshold rationale is next to
@@ -49,7 +49,11 @@
 #      merges the PR and nothing escalates when nobody does; the Dependency Dashboard (#19) lists it
 #      and no schedule reads the dashboard. #310 measured that, and #315 is the answer to its third
 #      acceptance criterion — "if automerge stays off, name the thing that notices." Before #315 the
-#      honest answer was NOTHING, and all three freezes were found by a human weeks later.
+#      honest answer was NOTHING, and both freezes were found by a human weeks later.
+#      A COUNT, since two numbers are in circulation: TWO freezes have been OBSERVED, and they are
+#      the two measured in the threshold block below. #315's title says three because its own table
+#      lists a third row as "not yet observed" — an anticipated freeze, not a recorded one. Say two
+#      and mean two; the case for this alarm does not need the third.
 # A pin whose staleness is loud is a bounded cost. A float whose semantics move silently is not.
 #
 # MACHINE-MAINTAINED. Renovate rewrites exactly ONE token below — the 40-char SHA inside the
@@ -97,7 +101,7 @@ SKILL_ASSERT_REF="fe8261b96a0e9ae0a4b739f4779563988abfc134"
 # fired. Measured from this repo's own history (every commit that rewrote the pin, against each
 # pinned commit's own date):
 #   freeze 1  ab6d9289  pinned 2026-07-02 11:55Z → replaced 2026-07-16 12:22Z  = 14.02d
-#   freeze 2  19500bc8  pinned 2026-07-16 12:19Z → replaced 2026-07-27 02:16Z  = 10.61d
+#   freeze 2  19500bc8  pinned 2026-07-16 12:19Z → replaced 2026-07-27 02:16Z  = 10.58d
 # The comparison below is strictly-greater over a TRUNCATED day count, so the alarm first fires at
 # age >= 15.0d: freeze 1 ended 0.02d after reaching age 14, and freeze 2 never reached it. This
 # alarm is calibrated to catch the NEXT freeze — the one #315 filed before it happened — not to
@@ -109,7 +113,7 @@ SKILL_ASSERT_REF="fe8261b96a0e9ae0a4b739f4779563988abfc134"
 # the arithmetic is already done so the next person does not have to redo it. Truncation plus
 # strictly-greater means a freeze of D days fires only at a threshold <= floor(D) - 1:
 #   catch freeze 1 (14.02d)  -> threshold <= 13
-#   catch freeze 2 (10.61d)  -> threshold <= 9      <- the binding one
+#   catch freeze 2 (10.58d)  -> threshold <= 9      <- the binding one
 #   false red on the worst observed silence (7.94d) -> threshold <= 6
 # So 9 IS THE VALUE THAT CATCHES BOTH FREEZES AND STILL CLEARS THE WORST OBSERVED SILENCE, and it
 # is deliberately not taken yet: it leaves 2.06 days of margin over a SINGLE 7.94d outlier in 43
@@ -123,9 +127,18 @@ SKILL_ASSERT_REF="fe8261b96a0e9ae0a4b739f4779563988abfc134"
 # git-refs manager in .github/renovate.json) and lands within hours. So the margin between healthy
 # and alarming is ~65x, which is what makes a generous threshold cheap rather than toothless.
 #
+# THE OTHER FALSE-RED AXIS, WHICH IS NOT STALENESS AND WILL FIRE FIRST ON A LAPTOP. Everything
+# above weighs the AGE axis. The axis that actually bites locally is RESOLVABILITY: the alarm runs
+# unconditionally from run.sh, so an offline run — or any checkout where $REPO_ROOT/../.github is
+# not a sibling clone, which includes a git worktree — now reds the whole gate at verdict 2, where
+# before both lanes would simply have SKIPPED. That is the intended fail-closed direction and arm
+# (c) of the verdict-2 message names it, but it is a real change in what a local run costs, and it
+# is the one thing here a developer will hit before CI does. The escape is a sibling clone, not a
+# flag: `git clone https://github.com/FS-GG/.github ../.github` makes the whole alarm offline.
+#
 # It is a CONSTANT, not `${SKILL_ASSERT_MAX_AGE_DAYS:-14}`: a threshold that can be raised from the
 # environment is a threshold a red run can be re-run around, and this alarm exists precisely because
-# the last three failures were survivable-looking.
+# both previous failures were survivable-looking.
 SKILL_ASSERT_MAX_AGE_DAYS=14
 # FETCH THE BUNDLE, NOT A HAND-WRITTEN DEPENDENCY LIST (#309). This used to be
 #   SKILL_ASSERT_FILES=("skill-union-assert.sh" "lib/args.sh" "lib/roots.sh")
@@ -213,8 +226,10 @@ fetch_skill_assert() {
 # that retries harder just converts a real outage into a slow one.
 #
 # Memoized by the caller (SKILL_ASSERT_REF_AT), and the memo caches FAILURE too — the "-" sentinel.
-# Two lanes ask per run and the answer cannot move within a run, so without a negative memo a
-# github.com outage costs two 30s timeouts and prints the same failure twice.
+# Today that memo is DEFENSIVE rather than load-bearing: since the alarm moved to run.sh there is
+# exactly ONE real resolution per run. It is kept because the cost of a second caller reappearing
+# is a full repeat of the network arm — with the retry above, up to 2 x 30s — and because a
+# resolution that already failed this run cannot succeed later in it.
 SKILL_ASSERT_REF_AT=""
 # The network arm's transport, factored out so the `timeout` guard is an if/else rather than an
 # array splice: `git fetch` has no timeout of its own, and a hung transport on a REQUIRED check is
@@ -237,17 +252,27 @@ skill_assert_ref_fetch() {
   done
   return 1
 }
+# skill_assert_ref_is_pinned_sha <ref>
+# A PIN THAT IS NOT A 40-HEX SHA IS A FAIL-OPEN, AND IT IS ONE THE RESOLVER CAN BE TALKED INTO.
+# Both of its arms will happily resolve a BRANCH name: `SKILL_ASSERT_REF="main"` reports 0d old
+# forever, `fetch_skill_assert`'s raw URL still serves bytes, and every backstop in this file goes
+# quiet at once. That is not hypothetical — the STALE message below tells a reader under time
+# pressure to "set SKILL_ASSERT_REF to the current FS-GG/.github@main head", and one careless
+# reading of that sentence produces exactly this state. renovate.json's manager already requires
+# [0-9a-f]{40}; so does this. An abbreviated SHA is refused too: it is not what the integrity
+# argument at the top of this file rests on.
+#
+# It is a PURE PREDICATE of its own rather than an inline test inside the resolver, and that is not
+# style. Inlined, the self-demonstration below could only reach it through the resolver — where, on
+# a host with no sibling clone (CI, and any git-worktree checkout), arm (1) fails for a branch name
+# anyway and the demo passes whether or not the guard is there. Hoisted, the demo tests the guard
+# DIRECTLY and the check means the same thing in every environment.
+skill_assert_ref_is_pinned_sha() {
+  [[ "$1" =~ ^[0-9a-f]{40}$ ]]
+}
 skill_assert_ref_committed_at() {
   local ref="$1" allow_net="${2:-1}" at="" scratch
-  # A PIN THAT IS NOT A 40-HEX SHA IS A FAIL-OPEN, AND IT IS ONE THIS FUNCTION CAN BE TALKED INTO.
-  # Both arms below happily resolve a BRANCH name: `SKILL_ASSERT_REF="main"` reports 0d old
-  # forever, `fetch_skill_assert`'s raw URL still serves bytes, and every backstop in this file
-  # goes quiet at once. That is not hypothetical — the STALE message below tells a reader under
-  # time pressure to "set SKILL_ASSERT_REF to the current FS-GG/.github@main head", and one
-  # careless reading of that sentence produces exactly this state. renovate.json's manager already
-  # requires [0-9a-f]{40}; so does this. An abbreviated SHA is refused too: it is not what the
-  # integrity argument at the top of this file rests on.
-  [[ "$ref" =~ ^[0-9a-f]{40}$ ]] || return 1
+  skill_assert_ref_is_pinned_sha "$ref" || return 1
   # (1) sibling clone at the pinned ref. `^{commit}` so a ref that resolves to a non-commit is a
   #     resolution FAILURE rather than a date read off something that is not the pinned commit.
   at="$(git -C "$REPO_ROOT/../.github" show -s --format=%ct "$ref^{commit}" 2>/dev/null)" || at=""
@@ -273,7 +298,7 @@ skill_assert_ref_committed_at() {
 # that is not a date), and one in the FUTURE (clock skew, or a committer date that was written
 # rather than observed — a commit's committer date is attacker-controlled metadata, and a pin
 # dated next month must not be able to buy itself permanent freshness). "Could not look" is never
-# "looked, and fine"; that exact trap is what made all three freezes invisible under a green tick.
+# "looked, and fine"; that exact trap is what made both freezes invisible under a green tick.
 #
 # The comparison is STRICTLY GREATER over a TRUNCATED day count, so the first age that is stale at
 # a threshold of N is N+1 — i.e. 15.0 days at 14. The boundary is pinned in the self-demonstration
@@ -315,10 +340,11 @@ skill_assert_ref_verdict() {
 #   - it proves the alarm fires on a resolution FAILURE, not on a source that answers with a
 #     plausible-but-WRONG date. Nothing here can prove that: at a pinned SHA there is no second
 #     opinion to disagree with.
-#   - the resolver case below runs with the network arm DISABLED, so on a host without a sibling
-#     clone (i.e. CI) it exercises the shape guard and one `git show` against a directory that is
-#     not there. It is a strong check on a developer machine and a weak one in CI. The shape guard
-#     it does exercise everywhere is the fail-open that actually matters.
+#   - every case runs with the network arm DISABLED, so the resolver's NETWORK path is not covered
+#     here at all: a break in skill_assert_ref_fetch shows up as the live pin failing to resolve,
+#     not as this demo reding. That is deliberate — a self-test that phones out on every run is a
+#     flake source on a required check — and it is why the live verdict below is not redundant
+#     with this one.
 assert_skill_assert_ref_alarm_can_fire() {
   local lane="$1" now=1785139673 fails=0 rc out
   # fresh, well inside the window
@@ -333,33 +359,61 @@ assert_skill_assert_ref_alarm_can_fire() {
   # THE TWO OBSERVED FREEZES, AT THE LIVE THRESHOLD — asserted to be MISSED, because at 14 days
   # they are, and the threshold block says so. If someone tightens the threshold to cover them,
   # THIS IS THE LINE THAT FAILS, which is the intended way to find out that the prose above needs
-  # rewriting with it. freeze 1 = 14.02d, freeze 2 = 10.61d, both measured from this repo's own
+  # rewriting with it. freeze 1 = 14.02d, freeze 2 = 10.58d, both measured from this repo's own
   # pin history against each pinned commit's date.
   skill_assert_ref_verdict "$(( now - 1402 * 864 ))" "$now" "$SKILL_ASSERT_MAX_AGE_DAYS" >/dev/null; rc=$?
   [[ "$rc" == 0 ]] || fails=$((fails+1))
-  skill_assert_ref_verdict "$(( now - 1061 * 864 ))" "$now" "$SKILL_ASSERT_MAX_AGE_DAYS" >/dev/null; rc=$?
+  skill_assert_ref_verdict "$(( now - 1058 * 864 ))" "$now" "$SKILL_ASSERT_MAX_AGE_DAYS" >/dev/null; rc=$?
   [[ "$rc" == 0 ]] || fails=$((fails+1))
   # …and they ARE caught at the thresholds the block computes for them (<=13 and <=9), so the
   # alarm is calibrated rather than inert, and those two numbers cannot rot into prose-only claims.
   skill_assert_ref_verdict "$(( now - 1402 * 864 ))" "$now" 13 >/dev/null; rc=$?
   [[ "$rc" == 1 ]] || fails=$((fails+1))
-  skill_assert_ref_verdict "$(( now - 1061 * 864 ))" "$now" 9 >/dev/null; rc=$?
+  skill_assert_ref_verdict "$(( now - 1058 * 864 ))" "$now" 9 >/dev/null; rc=$?
   [[ "$rc" == 1 ]] || fails=$((fails+1))
   # The worst observed upstream SILENCE (7.94d) must NOT red at the live threshold — this is the
   # false-red floor, and it is the constraint that actually chose 14.
   skill_assert_ref_verdict "$(( now - 794 * 864 ))" "$now" "$SKILL_ASSERT_MAX_AGE_DAYS" >/dev/null; rc=$?
   [[ "$rc" == 0 ]] || fails=$((fails+1))
   # UNRESOLVABLE is an error, never a pass: absent, non-numeric, leading-zero, and future-dated.
+  # Each runs in a SUBSHELL because one of these inputs is specifically chosen to blow up a WEAKER
+  # implementation: with a `^[0-9]+$` guard, "0008" reaches (( )) as an invalid octal, and bash
+  # ABORTS THE ENCLOSING LOOP rather than returning — so `rc=$?` would never run, `fails` would
+  # never increment, the future-dated case after it would never execute, and the demo would print a
+  # tick. Containing it means an abort surfaces as a non-2 rc, i.e. as the failure it is.
   local u
   for u in "" "not-a-date" "0008" "$((now + 86400))"; do
-    skill_assert_ref_verdict "$u" "$now" 14 >/dev/null; rc=$?
+    ( skill_assert_ref_verdict "$u" "$now" 14 ) >/dev/null 2>&1; rc=$?
     [[ "$rc" == 2 ]] || fails=$((fails+1))
   done
-  # The resolver refuses what is not a 40-hex SHA — a BRANCH NAME is the fail-open that matters,
-  # because the stale-pin remedy text names `@main` and reads like an invitation to write it here.
-  for u in "main" "fe8261b96a0e" "ffffffffffffffffffffffffffffffffffffffff"; do
-    if skill_assert_ref_committed_at "$u" 0 >/dev/null 2>&1; then fails=$((fails+1)); fi
+  # The pin-shape guard, tested DIRECTLY (not through the resolver — see its docblock for why that
+  # distinction is the difference between a real check and one that only bites where a sibling
+  # clone happens to exist). A BRANCH NAME is the fail-open that matters, because the stale-pin
+  # remedy text names `@main` and reads like an invitation to write it here.
+  for u in "main" "@main" "fe8261b96a0e" "FE8261B96A0E9AE0A4B739F4779563988ABFC134" ""; do
+    if skill_assert_ref_is_pinned_sha "$u"; then fails=$((fails+1)); fi
   done
+  skill_assert_ref_is_pinned_sha "fe8261b96a0e9ae0a4b739f4779563988abfc134" || fails=$((fails+1))
+  # …AND THE RESOLVER HONOURS IT — the step that connects a correct predicate to an actual alarm,
+  # and the one that is easy to test vacuously. Asking the resolver for a branch name where no
+  # sibling clone exists proves nothing: arm (1) fails for want of a repo, not for want of a guard,
+  # so deleting the guard's CALL SITE would still "pass". So point arm (1) at a git repository that
+  # is certain to exist — this checkout — via a scratch REPO_ROOT whose ../.github reaches it, and
+  # ask for "HEAD". HEAD resolves in any checkout, shallow or detached, so WITHOUT the guard the
+  # resolver returns a real date; WITH it, it refuses before touching git. Offline, no network, and
+  # it discriminates in every environment rather than only where a sibling clone happens to be.
+  local probe="$WORKDIR/skill-assert-guard-probe" saved_root="$REPO_ROOT"
+  if mkdir -p "$probe/anchor" 2>/dev/null && ln -sfn "$saved_root" "$probe/.github" 2>/dev/null; then
+    REPO_ROOT="$probe/anchor"
+    if skill_assert_ref_committed_at "HEAD" 0 >/dev/null 2>&1; then fails=$((fails+1)); fi
+    # …and the same probe resolves a real 40-hex SHA, so the arm is live rather than inert — a
+    # probe that can never resolve anything would pass the line above for the wrong reason.
+    local self_sha; self_sha="$(git -C "$saved_root" rev-parse HEAD 2>/dev/null)"
+    if [[ "$self_sha" =~ ^[0-9a-f]{40}$ ]]; then
+      skill_assert_ref_committed_at "$self_sha" 0 >/dev/null 2>&1 || fails=$((fails+1))
+    fi
+    REPO_ROOT="$saved_root"
+  fi
   # THE ASSERTION'S OWN rc → ok/bad MAPPING. Snapshot the counters, force the memo, and require
   # that a stale pin and an unresolvable one each move FAIL. Without this, `2) bad` → `2) ok`
   # passes every check above.
@@ -372,14 +426,14 @@ assert_skill_assert_ref_alarm_can_fire() {
   [[ "$FAIL" == "$((f0 + 2))" ]] || fails=$((fails+1))
   PASS="$p0"; FAIL="$f0"; SKILL_ASSERT_REF_AT="$memo0"
   if (( fails == 0 )); then
-    ok "$lane: the SKILL_ASSERT_REF staleness alarm can FIRE — driven offline through fresh, both sides of the ${SKILL_ASSERT_MAX_AGE_DAYS}d boundary, both observed freezes (14.02d/10.61d: missed at ${SKILL_ASSERT_MAX_AGE_DAYS}d by design, caught at 13d/9d), the 7.94d worst-observed-silence false-red floor, all four unresolvable inputs, three refused pin shapes, and the assertion's own stale/unresolvable → FAIL mapping (#315)"
+    ok "$lane: the SKILL_ASSERT_REF staleness alarm can FIRE — driven offline through fresh, both sides of the ${SKILL_ASSERT_MAX_AGE_DAYS}d boundary, both observed freezes (14.02d/10.58d: missed at ${SKILL_ASSERT_MAX_AGE_DAYS}d by design, caught at 13d/9d), the 7.94d worst-observed-silence false-red floor, all four unresolvable inputs, five refused pin shapes plus one accepted, and the assertion's own stale/unresolvable → FAIL mapping (#315)"
   else
     bad "$lane: the SKILL_ASSERT_REF staleness alarm is BROKEN — $fails of its outcomes did not reproduce, so the pin-freshness verdict below is not evidence of anything. If you just TIGHTENED SKILL_ASSERT_MAX_AGE_DAYS, the two 'observed freeze' cases are the expected failures and the threshold rationale next to the pin must be rewritten with them. Otherwise fix skill_assert_ref_verdict / skill_assert_ref_committed_at / assert_skill_assert_ref_fresh; do NOT delete this self-demonstration (#315)"
   fi
 }
 
 # assert_skill_assert_ref_fresh <lane>
-# THE ALARM (#315). SKILL_ASSERT_REF has frozen three times from three unrelated causes, each fix
+# THE ALARM (#315). SKILL_ASSERT_REF has frozen twice from two unrelated causes, each fix
 # addressed its own cause and left the DETECTION gap untouched, and every one was found by a human
 # tripping over it weeks later. The through-line: the composition gate ran a weeks-old assertion
 # under a green tick. Freezes are only survivable while they are loud, so this is the loudness.
@@ -397,17 +451,17 @@ assert_skill_assert_ref_alarm_can_fire() {
 assert_skill_assert_ref_fresh() {
   local lane="$1" now age rc short="${SKILL_ASSERT_REF:0:12}"
   now="$(date -u +%s)"
-  # "-" is the NEGATIVE memo sentinel: a resolution that already failed this run must not be
-  # retried by the next caller, or a github.com outage costs a 30s timeout per lane.
+  # "-" is the NEGATIVE memo sentinel: a resolution that already failed this run cannot succeed
+  # later in it, so a second caller must not pay the network arm again.
   if [[ -z "$SKILL_ASSERT_REF_AT" ]]; then
     SKILL_ASSERT_REF_AT="$(skill_assert_ref_committed_at "$SKILL_ASSERT_REF" 1)" || SKILL_ASSERT_REF_AT="-"
   fi
   age="$(skill_assert_ref_verdict "$SKILL_ASSERT_REF_AT" "$now" "$SKILL_ASSERT_MAX_AGE_DAYS")"; rc=$?
   case "$rc" in
     0) ok "$lane: SKILL_ASSERT_REF ($short) is ${age}d old, threshold ${SKILL_ASSERT_MAX_AGE_DAYS}d — the pinned assertion this run's verdict rests on is current (#315)" ;;
-    1) bad "$lane: SKILL_ASSERT_REF IS STALE — pinned at $SKILL_ASSERT_REF, committed ${age}d ago, threshold ${SKILL_ASSERT_MAX_AGE_DAYS}d. This run is about to publish a coherence verdict computed by a ${age}-day-old assertion, which is how SKILL_ASSERT_REF froze three times without a gate noticing (#315). BUMP IT: merge the open Renovate PR for FS-GG/.github (it fires; automerge is off org-wide, so a human must merge it — see the Dependency Dashboard, #19), or hand-edit SKILL_ASSERT_REF in tests/composition/lib/skill-union.sh to the current FS-GG/.github@main HEAD COMMIT SHA — a full 40-hex SHA, never the branch name '@main', which this gate refuses precisely because it would report 0d old forever. Do not raise SKILL_ASSERT_MAX_AGE_DAYS just to clear a red. THE ONE EXCEPTION: if upstream genuinely has not moved and the pin ALREADY equals FS-GG/.github@main, there is nothing to bump to and raising the threshold is the correct fix — as a reviewed commit that also updates the rationale next to the pin, which records the longest upstream quiet period this number is derived from." ;;
-    2) bad "$lane: SKILL_ASSERT_REF ($SKILL_ASSERT_REF) could not be RESOLVED to a commit date — neither a sibling FS-GG/.github clone at \$REPO_ROOT/../.github nor a --depth 1 fetch of that commit from github.com produced a usable date. This run FAILS rather than passing: an unreadable age is 'could not look', and 'could not look' is never 'looked, and fine' (epic .github#266) — treating it as a pass is exactly what made all three freezes invisible. In likelihood order: (a) SKILL_ASSERT_REF is not a full 40-hex SHA — a branch name or an abbreviation is REFUSED here by design; (b) git is not on PATH, which this gate now requires and run.sh preflights; (c) github.com git-over-HTTPS is unreachable (note it is a DIFFERENT failure domain from the raw.githubusercontent.com fetch this gate also uses — an egress allowlist can permit one and block the other); (d) the SHA is not a real FS-GG/.github commit, which a bad bump or an upstream force-push can produce." ;;
-    *) bad "$lane: skill_assert_ref_verdict returned an unenumerated code ($rc) for SKILL_ASSERT_REF ($short). This run FAILS rather than falling through: an outcome nobody enumerated is 'could not look', and a case statement with no default arm would have left this run GREEN with no output at all — the exact shape of the three freezes (#315, epic .github#266)." ;;
+    1) bad "$lane: SKILL_ASSERT_REF IS STALE — pinned at $SKILL_ASSERT_REF, committed ${age}d ago, threshold ${SKILL_ASSERT_MAX_AGE_DAYS}d. This run is about to publish a coherence verdict computed by a ${age}-day-old assertion, which is how SKILL_ASSERT_REF froze twice without a gate noticing (#315). BUMP IT: merge the open Renovate PR for FS-GG/.github (it fires; automerge is off org-wide, so a human must merge it — see the Dependency Dashboard, #19), or hand-edit SKILL_ASSERT_REF in tests/composition/lib/skill-union.sh to the current FS-GG/.github@main HEAD COMMIT SHA — a full 40-hex SHA, never the branch name '@main', which this gate refuses precisely because it would report 0d old forever. Do not raise SKILL_ASSERT_MAX_AGE_DAYS just to clear a red. THE ONE EXCEPTION: if upstream genuinely has not moved and the pin ALREADY equals FS-GG/.github@main, there is nothing to bump to and raising the threshold is the correct fix — as a reviewed commit that also updates the rationale next to the pin, which records the longest upstream quiet period this number is derived from." ;;
+    2) bad "$lane: SKILL_ASSERT_REF ($SKILL_ASSERT_REF) could not be RESOLVED to a commit date — neither a sibling FS-GG/.github clone at \$REPO_ROOT/../.github nor a --depth 1 fetch of that commit from github.com produced a usable date. This run FAILS rather than passing: an unreadable age is 'could not look', and 'could not look' is never 'looked, and fine' (epic .github#266) — treating it as a pass is exactly what made both freezes invisible. In likelihood order: (a) SKILL_ASSERT_REF is not a full 40-hex SHA — a branch name or an abbreviation is REFUSED here by design; (b) git is not on PATH, which this gate now requires and run.sh preflights; (c) github.com git-over-HTTPS is unreachable (note it is a DIFFERENT failure domain from the raw.githubusercontent.com fetch this gate also uses — an egress allowlist can permit one and block the other); (d) the SHA is not a real FS-GG/.github commit, which a bad bump or an upstream force-push can produce." ;;
+    *) bad "$lane: skill_assert_ref_verdict returned an unenumerated code ($rc) for SKILL_ASSERT_REF ($short). This run FAILS rather than falling through: an outcome nobody enumerated is 'could not look', and a case statement with no default arm would have left this run GREEN with no output at all — the exact shape of both freezes (#315, epic .github#266)." ;;
   esac
 }
 
