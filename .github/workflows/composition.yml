@@ -183,6 +183,62 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
+  # ── Why there is NO `skill-union-assert.yml` caller in this file (decision, Templates#313) ──
+  #
+  # DECIDED: the generated-product `uses:` caller of
+  # FS-GG/.github/.github/workflows/skill-union-assert.yml is deliberately NOT wired here.
+  # Templates#313 offered "wire it, or record an explicit decision that it is not being wired and
+  # why" — this is that decision. Read it before adding a `uses:` block: the assertion it would add
+  # is ALREADY RUNNING, and adding one would audit a different subject under the same name.
+  #
+  # 1. THE ASSERTION IS WIRED, FOR BOTH LANES, AND HAS BEEN SINCE 2026-07-02. #49 (roadmap T3.2)
+  #    was delivered by PR #51 and closed correctly. It lives in the `composition` job above, not
+  #    in a sibling job: tests/composition/lib/skill-union.sh defines assert_skill_union, and
+  #    stages/05-build.sh calls it for the orchestrated lane (co-tenants fs-gg-sdd-*) and
+  #    stages/05b-standalone.sh for the standalone spec-kit lane (speckit-*). Same authority
+  #    script, not a reimplementation: it runs dist/skill-union-assert.sh — the self-contained
+  #    bundle generated FROM FS-GG/.github scripts/skill-union-assert.sh — fetched
+  #    content-addressed at the pinned SKILL_ASSERT_REF, and upstream's `skill-union-bundle` job
+  #    reds on any drift between the bundle and its source.
+  #
+  # 2. WHY A `uses:` CANNOT AUDIT THIS SUBJECT. skill-union-assert.yml is CHECKOUT-SCOPED: it runs
+  #    actions/checkout of the caller into `caller/` and asserts `caller/${product-path}`. This
+  #    repo's subject is not in the checkout — it is packed → installed → scaffolded → built into a
+  #    temp workdir INSIDE the composition job. A separate `uses:` job gets a clean runner with no
+  #    such tree, and the reusable workflow has no artifact input to receive one. So a `uses:` here
+  #    could only ever name a COMMITTED path — the FS.GG.Rendering `template/base` shape — which is
+  #    a different subject from the scaffolded product #49 is about. The reusable workflow's own
+  #    banner still predicts this repo as its first caller; that prediction was written before the
+  #    subject was built, and it is a plan, not a fact. Correcting it — and the matching paragraph
+  #    in FS-GG/.github docs/coordination/skill-union-assertion.md, which currently states the
+  #    opposite of item 1 above as measured fact — is FS-GG/.github#1643.
+  #
+  # 3. NO SKIP PATH REMAINS, AND THE CHECK REPORTS UNDER A NAMED CONTEXT. The "grep for the failure
+  #    string and skip" shape (ADR-0014 F2, consumer half) that #49 replaced is GONE: PR #51 retired
+  #    the `scaffold.providerWroteSddTree` grep-and-SKIP lockstep (#47), and any scaffold failure is
+  #    now a hard composition failure. An unreachable assertion FAILS its lane rather than skipping
+  #    it (assert_skill_union's fetch arm calls `bad`, never `skip`). The verdict reports under
+  #    `composition`, which is a required status check on main.
+  #
+  # 4. THE TRIGGER IS ARMED OVER THE SCAFFOLD'S INPUTS — no `.github#332`/`#334`/`#880` fail-open.
+  #    Every input to the scaffolded tree is outside the docs-only exemption above and so fires this
+  #    workflow: providers/rendering.providers.yml (the FS.GG.UI.Template pin), templates/**, and
+  #    tests/composition/** (which carries SKILL_ASSERT_REF). Both the template version and the
+  #    assertion ref are PINNED, so neither can move without a commit here — the trigger set is
+  #    complete rather than merely broad.
+  #
+  # 5. THIS IS NOT THIS REPO'S `receives: skill-union` ROW, and nothing here changes the gap count.
+  #    That row is about this repository's OWN committed skill roots and needs a committed-root
+  #    caller (default product-path, ADR-0011's three roots, trigger over those roots, all in ONE
+  #    workflow file). FS.GG.Templates remains one of the open receiver gaps. Two subjects; per
+  #    .github#1504/#628 one green never stands in for the other. Do not bank this as that.
+  #
+  # 6. HOW #313 CONCLUDED OTHERWISE, so the next audit does not repeat it: its evidence was
+  #    `GET /search/code?q=skill-union+repo:FS-GG/FS.GG.Templates` returning 0 hits. That endpoint
+  #    returns 0 for EVERY term in this repository — this repo is not code-search-indexed — so the
+  #    probe cannot distinguish "absent" from "not indexed". A negative existence proof about this
+  #    repo must come from the contents/git API or a clone, never from /search/code.
+  #
   # ── Cross-repo contract-coherence gate ──────────────────────────────────────────────────
   # Adopted per FS-GG/.github#519 (decision: yes, the framework repos call it). The gate lives
   # in FS-GG/.github and is CALLED, never copied — it asserts that the org registry is
