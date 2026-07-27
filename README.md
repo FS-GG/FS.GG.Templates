@@ -154,9 +154,25 @@ in `tests/composition/lib/skill-union.sh`), never `@main` (issue #56): a full-SH
 gate is both deterministic (its semantics can't change under this repo without a reviewable
 pin bump) and integrity-checked (GitHub can't serve different bytes for a SHA — no separate
 content hash needed). Renovate moves the pin against the `main` head like the `FS.GG.UI.*`
-pin. **CI runbook note:** this couples the gate to `raw.githubusercontent.com` reachability
-at that SHA — an outage (or an offline host with no sibling `../.github` clone at the ref)
-**fails the lane by design**, it never green-passes unverified.
+pin. The gate also **alarms on a frozen pin** (#315): before any stage runs it resolves that
+commit's date and reds if it is older than the threshold in `lib/skill-union.sh`, so a pin that
+stops moving can no longer ride along under a green tick.
+
+**CI runbook note:** this couples the gate to **two distinct network dependencies**, and they
+fail independently — an egress allowlist routinely permits one and blocks the other, and
+GitHub tracks them separately on its status page:
+
+1. **`raw.githubusercontent.com`** at the pinned SHA — fetching the shared
+   `skill-union-assert.sh` itself.
+2. **`github.com` git-over-HTTPS** — `git fetch --depth 1` of that one commit, to read its
+   committer date for the staleness alarm. (Deliberately not `api.github.com`, whose
+   unauthenticated 60/hour/IP budget is shared: a required check that reds because someone else
+   spent it would be a worse outage than the staleness it watches for.)
+
+Either being unreachable — or an offline host with no sibling `../.github` clone at the ref —
+**fails the lane by design**; it never green-passes unverified. The same escape hatch covers
+both: `git clone https://github.com/FS-GG/.github ../.github` makes the whole thing offline.
+Both `dotnet` and `git` are hard prerequisites the runner preflights, exiting 2 without them.
 
 On a provisioned container the full path needs no extra setup. `~/.nuget/NuGet/NuGet.Config`
 binds `FS.GG.*` to the published FS.GG org feed (`packageSourceMapping`), and the container
@@ -165,8 +181,12 @@ start. The scaffold then resolves `FS.GG.UI.Template::<pin>` and the coherent `F
 set straight from the org feed:
 
 ```sh
-FSGG_COMPOSITION_FULL=1 tests/composition/run.sh # 47/47 — full scaffold/build + skill-union (both lanes) + enforcement
+FSGG_COMPOSITION_FULL=1 tests/composition/run.sh # full scaffold/build + skill-union (both lanes) + enforcement
 ```
+
+(The run prints its own pass total on its `== summary ==` line; no count is transcribed here.
+This one had already rotted twice — #75 corrected `45/45` to `47/47`, and #321 found `47/47`
+against an actual 76. See [`tests/composition/README.md`](tests/composition/README.md).)
 
 The org feed is private, so the full composition lane needs a GitHub token with
 `read:packages` (baked into the
