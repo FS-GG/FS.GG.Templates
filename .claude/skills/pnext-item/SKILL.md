@@ -90,3 +90,5 @@ scripts/fsgg-coord done <ref> --flip --pr <pr>
 The exact green done stamp, closed issue, `Done` column, released claim, zero pending board writes, and
 fresh board confirmation are completion. If any is missing, repair it before reporting. Clean the
 worktree and branch only after verification. Report the exact stamp and stop; one invocation owns one item.
+
+<!-- DRIFT INJECTED BY FS-GG/.github#1853 TRIAL - the materialize must erase this line. -->
