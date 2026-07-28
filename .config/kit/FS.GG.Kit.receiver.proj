@@ -2,9 +2,11 @@
 
   <!--
     FS.GG.Kit receiver (ADR-0062, .github#1262). This repo is a `coordination-kit` receiver: it holds
-    the shared coordination skills, the `fsgg-coord` client, and the engine tool manifest on disk. It
-    used to take them by byte-copy sync PR (`coordination-propagate`); it now REFERENCES the versioned
-    `FS.GG.Kit` package and MATERIALIZES that kit onto disk from its pin. A hub change reaches this repo
+    the shared coordination skills and the `fsgg-coord` client on disk. It used to take them by
+    byte-copy sync PR (`coordination-propagate`); it now REFERENCES the versioned `FS.GG.Kit` package
+    and MATERIALIZES that kit onto disk from its pin. (It also holds the engine tool manifest the shim
+    execs, `.config/dotnet-tools.json` — but that is OURS, not the kit's, since 0.18.0; see below.)
+    A hub change reaches this repo
     as an ordinary Renovate bump of the pin below, and `kit-materialize.yml` re-runs the materialize on
     that PR — the same shape lockfile-sync uses for packages.lock.json.
 
@@ -13,12 +15,53 @@
 
         dotnet build .config/kit/FS.GG.Kit.receiver.proj -t:FsggKitMaterialize
 
-    The materialized files (skills, scripts/fsgg-coord, .config/dotnet-tools.json) are COMMITTED: the
-    materialize is the write arm that replaces the byte-copy, not a live per-build input, so it does NOT
-    run on every build (FsggKitMaterializeOnBuild=false). The committed bytes are content-addressed and
-    byte-identical to canonical, so `coordination-coherence` stays green.
+    The materialized files (skills, scripts/fsgg-coord) are COMMITTED: the materialize is the write arm
+    that replaces the byte-copy, not a live per-build input, so it does NOT run on every build
+    (FsggKitMaterializeOnBuild=false). The committed bytes are content-addressed and byte-identical to
+    canonical, so `coordination-coherence` stays green.
 
-    ONE RUNTIME ROOT IS NO LONGER AMONG THEM (FS-GG/.github#1676, ADR-0067 §9 phase 4, 2026-07-28). The
+    `.config/dotnet-tools.json` IS NOT AMONG THEM AND HAS NOT BEEN SINCE FS.GG.Kit 0.18.0
+    (FS-GG/.github#1615, ADR-0068). It is THIS REPO'S OWN FILE now: the kit's `kit:` block no longer
+    carries `dist/dotnet/.config/dotnet-tools.json`, the materialize never writes our copy, and
+    `coordination-coherence` no longer grades it — kit members went 9 -> 8. Nothing was lost in the
+    handover, because the file was already tracked here; the kit simply stopped overwriting it. Do not
+    re-add it to the list above on the theory that a kit receiver must hold a kit-shaped manifest.
+
+    WHY IT LEFT THE KIT. The manifest pins the `fs.gg.coord.cli` engine, so an engine version bump was
+    editing HASHED kit content — it staled `registry/repos.lock`, reddened `kit-published-coherence`,
+    and obliged a full kit republish plus a seven-receiver fan-out to move one integer in one JSON file.
+
+    THE ENGINE BUMP IS NOT YET LIVE HERE, so do not read the paragraph above as "Renovate has it".
+    ADR-0068's plan is that Renovate's nuget manager bumps `fs.gg.coord.cli` in each receiver directly
+    (`/(^|/)dotnet-tools\.json$/` is one of its shipped `managerFilePatterns`), but FS-GG/.github's
+    `default.json` still carries a `packageRules` entry matching `.config/dotnet-tools.json` with
+    `enabled: false` — written when the file WAS kit-materialized and a bump here would have been
+    guaranteed-red drift. Until that rule is lifted the delivery path is filed, not working:
+    FS-GG/.github#1798. Bump this file by hand meanwhile.
+
+    WHAT KEEPS US HONEST NOW IS CENTRAL, NOT LOCAL. FS-GG/.github's `repos-audit` engine-manifest sweep
+    (#1615, daily at 08:17 UTC) asserts against every `receives: coordination-kit` repo's ACTUAL TREE
+    that it declares `fs.gg.coord.cli` with a usable version — "a repo that receives the `fsgg-coord`
+    shim can actually run the engine the shim execs". So deleting this file, or dropping the tool entry
+    out of it, is caught centrally within a day rather than silently. That is strictly stronger than
+    what it replaced: the old guarantee was `f(roster)` — the shim and the manifest were both `kit:`
+    rows, so their receiver sets were equal BY CONSTRUCTION — which was blind in exactly the direction
+    that matters, since a receiver that deleted its own copy by hand stayed green forever because
+    nothing ever read its tree. The sweep does NOT grade the engine VERSION; "can run the engine at
+    all" is the invariant, not "runs the newest one".
+
+    AND THIS REPO IS PRECISELY THE CASE THAT SWEEP WAS WRITTEN FOR. FS.GG.Templates and FS.GG.Audio
+    were the TWO repos FS-GG/.github#1077 originally caught holding the `fsgg-coord` shim with NO
+    ENGINE TO EXEC. The manifest used to ride `build-config`, and we deliberately do NOT
+    `receive: build-config` (see below) — so the shim reached us and the engine did not. #1077 fixed
+    that by making the manifest a `coordination-kit` row; #1615 unmade the row, which is why the
+    invariant had to be re-established as a real assertion over our tree. The sweep's subject is every
+    kit receiver rather than every *package* receiver for exactly this reason: narrowing it would carve
+    #1077's two original victims back out of the check written to replace it. If a future change here
+    makes this file disappear, #1077 recurs in this repo first.
+
+    ONE RUNTIME ROOT IS NO LONGER AMONG THE MATERIALIZED FILES EITHER (FS-GG/.github#1676, ADR-0067 §9
+    phase 4, 2026-07-28), for an unrelated reason — this one is about skills, not the manifest. The
     skills are materialized and committed at `.claude/skills` ONLY. `.agents/skills` is a VIEW root: it
     is still in the runtime contract and both runtimes still load it, but it is git-ignored and
     RESOLVED from `.claude/skills` at checkout instead of being a second committed copy of the same
