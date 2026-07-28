@@ -77,6 +77,8 @@ FIXTURES="$COMPOSITION_DIR/fixtures"
 . "$COMPOSITION_DIR/lib/helpers.sh"           # PASS/FAIL + ok/bad/skip/step/assert_* (A3)
 # shellcheck source=tests/composition/lib/skill-union.sh
 . "$COMPOSITION_DIR/lib/skill-union.sh"       # SKILL_ASSERT_REF + the #315 staleness alarm + fetch_skill_assert + assert_skill_union (A3)
+# shellcheck source=tests/composition/lib/skill-view-roots.sh
+. "$COMPOSITION_DIR/lib/skill-view-roots.sh"  # THIS repo's runtime root set, after the .github#1676 view-root retirement
 
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/fsgg-composition.XXXXXX")"
 ARTIFACTS="$WORKDIR/artifacts"
@@ -123,6 +125,19 @@ command -v git >/dev/null || { echo "FATAL: git not on PATH (needed to resolve S
 step "pin — the shared skill-union assertion is not frozen (#315)"
 assert_skill_assert_ref_alarm_can_fire "pin"
 assert_skill_assert_ref_fresh "pin"
+
+# ── THIS REPO's runtime skill-root set (FS-GG/.github#1676, ADR-0067 §9 phase 4) ─────────────
+# Here for the same reason the alarm above is: it is a fact about THIS REPOSITORY, not about a
+# scaffolded product, so hanging it off a gated stage would leave it unevaluated on exactly the
+# ordinary local run where both lanes skip. Offline and arithmetic — it reads two elements out of
+# this repo's own receiver project and costs nothing.
+#
+# It is the replacement alarm for a check the #1676 retirement legitimately gave up: `.agents/skills`
+# is a generated VIEW now, so no kit gate reds when it leaves this repo's runtime contract. See
+# lib/skill-view-roots.sh's header for which two gates go quiet and why.
+step "roots — this repo's runtime skill-root set is still ADR-0011's two (.github#1676)"
+assert_runtime_roots_can_fire "roots"
+assert_runtime_roots "roots"
 
 # Stages run in order in THIS shell (sourced, not executed): each sees the globals the
 # previous set (NUPKG, PIN_VER, FULL, FULL_OK, …) and an `exit` in a stage ends the run.
