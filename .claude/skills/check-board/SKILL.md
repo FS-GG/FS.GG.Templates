@@ -46,5 +46,3 @@ For rare edge cases, REST recipes, and the incident rationale behind the boundar
 
 Report mechanical changes, queued/failed writes, judgement findings, and the fresh post-apply result.
 If planning follows, use only that final result.
-
-<!-- DRIFT INJECTED to exercise .github#1853 leg 1; the materialize must remove this. -->
