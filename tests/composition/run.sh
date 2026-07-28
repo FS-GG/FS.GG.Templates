@@ -77,8 +77,6 @@ FIXTURES="$COMPOSITION_DIR/fixtures"
 . "$COMPOSITION_DIR/lib/helpers.sh"           # PASS/FAIL + ok/bad/skip/step/assert_* (A3)
 # shellcheck source=tests/composition/lib/skill-union.sh
 . "$COMPOSITION_DIR/lib/skill-union.sh"       # SKILL_ASSERT_REF + the #315 staleness alarm + fetch_skill_assert + assert_skill_union (A3)
-# shellcheck source=tests/composition/lib/skill-view-roots.sh
-. "$COMPOSITION_DIR/lib/skill-view-roots.sh"  # THIS repo's runtime root set, after the .github#1676 view-root retirement
 
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/fsgg-composition.XXXXXX")"
 ARTIFACTS="$WORKDIR/artifacts"
@@ -126,18 +124,68 @@ step "pin — the shared skill-union assertion is not frozen (#315)"
 assert_skill_assert_ref_alarm_can_fire "pin"
 assert_skill_assert_ref_fresh "pin"
 
-# ── THIS REPO's runtime skill-root set (FS-GG/.github#1676, ADR-0067 §9 phase 4) ─────────────
+# ── THIS REPO's runtime skill-root set (FS-GG/.github#1676, ADR-0067 §8/§9 phase 4) ──────────
 # Here for the same reason the alarm above is: it is a fact about THIS REPOSITORY, not about a
 # scaffolded product, so hanging it off a gated stage would leave it unevaluated on exactly the
-# ordinary local run where both lanes skip. Offline and arithmetic — it reads two elements out of
-# this repo's own receiver project and costs nothing.
+# ordinary local run where both lanes skip. Offline — it reads this repo's own receiver project
+# and its own working tree, and costs no network.
 #
-# It is the replacement alarm for a check the #1676 retirement legitimately gave up: `.agents/skills`
-# is a generated VIEW now, so no kit gate reds when it leaves this repo's runtime contract. See
-# lib/skill-view-roots.sh's header for which two gates go quiet and why.
-step "roots — this repo's runtime skill-root set is still ADR-0011's two (.github#1676)"
-assert_runtime_roots_can_fire "roots"
-assert_runtime_roots "roots"
+# THIS USED TO BE `lib/skill-view-roots.sh`, 10,798 BYTES OF THIS REPO'S OWN (FS-GG/.github#1710).
+# Seven receivers retired their second committed skill root, ADR-0067 §8 obliged each to replace the
+# loud failure it removed, and seven of them hand-wrote the same alarm on the same day — 23,050 to
+# 10,798 bytes, a 55% spread over one invariant. The delivery seam already existed:
+# `scripts/skill-view` is a kit-delivered file (a `kit:` row in the hub's registry/repos.yml), so the
+# assertion now lives THERE and this repo calls it. One implementation, one place to fix, and the
+# can-fire demonstration ships with it.
+#
+# ADOPTING IT FIXED THIS REPO'S OWN DEFECT BY CONSTRUCTION rather than by repair
+# (FS.GG.Templates#324). The old file graded the DECLARATION well and had **no view-resolution lane
+# at all** — a dangling `.agents/skills`, a plain text file where the directory belongs, and a
+# partial view were ALL unobserved by the required `composition` check, which is exactly the silent
+# class ADR-0067 §8 exists to make loud. Repairing a file that was about to be deleted would have
+# been waste; the kit's implementation covers all three, and grades a partial view PER SKILL rather
+# than by the directory COUNT every hand-copy used.
+#
+# WHY AN ABSENT VIEW ROOT IS GREEN HERE, MEASURED ON THIS REPO RATHER THAN INHERITED. `composition`
+# runs on a bare `actions/checkout` that never materializes and never generates, so an unpopulated
+# `.agents/skills` is the NORMAL state of this job and reddening it would fire on every green build.
+# What covers absence instead is the MATERIALIZE path, and on this repo that is NOT a required
+# context — measured 2026-07-28:
+#
+#   * `gh api repos/FS-GG/FS.GG.Templates/branches/main/protection`
+#       contexts: ["kit / coordination-kit", "composition"]     enforce_admins: true
+#   * NEITHER runs `-t:FsggKitMaterialize`. `kit / coordination-kit` runs `coordination-sync --check
+#     --against-pin`, which grades `<FsggKitSkillRoots>` bytes ONLY (.github#1584) and is green on a
+#     tree with the view root gone. The only job that materializes is `kit-materialize.yml`, which is
+#     renovate-gated and NOT required.
+#   * So absence is caught on every kit bump PR and every local `dotnet build … -t:FsggKitMaterialize`,
+#     where `FsggKitCheckSkillView` reds — but NOT on an ordinary PR.
+#
+# That is FS.GG.Audio's posture, not FS.GG.Game's, and the difference is why #324 said to measure it
+# here rather than assume Game's answer transfers. It does not.
+step "roots — this repo's runtime skill-root set and its generated view (.github#1710)"
+
+# The demonstration that every lane CAN FIRE ships inside the tool, so this repo runs the same one
+# the hub does rather than a copy of it. It is offline and takes about a second.
+if bash "$REPO_ROOT/scripts/skill-view" selftest >"$WORKDIR/skill-view-selftest.log" 2>&1; then
+  ok "roots: the skill-root alarm demonstrates every lane can fire ($(grep -oE '[0-9]+ passed' "$WORKDIR/skill-view-selftest.log" | head -1))"
+else
+  bad "roots: scripts/skill-view selftest FAILED — a lane of the alarm cannot fire, or fires with the wrong class. A gate that cannot fire is not a gate (.github#1611 category D). See $WORKDIR/skill-view-selftest.log"
+  sed 's/^/      | /' "$WORKDIR/skill-view-selftest.log"
+fi
+
+if bash "$REPO_ROOT/scripts/skill-view" check \
+     --tree "$REPO_ROOT" \
+     --source "$REPO_ROOT/.claude/skills" \
+     --receiver-proj "$REPO_ROOT/.config/kit/FS.GG.Kit.receiver.proj" \
+     --absent-ok "the required 'composition' job runs on a bare checkout that never materializes, so an ungenerated view is its normal state; absence is caught on the materialize path instead — measured above, and NOT on any required context here" \
+     >"$WORKDIR/skill-view-check.log" 2>&1; then
+  ok "roots: the runtime skill-root declaration and the generated view both hold"
+  sed -n 's/^  /      /p' "$WORKDIR/skill-view-check.log"
+else
+  bad "roots: scripts/skill-view check FAILED — this repo's runtime skill-root contract is broken. See the classes named below (ADR-0067 §8)."
+  sed 's/^/      | /' "$WORKDIR/skill-view-check.log"
+fi
 
 # Stages run in order in THIS shell (sourced, not executed): each sees the globals the
 # previous set (NUPKG, PIN_VER, FULL, FULL_OK, …) and an `exit` in a stage ends the run.
