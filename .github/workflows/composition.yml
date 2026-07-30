@@ -413,7 +413,7 @@ jobs:
   #
   # 5. THIS IS NOT THIS REPO'S `receives: skill-union` ROW, and nothing here changes the gap count.
   #    That row is about this repository's OWN committed skill roots and needs a committed-root
-  #    caller (default product-path, ADR-0011's three roots, trigger over those roots, all in ONE
+  #    caller (default product-path, ADR-0065's two roots, trigger over those roots, all in ONE
   #    workflow file). FS.GG.Templates remains one of the open receiver gaps. Two subjects; per
   #    .github#1504/#628 one green never stands in for the other. Do not bank this as that.
   #

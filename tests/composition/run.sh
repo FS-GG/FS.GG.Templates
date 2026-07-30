@@ -24,7 +24,7 @@
 #
 # Skill-union assertion (ADR-0014 P3.T3.2 — FS-GG/FS.GG.Templates#49): in BOTH lanes —
 # orchestrated (fsgg-sdd scaffold, Stage 5) and standalone (direct `dotnet new fs-gg-ui`
-# spec-kit, Stage 5b) — the three agent-skill roots (.claude/.codex/.agents skills) must be
+# spec-kit, Stage 5b) — the two agent-skill roots (.claude/.agents skills) must be
 # the BYTE-IDENTICAL UNION of process + product skills. This is asserted end-to-end by the ONE
 # reusable P3.G3.1 script (FS-GG/.github scripts/skill-union-assert.sh): cross-root identity via
 # `--product` (checks 1–2), and the producer manifest (.agents/skills/skill-manifest.json,

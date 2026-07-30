@@ -67,7 +67,7 @@
 # — `git log -S SKILL_ASSERT_REF -- tests/composition/lib/skill-union.sh` (a line number would go stale
 # the moment this comment block changes length, as it did while being written).
 # renovate: datasource=git-refs depName=FS-GG/.github packageName=https://github.com/FS-GG/.github
-SKILL_ASSERT_REF="fe8261b96a0e9ae0a4b739f4779563988abfc134"
+SKILL_ASSERT_REF="391cc6de5e910c4cca88c2a8a67ed09909b64918"
 # ── THE STALENESS THRESHOLD, AND WHY IT IS 14 DAYS (#315) ────────────────────────────────────
 # This sits here, immediately under the pin, because a threshold recorded anywhere else is a fact
 # in a place that cannot execute it — the drift class .github#1611 catalogued as category C. The
@@ -536,7 +536,7 @@ assert_skill_union() {
   fi
   # (a) consumer arm — checks 1–2 (present-in-each-root ∧ byte-identical-across-roots).
   if "$SKILL_ASSERT" --product "$prod" >"$WORKDIR/skill-union.$lane.log" 2>&1; then
-    ok "$lane: the three agent-skill roots are the byte-identical union (P3.G3.1: present-in-each-root ∧ byte-identical-across-roots)"
+    ok "$lane: the two agent-skill roots are the byte-identical union (P3.G3.1: present-in-each-root ∧ byte-identical-across-roots)"
   else
     bad "$lane: agent-skill roots are NOT the byte-identical union (see below)"
     sed 's/^/  | /' "$WORKDIR/skill-union.$lane.log" 2>/dev/null

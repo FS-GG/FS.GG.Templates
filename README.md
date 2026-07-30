@@ -71,8 +71,8 @@ It produces:
 
 - **Rendering** — the FS.GG.Rendering `fs-gg-ui` app (Skia/OpenGL, Elmish/MVU, Scene,
   SkiaViewer, Controls), installed live from the published `FS.GG.UI.Template` package
-  pinned by the provider (currently `FS.GG.UI.Template@0.22.0`, behind the
-  immutable tag `fs-gg-ui-template/v0.22.0`). The provider passes
+  pinned by the provider (currently `FS.GG.UI.Template@0.25.1`, behind the
+  immutable tag `fs-gg-ui-template/v0.25.1`). The provider passes
   `lifecycle=sdd` so the workspace carries **only the runnable app** — the `.fsgg/`
   lifecycle comes from the SDD skeleton, not a second copy.
 - **SDD** — the lifecycle skeleton: `.fsgg/project.yml`, `.fsgg/sdd.yml`,
@@ -144,7 +144,7 @@ otherwise **skips with a reason** (it never green-passes by omission).
 
 In both composition lanes — orchestrated (`fsgg-sdd scaffold`) and standalone (direct
 `dotnet new fs-gg-ui`, spec-kit) — the gate asserts the **skill-union invariant** (ADR-0014,
-issue #49): the three agent-skill roots (`.claude`/`.codex`/`.agents` `skills/`) are the
+issue #49): the two agent-skill roots (`.claude`/`.agents` `skills/`) are the
 byte-identical union of process + product skills (via the reusable FS-GG/.github
 `skill-union-assert.sh`), every materialized manifest-declared skill matches its
 canonical-body sha256, and nothing undeclared ships (dangling fails).
