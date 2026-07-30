@@ -1,0 +1,38 @@
+# skill-view-check — grade receiver generation and source completeness.
+#
+# This receiver generates `.agents/skills` before `FsggKitCheckSkillView` runs. That generate is
+# unconditional and authorised by the declared `<FsggKitViewSkillRoots>` property, not by observing
+# a missing directory; `FsggTemplatesGenerateSkillView` must remain that way.
+#
+# Consequently, on this per-PR path `[absent-root]` and `[dangling-root]` are repaired before the
+# assertion, while a `[text-file-root]` reds through `skill-view generate` refusing to replace it.
+# None is an assertion verdict here. FS.GG.Kit's `verify-package.sh` is the mutation-proven fixture
+# path for those three §8 absence classes (FS-GG/.github#1869).
+name: skill-view-check
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  skill-view-check:
+    name: skill-view-check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Assert generation succeeds and every source skill is visible at each declared root
+        run: |
+          dotnet restore .config/kit/FS.GG.Kit.receiver.proj
+          dotnet build .config/kit/FS.GG.Kit.receiver.proj --no-restore \
+            -t:FsggKitCheckSkillView
+          bash scripts/skill-view check \
+            --source .claude/skills \
+            --tree . \
+            --receiver-proj .config/kit/FS.GG.Kit.receiver.proj
