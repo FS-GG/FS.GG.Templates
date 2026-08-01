@@ -41,18 +41,22 @@ The measurement was made on 2026-08-01 on Linux x64:
 The generated workspace must use an npm lockfile and pin the selected package,
 not a range or `latest`.
 
-## Result: compiler boundary passes; browser route remains unqualified
+## Result: restore passes; Fable compilation blocks the browser route
 
 The initial interpretation of the client nuspec was wrong: its unbracketed
 `Fable.Core` 3.1.5 dependency is an inclusive NuGet minimum, not an exact pin.
 An isolated clean restore with direct `Fable.Core` 5.2.0 and
 `Fable.Remoting.Client` 8.0.0 resolved `Fable.Core/5.2.0` in
-`obj/project.assets.json`. The Fable 5.13.0 dotnet tool then compiled that
-restored F# project successfully. This proves the candidate compiles and must
-not be rejected on a fictional transitive downgrade.
+`obj/project.assets.json`; it must not be rejected on a fictional transitive
+downgrade. The actual Fable 5.13.0 compilation then fails in the transitive
+`Fable.Remoting.MsgPack` 2.0.0 source with seven inline-accessibility errors,
+including `Write.fs(565,8): ... write64bitNumber ... marked inline ... internal
+or private function ... not sufficiently accessible`. The focused executable
+harness reproduces this with `--noCache` from a clean temporary directory.
 
-This is still **not qualified for template baseline**: the required ASP.NET
-Core/Fable browser transport route has not yet been executed. It does not claim
+This is **not qualified for template baseline**: the Fable client cannot compile
+with this candidate, so the required ASP.NET Core/Fable browser transport route
+cannot be executed. It does not claim
 a successful browser startup, production publish, bundle size, or
 Fable.Remoting/SignalR exchange. These are deliberately recorded as unmeasured
 rather than inferred:
