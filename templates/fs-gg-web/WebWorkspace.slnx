@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Server/WebWorkspace.Server.fsproj" />
+  <Project Path="Server.Tests/WebWorkspace.Server.Tests.fsproj" />
+</Solution>

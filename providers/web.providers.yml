@@ -1,0 +1,14 @@
+schemaVersion: 1
+providers:
+  - name: web
+    contractVersion: "1.1.0"
+    templateId: fs-gg-web
+    # This intended release pin is not an activation lead; FS.GG.Templates#349 publishes and independently verifies it.
+    source: FS.GG.Workspace.Template::0.8.0
+    nameParameter: productName
+    identifierParameter: rootNamespace
+    parameters:
+      - key: productName
+        required: true
+      - key: rootNamespace
+        required: true

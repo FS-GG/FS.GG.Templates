@@ -197,6 +197,16 @@ fi
 . "$COMPOSITION_DIR/stages/05b-standalone.sh"
 . "$COMPOSITION_DIR/stages/06-govern.sh"
 
+# The neutral web workspace is a first-class packaged template. Its isolated lane performs the
+# complete generated root lifecycle (including observed TRX/JUnit evidence), so a green required
+# composition check cannot merely prove that the descriptor happens to pack.
+step "web — clean generated workspace lifecycle"
+if bash "$COMPOSITION_DIR/web/run.sh"; then
+  ok "web template clean lifecycle passes"
+else
+  bad "web template clean lifecycle failed"
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 printf '\n\033[1m== summary ==\033[0m  \033[32m%d passed\033[0m, \033[31m%d failed\033[0m\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
