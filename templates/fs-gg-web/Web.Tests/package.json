@@ -1,0 +1,12 @@
+{
+  "name": "webworkspace-web-tests",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "test": "tsx --test *.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "4.20.5"
+  }
+}

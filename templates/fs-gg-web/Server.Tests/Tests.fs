@@ -1,6 +1,6 @@
-namespace WebWorkspace.Server.Tests
+namespace WebWorkspaceNamespace.Server.Tests
 
-open WebWorkspace.Server
+open WebWorkspaceNamespace.Server
 open Xunit
 
 type MessageTests() =

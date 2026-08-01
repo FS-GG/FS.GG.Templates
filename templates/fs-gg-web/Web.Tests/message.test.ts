@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { loadMessage } from "../src/api.ts";
+import { loadMessage } from "../Web/src/api.ts";
 
 test("loadMessage requests the JSON endpoint and returns its payload", async () => {
   let requested = "";

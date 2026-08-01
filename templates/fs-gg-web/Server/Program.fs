@@ -1,4 +1,4 @@
-namespace WebWorkspace.Server
+namespace WebWorkspaceNamespace.Server
 
 open System
 open Microsoft.AspNetCore.Builder

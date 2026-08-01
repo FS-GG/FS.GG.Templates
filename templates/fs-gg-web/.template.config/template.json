@@ -5,20 +5,50 @@
   "identity": "FS.GG.Workspace.Template.Web",
   "name": "FS.GG neutral F# + TypeScript web workspace",
   "shortName": "fs-gg-web",
-  "sourceName": "WebWorkspace",
   "preferNameDirectory": true,
   "symbols": {
     "productName": {
       "type": "parameter",
       "datatype": "text",
-      "defaultValue": "WebWorkspace",
-      "replaces": "WebWorkspace"
+      "defaultValue": "",
+      "description": "Raw product name used in paths and display text. When omitted, --name supplies it."
+    },
+    "productNameTrimmed": {
+      "type": "generated",
+      "generator": "regex",
+      "dataType": "string",
+      "parameters": { "source": "productName", "steps": [ { "regex": "^\\s+|\\s+$", "replacement": "" } ] }
+    },
+    "effectiveName": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": { "sourceVariableName": "productNameTrimmed", "fallbackVariableName": "name" },
+      "replaces": "WebWorkspace",
+      "fileRename": "WebWorkspace"
+    },
+    "effectiveNameLower": {
+      "type": "generated",
+      "generator": "casing",
+      "parameters": { "source": "effectiveName", "toLower": true },
+      "replaces": "webworkspace"
     },
     "rootNamespace": {
       "type": "parameter",
       "datatype": "text",
-      "defaultValue": "WebWorkspace",
-      "replaces": "WebWorkspace"
+      "defaultValue": "",
+      "description": "Optional valid F# identifier supplied by an SDD provider."
+    },
+    "rootNamespaceTrimmed": {
+      "type": "generated",
+      "generator": "regex",
+      "dataType": "string",
+      "parameters": { "source": "rootNamespace", "steps": [ { "regex": "^\\s+|\\s+$", "replacement": "" } ] }
+    },
+    "effectiveIdentifier": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": { "sourceVariableName": "rootNamespaceTrimmed", "fallbackVariableName": "effectiveName" },
+      "replaces": "WebWorkspaceNamespace"
     }
   }
 }
