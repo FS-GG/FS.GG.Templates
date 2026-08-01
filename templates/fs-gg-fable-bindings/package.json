@@ -1,6 +1,20 @@
 {
-  "name": "bindingsproduct-workspace", "private": true, "version": "0.0.0", "type": "module",
+  "name": "bindingsproduct-workspace",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
   "engines": { "node": "26.5.0", "npm": "12.0.1" },
-  "dependencies": { "NpmPackage": "NpmVersion" },
-  "scripts": { "check:drift": "node scripts/check-drift.mjs", "generate:candidate": "node scripts/generate-candidate.mjs", "test:node": "node runtime/node/smoke.mjs", "test:browser": "node runtime/browser/smoke.mjs" }
+  "dependencies": {
+    "@babylonjs/core": "9.19.0",
+    "@babylonjs/loaders": "9.19.0"
+  },
+  "devDependencies": { "typescript": "5.9.3" },
+  "scripts": {
+    "lock:declarations": "node scripts/lock-declarations.mjs --write",
+    "check:drift": "node scripts/lock-declarations.mjs --check",
+    "test:runtime": "node runtime/node/smoke.mjs",
+    "generate:candidate": "node scripts/generate-candidate.mjs",
+    "test:browser": "chromium --headless --no-sandbox --disable-gpu --virtual-time-budget=3000 --dump-dom http://127.0.0.1:4173/runtime/browser/",
+    "doctor": "node scripts/doctor.mjs"
+  }
 }
