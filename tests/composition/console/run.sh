@@ -20,13 +20,17 @@ test ! -e "$WORK/clean/.fsgg"
 (
   cd "$WORK/clean"
   dotnet restore SignalConsole.slnx --locked-mode
-  dotnet build SignalConsole.slnx --no-restore
-  dotnet run --project tests/SignalConsole.Tests --no-build
+  dotnet fsi build.fsx build
+  dotnet fsi build.fsx test
 
   stdout="$(dotnet run --project src/SignalConsole --no-build -- hello console)"
   test "$stdout" = "hello console"
   if dotnet run --project src/SignalConsole --no-build -- --fail >"$WORK/fail.out" 2>"$WORK/fail.err"; then
     echo "--fail unexpectedly succeeded" >&2
+    exit 1
+  fi
+  if timeout --preserve-status -s INT 2 dotnet run --project src/SignalConsole --no-build -- --wait >"$WORK/wait.out" 2>"$WORK/wait.err"; then
+    echo "--wait unexpectedly completed without cancellation" >&2
     exit 1
   fi
 )
@@ -35,6 +39,7 @@ if [ ! -s "$WORK/fail.err" ]; then
   exit 1
 fi
 grep -Fxq "requested failure" "$WORK/fail.err"
+grep -Fxq "cancelled" "$WORK/wait.err"
 
 # The direct template deliberately owns no `.fsgg` files. Exercise the provider
 # composition separately: SDD must retain ownership of its single lifecycle and
@@ -50,14 +55,19 @@ jq -e '.outcome == "noChange" and (.diagnostics | length) == 0' "$WORK/doctor.js
 (
   cd "$WORK/sdd"
   dotnet restore SignalConsole.slnx --locked-mode
-  dotnet build SignalConsole.slnx --no-restore
-  dotnet run --project tests/SignalConsole.Tests --no-build
+  dotnet fsi build.fsx build
+  dotnet fsi build.fsx test
   test "$(dotnet run --project src/SignalConsole --no-build -- from-sdd)" = "from-sdd"
   if dotnet run --project src/SignalConsole --no-build -- --fail >"$WORK/sdd-fail.out" 2>"$WORK/sdd-fail.err"; then
     echo "SDD-composed --fail unexpectedly succeeded" >&2
     exit 1
   fi
+  if timeout --preserve-status -s INT 2 dotnet run --project src/SignalConsole --no-build -- --wait >"$WORK/sdd-wait.out" 2>"$WORK/sdd-wait.err"; then
+    echo "SDD-composed --wait unexpectedly completed without cancellation" >&2
+    exit 1
+  fi
 )
 grep -Fxq "requested failure" "$WORK/sdd-fail.err"
+grep -Fxq "cancelled" "$WORK/sdd-wait.err"
 
 echo "PASS console template packs, instantiates, restores, builds, tests, observes process seams, and composes one SDD lifecycle"
