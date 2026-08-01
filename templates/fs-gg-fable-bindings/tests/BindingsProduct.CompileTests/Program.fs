@@ -1,4 +1,6 @@
-open BindingsProductNamespace.Bindings
-moduleValue () |> ignore
-initialiseSideEffects ()
-printfn "curated binding compile smoke passed"
+open Qualification.Babylon
+let engine = nullEngine ()
+let scene = scene engine
+let _ = box "compile-smoke" scene
+initialiseLoader ()
+printfn "curated Babylon binding compile smoke passed"

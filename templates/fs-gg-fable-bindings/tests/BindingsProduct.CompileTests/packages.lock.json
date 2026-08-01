@@ -11,16 +11,23 @@
           "FSharp.Core": "4.7.2"
         }
       },
-      "Fable.Package.SDK": {
-        "type": "Direct",
-        "requested": "[1.0.0, )",
-        "resolved": "1.0.0",
-        "contentHash": "TIXktcGpeqE3QOr2coV+w5erpLtfijpfBilhb0MNV2OSao/Y5Zg3r7StF+wZ4jSm4Pkid4HpjshZB/V9fUc/Ew=="
-      },
       "FSharp.Core": {
         "type": "Transitive",
         "resolved": "4.7.2",
         "contentHash": "w3XFVTnyZUbC8e2QT6a85ern6y7eQPPk+MYemz1FP0iBfgZcembL+wmo5cIZ1kxB8jfoXC8Q9KVkOMsGpkBKbA=="
+      },
+      "bindingsproduct": {
+        "type": "Project",
+        "dependencies": {
+          "Fable.Core": "[5.2.0, )",
+          "Fable.Package.SDK": "[1.0.0, )"
+        }
+      },
+      "Fable.Package.SDK": {
+        "type": "CentralTransitive",
+        "requested": "[1.0.0, )",
+        "resolved": "1.0.0",
+        "contentHash": "TIXktcGpeqE3QOr2coV+w5erpLtfijpfBilhb0MNV2OSao/Y5Zg3r7StF+wZ4jSm4Pkid4HpjshZB/V9fUc/Ew=="
       }
     }
   }
