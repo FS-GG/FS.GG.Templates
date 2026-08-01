@@ -1,10 +1,8 @@
 namespace WebWorkspace.Server
 
 open System
-open System.IO
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Http
-open Microsoft.Extensions.FileProviders
 
 module Program =
     let message () = {| message = "Hello from WebWorkspace" |}
@@ -15,12 +13,9 @@ module Program =
         let app = builder.Build()
 
         app.MapGet("/api/message", Func<IResult>(fun () -> Results.Json(message ()))) |> ignore
-
-        let webRoot = Path.Combine(app.Environment.ContentRootPath, "..", "Web", "dist")
-        if Directory.Exists webRoot then
-            app.UseDefaultFiles(new DefaultFilesOptions(FileProvider = new PhysicalFileProvider(webRoot))) |> ignore
-            app.UseStaticFiles(new StaticFileOptions(FileProvider = new PhysicalFileProvider(webRoot))) |> ignore
-            app.MapFallbackToFile("index.html") |> ignore
+        app.UseDefaultFiles() |> ignore
+        app.UseStaticFiles() |> ignore
+        app.MapFallbackToFile("index.html") |> ignore
 
         app.Run()
         0
