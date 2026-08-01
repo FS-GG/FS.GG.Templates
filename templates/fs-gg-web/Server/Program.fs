@@ -7,7 +7,7 @@ open Microsoft.AspNetCore.Http
 open Microsoft.Extensions.FileProviders
 
 module Program =
-    let private message () = {| message = "Hello from WebWorkspace" |}
+    let message () = {| message = "Hello from WebWorkspace" |}
 
     [<EntryPoint>]
     let main args =

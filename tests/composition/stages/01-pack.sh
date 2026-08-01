@@ -17,9 +17,9 @@ else
   else
     bad "dotnet pack failed (see $WORKDIR/pack.log)"; sed -n '$p' "$WORKDIR/pack.log"; KEEP_WORKDIR=1; exit 1
   fi
-  NUPKG="$(ls -1 "$ARTIFACTS"/FS.GG.Templates.*.nupkg 2>/dev/null | head -1)"
+  NUPKG="$(ls -1 "$ARTIFACTS"/FS.GG.Workspace.Template.*.nupkg 2>/dev/null | head -1)"
   [[ -f "$NUPKG" ]] && ok "produced $(basename "$NUPKG")" || {
-    bad "no FS.GG.Templates nupkg produced"; exit 1
+    bad "no FS.GG.Workspace.Template nupkg produced"; exit 1
   }
 fi
 
