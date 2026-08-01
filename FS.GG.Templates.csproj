@@ -7,12 +7,12 @@
        update function for consumers. -->
   <PropertyGroup>
     <PackageType>Template</PackageType>
-    <PackageId>FS.GG.Templates</PackageId>
-    <Version>0.7.1</Version>
-    <Title>FS.GG project templates</Title>
+    <PackageId>FS.GG.Workspace.Template</PackageId>
+    <Version>0.8.0</Version>
+    <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
-    <Description>dotnet new template for composing FS.GG.SDD + Rendering + Governance: fs-gg-governance (Governance config overlay). Full-stack composition happens at scaffold time via `fsgg-sdd scaffold` and the rendering provider descriptor (see README).</Description>
-    <PackageTags>dotnet-new;templates;fsgg;sdd;governance;rendering</PackageTags>
+    <Description>dotnet new workspace templates for FS.GG.SDD: governance overlay and production-shaped F# console workspaces.</Description>
+    <PackageTags>dotnet-new;templates;fsgg;sdd;governance;console</PackageTags>
     <PackageProjectUrl>https://github.com/FS-GG/FS.GG.Templates</PackageProjectUrl>
     <RepositoryUrl>https://github.com/FS-GG/FS.GG.Templates</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>

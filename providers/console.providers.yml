@@ -1,0 +1,20 @@
+# Drop-in `.fsgg/providers.yml` entry for the minimal F# console workspace.
+# `source` is an exact package pin: activation is deliberately deferred until this
+# coherent FS.GG.Workspace.Template release is published and independently proved.
+schemaVersion: 1
+providers:
+  - name: console
+    contractVersion: "1.1.0"
+    templateId: fs-gg-console
+    source: FS.GG.Workspace.Template::0.8.0
+    nameParameter: productName
+    identifierParameter: rootNamespace
+    minimumFsggSdd:
+      version: "0.6.0"
+      requires: "SDD lifecycle and scaffold provenance support"
+      adr: "FS-GG/.github docs/adr/0072-console-and-fable-bindings-are-separate-workspace-providers.md"
+    parameters:
+      - key: productName
+        required: true
+      - key: rootNamespace
+        required: false

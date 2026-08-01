@@ -5,21 +5,21 @@
 # package it later publishes instead of silently packing a second, potentially different archive.
 # An `exit` here exits the whole run (sourced, same shell).
 if [[ -n "${FSGG_TEMPLATES_NUPKG:-}" ]]; then
-  step "package — use prebuilt FS.GG.Templates artifact"
+  step "package — use prebuilt FS.GG.Workspace.Template artifact"
   NUPKG="$FSGG_TEMPLATES_NUPKG"
   [[ -f "$NUPKG" ]] && ok "using prebuilt $(basename "$NUPKG")" || {
     bad "prebuilt package does not exist: $NUPKG"; exit 1
   }
 else
-  step "pack — dotnet pack FS.GG.Templates"
+  step "pack — dotnet pack FS.GG.Workspace.Template"
   if dotnet pack "$REPO_ROOT/FS.GG.Templates.csproj" -c Release -o "$ARTIFACTS" >"$WORKDIR/pack.log" 2>&1; then
     ok "dotnet pack succeeded"
   else
     bad "dotnet pack failed (see $WORKDIR/pack.log)"; sed -n '$p' "$WORKDIR/pack.log"; KEEP_WORKDIR=1; exit 1
   fi
-  NUPKG="$(ls -1 "$ARTIFACTS"/FS.GG.Templates.*.nupkg 2>/dev/null | head -1)"
+  NUPKG="$(ls -1 "$ARTIFACTS"/FS.GG.Workspace.Template.*.nupkg 2>/dev/null | head -1)"
   [[ -f "$NUPKG" ]] && ok "produced $(basename "$NUPKG")" || {
-    bad "no FS.GG.Templates nupkg produced"; exit 1
+    bad "no FS.GG.Workspace.Template nupkg produced"; exit 1
   }
 fi
 
