@@ -48,8 +48,9 @@ printf '\n' >> "$WORK/product/declaration-lock.json"
 git -C "$WORK/product" diff --quiet -- generated-candidates && { echo "candidate was not review-visible" >&2; exit 1; }
 
 # Real Chromium exercises the browser module imports and the narrow Babylon scene route.
-(cd "$WORK/product" && python3 -m http.server 4173 >"$WORK/browser-server.log" 2>&1 & echo $! >"$WORK/browser.pid")
-trap 'kill "$(cat "$WORK/browser.pid" 2>/dev/null)" 2>/dev/null || true; rm -rf "$WORK"' EXIT
+python3 -m http.server 4173 --directory "$WORK/product" >"$WORK/browser-server.log" 2>&1 &
+browser_server=$!
+trap 'kill "$browser_server" 2>/dev/null || true; rm -rf "$WORK"' EXIT
 sleep 1
 chromium --headless --no-sandbox --disable-gpu --virtual-time-budget=3000 --dump-dom http://127.0.0.1:4173/runtime/browser/ >"$WORK/browser.html" 2>"$WORK/browser.log"
 grep -Fq 'Babylon browser smoke passed' "$WORK/browser.html"
