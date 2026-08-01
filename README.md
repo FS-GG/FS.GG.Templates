@@ -10,7 +10,7 @@ Composes the FS.GG components into a ready-to-run workspace: the
 Acquire or update the template package through the standard `dotnet new` flow:
 
 ```sh
-dotnet new install FS.GG.Templates
+dotnet new install FS.GG.Workspace.Template
 dotnet new update
 ```
 
@@ -20,7 +20,7 @@ Use the packaged `fs-gg-governance` overlay with an existing SDD-managed workspa
 dotnet new fs-gg-governance -o ./MyApp --appName MyApp --defaultProfile light
 ```
 
-`FS.GG.Templates` is the thin governance/composition package; it does not vendor the
+`FS.GG.Workspace.Template` is the thin governance/composition package; it does not vendor the
 Rendering runtime or the SDD CLI. Full-stack workspaces are created through `fsgg-sdd
 scaffold` as shown below. The rendering provider pins a compatible
 `FS.GG.UI.Template` release, while `dotnet new update` keeps this independently
@@ -132,7 +132,7 @@ tests/composition/run.sh                  # owned stages run fully; full scaffol
 FSGG_COMPOSITION_FULL=1 tests/composition/run.sh   # require the fsgg-sdd scaffold+build stage
 ```
 
-It packs `FS.GG.Templates`, installs it, instantiates the `fs-gg-governance` overlay, and
+It packs `FS.GG.Workspace.Template`, installs it, instantiates the `fs-gg-governance` overlay, and
 asserts the pins/links: parameter substitution lands, the governance gate set is
 **populated** (not the inert `checks: []`/`commands: []` it used to ship), both gameplay
 floors remain command-free, controlled-import/schema payloads execute and materialize, the
@@ -210,8 +210,8 @@ The templates ship as a versioned NuGet **template package**, so the standard `d
 update path applies:
 
 ```sh
-dotnet new install FS.GG.Templates          # from the org feed
-# or from a local pack:  dotnet new install ./artifacts/FS.GG.Templates.<version>.nupkg
+dotnet new install FS.GG.Workspace.Template          # from the org feed
+# or from a local pack:  dotnet new install ./artifacts/FS.GG.Workspace.Template.<version>.nupkg
 dotnet new update                           # upgrade to the latest published version
 dotnet new update --check-only              # see what would update
 ```
