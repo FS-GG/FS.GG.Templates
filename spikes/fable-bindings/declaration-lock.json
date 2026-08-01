@@ -1,0 +1,44 @@
+{
+  "schema": 1,
+  "package": "@babylonjs/core@9.19.0",
+  "companionPackage": "@babylonjs/loaders@9.19.0",
+  "entryPoints": [
+    "@babylonjs/core/Engines/nullEngine.d.ts",
+    "@babylonjs/core/scene.d.ts",
+    "@babylonjs/core/Maths/math.vector.d.ts",
+    "@babylonjs/core/Cameras/freeCamera.d.ts",
+    "@babylonjs/core/Lights/hemisphericLight.d.ts",
+    "@babylonjs/core/Meshes/meshBuilder.d.ts",
+    "@babylonjs/loaders/glTF/index.d.ts"
+  ],
+  "files": [
+    {
+      "path": "@babylonjs/core/Engines/nullEngine.d.ts",
+      "sha256": "c8011af5adbd92aa7d66730fd5c9f289e65ff3975da9e8dbcf3282fe7dc369ec"
+    },
+    {
+      "path": "@babylonjs/core/scene.d.ts",
+      "sha256": "088729906856bf81641500c7a1228fbe6342e4a705de4754379cd93c2613065a"
+    },
+    {
+      "path": "@babylonjs/core/Maths/math.vector.d.ts",
+      "sha256": "5449cd0865da727b669c2c76aa15a6899d9b4117227bbfa501792cc6bee138a1"
+    },
+    {
+      "path": "@babylonjs/core/Cameras/freeCamera.d.ts",
+      "sha256": "845728c7a09d37a4ebab17d3615bbd50b633a1be8595c04701de20d0f8cf0c72"
+    },
+    {
+      "path": "@babylonjs/core/Lights/hemisphericLight.d.ts",
+      "sha256": "55394ef9fc73896eabba6966298c1eded5173d48edcadd6738a93cbe4de04463"
+    },
+    {
+      "path": "@babylonjs/core/Meshes/meshBuilder.d.ts",
+      "sha256": "215f1472f11dd2dcbd3892113b8b17f04723d91dfb95f40f06f1b666fc40872f"
+    },
+    {
+      "path": "@babylonjs/loaders/glTF/index.d.ts",
+      "sha256": "0375047e30cbb75adda59d841e38bb7f6bd22f385de5e44bacee4f5b95af465f"
+    }
+  ]
+}
