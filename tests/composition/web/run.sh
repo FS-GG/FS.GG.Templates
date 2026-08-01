@@ -13,4 +13,10 @@ test -f "$work/scaffold/Browser.Tests/home.spec.ts"
 dotnet build "$work/scaffold/CleanWeb.slnx"
 test -f "$work/scaffold/Web/package-lock.json"
 test -f "$work/scaffold/Browser.Tests/package-lock.json"
+(
+  cd "$work/scaffold"
+  bash ./build.sh
+  test -s artifacts/test-results/server.trx
+  test -s artifacts/test-results/browser.junit.xml
+)
 echo "web composition: generated clean scaffold lanes"
