@@ -14,11 +14,14 @@ require() {
   }
 }
 
-# Keep the qualification result honest: this report must not become an implicit
-# template baseline before the browser route has been run against a coherent set.
+# Keep the qualification result honest: compile evidence must not become an
+# implicit template baseline before the browser route has been run.
 require "**Status:** not qualified for template baseline"
-require 'Fable.Remoting.Client` 8.0.0 nuspec depends on `Fable.Core` 3.1.5'
-require 'Fable.Core 5.2.0'
+require 'inclusive NuGet minimum, not an exact pin'
+require 'Fable.Core'
+require '5.2.0'
+require 'Fable 5.13.0 dotnet tool'
+require 'compiled that'
 require 'The 2021 `Fable.SignalR` NuGet package remains research input only.'
 require "Elmish plus direct DOM bindings"
 require "do not assume arbitrary DUs are wire-compatible"

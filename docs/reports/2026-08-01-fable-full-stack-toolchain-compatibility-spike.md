@@ -41,19 +41,21 @@ The measurement was made on 2026-08-01 on Linux x64:
 The generated workspace must use an npm lockfile and pin the selected package,
 not a range or `latest`.
 
-## Result: no coherent Fable.Remoting baseline yet
+## Result: compiler boundary passes; browser route remains unqualified
 
-The current candidates do not form a qualified coherent set. The published
-`Fable.Remoting.Client` 8.0.0 nuspec depends on `Fable.Core` 3.1.5, whereas the
-current Fable compiler/toolchain uses Fable.Core 5.2.0. The current server is
-6.1.0 and targets net8.0. A successful NuGet resolution would therefore not
-prove that the client is supported by this compiler; taking it as a template
-baseline would turn a transitive downgrade into a public promise.
+The initial interpretation of the client nuspec was wrong: its unbracketed
+`Fable.Core` 3.1.5 dependency is an inclusive NuGet minimum, not an exact pin.
+An isolated clean restore with direct `Fable.Core` 5.2.0 and
+`Fable.Remoting.Client` 8.0.0 resolved `Fable.Core/5.2.0` in
+`obj/project.assets.json`. The Fable 5.13.0 dotnet tool then compiled that
+restored F# project successfully. This proves the candidate compiles and must
+not be rejected on a fictional transitive downgrade.
 
-This spike is consequently **red** for the required end-to-end qualification.
-It did not claim a successful browser startup, production publish, bundle size,
-or Fable.Remoting/SignalR exchange. These are deliberately recorded as
-unmeasured rather than inferred:
+This is still **not qualified for template baseline**: the required ASP.NET
+Core/Fable browser transport route has not yet been executed. It does not claim
+a successful browser startup, production publish, bundle size, or
+Fable.Remoting/SignalR exchange. These are deliberately recorded as unmeasured
+rather than inferred:
 
 | Required evidence | Result |
 | --- | --- |
@@ -100,4 +102,3 @@ support matches the chosen Fable compiler. Then, from a clean locked workspace:
 5. record browser, Node, exact lockfile entries, startup result, production
    output size, and all incompatibilities; and
 6. only then propose pins and run both development watch and production publish.
-
