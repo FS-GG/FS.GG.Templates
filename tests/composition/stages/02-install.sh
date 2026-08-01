@@ -2,7 +2,7 @@
 # ── Stage 2: install ─────────────────────────────────────────────────────────
 # Uses NUPKG (Stage 1), WORKDIR. Installs into the isolated hive (DOTNET_CLI_HOME, set by run.sh).
 step "install — dotnet new install <nupkg>"
-dotnet new uninstall FS.GG.Templates >/dev/null 2>&1 || true
+dotnet new uninstall FS.GG.Workspace.Template >/dev/null 2>&1 || true
 if dotnet new install "$NUPKG" >"$WORKDIR/install.log" 2>&1; then
   ok "dotnet new install succeeded"
 else

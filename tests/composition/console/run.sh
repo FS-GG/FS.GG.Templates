@@ -17,13 +17,20 @@ test -f "$WORK/clean/src/SignalConsole/Program.fs"
 test -f "$WORK/clean/tests/SignalConsole.Tests/ProgramTests.fs"
 test ! -e "$WORK/clean/.fsgg"
 
-dotnet restore "$WORK/clean/SignalConsole.slnx" --locked-mode
-dotnet build "$WORK/clean/SignalConsole.slnx" --no-restore
-dotnet run --project "$WORK/clean/tests/SignalConsole.Tests" --no-build
+(
+  cd "$WORK/clean"
+  dotnet restore SignalConsole.slnx --locked-mode
+  dotnet build SignalConsole.slnx --no-restore
+  dotnet run --project tests/SignalConsole.Tests --no-build
 
-stdout="$(dotnet run --project "$WORK/clean/src/SignalConsole" --no-build -- hello console)"
-test "$stdout" = "hello console"
-if dotnet run --project "$WORK/clean/src/SignalConsole" --no-build -- --fail >"$WORK/fail.out" 2>"$WORK/fail.err"; then
+  stdout="$(dotnet run --project src/SignalConsole --no-build -- hello console)"
+  test "$stdout" = "hello console"
+  if dotnet run --project src/SignalConsole --no-build -- --fail >"$WORK/fail.out" 2>"$WORK/fail.err"; then
+    echo "--fail unexpectedly succeeded" >&2
+    exit 1
+  fi
+)
+if [ ! -s "$WORK/fail.err" ]; then
   echo "--fail unexpectedly succeeded" >&2
   exit 1
 fi
