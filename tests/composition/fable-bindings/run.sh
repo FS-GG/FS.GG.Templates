@@ -13,6 +13,7 @@ dotnet new fs-gg-fable-bindings -o "$WORK/product" --name AcmeBindings --product
 if dotnet new fs-gg-fable-bindings -o "$WORK/rejected" --name Rejected --npmPackage other --npmVersion 1.0.0 --bindingTarget node >/dev/null 2>&1; then echo "unqualified corpus unexpectedly accepted" >&2; exit 1; fi
 
 for f in declaration-lock.json coverage-and-drift.json package.json src/AcmeBindings/AcmeBindings.fsproj tests/AcmeBindings.CompileTests/AcmeBindings.CompileTests.fsproj samples/Consumer/README.md; do test -f "$WORK/product/$f"; done
+cmp "$ROOT/skills/fable-bindings/SKILL.md" "$WORK/product/.agents/skills/fable-bindings/SKILL.md"
 grep -Fq '"@babylonjs/core": "9.19.0"' "$WORK/product/package.json"
 grep -Fq '@babylonjs/core/Engines/nullEngine.d.ts' "$WORK/product/declaration-lock.json"
 grep -Fq 'ImportAll("@babylonjs/loaders/glTF/index.js")' "$WORK/product/src/AcmeBindings/Bindings.fs"
@@ -22,6 +23,21 @@ grep -Fq 'GENERATED CANDIDATE — NOT COMPILED' "$WORK/product/generated-candida
 solution="$(find "$WORK/product" -maxdepth 1 -name '*.slnx' -print -quit)"
 dotnet restore "$solution" --locked-mode
 dotnet build "$solution" --no-restore
+# The generated library must survive the same isolation a real consumer has: a packed nupkg,
+# a fresh local feed, a separately installed npm runtime, Fable emission, and Node execution.
+consumer="$WORK/consumer"; mkdir -p "$consumer/app" "$consumer/feed"
+dotnet build "$WORK/product/src/AcmeBindings/AcmeBindings.fsproj" -c Release >/dev/null
+dotnet pack "$WORK/product/src/AcmeBindings/AcmeBindings.fsproj" -c Release --no-build -o "$consumer/feed" >/dev/null
+printf '%s\n' '<configuration><packageSources><clear /><add key="local" value="'"$consumer"'/feed" /><add key="nuget.org" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>' > "$consumer/app/NuGet.Config"
+printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup><ItemGroup><Compile Include="Program.fs" /><PackageReference Include="AcmeBindings" Version="0.1.0" /><PackageReference Include="Fable.Core" Version="5.2.0" /></ItemGroup></Project>' > "$consumer/app/Consumer.fsproj"
+printf '%s\n' 'open Qualification.Babylon' 'let engine = nullEngine ()' 'let scene = scene engine' 'let _ = box "consumer-box" scene' 'initialiseLoader ()' 'printfn "consumer passed"' > "$consumer/app/Program.fs"
+printf '%s\n' '{"private":true,"type":"module","dependencies":{"@babylonjs/core":"9.19.0","@babylonjs/loaders":"9.19.0"}}' > "$consumer/app/package.json"
+dotnet restore "$consumer/app/Consumer.fsproj" --configfile "$consumer/app/NuGet.Config" >/dev/null
+(cd "$consumer/app" && npm install --ignore-scripts >/dev/null)
+grep -Fq 'sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeGpS/bQ3NzwtApB84GScm9v8w==' "$consumer/app/package-lock.json"
+dotnet tool install Fable --tool-path "$consumer/fable" --version 5.13.0 >/dev/null
+"$consumer/fable/fable" "$consumer/app/Consumer.fsproj" --outDir "$consumer/app/dist" --noCache >/dev/null
+node "$consumer/app/dist/Program.js" | grep -Fq 'consumer passed'
 before="$(sha256sum "$WORK/product/src/AcmeBindings/Bindings.fs" "$WORK/product/declaration-lock.json")"
 (cd "$WORK/product" && npm run generate:candidate >/dev/null)
 test "$before" = "$(sha256sum "$WORK/product/src/AcmeBindings/Bindings.fs" "$WORK/product/declaration-lock.json")"
