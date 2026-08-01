@@ -8,9 +8,9 @@
   "preferNameDirectory": true,
   "symbols": {
     "productName": { "type": "parameter", "datatype": "text", "defaultValue": "", "description": "Binding/library name; --name is used when omitted." },
-    "npmPackage": { "type": "parameter", "datatype": "text", "defaultValue": "", "replaces": "NpmPackage", "description": "Exact upstream npm package name." },
-    "npmVersion": { "type": "parameter", "datatype": "text", "defaultValue": "", "replaces": "NpmVersion", "description": "Exact upstream npm package version (no range)." },
-    "bindingTarget": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "browser" }, { "choice": "node" }, { "choice": "universal" } ], "defaultValue": "universal", "description": "Runtime evidence lane." },
+    "npmPackage": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "@babylonjs/core" } ], "defaultValue": "@babylonjs/core", "description": "The selected v1 declaration corpus; arbitrary packages require a separately qualified template." },
+    "npmVersion": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "9.19.0" } ], "defaultValue": "9.19.0", "description": "Exact selected Babylon declaration-corpus version." },
+    "bindingTarget": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "browser" } ], "defaultValue": "browser", "description": "Selected corpus has real-browser evidence; node remains an additional smoke lane." },
     "productNameTrimmed": { "type": "generated", "generator": "regex", "dataType": "string", "parameters": { "source": "productName", "steps": [ { "regex": "^\\s+|\\s+$", "replacement": "" } ] } },
     "effectiveName": { "type": "generated", "generator": "coalesce", "parameters": { "sourceVariableName": "productNameTrimmed", "fallbackVariableName": "name" }, "replaces": "BindingsProduct", "fileRename": "BindingsProduct" },
     "rootNamespace": { "type": "parameter", "datatype": "text", "defaultValue": "", "description": "Optional valid F# identifier supplied by an SDD provider." },

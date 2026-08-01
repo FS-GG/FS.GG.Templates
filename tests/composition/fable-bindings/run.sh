@@ -10,6 +10,7 @@ mkdir -p "$DOTNET_CLI_HOME"
 dotnet pack "$ROOT/FS.GG.Templates.csproj" -c Release -o "$WORK/feed" >/dev/null
 dotnet new install "$WORK/feed"/*.nupkg >/dev/null
 dotnet new fs-gg-fable-bindings -o "$WORK/product" --name AcmeBindings --productName AcmeBindings --rootNamespace AcmeBindings --npmPackage=@babylonjs/core --npmVersion 9.19.0 --bindingTarget browser >/dev/null
+if dotnet new fs-gg-fable-bindings -o "$WORK/rejected" --name Rejected --npmPackage other --npmVersion 1.0.0 --bindingTarget node >/dev/null 2>&1; then echo "unqualified corpus unexpectedly accepted" >&2; exit 1; fi
 
 for f in declaration-lock.json coverage-and-drift.json package.json src/AcmeBindings/AcmeBindings.fsproj tests/AcmeBindings.CompileTests/AcmeBindings.CompileTests.fsproj samples/Consumer/README.md; do test -f "$WORK/product/$f"; done
 grep -Fq '"@babylonjs/core": "9.19.0"' "$WORK/product/package.json"
@@ -25,6 +26,10 @@ before="$(sha256sum "$WORK/product/src/AcmeBindings/Bindings.fs" "$WORK/product/
 (cd "$WORK/product" && npm run generate:candidate >/dev/null)
 test "$before" = "$(sha256sum "$WORK/product/src/AcmeBindings/Bindings.fs" "$WORK/product/declaration-lock.json")"
 git -C "$WORK/product" diff --exit-code -- generated-candidates
+# A changed declaration lock produces a review-visible tracked candidate diff without modifying src.
+printf '\n' >> "$WORK/product/declaration-lock.json"
+(cd "$WORK/product" && npm run generate:candidate >/dev/null)
+git -C "$WORK/product" diff --quiet -- generated-candidates && { echo "candidate was not review-visible" >&2; exit 1; }
 
 # Real Chromium exercises the browser module imports and the narrow Babylon scene route.
 (cd "$WORK/product" && python3 -m http.server 4173 >"$WORK/browser-server.log" 2>&1 & echo $! >"$WORK/browser.pid")
