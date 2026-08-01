@@ -38,6 +38,54 @@ grep -Fq 'sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeG
 dotnet tool install Fable --tool-path "$consumer/fable" --version 5.13.0 >/dev/null
 "$consumer/fable/fable" "$consumer/app/Consumer.fsproj" --outDir "$consumer/app/dist" --noCache >/dev/null
 node "$consumer/app/dist/Program.js" | grep -Fq 'consumer passed'
+
+# Execute the clean scaffold's actual SDD lifecycle, observed test-report import,
+# coherent doctor, provenance, and Governance policy boundary. Governance consumes
+# both SDD's lifecycle handoff and this provider's narrow declaration-drift verdict.
+command -v fsgg-sdd >/dev/null
+command -v fsgg-governance >/dev/null
+dotnet new fs-gg-governance -o "$WORK/product" --appName AcmeBindings --defaultProfile strict --force >/dev/null
+(cd "$WORK/product" && node scripts/lifecycle-evidence.mjs --expect clean --junit reports/bindings.junit.xml --handoff readiness/002-bindings-upstream-review/governance-handoff.json)
+(cd "$WORK/product" && npm run test:lifecycle >/dev/null)
+cmp "$ROOT/skills/fable-bindings/SKILL.md" "$WORK/product/.agents/skills/fable-bindings/SKILL.md"
+test -f "$WORK/product/.fsgg/scaffold-provenance.json"
+jq -e '.governanceConfig.policyPresent == true and .governanceConfig.capabilitiesPresent == true and .readiness.shipDisposition == "shipReady"' "$WORK/product/readiness/001-bindings-lifecycle/governance-handoff.json" >/dev/null
+cp "$WORK/product/readiness/001-bindings-lifecycle/governance-handoff.json" "$WORK/product/reports/sdd-governance-handoff.json"
+# The SDD handoff itself must be Governance-consumable, not replaced by the
+# provider-specific upstream verdict. Its dependency graph is acyclic because
+# observed evidence is subject to its obligation, not back to the requiring task.
+jq -e '[.evidence.dependencies[] | select(.dependent | startswith("evidence:"))] | length == 0' "$WORK/product/readiness/001-bindings-lifecycle/governance-handoff.json" >/dev/null
+fsgg-governance route --root "$WORK/product" --mode gate --json >"$WORK/product/reports/governance-clean.json"
+jq -e '.exit.code == 0 and ([.payload.handoff[] | select((.id | contains("sdd-handoff:evidence")) and .blocking == false)] | length) >= 2' "$WORK/product/reports/governance-clean.json" >/dev/null
+
+# Mutating one locked transitive declaration is an executable review/failure path:
+# the closure gate fails, SDD refuses to sync a failed run into pass-claiming
+# evidence, and Governance blocks that same observed state.
+printf '\n// upstream drift acceptance mutation\n' >> "$WORK/product/node_modules/@babylonjs/core/Engines/nullEngine.d.ts"
+if (cd "$WORK/product" && npm run check:drift >/dev/null 2>&1); then echo "upstream declaration drift unexpectedly passed" >&2; exit 1; fi
+(cd "$WORK/product" && node scripts/lifecycle-evidence.mjs --expect drift --junit reports/bindings.junit.xml --handoff readiness/002-bindings-upstream-review/governance-handoff.json)
+set +e
+fsgg-governance route --root "$WORK/product" --mode gate --json >"$WORK/product/reports/governance-drift.json"
+governance_drift_rc=$?
+fsgg-sdd evidence --root "$WORK/product" --work 001-bindings-lifecycle --title 'Fable bindings lifecycle' --sync-observed-run reports/bindings.junit.xml >"$WORK/product/reports/sdd-drift-review.json"
+sdd_drift_rc=$?
+set -e
+test "$sdd_drift_rc" -eq 1
+jq -e '.outcome == "blocked" and any(.diagnostics[]; .id == "evidence.observedRunFailed")' "$WORK/product/reports/sdd-drift-review.json" >/dev/null
+if [[ "$governance_drift_rc" -ne 2 ]]; then
+  jq '{exit, handoff: .payload.handoff}' "$WORK/product/reports/governance-drift.json" >&2
+  echo "Governance did not block executable upstream drift (exit $governance_drift_rc)" >&2
+  exit 1
+fi
+jq -e '.exit.category == "governed-blocking" and any(.payload.handoff[]; (.id | contains("sdd-handoff:evidence")) and .blocking == true)' "$WORK/product/reports/governance-drift.json" >/dev/null
+
+# Reinstalling the exact pinned closure restores the green lifecycle boundary.
+(cd "$WORK/product" && npm ci --ignore-scripts >/dev/null && npm run check:drift >/dev/null && node scripts/lifecycle-evidence.mjs --expect clean --junit reports/bindings.junit.xml --handoff readiness/002-bindings-upstream-review/governance-handoff.json >/dev/null)
+fsgg-sdd evidence --root "$WORK/product" --work 001-bindings-lifecycle --title 'Fable bindings lifecycle' --sync-observed-run reports/bindings.junit.xml >"$WORK/product/reports/sdd-restored.json"
+fsgg-governance route --root "$WORK/product" --mode gate --json >"$WORK/product/reports/governance-restored.json"
+jq -e '(.outcome == "noChange" or .outcome == "succeeded" or .outcome == "succeededWithWarnings") and .evidence.readiness == "evidenceReady"' "$WORK/product/reports/sdd-restored.json" >/dev/null
+jq -e '.exit.code == 0' "$WORK/product/reports/governance-restored.json" >/dev/null
+
 before="$(sha256sum "$WORK/product/src/AcmeBindings/Bindings.fs" "$WORK/product/declaration-lock.json")"
 (cd "$WORK/product" && npm run generate:candidate >/dev/null)
 test "$before" = "$(sha256sum "$WORK/product/src/AcmeBindings/Bindings.fs" "$WORK/product/declaration-lock.json")"
@@ -62,4 +110,4 @@ printf '%s\n' 'export declare const original: string;' > "$fixture/node_modules/
 node "$WORK/product/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --entry example/entry.d.ts --lock "$fixture/lock.json" --write >/dev/null
 printf '%s\n' 'export declare const changed: string;' > "$fixture/node_modules/example/side.d.ts"
 if node "$WORK/product/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --entry example/entry.d.ts --lock "$fixture/lock.json"; then exit 1; fi
-echo 'PASS fable-bindings template executes locked declaration, candidate, Node and real-browser evidence'
+echo 'PASS fable-bindings template executes locked declaration, candidate, NuGet/npm/Fable/Node/Chromium, SDD, doctor, Governance and drift-review evidence'

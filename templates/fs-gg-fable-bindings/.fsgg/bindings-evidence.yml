@@ -8,5 +8,8 @@ requiredEvidence:
   - real-browser-runtime-smoke
   - declaration-closure-drift
   - clean-nuget-and-npm-consumer
+  - observed-sdd-lifecycle
+  - governance-enforced-upstream-drift
+  - coherent-sdd-doctor
   - provenance-and-upstream-review
 releasePolicy: local-proof-before-publication; registry-and-wizard-activation-after-publication

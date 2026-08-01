@@ -15,6 +15,7 @@
     "test:runtime": "node runtime/node/smoke.mjs",
     "generate:candidate": "node scripts/generate-candidate.mjs",
     "test:browser": "chromium --headless --no-sandbox --disable-gpu --virtual-time-budget=3000 --dump-dom http://127.0.0.1:4173/runtime/browser/",
+    "test:lifecycle": "bash scripts/run-sdd-lifecycle.sh reports/bindings.junit.xml",
     "doctor": "node scripts/doctor.mjs"
   }
 }
