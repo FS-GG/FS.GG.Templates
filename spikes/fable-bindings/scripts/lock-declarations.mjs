@@ -27,7 +27,8 @@ const declarationPath = (from, specifier) => {
   return relative(root, declaration).replaceAll("\\", "/");
 };
 
-const references = source => [...source.matchAll(/(?:\bfrom\s*|\bimport\s*\()["'](\.{1,2}\/[^"]+?)["']/g)].map(match => match[1]);
+// Covers re-exports, dynamic imports, and static side-effect imports.
+const references = source => [...source.matchAll(/(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)["'](\.{1,2}\/[^"]+?)["']/g)].map(match => match[1]);
 const seen = new Set();
 const pending = [...entryPoints].sort();
 while (pending.length > 0) {

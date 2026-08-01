@@ -37,10 +37,10 @@ git -C "$ROOT" diff --exit-code -- "spikes/fable-bindings/generated-candidates/"
 # A tiny fixture proves the lock follows relative declaration imports/exports.
 fixture="$(mktemp -d)"
 mkdir -p "$fixture/node_modules/example"
-printf '%s\n' 'export * from "./transitive.js";' > "$fixture/node_modules/example/entry.d.ts"
-printf '%s\n' 'export declare const original: string;' > "$fixture/node_modules/example/transitive.d.ts"
+printf '%s\n' 'import "./side.js"; export {};' > "$fixture/node_modules/example/entry.d.ts"
+printf '%s\n' 'export declare const original: string;' > "$fixture/node_modules/example/side.d.ts"
 node "$SPIKE/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --entry example/entry.d.ts --lock "$fixture/lock.json" --write >/dev/null
-printf '%s\n' 'export declare const changed: string;' > "$fixture/node_modules/example/transitive.d.ts"
+printf '%s\n' 'export declare const changed: string;' > "$fixture/node_modules/example/side.d.ts"
 if node "$SPIKE/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --entry example/entry.d.ts --lock "$fixture/lock.json"; then
   echo "transitive declaration drift unexpectedly passed" >&2
   exit 1
