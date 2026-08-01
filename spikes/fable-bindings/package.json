@@ -1,0 +1,18 @@
+{
+  "name": "fsgg-fable-bindings-qualification",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "engines": { "node": "26.5.0", "npm": "12.0.1" },
+  "dependencies": {
+    "@babylonjs/core": "9.19.0",
+    "@babylonjs/loaders": "9.19.0"
+  },
+  "devDependencies": { "typescript": "5.9.3" },
+  "scripts": {
+    "lock:declarations": "node scripts/lock-declarations.mjs --write",
+    "check:drift": "node scripts/lock-declarations.mjs --check",
+    "test:runtime": "node runtime/runtime-smoke.mjs",
+    "generate:candidate": "node scripts/generate-candidate.mjs"
+  }
+}
