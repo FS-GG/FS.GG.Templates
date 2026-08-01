@@ -151,11 +151,20 @@ published `Fable.Remoting.MsgPack` version from `1.0.0` through the current
 unchanged, so **no NuGet version selection fixes it** — this is not a
 version-pin mismatch, it is a library defect. It is independently reported
 upstream at
-[Zaid-Ajaj/Fable.Remoting#396](https://github.com/Zaid-Ajaj/Fable.Remoting/issues/396)
-(filed 2026-07-06, still open as of 2026-08-01, no fix merged), where the
-maintainer's own suggested interim workaround matches what this report found
-independently by bisection: "Downgrading the Fable compiler to 5.4.0 is
-enough to work around this issue until a proper fix can be implemented."
+[Zaid-Ajaj/Fable.Remoting#396](https://github.com/Zaid-Ajaj/Fable.Remoting/issues/396),
+an **open, unanswered** issue filed 2026-07-06 by another affected user
+(`josh-dean-imt`, not the maintainer `Zaid-Ajaj`, and not a repository
+contributor) reporting the same failure. `GET
+/repos/Zaid-Ajaj/Fable.Remoting/issues/396/comments` returns zero comments —
+**no maintainer has responded to it as of 2026-08-01.** In that issue body,
+the reporter suggests, on their own account rather than as a maintainer
+endorsement, the same workaround this report found independently by
+bisection: "Downgrading the Fable compiler to 5.4.0 is enough to work around
+this issue until a proper fix can be implemented." Treat that sentence as
+corroboration that another user hit and worked around the identical failure,
+not as evidence the maintainer is aware of or endorses the workaround — the
+bisection above is this report's own evidence and stands independently of
+the issue.
 
 **Bisection** (`dotnet tool install Fable --tool-path <dir> --version <v>`,
 then compiling a classlib referencing `Fable.Core` 5.2.0 +
@@ -263,7 +272,10 @@ tracked, unfixed, upstream. Three options exist and none of them is this
 report's to choose unilaterally: (1) wait for
 [Zaid-Ajaj/Fable.Remoting#396](https://github.com/Zaid-Ajaj/Fable.Remoting/issues/396)
 to be fixed upstream and re-pin Fable.Remoting.MsgPack once a release
-contains the fix; (2) adopt the Fable 5.4.0 compiler downgrade as an interim
+contains the fix — note this issue has **no maintainer response as of
+2026-08-01**, so "wait for upstream" currently means waiting on an
+unacknowledged report, not a confirmed-in-progress fix; (2) adopt the Fable
+5.4.0 compiler downgrade as an interim
 template pin, accepting that it deliberately disables a compiler safety net
 (fable-compiler/Fable#4701) that exists to catch a real class of bug,
 in exchange for the substantial (but not complete) runtime evidence above;

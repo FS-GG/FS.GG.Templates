@@ -69,10 +69,12 @@ require "Production publish and bundle size"
 # bounded runtime validation of the workaround must stay documented.
 require "Zaid-Ajaj/Fable.Remoting#396"
 require "fable-compiler/Fable#4701"
-require "Downgrading the Fable compiler to 5.4.0 is"
-require "enough to work around this issue until a proper fix can be implemented."
+require "Downgrading the Fable compiler to 5.4.0 is enough to work around"
+require "this issue until a proper fix can be implemented."
 require "PING_RESULT=6"
 require "SIGNALR_RECONNECTED=1"
+require 'not the maintainer `Zaid-Ajaj`'
+require "no maintainer has responded to it as of 2026-08-01"
 require "Three options exist and none of them is this"
 require "report's to choose unilaterally"
 
