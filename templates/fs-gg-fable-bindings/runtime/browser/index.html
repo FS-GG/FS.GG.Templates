@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><title>Babylon binding browser smoke</title><output>running</output><script type="module">
+import { NullEngine } from "../../node_modules/@babylonjs/core/Engines/nullEngine.js";
+import { Scene } from "../../node_modules/@babylonjs/core/scene.js";
+import { MeshBuilder } from "../../node_modules/@babylonjs/core/Meshes/meshBuilder.js";
+import "../../node_modules/@babylonjs/loaders/glTF/index.js";
+const engine = new NullEngine(); const scene = new Scene(engine); const box = MeshBuilder.CreateBox("browser-box", {}, scene);
+if (!box || scene.meshes.length !== 1) throw new Error("Babylon browser smoke did not construct the modular scene");
+document.querySelector("output").textContent = "Babylon browser smoke passed"; engine.dispose();
+</script>

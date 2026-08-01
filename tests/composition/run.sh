@@ -207,6 +207,16 @@ else
   bad "web template clean lifecycle failed"
 fi
 
+# The Fable bindings workspace is also a first-class packaged template. Its isolated lane executes
+# the locked declaration, candidate, NuGet/npm/Fable/Node/Chromium, SDD, Governance, and deliberate
+# drift-review lifecycles. Keep it on this required path so those contracts cannot green by omission.
+step "fable-bindings — generated workspace lifecycle and drift review"
+if bash "$COMPOSITION_DIR/fable-bindings/run.sh"; then
+  ok "fable-bindings template lifecycle and drift review pass"
+else
+  bad "fable-bindings template lifecycle or drift review failed"
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 printf '\n\033[1m== summary ==\033[0m  \033[32m%d passed\033[0m, \033[31m%d failed\033[0m\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]

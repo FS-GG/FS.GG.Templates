@@ -1,0 +1,1 @@
+{ "schemaVersion": 1, "provider": "fable-bindings", "template": "fs-gg-fable-bindings", "source": "FS.GG.Workspace.Template", "npmClosure": [ "@babylonjs/core@9.19.0", "@babylonjs/loaders@9.19.0" ], "activation": "not-published-or-registry-active" }

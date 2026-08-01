@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/BindingsProduct/BindingsProduct.fsproj" />
+  <Project Path="tests/BindingsProduct.CompileTests/BindingsProduct.CompileTests.fsproj" />
+</Solution>

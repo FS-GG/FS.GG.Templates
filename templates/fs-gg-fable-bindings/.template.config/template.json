@@ -1,0 +1,20 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "FS-GG",
+  "classifications": [ "F#", "Fable", "Interop", "Library", "Workspace" ],
+  "identity": "FS.GG.Workspace.FableBindings",
+  "name": "FS.GG Fable bindings workspace",
+  "shortName": "fs-gg-fable-bindings",
+  "preferNameDirectory": true,
+  "symbols": {
+    "productName": { "type": "parameter", "datatype": "text", "defaultValue": "", "description": "Binding/library name; --name is used when omitted." },
+    "npmPackage": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "@babylonjs/core" } ], "defaultValue": "@babylonjs/core", "description": "The selected v1 declaration corpus; arbitrary packages require a separately qualified template." },
+    "npmVersion": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "9.19.0" } ], "defaultValue": "9.19.0", "description": "Exact selected Babylon declaration-corpus version." },
+    "bindingTarget": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "browser" } ], "defaultValue": "browser", "description": "Selected corpus has real-browser evidence; node remains an additional smoke lane." },
+    "productNameTrimmed": { "type": "generated", "generator": "regex", "dataType": "string", "parameters": { "source": "productName", "steps": [ { "regex": "^\\s+|\\s+$", "replacement": "" } ] } },
+    "effectiveName": { "type": "generated", "generator": "coalesce", "parameters": { "sourceVariableName": "productNameTrimmed", "fallbackVariableName": "name" }, "replaces": "BindingsProduct", "fileRename": "BindingsProduct" },
+    "rootNamespace": { "type": "parameter", "datatype": "text", "defaultValue": "", "description": "Optional valid F# identifier supplied by an SDD provider." },
+    "rootNamespaceTrimmed": { "type": "generated", "generator": "regex", "dataType": "string", "parameters": { "source": "rootNamespace", "steps": [ { "regex": "^\\s+|\\s+$", "replacement": "" } ] } },
+    "effectiveIdentifier": { "type": "generated", "generator": "coalesce", "parameters": { "sourceVariableName": "rootNamespaceTrimmed", "fallbackVariableName": "effectiveName" }, "replaces": "BindingsProductNamespace" }
+  }
+}
