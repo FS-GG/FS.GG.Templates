@@ -1,0 +1,28 @@
+schemaVersion: 1
+# BEGIN GENERATED: effective-providers
+# Effective providers — generated; ordered by unique provider name.
+# Review this block for the current selection; the release narrative remains in PIN HISTORY.
+# effective[1]: name=fable-bindings | template=fs-gg-fable-bindings | source=FS.GG.Workspace.Template::0.8.0 | contract=1.1.0
+# END GENERATED: effective-providers
+providers:
+  - name: fable-bindings
+    contractVersion: "1.1.0"
+    templateId: fs-gg-fable-bindings
+    source: FS.GG.Workspace.Template::0.8.0
+    nameParameter: productName
+    identifierParameter: rootNamespace
+    minimumFsggSdd:
+      version: "0.6.0"
+      requires: "SDD lifecycle and scaffold provenance support"
+      adr: "FS-GG/.github docs/adr/0072-console-and-fable-bindings-are-separate-workspace-providers.md"
+    parameters:
+      - key: productName
+        required: true
+      - key: npmPackage
+        required: true
+      - key: npmVersion
+        required: true
+      - key: bindingTarget
+        required: true
+      - key: rootNamespace
+        required: false
