@@ -7,12 +7,12 @@
        update function for consumers. -->
   <PropertyGroup>
     <PackageType>Template</PackageType>
-    <PackageId>FS.GG.Templates</PackageId>
+    <PackageId>FS.GG.Workspace.Template</PackageId>
     <Version>0.7.1</Version>
     <Title>FS.GG project templates</Title>
     <Authors>FS-GG</Authors>
-    <Description>dotnet new template for composing FS.GG.SDD + Rendering + Governance: fs-gg-governance (Governance config overlay). Full-stack composition happens at scaffold time via `fsgg-sdd scaffold` and the rendering provider descriptor (see README).</Description>
-    <PackageTags>dotnet-new;templates;fsgg;sdd;governance;rendering</PackageTags>
+    <Description>dotnet new templates for FS.GG workspaces, including the neutral F# ASP.NET Core plus TypeScript web provider.</Description>
+    <PackageTags>dotnet-new;templates;fsgg;sdd;web;typescript;aspnetcore</PackageTags>
     <PackageProjectUrl>https://github.com/FS-GG/FS.GG.Templates</PackageProjectUrl>
     <RepositoryUrl>https://github.com/FS-GG/FS.GG.Templates</RepositoryUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
@@ -45,7 +45,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="templates/**/*" Exclude="templates/**/bin/**;templates/**/obj/**" />
+    <!-- Each template is a direct child of NuGet's content root. The template engine
+         discovers this layout; an extra `templates/` directory is not discoverable. -->
+    <Content Include="templates/fs-gg-governance/**/*" Exclude="templates/**/bin/**;templates/**/obj/**" Pack="true" PackagePath="content/fs-gg-governance" />
+    <Content Include="templates/fs-gg-web/**/*" Exclude="templates/**/bin/**;templates/**/obj/**" Pack="true" PackagePath="content/fs-gg-web" />
     <None Include="README.md" Pack="true" PackagePath="\" />
     <Compile Remove="**/*" />
   </ItemGroup>
