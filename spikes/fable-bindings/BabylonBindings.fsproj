@@ -3,11 +3,13 @@
     <TargetFramework>netstandard2.1</TargetFramework>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <PackageId>Qualification.BabylonBindings</PackageId>
-    <Version>0.0.0-spike</Version>
+    <Version>0.0.1-spike</Version>
+    <FablePackageType>library</FablePackageType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>fable-javascript;babylon;qualification</PackageTags>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup><Compile Include="src/BabylonBindings.fs" /></ItemGroup>
-  <ItemGroup><PackageReference Include="Fable.Core" /></ItemGroup>
+  <ItemGroup><PackageReference Include="Fable.Core" /><PackageReference Include="Fable.Package.SDK" /></ItemGroup>
   <ItemGroup><None Include="README.md" Pack="true" PackagePath="\" /></ItemGroup>
 </Project>

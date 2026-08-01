@@ -21,9 +21,11 @@ evidence before release. This spike does not publish a template.
 
 The selected closure is recorded in `spikes/fable-bindings/declaration-lock.json`.
 It covers deep ESM engine, scene, maths, camera, light, mesh-builder, and glTF
-loader entry points; every file is individually SHA-256 hashed. A changed npm
-artifact causes drift until the lock, curated surface, runtime evidence, coverage
-statement, and release notes are reviewed together.
+loader entry points, then deterministically follows every relative declaration
+`import`/`export` edge. Every transitive declaration file is individually
+SHA-256 hashed. A changed npm artifact causes drift until the lock, curated
+surface, runtime evidence, coverage statement, and release notes are reviewed
+together.
 
 ## Generator evaluation
 
@@ -37,9 +39,11 @@ template-literal types, index signatures, and dynamic module augmentation.
 `ts2fable is legacy comparison input only`; it is not the default generator.
 
 `npm run generate:candidate` demonstrates the required safe behavior: it writes
-only `generated-candidates/BabylonBindings.generated.fs`. It can never overwrite
-maintained bindings or advance the declaration lock. The test asserts the two
-protected files retain their hashes after a rerun.
+the tracked `generated-candidates/BabylonBindings.generated.fs` and its tracked
+proposal note. The declaration-lock digest makes an upstream rerun a visible,
+reviewable Git diff. It can never overwrite maintained bindings or advance the
+declaration lock. The test asserts the two protected files retain their hashes
+after a rerun.
 
 ## Curated surface and evidence
 
@@ -51,8 +55,10 @@ hatches outside typed coverage; `obj` stays internal to the interop boundary.
 box, then loads glTF registration; it proves module paths resolve against the
 pinned npm artifact in Node.
 
-Before template freeze, the same files must also compile through Fable and pack
-as a NuGet library; a clean Fable consumer installs that NuGet package and the
-pinned npm package independently. Browser-targeted packages additionally need a
-real-browser smoke test. The future template documents that it never republishes
-the JavaScript package and consumers install the npm runtime dependency.
+The gate packs the Fable library, restores that `.nupkg` through a clean local
+NuGet source, independently installs the exact npm dependencies, compiles the
+consumer through Fable, and executes the emitted JavaScript in Node. The library
+uses `Fable.Package.SDK` as a Fable library so its curated source is available to
+the consumer compiler. Browser-targeted packages additionally need a real-browser
+smoke test. The future template never republishes the JavaScript package and
+consumers install the npm runtime dependency.
