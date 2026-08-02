@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultItems>false</EnableDefaultItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Same source files CodecProbe.Net.fsproj compiles against Thoth.Json.Net,
+         compiled here against Thoth.Json via dotnet fable; see
+         ../../../Protocol/Protocol.fsproj's comment for why this is a Compile Include
+         and not a project reference. -->
+    <Compile Include="../../../Protocol/Http.fs" />
+    <Compile Include="../../../Protocol/Realtime.fs" />
+    <Compile Include="../Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Fable.Core" Version="[5.2.0]" />
+    <PackageReference Include="Thoth.Json" Version="[10.5.1]" />
+  </ItemGroup>
+</Project>

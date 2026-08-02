@@ -1,0 +1,26 @@
+# Drop-in `.fsgg/providers.yml` entry for the server-authoritative Fable game workspace.
+# `source` is an exact package pin: activation is deliberately deferred until this
+# coherent FS.GG.Workspace.Template release is published and independently proved
+# (ADR-0071 Section 6's rollout discipline: local pack and generated-consumer proof
+# precede publication; publication precedes registry activation and wizard release).
+# This row carries no `BEGIN GENERATED: effective-providers` block because it is not
+# yet a registry-active provider -- see web.providers.yml / console.providers.yml for
+# the same not-yet-activated shape; compare fable-bindings.providers.yml /
+# rendering.providers.yml, which carry the block because they are already active.
+schemaVersion: 1
+providers:
+  - name: fable-game
+    contractVersion: "1.1.0"
+    templateId: fs-gg-fable-game
+    source: FS.GG.Workspace.Template::0.8.0
+    nameParameter: productName
+    identifierParameter: rootNamespace
+    minimumFsggSdd:
+      version: "0.6.0"
+      requires: "SDD lifecycle and scaffold provenance support"
+      adr: "FS-GG/.github docs/adr/0071-two-web-workspace-providers-one-template-package.md"
+    parameters:
+      - key: productName
+        required: true
+      - key: rootNamespace
+        required: false

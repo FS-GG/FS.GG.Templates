@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "FS-GG",
+  "classifications": [ "FS-GG", "Game", "Fable", "ASP.NET Core", "SignalR" ],
+  "identity": "FS.GG.Workspace.Template.FableGame",
+  "name": "FS.GG server-authoritative Fable game web workspace",
+  "shortName": "fs-gg-fable-game",
+  "preferNameDirectory": true,
+  "symbols": {
+    "productName": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "",
+      "description": "Raw product name used in paths and display text. When omitted, --name supplies it."
+    },
+    "productNameTrimmed": {
+      "type": "generated",
+      "generator": "regex",
+      "dataType": "string",
+      "parameters": { "source": "productName", "steps": [ { "regex": "^\\s+|\\s+$", "replacement": "" } ] }
+    },
+    "effectiveName": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": { "sourceVariableName": "productNameTrimmed", "fallbackVariableName": "name" },
+      "replaces": "FableGameWorkspace",
+      "fileRename": "FableGameWorkspace"
+    },
+    "effectiveNameLower": {
+      "type": "generated",
+      "generator": "casing",
+      "parameters": { "source": "effectiveName", "toLower": true },
+      "replaces": "fablegameworkspace"
+    },
+    "rootNamespace": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "",
+      "description": "Optional valid F# identifier supplied by an SDD provider."
+    },
+    "rootNamespaceTrimmed": {
+      "type": "generated",
+      "generator": "regex",
+      "dataType": "string",
+      "parameters": { "source": "rootNamespace", "steps": [ { "regex": "^\\s+|\\s+$", "replacement": "" } ] }
+    },
+    "effectiveIdentifier": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": { "sourceVariableName": "rootNamespaceTrimmed", "fallbackVariableName": "effectiveName" },
+      "replaces": "FableGameWorkspaceNamespace"
+    }
+  },
+  "specialCustomOperations": {
+    "**/*.fs": {
+      "operations": [
+        {
+          "type": "conditional",
+          "configuration": {
+            "if": [],
+            "else": [],
+            "elseif": [],
+            "endif": [],
+            "actionableIf": [],
+            "actionableElse": [],
+            "actionableElseif": [],
+            "actions": [],
+            "trim": false,
+            "wholeLine": false,
+            "evaluator": "C++"
+          }
+        }
+      ]
+    }
+  }
+}

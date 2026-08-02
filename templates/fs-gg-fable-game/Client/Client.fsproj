@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultItems>false</EnableDefaultItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- The same Protocol/*.fs source files Server/Server.fsproj compiles against
+         Thoth.Json.Net are compiled here directly (a Compile Include, not a
+         ProjectReference) against Thoth.Json, guarded by FABLE_COMPILER; see
+         ../Protocol/Protocol.fsproj's comment for why. -->
+    <Compile Include="../Protocol/Http.fs" />
+    <Compile Include="../Protocol/Realtime.fs" />
+    <Compile Include="SignalR.fs" />
+    <Compile Include="Api.fs" />
+    <Compile Include="Movement.fs" />
+    <Compile Include="App.fs" />
+    <Compile Include="Program.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Fable.Core" Version="[5.2.0]" />
+    <PackageReference Include="Fable.Elmish" Version="[5.0.2]" />
+    <PackageReference Include="Fable.Browser.Dom" Version="[2.20.0]" />
+    <PackageReference Include="Thoth.Json" Version="[10.5.1]" />
+    <!-- The published Game.Core Fable source profile (fs-gg-game-core-fable-lockstep-v1),
+         consumed the same way Domain/Domain.fsproj does on the server: an ordinary
+         package reference, never a sibling checkout, never a copied algorithm. `dotnet
+         fable` resolves this PackageReference to the package's own bundled fable/*.fs
+         source view (the Fable-package convention FS.GG.Game.Core's own package
+         follows), not the compiled .NET assembly. Movement.fs calls
+         `Pathfinding.astar` (LockstepExact) for a local path *preview* only; the
+         server (Server/RoomAuthority.fs) remains the sole authority that commits
+         movement. -->
+    <PackageReference Include="FS.GG.Game.Core" Version="[0.13.0]" />
+  </ItemGroup>
+</Project>
