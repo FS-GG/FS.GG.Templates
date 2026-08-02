@@ -1,0 +1,8 @@
+<Solution>
+  <Project Path="Domain/Domain.fsproj" />
+  <Project Path="Domain.Tests/Domain.Tests.fsproj" />
+  <Project Path="Protocol/Protocol.fsproj" />
+  <Project Path="Protocol.Tests/Protocol.Tests.fsproj" />
+  <Project Path="Server/Server.fsproj" />
+  <Project Path="Server.Tests/Server.Tests.fsproj" />
+</Solution>

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FableGameWorkspace</title>
+    <style>
+      body { font-family: system-ui, sans-serif; background: #10131a; color: #e8e8e8; }
+      #status { font-size: 0.9rem; opacity: 0.8; }
+      .cell { width: 24px; height: 24px; box-sizing: border-box; border: 1px solid #2a2f3a; cursor: pointer; }
+      .cell.self { background: #3fa7ff; }
+      .cell.other { background: #ff7043; }
+      .cell.preview { outline: 2px dashed #ffd54f; outline-offset: -2px; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>FableGameWorkspace</h1>
+      <p id="status">Loading…</p>
+      <p id="player-id" hidden></p>
+      <div id="arena"></div>
+    </main>
+    <script type="module" src="./output/Program.js"></script>
+  </body>
+</html>

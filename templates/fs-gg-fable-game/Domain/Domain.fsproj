@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Room.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The published Game.Core Fable source profile (fs-gg-game-core-fable-lockstep-v1).
+         Consumed as an ordinary package reference, not a sibling checkout, and not a
+         copied algorithm. Pathfinding.astar is the LockstepExact surface this
+         authoritative server and the Fable client (see ../Client/Client.fsproj) both
+         call, so movement resolution is identical on both runtimes by construction. -->
+    <PackageReference Include="FS.GG.Game.Core" Version="[0.13.0]" />
+  </ItemGroup>
+</Project>

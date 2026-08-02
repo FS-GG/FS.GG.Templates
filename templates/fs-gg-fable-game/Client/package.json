@@ -1,0 +1,16 @@
+{
+  "name": "fablegameworkspace-client",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "dotnet tool restore && dotnet fable . -o output --noCache && vite",
+    "build": "dotnet tool restore && dotnet fable . -o output --noCache && vite build"
+  },
+  "dependencies": {
+    "@microsoft/signalr": "10.0.0"
+  },
+  "devDependencies": {
+    "vite": "7.1.3"
+  }
+}
