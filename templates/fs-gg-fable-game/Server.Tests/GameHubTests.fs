@@ -60,6 +60,29 @@ type GameHubTests() =
             return! tcs.Task
         }
 
+    /// Like `nextMessage`, but resolves on the first inbound `Message` satisfying
+    /// `predicate` -- everything else received in between is silently ignored. Needed
+    /// once a test has more than one message in flight at a time (the burst test
+    /// below): a plain "next message" wait would resolve on whichever broadcast
+    /// happens to arrive first, not the one the assertion actually cares about.
+    let nextMatching (connection: HubConnection) (timeoutMs: int) (predicate: RealtimeV1.Message -> bool) : Task<RealtimeV1.Message> =
+        let tcs = TaskCompletionSource<RealtimeV1.Message>()
+        let subscription =
+            connection.On<string>(
+                "Message",
+                fun json ->
+                    match RealtimeV1.messageFromJson json with
+                    | Ok message when predicate message -> tcs.TrySetResult message |> ignore
+                    | Ok _ -> ()
+                    | Error err -> tcs.TrySetException(Exception err) |> ignore
+            )
+        task {
+            use _ = subscription
+            use cts = new CancellationTokenSource(timeoutMs)
+            use _ = cts.Token.Register(fun () -> tcs.TrySetCanceled() |> ignore)
+            return! tcs.Task
+        }
+
     [<Fact>]
     member _.``connecting sends the joining client an immediate full resync snapshot``() =
         task {
@@ -202,6 +225,54 @@ type GameHubTests() =
             let both = Task.WhenAll(invoke, stop)
             let! _ = Task.WhenAny(both, Task.Delay 5000)
             Assert.True(invoke.IsCompleted && stop.IsCompleted, "stopping while a hub call is in flight must not hang")
+        }
+
+    [<Fact>]
+    member _.``a burst of duplicate-sequence inputs applies each legitimate step exactly once, dropping every stale duplicate under load``() =
+        task {
+            use connection = buildConnection "p-burst"
+            let joinWaiting = nextMessage connection 5000
+            do! connection.StartAsync()
+            let! (_: RealtimeV1.Message) = joinWaiting // spawn at (0,0), the only player in a fresh room
+
+            // A genuine burst against the SignalR path, not a slow drip: for every
+            // legitimate, strictly-increasing-sequence step (sequence i -> one column
+            // right, the correct behaviour), an immediate duplicate resend of that SAME
+            // sequence targeting a far bogus cell is queued right behind it -- exactly
+            // the flood a real client retry storm produces. All 2*steps+1 invocations
+            // (the last requests an explicit resync) are issued before any of them is
+            // individually awaited, so the server receives them as a burst.
+            let steps = 15
+            let resyncWaiting =
+                nextMatching connection 5000 (function
+                    | RealtimeV1.ResyncSnapshotMessage _ -> true
+                    | _ -> false)
+            let calls =
+                [| for i in 1..steps do
+                       let legit: RealtimeV1.InputCommand = { Sequence = i; TargetCol = i; TargetRow = 0 }
+                       yield connection.InvokeAsync("SendMessage", RealtimeV1.encodeMessage (RealtimeV1.InputMessage legit))
+                       let duplicate: RealtimeV1.InputCommand = { Sequence = i; TargetCol = 0; TargetRow = 10 }
+                       yield connection.InvokeAsync("SendMessage", RealtimeV1.encodeMessage (RealtimeV1.InputMessage duplicate))
+                   yield
+                       connection.InvokeAsync(
+                           "SendMessage",
+                           RealtimeV1.encodeMessage (RealtimeV1.ResyncRequestMessage { Version = 1; LastKnownTick = 0 })
+                       ) |]
+
+            do! Task.WhenAll calls
+            let! resync = resyncWaiting
+            match resync with
+            | RealtimeV1.ResyncSnapshotMessage snapshot ->
+                let mover = snapshot.Players |> List.find (fun p -> p.PlayerId = "p-burst")
+                // Falsifiable: if the stale-sequence guard (RoomAuthority.submitInput's
+                // `sequence > last`) were bypassed, every "duplicate" above would ALSO be
+                // accepted and each would nudge the player one cell toward (0, 10) --
+                // landing far from (steps, 0), never exactly on it. See the PR description
+                // for the before/after run that confirms this test reddens when the guard
+                // is disabled.
+                Assert.Equal((steps, 0), (mover.Col, mover.Row))
+            | other -> Assert.Fail $"expected ResyncSnapshotMessage, got {other}"
+            do! connection.StopAsync()
         }
 
     [<Fact>]
