@@ -77,6 +77,8 @@ FIXTURES="$COMPOSITION_DIR/fixtures"
 . "$COMPOSITION_DIR/lib/helpers.sh"           # PASS/FAIL + ok/bad/skip/step/assert_* (A3)
 # shellcheck source=tests/composition/lib/skill-union.sh
 . "$COMPOSITION_DIR/lib/skill-union.sh"       # SKILL_ASSERT_REF + the #315 staleness alarm + fetch_skill_assert + assert_skill_union (A3)
+# shellcheck source=tests/composition/lib/lane-coverage.sh
+. "$COMPOSITION_DIR/lib/lane-coverage.sh"     # lane discovery + the #379 unreached-lane gate and its self-demonstration
 
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/fsgg-composition.XXXXXX")"
 ARTIFACTS="$WORKDIR/artifacts"
@@ -123,6 +125,17 @@ command -v git >/dev/null || { echo "FATAL: git not on PATH (needed to resolve S
 step "pin — the shared skill-union assertion is not frozen (#315)"
 assert_skill_assert_ref_alarm_can_fire "pin"
 assert_skill_assert_ref_fresh "pin"
+
+# ── Every lane is on the required path (FS.GG.Templates#379) ─────────────────────────────────
+# HERE, unconditionally, and for the same reason as the two alarms either side of it: this is a
+# fact about the REPOSITORY — which lane directories exist and which of them the required check
+# reaches — not about a scaffolded product or about the lane set THIS invocation happens to have
+# selected. Hanging it off the lane loop below would mean a run that selected two lanes evaluated
+# coverage for two lanes, which is the #379 defect wearing the gate's own clothes. Offline: it
+# reads this checkout's lane directories and workflow files, and costs no network.
+step "lanes — every discovered lane is reached by a required path (#379)"
+assert_lane_coverage_can_fire "lanes" "$WORKDIR/lane-coverage-fixtures"
+assert_lane_coverage "$COMPOSITION_DIR" "$REPO_ROOT"
 
 # ── THIS REPO's runtime skill-root set (FS-GG/.github#1676, ADR-0067 §8/§9 phase 4) ──────────
 # Here for the same reason the alarm above is: it is a fact about THIS REPOSITORY, not about a
@@ -203,19 +216,24 @@ fi
 # (where the identity has one) the browser and provider/SDD routes. A green run of the stages above
 # proves the descriptors PACK; only these lanes prove an identity WORKS.
 #
-# WHICH LANES RUN IS A CALLER'S DECISION, AND IT IS EXPLICIT (FS.GG.Templates#349). The default is
-# the pair the required `composition` check is measured to fit inside its `timeout-minutes: 30`.
-# The release gate (.github/workflows/release.yml) sets COMPOSITION_LANES to all four, because
-# "all four identities install and instantiate through the packed artifact" is the release's own
-# acceptance and that job carries no 30-minute budget. Whether the REQUIRED check's default should
-# grow — and what it costs — is measured work owned by FS.GG.Templates#379; this variable does not
-# pre-empt that answer, it just stops the release gate from inheriting a limit that is not its own.
+# THE DEFAULT IS DISCOVERY, NOT A LIST (FS.GG.Templates#379). It used to be the hand-written pair
+# `web fable-bindings`, and the two lanes nobody remembered to add to it — console (#356) and
+# fable-game (#348) — were full lifecycle proofs that executed on no required path for days. The
+# default is now every lane directory that carries a run.sh, so ADDING A LANE PUTS IT ON THE
+# REQUIRED CHECK BY CONSTRUCTION: there is no second act left to forget. `lanes:` above gates the
+# other direction — a caller that NARROWS the set — and the measured budget that made running all
+# four affordable is quoted next to `timeout-minutes: 30` in .github/workflows/composition.yml.
+#
+# WHICH LANES RUN IS STILL A CALLER'S DECISION (FS.GG.Templates#349), because a developer running
+# one lane locally must not have to run four. What #379 changed is that a caller's narrowing is now
+# graded as a fact about the repository rather than being invisible: COMPOSITION_LANES selects, and
+# `lanes:` above reds if the REQUIRED CHECK's file narrows past an unregistered lane.
 #
 # A NAMED LANE NEVER SKIPS. If COMPOSITION_LANES names a lane whose script is absent or
 # unexecutable, that is a hard failure with the path in the message — the same rule
 # assert_skill_union follows. Green-by-omission is the failure mode this whole file exists to
 # prevent, and a typo'd lane name silently doing nothing would rebuild it here.
-COMPOSITION_LANES="${COMPOSITION_LANES:-web fable-bindings}"
+COMPOSITION_LANES="${COMPOSITION_LANES:-$(lane_universe "$COMPOSITION_DIR" | tr '\n' ' ')}"
 for lane in $COMPOSITION_LANES; do
   lane_script="$COMPOSITION_DIR/$lane/run.sh"
   step "$lane — generated workspace lifecycle"
@@ -230,16 +248,21 @@ for lane in $COMPOSITION_LANES; do
   fi
 done
 
-# Deferred lanes are NAMED, not left invisible. This is a note, not the gate #379 asks for: that
-# issue owns making an unwired lane impossible by construction and measuring the required check's
-# budget. Printing the set here at least means a reader of any run can see which identities this
-# invocation did and did not exercise, instead of inferring it from the absence of output.
+# Unselected lanes are NAMED, not left invisible, so a reader of any run can see which identities
+# this invocation did and did not exercise instead of inferring it from the absence of output.
+#
+# THIS IS A NOTE ABOUT THE INVOCATION, NOT THE GATE — the gate is `lanes:` at the top of this run,
+# which grades the repository's workflow files and reds. Reaching this line at all means the caller
+# deliberately passed a narrower COMPOSITION_LANES than the discovered set, which on the required
+# check is impossible without `lanes:` failing first, and locally is exactly what a developer asked
+# for. Do not promote this print into the gate: a print that reds would make a one-lane dev run
+# impossible, and a gate that only prints is the omission #379 closed.
 for lane_dir in "$COMPOSITION_DIR"/*/; do
   lane="$(basename "$lane_dir")"
   [[ -f "$lane_dir/run.sh" ]] || continue
   case " $COMPOSITION_LANES " in
     *" $lane "*) ;;
-    *) skip "lane '$lane' was not selected by COMPOSITION_LANES ('$COMPOSITION_LANES'); the release gate runs all four (FS.GG.Templates#379 owns the required check's lane set)" ;;
+    *) skip "lane '$lane' was not selected by this invocation's COMPOSITION_LANES ('$COMPOSITION_LANES'); the required check runs every discovered lane and the 'lanes:' gate above reds if its workflow ever stops (FS.GG.Templates#379)" ;;
   esac
 done
 
@@ -259,13 +282,23 @@ done
 #
 # fs-gg-fable-bindings' half is asserted inside its own lane above, on a product that then goes
 # through npm/Fable/Node/Chromium/SDD/Governance. fs-gg-fable-game is asserted HERE too, and not
-# only by its own lane: that lane is off the required `composition` check's default lane set
-# (FS.GG.Templates#379 owns that decision and its measurement), and putting a full
-# build.sh -> Playwright game lifecycle on this required job to reach one assertion would buy the
-# skill contract at the price of this job's timeout budget. Instantiation is the whole delivery
-# surface for this contract, and it is cheap — the hive already carries the packed template from
-# Stage 2. The release gate runs the fable-game lane in full as well, so on a release both the
-# cheap and the complete proof are observed.
+# only by its own lane.
+#
+# THE REASON THIS BLOCK GIVES FOR THAT IS NOW SPENT, AND SAYING SO IS THE POINT (#379). It used to
+# read "that lane is off the required check's default lane set … and putting a full build.sh ->
+# Playwright game lifecycle on this required job would buy the skill contract at the price of this
+# job's timeout budget". Measured, that price was not real: the fable-game lane costs what the
+# measurement block next to `timeout-minutes: 30` in .github/workflows/composition.yml records, and
+# the whole four-lane job fits the budget with room to spare. The lane now runs on the required
+# check like every other one.
+#
+# THIS ASSERTION STAYS ANYWAY, for a reason that does not depend on the lane set. It grades a
+# DIFFERENT subject cheaply: instantiation from the packed archive is the entire delivery surface
+# for the skill contract, the hive already carries that archive from Stage 2, and it costs seconds.
+# Keeping it means a fable-game lane that reds LATE — in its build, its Playwright run, its SDD
+# route — still leaves this contract graded rather than unobserved behind the first failure. Two
+# proofs of one contract at two costs is not duplication when the cheap one survives the expensive
+# one failing.
 step "product skills — owner catalog coherence, and delivery into a packed product"
 if dotnet fsi "$REPO_ROOT/scripts/generate-skill-manifest.fsx" --check >"$WORKDIR/skill-manifest-check.log" 2>&1; then
   ok "product-skill catalog, manifest and package items agree ($(sed -n '1p' "$WORKDIR/skill-manifest-check.log"))"
