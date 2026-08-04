@@ -7,8 +7,15 @@ trap 'rm -rf "$WORK"' EXIT
 export DOTNET_CLI_HOME="$WORK/dotnet-home"
 mkdir -p "$DOTNET_CLI_HOME"
 
-dotnet pack "$ROOT/FS.GG.Templates.csproj" -o "$WORK/feed" >/dev/null
-dotnet new install "$WORK/feed/FS.GG.Workspace.Template.0.8.0.nupkg" >/dev/null
+LANE_REPO_ROOT="$ROOT"
+# shellcheck source=tests/composition/lib/lane-package.sh
+. "$ROOT/tests/composition/lib/lane-package.sh"
+# The release gate sets FSGG_TEMPLATES_NUPKG to the downloaded, checksum-verified artifact, so this
+# lane proves the console identity against the bytes that are about to be published rather than
+# against a second archive packed here (FS.GG.Templates#349).
+PACKAGE="$(lane_package_path "$WORK")"
+echo "console composition: installing $PACKAGE"
+dotnet new install "$PACKAGE" >/dev/null
 dotnet new fs-gg-console -o "$WORK/clean" --productName SignalConsole --rootNamespace SignalConsole >/dev/null
 
 test -f "$WORK/clean/global.json"
@@ -46,7 +53,7 @@ grep -Fxq "cancelled" "$WORK/wait.err"
 # provenance while the local packed artifact supplies the console product.
 mkdir -p "$WORK/sdd/.fsgg"
 cp "$ROOT/providers/console.providers.yml" "$WORK/sdd/.fsgg/providers.yml"
-sed -i "s#FS.GG.Workspace.Template::0.8.0#$WORK/feed/FS.GG.Workspace.Template.0.8.0.nupkg#" "$WORK/sdd/.fsgg/providers.yml"
+lane_pin_provider_to_archive "$WORK/sdd/.fsgg/providers.yml" "$PACKAGE"
 fsgg-sdd scaffold --root "$WORK/sdd" --provider console --param productName=SignalConsole --param rootNamespace=SignalConsole --no-update --json >"$WORK/scaffold.json"
 jq -e '.outcome == "succeeded" and .scaffold.providerName == "console" and .scaffold.providerInvoked == true' "$WORK/scaffold.json" >/dev/null
 test -f "$WORK/sdd/.fsgg/scaffold-provenance.json"
