@@ -5,6 +5,12 @@ Composes the FS.GG components into a ready-to-run workspace: the
 [FS.GG.Rendering](https://github.com/FS-GG/FS.GG.Rendering) app, and
 [FS.GG.Governance](https://github.com/FS-GG/FS.GG.Governance) config.
 
+From **0.8.0** the package also carries four first-class **workspace identities** — `fs-gg-console`,
+`fs-gg-web`, `fs-gg-fable-bindings` and `fs-gg-fable-game` — each with its own provider descriptor
+under `providers/` and its own end-to-end composition lane. See
+[Release notes](#release-notes) for what each one is, the minimum SDD/wizard versions, and the
+**package-id rename** that release carries.
+
 ## NuGet package quickstart
 
 Acquire or update the template package through the standard `dotnet new` flow:
@@ -13,6 +19,11 @@ Acquire or update the template package through the standard `dotnet new` flow:
 dotnet new install FS.GG.Workspace.Template
 dotnet new update
 ```
+
+> **Coming from `FS.GG.Templates` (0.7.1 or earlier)?** The package id changed in 0.8.0, and
+> `dotnet new update` cannot cross a rename — run
+> `dotnet new uninstall FS.GG.Templates` once first. See
+> [Upgrade behaviour](#release-notes).
 
 Use the packaged `fs-gg-governance` overlay with an existing SDD-managed workspace:
 
@@ -130,7 +141,25 @@ dotnet new fs-gg-governance -o ./MyApp --appName MyApp --defaultProfile light
 ```sh
 tests/composition/run.sh                  # owned stages run fully; full scaffold/build is gated
 FSGG_COMPOSITION_FULL=1 tests/composition/run.sh   # require the fsgg-sdd scaffold+build stage
+COMPOSITION_LANES="console web fable-bindings fable-game" tests/composition/run.sh   # every identity
+FSGG_TEMPLATES_NUPKG=./artifacts/FS.GG.Workspace.Template.<ver>.nupkg tests/composition/run.sh
 ```
+
+**`COMPOSITION_LANES`** selects which per-identity lanes (`tests/composition/<lane>/run.sh`) run.
+It defaults to `web fable-bindings` — the pair the required `composition` check is measured to fit
+inside its `timeout-minutes: 30`. The release gate sets all four, because "all four identities
+install and instantiate through the packed artifact" is the *release's* acceptance and that job
+carries no 30-minute budget. Whether the required check's default should grow, and what it costs,
+is owned by [#379](https://github.com/FS-GG/FS.GG.Templates/issues/379). A lane **named** in
+`COMPOSITION_LANES` whose script is absent is a hard failure — named lanes never skip — and lanes
+that exist but were not selected are printed by name, so a reader can always see which identities a
+given run did and did not exercise.
+
+**`FSGG_TEMPLATES_NUPKG`** points every stage *and every lane* at one prebuilt archive instead of
+packing from the checkout. This is what makes the release gate meaningful: it runs against the
+downloaded, checksum-verified bytes that `publish` then sends to both feeds. If the variable names
+a path that does not exist the run fails — it never quietly packs a substitute, because a gate
+that reports on an archive nobody ships is worse than no gate.
 
 It packs `FS.GG.Workspace.Template`, installs it, instantiates the `fs-gg-governance` overlay, and
 asserts the pins/links: parameter substitution lands, the governance gate set is
@@ -260,19 +289,94 @@ then push a matching tag:
 git tag "fs-gg-templates/v<version>" && git push origin "fs-gg-templates/v<version>"
 ```
 
-The workflow's `gate` job re-runs the composition suite and asserts the tag version equals
-`<Version>` (fail-closed — a red gate or a version mismatch skips the publish). The `publish`
-job then packs, pushes to `nuget.pkg.github.com/FS-GG`, and cuts a GitHub Release. This is
-the producer side of the org **publish-before-flip** dance: the package is LIVE on the feed
-before any downstream registry/pin flip advertises it.
+Three jobs, and the split is the point — **the archive is packed exactly once**:
+
+1. **`pack`** asserts the tag version equals `<Version>`, reads `<PackageId>`, packs once,
+   `sha256sum`s that one archive into `SHA256SUMS`, and uploads both as an immutable workflow
+   artifact. It also asserts that `dotnet pack` produced *exactly* the `<PackageId>.<Version>.nupkg`
+   it derived — the workflow used to hard-code the **project file's** stem as if it were the package
+   id, which stopped matching any file the moment `<PackageId>` became `FS.GG.Workspace.Template`
+   (#349).
+2. **`gate`** downloads that artifact, re-verifies the checksum, and runs
+   `tests/composition/run.sh` against **those exact bytes** (`FSGG_TEMPLATES_NUPKG`) with
+   `COMPOSITION_LANES` naming **all four workspace identities** — so every identity is proved on
+   the archive that is about to be published, not on a second one packed from the checkout.
+3. **`publish`** independently downloads and re-verifies the same artifact, pushes the
+   **byte-identical** file to the org feed (`nuget.pkg.github.com/FS-GG`) and to public
+   **nuget.org** (ADR-0012 dual-publish, ADR-0013 Trusted-Publishing OIDC, gated on
+   `vars.NUGET_ORG_PUBLISH`), then cuts the GitHub Release with the same archive attached.
+
+Fail-closed throughout: a red gate or a version/id mismatch never reaches `publish`. This is the
+producer side of the org **publish-before-flip** dance — the package is LIVE on both feeds before
+any downstream registry/pin flip advertises it.
+
+### Release notes
+
+#### 0.8.0 — the four-identity workspace set
+
+**The package id changed: `FS.GG.Templates` → `FS.GG.Workspace.Template`.** Read the upgrade
+note below before bumping; `dotnet new update` does **not** cross a package-id rename.
+
+| identity | template id | provider descriptor | what it is |
+|---|---|---|---|
+| **console** | `fs-gg-console` | `providers/console.providers.yml` | production-shaped F# console workspace: `build.fsx` build/test, exit-code and cancellation seams, **no npm lane at all**. |
+| **web** | `fs-gg-web` | `providers/web.providers.yml` | neutral F# ASP.NET Core + TypeScript workspace: server, Vite/TS front end, Vitest unit tests, Playwright browser smoke, `build.sh` publish with TRX/JUnit evidence. |
+| **fable-bindings** | `fs-gg-fable-bindings` | `providers/fable-bindings.providers.yml` | Fable binding-library workspace parameterized over `npmPackage`/`npmVersion`/`bindingTarget`: packs a NuGet library, locks its TypeScript-declaration closure, and reviews declaration drift. |
+| **fable-game** | `fs-gg-fable-game` | `providers/fable-game.providers.yml` | server-authoritative Fable game workspace over the published `FS.GG.Game.Core` Fable lockstep profile, with a Playwright two-client scenario and a cross-runtime codec proof. |
+| **governance** *(unchanged)* | `fs-gg-governance` | — | the populated Governance reference-gate-set overlay for an existing SDD workspace. |
+| **rendering** *(unchanged)* | `fs-gg-ui` | `providers/rendering.providers.yml` | the Skia/Elmish app, installed live from `FS.GG.UI.Template` (this package ships no copy of it). |
+
+**Owner-sourced product skills.** The Fable identities ship the generic Fable product skills —
+`fable-project`, `fable-interop`, `fable-remoting`, `fable-signalr`, `fable-testing`,
+`fable-bindings` — projected into each template's packed `.agents/skills/` payload with the
+producer manifest that digests them (see *Owner-sourced product skills* above). `fs-gg-fable-game`
+receives five, `fs-gg-fable-bindings` four; each row's `materializes-when` in
+`template/skill-manifest/skill-manifest.json` is the authority.
+
+**Minimum versions.**
+
+| component | minimum | where it is declared |
+|---|---|---|
+| `fsgg-sdd` (`FS.GG.SDD.Cli`) | **0.6.0** | `minimumFsggSdd` in every provider descriptor under `providers/` |
+| `new-sdd-workspace` (`FS.GG.NewSddWorkspace`, the no-checkout wizard) | **0.9.0** | the release that resolves the four new provider descriptors over the network |
+| `fsgg-governance` (`FS.GG.Governance.Cli`) | **1.5.0** ReferenceGateSet authority | `templates/fs-gg-governance/.template.config/reference-gate-set.json` |
+| .NET SDK | **10.0** | `global.json` in each generated workspace |
+
+**Compatibility.** The scaffold-provider contract stays at **1.1.0** — the four new descriptors add
+no field, so an SDD at or above the 0.6.0 floor resolves them without change. Generated workspaces
+are unaffected by this release: composition happens at scaffold time (ADR-0002), so an already
+scaffolded product keeps the payload it was created with until it is re-scaffolded. The `rendering`
+and `fs-gg-governance` identities are byte-unchanged from 0.7.1 apart from the package they arrive in.
+
+**Upgrade behaviour — the package-id rename needs one manual step.**
+
+`dotnet new update` upgrades a package *within* an id; it has no way to know that
+`FS.GG.Workspace.Template` succeeds `FS.GG.Templates`. A consumer sitting on `FS.GG.Templates`
+0.7.1 will therefore keep reporting itself up to date forever. Uninstall the old id once:
+
+```sh
+dotnet new uninstall FS.GG.Templates          # the pre-0.8.0 id; skip if never installed
+dotnet new install FS.GG.Workspace.Template   # the id from 0.8.0 onward
+dotnet new update                             # normal updates resume from here
+```
+
+`FS.GG.Templates` 0.2.0–0.7.1 stay published and installable on both feeds; they are not unlisted,
+and nothing that already depends on them breaks. New work should pin the new id. Anything that
+pins the package by name — a provider descriptor's `source:`, a `NuGet.Config` mapping, a
+scaffolding script — needs the same one-line change; the descriptors in `providers/` already carry it.
 
 ## Contents
 
 | Path | What |
 |---|---|
 | `providers/rendering.providers.yml` | the SDD scaffold-provider descriptor, pinned to `FS.GG.UI.Template` and passing `lifecycle=sdd` (the **primary** composition path). |
+| `providers/console.providers.yml`, `web.providers.yml`, `fable-bindings.providers.yml`, `fable-game.providers.yml` | the four workspace-identity descriptors, each pinned to this package's own published `FS.GG.Workspace.Template::<ver>`. |
 | `templates/fs-gg-governance/` | the populated Governance-config overlay (`fs-gg-governance`). |
-| `tests/composition/run.sh` | end-to-end composition test (pack→install→instantiate→build→verify pins/links). |
+| `templates/fs-gg-console/`, `fs-gg-web/`, `fs-gg-fable-bindings/`, `fs-gg-fable-game/` | the four packaged workspace identities. |
+| `template/product-skills/`, `template/skill-manifest/` | the owner-sourced generic Fable product skills and their producer manifest, projected into each template's packed `.agents/skills/` payload. |
+| `tests/composition/run.sh` | end-to-end composition test (pack→install→instantiate→build→verify pins/links) plus the per-identity lanes selected by `COMPOSITION_LANES`. |
+| `tests/composition/<identity>/run.sh` | one isolated full-lifecycle lane per identity. |
+| `tests/composition/lib/lane-package.sh` | resolves the archive a lane installs — `FSGG_TEMPLATES_NUPKG` when the caller supplied one, otherwise a fresh pack — and repoints a copied provider descriptor's `source:` pin at it. |
 | `scripts/dev-repack-ui-feed.sh` | DEV-ONLY: repacks the pinned `FS.GG.UI.*` set from a local FS.GG.Rendering checkout into the local cache, for testing an unpublished UI build before it reaches the org feed. The CLIs and the published UI set come from the org feed (container provisioning), not this script. |
 | `scripts/bump-rendering-pin.sh` | re-pins `FS.GG.UI.Template` coherently across provider + README (successor to the retired `sync-from-rendering.sh`). |
 | `.github/renovate.json` | Renovate config that bumps the `FS.GG.UI.*` pin and the pinned FS-GG/.github `skill-union-assert.sh` ref (issue #56) automatically. |

@@ -197,25 +197,51 @@ fi
 . "$COMPOSITION_DIR/stages/05b-standalone.sh"
 . "$COMPOSITION_DIR/stages/06-govern.sh"
 
-# The neutral web workspace is a first-class packaged template. Its isolated lane performs the
-# complete generated root lifecycle (including observed TRX/JUnit evidence), so a green required
-# composition check cannot merely prove that the descriptor happens to pack.
-step "web — clean generated workspace lifecycle"
-if bash "$COMPOSITION_DIR/web/run.sh"; then
-  ok "web template clean lifecycle passes"
-else
-  bad "web template clean lifecycle failed"
-fi
+# ── Per-identity lanes ────────────────────────────────────────────────────────────────────────
+# Each packaged workspace identity owns an isolated lane under tests/composition/<lane>/run.sh that
+# performs its complete generated-root lifecycle — instantiate, restore, build, test, publish, and
+# (where the identity has one) the browser and provider/SDD routes. A green run of the stages above
+# proves the descriptors PACK; only these lanes prove an identity WORKS.
+#
+# WHICH LANES RUN IS A CALLER'S DECISION, AND IT IS EXPLICIT (FS.GG.Templates#349). The default is
+# the pair the required `composition` check is measured to fit inside its `timeout-minutes: 30`.
+# The release gate (.github/workflows/release.yml) sets COMPOSITION_LANES to all four, because
+# "all four identities install and instantiate through the packed artifact" is the release's own
+# acceptance and that job carries no 30-minute budget. Whether the REQUIRED check's default should
+# grow — and what it costs — is measured work owned by FS.GG.Templates#379; this variable does not
+# pre-empt that answer, it just stops the release gate from inheriting a limit that is not its own.
+#
+# A NAMED LANE NEVER SKIPS. If COMPOSITION_LANES names a lane whose script is absent or
+# unexecutable, that is a hard failure with the path in the message — the same rule
+# assert_skill_union follows. Green-by-omission is the failure mode this whole file exists to
+# prevent, and a typo'd lane name silently doing nothing would rebuild it here.
+COMPOSITION_LANES="${COMPOSITION_LANES:-web fable-bindings}"
+for lane in $COMPOSITION_LANES; do
+  lane_script="$COMPOSITION_DIR/$lane/run.sh"
+  step "$lane — generated workspace lifecycle"
+  if [[ ! -f "$lane_script" ]]; then
+    bad "$lane: COMPOSITION_LANES names this lane but $lane_script does not exist — a named lane FAILS rather than skipping"
+    continue
+  fi
+  if bash "$lane_script"; then
+    ok "$lane template lifecycle passes"
+  else
+    bad "$lane template lifecycle failed"
+  fi
+done
 
-# The Fable bindings workspace is also a first-class packaged template. Its isolated lane executes
-# the locked declaration, candidate, NuGet/npm/Fable/Node/Chromium, SDD, Governance, and deliberate
-# drift-review lifecycles. Keep it on this required path so those contracts cannot green by omission.
-step "fable-bindings — generated workspace lifecycle and drift review"
-if bash "$COMPOSITION_DIR/fable-bindings/run.sh"; then
-  ok "fable-bindings template lifecycle and drift review pass"
-else
-  bad "fable-bindings template lifecycle or drift review failed"
-fi
+# Deferred lanes are NAMED, not left invisible. This is a note, not the gate #379 asks for: that
+# issue owns making an unwired lane impossible by construction and measuring the required check's
+# budget. Printing the set here at least means a reader of any run can see which identities this
+# invocation did and did not exercise, instead of inferring it from the absence of output.
+for lane_dir in "$COMPOSITION_DIR"/*/; do
+  lane="$(basename "$lane_dir")"
+  [[ -f "$lane_dir/run.sh" ]] || continue
+  case " $COMPOSITION_LANES " in
+    *" $lane "*) ;;
+    *) skip "lane '$lane' was not selected by COMPOSITION_LANES ('$COMPOSITION_LANES'); the release gate runs all four (FS.GG.Templates#379 owns the required check's lane set)" ;;
+  esac
+done
 
 # ── Owner-sourced product skills (FS.GG.Templates#347) ────────────────────────────────────────
 # The generic Fable product skills are authored ONCE under template/product-skills/ and projected
@@ -232,12 +258,14 @@ fi
 # a repository file; only instantiating the archive grades delivery.
 #
 # fs-gg-fable-bindings' half is asserted inside its own lane above, on a product that then goes
-# through npm/Fable/Node/Chromium/SDD/Governance. fs-gg-fable-game is asserted HERE rather than by
-# sourcing tests/composition/fable-game/run.sh: that lane is not on any required path today
-# (FS.GG.Templates#379), and putting a full pack -> build.sh -> Playwright game lifecycle on this
-# required job to reach one assertion would buy the skill contract at the price of this job's
-# timeout budget. Instantiation is the whole delivery surface for this contract, and it is cheap —
-# the hive already carries the packed template from Stage 2.
+# through npm/Fable/Node/Chromium/SDD/Governance. fs-gg-fable-game is asserted HERE too, and not
+# only by its own lane: that lane is off the required `composition` check's default lane set
+# (FS.GG.Templates#379 owns that decision and its measurement), and putting a full
+# build.sh -> Playwright game lifecycle on this required job to reach one assertion would buy the
+# skill contract at the price of this job's timeout budget. Instantiation is the whole delivery
+# surface for this contract, and it is cheap — the hive already carries the packed template from
+# Stage 2. The release gate runs the fable-game lane in full as well, so on a release both the
+# cheap and the complete proof are observed.
 step "product skills — owner catalog coherence, and delivery into a packed product"
 if dotnet fsi "$REPO_ROOT/scripts/generate-skill-manifest.fsx" --check >"$WORKDIR/skill-manifest-check.log" 2>&1; then
   ok "product-skill catalog, manifest and package items agree ($(sed -n '1p' "$WORKDIR/skill-manifest-check.log"))"

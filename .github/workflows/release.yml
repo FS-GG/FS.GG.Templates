@@ -28,6 +28,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       package-version: ${{ steps.version.outputs.package-version }}
+      package-id: ${{ steps.version.outputs.package-id }}
+      package-file: ${{ steps.version.outputs.package-file }}
     permissions:
       contents: read
     steps:
@@ -40,26 +42,48 @@ jobs:
       # csproj we are about to pack. Without this the feed could advertise a version the
       # package does not carry (or a hand-edited <Version> could drift from the tag). Fail
       # here before doing any of the expensive work below.
+      #
+      # <PackageId> IS READ HERE FOR THE SAME REASON THE VERSION IS, AND IT IS NOT COSMETIC
+      # (FS.GG.Templates#349). `dotnet pack` names its archive `<PackageId>.<Version>.nupkg`,
+      # and this workflow used to hard-code the *project file's* stem — `FS.GG.Templates.*` —
+      # as if it were the package id. Those two were equal until 44c558c renamed
+      # <PackageId> to FS.GG.Workspace.Template for the four-identity set, and nothing
+      # observed the split: the very next `sha256sum FS.GG.Templates.*.nupkg` matched no file
+      # and exited 1, so no `fs-gg-templates/v*` tag could produce a release at all. Deriving
+      # the archive name from the id the pack actually uses retires the whole class rather
+      # than the one instance, and the post-pack assertion below proves the derivation held.
       - name: Assert tag ⇔ csproj version coherence
         id: version
         run: |
           TAG_VERSION="${GITHUB_REF#refs/tags/fs-gg-templates/v}"
           CSPROJ_VERSION="$(grep -oE '<Version>[0-9][^<]*</Version>' FS.GG.Templates.csproj | head -1 | sed -E 's#</?Version>##g')"
+          CSPROJ_ID="$(grep -oE '<PackageId>[^<]+</PackageId>' FS.GG.Templates.csproj | head -1 | sed -E 's#</?PackageId>##g')"
           echo "tag version:    $TAG_VERSION"
           echo "csproj version: $CSPROJ_VERSION"
+          echo "csproj id:      $CSPROJ_ID"
           if [ -z "$CSPROJ_VERSION" ]; then
             echo "::error::could not read <Version> from FS.GG.Templates.csproj"; exit 1
+          fi
+          if [ -z "$CSPROJ_ID" ]; then
+            echo "::error::could not read <PackageId> from FS.GG.Templates.csproj. The published package id is not the project-file stem and must never be assumed to be — see FS.GG.Templates#349."
+            exit 1
           fi
           if [ "$TAG_VERSION" != "$CSPROJ_VERSION" ]; then
             echo "::error::release tag ($TAG_VERSION) != <Version> in FS.GG.Templates.csproj ($CSPROJ_VERSION). Bump the csproj to match the tag before tagging (publish-before-flip)."
             exit 1
           fi
-          echo "package-version=$TAG_VERSION" >> "$GITHUB_OUTPUT"
+          {
+            echo "package-version=$TAG_VERSION"
+            echo "package-id=$CSPROJ_ID"
+            echo "package-file=$CSPROJ_ID.$TAG_VERSION.nupkg"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Restore (locked)
         run: dotnet restore FS.GG.Templates.csproj --locked-mode
 
       - name: Pack once and checksum
+        env:
+          PACKAGE_FILE: ${{ steps.version.outputs.package-file }}
         run: |
           dotnet pack FS.GG.Templates.csproj \
             -c Release \
@@ -68,8 +92,19 @@ jobs:
             -o artifacts
           (
             cd artifacts
-            sha256sum FS.GG.Templates.*.nupkg > SHA256SUMS
+            # The derivation above is an ASSERTION, not a guess: `dotnet pack` is the authority on
+            # what it produced, so compare its output set against the single file this release is
+            # about to checksum, gate, publish and tag. A pack that emitted a differently-named or
+            # additional archive reds HERE, naming both sides, instead of surfacing as a feed that
+            # advertises something no one verified.
+            produced="$(find . -maxdepth 1 -name '*.nupkg' -printf '%f\n' | sort)"
+            if [ "$produced" != "$PACKAGE_FILE" ]; then
+              echo "::error::dotnet pack produced [$(echo "$produced" | tr '\n' ' ')] but this release is built around exactly '$PACKAGE_FILE' (<PackageId>.<Version> from FS.GG.Templates.csproj). Reconcile the csproj with the pack output before tagging."
+              exit 1
+            fi
+            sha256sum "$PACKAGE_FILE" > SHA256SUMS
             sha256sum --check SHA256SUMS
+            echo "release artifact: $(cat SHA256SUMS)"
           )
 
       - name: Upload immutable release artifact
@@ -77,7 +112,7 @@ jobs:
         with:
           name: fs-gg-templates-${{ github.sha }}
           path: |
-            artifacts/FS.GG.Templates.*.nupkg
+            artifacts/${{ steps.version.outputs.package-file }}
             artifacts/SHA256SUMS
           if-no-files-found: error
           retention-days: 7
@@ -149,9 +184,24 @@ jobs:
 
       # The generated-product gate: install the downloaded archive → instantiate →
       # scaffold/build → verify pins/links + governance enforcement.
+      #
+      # COMPOSITION_LANES NAMES ALL FOUR WORKSPACE IDENTITIES, and the release gate is the
+      # place that owes that (FS.GG.Templates#349 acceptance: "All four identities install and
+      # instantiate through the packed artifact outside the producer checkout"). `run.sh`
+      # defaults to the two lanes the required `composition` check can afford inside its
+      # `timeout-minutes: 30`; whether that default should grow is measured work owned by
+      # FS.GG.Templates#379 and is deliberately NOT decided here. This job has no such budget
+      # (no timeout-minutes → the 360-minute default), so it names the complete set. A lane
+      # named here that cannot run FAILS — `run.sh` has no skip arm for a named lane.
+      #
+      # Every lane installs FSGG_TEMPLATES_NUPKG — the downloaded, checksum-verified archive —
+      # rather than packing a second one from the checkout. Before #349 the per-template lanes
+      # each ran their own `dotnet pack`, so this job's header claim of running "against those
+      # exact downloaded bytes" was true only of stages 01–06 and false of every identity lane.
       - name: Composition test the release artifact
         env:
-          FSGG_TEMPLATES_NUPKG: ${{ github.workspace }}/artifacts/FS.GG.Templates.${{ needs.pack.outputs.package-version }}.nupkg
+          FSGG_TEMPLATES_NUPKG: ${{ github.workspace }}/artifacts/${{ needs.pack.outputs.package-file }}
+          COMPOSITION_LANES: console web fable-bindings fable-game
         run: tests/composition/run.sh
 
   publish:

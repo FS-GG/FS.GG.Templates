@@ -11,8 +11,15 @@ for browser in chromium chromium-browser google-chrome google-chrome-stable; do
     break
   fi
 done
-dotnet pack "$root/FS.GG.Templates.csproj" -o "$work/packages"
-dotnet new install "$work/packages"/*.nupkg --force
+LANE_REPO_ROOT="$root"
+# shellcheck source=tests/composition/lib/lane-package.sh
+. "$root/tests/composition/lib/lane-package.sh"
+# The release gate sets FSGG_TEMPLATES_NUPKG to the downloaded, checksum-verified artifact, so this
+# lane proves the web identity against the bytes that are about to be published rather than against
+# a second archive packed here (FS.GG.Templates#349).
+package="$(lane_package_path "$work")"
+echo "web composition: installing $package"
+dotnet new install "$package" --force
 dotnet new fs-gg-web -n CleanWeb -o "$work/scaffold"
 test -f "$work/scaffold/Server/CleanWeb.Server.fsproj"
 test -f "$work/scaffold/Web/package.json"
@@ -35,7 +42,7 @@ test -f "$work/scaffold/Browser.Tests/package-lock.json"
 # alias for direct `dotnet new` instantiation.
 mkdir -p "$work/sdd/.fsgg"
 cp "$root/providers/web.providers.yml" "$work/sdd/.fsgg/providers.yml"
-sed -i "s#FS.GG.Workspace.Template::0.8.0#$work/packages/FS.GG.Workspace.Template.0.8.0.nupkg#" "$work/sdd/.fsgg/providers.yml"
+lane_pin_provider_to_archive "$work/sdd/.fsgg/providers.yml" "$package"
 fsgg-sdd scaffold --root "$work/sdd" --provider web --param productName=Rogue-Web --param rootNamespace=RogueWeb --no-update --json >"$work/scaffold.json"
 jq -e '.outcome == "succeeded" and .scaffold.providerName == "web" and .scaffold.providerInvoked == true' "$work/scaffold.json" >/dev/null
 test -f "$work/sdd/.fsgg/scaffold-provenance.json"
