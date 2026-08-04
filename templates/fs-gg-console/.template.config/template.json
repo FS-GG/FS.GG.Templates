@@ -6,6 +6,21 @@
   "name": "FS.GG F# console workspace",
   "shortName": "fs-gg-console",
   "preferNameDirectory": true,
+  "sources": [
+    {
+      "source": "./",
+      "target": "./",
+      "//": "This `exclude` list is the template engine's own default list MINUS `**/*.lock.json`, and it exists to keep that one pattern off (FS.GG.Templates#384, same root cause as #380). The default is not inert: it strips every `packages.lock.json` out of each generated workspace, so a reviewed lock can never reach a product. Combined with `Directory.Build.props`'s `RestorePackagesWithLockFile=true`, the product's FIRST restore then AUTHORS its own lock from whatever the ambient host happened to resolve, and `RestoreLockedMode=true` enforces that unreviewed lock forever after — surfacing as `NU1403: Package content hash validation failed` the moment the ambient content moves. This template was the most exposed of the four: it committed NO lockfiles at all while still setting `RestoreLockedMode=true` on every project, so every product it generated invented its own lock and called the result locked. Declaring `exclude` here REPLACES the engine default wholesale, so every other default pattern below must be restated verbatim; they are copied from the engine's own defaults, read out of dotnet SDK 10.0.302's Microsoft.TemplateEngine.Orchestrator.RunnableProjects.dll (`strings -el` emits `**/*` as the include, then these six plus `**/*.lock.json` as the exclude). `**/node_modules/**` is restated even though this template ships no npm workspace: the list is the engine default minus exactly one pattern, and a template that silently narrowed a second one would be a difference nobody chose.",
+      "exclude": [
+        "**/[Bb]in/**",
+        "**/[Oo]bj/**",
+        "**/.template.config/**",
+        "**/*.filelist",
+        "**/*.user",
+        "**/node_modules/**"
+      ]
+    }
+  ],
   "symbols": {
     "productName": {
       "type": "parameter",

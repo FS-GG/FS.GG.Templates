@@ -10,6 +10,7 @@
   },
   "devDependencies": { "typescript": "5.9.3" },
   "scripts": {
+    "build": "bash build.sh",
     "lock:declarations": "node scripts/lock-declarations.mjs --write",
     "check:drift": "node scripts/lock-declarations.mjs --check",
     "test:runtime": "node runtime/node/smoke.mjs",

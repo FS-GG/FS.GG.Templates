@@ -1,1 +1,79 @@
-<Project><PropertyGroup><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile><RestoreLockedMode>true</RestoreLockedMode><TreatWarningsAsErrors>true</TreatWarningsAsErrors></PropertyGroup></Project>
+<Project>
+  <PropertyGroup>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode>true</RestoreLockedMode>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!--
+      FS.GG.Templates#384 (root cause established by #380). `RestoreLockedMode` above
+      pins each package's identity, version and CONTENT HASH — so it is only
+      enforceable if exactly one archive can ever answer for a given id+version.
+
+      The F# SDK appends its own bundled folder feed to the restore sources:
+
+        sdk/<ver>/FSharp/Microsoft.FSharp.NetSdk.targets:69
+          <PropertyGroup Condition=" '$(DisableImplicitLibraryPacksFolder)' != 'true' ">
+            <RestoreAdditionalProjectSources>...;$(_FSharpCoreLibraryPacksFolder)</...>
+
+      That folder ships one archive — `FSharp.Core.10.1.302.nupkg`, 3051536 bytes — at
+      the same version nuget.org publishes as 3066531 bytes. Two byte-different
+      packages, one id and version, both reachable in the same restore; whichever one a
+      given restore reaches gets its `contentHash` written into the lock, and a later
+      restore that reaches the other reports the disagreement as
+
+        error NU1403: Package content hash validation failed for FSharp.Core.10.1.302.
+                      The package is different than the last restore.
+
+      which is #380 exactly, observed in the sibling fs-gg-fable-game template.
+
+      BE PRECISE ABOUT THIS WORKSPACE'S EXPOSURE, because it is not identical to
+      fs-gg-fable-game's and pretending otherwise would make this comment untrue. These
+      projects target netstandard2.1 and take FSharp.Core 4.7.2 transitively through
+      Fable.Core, so the version the SDK folder ships is not the version resolved TODAY
+      (measured: `packages.lock.json` beside both projects records FSharp.Core 4.7.2).
+      This property is therefore a forward guardrail here rather than a repair of a
+      live collision: the day Fable.Core's floor moves, or a project retargets, the
+      exposure arrives silently and locked mode would enforce whichever archive won.
+      Setting it now costs nothing this workspace uses — every package it restores
+      already comes from nuget.org — and it keeps all four FS-GG workspace templates
+      answering the question the same way.
+
+      `<clear />` in NuGet.config cannot close this: the folder arrives through
+      RestoreAdditionalProjectSources (MSBuild), not through NuGet configuration, so
+      nothing in NuGet.config removes it. This property is the lever that does.
+    -->
+    <DisableImplicitLibraryPacksFolder>true</DisableImplicitLibraryPacksFolder>
+
+    <!--
+      The second half of #380, and the half that source pinning cannot reach. Unlike the
+      property above, this one is load-bearing for THIS workspace today.
+
+      `DisableImplicitLibraryPacksFolder` decides which SOURCE is consulted — but only for
+      a package that must be fetched at all. NuGet's global packages folder is keyed by
+      id+version alone, so once `fable.core/5.2.0/` or `fsharp.core/4.7.2/` is extracted
+      there, every later restore on that machine uses it and validates the lock against the
+      `contentHash` recorded in its `.nupkg.metadata`. Whichever build reached that folder
+      FIRST decides which archive lives there, and nothing a product declares can overrule
+      an entry that already exists.
+
+      Measured both ways in #380 on FSharp.Core 10.1.302, where two archives are known to
+      exist: a machine whose shared folder holds nuget.org's copy restores green; a machine
+      whose shared folder holds the SDK's copy fails with NU1403 — same product, same lock,
+      same source pinning, opposite result. That is not a property this workspace can fix by
+      naming a source, and it is why a CI runner reds while a developer container passes.
+      The mechanism is generic over package id: it is not a claim about FSharp.Core.
+
+      So the workspace keeps its packages to itself. `RestorePackagesPath` gives it a
+      private package folder, which makes the committed `contentHash` beside it enforceable
+      on ANY machine regardless of what that machine's shared folder happens to hold. This
+      is the cost of a lock that actually means something: packages are not shared with
+      other checkouts, so a cold build downloads its own copies. A CI cache should key on
+      `packages.lock.json` and cache `.nuget/packages` in the workspace.
+
+      Removing this line does not fail loudly — it makes the workspace green on machines
+      that agree with the lock and red on machines that do not, which is exactly the
+      intermittent NU1403 #380 spent its life chasing.
+    -->
+    <RestorePackagesPath>$(MSBuildThisFileDirectory).nuget/packages</RestorePackagesPath>
+  </PropertyGroup>
+</Project>
