@@ -73,6 +73,12 @@ jq -e '.outcome == "noChange" and (.diagnostics | length) == 0' "$work/doctor.js
 # provider descriptor and drives `dotnet new` itself. A package item that survives direct
 # instantiation but not the provider route would leave products scaffolded the supported way with
 # no skills at all, so the same contract is asserted on this product too.
-dotnet fsi "$root/scripts/generate-skill-manifest.fsx" --assert-product "$work/sdd" --template fs-gg-fable-game
+#
+# `--co-tenants` because this root is SHARED: fsgg-sdd seeds its own `fs-gg-sdd-*` process skills
+# and the five `always` `.github` driver skills (registry/driver-skill-manifest.json) into the same
+# `.agents/skills/`. Those belong to other producers and this manifest must not declare them; a
+# skill belonging to nobody still reds.
+dotnet fsi "$root/scripts/generate-skill-manifest.fsx" --assert-product "$work/sdd" --template fs-gg-fable-game \
+  --co-tenants 'fs-gg-sdd-* work-board work-board-best work-board-normal work-roadmap padd-item'
 
 echo "fable-game composition: generated clean scaffold production lifecycle, including cross-runtime codec proof, the Playwright two-client scenario, and owner-sourced product-skill delivery through both the direct and provider routes"

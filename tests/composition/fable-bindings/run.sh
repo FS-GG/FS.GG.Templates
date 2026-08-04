@@ -59,7 +59,14 @@ dotnet new fs-gg-governance -o "$WORK/product" --appName AcmeBindings --defaultP
 # The governance overlay is applied with --force over the SAME directory, so this re-assertion is
 # not a repeat: it proves the overlay does not clobber, truncate, or shadow the producer's skill
 # root on its way through.
-dotnet fsi "$ROOT/scripts/generate-skill-manifest.fsx" --assert-product "$WORK/product" --template fs-gg-fable-bindings
+#
+# `--co-tenants` is required HERE and not on the first call because by this point the root is
+# SHARED: fsgg-sdd has seeded its `fs-gg-sdd-*` process skills and the five `always` `.github`
+# driver skills (registry/driver-skill-manifest.json) into the same `.agents/skills/`. They are
+# another producer's correct output, so this producer's manifest must not declare them — but a
+# skill belonging to NOBODY still reds, which is the dangling class the glob list preserves.
+dotnet fsi "$ROOT/scripts/generate-skill-manifest.fsx" --assert-product "$WORK/product" --template fs-gg-fable-bindings \
+  --co-tenants 'fs-gg-sdd-* work-board work-board-best work-board-normal work-roadmap padd-item'
 test -f "$WORK/product/.fsgg/scaffold-provenance.json"
 jq -e '.governanceConfig.policyPresent == true and .governanceConfig.capabilitiesPresent == true and .readiness.shipDisposition == "shipReady"' "$WORK/product/readiness/001-bindings-lifecycle/governance-handoff.json" >/dev/null
 cp "$WORK/product/readiness/001-bindings-lifecycle/governance-handoff.json" "$WORK/product/reports/sdd-governance-handoff.json"

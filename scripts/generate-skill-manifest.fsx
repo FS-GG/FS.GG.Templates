@@ -22,6 +22,7 @@
 //   dotnet fsi scripts/generate-skill-manifest.fsx                       regenerate the manifest
 //   dotnet fsi scripts/generate-skill-manifest.fsx --check               catalog <-> manifest <-> csproj
 //   dotnet fsi scripts/generate-skill-manifest.fsx --assert-product <dir> --template <templateId>
+//                                                 [--co-tenants "<glob> <glob> …"]
 open System
 open System.IO
 open System.Security.Cryptography
@@ -80,7 +81,24 @@ let rendered =
 let target = path manifestRel
 
 // ── product-side assertion ──────────────────────────────────────────────────────────────────────
-let assertProduct (productDir: string) (templateId: string) =
+// `--co-tenants` carries the same meaning it has in the shared FS-GG/.github skill-union assertion:
+// a materialized skill is legitimate when it is manifest-declared OR matches a declared co-tenant
+// glob; anything else is DANGLING (ADR-0014 F3). It is needed because a product's skill root is
+// shared. `dotnet new` alone yields only this producer's payload, but once `fsgg-sdd` has scaffolded
+// or the governance overlay has run, the same root also holds SDD's `fs-gg-sdd-*` process skills and
+// the five `always` `.github` driver skills — none of which this producer's manifest declares, and
+// none of which it should. Without the glob list a delivery assertion would either red on another
+// producer's correct output or drop the dangling class entirely; with it, an id belonging to NOBODY
+// still reds.
+//
+// The globs are passed at each call site rather than defaulted here, because which co-tenants are
+// expected is a fact about the LANE (which scaffolder ran), not about this catalog.
+let globMatches (pattern: string) (name: string) =
+    let rx =
+        "^" + (pattern.Split '*' |> Array.map System.Text.RegularExpressions.Regex.Escape |> String.concat ".*") + "$"
+    System.Text.RegularExpressions.Regex.IsMatch(name, rx)
+
+let assertProduct (productDir: string) (templateId: string) (coTenants: string list) =
     if not (templateIds |> List.contains templateId) then
         bad "--template '%s' is not a template this catalog supplies (expected one of: %s)" templateId (String.concat ", " templateIds)
     let skillsDir = Path.Combine(productDir, skillRoot.Replace('/', Path.DirectorySeparatorChar))
@@ -119,16 +137,23 @@ let assertProduct (productDir: string) (templateId: string) =
                 let actual = digest (File.ReadAllText file)
                 if actual <> sha then
                     bad "DRIFTED: '%s' materialized with sha256 %s, but its manifest row declares %s — the shipped bytes are not the bytes the producer digested" id actual sha
-        // Anything in the product's skill root that no manifest row declares reached a product with
-        // no owner, no digest, and no materialization rule.
+        // Anything in the product's skill root that no manifest row declares and no declared
+        // co-tenant glob claims reached a product with no owner, no digest, and no rule.
         let declaredIds = declared |> List.map (fun (id, _, _) -> id) |> Set.ofList
+        let mutable coTenantCount = 0
         for dir in Directory.GetDirectories skillsDir do
             let name = Path.GetFileName dir
             if not (declaredIds.Contains name) then
-                bad "DANGLING: %s/%s/ is materialized in the generated product but no manifest row declares it" skillRoot name
+                if coTenants |> List.exists (fun g -> globMatches g name) then coTenantCount <- coTenantCount + 1
+                else
+                    bad "DANGLING: %s/%s/ is materialized in the generated product, but no manifest row declares it and no declared co-tenant (%s) claims it"
+                        skillRoot name (if List.isEmpty coTenants then "none passed" else String.concat " " coTenants)
         if failures.Count = 0 then
-            printfn "skill-manifest: %s product OK — %d of %d declared skills materialized, every digest matches the shipped manifest, none dangling"
-                (shortName templateId) present (List.length declared)
+            let coTenantNote =
+                if List.isEmpty coTenants then ""
+                else sprintf ", %d co-tenant skill(s) accepted as '%s'" coTenantCount (String.concat " " coTenants)
+            printfn "skill-manifest: %s product OK — %d of %d declared skills materialized, every digest matches the shipped manifest, none dangling%s"
+                (shortName templateId) present (List.length declared) coTenantNote
 
 // ── csproj coherence ────────────────────────────────────────────────────────────────────────────
 // The catalog reaches a product ONLY because FS.GG.Templates.csproj projects it into each template's
@@ -157,8 +182,12 @@ let checkCsproj () =
 // ── entry points ────────────────────────────────────────────────────────────────────────────────
 match flagValue "--assert-product" with
 | Some productDir ->
+    let coTenants =
+        flagValue "--co-tenants"
+        |> Option.map (fun v -> v.Split([| ' '; '\t'; ',' |], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray)
+        |> Option.defaultValue []
     match flagValue "--template" with
-    | Some templateId -> assertProduct productDir templateId
+    | Some templateId -> assertProduct productDir templateId coTenants
     | None -> eprintfn "skill-manifest: --assert-product requires --template <templateId>"; exit 2
 | None ->
     if hasFlag "--check" then

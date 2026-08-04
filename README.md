@@ -223,6 +223,13 @@ manifest `template/skill-manifest/skill-manifest.json`, which ships into every s
 | `--check` | the catalog, the checked-in manifest, and the csproj package items still agree |
 | `--assert-product <dir> --template <id>` | a product instantiated from the **packed archive** received exactly the declared set — reds on an absent selected skill, a skill the manifest does not select for that template, an undeclared (dangling) skill directory, a drifted digest, or a missing/non-canonical producer manifest |
 
+Add `--co-tenants "<glob> …"` once another producer has written into the same root — after
+`fsgg-sdd scaffold` or the governance overlay, `.agents/skills/` also holds SDD's `fs-gg-sdd-*`
+process skills and the five `always` `.github` driver skills. They are another producer's correct
+output, so this manifest must not declare them; the glob list keeps them legitimate while a skill
+belonging to **nobody** still reds. The globs are passed per call site because which co-tenants to
+expect is a fact about the lane, not about this catalog.
+
 The product-side arm is the load-bearing one, and the reason it exists is worth keeping: the
 catalog originally shipped in a tree no package item referenced. Every source-side check was green,
 CI was green, and **no generated product could receive a single declared skill** — a source-side
