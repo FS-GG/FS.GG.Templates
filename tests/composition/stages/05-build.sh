@@ -22,18 +22,31 @@ FULL_OK=0
 # into the SDD-owned .fsgg/ tree). Runs in a subshell with `set -e` so ANY step failing fails the compose
 # (the fail-fast the standalone script gave us) without touching run.sh's shell. The dev-only --source pin
 # override retired with the script; this test never passed it.
+# `--json` (third argument, the report path) is not decoration: `scaffold.materializedGameSkillPaths`
+# is the ONLY thing that can tell the owner-sourced Game Skills rows apart from their co-tenants in
+# the composed product's .agents/skills/, and #349's sixth acceptance criterion is asserted from it
+# (lib/game-skill-release.sh). The report goes to its own file so the governance-overlay step's
+# output still lands in scaffold.log unmixed.
 compose_full() (
   set -euo pipefail
-  target="$1"; product="$2"
+  target="$1"; product="$2"; report="$3"
   mkdir -p "$target/.fsgg"
   cp "$REPO_ROOT/providers/rendering.providers.yml" "$target/.fsgg/providers.yml"
-  fsgg-sdd scaffold --root "$target" --provider rendering --param "productName=$product"
+  fsgg-sdd scaffold --root "$target" --provider rendering --param "productName=$product" --json >"$report"
   dotnet new install "$REPO_ROOT/templates/fs-gg-governance" >/dev/null 2>&1 || true
   dotnet new fs-gg-governance -o "$target" --appName "$product"
 )
 
+FULL_SCAFFOLD_REPORT="$WORKDIR/full-scaffold.json"
+
+# Unconditional, like the #379 coverage gate's own demonstration: whether the resolver's alarms can
+# fire is a property of the REPOSITORY, not of this invocation, so it must not be reachable only
+# from the runs that happen to have fsgg-sdd on PATH.
+step "verify — the Game Skills release resolver's alarms can fire (#349)"
+assert_game_skill_alarms_can_fire "game-skills"
+
 if [[ "$RUN_FULL" == "1" ]]; then
-  if compose_full "$FULL" "$FULL_PRODUCT" >"$WORKDIR/scaffold.log" 2>&1; then
+  if compose_full "$FULL" "$FULL_PRODUCT" "$FULL_SCAFFOLD_REPORT" >"$WORKDIR/scaffold.log" 2>&1; then
     GENERATED_README="$FULL/README.md"
     LOAD_SCRIPT="load-${FULL_PRODUCT}.fsx"
 
@@ -155,6 +168,17 @@ if [[ "$RUN_FULL" == "1" ]]; then
       # .agents/skills/*) into .claude/.codex/.agents. Assert it, content-checked.
       step "verify — skill-union (orchestrated lane, ADR-0014 P3.T3.2)"
       assert_skill_union "$FULL" "orchestrated" 'fs-gg-sdd-*'
+
+      # #349 acceptance: "the exact Game Skills release is pinned and proven through the production
+      # SDD materializer before publication". This composed product IS that route — the rendering
+      # provider defaults `profile` to `game`, which is what makes every FS.GG.Game.Skills row's
+      # `materializes-when` hold. assert_skill_union above cannot cover it: it grades the product
+      # against the manifest the materializer itself wrote, so it stays green whether the
+      # owner-sourced rows arrived or not. See lib/game-skill-release.sh for why this names a
+      # release by content instead of freezing a digest, and for why the fable-game identity
+      # correctly receives none of these rows.
+      step "verify — the Game Skills release reaching a game scaffold (#349)"
+      assert_game_skill_materialization "$FULL" "$FULL_SCAFFOLD_REPORT" "game-skills"
     else
       bad "scaffold succeeded but dotnet build of the composed product failed (see $WORKDIR/build.log)"
       tail -n 60 "$WORKDIR/build.log" 2>/dev/null | sed 's/^/  | /'
@@ -170,4 +194,5 @@ if [[ "$RUN_FULL" == "1" ]]; then
   fi
 else
   skip "fsgg-sdd CLI not available — scaffold+build of the live rendering app not exercised here. Run with the SDD CLI installed (or FSGG_COMPOSITION_FULL=1) to require it. This stage validates the un-vendored composition path; the gate keeps CI honest rather than green-by-omission."
+  skip "no composed product, so the Game Skills release reaching a game scaffold was not resolved this run (#349). The resolver's own alarms were still demonstrated above; what is missing is the measurement, not the mechanism. The required 'composition' check always has fsgg-sdd on PATH, so this arm is the local-run one."
 fi

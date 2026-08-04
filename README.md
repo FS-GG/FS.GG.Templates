@@ -345,6 +345,24 @@ producer manifest that digests them (see *Owner-sourced product skills* above). 
 receives five, `fs-gg-fable-bindings` four; each row's `materializes-when` in
 `template/skill-manifest/skill-manifest.json` is the authority.
 
+**Game Skills are a different producer, and reach a different identity.** The `FS.GG.Game.Skills`
+rows (`fs-gg-game-fable`, `fs-gg-game-core`, …) are owner-sourced by FS.GG.Game and materialized by
+`fsgg-sdd` itself, which embeds the pinned package as assembly resources at its own build time. They
+gate on `materializes-when: profile in [game, sample-pack]`, so they reach the **`rendering`**
+identity — whose `profile` defaults to `game` — and **not** `fs-gg-fable-game`, which has no
+`profile` parameter at all. That split is deliberate (#264: "game skills reach a game scaffold via
+owner-sourcing, so FS.GG.Templates gains no `game.providers.yml`"); the Fable identities' own
+owner-sourced skills are the `fable-*` rows above.
+
+Which release arrives is upstream's to pin and is **not** frozen here — this repository floats
+`fsgg-sdd` to latest stable by design (#317). The composition suite instead asserts that the
+materializer delivered a non-empty set containing `fs-gg-game-fable`, then resolves by content which
+published release those bytes are and prints it into the run log and step summary
+(`tests/composition/lib/game-skill-release.sh`). Measured for this release: **`FS.GG.Game.Skills`
+0.7.0**, delivered by `fsgg-sdd` 1.0.0 — 11 rows, every body byte-identical to 0.7.0. That is one
+release behind the published 0.8.0, whose only content difference is `fs-gg-mapcraft`;
+`fs-gg-game-fable` is byte-identical across both, so nothing this release ships is affected.
+
 **Minimum versions.**
 
 | component | minimum | where it is declared |
