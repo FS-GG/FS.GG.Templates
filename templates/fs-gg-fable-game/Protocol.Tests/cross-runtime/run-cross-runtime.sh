@@ -15,6 +15,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NET_PROJECT="$SCRIPT_DIR/CodecProbe.Net/CodecProbe.Net.fsproj"
 FABLE_PROJECT="$SCRIPT_DIR/CodecProbe.Fable/CodecProbe.Fable.fsproj"
 FABLE_ENTRY="$SCRIPT_DIR/CodecProbe.Fable/Program.js"
@@ -26,9 +27,19 @@ echo "cross-runtime: building .NET codec probe"
 dotnet build "$NET_PROJECT" -c Release -o "$TMP/net" >/dev/null
 NET_DLL="$TMP/net/CodecProbe.Net.dll"
 
+# `fable` is a LOCAL dotnet tool — `.config/dotnet-tools.json` pins it (FS.GG.Templates#392).
+# A local tool is never reachable as a bare `fable`, on any machine, restored or not; it is
+# reached as `dotnet fable`. And nothing has materialized the manifest by this point: `build.sh`
+# runs this probe BEFORE `Client`'s npm build, and that npm `build` script was the template's only
+# `dotnet tool restore`. So the restore belongs here, next to the use, which also lets this script
+# stand alone rather than depending on a caller having built the client first.
+#
+# Both commands resolve the manifest by searching upward from the CURRENT directory, so anchor
+# them at the workspace root instead of inheriting whatever directory the caller happened to be in.
 echo "cross-runtime: building Fable codec probe (dotnet fable)"
 rm -rf "$SCRIPT_DIR/CodecProbe.Fable/output" "$FABLE_ENTRY" "$SCRIPT_DIR/CodecProbe.Fable/Protocol"
-fable "$FABLE_PROJECT" --outDir "$SCRIPT_DIR/CodecProbe.Fable/output" --noCache >/dev/null
+(cd "$WORKSPACE_ROOT" && dotnet tool restore) >/dev/null
+(cd "$WORKSPACE_ROOT" && dotnet fable "$FABLE_PROJECT" --outDir "$SCRIPT_DIR/CodecProbe.Fable/output" --noCache) >/dev/null
 [[ -f $FABLE_ENTRY ]] || {
   echo "cross-runtime: expected Fable output was not produced: $FABLE_ENTRY" >&2
   exit 1
