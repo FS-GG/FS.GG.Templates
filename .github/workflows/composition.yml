@@ -49,14 +49,20 @@ jobs:
     #     `composition test` step 3m03s   (11:37:38Z → 11:40:41Z)
     #     web 68.6s · fable-bindings 60.7s · stages+alarms ~50s
     #
-    #   AFTER — 4 lanes, PR #390 @19d04b1, run 30909455795 / job 91992266101
+    #   ALL FOUR — PR #390 @19d04b1, run 30909455795 / job 91992266101
     #     job wall-clock          4m42s   (12:31:14Z → 12:35:56Z)
     #     `composition test` step 4m19s   (12:31:32Z → 12:35:51Z)
-    #     console 34.5s · fable-bindings 76.6s · web 48.8s · fable-game 33.1s (see below)
+    #     console 34.5s · fable-bindings 76.6s · web 48.8s · fable-game 33.1s (truncated, see below)
     #     the #379 coverage gate and its 22-outcome self-demonstration: 0.5s
     #
+    #   SHIPPED — 3 lanes (fable-game deferred, see below), @13f1008 run 30910578399 / job 91996034186
+    #     job wall-clock          3m50s   (12:46:20Z → 12:50:10Z)   86 passed, 0 failed
+    #     console 33.9s · fable-bindings 69.7s · web 49.6s · coverage gate 0.8s
+    #
     # So the two lanes #379 was worried about cost +1m19s of job wall-clock against a 30-MINUTE
-    # budget. Even taking the worst figure here the job uses under a fifth of it.
+    # budget, and what actually ships costs +27s over the old hand-written pair while adding a
+    # complete console lifecycle and the coverage gate. Even taking the worst figure here the job
+    # uses under a fifth of its budget.
     #
     # THE fable-game FIGURE IS TRUNCATED, AND IT IS NAMED AS SUCH rather than banked. That lane
     # died 33s in on FS.GG.Templates#392 (its `build.sh` invokes the local `fable` tool bare and

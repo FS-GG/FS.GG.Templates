@@ -80,11 +80,18 @@ COMPOSITION_LANE_DEFERRALS=(
   # and it is LOUD: the run prints the lane by name, the release gate still runs it in full, and the
   # assertions below refuse to let it rot into a silent exemption.
   #
-  # RETIRING IT IS A ONE-LINE DELETION AND NEEDS NO RE-MEASUREMENT. With both blockers patched out
-  # locally, the complete lane — instantiate, restore, build, TRX, the cross-runtime codec proof,
-  # npm ci x2, the Fable compile, the Vite bundle, dotnet publish, and the Playwright two-client
-  # scenario — ran green in 63s (2026-08-04). Delete this entry when #385 and #392 have landed.
-  "fable-game|BLOCKED, not deferred for cost: #385 and #392 both make this lane fail on every host; re-enable by deleting this entry once they land"
+  # RETIRING IT IS A ONE-LINE DELETION AND NEEDS NO RE-MEASUREMENT, AND IT IS ITS OWN ITEM — #393,
+  # blocked on both of the above — because a deferral has NO EXPIRY. The assertions below grade this
+  # registry's coherence, not its currency: deciding currency means asking whether #385 and #392 are
+  # still open, and this job holds `contents: read` with no issue scope, so a gate for it would need
+  # a credential its callers may not have and would fail ALWAYS rather than closed (.github#463).
+  # An entry that outlives its reason is a slower version of the defect this file closed, so the
+  # thing that retires it is a boarded item, not a silence.
+  #
+  # With both blockers patched out locally, the complete lane — instantiate, restore, build, TRX,
+  # the cross-runtime codec proof, npm ci x2, the Fable compile, the Vite bundle, dotnet publish,
+  # and the Playwright two-client scenario — ran green in 63s (2026-08-04).
+  "fable-game|BLOCKED, not deferred for cost: #385 and #392 both make this lane fail on every host; #393 retires this entry once they land"
 )
 
 # lane_universe <composition-dir>
@@ -219,7 +226,7 @@ lane_coverage_findings() {
       if [[ "$wf" == "$required_wf" ]]; then
         echo "lane '$lane' exists at $composition_dir/$lane/run.sh but the required '$COMPOSITION_REQUIRED_CONTEXT' check does not run it, and no deferral is registered — this is exactly #379: a full template-lifecycle proof that is green by omission. Either let it run (delete the narrowing COMPOSITION_LANES in $COMPOSITION_REQUIRED_WORKFLOW) or register a measured deferral in COMPOSITION_LANE_DEFERRALS"
       else
-        echo "lane '$lane' exists at $composition_dir/$lane/run.sh but ${wf#"$repo_root"/} pins a COMPOSITION_LANES list that omits it, and no deferral is registered — that workflow runs one fewer lane than its own acceptance claims. Delete its narrowing list (the default is now every discovered lane) or register a measured deferral"
+        echo "lane '$lane' exists at $composition_dir/$lane/run.sh but ${wf#"$repo_root"/} pins a COMPOSITION_LANES list that omits it, and no deferral is registered — that workflow runs one fewer lane than its own acceptance claims. Delete its narrowing list — the default is discovery minus the deferral registry, which is what you want here — or register a measured deferral"
       fi
       findings=$((findings + 1))
     done <<<"$universe"
@@ -329,6 +336,8 @@ assert_lane_coverage() {
   lane_count="$(lane_universe "$1" | grep -c .)"
   run_list="$(lane_workflow_selection "$2/$COMPOSITION_REQUIRED_WORKFLOW" "$(lane_default_selection "$1")" | tr '\n' ' ')"
   run_list="${run_list% }"
+  # Word-splitting is the count here, same contract as lane_workflow_selection's parse.
+  # shellcheck disable=SC2086
   run_count="$(printf '%s\n' $run_list | grep -c .)"
   deferred_count="${#COMPOSITION_LANE_DEFERRALS[@]}"
   deferred_list=''
