@@ -31,8 +31,10 @@
 //      Demanding byte-equality of a manifest that lives IN that shared root demanded sole
 //      ownership of a file in a directory this script itself documents as jointly occupied.
 // So the divergence check below is a SUBSET-AND-OWNERSHIP check, not a byte comparison: every row
-// this catalog renders must appear in the product's manifest field-for-field, and no OTHER
-// `scope: "product"` row may appear. That keeps the whole of what byte-equality was protecting —
+// this catalog renders must appear in the product's manifest carrying EXACTLY the fields this
+// catalog declares, with the same values — no field missing, none added — and no OTHER
+// `scope: "product"` row may appear. Every row must also carry a `scope`, because that is the field
+// the ownership half is decided on. That keeps the whole of what byte-equality was protecting —
 // "its digests describe THIS catalog" — while permitting the rows another producer legitimately
 // added. The rejected alternative was to make `fsgg-sdd` stop rewriting the file; that is
 // cross-repo work in FS.GG.SDD, and it would have to fight requirement 1 as well.
@@ -191,22 +193,37 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
                         bad "the product's manifest row for '%s' carries %s '%s' where %s declares '%s' — the packed manifest and the owner catalog have diverged" id field v manifestRel canonValue
                     | None ->
                         bad "the product's manifest row for '%s' is missing the field '%s' that %s declares — the packed manifest and the owner catalog have diverged" id field manifestRel
+                // FIELD FOR FIELD MEANS EXACTLY THESE FIELDS, IN BOTH DIRECTIONS. Iterating only the
+                // canonical fields would make the rule "AT LEAST these", which is not what this file's
+                // header and the README claim, and not what byte-equality guaranteed. A field this
+                // assertion does not read is a field that can change what the row MEANS — a future
+                // `"disabled": true` or an override key would sail through a subset check while the
+                // digests still matched. That is the same shape this whole repair exists to remove:
+                // a form the predicate cannot read, graded as though it were fine.
+                for KeyValue (field, prodValue) in prodFields do
+                    if not (canonFields.ContainsKey field) then
+                        bad "the product's manifest row for '%s' carries an extra field '%s' ('%s') that %s does not declare — this catalog's own rows are graded field for field, and a field this assertion cannot read could change what the row means" id field prodValue manifestRel
         for (id, fields) in productRows do
             if fields.TryFind "scope" = Some "product" && not (canonicalById.ContainsKey id) then
                 bad "the product's %s/skill-manifest.json declares product-scoped skill '%s', but %s declares no such skill — a product-scoped row is THIS producer's claim, and this one is not one it makes" skillRoot id manifestRel
         // Grade against the manifest the PRODUCT carries, not this repository's copy. A row missing
         // a field this grading needs is refused outright: skipping it would let an unreadable row
         // pass as a delivered one.
+        //
+        // `scope` IS REQUIRED, AND IT IS THE FIELD THE OWNERSHIP RULE ABOVE IS BUILT ON. The check at
+        // `fields.TryFind "scope" = Some "product"` asks whether a row is THIS producer's claim, and an
+        // ABSENT scope answers "no" just as confidently as an explicit foreign one — so a row with no
+        // scope at all would be waved through as somebody else's business, which is precisely the
+        // never-read-form-graded-as-a-negative defect this file was repaired to stop, one field over.
+        // An explicit NON-product scope is a different thing entirely and stays legitimate: that is
+        // ADR-0014 F3's "manifest-declared OR co-tenant" rule working as intended, not a hole.
         let declared =
             productRows |> List.choose (fun (id, fields) ->
-                match fields.TryFind "sha256", fields.TryFind "materializes-when" with
-                | Some sha, Some when_ -> Some(id, sha, when_)
-                | sha, when_ ->
-                    let missing =
-                        [ if Option.isNone sha then yield "sha256"
-                          if Option.isNone when_ then yield "materializes-when" ] |> String.concat " and "
-                    bad "the product's manifest row for '%s' is missing %s, so whether it was delivered cannot be graded — this reds rather than passing over the row" id missing
-                    None)
+                let missing = [ "scope"; "sha256"; "materializes-when" ] |> List.filter (fields.ContainsKey >> not)
+                if not (List.isEmpty missing) then
+                    bad "the product's manifest row for '%s' is missing %s, so this assertion cannot grade it — 'scope' decides whose row it is, 'sha256' whether the shipped bytes are the declared ones, and 'materializes-when' whether it belongs in this template. An absent field is REFUSED, never read as a confident negative" id (String.concat " and " missing)
+                    None
+                else Some(id, fields.["sha256"], fields.["materializes-when"]))
         if List.isEmpty declared then bad "the product's shipped manifest declares no skills at all"
         // ── `materializes-when` IS A GRAMMAR, AND AN UNREADABLE FORM MUST RED ────────────────────
         // Two forms are legitimate in a product's shared manifest:
@@ -366,6 +383,27 @@ let demonstrateAssertion () =
         case "a product-scoped row this catalog does not own"
             (Some "declares no such skill") (Some(manifestOf (renderedRows @ [ foreignRow "product" "forged-skill" "always" ])))
             (materialized @ [ ("forged-skill", driverBody "forged-skill") ]) []
+        // A row that omits `scope` ALTOGETHER. `scope` is the field the ownership half is decided on,
+        // so an absent one used to fall through to "somebody else's row" and pass — the same
+        // unreadable-form-graded-as-a-negative shape as the `always` defect, one field over (repair 1).
+        case "a row that declares no scope at all"
+            (Some "is missing scope")
+            (Some(manifestOf (renderedRows @ [ sprintf "    {\n      \"id\": \"scopeless\",\n      \"sha256\": \"%s\",\n      \"resolvablePath\": \"%s/scopeless/SKILL.md\",\n      \"materializes-when\": \"always\"\n    }" (digest (driverBody "scopeless")) skillRoot ])))
+            (materialized @ [ ("scopeless", driverBody "scopeless") ]) []
+        // An EXTRA field on a row this catalog owns. "Field for field" has to mean both directions,
+        // or the documented claim and the executed check disagree (repair 1).
+        case "an extra field on a row this catalog owns"
+            (Some "extra field")
+            (Some(manifestOf (renderedRows |> List.mapi (fun i r ->
+                if i = 0 then r.Replace("\n      \"scope\": \"product\",", "\n      \"scope\": \"product\",\n      \"disabled\": true,") else r))))
+            materialized []
+        // ── AND THE BOUNDARY THE TIGHTENING MUST NOT CROSS ──────────────────────────────────────
+        // An explicitly non-product row with NO co-tenant glob is LEGITIMATE — ADR-0014 F3's
+        // "manifest-declared OR co-tenant" rule. This case exists to red if a future tightening of
+        // the ownership half turns that into a failure.
+        case "an explicitly foreign-scoped row with no co-tenant glob passed"
+            None (Some(manifestOf (renderedRows @ [ foreignRow "driver" "padd-item" "always" ])))
+            (materialized @ [ ("padd-item", driverBody "padd-item") ]) []
         // ── the fail-closed arms ────────────────────────────────────────────────────────────────
         case "a materializes-when form this predicate cannot read"
             (Some "UNREADABLE:") (Some(manifestOf (renderedRows @ [ foreignRow "driver" "mystery-skill" "sometimes" ])))
@@ -428,7 +466,7 @@ match flagValue "--assert-product" with
             // This line stays FIRST on stdout: tests/composition/run.sh reads `sed -n '1p'` of this
             // log into the lane's own ok message.
             printfn "skill-manifest: up to date (%d skills, packed into %s)" (List.length catalog) (String.concat " + " templateIds)
-            printfn "skill-manifest: the product-side assertion can FIRE — %d cases driven offline, including both delivery routes passing and every red lane (absent, drifted, dangling, wrong-template, catalog divergence, forged ownership, unreadable declaration, schemaVersion) reproducing" demoCases
+            printfn "skill-manifest: the product-side assertion can FIRE — %d cases driven offline, including both delivery routes passing, a legitimate foreign-scoped row still passing, and every red lane (absent, drifted, dangling, wrong-template, catalog divergence, forged ownership, absent scope, extra field, unreadable declaration, schemaVersion) reproducing" demoCases
     else
         Directory.CreateDirectory(Path.GetDirectoryName target) |> ignore
         File.WriteAllText(target, rendered)

@@ -263,10 +263,13 @@ A product's own `.agents/skills/skill-manifest.json` is a different file from th
 and **the product owns it** (FS.GG.Templates#385). It is a shared, multi-producer, upper-bound
 catalog: `fsgg-sdd scaffold` appends `"scope": "driver"` rows to it for the driver skills it seeds,
 and the org-wide skill-union assertion already grades it under those set semantics. So
-`--assert-product` requires this catalog's rows to appear in it **field for field**, and refuses any
-other `"scope": "product"` row — it does not require the file to be byte-identical to the producer's
-copy, which no product scaffolded through a provider could ever satisfy. Rows supplied by another
-producer are still graded for delivery; they are simply not required to match this catalog.
+`--assert-product` requires this catalog's rows to appear in it **field for field** — exactly the
+fields this catalog declares, same values, none missing and none added — and refuses any other
+`"scope": "product"` row. Every row must carry a `scope`, because that is the field ownership is
+decided on; an absent one is refused rather than read as "somebody else's row". It does **not**
+require the file to be byte-identical to the producer's copy, which no product scaffolded through a
+provider could ever satisfy. Rows supplied by another producer are still graded for delivery; they
+are simply not required to match this catalog.
 
 The product-side arm is the load-bearing one, and the reason it exists is worth keeping: the
 catalog originally shipped in a tree no package item referenced. Every source-side check was green,
