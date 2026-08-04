@@ -79,6 +79,8 @@ FIXTURES="$COMPOSITION_DIR/fixtures"
 . "$COMPOSITION_DIR/lib/skill-union.sh"       # SKILL_ASSERT_REF + the #315 staleness alarm + fetch_skill_assert + assert_skill_union (A3)
 # shellcheck source=tests/composition/lib/lane-coverage.sh
 . "$COMPOSITION_DIR/lib/lane-coverage.sh"     # lane discovery + the #379 unreached-lane gate and its self-demonstration
+# shellcheck source=tests/composition/lib/game-skill-release.sh
+. "$COMPOSITION_DIR/lib/game-skill-release.sh" # the #349 Game Skills materialization assertion + release resolver and its self-demonstration
 
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/fsgg-composition.XXXXXX")"
 ARTIFACTS="$WORKDIR/artifacts"
