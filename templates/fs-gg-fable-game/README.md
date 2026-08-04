@@ -95,6 +95,18 @@ Two settings keep those hashes reproducible, and both are load-bearing (see
   different bytes, so leaving it enabled lets one restore record one content hash
   and the next restore reject it with
   `NU1403: Package content hash validation failed`.
+- **`RestorePackagesPath` in `Directory.Build.props`** gives this workspace its own
+  `.nuget/packages` folder instead of the machine-wide one. Source pinning alone is
+  not enough: NuGet's shared package folder is keyed by id and version only, so
+  whichever build reached it first decides which of the two `FSharp.Core` archives
+  lives there, and a later restore validates the committed hash against *that*
+  entry. A private folder is what makes the committed hash enforceable on any
+  machine rather than only on machines that happen to agree.
+
+  Two consequences worth knowing. Packages are not shared with your other
+  checkouts, so a cold build downloads its own copies. And `.nuget/` belongs in
+  your ignore file — this workspace ships without one, in common with `bin/`,
+  `obj/`, `artifacts/` and `node_modules/`.
 
 `build.sh` refuses to restore at all if the lock files are missing, because a
 locked-mode restore with no lock on disk does not fail — it quietly writes a new
