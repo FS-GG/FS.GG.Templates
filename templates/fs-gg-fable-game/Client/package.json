@@ -8,7 +8,7 @@
     "build": "dotnet tool restore && dotnet fable . -o output --noCache && vite build"
   },
   "dependencies": {
-    "@microsoft/signalr": "10.0.0"
+    "@microsoft/signalr": "10.0.11"
   },
   "devDependencies": {
     "vite": "7.1.3"
