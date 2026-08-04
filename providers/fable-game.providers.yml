@@ -7,6 +7,22 @@
 # yet a registry-active provider -- see web.providers.yml / console.providers.yml for
 # the same not-yet-activated shape; compare fable-bindings.providers.yml /
 # rendering.providers.yml, which carry the block because they are already active.
+#
+# PRODUCT SKILLS THIS PROVIDER DELIVERS (FS.GG.Templates#347). A product scaffolded through this
+# provider receives, in `.agents/skills/`, the owner-sourced generic Fable skills selected for
+# `fs-gg-fable-game` — `fable-project`, `fable-interop`, `fable-remoting`, `fable-signalr`,
+# `fable-testing` — plus the producer manifest `.agents/skills/skill-manifest.json` that declares
+# and digests them. They are authored once under `template/product-skills/` and projected into this
+# template's packed payload by package items in FS.GG.Templates.csproj; the authority for WHICH
+# skills land here is each manifest row's `materializes-when`, not this comment.
+#
+# THIS IS PROSE, NOT SCHEMA, DELIBERATELY. The scaffold-provider contract (1.1.0) has no field for a
+# delivered skill set, and inventing a key here would be read by nothing and enforced by nothing —
+# a declaration that cannot be wrong. What actually holds the claim up is executable: the
+# `assert-product` arm of scripts/generate-skill-manifest.fsx runs against a product instantiated
+# from the packed archive, through BOTH the direct `dotnet new` route and this provider's
+# `fsgg-sdd scaffold` route, and reds on an absent, unexpected, dangling, or digest-drifted skill.
+# See tests/composition/fable-game/run.sh and tests/composition/run.sh.
 schemaVersion: 1
 providers:
   - name: fable-game

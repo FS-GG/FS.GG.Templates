@@ -217,6 +217,50 @@ else
   bad "fable-bindings template lifecycle or drift review failed"
 fi
 
+# ── Owner-sourced product skills (FS.GG.Templates#347) ────────────────────────────────────────
+# The generic Fable product skills are authored ONCE under template/product-skills/ and projected
+# into each provider template's packed `.agents/skills/` payload by package items in
+# FS.GG.Templates.csproj. Two things have to hold, and they fail in different places:
+#
+#   SOURCE SIDE — the catalog, the checked-in manifest, and the csproj package items still agree.
+#   PRODUCT SIDE — a product instantiated from the PACKED archive actually receives the declared
+#   set, with the shipped manifest as its authority.
+#
+# ONLY THE PRODUCT SIDE COULD HAVE CAUGHT #347's ROUND-1 DEFECT, and that is why it runs here. The
+# catalog originally shipped in a tree no package item referenced: `--check` was green, CI was
+# green, and no generated product could receive a single declared skill. A source-side check grades
+# a repository file; only instantiating the archive grades delivery.
+#
+# fs-gg-fable-bindings' half is asserted inside its own lane above, on a product that then goes
+# through npm/Fable/Node/Chromium/SDD/Governance. fs-gg-fable-game is asserted HERE rather than by
+# sourcing tests/composition/fable-game/run.sh: that lane is not on any required path today
+# (FS.GG.Templates#379), and putting a full pack -> build.sh -> Playwright game lifecycle on this
+# required job to reach one assertion would buy the skill contract at the price of this job's
+# timeout budget. Instantiation is the whole delivery surface for this contract, and it is cheap —
+# the hive already carries the packed template from Stage 2.
+step "product skills — owner catalog coherence, and delivery into a packed product"
+if dotnet fsi "$REPO_ROOT/scripts/generate-skill-manifest.fsx" --check >"$WORKDIR/skill-manifest-check.log" 2>&1; then
+  ok "product-skill catalog, manifest and package items agree ($(sed -n '1p' "$WORKDIR/skill-manifest-check.log"))"
+else
+  bad "the product-skill catalog, its manifest, and the csproj package items disagree — a skill can be authored, digested and declared while being packed into nothing"
+  sed 's/^/      | /' "$WORKDIR/skill-manifest-check.log"
+fi
+
+SKILL_PRODUCT="$WORKDIR/fable-game-skill-delivery"
+if dotnet new fs-gg-fable-game -n SkillDelivery -o "$SKILL_PRODUCT" >"$WORKDIR/fable-game-instantiate.log" 2>&1; then
+  if dotnet fsi "$REPO_ROOT/scripts/generate-skill-manifest.fsx" \
+       --assert-product "$SKILL_PRODUCT" --template fs-gg-fable-game \
+       >"$WORKDIR/fable-game-skills.log" 2>&1; then
+    ok "fable-game: $(sed -n '1p' "$WORKDIR/fable-game-skills.log")"
+  else
+    bad "fable-game: a product instantiated from the packed archive did not receive the declared product skills (absent, unexpected, dangling, drifted, or an unreadable producer manifest)"
+    sed 's/^/      | /' "$WORKDIR/fable-game-skills.log"
+  fi
+else
+  bad "fable-game: the packed template did not instantiate, so product-skill delivery could not be observed — this lane FAILS rather than skipping"
+  sed 's/^/      | /' "$WORKDIR/fable-game-instantiate.log"
+fi
+
 # ── Summary ──────────────────────────────────────────────────────────────────
 printf '\n\033[1m== summary ==\033[0m  \033[32m%d passed\033[0m, \033[31m%d failed\033[0m\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
