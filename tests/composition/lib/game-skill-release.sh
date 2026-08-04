@@ -112,9 +112,10 @@ GAME_SKILLS_MAX_RELEASES="${GAME_SKILLS_MAX_RELEASES:-40}"
 
 # Set by game_skill_fetch_releases so the assertion can NAME the window it actually searched rather
 # than asserting over a set the reader cannot see.
-GAME_SKILLS_WINDOW=""            # the versions materialized, newest-first, space-separated
+GAME_SKILLS_WINDOW=""            # the versions actually COMPARED, newest-first, space-separated
 GAME_SKILLS_PUBLISHED_COUNT=0    # how many versions the feed index listed
-GAME_SKILLS_CEILING_HIT=0        # 1 when the ceiling truncated the search
+GAME_SKILLS_CEILING_HIT=0        # 1 when the ceiling stopped the walk early
+GAME_SKILLS_SKIPPED=""           # versions the feed listed but this run could not download/unpack
 # The one row #349 depends on: FS.GG.Game#552's Game.Core Fable lockstep skill, a declared blocker
 # of this item. Named as a constant so a rename upstream reds HERE, where the dependency is
 # recorded, rather than silently reducing the delivered set by one.
@@ -173,7 +174,7 @@ game_skill_release_match_local() {
 game_skill_fetch_releases() {
   local dest="$1" ceiling="${2:-$GAME_SKILLS_MAX_RELEASES}" version count=0
   mkdir -p "$dest"
-  GAME_SKILLS_WINDOW=""; GAME_SKILLS_PUBLISHED_COUNT=0; GAME_SKILLS_CEILING_HIT=0
+  GAME_SKILLS_WINDOW=""; GAME_SKILLS_PUBLISHED_COUNT=0; GAME_SKILLS_CEILING_HIT=0; GAME_SKILLS_SKIPPED=""
 
   local index; index="$(curl -fsSL --max-time 30 "$GAME_SKILLS_FLATCONTAINER/index.json" 2>/dev/null)" || return 1
   local -a published=()
@@ -184,10 +185,17 @@ game_skill_fetch_releases() {
     [[ -n "$version" ]] || continue
     if [[ "$count" -ge "$ceiling" ]]; then GAME_SKILLS_CEILING_HIT=1; break; fi
     local pkg="$dest/$version.nupkg"
-    curl -fsSL --max-time 60 \
-      "$GAME_SKILLS_FLATCONTAINER/$version/fs.gg.game.skills.$version.nupkg" -o "$pkg" 2>/dev/null || continue
+    # A release this run could not FETCH is recorded, never merely skipped. Losing it here is what
+    # let a one-release network blip masquerade as a complete search — see the completeness
+    # predicate below (repair round 2).
+    if ! curl -fsSL --max-time 60 \
+         "$GAME_SKILLS_FLATCONTAINER/$version/fs.gg.game.skills.$version.nupkg" -o "$pkg" 2>/dev/null; then
+      GAME_SKILLS_SKIPPED="${GAME_SKILLS_SKIPPED:+$GAME_SKILLS_SKIPPED }$version"; continue
+    fi
     mkdir -p "$dest/$version"
-    unzip -q -o "$pkg" -d "$dest/$version" 2>/dev/null || continue
+    if ! unzip -q -o "$pkg" -d "$dest/$version" 2>/dev/null; then
+      GAME_SKILLS_SKIPPED="${GAME_SKILLS_SKIPPED:+$GAME_SKILLS_SKIPPED }$version"; continue
+    fi
     rm -f "$pkg"
     GAME_SKILLS_WINDOW="${GAME_SKILLS_WINDOW:+$GAME_SKILLS_WINDOW }$version"
     count=$((count+1))
@@ -195,16 +203,43 @@ game_skill_fetch_releases() {
   [[ "$count" -gt 0 ]]
 }
 
+# game_skill_search_is_complete
+# THE COMPLETENESS PREDICATE, and the reason it is a function rather than an inline test.
+#
+# Round 1 asked whether the CEILING had been hit. That is not the same question as whether the whole
+# published set was compared, and the gap between them was a defect: `curl … || continue` skipped a
+# release that failed to download WITHOUT setting the ceiling flag, so a run that compared 7 of 8
+# releases took the complete-search branch and announced "all 7 published release(s)" — silently
+# redefining "all" to mean "the ones that happened to download". Worse, the complete-search arm is
+# the one that points UPSTREAM, so a transient network blip on a single release produced a confident
+# accusation that FS.GG.SDD had been built against an unpublished Game Skills build. That is the
+# exact misdirection round 1 existed to remove, reintroduced through a different door and carrying a
+# stronger sentence than before.
+#
+# So completeness is now the only thing it can honestly be: the number of releases actually compared
+# equals the number the feed index listed. Both numbers were already in scope; asking the wrong one
+# was the whole bug. A zero published count is NOT complete either — that is "could not look".
+game_skill_search_is_complete() {
+  local searched; searched="$(game_skill_searched_count)"
+  [[ "$GAME_SKILLS_PUBLISHED_COUNT" -gt 0 && "$searched" -eq "$GAME_SKILLS_PUBLISHED_COUNT" ]]
+}
+
+game_skill_searched_count() { printf '%s' "$GAME_SKILLS_WINDOW" | wc -w | tr -d ' '; }
+
 # game_skill_window_description
-# One phrase naming exactly what was searched, for use inside a failure message. Distinguishes the
-# complete-set case from the truncated one, because they have different causes and different repairs.
+# One phrase naming exactly what was searched. Three outcomes, not two, because "we stopped early at
+# our own ceiling" and "some releases would not download" are different facts with different repairs,
+# and neither is "we compared everything".
 game_skill_window_description() {
-  local searched; searched="$(printf '%s' "$GAME_SKILLS_WINDOW" | wc -w | tr -d ' ')"
-  if [[ "$GAME_SKILLS_CEILING_HIT" == "1" ]]; then
+  local searched; searched="$(game_skill_searched_count)"
+  if game_skill_search_is_complete; then
+    printf 'all %s published release(s) — %s' "$searched" "$GAME_SKILLS_WINDOW"
+  elif [[ "$GAME_SKILLS_CEILING_HIT" == "1" ]]; then
     printf 'the newest %s of %s published release(s) — %s — TRUNCATED at the GAME_SKILLS_MAX_RELEASES=%s safety ceiling' \
       "$searched" "$GAME_SKILLS_PUBLISHED_COUNT" "$GAME_SKILLS_WINDOW" "$GAME_SKILLS_MAX_RELEASES"
   else
-    printf 'all %s published release(s) — %s' "$searched" "$GAME_SKILLS_WINDOW"
+    printf '%s of %s published release(s) — %s — INCOMPLETE: could not download %s' \
+      "$searched" "$GAME_SKILLS_PUBLISHED_COUNT" "$GAME_SKILLS_WINDOW" "${GAME_SKILLS_SKIPPED:-<unrecorded>}"
   fi
 }
 
@@ -253,11 +288,14 @@ assert_game_skill_materialization() {
 
   if [[ "$rc" != "0" || ${#matched[@]} -eq 0 ]]; then
     local window; window="$(game_skill_window_description)"
-    if [[ "$GAME_SKILLS_CEILING_HIT" == "1" ]]; then
-      # The searched set was TRUNCATED, so "no release matched" is not yet a statement about
-      # upstream at all — the release may simply lie deeper than this run looked. Name that first,
-      # and name the knob, rather than sending the reader upstream for a window artifact.
-      bad "$lane: the ${#ids[@]} materialized Game Skill body(ies) match none of $window. This is NOT yet evidence of upstream drift: the search was CUT SHORT by this file's own safety ceiling, so the release that matches may simply lie deeper than this run looked — which is a property of the ceiling, not of the bytes. Raise GAME_SKILLS_MAX_RELEASES (it is a guard against an absurd feed, not a search window; the full set was 8 releases / 4.2 MB / ~2s when this was written) and re-run before concluding anything about $GAME_SKILLS_PACKAGE_ID. Delivered ids: ${ids[*]} (#349)."
+    if ! game_skill_search_is_complete; then
+      # The searched set was INCOMPLETE — the ceiling stopped the walk, or releases would not
+      # download. Either way "no release matched" is not yet a statement about upstream at all: the
+      # release that matches may be one this run never compared. Name that first, and name the
+      # cause, rather than sending the reader upstream for an artifact of our own search.
+      local why="the search was CUT SHORT by this file's own safety ceiling, so the release that matches may simply lie deeper than this run looked. Raise GAME_SKILLS_MAX_RELEASES (it is a guard against an absurd feed, not a search window; the full set was 8 releases / 3.2-4.2 MB / ~1-2s when this was written) and re-run"
+      [[ "$GAME_SKILLS_CEILING_HIT" == "1" ]] || why="this run could not DOWNLOAD every published release (${GAME_SKILLS_SKIPPED:-<unrecorded>}), so the release that matches may be one it never compared. That is a fetch failure — most likely transient — not a fact about the bytes. Re-run, and check egress to api.nuget.org"
+      bad "$lane: the ${#ids[@]} materialized Game Skill body(ies) match none of $window. This is NOT evidence of upstream drift: $why before concluding anything about $GAME_SKILLS_PACKAGE_ID. Delivered ids: ${ids[*]} (#349)."
     else
       # The COMPLETE published set was searched, so this genuinely is a statement about the bytes.
       bad "$lane: the ${#ids[@]} materialized Game Skill body(ies) match NO published $GAME_SKILLS_PACKAGE_ID release, having searched $window. The complete published set was compared, so this is not a search-depth artifact: the bytes a generated product is being handed correspond to no release anyone can name, and #349's criterion — the EXACT release, proven — cannot be satisfied. Most likely fsgg-sdd was built against an unpublished Game Skills build, or a body drifted between pack and publish. Delivered ids: ${ids[*]} (#349)."
@@ -358,21 +396,43 @@ JSON
   # 7. The window description tells a COMPLETE search from a TRUNCATED one, because the two carry
   #    different causes and different repairs (repair round 1). Driven over the globals directly:
   #    they are what every failure arm reads, so this is the assertion's own view of them.
-  local w0="$GAME_SKILLS_WINDOW" c0="$GAME_SKILLS_PUBLISHED_COUNT" h0="$GAME_SKILLS_CEILING_HIT"
-  GAME_SKILLS_WINDOW="0.8.0 0.7.0"; GAME_SKILLS_PUBLISHED_COUNT=2; GAME_SKILLS_CEILING_HIT=0
+  local w0="$GAME_SKILLS_WINDOW" c0="$GAME_SKILLS_PUBLISHED_COUNT" h0="$GAME_SKILLS_CEILING_HIT" s0="$GAME_SKILLS_SKIPPED"
+  GAME_SKILLS_WINDOW="0.8.0 0.7.0"; GAME_SKILLS_PUBLISHED_COUNT=2; GAME_SKILLS_CEILING_HIT=0; GAME_SKILLS_SKIPPED=""
   out="$(game_skill_window_description)"
   [[ "$out" == "all 2 published release(s) — 0.8.0 0.7.0" ]] || { fails=$((fails+1)); }
+  game_skill_search_is_complete || { fails=$((fails+1)); }
   GAME_SKILLS_PUBLISHED_COUNT=9; GAME_SKILLS_CEILING_HIT=1
   out="$(game_skill_window_description)"
   # It must say TRUNCATED, and it must name both the searched count and the published total — a
   # message that reported only "2 searched" would read as a complete search of a 2-release feed.
   [[ "$out" == *TRUNCATED* && "$out" == *"newest 2 of 9"* ]] || { fails=$((fails+1)); }
-  GAME_SKILLS_WINDOW="$w0"; GAME_SKILLS_PUBLISHED_COUNT="$c0"; GAME_SKILLS_CEILING_HIT="$h0"
+  ! game_skill_search_is_complete || { fails=$((fails+1)); }
+
+  # THE GAP CASE — searched < published WITHOUT the ceiling being hit (repair round 2). This is what
+  # a failed download actually produces, and the previous corpus could not reach it: every fixture
+  # set the two counts EQUAL, so an implementation that asked `CEILING_HIT == 0`, or that printed
+  # PUBLISHED_COUNT where it meant `searched`, was indistinguishable from a correct one (.github#2223
+  # fixture shape). The counts are deliberately DIFFERENT and the skipped version is named.
+  GAME_SKILLS_WINDOW="0.8.0 0.6.0"; GAME_SKILLS_PUBLISHED_COUNT=3; GAME_SKILLS_CEILING_HIT=0
+  GAME_SKILLS_SKIPPED="0.7.0"
+  out="$(game_skill_window_description)"
+  # Not complete: a gap is not a complete search, however many releases were compared.
+  ! game_skill_search_is_complete || { fails=$((fails+1)); }
+  # Must NOT claim "all", must report 2 of 3 (NOT 3 of 3 — the mutation that survived round 1 was
+  # printing PUBLISHED_COUNT where `searched` was meant, which only equal fixtures could hide), must
+  # say INCOMPLETE rather than TRUNCATED, and must name the release it could not download.
+  [[ "$out" != all* ]] || { fails=$((fails+1)); }
+  [[ "$out" == "2 of 3 published release(s) — 0.8.0 0.6.0 — INCOMPLETE: could not download 0.7.0" ]] || { fails=$((fails+1)); }
+
+  # An empty feed read is "could not look", never a complete search of nothing.
+  GAME_SKILLS_WINDOW=""; GAME_SKILLS_PUBLISHED_COUNT=0; GAME_SKILLS_CEILING_HIT=0; GAME_SKILLS_SKIPPED=""
+  ! game_skill_search_is_complete || { fails=$((fails+1)); }
+  GAME_SKILLS_WINDOW="$w0"; GAME_SKILLS_PUBLISHED_COUNT="$c0"; GAME_SKILLS_CEILING_HIT="$h0"; GAME_SKILLS_SKIPPED="$s0"
 
   rm -rf "$work"
   PASS="$p0"; FAIL="$f0"
   if [[ "$fails" == "0" ]]; then
-    ok "$lane: the Game Skills release resolver's alarms can FIRE — driven offline through a unique resolve on a discriminating row, an honestly ambiguous pair reported as both, the no-ids and no-match codes kept distinct, a drifted body, an absent body, the report reader's dedupe/empty/missing-section arms, and the complete-vs-truncated window description both failure arms name (#349)"
+    ok "$lane: the Game Skills release resolver's alarms can FIRE — driven offline through a unique resolve on a discriminating row, an honestly ambiguous pair reported as both, the no-ids and no-match codes kept distinct, a drifted body, an absent body, the report reader's dedupe/empty/missing-section arms, and the completeness predicate across all four window shapes: complete, ceiling-truncated, a download GAP whose searched count is deliberately unequal to the published total, and an empty feed read (#349)"
   else
     bad "$lane: the Game Skills release resolver is BROKEN — $fails of its outcomes did not reproduce, so the release named below is not evidence of anything. Fix game_skill_release_match_local / game_skill_ids_from_report; do NOT delete this self-demonstration (#349)"
   fi
