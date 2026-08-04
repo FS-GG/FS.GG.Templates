@@ -250,14 +250,23 @@ manifest `template/skill-manifest/skill-manifest.json`, which ships into every s
 | --- | --- |
 | *(no flag)* | regenerates the manifest from the catalog |
 | `--check` | the catalog, the checked-in manifest, and the csproj package items still agree |
-| `--assert-product <dir> --template <id>` | a product instantiated from the **packed archive** received exactly the declared set — reds on an absent selected skill, a skill the manifest does not select for that template, an undeclared (dangling) skill directory, a drifted digest, or a missing/non-canonical producer manifest |
+| `--assert-product <dir> --template <id>` | a product instantiated from the **packed archive** received exactly the declared set — reds on an absent selected skill, a skill the manifest does not select for that template, an undeclared (dangling) skill directory, a drifted digest, a missing producer manifest, or one whose rows are not this catalog's |
 
 Add `--co-tenants "<glob> …"` once another producer has written into the same root — after
 `fsgg-sdd scaffold` or the governance overlay, `.agents/skills/` also holds SDD's `fs-gg-sdd-*`
 process skills and the five `always` `.github` driver skills. They are another producer's correct
-output, so this manifest must not declare them; the glob list keeps them legitimate while a skill
-belonging to **nobody** still reds. The globs are passed per call site because which co-tenants to
-expect is a fact about the lane, not about this catalog.
+output, so the **producer** manifest under `template/` must not declare them; the glob list keeps
+them legitimate while a skill belonging to **nobody** still reds. The globs are passed per call site
+because which co-tenants to expect is a fact about the lane, not about this catalog.
+
+A product's own `.agents/skills/skill-manifest.json` is a different file from the producer manifest,
+and **the product owns it** (FS.GG.Templates#385). It is a shared, multi-producer, upper-bound
+catalog: `fsgg-sdd scaffold` appends `"scope": "driver"` rows to it for the driver skills it seeds,
+and the org-wide skill-union assertion already grades it under those set semantics. So
+`--assert-product` requires this catalog's rows to appear in it **field for field**, and refuses any
+other `"scope": "product"` row — it does not require the file to be byte-identical to the producer's
+copy, which no product scaffolded through a provider could ever satisfy. Rows supplied by another
+producer are still graded for delivery; they are simply not required to match this catalog.
 
 The product-side arm is the load-bearing one, and the reason it exists is worth keeping: the
 catalog originally shipped in a tree no package item referenced. Every source-side check was green,
