@@ -7,6 +7,28 @@ providers:
     source: FS.GG.Workspace.Template::0.8.0
     nameParameter: productName
     identifierParameter: rootNamespace
+    # THE ORCHESTRATOR AXIS (ADR-0008). A scaffold has TWO inputs — this template@<source pin>,
+    # governed above, and the `fsgg-sdd` CLI@<installed>. The CLI seeds artifacts a product on this
+    # pin is EXPECTED to contain, so the coherent set carries the oldest CLI that seeds them and
+    # `fsgg-sdd` stamps used+minimum into scaffold-provenance, warning when the installed CLI is
+    # behind (FS.GG.SDD#49). `web` was the ONE identity of the four that declared no floor at all
+    # (FS.GG.Templates#349 repair round 1), so a product scaffolded through it got no warning on an
+    # under-floor CLI while its three siblings did.
+    #
+    # 0.6.0 IS DERIVED, NOT COPIED FROM THE SIBLINGS. The value is the org-wide coherent floor in
+    # FS-GG/.github `registry/dependencies.yml` (`minimum-fsgg-sdd.version: "0.6.0"`, coherence id
+    # `fsgg-sdd-orchestrator-axis`): 0.6.0 is the OLDEST published FS.GG.SDD.Cli that seeds the whole
+    # expected surface — the `fs-gg-sdd-*` process skills (Features 051/056),
+    # `.fsgg/early-stage-guidance.md` (Feature 049), and the `.gitignore` for regenerable output
+    # (Feature 073, which is what raised the floor from 0.4.0; 0.5.0 does not seed it). `fs-gg-web`
+    # is scaffolded through that same route and needs nothing NEWER: its provider lane uses only
+    # `scaffold` (writing `.fsgg/scaffold-provenance.json`) and `doctor`, both present at 0.6.0 —
+    # see tests/composition/web/run.sh. So the floor is the coherent-set minimum, not a web-specific
+    # requirement, and it must move only when that registry pin moves.
+    minimumFsggSdd:
+      version: "0.6.0"
+      requires: "SDD lifecycle and scaffold provenance support"
+      adr: "FS-GG/.github docs/adr/0071-two-web-workspace-providers-one-template-package.md"
     parameters:
       - key: productName
         required: true
