@@ -35,13 +35,30 @@
 # from that context to a file is therefore declared here ONCE — and then ASSERTED rather than
 # assumed: the file must exist, must declare `name: composition` so that renaming the workflow reds
 # instead of silently detaching the gate from its subject, and must actually invoke
-# tests/composition/run.sh so that deleting the step reds too.
+# tests/composition/run.sh — an ANCHORED match, see LANE_SUITE_INVOCATION_RE, because the
+# substring test this started as was satisfied by a comment and so could not red on a deleted step.
 #
-# WHAT THAT LEAVES OUT, NAMED RATHER THAN ROUNDED OFF: the branch-protection list itself. If
-# someone removes `composition` from the protected contexts, every assertion here still passes and
-# the lanes still run — they just stop blocking anything. That is a real limit on what a green here
-# means. It is not closable from inside a job with `contents: read`, and it is a different subject
-# (which contexts are required) from this item's (which lanes those contexts reach).
+# ── WHAT A GREEN HERE DOES NOT MEAN, NAMED RATHER THAN ROUNDED OFF ────────────────────────────
+#
+# THE SUBJECT OF THIS GATE IS THE DECLARED LANE SET, NOT THE EXECUTED ONE. It reads which lanes
+# exist and which lanes each workflow's configuration SELECTS. It does not and cannot establish
+# that the required context actually ran them, and three ordinary GitHub Actions constructs sit in
+# that gap, all invisible here:
+#
+#   * `if:` on the job or the step. `if: false` on every step leaves this gate green while nothing
+#     executes. THIS IS NOT HYPOTHETICAL IN SHAPE: composition.yml's own suite steps are guarded by
+#     `if: steps.scope.outputs.run == 'true'`, so a docs-only PR reports `composition` SUCCESS
+#     having run no lane at all. That exemption is deliberate, documented on the `Scope` step, and
+#     fails safe — a docs-only change cannot break a lane — but it is exactly the boundary of what
+#     the verdict above is evidence for.
+#   * `continue-on-error: true`, which turns a red lane into a green job just as invisibly.
+#   * the branch-protection list itself. Remove `composition` from the protected contexts and every
+#     assertion here still passes and the lanes still run — they just stop blocking anything.
+#
+# Closing any of them needs either a YAML semantics model or a token this job does not have, and
+# each is a different subject from this item's (which lanes the configuration reaches). What this
+# file is FOR is the failure that actually happened twice: a lane authored and wired to nothing.
+# Read the verdict as "the configuration reaches every lane", never as "every lane ran".
 
 # The workflow whose job produces the protected status context, relative to REPO_ROOT, and the
 # context name it must declare. Asserted below — not decorative.
@@ -119,12 +136,50 @@ lane_default_selection() {
   done <<<"$(lane_universe "$1")"
 }
 
+# ── "Does this file RUN the suite?" — anchored, because a mention is not a call ────────────────
+#
+# THIS WAS THE GATE'S OWN GREEN-BY-OMISSION DEFECT, and it is worth stating in full because the
+# shape is the one this whole file exists to catch (.github#2223). Both call sites below used to ask
+# `grep -F 'tests/composition/run.sh'` — an UNANCHORED substring test — and this repository's
+# workflows mention that path in prose far more often than they execute it:
+#
+#   .github/workflows/composition.yml:371   a `#` comment: "… See tests/composition/run.sh."
+#   .github/workflows/upstream-bump.yml:15  a `#` comment
+#   .github/workflows/upstream-bump.yml:84  NOT a comment at all — prose inside a `run: |` block
+#                                           scalar that writes a PR body, backticked and parenthesised
+#
+# Two measured consequences. (1) Replacing composition.yml's real invocation with `echo skipped`
+# left this gate reporting `✓ lanes: 3 of 4 …` with FAIL=0 — the guard whose docblock promises that
+# "deleting the step reds too" could not fire on a deleted step, because the comment four lines
+# above it kept the substring alive. (2) upstream-bump.yml was classified a suite caller on two
+# prose mentions, so arm (b)'s reachability reasoning consulted a workflow that runs nothing.
+#
+# Note that STRIPPING `#` COMMENTS WOULD NOT HAVE BEEN ENOUGH: upstream-bump.yml:84 is ordinary YAML
+# content. What separates a call from a mention is POSITION — a call begins the command, a mention
+# sits inside a sentence — so that is what is matched.
+#
+# BOUND, stated rather than left implicit: an invocation is recognised as an optional `run:` key,
+# then optional `VAR=value` prefixes, then an optional `bash`/`sh`, then the path at a token
+# boundary. `run: cd x && tests/composition/run.sh` would NOT be recognised. Every direction that
+# misses fails LOUD rather than silent — an unrecognised invocation makes the required workflow look
+# detached (a hard finding) or drops a caller, which makes a deferred lane look unreachable (also a
+# finding). Widen the pattern in the same change if a caller ever needs a shape it refuses.
+LANE_SUITE_INVOCATION_RE='^[[:space:]]*(run:[[:space:]]*)?([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*((bash|sh)[[:space:]]+)?(\./)?tests/composition/run\.sh([[:space:]]|$)'
+
+# lane_workflow_invokes_suite <workflow-file>
+lane_workflow_invokes_suite() {
+  grep -qE "$LANE_SUITE_INVOCATION_RE" "$1" 2>/dev/null
+}
+
 # lane_suite_callers <repo-root>
-# Every workflow file that invokes the composition suite, sorted. `-l` over the literal path is
-# enough and is deliberately not a YAML parse: the thing being detected is "this file runs the
-# suite", which is exactly a textual reference to it.
+# Every workflow file that actually RUNS the composition suite, sorted — never one that merely
+# names it.
 lane_suite_callers() {
-  grep -rlF 'tests/composition/run.sh' "$1/.github/workflows" 2>/dev/null | sort
+  local wf
+  for wf in "$1"/.github/workflows/*; do
+    [[ -f "$wf" ]] || continue
+    lane_workflow_invokes_suite "$wf" && printf '%s\n' "$wf"
+  done | sort
 }
 
 # lane_workflow_selection <workflow-file> <default-selection>
@@ -202,7 +257,7 @@ lane_coverage_findings() {
     echo "$COMPOSITION_REQUIRED_WORKFLOW no longer declares 'name: $COMPOSITION_REQUIRED_CONTEXT' — the protected status context and the file this gate grades have come apart, so a green here would be about the wrong file"
     findings=$((findings + 1))
   fi
-  if ! grep -qF 'tests/composition/run.sh' "$required_wf"; then
+  if ! lane_workflow_invokes_suite "$required_wf"; then
     echo "$COMPOSITION_REQUIRED_WORKFLOW does not invoke tests/composition/run.sh at all — the required check no longer runs the composition suite, so every lane is unreached"
     return 1
   fi
@@ -390,15 +445,27 @@ assert_lane_coverage_can_fire() {
     done
     printf '%s\n' "$root"
   }
-  # _lc_workflow <root> <file> <name> <lanes-or-empty>
+  # _lc_workflow <root> <file> <name> <lanes-or-empty> [invokes=yes|no]
+  #
+  # EVERY FIXTURE IS AT LEAST AS HARD AS PRODUCTION, and that is a correctness requirement, not
+  # tidiness. The first version of this demonstration wrote workflows that mentioned the suite path
+  # exactly once — on the line that ran it — so the detached-workflow case reded for a reason the
+  # real repository does not have, and the unanchored substring match it was supposed to be proving
+  # sailed through. A self-demonstration easier than production is not evidence (.github#2223). So
+  # every generated workflow carries BOTH decoys the real files carry: a `#` comment naming the
+  # suite path, and un-commented block-scalar PROSE naming it (upstream-bump.yml:84's shape, which
+  # stripping comments would not remove). `invokes=no` then withholds only the real call.
   _lc_workflow() {
-    local root="$1" file="$2" wfname="$3" lanes="${4:-}"
+    local root="$1" file="$2" wfname="$3" lanes="${4:-}" invokes="${5:-yes}"
     {
       printf 'name: %s\n' "$wfname"
       printf 'jobs:\n  %s:\n    steps:\n' "$wfname"
       printf '      # prose mentioning COMPOSITION_LANES: must never be parsed as an assignment\n'
+      printf '      # …and naming tests/composition/run.sh, which is a MENTION and not a call\n'
+      printf '      - name: announce\n        run: |\n'
+      printf '          echo "the composition test (`tests/composition/run.sh`) gates this"\n'
       [[ -n "$lanes" ]] && printf '      env:\n        COMPOSITION_LANES: %s\n' "$lanes"
-      printf '      run: tests/composition/run.sh\n'
+      [[ "$invokes" == 'yes' ]] && printf '      run: tests/composition/run.sh\n'
     } >"$root/.github/workflows/$file"
   }
   # _lc_expect <expected-rc> <root>
@@ -447,6 +514,22 @@ assert_lane_coverage_can_fire() {
   _lc_workflow "$root" composition.yml composition 'a b'
   _lc_expect 1 "$root"
 
+  # 5b. …AND A WORKFLOW THAT ONLY MENTIONS THE SUITE DOES NOT RESCUE IT. This is the second
+  #     manifestation of the unanchored-match defect: a sibling workflow whose every reference to
+  #     tests/composition/run.sh is a comment or block-scalar prose (upstream-bump.yml's real shape)
+  #     used to be counted as a caller, so a deferred lane looked reachable through a workflow that
+  #     runs nothing. It must still red.
+  root="$(_lc_fixture deferred_mention_only a b c)"
+  _lc_workflow "$root" composition.yml composition 'a b'
+  _lc_workflow "$root" upstream-bump.yml upstream-bump 'a b c' no
+  _lc_expect 1 "$root"
+  #     …and the same file WITH the call restored does rescue it, so 5b discriminates rather than
+  #     reding for some unrelated reason.
+  root="$(_lc_fixture deferred_mention_and_call a b c)"
+  _lc_workflow "$root" composition.yml composition 'a b'
+  _lc_workflow "$root" upstream-bump.yml upstream-bump 'a b c' yes
+  _lc_expect 0 "$root"
+
   # 6. A deferral whose reason names no issue is not a decision.
   root="$(_lc_fixture deferred_unreasoned a b c)"
   _lc_workflow "$root" composition.yml composition 'a b'
@@ -480,11 +563,20 @@ assert_lane_coverage_can_fire() {
   _lc_workflow "$root" composition.yml composition-suite ''
   _lc_expect 1 "$root"
 
-  # 11. The required workflow still exists but no longer invokes the suite.
+  # 11. THE REQUIRED WORKFLOW STILL EXISTS BUT NO LONGER INVOKES THE SUITE — and it still NAMES the
+  #     suite in a comment and in block-scalar prose, which is the state the real composition.yml is
+  #     in (:371 is a `#` comment naming the path four lines above the call). This case reded
+  #     vacuously before .github#2223: the fixture mentioned the path only where it ran it, so an
+  #     unanchored substring match passed a demonstration that production would have failed. The
+  #     decoys are what make this case worth anything.
   root="$(_lc_fixture detached a b)"
-  printf 'name: composition\njobs:\n  composition:\n    steps:\n      run: echo hi\n' \
-    >"$root/.github/workflows/composition.yml"
+  _lc_workflow "$root" composition.yml composition '' no
   _lc_expect 1 "$root"
+  #     …and restoring only the CALL — same decoys, same file — clears it, so case 11 is measuring
+  #     the invocation and not the prose.
+  root="$(_lc_fixture reattached a b)"
+  _lc_workflow "$root" composition.yml composition '' yes
+  _lc_expect 0 "$root"
 
   # 12. The required workflow is gone entirely.
   root="$(_lc_fixture absent a b)"
@@ -550,7 +642,7 @@ assert_lane_coverage_can_fire() {
   unset -f _lc_fixture _lc_workflow _lc_expect
 
   if (( fails == 0 )); then
-    ok "$label: the unreached-lane and fail-closed gates can FIRE — driven offline through all $n outcomes: a whole repo, the #379 defect itself (a lane on disk the required check does not name), the same defect in a SIBLING caller whose pinned list fell behind, a deferral that clears it only while some caller still runs the lane, a deferral that is a deletion, one with no issue, a stale one, one every workflow contradicts, a caller naming a lane that does not exist, the required workflow renamed / detached from the suite / absent, an empty discovery, a lane with no errexit and the 'set -uo pipefail' near-miss, all three spellings that do enable it, an in-lane skip, and both assertions' own ok+bad counter mappings"
+    ok "$label: the unreached-lane and fail-closed gates can FIRE — driven offline through all $n outcomes, every fixture carrying the same comment-and-prose decoys the real workflows carry (.github#2223): a whole repo, the #379 defect itself (a lane on disk the required check does not name), the same defect in a SIBLING caller whose pinned list fell behind, a deferral that clears it only while some caller still runs the lane, a deferral that is a deletion, one rescued only by a workflow that MENTIONS the suite without running it, a deferral with no issue, a stale one, one every workflow contradicts, a caller naming a lane that does not exist, the required workflow renamed / detached-but-still-naming-the-suite / absent, each detach paired with its reattached control, an empty discovery, a lane with no errexit and the 'set -uo pipefail' near-miss, all three spellings that do enable it, an in-lane skip, and both assertions' own ok+bad counter mappings"
   else
     bad "$label: the unreached-lane / fail-closed gates are BROKEN — $fails of its $n outcomes did not reproduce, so the verdicts below are not evidence of anything. Fix lane_coverage_findings / lane_fails_closed_findings / lane_workflow_selection / assert_lane_coverage; do NOT delete this self-demonstration (#379)"
   fi

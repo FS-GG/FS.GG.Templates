@@ -16,7 +16,7 @@ stage is this repo's own preflight rather than part of the report's flow, so it 
 | Stage | What it checks | Gated? |
 |---|---|---|
 | **pin** | the shared skill-union assertion this run's verdict rests on is **not frozen**: `SKILL_ASSERT_REF` resolves to a real commit and is newer than `SKILL_ASSERT_MAX_AGE_DAYS` (#315). Runs **first and ungated**, straight from `run.sh` rather than from `assert_skill_union` — the lanes that call `assert_skill_union` are both gated, so hanging the alarm off them would leave the pin's freshness unevaluated on exactly the hosts where both lanes skip. It also self-demonstrates that it *can* fire before it reports a verdict. An unresolvable age **fails** (`.github#266` — "could not look" is never "looked, and fine") | no |
-| **lanes** (coverage) | every lane directory that exists under `tests/composition/` is actually **reached by a required path**, and every lane **fails** rather than skipping when its prerequisites are absent (#379). Runs **second and ungated**, for the same reason `pin` runs first: it is a fact about the *repository* — which lanes exist, and which of them the workflow files reach — not about the lane set this invocation selected, so hanging it off the lane loop would let a narrowed run check coverage only for the lanes it already ran. Self-demonstrates that it *can* fire before it reports a verdict | no |
+| **lanes** (coverage) | every lane directory that exists under `tests/composition/` is actually **reached by a required path**, and every lane **fails** rather than skipping when its prerequisites are absent (#379). Runs **second and ungated**, for the same reason `pin` runs first: it is a fact about the *repository* — which lanes exist, and which of them the workflow files reach — not about the lane set this invocation selected, so hanging it off the lane loop would let a narrowed run check coverage only for the lanes it already ran. Self-demonstrates that it *can* fire before it reports a verdict. **Its subject is the declared lane set, not the executed one** — see the limits below | no |
 | **roots** | this repo's runtime skill-root declaration and its generated view both hold, via the kit-delivered `scripts/skill-view` (`.github#1710`). Ungated and offline; an absent view root is green here **by measurement**, because `composition` runs on a bare checkout that never materializes — see the decision block in `run.sh` | no |
 | **pack** | `FS.GG.Templates` packs to a `.nupkg` | no |
 | **install** | the package installs as a `dotnet new` source; `fs-gg-governance` registers | no |
@@ -196,6 +196,24 @@ all-or-nothing and must abort rather than run past a failure. That is why every 
 `errexit` and why the `lanes` stage checks that it does: without it, an absent `fsgg-sdd`,
 `jq`, `npm` or browser would let a lane run on to its final success line and exit 0, reporting
 a pass on a host where it did nothing.
+
+### What a green `lanes` verdict does not mean
+
+Its subject is the **declared** lane set — which lanes exist, and which lanes each workflow's
+configuration *selects*. It cannot establish that the required context actually **ran** them,
+and three ordinary Actions constructs sit in that gap:
+
+- **`if:` on a job or step.** `if: false` everywhere leaves this stage green while nothing runs.
+  Not hypothetical in shape — `composition.yml`'s suite steps really are guarded by
+  `if: steps.scope.outputs.run == 'true'`, so a **docs-only PR reports `composition` success
+  having run no lane**. That exemption is deliberate, documented on the `Scope` step, and fails
+  safe (a docs-only change cannot break a lane), but it is the boundary of the claim.
+- **`continue-on-error: true`**, which turns a red lane into a green job just as invisibly.
+- **the branch-protection list**, which can stop requiring `composition` with every assertion
+  here still passing.
+
+Closing any of them needs a YAML semantics model or a token this job does not hold. Read the
+verdict as *"the configuration reaches every lane"*, never as *"every lane ran"*.
 
 The stage files are **sourced, not executed** — they run in `run.sh`'s shell and share its
 globals (`NUPKG`, `PIN_VER`, `FULL`, `FULL_OK`, …), so order matters and an `exit` in a stage
