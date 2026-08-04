@@ -264,7 +264,7 @@ for lane_dir in "$COMPOSITION_DIR"/*/; do
   [[ -f "$lane_dir/run.sh" ]] || continue
   case " $COMPOSITION_LANES " in
     *" $lane "*) ;;
-    *) skip "lane '$lane' was not selected by this invocation's COMPOSITION_LANES ('$COMPOSITION_LANES'); the required check runs every discovered lane and the 'lanes:' gate above reds if its workflow ever stops (FS.GG.Templates#379)" ;;
+    *) skip "lane '$lane' was not selected by this invocation's COMPOSITION_LANES ('$COMPOSITION_LANES'); the required check runs every discovered lane except those the deferral registry names, and the 'lanes:' gate above reds if its workflow narrows past an unregistered one — see that verdict for which lanes are deferred and why (FS.GG.Templates#379)" ;;
   esac
 done
 
