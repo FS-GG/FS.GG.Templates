@@ -34,6 +34,25 @@ if (( ${#missing[@]} > 0 )); then
   exit 1
 fi
 
+# ── The local tool manifest must have SHIPPED too (FS.GG.Templates#392) ─────────
+#
+# `fable` is a LOCAL dotnet tool, pinned by `.config/dotnet-tools.json`. The cross-runtime
+# codec proof below restores and invokes it as `dotnet fable`, so this file is now on the
+# critical path of `build.sh` — not just of `Client`'s npm build, which used to be the only
+# thing that touched it. It reaches a product through exactly the mechanism that dropped the
+# lockfiles above for the whole of 0.8.0 (the template engine's `sources` exclude list), so it
+# is asserted the same way and for the same reason: name the cause at the boundary that owns
+# the guarantee, rather than let it surface as a restore error several steps downstream.
+if [[ ! -f .config/dotnet-tools.json ]]; then
+  {
+    echo "build.sh: refusing to build — this workspace shipped without .config/dotnet-tools.json"
+    echo "That manifest pins the 'fable' local tool that the cross-runtime codec proof and the"
+    echo "Client build both invoke as 'dotnet fable'. Repair the template's 'sources' exclude"
+    echo "list so it reaches a generated product."
+  } >&2
+  exit 1
+fi
+
 # The .NET-side wire boundary: shared Domain decisions, and every DTO/codec pair.
 dotnet restore FableGameWorkspace.slnx --locked-mode
 dotnet build FableGameWorkspace.slnx --no-restore
