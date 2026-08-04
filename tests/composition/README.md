@@ -185,11 +185,11 @@ some other caller — a deferral is not a deletion. The default lane set is *dis
 registry*, so an entry there is the one thing that can take a lane back off this check.
 
 It currently holds **one** entry, `fable-game`, and it is **not** a budget decision: that lane
-cannot pass on any host until #385 and #392 land, and `composition` is required under
+cannot pass on any host until #392 lands, and `composition` is required under
 `enforce_admins`, so running it here would wedge every PR in the repository. The measured budget
 — including the full `fable-game` lane running green end to end in 63s — is quoted next to
 `timeout-minutes: 30` in `.github/workflows/composition.yml`. Delete the entry when those two
-items land; no re-measurement is owed.
+it lands (tracked by #393); no re-measurement is owed.
 
 Lanes are **executed, not sourced**, and are graded purely by exit status — so a lane is
 all-or-nothing and must abort rather than run past a failure. That is why every lane enables

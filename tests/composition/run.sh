@@ -286,13 +286,16 @@ done
 # through npm/Fable/Node/Chromium/SDD/Governance. fs-gg-fable-game is asserted HERE too, and not
 # only by its own lane.
 #
-# THE REASON THIS BLOCK GIVES FOR THAT IS NOW SPENT, AND SAYING SO IS THE POINT (#379). It used to
-# read "that lane is off the required check's default lane set … and putting a full build.sh ->
+# THE BUDGET REASON THIS BLOCK USED TO GIVE IS SPENT, AND SAYING SO IS THE POINT (#379). It read
+# "that lane is off the required check's default lane set … and putting a full build.sh ->
 # Playwright game lifecycle on this required job would buy the skill contract at the price of this
-# job's timeout budget". Measured, that price was not real: the fable-game lane costs what the
-# measurement block next to `timeout-minutes: 30` in .github/workflows/composition.yml records, and
-# the whole four-lane job fits the budget with room to spare. The lane now runs on the required
-# check like every other one.
+# job's timeout budget". Measured, that price was not real: the complete fable-game lane runs green
+# end to end in 63s, and the whole four-lane job fits `timeout-minutes: 30` with room to spare —
+# the numbers are quoted next to it in .github/workflows/composition.yml.
+#
+# The lane is still off this check, but for a DIFFERENT and temporary reason — it cannot pass until
+# #392 lands — and that reason is now a registered entry in COMPOSITION_LANE_DEFERRALS rather than
+# an omission nothing observes. #393 retires it.
 #
 # THIS ASSERTION STAYS ANYWAY, for a reason that does not depend on the lane set. It grades a
 # DIFFERENT subject cheaply: instantiation from the packed archive is the entire delivery surface

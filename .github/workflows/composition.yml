@@ -68,17 +68,18 @@ jobs:
     # died 33s in on FS.GG.Templates#392 (its `build.sh` invokes the local `fable` tool bare and
     # never restores it) before reaching npm, the Fable compile, the Vite bundle, `dotnet publish`
     # or Playwright, so 33.1s is NOT that lane's cost. Measured properly — the complete lane, with
-    # #392 and #385 patched out locally, on 2026-08-04 — it runs GREEN END TO END IN 63s, Playwright
+    # its blockers patched out locally, on 2026-08-04 — it runs GREEN END TO END IN 63s, Playwright
     # two-client scenario included. Scaling the 25s local prefix against the 33s CI paid for the
-    # same work puts the full lane near 83s on a runner, i.e. this job at roughly 5m30s once #385
-    # and #392 land. Still a fifth of the budget.
+    # same work puts the full lane near 83s on a runner, i.e. this job at roughly 5m30s once #392
+    # lands. Still a fifth of the budget.
     #
     # WHY THE LANE IS DEFERRED ANYWAY, AND WHY THAT IS NOT A BUDGET DECISION: it cannot pass on any
-    # host until #385 and #392 land, and this is a REQUIRED context under `enforce_admins`, so
-    # putting it here would wedge every PR in the repository — the #260 incident, deliberately. The
-    # registry entry names both items and the release gate still runs the lane in full. Delete that
-    # one line when they land; the measurement above already covers the result, so no re-measurement
-    # is owed.
+    # host until FS.GG.Templates#392 lands, and this is a REQUIRED context under `enforce_admins`,
+    # so putting it here would wedge every PR in the repository — the #260 incident, deliberately.
+    # (#385 was the other blocker and landed in PR #389 on 2026-08-04; #392 alone still reds it.)
+    # The registry entry names the item and the release gate still runs the lane in full. Delete
+    # that one line when it lands — #393 owns doing so — and the measurement above already covers
+    # the result, so no re-measurement is owed.
     #
     # RAISING THIS TIMEOUT IS NOT THE REMEDY IF A LANE EVER OUTGROWS IT. #379 asks for the split to
     # be implemented instead. Note that a split cannot simply become a matrix: `composition` is the

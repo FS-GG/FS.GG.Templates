@@ -67,31 +67,33 @@ COMPOSITION_REQUIRED_CONTEXT='composition'
 # Do not add an entry for cost without re-measuring and quoting the run the way that block does;
 # "it felt slow" is how the required check lost two lanes in the first place.
 COMPOSITION_LANE_DEFERRALS=(
-  # fs-gg-fable-game cannot pass on ANY host right now, for two causes that are not this lane's and
-  # not #379's, each owned by its own item with its own touch-set:
-  #   #385 — the SDD-route product-skill assertion (byte-equality with the producer manifest, and
-  #          'materializes-when: always' unparsed). In review as PR #389.
-  #   #392 — build.sh cannot run its cross-runtime codec proof: the local `fable` tool is invoked as
-  #          a bare command and never `dotnet tool restore`d, so every generated product fails its
-  #          own documented build. Found by wiring this lane here for the first time.
+  # fs-gg-fable-game cannot pass on ANY host right now, for a cause that is neither this lane's nor
+  # #379's: #392 — its `build.sh` cannot run the cross-runtime codec proof, because the local
+  # `fable` tool is invoked as a bare command and never `dotnet tool restore`d, so every generated
+  # product fails its own documented build. That was found by wiring this lane onto a required check
+  # for the first time, which is exactly what #379 was for.
+  #
+  # (#385 — the SDD-route product-skill assertion — was the other blocker and LANDED in PR #389 at
+  # 2026-08-04T12:43Z, so it is no longer one. #392 alone is enough to keep the lane red.)
+  #
   # `composition` is REQUIRED with enforce_admins on, so putting a lane that cannot pass on it would
   # wedge every PR in the repository, unmergeable by anyone — the #260 incident, on purpose. This
   # entry is the explicit, reasoned, checked-in alternative #379's acceptance names (the #316 shape),
   # and it is LOUD: the run prints the lane by name, the release gate still runs it in full, and the
   # assertions below refuse to let it rot into a silent exemption.
   #
-  # RETIRING IT IS A ONE-LINE DELETION AND NEEDS NO RE-MEASUREMENT, AND IT IS ITS OWN ITEM — #393,
-  # blocked on both of the above — because a deferral has NO EXPIRY. The assertions below grade this
-  # registry's coherence, not its currency: deciding currency means asking whether #385 and #392 are
-  # still open, and this job holds `contents: read` with no issue scope, so a gate for it would need
-  # a credential its callers may not have and would fail ALWAYS rather than closed (.github#463).
-  # An entry that outlives its reason is a slower version of the defect this file closed, so the
-  # thing that retires it is a boarded item, not a silence.
+  # RETIRING IT IS A ONE-LINE DELETION AND NEEDS NO RE-MEASUREMENT, AND IT IS ITS OWN ITEM — #393 —
+  # because a deferral has NO EXPIRY. The assertions below grade this registry's COHERENCE, not its
+  # CURRENCY: deciding currency means asking whether #392 is still open, and this job holds
+  # `contents: read` with no issue scope, so a gate for it would need a credential its callers may
+  # not have and would fail ALWAYS rather than closed (.github#463). An entry that outlives its
+  # reason is a slower version of the defect this file closed, so what retires it is a boarded item,
+  # not a silence.
   #
-  # With both blockers patched out locally, the complete lane — instantiate, restore, build, TRX,
+  # With the blockers patched out locally, the complete lane — instantiate, restore, build, TRX,
   # the cross-runtime codec proof, npm ci x2, the Fable compile, the Vite bundle, dotnet publish,
   # and the Playwright two-client scenario — ran green in 63s (2026-08-04).
-  "fable-game|BLOCKED, not deferred for cost: #385 and #392 both make this lane fail on every host; #393 retires this entry once they land"
+  "fable-game|BLOCKED, not deferred for cost: #392 makes this lane fail on every host; #393 retires this entry once it lands"
 )
 
 # lane_universe <composition-dir>
