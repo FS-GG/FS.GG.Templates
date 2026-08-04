@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "skills": [
+    {
+      "id": "fable-bindings",
+      "scope": "product",
+      "sha256": "2ed5427570d0ce51c5d0a5e4323cc0cd5fcd764759b152468f7b269a916fac4a",
+      "resolvablePath": ".agents/skills/fable-bindings/SKILL.md",
+      "materializes-when": "template in [fable-bindings]",
+      "supplied-by": "template/product-skills/fable-bindings/"
+    },
+    {
+      "id": "fable-interop",
+      "scope": "product",
+      "sha256": "f24a1daa9fd9828f9299062413a1fcd9598527165b13b6a608ddd9d15dce55b0",
+      "resolvablePath": ".agents/skills/fable-interop/SKILL.md",
+      "materializes-when": "template in [fable-game, fable-bindings]",
+      "supplied-by": "template/product-skills/fable-interop/"
+    },
+    {
+      "id": "fable-project",
+      "scope": "product",
+      "sha256": "3513c6c6b9c754b8ff5063204d0d254a98533dba76439ff42b945e2c3bf67b91",
+      "resolvablePath": ".agents/skills/fable-project/SKILL.md",
+      "materializes-when": "template in [fable-game, fable-bindings]",
+      "supplied-by": "template/product-skills/fable-project/"
+    },
+    {
+      "id": "fable-remoting",
+      "scope": "product",
+      "sha256": "9b03e2cce0a9c3756d74100690aad5dcfe38cad65f77a31d2210a5f9cb0290e8",
+      "resolvablePath": ".agents/skills/fable-remoting/SKILL.md",
+      "materializes-when": "template in [fable-game]",
+      "supplied-by": "template/product-skills/fable-remoting/"
+    },
+    {
+      "id": "fable-signalr",
+      "scope": "product",
+      "sha256": "d02815368cdf32296d061d4755a683e1c30bbed5186fe7d9d1cf78d747eee3c8",
+      "resolvablePath": ".agents/skills/fable-signalr/SKILL.md",
+      "materializes-when": "template in [fable-game]",
+      "supplied-by": "template/product-skills/fable-signalr/"
+    },
+    {
+      "id": "fable-testing",
+      "scope": "product",
+      "sha256": "5d170adb4637b65b05e0574c5d69dc7e2aa7807729e8c3498c40f6051c14a16c",
+      "resolvablePath": ".agents/skills/fable-testing/SKILL.md",
+      "materializes-when": "template in [fable-game, fable-bindings]",
+      "supplied-by": "template/product-skills/fable-testing/"
+    }
+  ]
+}

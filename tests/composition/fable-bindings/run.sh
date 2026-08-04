@@ -13,7 +13,16 @@ dotnet new fs-gg-fable-bindings -o "$WORK/product" --name AcmeBindings --product
 if dotnet new fs-gg-fable-bindings -o "$WORK/rejected" --name Rejected --npmPackage other --npmVersion 1.0.0 --bindingTarget node >/dev/null 2>&1; then echo "unqualified corpus unexpectedly accepted" >&2; exit 1; fi
 
 for f in declaration-lock.json coverage-and-drift.json package.json src/AcmeBindings/AcmeBindings.fsproj tests/AcmeBindings.CompileTests/AcmeBindings.CompileTests.fsproj samples/Consumer/README.md; do test -f "$WORK/product/$f"; done
-cmp "$ROOT/skills/fable-bindings/SKILL.md" "$WORK/product/.agents/skills/fable-bindings/SKILL.md"
+# ── Owner-sourced product skills reach the PACKED product (FS.GG.Templates#347) ────────────────
+# This REPLACED a `cmp` against `skills/fable-bindings/SKILL.md`, a second checked-in copy of the
+# template's own skill file. That pair shared one blob and was kept equal only by the cmp — a
+# second source of truth held in place by a test. The catalog is now authored once under
+# template/product-skills/ and projected into the packed payload by FS.GG.Templates.csproj, so
+# there is no second file left to compare; what has to be proved instead is that the packed
+# product actually RECEIVED the declared set. The assertion reads the manifest the product shipped
+# and reds on an absent selected skill, a skill the manifest does not select for this template, an
+# undeclared (dangling) skill directory, a drifted digest, or a missing/non-canonical manifest.
+dotnet fsi "$ROOT/scripts/generate-skill-manifest.fsx" --assert-product "$WORK/product" --template fs-gg-fable-bindings
 grep -Fq '"@babylonjs/core": "9.19.0"' "$WORK/product/package.json"
 grep -Fq '@babylonjs/core/Engines/nullEngine.d.ts' "$WORK/product/declaration-lock.json"
 grep -Fq 'ImportAll("@babylonjs/loaders/glTF/index.js")' "$WORK/product/src/AcmeBindings/Bindings.fs"
@@ -47,7 +56,17 @@ command -v fsgg-governance >/dev/null
 dotnet new fs-gg-governance -o "$WORK/product" --appName AcmeBindings --defaultProfile strict --force >/dev/null
 (cd "$WORK/product" && node scripts/lifecycle-evidence.mjs --expect clean --junit reports/bindings.junit.xml --handoff readiness/002-bindings-upstream-review/governance-handoff.json)
 (cd "$WORK/product" && npm run test:lifecycle >/dev/null)
-cmp "$ROOT/skills/fable-bindings/SKILL.md" "$WORK/product/.agents/skills/fable-bindings/SKILL.md"
+# The governance overlay is applied with --force over the SAME directory, so this re-assertion is
+# not a repeat: it proves the overlay does not clobber, truncate, or shadow the producer's skill
+# root on its way through.
+#
+# `--co-tenants` is required HERE and not on the first call because by this point the root is
+# SHARED: fsgg-sdd has seeded its `fs-gg-sdd-*` process skills and the five `always` `.github`
+# driver skills (registry/driver-skill-manifest.json) into the same `.agents/skills/`. They are
+# another producer's correct output, so this producer's manifest must not declare them — but a
+# skill belonging to NOBODY still reds, which is the dangling class the glob list preserves.
+dotnet fsi "$ROOT/scripts/generate-skill-manifest.fsx" --assert-product "$WORK/product" --template fs-gg-fable-bindings \
+  --co-tenants 'fs-gg-sdd-* work-board work-board-best work-board-normal work-roadmap padd-item'
 test -f "$WORK/product/.fsgg/scaffold-provenance.json"
 jq -e '.governanceConfig.policyPresent == true and .governanceConfig.capabilitiesPresent == true and .readiness.shipDisposition == "shipReady"' "$WORK/product/readiness/001-bindings-lifecycle/governance-handoff.json" >/dev/null
 cp "$WORK/product/readiness/001-bindings-lifecycle/governance-handoff.json" "$WORK/product/reports/sdd-governance-handoff.json"
@@ -110,4 +129,4 @@ printf '%s\n' 'export declare const original: string;' > "$fixture/node_modules/
 node "$WORK/product/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --entry example/entry.d.ts --lock "$fixture/lock.json" --write >/dev/null
 printf '%s\n' 'export declare const changed: string;' > "$fixture/node_modules/example/side.d.ts"
 if node "$WORK/product/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --entry example/entry.d.ts --lock "$fixture/lock.json"; then exit 1; fi
-echo 'PASS fable-bindings template executes locked declaration, candidate, NuGet/npm/Fable/Node/Chromium, SDD, doctor, Governance and drift-review evidence'
+echo 'PASS fable-bindings template executes locked declaration, candidate, NuGet/npm/Fable/Node/Chromium, SDD, doctor, Governance, drift-review and owner-sourced product-skill delivery evidence'

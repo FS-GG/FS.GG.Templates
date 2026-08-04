@@ -50,4 +50,74 @@
     <Compile Remove="**/*" />
   </ItemGroup>
 
+  <!-- ── Owner-sourced product skills (FS.GG.Templates#347) ──────────────────────────────────
+       The six generic Fable product skills and their producer manifest are AUTHORED ONCE, under
+       `template/product-skills/` and `template/skill-manifest/`, and PROJECTED from there into
+       each provider template's shipped `.agents/skills/` payload by the package items below.
+
+       WHY PACKAGE ITEMS AND NOT A CHECKED-IN COPY UNDER templates/. #347's acceptance is that
+       "skills are sourced from their owner package rather than copied into a provider template",
+       and the copy is the failure mode this repo has already paid for once: before this block,
+       `skills/fable-bindings/SKILL.md` and
+       `templates/fs-gg-fable-bindings/.agents/skills/fable-bindings/SKILL.md` were two checked-in
+       files with one blob, kept equal by a `cmp` in the composition lane — i.e. a second source of
+       truth held in place by a test. Projecting at pack time means there is exactly ONE authored
+       file per skill and no second file that CAN drift, so the digest in the manifest is a fact
+       about the only copy there is.
+
+       WHY THE `templates/**/*` CONTENT GLOB ABOVE DOES NOT COVER THEM. That glob packs the
+       `templates/` tree; the owner catalog lives in the sibling `template/` tree, which no package
+       item referenced at all. A packed/installed product therefore received NONE of the six
+       declared skills, and the manifest was a repository file rather than the product manifest
+       the `manifest` arm of `skill-union-assert` reads. These items close exactly that gap; the layout
+       is `content/templates/<templateId>/.agents/skills/<id>/SKILL.md`, matching the layout the
+       glob above produces for the rest of each template's payload.
+
+       `.agents/skills/` ONLY, deliberately: it is the producer root (`resolvablePath` in the
+       manifest, and the root that assertion reads); the `.claude` twin is
+       materialized downstream by the scaffolding lane, per ADR-0065. This mirrors what
+       `fs-gg-fable-bindings` already shipped.
+
+       COHERENCE IS ENFORCED, NOT ASSERTED IN PROSE: the `check` arm of
+       `scripts/generate-skill-manifest.fsx` parses THIS ItemGroup and reds if the projected set,
+       its destinations, or the manifest disagree with the generator's catalog. Add a skill in one
+       place and the check names the other two. The `Error` target below is the cheap always-on
+       half: a skill authored with no package item would otherwise pack into no template at all,
+       and reach no product, while every source-side check stayed green. -->
+  <ItemGroup>
+    <None Include="template/product-skills/fable-project/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-project/;content/templates/fs-gg-fable-bindings/.agents/skills/fable-project/" />
+    <None Include="template/product-skills/fable-interop/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-interop/;content/templates/fs-gg-fable-bindings/.agents/skills/fable-interop/" />
+    <None Include="template/product-skills/fable-remoting/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-remoting/" />
+    <None Include="template/product-skills/fable-signalr/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-signalr/" />
+    <None Include="template/product-skills/fable-testing/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-testing/;content/templates/fs-gg-fable-bindings/.agents/skills/fable-testing/" />
+    <None Include="template/product-skills/fable-bindings/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-fable-bindings/.agents/skills/fable-bindings/" />
+    <!-- One canonical producer manifest per product. It is the upper-bound catalog
+         the `manifest` arm of `skill-union-assert` compares a materialized union against, so a row's
+         `materializes-when` — not a per-template subset file — is what says where a skill lands. -->
+    <None Include="template/skill-manifest/skill-manifest.json" Pack="true"
+          PackagePath="content/templates/fs-gg-fable-game/.agents/skills/;content/templates/fs-gg-fable-bindings/.agents/skills/" />
+  </ItemGroup>
+
+  <Target Name="FsggVerifyProductSkillSources" BeforeTargets="Build;Pack">
+    <ItemGroup>
+      <!-- Globbed, not listed: the point is to compare what is ON DISK against what the items
+           above name. Re-listing the same six paths here would make this target agree with the
+           ItemGroup by construction and observe nothing. -->
+      <_FsggOwnerSkill Include="template/product-skills/*/SKILL.md" />
+      <_FsggOwnerManifest Include="template/skill-manifest/skill-manifest.json" />
+      <_FsggProjectedSkill Include="@(None)"
+                           Condition="'%(None.Pack)' == 'true' And $([System.String]::Copy('%(None.Identity)').StartsWith('template/product-skills/'))" />
+    </ItemGroup>
+    <Error Condition="'@(_FsggOwnerManifest)' == ''"
+           Text="template/skill-manifest/skill-manifest.json is missing, so every packed product would ship an unreadable producer manifest. Run: dotnet fsi scripts/generate-skill-manifest.fsx" />
+    <Error Condition="'@(_FsggOwnerSkill->Count())' != '@(_FsggProjectedSkill->Count())'"
+           Text="Owner-sourced product skills on disk (@(_FsggOwnerSkill->Count())) and product-skill package items (@(_FsggProjectedSkill->Count())) disagree. A skill authored under template/product-skills/ with no package item is packed into NO template and silently reaches no product. Reconcile FS.GG.Templates.csproj with scripts/generate-skill-manifest.fsx, then run `dotnet fsi scripts/generate-skill-manifest.fsx --check`." />
+  </Target>
+
 </Project>

@@ -204,6 +204,39 @@ consults it). It is a dev convenience, not part of provisioning, and per ADR-000
 a republish — the `FS.GG.UI.*` family already ships as one locked set behind
 `fs-gg-ui-template/v<ver>`.
 
+### Owner-sourced product skills for the Fable workspaces
+
+The generic Fable product skills — `fable-project`, `fable-interop`, `fable-remoting`,
+`fable-signalr`, `fable-testing`, `fable-bindings` — are **authored once**, under
+`template/product-skills/`, and **projected** into each provider template's packed
+`.agents/skills/` payload by package items in `FS.GG.Templates.csproj`. Nothing is copied into
+`templates/` in the working tree: there is one authored file per skill and no second file that can
+drift. Which templates a skill lands in is declared by its `materializes-when` row in the producer
+manifest `template/skill-manifest/skill-manifest.json`, which ships into every such product as
+`.agents/skills/skill-manifest.json` and carries each skill's canonical-body sha256.
+
+`scripts/generate-skill-manifest.fsx` owns all of it and has three arms:
+
+| arm | what it grades |
+| --- | --- |
+| *(no flag)* | regenerates the manifest from the catalog |
+| `--check` | the catalog, the checked-in manifest, and the csproj package items still agree |
+| `--assert-product <dir> --template <id>` | a product instantiated from the **packed archive** received exactly the declared set — reds on an absent selected skill, a skill the manifest does not select for that template, an undeclared (dangling) skill directory, a drifted digest, or a missing/non-canonical producer manifest |
+
+Add `--co-tenants "<glob> …"` once another producer has written into the same root — after
+`fsgg-sdd scaffold` or the governance overlay, `.agents/skills/` also holds SDD's `fs-gg-sdd-*`
+process skills and the five `always` `.github` driver skills. They are another producer's correct
+output, so this manifest must not declare them; the glob list keeps them legitimate while a skill
+belonging to **nobody** still reds. The globs are passed per call site because which co-tenants to
+expect is a fact about the lane, not about this catalog.
+
+The product-side arm is the load-bearing one, and the reason it exists is worth keeping: the
+catalog originally shipped in a tree no package item referenced. Every source-side check was green,
+CI was green, and **no generated product could receive a single declared skill** — a source-side
+check grades a repository file, and only instantiating the archive grades delivery. Both arms run
+on the required `composition` job; `fs-gg-fable-bindings` is additionally asserted inside its own
+lane, on the same product that then goes through npm/Fable/Node/Chromium/SDD/Governance.
+
 ## Install (the template package)
 
 The templates ship as a versioned NuGet **template package**, so the standard `dotnet new`
