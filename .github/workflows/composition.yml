@@ -30,6 +30,63 @@ jobs:
     runs-on: ubuntu-latest
     # A hung feed/scaffold/build must not hold a runner for the 6-hour default; a healthy full run
     # is well under this.
+    #
+    # ── THE LANE-SET BUDGET, MEASURED RATHER THAN ASSUMED (FS.GG.Templates#379) ──────────────
+    #
+    # This job runs every lane `tests/composition/` contains. It does NOT pin a COMPOSITION_LANES
+    # list: run.sh's default is lane DISCOVERY minus the explicit deferral registry in
+    # tests/composition/lib/lane-coverage.sh, so a lane added tomorrow lands on this required check
+    # by construction rather than by somebody remembering to edit a list here. Two lanes were added
+    # without that edit and ran on nothing for days, which is the whole of #379.
+    #
+    # #379 EXPECTED THIS TO BE UNAFFORDABLE, AND IT IS NOT. Its premise was that "the fable-game
+    # lane adds a full game build plus Playwright", so "wiring both in unconditionally may not fit
+    # that budget", and it asked for a split job or a matrix if it did not. Measured, no split is
+    # needed and none is implemented — the numbers, all quoted from real runs:
+    #
+    #   BEFORE — 2 lanes (`web fable-bindings`), main @78a12e0f, run 30905562596 / job 91979709770
+    #     job wall-clock          3m23s   (11:37:22Z → 11:40:45Z)
+    #     `composition test` step 3m03s   (11:37:38Z → 11:40:41Z)
+    #     web 68.6s · fable-bindings 60.7s · stages+alarms ~50s
+    #
+    #   ALL FOUR — PR #390 @19d04b1, run 30909455795 / job 91992266101
+    #     job wall-clock          4m42s   (12:31:14Z → 12:35:56Z)
+    #     `composition test` step 4m19s   (12:31:32Z → 12:35:51Z)
+    #     console 34.5s · fable-bindings 76.6s · web 48.8s · fable-game 33.1s (truncated, see below)
+    #     the #379 coverage gate and its 22-outcome self-demonstration: 0.5s
+    #
+    #   SHIPPED — 3 lanes (fable-game deferred, see below), @13f1008 run 30910578399 / job 91996034186
+    #     job wall-clock          3m50s   (12:46:20Z → 12:50:10Z)   86 passed, 0 failed
+    #     console 33.9s · fable-bindings 69.7s · web 49.6s · coverage gate 0.8s
+    #
+    # So the two lanes #379 was worried about cost +1m19s of job wall-clock against a 30-MINUTE
+    # budget, and what actually ships costs +27s over the old hand-written pair while adding a
+    # complete console lifecycle and the coverage gate. Even taking the worst figure here the job
+    # uses under a fifth of its budget.
+    #
+    # THE fable-game FIGURE IS TRUNCATED, AND IT IS NAMED AS SUCH rather than banked. That lane
+    # died 33s in on FS.GG.Templates#392 (its `build.sh` invokes the local `fable` tool bare and
+    # never restores it) before reaching npm, the Fable compile, the Vite bundle, `dotnet publish`
+    # or Playwright, so 33.1s is NOT that lane's cost. Measured properly — the complete lane, with
+    # its blockers patched out locally, on 2026-08-04 — it runs GREEN END TO END IN 63s, Playwright
+    # two-client scenario included. Scaling the 25s local prefix against the 33s CI paid for the
+    # same work puts the full lane near 83s on a runner, i.e. this job at roughly 5m30s once #392
+    # lands. Still a fifth of the budget.
+    #
+    # WHY THE LANE IS DEFERRED ANYWAY, AND WHY THAT IS NOT A BUDGET DECISION: it cannot pass on any
+    # host until FS.GG.Templates#392 lands, and this is a REQUIRED context under `enforce_admins`,
+    # so putting it here would wedge every PR in the repository — the #260 incident, deliberately.
+    # (#385 was the other blocker and landed in PR #389 on 2026-08-04; #392 alone still reds it.)
+    # The registry entry names the item and the release gate still runs the lane in full. Delete
+    # that one line when it lands — #393 owns doing so — and the measurement above already covers
+    # the result, so no re-measurement is owed.
+    #
+    # RAISING THIS TIMEOUT IS NOT THE REMEDY IF A LANE EVER OUTGROWS IT. #379 asks for the split to
+    # be implemented instead. Note that a split cannot simply become a matrix: `composition` is the
+    # protected context name, and a matrix would report `composition (web)` etc. while `composition`
+    # itself never reported at all — leaving every PR "Expected" forever, unmergeable even by an
+    # admin. Any split must keep one check named exactly `composition` (an aggregating job that
+    # `needs:` the lane jobs).
     timeout-minutes: 30
     permissions:
       contents: read
