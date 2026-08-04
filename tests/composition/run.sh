@@ -136,6 +136,7 @@ assert_skill_assert_ref_fresh "pin"
 step "lanes — every discovered lane is reached by a required path (#379)"
 assert_lane_coverage_can_fire "lanes" "$WORKDIR/lane-coverage-fixtures"
 assert_lane_coverage "$COMPOSITION_DIR" "$REPO_ROOT"
+assert_lane_fails_closed "$COMPOSITION_DIR"
 
 # ── THIS REPO's runtime skill-root set (FS-GG/.github#1676, ADR-0067 §8/§9 phase 4) ──────────
 # Here for the same reason the alarm above is: it is a fact about THIS REPOSITORY, not about a
@@ -219,10 +220,11 @@ fi
 # THE DEFAULT IS DISCOVERY, NOT A LIST (FS.GG.Templates#379). It used to be the hand-written pair
 # `web fable-bindings`, and the two lanes nobody remembered to add to it — console (#356) and
 # fable-game (#348) — were full lifecycle proofs that executed on no required path for days. The
-# default is now every lane directory that carries a run.sh, so ADDING A LANE PUTS IT ON THE
-# REQUIRED CHECK BY CONSTRUCTION: there is no second act left to forget. `lanes:` above gates the
-# other direction — a caller that NARROWS the set — and the measured budget that made running all
-# four affordable is quoted next to `timeout-minutes: 30` in .github/workflows/composition.yml.
+# default is now every lane directory that carries a run.sh, minus whatever the deferral registry
+# in lib/lane-coverage.sh explicitly names, so ADDING A LANE PUTS IT ON THE REQUIRED CHECK BY
+# CONSTRUCTION: there is no second act left to forget, and taking one back off is a checked-in
+# decision that `lanes:` above refuses to let rot. The measured budget is quoted next to
+# `timeout-minutes: 30` in .github/workflows/composition.yml.
 #
 # WHICH LANES RUN IS STILL A CALLER'S DECISION (FS.GG.Templates#349), because a developer running
 # one lane locally must not have to run four. What #379 changed is that a caller's narrowing is now
@@ -233,7 +235,7 @@ fi
 # unexecutable, that is a hard failure with the path in the message — the same rule
 # assert_skill_union follows. Green-by-omission is the failure mode this whole file exists to
 # prevent, and a typo'd lane name silently doing nothing would rebuild it here.
-COMPOSITION_LANES="${COMPOSITION_LANES:-$(lane_universe "$COMPOSITION_DIR" | tr '\n' ' ')}"
+COMPOSITION_LANES="${COMPOSITION_LANES:-$(lane_default_selection "$COMPOSITION_DIR" | tr '\n' ' ')}"
 for lane in $COMPOSITION_LANES; do
   lane_script="$COMPOSITION_DIR/$lane/run.sh"
   step "$lane — generated workspace lifecycle"

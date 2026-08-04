@@ -58,10 +58,34 @@ COMPOSITION_REQUIRED_CONTEXT='composition'
 # would be the release gate — or the registry becomes a quiet way to retire coverage, which is this
 # item's own defect with paperwork on top. That is asserted, not trusted.
 #
-# IT IS EMPTY, AND THE MEASUREMENT THAT KEEPS IT EMPTY IS QUOTED next to `timeout-minutes: 30` in
-# .github/workflows/composition.yml. Do not add an entry without re-measuring and quoting the run
-# the way that block does; "it felt slow" is how the required check lost two lanes the first time.
-COMPOSITION_LANE_DEFERRALS=()
+# A DEFERRAL IS NOT A BUDGET DECISION HERE, AND THE MEASUREMENT SAYS SO. #379 expected this
+# registry to carry the expensive lane for cost reasons; measured, that expectation was wrong — the
+# full four-lane job costs about a fifth of its 30-minute budget, and the numbers are quoted next to
+# `timeout-minutes: 30` in .github/workflows/composition.yml. The one entry below is a BLOCKED lane,
+# not an unaffordable one, and it names the items that block it.
+#
+# Do not add an entry for cost without re-measuring and quoting the run the way that block does;
+# "it felt slow" is how the required check lost two lanes in the first place.
+COMPOSITION_LANE_DEFERRALS=(
+  # fs-gg-fable-game cannot pass on ANY host right now, for two causes that are not this lane's and
+  # not #379's, each owned by its own item with its own touch-set:
+  #   #385 — the SDD-route product-skill assertion (byte-equality with the producer manifest, and
+  #          'materializes-when: always' unparsed). In review as PR #389.
+  #   #392 — build.sh cannot run its cross-runtime codec proof: the local `fable` tool is invoked as
+  #          a bare command and never `dotnet tool restore`d, so every generated product fails its
+  #          own documented build. Found by wiring this lane here for the first time.
+  # `composition` is REQUIRED with enforce_admins on, so putting a lane that cannot pass on it would
+  # wedge every PR in the repository, unmergeable by anyone — the #260 incident, on purpose. This
+  # entry is the explicit, reasoned, checked-in alternative #379's acceptance names (the #316 shape),
+  # and it is LOUD: the run prints the lane by name, the release gate still runs it in full, and the
+  # assertions below refuse to let it rot into a silent exemption.
+  #
+  # RETIRING IT IS A ONE-LINE DELETION AND NEEDS NO RE-MEASUREMENT. With both blockers patched out
+  # locally, the complete lane — instantiate, restore, build, TRX, the cross-runtime codec proof,
+  # npm ci x2, the Fable compile, the Vite bundle, dotnet publish, and the Playwright two-client
+  # scenario — ran green in 63s (2026-08-04). Delete this entry when #385 and #392 have landed.
+  "fable-game|BLOCKED, not deferred for cost: #385 and #392 both make this lane fail on every host; re-enable by deleting this entry once they land"
+)
 
 # lane_universe <composition-dir>
 # Every lane that EXISTS, one per line, sorted. Discovery, not a list — this is half 1.
@@ -72,6 +96,20 @@ lane_universe() {
   done | sort
 }
 
+# lane_default_selection <composition-dir>
+# What a caller that pins NO list actually runs: every discovered lane, minus the registered
+# deferrals. This — not the raw universe — is run.sh's default, and it is the same function the gate
+# uses to work out what an unpinned workflow will do, so the selection and the grading of that
+# selection cannot drift apart.
+lane_default_selection() {
+  local lane
+  while IFS= read -r lane; do
+    [[ -n "$lane" ]] || continue
+    lane_deferral_reason "$lane" >/dev/null && continue
+    printf '%s\n' "$lane"
+  done <<<"$(lane_universe "$1")"
+}
+
 # lane_suite_callers <repo-root>
 # Every workflow file that invokes the composition suite, sorted. `-l` over the literal path is
 # enough and is deliberately not a YAML parse: the thing being detected is "this file runs the
@@ -80,9 +118,12 @@ lane_suite_callers() {
   grep -rlF 'tests/composition/run.sh' "$1/.github/workflows" 2>/dev/null | sort
 }
 
-# lane_workflow_selection <workflow-file> <universe>
+# lane_workflow_selection <workflow-file> <default-selection>
 # The lane set this workflow will ACTUALLY run: the literal list it assigns to COMPOSITION_LANES,
-# or — when it assigns none — the discovered universe, because that is run.sh's default. Comment
+# or — when it assigns none — the DEFAULT SELECTION, because that is what run.sh will do. Passing
+# the default rather than the raw universe is what keeps a deferral honest in both directions: an
+# unpinned caller genuinely does not run a deferred lane, so grading it as though it did would
+# report a coverage that does not exist. Comment
 # lines cannot match: the anchor requires the key at the start of the line after whitespace only,
 # and a YAML comment starts with `#`. This matters, because both workflows discuss the variable in
 # prose at length.
@@ -91,10 +132,10 @@ lane_suite_callers() {
 # invokes the suite exactly once today. If one ever invokes it twice with different sets, widen this
 # in the same change — a second assignment silently ignored is this item's defect rebuilt here.
 lane_workflow_selection() {
-  local wf="$1" universe="$2" line
+  local wf="$1" default_sel="$2" line
   line="$(grep -m1 -E '^[[:space:]]*COMPOSITION_LANES:' "$wf" 2>/dev/null)"
   if [[ -z "$line" ]]; then
-    printf '%s\n' "$universe"
+    printf '%s\n' "$default_sel"
     return 0
   fi
   line="${line#*:}"
@@ -133,7 +174,7 @@ lane_deferral_reason() {
 # drive both, and so the assertion's ok/bad mapping is itself testable.
 lane_coverage_findings() {
   local composition_dir="$1" repo_root="$2"
-  local universe required_wf required_sel callers wf sel lane reason entry found other_reach
+  local universe default_sel required_wf required_sel callers wf sel lane reason entry found other_reach
   local findings=0
 
   universe="$(lane_universe "$composition_dir")"
@@ -141,6 +182,7 @@ lane_coverage_findings() {
     echo "no lane directories were discovered under $composition_dir — discovery itself is broken, and a lane set that is empty for the wrong reason reports every lane as covered"
     return 1
   fi
+  default_sel="$(lane_default_selection "$composition_dir")"
 
   required_wf="$repo_root/$COMPOSITION_REQUIRED_WORKFLOW"
   if [[ ! -f "$required_wf" ]]; then
@@ -156,7 +198,7 @@ lane_coverage_findings() {
     return 1
   fi
 
-  required_sel="$(lane_workflow_selection "$required_wf" "$universe")"
+  required_sel="$(lane_workflow_selection "$required_wf" "$default_sel")"
   callers="$(lane_suite_callers "$repo_root")"
 
   # (a) EVERY suite-calling workflow reaches every discovered lane — not just the required one.
@@ -169,7 +211,7 @@ lane_coverage_findings() {
   #     cover the universe, and the only exemption is a registered deferral.
   while IFS= read -r wf; do
     [[ -n "$wf" ]] || continue
-    sel="$(lane_workflow_selection "$wf" "$universe")"
+    sel="$(lane_workflow_selection "$wf" "$default_sel")"
     while IFS= read -r lane; do
       [[ -n "$lane" ]] || continue
       lane_in_set "$lane" "$sel" && continue
@@ -200,7 +242,7 @@ lane_coverage_findings() {
     found=0
     while IFS= read -r wf; do
       [[ -n "$wf" ]] || continue
-      sel="$(lane_workflow_selection "$wf" "$universe")"
+      sel="$(lane_workflow_selection "$wf" "$default_sel")"
       if lane_in_set "$lane" "$sel"; then other_reach=1; else found=1; fi
     done <<<"$callers"
     if (( other_reach == 0 )); then
@@ -219,7 +261,7 @@ lane_coverage_findings() {
   while IFS= read -r wf; do
     [[ -n "$wf" ]] || continue
     grep -qE '^[[:space:]]*COMPOSITION_LANES:' "$wf" || continue
-    sel="$(lane_workflow_selection "$wf" "$universe")"
+    sel="$(lane_workflow_selection "$wf" "$default_sel")"
     while IFS= read -r lane; do
       [[ -n "$lane" ]] || continue
       if ! lane_in_set "$lane" "$universe"; then
@@ -233,13 +275,73 @@ lane_coverage_findings() {
   return 1
 }
 
+# lane_fails_closed_findings <composition-dir>
+# A LANE THAT CANNOT RUN ITS PREREQUISITES MUST FAIL, NEVER SKIP INTO GREEN (#379 AC4, the rule
+# assert_skill_union already follows). Coverage above answers "does the required check reach this
+# lane"; this answers the question underneath it — "and if it reaches it on a host missing a
+# prerequisite, does the lane say so, or does it report success anyway".
+#
+# The property that decides it is errexit. Every lane ends with a bare `echo PASS…` success line and
+# is invoked as `bash <lane>` by the orchestrator, which maps a non-zero exit to `bad`. WITH errexit,
+# an unmet prerequisite — `fsgg-sdd` or `jq` or `npm` not on PATH is a 127, a missing browser is a
+# non-zero `npx playwright install` — aborts the lane before that line and the orchestrator reds.
+# WITHOUT it, execution runs straight past the failure to the success line and the lane EXITS 0: the
+# suite then reports the lane as passing on a host where it did nothing. That is not a hypothetical
+# shape, it is the ADR-0014 F2 "grep for the failure string and skip" shape this whole suite was
+# built to retire, relocated into a lane body where no reviewer of run.sh would see it.
+#
+# Grepping for it rather than executing it is deliberate: proving it by execution means running four
+# full template lifecycles with prerequisites removed, on every run, which costs more than the
+# lanes themselves. The property is textual, so it is checked textually, on every lane, for free.
+lane_fails_closed_findings() {
+  local composition_dir="$1" lane script findings=0
+  while IFS= read -r lane; do
+    [[ -n "$lane" ]] || continue
+    script="$composition_dir/$lane/run.sh"
+    if ! grep -qE '^[[:space:]]*set[[:space:]]+(-[a-zA-Z]*e|-o[[:space:]]+errexit)' "$script"; then
+      echo "lane '$lane' ($script) never enables errexit, so an unmet prerequisite does not stop it — execution runs past the failure to the lane's final success line and it exits 0. The orchestrator would report this lane as PASSING on a host where it did nothing (#379 AC4)"
+      findings=$((findings + 1))
+    fi
+    if grep -qE '^[[:space:]]*skip[[:space:]]' "$script"; then
+      echo "lane '$lane' ($script) calls the 'skip' helper — a lane is all-or-nothing by contract: the orchestrator grades it by EXIT STATUS, so a skipped step inside one is invisible to the suite and lands as green (#379 AC4)"
+      findings=$((findings + 1))
+    fi
+  done <<<"$(lane_universe "$composition_dir")"
+  (( findings == 0 )) && return 0
+  return 1
+}
+
+# assert_lane_fails_closed <composition-dir>
+assert_lane_fails_closed() {
+  local out
+  if out="$(lane_fails_closed_findings "$1")"; then
+    ok "lanes: every discovered lane aborts on an unmet prerequisite rather than running past it to its success line (errexit enabled, no in-lane skip), so an unrunnable lane FAILS instead of reporting green (#379)"
+  else
+    bad "lanes: a lane can report success on a host where its prerequisites are absent — the findings are below (#379)"
+    printf '%s\n' "$out" | sed 's/^/      | /'
+  fi
+}
+
 # assert_lane_coverage <composition-dir> <repo-root>
 # THE GATE. Unconditional, offline, and independent of which lanes THIS invocation selected.
 assert_lane_coverage() {
-  local out lane_count
+  local out lane_count run_count deferred_count run_list deferred_list entry lane
   lane_count="$(lane_universe "$1" | grep -c .)"
+  run_list="$(lane_workflow_selection "$2/$COMPOSITION_REQUIRED_WORKFLOW" "$(lane_default_selection "$1")" | tr '\n' ' ')"
+  run_list="${run_list% }"
+  run_count="$(printf '%s\n' $run_list | grep -c .)"
+  deferred_count="${#COMPOSITION_LANE_DEFERRALS[@]}"
+  deferred_list=''
+  for entry in ${COMPOSITION_LANE_DEFERRALS[@]+"${COMPOSITION_LANE_DEFERRALS[@]}"}; do
+    lane="${entry%%|*}"
+    deferred_list="${deferred_list:+$deferred_list, }$lane (${entry#*|})"
+  done
   if out="$(lane_coverage_findings "$1" "$2")"; then
-    ok "lanes: all $lane_count discovered lane(s) are reached by the required '$COMPOSITION_REQUIRED_CONTEXT' check ($(lane_universe "$1" | tr '\n' ' ' | sed 's/ $//')), every caller's COMPOSITION_LANES names only lanes that exist, and the deferral registry holds $(printf '%s' "${#COMPOSITION_LANE_DEFERRALS[@]}") entries (#379)"
+    if (( deferred_count == 0 )); then
+      ok "lanes: all $lane_count discovered lane(s) run on the required '$COMPOSITION_REQUIRED_CONTEXT' check ($run_list), every caller's COMPOSITION_LANES names only lanes that exist, and the deferral registry is empty (#379)"
+    else
+      ok "lanes: $run_count of $lane_count discovered lane(s) run on the required '$COMPOSITION_REQUIRED_CONTEXT' check ($run_list); $deferred_count is registered as deferred and still runs on another caller — $deferred_list. Every caller's COMPOSITION_LANES names only lanes that exist (#379)"
+    fi
   else
     bad "lanes: a lane directory exists that the required '$COMPOSITION_REQUIRED_CONTEXT' check does not reach, or a caller's lane list has rotted — the findings are below. This is #379's gate; do NOT silence it by narrowing the discovered set."
     printf '%s\n' "$out" | sed 's/^/      | /'
@@ -383,7 +485,44 @@ assert_lane_coverage_can_fire() {
   _lc_workflow "$root" composition.yml composition ''
   _lc_expect 1 "$root"
 
-  # 14–15. THE ASSERTION'S OWN ok/bad MAPPING. Without these, `else bad` → `else ok` passes 1–13.
+  # 14. FAIL-CLOSED, the AC4 arm. _lc_fixture writes lanes WITHOUT errexit, so the plain fixture is
+  #     the failing case — an unmet prerequisite there would run straight to the success line.
+  root="$(_lc_fixture failopen a b)"
+  n=$((n + 1))
+  lane_fails_closed_findings "$root/tests/composition" >/dev/null 2>&1
+  [[ "$?" == 1 ]] || fails=$((fails + 1))
+  # …and every spelling of enabling it clears, so the check is calibrated and not just strict.
+  root="$(_lc_fixture failclosed a b c)"
+  printf '#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n' >"$root/tests/composition/a/run.sh"
+  printf '#!/usr/bin/env bash\nset -e\nexit 0\n' >"$root/tests/composition/b/run.sh"
+  printf '#!/usr/bin/env bash\nset -o errexit\nexit 0\n' >"$root/tests/composition/c/run.sh"
+  n=$((n + 1))
+  lane_fails_closed_findings "$root/tests/composition" >/dev/null 2>&1
+  [[ "$?" == 0 ]] || fails=$((fails + 1))
+  # `set -uo pipefail` is the near-miss that must NOT pass: it looks like hardening and omits the
+  # one option that stops a lane on a missing prerequisite.
+  root="$(_lc_fixture failopen_nearmiss a)"
+  printf '#!/usr/bin/env bash\nset -uo pipefail\nexit 0\n' >"$root/tests/composition/a/run.sh"
+  n=$((n + 1))
+  lane_fails_closed_findings "$root/tests/composition" >/dev/null 2>&1
+  [[ "$?" == 1 ]] || fails=$((fails + 1))
+  # An in-lane `skip` is invisible to an orchestrator that grades by exit status.
+  root="$(_lc_fixture skipping a)"
+  printf '#!/usr/bin/env bash\nset -euo pipefail\nskip "no browser here"\nexit 0\n' >"$root/tests/composition/a/run.sh"
+  n=$((n + 1))
+  lane_fails_closed_findings "$root/tests/composition" >/dev/null 2>&1
+  [[ "$?" == 1 ]] || fails=$((fails + 1))
+  # …and ITS assertion's ok/bad mapping, for the same reason as the pair below.
+  local pf0="$PASS" ff0="$FAIL"
+  assert_lane_fails_closed "$root/tests/composition" >/dev/null 2>&1
+  n=$((n + 1)); [[ "$FAIL" == "$((ff0 + 1))" ]] || fails=$((fails + 1))
+  root="$(_lc_fixture failclosed_ok a)"
+  printf '#!/usr/bin/env bash\nset -euo pipefail\nexit 0\n' >"$root/tests/composition/a/run.sh"
+  assert_lane_fails_closed "$root/tests/composition" >/dev/null 2>&1
+  n=$((n + 1)); [[ "$PASS" == "$((pf0 + 1))" && "$FAIL" == "$((ff0 + 1))" ]] || fails=$((fails + 1))
+  PASS="$pf0"; FAIL="$ff0"
+
+  # 15–16. THE ASSERTION'S OWN ok/bad MAPPING. Without these, `else bad` → `else ok` passes them all.
   local p0="$PASS" f0="$FAIL"
   root="$(_lc_fixture map_bad a b c)"
   _lc_workflow "$root" composition.yml composition 'a b'
@@ -400,8 +539,8 @@ assert_lane_coverage_can_fire() {
   unset -f _lc_fixture _lc_workflow _lc_expect
 
   if (( fails == 0 )); then
-    ok "$label: the unreached-lane gate can FIRE — driven offline through all $n outcomes: a whole repo, the #379 defect itself (a lane on disk the required check does not name), the same defect in a SIBLING caller whose pinned list fell behind, a deferral that clears it only while some caller still runs the lane, a deferral that is a deletion, one with no issue, a stale one, one every workflow contradicts, a caller naming a lane that does not exist, the required workflow renamed / detached from the suite / absent, an empty discovery, and the assertion's own ok+bad counter mapping"
+    ok "$label: the unreached-lane and fail-closed gates can FIRE — driven offline through all $n outcomes: a whole repo, the #379 defect itself (a lane on disk the required check does not name), the same defect in a SIBLING caller whose pinned list fell behind, a deferral that clears it only while some caller still runs the lane, a deferral that is a deletion, one with no issue, a stale one, one every workflow contradicts, a caller naming a lane that does not exist, the required workflow renamed / detached from the suite / absent, an empty discovery, a lane with no errexit and the 'set -uo pipefail' near-miss, all three spellings that do enable it, an in-lane skip, and both assertions' own ok+bad counter mappings"
   else
-    bad "$label: the unreached-lane gate is BROKEN — $fails of its $n outcomes did not reproduce, so the coverage verdict below is not evidence of anything. Fix lane_coverage_findings / lane_workflow_selection / assert_lane_coverage; do NOT delete this self-demonstration (#379)"
+    bad "$label: the unreached-lane / fail-closed gates are BROKEN — $fails of its $n outcomes did not reproduce, so the verdicts below are not evidence of anything. Fix lane_coverage_findings / lane_fails_closed_findings / lane_workflow_selection / assert_lane_coverage; do NOT delete this self-demonstration (#379)"
   fi
 }

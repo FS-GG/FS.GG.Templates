@@ -16,12 +16,17 @@ stage is this repo's own preflight rather than part of the report's flow, so it 
 | Stage | What it checks | Gated? |
 |---|---|---|
 | **pin** | the shared skill-union assertion this run's verdict rests on is **not frozen**: `SKILL_ASSERT_REF` resolves to a real commit and is newer than `SKILL_ASSERT_MAX_AGE_DAYS` (#315). Runs **first and ungated**, straight from `run.sh` rather than from `assert_skill_union` — the lanes that call `assert_skill_union` are both gated, so hanging the alarm off them would leave the pin's freshness unevaluated on exactly the hosts where both lanes skip. It also self-demonstrates that it *can* fire before it reports a verdict. An unresolvable age **fails** (`.github#266` — "could not look" is never "looked, and fine") | no |
+| **lanes** (coverage) | every lane directory that exists under `tests/composition/` is actually **reached by a required path**, and every lane **fails** rather than skipping when its prerequisites are absent (#379). Runs **second and ungated**, for the same reason `pin` runs first: it is a fact about the *repository* — which lanes exist, and which of them the workflow files reach — not about the lane set this invocation selected, so hanging it off the lane loop would let a narrowed run check coverage only for the lanes it already ran. Self-demonstrates that it *can* fire before it reports a verdict | no |
+| **roots** | this repo's runtime skill-root declaration and its generated view both hold, via the kit-delivered `scripts/skill-view` (`.github#1710`). Ungated and offline; an absent view root is green here **by measurement**, because `composition` runs on a bare checkout that never materializes — see the decision block in `run.sh` | no |
 | **pack** | `FS.GG.Templates` packs to a `.nupkg` | no |
 | **install** | the package installs as a `dotnet new` source; `fs-gg-governance` registers | no |
 | **instantiate** | the `fs-gg-governance` overlay generates with `--appName` / `--defaultProfile` | no |
 | **verify pins/links** | parameter substitution lands; the descriptor is in the Governance-owned `.fsgg/governance.yml` slot (ADR-0005 — **not** the SDD-owned `project.yml`); the governance gate set is **populated** (not inert `checks: []`/`commands: []`); the `rendering` provider pin is coherent (version tag + `lifecycle=sdd` / `profile=game`) | no |
 | **build** | full `fsgg-sdd scaffold` of the live rendering app with a non-default product name; executes the generated README's exact root `dotnet build` and product-named `dotnet fsi load-<Name>.fsx` commands; proves the tool manifest does not advertise fake-cli and neither output nor guidance claims unsupported shared `.fake` state; checks the composed workspace's family-agnostic default entrypoint (Viewer host or Controls interactive/audio host, with no `-- pong` gate — #36); and proves the governed `<App>.slnx` / `build.fsx` commands resolve to real root artifacts (#59) | **yes** |
+| **standalone** | the spec-kit lane: the pinned `FS.GG.UI.Template` installs and instantiates directly, and its two agent-skill roots satisfy the same skill-union assertion under `speckit-*` co-tenants | **yes** |
 | **govern** | the overlay does not just *exist* — it **enforces**: a produced `governance-handoff.json` actually drives a Governance verdict (strict **blocks**, `light` does not) | **yes** |
+| **lanes** (per-identity) | one full generated-root lifecycle per packaged workspace identity — instantiate, restore, build, test, publish, and where the identity has one the browser and provider/SDD routes. The stages above prove the descriptors **pack**; only these prove an identity **works**. See [Per-identity lanes](#per-identity-lanes) | no |
+| **product skills** | the owner-sourced product-skill catalog, its checked-in manifest and the `csproj` package items agree, **and** a product instantiated from the packed archive actually receives the declared set (#347) | no |
 
 The **build** stage needs the `fsgg-sdd` CLI and a reachable `FS.GG.UI.Template` feed. It
 runs when the CLI is on `PATH` (or `FSGG_COMPOSITION_FULL=1` forces it) and otherwise
@@ -138,10 +143,59 @@ lib/helpers.sh      PASS/FAIL counters + ok/bad/skip/step/assert_*/installed_tem
 lib/skill-union.sh  the pinned FS-GG/.github ref (SKILL_ASSERT_REF, Renovate-bumped) + the
                     #315 staleness alarm (resolver / pure predicate / assertion + its own
                     self-demonstration) + fetch_skill_assert + assert_skill_union
+lib/lane-coverage.sh  lane DISCOVERY (the authority on which lanes exist) + the #379 gates:
+                    every discovered lane is reached by a required path, every lane fails
+                    closed on an absent prerequisite, the deferral registry, and their own
+                    self-demonstration
+lib/lane-package.sh   lane_package_path / lane_pin_provider_to_archive — resolve the archive a
+                    per-identity lane installs (the release gate's exact bytes when
+                    FSGG_TEMPLATES_NUPKG is set, a local pack otherwise) (#349)
 fixtures/*.json     the contract-v1 governance-handoff documents Stage 6b enforces
 stages/NN-*.sh      one file per stage: 01 pack · 02 install · 03 instantiate · 04 verify ·
                     05 build · 05b standalone · 06 govern
+<lane>/run.sh       one per packaged workspace identity — see below. EXECUTED, not sourced
 ```
+
+## Per-identity lanes
+
+Each packaged workspace identity owns an isolated lane at `tests/composition/<lane>/run.sh`
+that performs its complete generated-root lifecycle. Today: `web`, `console`,
+`fable-bindings`, `fable-game`.
+
+**The lane set is discovered, not listed (#379).** A directory here that carries a `run.sh`
+*is* a lane, and `run.sh`'s default lane set is exactly that discovered set — so adding a lane
+directory puts it on the required `composition` check **by construction**. There is no second
+act to remember, which is the whole point: `console` (#356) and `fable-game` (#348) were each
+added as complete lifecycle proofs and then executed on no required path at all, because the
+orchestrator enumerated its lanes by hand and nothing observed the gap.
+
+`COMPOSITION_LANES` still **selects** — a developer running one lane locally must not have to
+run four:
+
+```bash
+COMPOSITION_LANES=console tests/composition/run.sh
+```
+
+What is gated is a *caller* narrowing the set. The `lanes` stage reads the workflow **files**
+on every run — including a narrowed one — and reds naming any discovered lane no caller
+reaches. It grades `.github/workflows/release.yml` too, whose own pinned four-name list is the
+same hand-written enumeration one level over. The only sanctioned exemption is an entry in
+`COMPOSITION_LANE_DEFERRALS`, which must name an issue and must leave the lane reachable by
+some other caller — a deferral is not a deletion. The default lane set is *discovery minus that
+registry*, so an entry there is the one thing that can take a lane back off this check.
+
+It currently holds **one** entry, `fable-game`, and it is **not** a budget decision: that lane
+cannot pass on any host until #385 and #392 land, and `composition` is required under
+`enforce_admins`, so running it here would wedge every PR in the repository. The measured budget
+— including the full `fable-game` lane running green end to end in 63s — is quoted next to
+`timeout-minutes: 30` in `.github/workflows/composition.yml`. Delete the entry when those two
+items land; no re-measurement is owed.
+
+Lanes are **executed, not sourced**, and are graded purely by exit status — so a lane is
+all-or-nothing and must abort rather than run past a failure. That is why every lane enables
+`errexit` and why the `lanes` stage checks that it does: without it, an absent `fsgg-sdd`,
+`jq`, `npm` or browser would let a lane run on to its final success line and exit 0, reporting
+a pass on a host where it did nothing.
 
 The stage files are **sourced, not executed** — they run in `run.sh`'s shell and share its
 globals (`NUPKG`, `PIN_VER`, `FULL`, `FULL_OK`, …), so order matters and an `exit` in a stage
