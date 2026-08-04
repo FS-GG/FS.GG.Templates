@@ -3,5 +3,45 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <RestoreLockedMode>true</RestoreLockedMode>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!--
+      FS.GG.Templates#380. `RestoreLockedMode` above pins each package's identity,
+      version and CONTENT HASH — so it is only enforceable if exactly one archive can
+      ever answer for a given id+version. For FSharp.Core that is not true by default.
+
+      The F# SDK appends its own bundled folder feed to the restore sources:
+
+        sdk/<ver>/FSharp/Microsoft.FSharp.NetSdk.targets:69
+          <PropertyGroup Condition=" '$(DisableImplicitLibraryPacksFolder)' != 'true' ">
+            <RestoreAdditionalProjectSources>...;$(_FSharpCoreLibraryPacksFolder)</...>
+
+      That folder ships FSharp.Core at the SDK's own version — the same 10.1.302 this
+      workspace resolves — but as a DIFFERENT ARCHIVE from the one on nuget.org. Two
+      byte-different packages, one id and version, both reachable in the same restore:
+
+        nuget.org      contentHash bN7XMQrAQg1dyHScJ7FcsznERBkvm74LtIo1O6C5mUzg...
+        library-packs  contentHash wFeXgAqIWoV1Hr++7HjtlmKGA/ft9/1XAJIvOtDNDYGu...
+
+      Which one gets recorded is not a property of this project: a single-project
+      restore into a cold cache resolved nuget.org, while a solution restore into the
+      same cold cache resolved library-packs. One build performs several restores, so
+      two of them can disagree — and locked mode reports that disagreement as
+
+        error NU1403: Package content hash validation failed for FSharp.Core.10.1.302.
+                      The package is different than the last restore.
+
+      which is #380 exactly. `<clear />` in NuGet.config cannot close this: the folder
+      arrives through RestoreAdditionalProjectSources (MSBuild), not through NuGet
+      configuration, so nothing in NuGet.config removes it. This property is the lever
+      that does. With it set, FSharp.Core resolves only from the source NuGet.config
+      names, on every machine, so the committed hash beside it is achievable rather
+      than a coin flip.
+
+      Cost of setting it: FSharp.Core is fetched from nuget.org like every other
+      package this workspace uses, instead of from the SDK's offline copy. This
+      workspace already requires nuget.org for xunit, Thoth and the Fable packages,
+      so it forfeits no offline capability it otherwise had.
+    -->
+    <DisableImplicitLibraryPacksFolder>true</DisableImplicitLibraryPacksFolder>
   </PropertyGroup>
 </Project>
