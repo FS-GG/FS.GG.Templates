@@ -5,6 +5,31 @@ The descriptor intentionally retains its long, hand-authored release history. Th
 the small generated block near the current pin. It parses the narrow provider-list shape without a
 third-party YAML dependency, validates that provider names are unique and ordinally sorted, and then
 renders the current selection deterministically.
+
+DECIDED, AND THE ANSWER IS NO: `minimumFsggSdd` DOES NOT JOIN THE GENERATED SUMMARY
+(FS.GG.Templates#383, which asked for this either way with the reason recorded). The argument for
+adding it is that a floor drifting away from the org registry pin would then show up in a reviewable
+diff. Three measured reasons it is the wrong control here:
+
+  1. IT WOULD COVER TWO DESCRIPTORS OF FIVE — the same partial coverage #383 exists to remove. Only
+     `rendering` and `fable-bindings` carry a `BEGIN GENERATED: effective-providers` block;
+     `console`, `web` and `fable-game` deliberately carry none because they are not yet
+     registry-active providers, and `fable-game.providers.yml` says so in its own header. Putting the
+     floor in the generated block would make it visible for exactly the descriptors that already
+     had the most attention, and invisible for the three that did not.
+  2. THE STALENESS CHECK IS ALSO PARTIAL. `--check` is run from
+     tests/composition/stages/04-verify.sh against the LANE's descriptor, not against the set, so
+     "it would be in a checked file" does not mean "it would be checked" for every descriptor.
+  3. A VISIBLE DIFF IS NOT A CONTROL, and this repository has already paid for treating it as one:
+     the floor's single-descriptor scope was written down in composition.yml's own source, asking a
+     future author to widen it "in the same change", and four descriptors were then added by three
+     items without anyone widening it. What replaces that is scripts/check-provider-floors.py — a
+     required check that reads every descriptor, grades it against the live registry pin, and is
+     demonstrated to fail (`--self-test`). It renders the same values into the job's step summary on
+     every run, so the visibility argument is satisfied without a second, weaker copy of the value.
+
+If a descriptor's floor is ever wrong, the red comes from that checker and names the file, the
+provider, the declared value and the registry value. Do not add a duplicate here.
 """
 
 from __future__ import annotations
