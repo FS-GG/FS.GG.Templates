@@ -153,6 +153,46 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         with:
           dotnet-version: '10.0.x'
+      # ── EVERY provider floor, graded against the live org registry (FS.GG.Templates#383) ──────
+      #
+      # This step used to live INSIDE the CLI install below, and it read exactly one descriptor:
+      # `PROVIDER_DESCRIPTOR='providers/rendering.providers.yml'`. `providers/` holds five
+      # descriptors and all five declare a `minimumFsggSdd` floor, so four of them were read by
+      # NOTHING — they could be wrong, stale, or entirely absent while every required check stayed
+      # green. That is not a hypothetical: `providers/web.providers.yml` shipped with no floor block
+      # at all until FS.GG.Templates#381's round-1 repair, and nothing detected it for the whole life
+      # of the descriptor. The old reader even carried a note asking whoever added a second
+      # floor-declaring provider to "widen it here in the same change"; four were added by three
+      # items and the widening never happened. That note is gone, because the checker enumerates
+      # `providers/*.providers.yml` and a sixth descriptor is graded with no edit and nobody to
+      # remember — the same lesson the lane-set budget above records for lane discovery (#379).
+      #
+      # IT RUNS BEFORE THE CLI INSTALL, deliberately: an incoherent mirror is a repository fact that
+      # needs no feed, no PAT and no toolchain, so it should red in seconds rather than after a
+      # multi-minute install. It also EXPORTS the agreed floor, which is what the install step then
+      # asserts the resolved `fsgg-sdd` against — one value, read once, graded against the org
+      # registry, instead of a hand-named file.
+      #
+      # `--self-test` FIRST, and it is not decoration. It drives the checker's red arms offline
+      # against copies of the real descriptors (deleted block, floor below the pin, floor ahead of
+      # the pin, unparseable floor, a second provider in one file, an unknown sixth descriptor,
+      # unreadable registry). A gate nobody has seen fail is a claim; this one demonstrates it can
+      # fail immediately before it reports green, the same shape as the #315 SKILL_ASSERT_REF alarm
+      # and the #379 coverage gate. It costs well under a second.
+      #
+      # THE AUTHORITY IS READ LIVE, AND AN OUTAGE REDS THIS. Read
+      # scripts/check-provider-floors.py's header for why `main` rather than a pinned SHA, why
+      # equality rather than `>=`, and why a registry advance is MEANT to wedge this repository
+      # until the mirrors are re-cohered.
+      - name: Grade provider minimumFsggSdd floors against the org registry
+        id: floors
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          set -euo pipefail
+          scripts/check-provider-floors.py --self-test
+          scripts/check-provider-floors.py \
+            --github-output "$GITHUB_OUTPUT" \
+            --step-summary "$GITHUB_STEP_SUMMARY"
       # Install the published FS-GG CLIs from the org feed so the gated stages ASSERT instead of
       # skipping (never green-by-omission). The feed is authenticated with a classic PAT
       # (secret FSGG_PACKAGES_PAT, scope `read:packages`): the GitHub Packages NuGet registry does
@@ -204,10 +244,15 @@ jobs:
       #    DATE rather than against anything in this history. And `minimumFsggSdd` — the one
       #    coherence constraint that does exist for this axis — was decorative: declared in
       #    providers/rendering.providers.yml, referenced only in comments, asserted nowhere.
-      # 3. SO: FLOAT, ASSERTED. The step below reads the declared floor out of the provider
-      #    descriptor, fails the gate when the resolved CLI is BELOW it, and prints every resolved
-      #    version into the job log, an annotation, and the step summary. The floor stops being
-      #    decorative and a red names a VERSION.
+      # 3. SO: FLOAT, ASSERTED. The `floors` step above reads the declared floor out of EVERY
+      #    provider descriptor, and the step below fails the gate when the resolved CLI is BELOW the
+      #    agreed value and prints every resolved version into the job log, an annotation, and the
+      #    step summary. The floor stops being decorative and a red names a VERSION.
+      #    WHICH descriptors is not a detail this block gets to leave vague any more: when #317
+      #    wrote "declared in providers/rendering.providers.yml" it was describing the only
+      #    descriptor that existed, and the assertion stayed scoped to that one file while four more
+      #    descriptors grew their own floors. #383 replaced the hand-named file with enumeration —
+      #    see the `floors` step's block above.
       #
       # WHAT THIS DOES NOT DO — stated plainly, because an over-claiming decision block is the same
       # defect in a different place. A FLOOR CANNOT CATCH #260. #260's CLI was 0.17.0 against a
@@ -224,47 +269,19 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         env:
           FEED_TOKEN: ${{ secrets.FSGG_PACKAGES_PAT }}
+          # The ONE agreed floor, produced by the `floors` step above after it graded EVERY
+          # descriptor under providers/ equal to registry `fs-gg-ui-template.minimum-fsgg-sdd`. It
+          # arrives through `env:` rather than being interpolated into the script body: a `${{ }}`
+          # expansion inside `run:` is textual substitution into shell source, and this value comes
+          # from a repository file. The checker already refuses anything that is not a semver, so
+          # this is defence in depth rather than the only guard — which is the point of having it.
+          MIN_SDD: ${{ steps.floors.outputs.floor }}
         run: |
           dotnet nuget add source \
             --username fs-gg --password "$FEED_TOKEN" --store-password-in-clear-text \
             --name fs-gg-github "https://nuget.pkg.github.com/FS-GG/index.json" || true
 
           export PATH="$HOME/.dotnet/tools:$PATH"
-
-          # `minimumFsggSdd.version` in the provider descriptor is this repo's marked MIRROR of
-          # registry `fs-gg-ui-template.minimum-fsgg-sdd`. READ IT, do not restate it here: per
-          # docs/design.md ("link the registry, don't restate it") a third hand-written copy of a
-          # cross-repo version is a dated claim that rots silently, and the descriptor already
-          # carries the coherence assertion that fails when it and the registry disagree.
-          #
-          # Structural read, NOT a grep for the token: `version:` appears in several unrelated
-          # places in that file, the value carries a trailing `#` comment, and the hand-authored
-          # PIN HISTORY block is 200 lines of prose that names this key repeatedly. This walks the
-          # `minimumFsggSdd:` block by INDENTATION and ignores comment lines, so a prose mention
-          # can never be mistaken for the declaration.
-          #
-          # BOUND, stated rather than left implicit: it returns the FIRST such block in the file.
-          # The descriptor declares exactly one provider (`rendering`) and
-          # scripts/generate-effective-providers.py enforces that provider names are unique and
-          # ordered, so today that is exact. If a second provider ever declares its own floor, this
-          # asserts the first one's — widen it here in the same change.
-          read_min_coherent_sdd() {
-            awk '
-              function indent(s,   n) { n = 0; while (substr(s, n + 1, 1) == " ") n++; return n }
-              /^[ \t]*(#|$)/ { next }
-              !inblock && $0 ~ /^    minimumFsggSdd:[ \t]*(#.*)?$/ { inblock = 1; base = indent($0); next }
-              inblock && indent($0) <= base { inblock = 0 }
-              inblock && $0 ~ /^[ \t]*version:/ {
-                v = $0
-                sub(/^[ \t]*version:[ \t]*/, "", v)
-                sub(/[ \t]*#.*$/, "", v)
-                q = sprintf("%c", 39)
-                first = substr(v, 1, 1)
-                if (first == "\"" || first == q) { v = substr(v, 2, length(v) - 2) }
-                if (v != "") { print v; exit }
-              }
-            ' "$1"
-          }
 
           version_core() { printf '%s\n' "${1%%[-+]*}"; }
 
@@ -287,12 +304,15 @@ jobs:
             esac
           }
 
-          PROVIDER_DESCRIPTOR='providers/rendering.providers.yml'
-          MIN_SDD="$(read_min_coherent_sdd "$PROVIDER_DESCRIPTOR" || true)"
+          # The `floors` step is a hard gate, so reaching here with an unusable MIN_SDD should be
+          # impossible. Assert it anyway: an empty step output is exactly what a step that was
+          # SKIPPED (a mis-edited `if:`) produces, and `install_global_tool` would then compare the
+          # resolved CLI against the empty string and pass everything. Failing closed keeps the
+          # #317 property — a green whose floor is unknown is not a green.
           case "$MIN_SDD" in
             [0-9]*.[0-9]*.[0-9]*) ;;
             *)
-              echo "::error title=minimumFsggSdd is unreadable::Could not read providers[].minimumFsggSdd.version from $PROVIDER_DESCRIPTOR (got '${MIN_SDD:-<nothing>}'). That mirror is the ONLY declared coherence constraint this gate has for the floating fsgg-sdd, so an unreadable descriptor FAILS here rather than silently dropping the assertion and reporting a green that covers nothing (#317)."
+              echo "::error title=the agreed minimumFsggSdd floor did not arrive::steps.floors.outputs.floor is '${MIN_SDD:-<nothing>}'. That value is produced by the 'Grade provider minimumFsggSdd floors' step, which reads EVERY providers/*.providers.yml and grades each declared floor against registry fs-gg-ui-template.minimum-fsgg-sdd (#383). Without it this gate has no declared coherence constraint for the floating fsgg-sdd, so it FAILS rather than silently dropping the assertion and reporting a green that covers nothing (#317)."
               exit 1
               ;;
           esac
@@ -356,7 +376,7 @@ jobs:
           install_global_tool FS.GG.Governance.Cli fsgg-governance 1.1.0 \
             'declared in this workflow: spec-081 consumer, FS.GG.Governance#28'
           install_global_tool FS.GG.SDD.Cli fsgg-sdd "$MIN_SDD" \
-            "minimumFsggSdd in $PROVIDER_DESCRIPTOR, mirroring registry fs-gg-ui-template.minimum-fsgg-sdd"
+            "minimumFsggSdd in EVERY providers/*.providers.yml, each graded EQUAL to registry fs-gg-ui-template.minimum-fsgg-sdd by scripts/check-provider-floors.py (#383)"
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
       # FS-GG/.github#7 (Feature 211 parity): locked restore against the committed
       # packages.lock.json. The packaging project has no NuGet dependencies today, so this is a
@@ -442,25 +462,32 @@ jobs:
   #
   # 4. THE TRIGGER IS ARMED OVER THE SCAFFOLD'S IN-REPO INPUTS — no `.github#332`/`#334`/`#880`
   #    fail-open. Every in-repo input to the scaffolded tree is outside the docs-only exemption above
-  #    and so fires this workflow: providers/rendering.providers.yml (the FS.GG.UI.Template pin),
-  #    templates/**, and tests/composition/** (which carries SKILL_ASSERT_REF). Both of those pins
-  #    are frozen to a version/SHA, so neither can move without a commit here.
+  #    and so fires this workflow: providers/** (every descriptor — the FS.GG.UI.Template pin in
+  #    rendering.providers.yml and the `minimumFsggSdd` floor in all five, #383), templates/**, and
+  #    tests/composition/** (which carries SKILL_ASSERT_REF). Both of those pins are frozen to a
+  #    version/SHA, so neither can move without a commit here.
   #
-  #    IN-REPO IS THE HONEST SCOPE, AND THE REMAINDER IS NAMED RATHER THAN ROUNDED OFF. One input to
-  #    the audited tree is NOT in any repo path and cannot be: the `dotnet tool install` step above
-  #    takes FS.GG.SDD.Cli at latest-stable, and `fsgg-sdd scaffold` is what WRITES the tree this
-  #    gate then asserts (05-build.sh calls it the sole mirror authority, Feature 056). So the
-  #    subject can change with no commit here and no run of this workflow. That is a real limit on
-  #    what a green here means — it is not a `#332` fail-open (the trigger is armed over everything
-  #    a commit can touch, and a floating tool cannot be covered by ANY `paths:` filter), but it is
-  #    also not the "complete trigger set" an earlier draft of this block claimed.
+  #    IN-REPO IS THE HONEST SCOPE, AND THE REMAINDER IS NAMED RATHER THAN ROUNDED OFF. TWO inputs
+  #    to this gate's verdict are NOT in any repo path and cannot be:
+  #      (a) the `dotnet tool install` step above takes FS.GG.SDD.Cli at latest-stable, and
+  #          `fsgg-sdd scaffold` is what WRITES the tree this gate then asserts (05-build.sh calls
+  #          it the sole mirror authority, Feature 056);
+  #      (b) since #383, the `floors` step reads registry `fs-gg-ui-template.minimum-fsgg-sdd` from
+  #          FS-GG/.github@main. A registry advance there therefore reds this repository with no
+  #          commit here — which is the WHOLE POINT of that step (it replaces waiting for a
+  #          hand-filed re-mirror request), and is named here rather than left as a surprise.
+  #    Both mean the subject can change with no commit here. That is a real limit on what a green
+  #    here means — it is not a `#332` fail-open (the trigger is armed over everything a commit can
+  #    touch, and neither a floating tool nor another repository's file can be covered by ANY
+  #    `paths:` filter), but it is also not the "complete trigger set" an earlier draft claimed.
   #
   #    THAT LIMIT IS NOW DECIDED, AND IT IS STILL A LIMIT (#317). The pin-vs-float question this
   #    paragraph used to leave open is answered in the decision block on the CLI install step
   #    above: the CLIs KEEP FLOATING to latest stable, and the install step now asserts the
-  #    resolved fsgg-sdd against the `minimumFsggSdd` floor mirrored in
-  #    providers/rendering.providers.yml and prints every resolved CLI version into the job log,
-  #    an annotation, and the step summary. Read that block for the reasoning; the two facts that
+  #    resolved fsgg-sdd against the `minimumFsggSdd` floor mirrored in EVERY providers/ descriptor
+  #    — graded equal to the org registry pin by the `floors` step (#383; it was rendering's file
+  #    alone until then) — and prints every resolved CLI version into the job log, an annotation,
+  #    and the step summary. Read that block for the reasoning; the two facts that
   #    matter HERE are what it did and did not change. It did NOT change this item's scope claim:
   #    a floating tool still cannot be covered by any `paths:` filter, the scaffolder can still
   #    change with no commit here, and a green here still does not mean the CLI axis is frozen.
