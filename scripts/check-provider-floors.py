@@ -63,9 +63,15 @@ descriptor to hide.
 
 Run it:
 
-    scripts/check-provider-floors.py                      # grades providers/ against the live registry
+    scripts/check-provider-floors.py                      # grade providers/ against the live registry,
+                                                          # THEN self-demonstrate; exit 1 if either fails
     scripts/check-provider-floors.py --registry ../.github/registry/dependencies.yml
-    scripts/check-provider-floors.py --self-test          # offline; proves the gate can fail
+    scripts/check-provider-floors.py --self-test          # ONLY the offline demonstration
+
+A NORMAL RUN GRADES FIRST AND DEMONSTRATES SECOND, and that order is a repair, not a preference. See
+the ORDER IS LOAD-BEARING block in `main`: running the demonstration first (as this file did in its
+first revision) let a drifted descriptor abort the run inside the demonstration, so CI emitted no
+diagnostic about the descriptor that was actually wrong.
 """
 
 from __future__ import annotations
@@ -347,10 +353,59 @@ def grade(providers_dir: Path, registry_source: str, out: list[str]) -> tuple[in
 # A gate that has never been observed red is a claim, not a control — and this repository has paid
 # for that twice (#315's frozen SKILL_ASSERT_REF, #379's lanes that ran on nothing). Every case below
 # runs offline against a synthetic registry and a COPY of the real descriptors, so it exercises the
-# real files' real shape without touching them. `--self-test` runs in CI immediately before the live
-# grading, so a run that reports green has just demonstrated that it could have reported red.
+# real files' real SHAPE — their comments, their 200-line PIN HISTORY prose, their quoting and
+# indentation — without touching them.
+#
+# IT EXERCISES THEIR SHAPE AND NOT THEIR VALUES, AND THAT DISTINCTION IS THE WHOLE REPAIR
+# (independent review of this PR, round 1, critic `avocet-7ba2`). The first version of this file
+# hard-coded `0.6.0` in the synthetic registry while grading copies of the real descriptors, and
+# derived the mutation values from that same literal. So the demonstration silently asserted "the org
+# pin is 0.6.0" — the hand-named singleton this whole change exists to delete, reintroduced one
+# function lower down. Two measured consequences, both on scenarios this file is FOR:
+#
+#   * A COMPLETED, CORRECT RE-MIRROR WEDGED THE REPOSITORY. Advance the registry 0.6.0 -> 0.7.0 and
+#     re-mirror all five descriptors — the exact thing #383 exists to make possible — and the live
+#     grading correctly said `every declared floor mirrors … = 0.7.0`, exit 0, while the self-test
+#     went red (`pristine-set-is-green` graded 0.7.0 descriptors against a 0.6.0 fixture, and the
+#     `0.7.0` above-mutant became a no-op). `composition` is required under `enforce_admins`, so that
+#     is every PR in the repository unmergeable, by anyone, over a CORRECT tree — until somebody
+#     hand-edited four constants in the file whose stated design is "no edit here and nobody to
+#     remember". The pin has already moved three times, so that was scheduled, not hypothetical.
+#   * IT ACCUSED THE WRONG COMPONENT. `--self-test` ran FIRST under `set -euo pipefail`, so a drifted
+#     real descriptor aborted the step inside the demonstration and the live grading never ran: no
+#     `FAIL providers/…` line, no annotation, no step summary, no remedy — and the developer was told
+#     "the verdict this gate publishes is not evidence of anything. Fix the checker", when the
+#     checker was fine and their mirror was wrong.
+#
+# THE FIX IS TWO PROPERTIES, AND BOTH ARE ASSERTED RATHER THAN ASSUMED:
+#
+#   1. THE FIXTURE IS NORMALIZED. `_fixture` copies the real descriptors and then rewrites every
+#      provider's floor to SYNTHETIC_PIN — an obviously synthetic value that is not, and must never
+#      be, any org pin — inserting the block where a descriptor has none. The synthetic registry and
+#      every mutant are derived from that one constant. The demonstration therefore holds for a tree
+#      at ANY coherent value X, and for a tree that is currently drifting, because it no longer reads
+#      the real values at all. `_normalize_floors` refuses to leave a provider ungraded, so
+#      `pristine-set-is-green` is green by construction whenever the descriptors PARSE.
+#   2. THE LIVE GRADING RUNS FIRST AND IS NEVER SUPPRESSED. See `main`: the real subject is graded and
+#      its diagnostics, annotations and step summary are emitted BEFORE the demonstration runs, and
+#      the two verdicts are combined into the exit code. A broken demonstration can no longer hide a
+#      real red, and `SELF-TEST BROKEN` is now emitted only for a fixture this file fully controls —
+#      which is what makes that sentence true when it appears.
 
-SYNTHETIC_REGISTRY = """\
+# NOT AN ORG PIN, AND DELIBERATELY UNMISTAKABLE AS ONE. If this value ever looks like something the
+# registry could plausibly say, the coupling that #383's round-1 review found has grown back.
+SYNTHETIC_PIN = "4.5.6"
+
+
+def _shift_patch(version: str, delta: int) -> str:
+    major, minor, patch = (int(part) for part in version.split("."))
+    return f"{major}.{minor}.{patch + delta}"
+
+
+SYNTHETIC_BELOW = _shift_patch(SYNTHETIC_PIN, -1)
+SYNTHETIC_ABOVE = _shift_patch(SYNTHETIC_PIN, +1)
+
+SYNTHETIC_REGISTRY = f"""\
 schemaVersion: 2
 contracts:
   - id: some-other-contract
@@ -358,9 +413,9 @@ contracts:
       version: "9.9.9"     # a decoy: the wrong contract's floor must never be read
   - id: fs-gg-ui-template
     package-version: "0.26.0"
-    # minimum-fsgg-sdd: 0.6.0 is quoted in this comment, and must not be read as the declaration
+    # minimum-fsgg-sdd: {SYNTHETIC_BELOW} is quoted in this comment, and must not be read as the declaration
     minimum-fsgg-sdd:
-      version: "0.6.0"
+      version: "{SYNTHETIC_PIN}"
       requires: "synthetic"
     root-buildable:
       since: "synthetic"
@@ -376,7 +431,7 @@ SECOND_PROVIDER = """\
         required: true
 """
 
-SIXTH_DESCRIPTOR = """\
+SIXTH_DESCRIPTOR = f"""\
 schemaVersion: 1
 providers:
   - name: sixth
@@ -384,7 +439,7 @@ providers:
     templateId: fs-gg-sixth
     source: FS.GG.Workspace.Template::0.8.0
     minimumFsggSdd:
-      version: "0.5.0"
+      version: "{SYNTHETIC_BELOW}"
       requires: "synthetic"
 """
 
@@ -407,13 +462,61 @@ def _delete_floor_block(text: str) -> str:
     return "".join(kept)
 
 
+def _normalize_floors(path: Path, pin: str) -> None:
+    """Rewrite EVERY provider's floor in a fixture copy to `pin`, inserting the block where absent.
+
+    This is what decouples the demonstration from whatever the org pin happens to be today, and from
+    whatever state the working tree is in. Per provider, not per file, and it never leaves a provider
+    ungraded — a descriptor whose block was deleted in the real tree gets one here, so a genuine
+    mirror drift can no longer make `pristine-set-is-green` red and accuse the checker of being
+    broken (round-1 review, M1b).
+    """
+    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    starts = [i for i, line in enumerate(lines) if PROVIDER.match(line.rstrip("\n"))]
+    if not starts:
+        raise FloorError(f"{path.name}: declares no providers, so the fixture cannot be normalized")
+
+    spans = [(start, starts[n + 1] if n + 1 < len(starts) else len(lines)) for n, start in enumerate(starts)]
+    for start, end in reversed(spans):  # from the end, so an insertion cannot shift an earlier span
+        block_index: int | None = None
+        version_index: int | None = None
+        in_block = False
+        for index in range(start + 1, end):
+            raw = lines[index].rstrip("\n")
+            if is_skippable(raw):
+                continue
+            if FLOOR_BLOCK.match(raw):
+                block_index, in_block = index, True
+                continue
+            if in_block:
+                if VERSION.match(raw):
+                    version_index = index
+                    break
+                if len(raw) - len(raw.lstrip(" ")) <= 4:
+                    in_block = False
+        if version_index is not None:
+            lines[version_index] = f'      version: "{pin}"\n'
+        elif block_index is not None:
+            lines.insert(block_index + 1, f'      version: "{pin}"\n')
+        else:
+            lines[start + 1 : start + 1] = ["    minimumFsggSdd:\n", f'      version: "{pin}"\n']
+    path.write_text("".join(lines), encoding="utf-8")
+
+
 def _fixture(root: Path) -> tuple[Path, str]:
-    """A pristine copy of the REAL providers/ plus a synthetic registry pinned at 0.6.0."""
+    """Copies of the REAL descriptors, floors normalized to SYNTHETIC_PIN, plus a matching registry.
+
+    The copies keep the real files' shape — comments that quote this key, the 200-line PIN HISTORY
+    prose, the quoting and indentation — which is the point of copying them. Their VALUES are
+    replaced, which is the point of normalizing them.
+    """
     providers = root / "providers"
     providers.mkdir(parents=True, exist_ok=True)
     real = Path(__file__).resolve().parents[1] / "providers"
     for descriptor in sorted(real.glob(DESCRIPTOR_GLOB)):
-        shutil.copy2(descriptor, providers / descriptor.name)
+        target = providers / descriptor.name
+        shutil.copy2(descriptor, target)
+        _normalize_floors(target, SYNTHETIC_PIN)
     registry = root / "dependencies.yml"
     registry.write_text(SYNTHETIC_REGISTRY, encoding="utf-8")
     return providers, str(registry)
@@ -497,7 +600,12 @@ def self_test() -> int:
     cases = [
         # The unmutated set is green. Without this, every red below could be red for a reason that
         # has nothing to do with the mutation.
-        ("pristine-set-is-green", lambda providers: None, False, "floor 0.6.0 == registry pin 0.6.0"),
+        (
+            "pristine-set-is-green",
+            lambda providers: None,
+            False,
+            f"floor {SYNTHETIC_PIN} == registry pin {SYNTHETIC_PIN}",
+        ),
         # #383's acceptance, verbatim: a deleted block, and one pinned below the registry, both red.
         (
             "deleted-block-reds",
@@ -507,15 +615,15 @@ def self_test() -> int:
         ),
         (
             "floor-below-registry-reds",
-            _edit("console.providers.yml", _set_floor('"0.5.0"')),
+            _edit("console.providers.yml", _set_floor(f'"{SYNTHETIC_BELOW}"')),
             True,
-            "console: floor 0.5.0 != registry pin 0.6.0",
+            f"console: floor {SYNTHETIC_BELOW} != registry pin {SYNTHETIC_PIN}",
         ),
         (
             "floor-ahead-of-registry-reds",
-            _edit("fable-game.providers.yml", _set_floor('"0.7.0"')),
+            _edit("fable-game.providers.yml", _set_floor(f'"{SYNTHETIC_ABOVE}"')),
             True,
-            "fable-game: floor 0.7.0 != registry pin 0.6.0",
+            f"fable-game: floor {SYNTHETIC_ABOVE} != registry pin {SYNTHETIC_PIN}",
         ),
         (
             "unparseable-floor-reds",
@@ -536,11 +644,24 @@ def self_test() -> int:
             "glob-covers-a-new-descriptor",
             lambda providers: (providers / "sixth.providers.yml").write_text(SIXTH_DESCRIPTOR, encoding="utf-8"),
             True,
-            "sixth: floor 0.5.0 != registry pin 0.6.0",
+            f"sixth: floor {SYNTHETIC_BELOW} != registry pin {SYNTHETIC_PIN}",
         ),
         # An unreadable authority fails closed rather than grading against nothing.
+        # NAMED HONESTLY (round-1 review, non-material observation): this arm exercises the LOCAL
+        # missing-file branch only. The live-URL failure branch — DNS failure, 404, or a 200 that is
+        # not the registry — is `load_registry`'s `except` and `read_registry_pin`'s raise, and is not
+        # reachable offline, so it is not claimed here.
         (
-            "unreadable-registry-fails-closed",
+            "unreadable-local-registry-fails-closed",
+            lambda providers: None,
+            True,
+            "",
+        ),
+        # THE ANTI-REGRESSION CASE, and the one that would have caught round 1. It asserts the
+        # PROPERTY the repair establishes: the fixture's values come from SYNTHETIC_PIN and from
+        # nowhere else, so no org pin — present or future — can change a single outcome above.
+        (
+            "fixture-is-independent-of-the-live-pin",
             lambda providers: None,
             True,
             "",
@@ -549,19 +670,58 @@ def self_test() -> int:
 
     passed = 0
     for index, (name, mutate, expect_fail, expect) in enumerate(cases):
-        if name == "unreadable-registry-fails-closed":
+        if name == "fixture-is-independent-of-the-live-pin":
+            # `floor` is None for a provider with no declaration, so these are rendered as strings
+            # before they are sorted. A drifted or block-less real descriptor is EXACTLY the state
+            # this case has to survive — it must not become a traceback, which is what this line
+            # was on its first run against a tree whose web.providers.yml had lost its block.
+            def floors_of(directory: Path) -> set[str]:
+                return {
+                    floor if floor is not None else "<none>"
+                    for descriptor in sorted(directory.glob(DESCRIPTOR_GLOB))
+                    for _, floor, _ in parse_descriptor(descriptor)
+                }
+
+            try:
+                with tempfile.TemporaryDirectory() as raw:
+                    providers, _ = _fixture(Path(raw))
+                    fixture_floors = floors_of(providers)
+                    real_floors = floors_of(Path(__file__).resolve().parents[1] / "providers")
+            except (FloorError, OSError, ValueError) as error:
+                results.append(f"FAIL  self-test/fixture-is-independent-of-the-live-pin: {error}")
+                continue
+            if fixture_floors != {SYNTHETIC_PIN}:
+                results.append(
+                    f"FAIL  self-test/fixture-is-independent-of-the-live-pin: the fixture carries "
+                    f"{sorted(fixture_floors)}, not just {SYNTHETIC_PIN} — normalization did not take, so "
+                    "every case below is silently graded against the real pin again (round-1 review, M1)"
+                )
+            elif SYNTHETIC_PIN in real_floors:
+                results.append(
+                    f"FAIL  self-test/fixture-is-independent-of-the-live-pin: a REAL descriptor declares "
+                    f"{SYNTHETIC_PIN}, so this case cannot distinguish a normalized fixture from an "
+                    "un-normalized one. Change SYNTHETIC_PIN to a value no registry would ever say"
+                )
+            else:
+                results.append(
+                    f"PASS  self-test/fixture-is-independent-of-the-live-pin (fixture {SYNTHETIC_PIN}; "
+                    f"real tree declares {sorted(real_floors)} and no outcome above depends on it)"
+                )
+                passed += 1
+            continue
+        if name == "unreadable-local-registry-fails-closed":
             out: list[str] = []
             with tempfile.TemporaryDirectory() as raw:
                 providers, _ = _fixture(Path(raw))
                 try:
                     grade(providers, str(Path(raw) / "absent.yml"), out)
-                    results.append("FAIL  self-test/unreadable-registry-fails-closed: it passed")
+                    results.append("FAIL  self-test/unreadable-local-registry-fails-closed: it passed")
                 except FloorError as error:
                     if "no such file" in str(error):
-                        results.append("PASS  self-test/unreadable-registry-fails-closed")
+                        results.append("PASS  self-test/unreadable-local-registry-fails-closed")
                         passed += 1
                     else:
-                        results.append(f"FAIL  self-test/unreadable-registry-fails-closed: {error}")
+                        results.append(f"FAIL  self-test/unreadable-local-registry-fails-closed: {error}")
             continue
         if _run_case(name, mutate, expect_fail, expect, results):
             passed += 1
@@ -569,10 +729,19 @@ def self_test() -> int:
     print("\n".join(results))
     total = len(cases)
     if passed != total:
+        # THE PREDICATE AND THE ACCUSATION NOW MATCH, which they did not in round 1. Every case above
+        # runs on a fixture this file builds and normalizes itself: the real descriptors' VALUES, the
+        # org pin, and the state of the working tree cannot reach any of these outcomes. So a failure
+        # here really does mean the checker (or this demonstration) is broken, and saying so is no
+        # longer a guess dressed as a verdict. A mirror that has genuinely drifted is reported by the
+        # LIVE grading, which `main` runs first and never suppresses — read that report above this
+        # line before touching anything here.
         print(
             f"check-provider-floors: SELF-TEST BROKEN — {total - passed} of {total} outcomes did not "
-            "reproduce, so the verdict this gate publishes is not evidence of anything. Fix the "
-            "checker; do NOT delete the self-demonstration (FS.GG.Templates#383).",
+            "reproduce on a fixture this demonstration builds and normalizes itself, so the checker's "
+            "own behaviour has changed. This is NOT a statement about providers/ — a real floor that "
+            "disagrees with the registry is named in the live grading printed above. Fix the checker; "
+            "do NOT delete the self-demonstration (FS.GG.Templates#383).",
             file=sys.stderr,
         )
         return 1
@@ -589,7 +758,11 @@ def main() -> int:
         default=REGISTRY_URL,
         help="path to a checkout of FS-GG/.github registry/dependencies.yml, or a URL (default: live main)",
     )
-    parser.add_argument("--self-test", action="store_true", help="prove the gate can fail; offline")
+    parser.add_argument(
+        "--self-test",
+        action="store_true",
+        help="run ONLY the offline self-demonstration and exit (a normal run includes it, after grading)",
+    )
     parser.add_argument("--github-output", type=Path, help="write `floor=<agreed floor>` here")
     parser.add_argument("--step-summary", type=Path, help="append a summary table here")
     args = parser.parse_args()
@@ -597,35 +770,61 @@ def main() -> int:
     if args.self_test:
         return self_test()
 
+    # ── ORDER IS LOAD-BEARING: GRADE THE REAL SUBJECT FIRST, ALWAYS ────────────────────────────
+    #
+    # The workflow used to run `--self-test` as a separate command BEFORE this one, under
+    # `set -euo pipefail`. A drifted descriptor then aborted the step inside the demonstration and
+    # the real diagnostic — the `FAIL providers/…:N` line, the `::error`, the step summary, the
+    # remedy — was never emitted, so #383's own verification line ("reds it, naming both values")
+    # held through this CLI and NOT through CI, which is the only place anybody reads it. That is
+    # FS.GG.Templates#349's shape and it was found by independent review of this very PR.
+    #
+    # So: grade, print, annotate, summarize — unconditionally. THEN demonstrate. Then combine the
+    # two verdicts into one exit code, so neither can hide the other. The demonstration is offline
+    # and costs well under a second, so there is no reason to make it conditional on the grading's
+    # outcome, and a good reason not to: a checker that has broken should say so even on a tree that
+    # happens to be coherent.
     out: list[str] = []
+    graded = 1
+    pin = None
     try:
         failures, pin = grade(args.providers, args.registry, out)
+        graded = 1 if failures else 0
     except FloorError as error:
-        print("\n".join(out))
         annotate("provider floors could not be graded", str(error))
-        flush_annotations()
-        print(f"check-provider-floors: {error}", file=sys.stderr)
-        return 1
+        out.append(f"check-provider-floors: {error}")
+        failures = 1
 
     print("\n".join(out))
     flush_annotations()
     if args.step_summary:
         with args.step_summary.open("a", encoding="utf-8") as handle:
             handle.write("### composition — provider `minimumFsggSdd` floors\n\n")
-            handle.write(f"Graded against `{REGISTRY_SOURCE}` = **{pin}** (read live).\n\n")
+            target = f"`{REGISTRY_SOURCE}` = **{pin}** (read live)" if pin else f"`{REGISTRY_SOURCE}` (UNREADABLE)"
+            handle.write(f"Graded against {target}.\n\n")
             for line in out:
                 handle.write(f"    {line}\n")
             handle.write("\n")
-    if failures:
+    if graded and pin:
         print(
             f"check-provider-floors: {failures} provider floor(s) do not mirror the org-wide pin {pin}",
             file=sys.stderr,
         )
+    elif graded:
+        print("check-provider-floors: the declared floors could not be graded (see above)", file=sys.stderr)
+    else:
+        print(f"check-provider-floors: every declared floor mirrors {REGISTRY_SOURCE} = {pin}")
+
+    print()
+    demonstrated = self_test()
+
+    if graded or demonstrated:
         return 1
+    # Only a run that both graded the real tree green AND demonstrated it could have gone red hands
+    # the agreed floor onward.
     if args.github_output:
         with args.github_output.open("a", encoding="utf-8") as handle:
             handle.write(f"floor={pin}\n")
-    print(f"check-provider-floors: every declared floor mirrors {REGISTRY_SOURCE} = {pin}")
     return 0
 
 

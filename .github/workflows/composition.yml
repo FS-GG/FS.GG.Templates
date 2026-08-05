@@ -173,12 +173,27 @@ jobs:
       # asserts the resolved `fsgg-sdd` against — one value, read once, graded against the org
       # registry, instead of a hand-named file.
       #
-      # `--self-test` FIRST, and it is not decoration. It drives the checker's red arms offline
-      # against copies of the real descriptors (deleted block, floor below the pin, floor ahead of
+      # ONE INVOCATION, AND THE ORDER INSIDE IT IS THE POINT (round-1 independent review of PR #397).
+      # This was two commands — `--self-test` and then the grading — joined by `set -euo pipefail`.
+      # That ordering meant a genuinely drifted descriptor aborted the step INSIDE the demonstration:
+      # the live grading never ran, so CI showed no `FAIL providers/<file>:<line>` line, no `::error`,
+      # no step summary and no remedy, and the developer was told "the verdict this gate publishes is
+      # not evidence of anything. Fix the checker" — while the checker was fine and their mirror was
+      # wrong. #383's own verification line ("reds it, naming both values") therefore held through the
+      # bare CLI and NOT through CI, which is the only place anybody reads it. That is
+      # FS.GG.Templates#349's shape: a gate that gained eloquence faster than correctness.
+      #
+      # The checker now grades the real subject FIRST and unconditionally, emits its diagnostics, and
+      # only then runs the demonstration, combining both verdicts into one exit code. Do not split
+      # this back into two commands, and do not put `--self-test` in front of it.
+      #
+      # THE DEMONSTRATION IS NOT DECORATION. It drives the checker's red arms offline against
+      # normalized copies of the real descriptors — deleted block, floor below the pin, floor ahead of
       # the pin, unparseable floor, a second provider in one file, an unknown sixth descriptor,
-      # unreadable registry). A gate nobody has seen fail is a claim; this one demonstrates it can
-      # fail immediately before it reports green, the same shape as the #315 SKILL_ASSERT_REF alarm
-      # and the #379 coverage gate. It costs well under a second.
+      # unreadable local registry, and the anti-regression case asserting the fixture is independent
+      # of whatever the org pin says today. A gate nobody has seen fail is a claim; this one
+      # demonstrates it can fail on every run that reports green, the same shape as the #315
+      # SKILL_ASSERT_REF alarm and the #379 coverage gate. It costs well under a second.
       #
       # THE AUTHORITY IS READ LIVE, AND AN OUTAGE REDS THIS. Read
       # scripts/check-provider-floors.py's header for why `main` rather than a pinned SHA, why
@@ -189,7 +204,6 @@ jobs:
         if: steps.scope.outputs.run == 'true'
         run: |
           set -euo pipefail
-          scripts/check-provider-floors.py --self-test
           scripts/check-provider-floors.py \
             --github-output "$GITHUB_OUTPUT" \
             --step-summary "$GITHUB_STEP_SUMMARY"
