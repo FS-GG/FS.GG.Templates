@@ -7,6 +7,23 @@
   "shortName": "fs-gg-governance",
   "tags": { "type": "item" },
   "description": "Drops the pinned FS.GG.Governance reference gate set into an existing SDD-managed project to activate Governance. Ships build, test, evidence, command-free gameplay floors, controlled-import verification, and schema generations; non-blocking by default (light).",
+  "sources": [
+    {
+      "source": "./",
+      "target": "./",
+      "//": "This template had NO `sources` block, and that was not the safe default it looked like (FS.GG.Templates#386). Declaring `exclude` REPLACES the engine's list wholesale, so the four workspace templates restate it and this one inherited it — and the inherited list does NOT exclude `node_modules/` or `.nuget/`. MEASURED, not read: a folder install of this template with both directories seeded delivered BOTH into the generated product. The engine's real defaults, measured on dotnet SDK 10.0.302 by instantiating a template that declares no `sources` block at all and seeding one file per pattern at two depths, are the six restated below — `bin`, `obj`, `.template.config`, `*.filelist`, `*.user`, `*.lock.json` were filtered at both depths; `node_modules/` was DELIVERED at both depths. The `strings -el` reading that put `**/node_modules/**` among the defaults is a false positive: the string sits adjacent to them in the binary's string pool, not in the effective list. Unlike its four siblings this list KEEPS `**/*.lock.json`, because this is an overlay that ships no lockfiles and #380's reason to drop it does not apply here — the only thing this block changes about how this template behaves is that the two directories below can no longer reach a product.",
+      "exclude": [
+        "**/[Bb]in/**",
+        "**/[Oo]bj/**",
+        "**/.template.config/**",
+        "**/*.filelist",
+        "**/*.user",
+        "**/*.lock.json",
+        "**/node_modules/**",
+        "**/.nuget/**"
+      ]
+    }
+  ],
   "symbols": {
     "appName": {
       "type": "parameter",

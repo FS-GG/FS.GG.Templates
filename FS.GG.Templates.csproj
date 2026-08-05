@@ -16,10 +16,14 @@
          gate asserts tag ⇔ `<Version>`, so a `fs-gg-templates/v0.8.0` re-tag is the only tag this
          csproj would accept, and re-publishing an existing version is exactly the case .github#2240
          measured — `dotnet pack` GUID-names its OPC `.psmdcp` part per invocation, so the retry
-         strands divergent bytes behind `nuget push`'s skip-duplicate flag. PATCH, not MINOR: packed from a clean
-         checkout the archive's entry set is unchanged (measured — the only diff between a clean pack
-         of fef78f5 and of this commit is that same `.psmdcp` GUID), and no template gains, loses or
-         retypes a parameter; what changes is which directories are FILTERED when the source tree
+         strands divergent bytes behind `nuget push`'s skip-duplicate flag. AND THE PACKED CONTENT
+         REALLY DOES CHANGE, which is what makes the bump obligatory rather than merely conventional:
+         the entry SET is 152/153 identical to a clean pack of fef78f5 (the sole difference being that
+         same `.psmdcp` GUID), but all FIVE `content/templates/*/.template.config/template.json`
+         PAYLOADS differ from the published 0.8.0 — measured by sha256 of the extracted members. A
+         consumer of the published package receives the unfixed lists until this ships. PATCH, not
+         MINOR: no template gains, loses or retypes a parameter, and no file is added to or removed
+         from the archive; what changes is which directories are FILTERED when the source tree
          happens to carry restore/install output. The bump is the convention this repo has followed
          in both preceding cycles, not a new one: 44c558c (#356) carried 0.7.1 → 0.8.0 as the first
          packed-content commit after v0.7.1, and c42e0e7 (#343) carried 0.7.0 → 0.7.1 after v0.7.0.
