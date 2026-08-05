@@ -188,12 +188,22 @@ jobs:
       # this back into two commands, and do not put `--self-test` in front of it.
       #
       # THE DEMONSTRATION IS NOT DECORATION. It drives the checker's red arms offline against
-      # normalized copies of the real descriptors — deleted block, floor below the pin, floor ahead of
-      # the pin, unparseable floor, a second provider in one file, an unknown sixth descriptor,
-      # unreadable local registry, and the anti-regression case asserting the fixture is independent
-      # of whatever the org pin says today. A gate nobody has seen fail is a claim; this one
-      # demonstrates it can fail on every run that reports green, the same shape as the #315
-      # SKILL_ASSERT_REF alarm and the #379 coverage gate. It costs well under a second.
+      # normalized copies of the real descriptors: a deleted block, a floor below the pin, a floor
+      # ahead of the pin, an unparseable floor, a second provider in one file, an unknown sixth
+      # descriptor, a provider-less and a non-UTF-8 descriptor, an unreadable local registry, the
+      # anti-regression case asserting the fixture is independent of whatever the org pin says today,
+      # and two cases that hand the fixture BUILDER a descriptor it cannot normalize. A gate nobody
+      # has seen fail is a claim; this one demonstrates it can fail on every run that reports green,
+      # the same shape as the #315 SKILL_ASSERT_REF alarm and the #379 coverage gate. It costs well
+      # under a second.
+      #
+      # THE COUNT IS DELIBERATELY NOT WRITTEN HERE (#1586's lesson, and #398 added three arms to a
+      # list that read as complete). The run prints `N/N outcomes reproduced`; read that, not this.
+      #
+      # TWO FAILURE VERDICTS, AND THEY PRESCRIBE DIFFERENT REMEDIES (#398). `SELF-TEST BROKEN` means
+      # the checker's own behaviour changed — fix scripts/check-provider-floors.py. `SELF-TEST
+      # BASELINE UNAVAILABLE` means a real descriptor could not be copied and normalized, so the
+      # cases never ran — fix the descriptor named in the live grading above it. Both exit 1.
       #
       # THE AUTHORITY IS READ LIVE, AND AN OUTAGE REDS THIS. Read
       # scripts/check-provider-floors.py's header for why `main` rather than a pinned SHA, why
