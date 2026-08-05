@@ -81,6 +81,7 @@ import os
 from pathlib import Path
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import urllib.error
@@ -131,6 +132,41 @@ def is_skippable(line: str) -> bool:
     return not line.strip() or line.lstrip().startswith("#")
 
 
+def read_descriptor(path: Path, shown: str | None = None) -> str:
+    """Read a descriptor as UTF-8, turning an unreadable file into a FloorError, never a traceback.
+
+    THE ONE PLACE A DESCRIPTOR IS TURNED INTO TEXT, and it is one place on purpose
+    (FS.GG.Templates#398). `Path.read_text(encoding="utf-8")` raises `UnicodeDecodeError` — a
+    `ValueError`, but NOT a `FloorError` — so every caller that had written `except FloorError` around
+    its read was catching the condition it named and missing this one. Measured at `1166da62` with a
+    non-UTF-8 byte in a descriptor: `main`'s `except FloorError` did not catch it, so the LIVE grading
+    died at `parse_descriptor` and the run printed **no** report, **no** `::error` and **no** step
+    summary at all — the opposite of what #398's body predicted for this input, and the same
+    unread-subject shape #383 exists to remove. Raising the condition this file already knows how to
+    report fixes both legs at their single cause instead of adding a second `except` at each site.
+
+    `OSError` is here for the same reason and not a wider one: an unreadable or vanished descriptor is
+    a condition that makes grading impossible, which is exactly what `FloorError` means.
+
+    `shown` names the file the READER must fix when that is not the file being read — the fixture
+    builder reads a temporary COPY, whose path is a `/tmp/tmpXXXXXXXX/...` that changes every run and
+    no longer exists by the time anyone reads the line.
+    """
+    where = shown or display(path)
+    try:
+        return path.read_text(encoding="utf-8")
+    except UnicodeDecodeError as error:
+        raise FloorError(
+            f"{where}: is not valid UTF-8 ({error.reason} at byte {error.start}), so the "
+            "providers it declares cannot be read. Every descriptor under providers/ is UTF-8 YAML; "
+            "re-save this one as UTF-8. An undecodable descriptor FAILS this gate rather than being "
+            "skipped, because a descriptor nothing can read is the unread subject FS.GG.Templates#383 "
+            "removes."
+        ) from error
+    except OSError as error:
+        raise FloorError(f"{where}: could not be read ({error})") from error
+
+
 def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
     """Return (provider name, declared floor or None, line number of the provider) for EVERY provider.
 
@@ -145,7 +181,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
     floor: str | None = None
     in_block = False
 
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+    for number, line in enumerate(read_descriptor(path).splitlines(), 1):
         if is_skippable(line):
             continue
 
@@ -444,6 +480,17 @@ providers:
 """
 
 
+# FS.GG.Templates#398's two subject states, as bytes, so one definition serves both the live-grading
+# arms (written into a built fixture) and the builder arms (written into the directory the builder
+# copies FROM). `providers: []` is the shape `providers/web.providers.yml` could plausibly be edited
+# into; the non-UTF-8 one is a byte a UTF-8 decoder cannot start a sequence with.
+PROVIDER_LESS_DESCRIPTOR = b"schemaVersion: 1\nproviders: []\n"
+NON_UTF8_DESCRIPTOR = (
+    b'schemaVersion: 1\nproviders:\n  - name: undecodable\n    minimumFsggSdd:\n'
+    b'      version: "0.0.0"  # \xff not valid UTF-8\n'
+)
+
+
 def _delete_floor_block(text: str) -> str:
     """Drop the `minimumFsggSdd:` block, exactly as providers/web.providers.yml shipped without one."""
     lines = text.splitlines(keepends=True)
@@ -462,7 +509,7 @@ def _delete_floor_block(text: str) -> str:
     return "".join(kept)
 
 
-def _normalize_floors(path: Path, pin: str) -> None:
+def _normalize_floors(path: Path, pin: str, shown: str | None = None) -> None:
     """Rewrite EVERY provider's floor in a fixture copy to `pin`, inserting the block where absent.
 
     This is what decouples the demonstration from whatever the org pin happens to be today, and from
@@ -471,10 +518,10 @@ def _normalize_floors(path: Path, pin: str) -> None:
     mirror drift can no longer make `pristine-set-is-green` red and accuse the checker of being
     broken (round-1 review, M1b).
     """
-    lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+    lines = read_descriptor(path, shown).splitlines(keepends=True)
     starts = [i for i, line in enumerate(lines) if PROVIDER.match(line.rstrip("\n"))]
     if not starts:
-        raise FloorError(f"{path.name}: declares no providers, so the fixture cannot be normalized")
+        raise FloorError(f"{shown or path.name}: declares no providers, so the fixture cannot be normalized")
 
     spans = [(start, starts[n + 1] if n + 1 < len(starts) else len(lines)) for n, start in enumerate(starts)]
     for start, end in reversed(spans):  # from the end, so an insertion cannot shift an earlier span
@@ -503,34 +550,82 @@ def _normalize_floors(path: Path, pin: str) -> None:
     path.write_text("".join(lines), encoding="utf-8")
 
 
-def _fixture(root: Path) -> tuple[Path, str]:
+REAL_PROVIDERS = Path(__file__).resolve().parents[1] / "providers"
+
+# Everything that can make the fixture BUILDER give up. `FloorError` is a `ValueError` and so is
+# `UnicodeDecodeError`, so this tuple is wider than it looks — it is spelled out rather than collapsed
+# because the names are what a reader checks against `read_descriptor`'s raises.
+FIXTURE_FAILURES = (FloorError, OSError, ValueError)
+
+
+def _fixture(root: Path, source: Path | None = None) -> tuple[Path, str]:
     """Copies of the REAL descriptors, floors normalized to SYNTHETIC_PIN, plus a matching registry.
 
     The copies keep the real files' shape — comments that quote this key, the 200-line PIN HISTORY
     prose, the quoting and indentation — which is the point of copying them. Their VALUES are
     replaced, which is the point of normalizing them.
+
+    `source` defaults to the real `providers/` and exists so the demonstration can point the BUILDER
+    at a directory whose state makes it give up (FS.GG.Templates#398). Without it, the only way to
+    exercise the builder's own failure paths would be to put a broken descriptor in the real tree,
+    which is not a thing a self-test may do.
     """
     providers = root / "providers"
     providers.mkdir(parents=True, exist_ok=True)
-    real = Path(__file__).resolve().parents[1] / "providers"
+    real = REAL_PROVIDERS if source is None else source
     for descriptor in sorted(real.glob(DESCRIPTOR_GLOB)):
         target = providers / descriptor.name
         shutil.copy2(descriptor, target)
-        _normalize_floors(target, SYNTHETIC_PIN)
+        _normalize_floors(target, SYNTHETIC_PIN, shown=display(descriptor))
     registry = root / "dependencies.yml"
     registry.write_text(SYNTHETIC_REGISTRY, encoding="utf-8")
     return providers, str(registry)
 
 
-def _run_case(name: str, mutate, expect_fail: bool, expect: str, results: list[str]) -> bool:
+def _brief(error: Exception) -> str:
+    """The first sentence of a diagnostic, for a line that is repeated once per skipped case.
+
+    An unbuildable baseline skips every case, so whatever this returns is printed a dozen times. The
+    FULL text is not lost — it is the same condition the LIVE grading reports once, above, in the
+    place a reader is already looking. Repeating a paragraph twelve times is the output hygiene
+    FS.GG.Templates#398 is about, so this repair does not get to reintroduce it in a new shape.
+    """
+    text = " ".join(str(error).split())
+    head, sep, _ = text.partition(". ")
+    return f"{head}." if sep else text
+
+
+def _build_fixture(name: str, root: Path, results: list[str], source: Path | None = None):
+    """THE ONLY WAY THIS DEMONSTRATION BUILDS A FIXTURE. `None` means the baseline is unavailable.
+
+    Three call sites used to call `_fixture` directly and exactly one of them had a `try` around it,
+    so a builder failure escaped from the other two as a raw traceback (FS.GG.Templates#398). The
+    remedy is not two more `try` blocks that can drift apart from the first — it is one guard that
+    every site goes through, so a fourth site cannot be added unguarded without deleting this call.
+
+    The outcome is deliberately NOT `FAIL`. A case that never ran has not disagreed with anything, and
+    `SELF-TEST BROKEN` means "the checker's behaviour changed" — see `self_test`'s summary.
+    """
+    try:
+        return _fixture(root, source)
+    except FIXTURE_FAILURES as error:
+        results.append(f"SKIP  self-test/{name}: baseline unavailable — {_brief(error)}")
+        return None
+
+
+def _run_case(name: str, mutate, expect_fail: bool, expect: str, results: list[str], source: Path | None = None) -> str:
+    """Returns one of `pass`, `fail`, `unavailable` — three outcomes, because there are three."""
     with tempfile.TemporaryDirectory() as raw:
         root = Path(raw)
-        providers, registry = _fixture(root)
+        built = _build_fixture(name, root, results, source)
+        if built is None:
+            return "unavailable"
+        providers, registry = built
         try:
             mutate(providers)
         except FloorError as error:
             results.append(f"FAIL  self-test/{name}: {error}")
-            return False
+            return "fail"
         out: list[str] = []
         ANNOTATIONS.clear()
         try:
@@ -545,12 +640,12 @@ def _run_case(name: str, mutate, expect_fail: bool, expect: str, results: list[s
                 f"FAIL  self-test/{name}: expected {'red' if expect_fail else 'green'}, got "
                 f"{'red' if red else 'green'}\n{text}"
             )
-            return False
+            return "fail"
         if expect and expect not in text:
             results.append(f"FAIL  self-test/{name}: output did not contain {expect!r}\n{text}")
-            return False
+            return "fail"
         results.append(f"PASS  self-test/{name}")
-        return True
+        return "pass"
 
 
 def _set_floor(value: str):
@@ -595,7 +690,174 @@ def _edit(name: str, transform):
     return mutate
 
 
-def self_test() -> int:
+# Set in the CHILD of the two end-to-end arms below, which re-invoke this script as a subprocess.
+# Without it those arms would spawn a child that runs them again, forever.
+CHILD_GUARD = "FSGG_FLOORS_CHILD"
+
+
+def _verdict(total: int, passed: int, unavailable: int, graded_ok: bool | None = None) -> str:
+    """`green`, `broken`, `builder-broken`, or `unavailable` — four, because there are four remedies.
+
+    THIS IS WHY IT IS A FUNCTION AND NOT AN `if`. `SELF-TEST BROKEN` accuses THIS FILE of having
+    changed behaviour and tells the reader to fix the checker. A baseline that could not be BUILT is
+    normally the opposite claim: the checker is not in question, a descriptor under providers/ is,
+    and the live grading above has already named it. Collapsing the two sends the reader to the wrong
+    file (FS.GG.Templates#398 acceptance 2).
+
+    `graded_ok` IS THE DISAMBIGUATING SIGNAL, AND IT WAS ALREADY BEING COMPUTED (round-1 review, M3).
+    "The fixture could not be built" is evidence about a DESCRIPTOR only if a descriptor is actually
+    bad. `main` grades the real tree FIRST, so by the time this runs we already know whether the
+    tree is coherent. When the grading passed and the builder still could not copy and normalize
+    that same tree, the descriptors are fine and the BUILDER is broken — and blaming the descriptor
+    then names a file the run has just certified as correct, in the same output. That was the exact
+    misattribution this outcome was introduced to prevent, pointing the wrong way.
+
+    `None` means nobody graded (the `--self-test` route, which is offline and reads no registry), so
+    the signal is unavailable and the descriptor remains the more likely explanation.
+
+    `broken` wins over both: a checker that has genuinely disagreed on a case it DID run is the more
+    urgent claim, and it must not be downgraded by an unrelated bad descriptor.
+    """
+    broken = total - passed - unavailable
+    if broken:
+        return "broken"
+    if unavailable:
+        return "builder-broken" if graded_ok else "unavailable"
+    return "green"
+
+
+def _summarize(outcomes: list[str], graded_ok: bool | None = None) -> str:
+    """Tally the outcomes and classify them. THE ONLY PLACE OUTCOMES ARE COUNTED.
+
+    Round-1 review, M1: the count used to be two hand-maintained `+= 1` counters spread over five
+    sites, and severing just the `unavailable` one left the suite 13/13 GREEN while production
+    misreported a broken descriptor as `SELF-TEST BROKEN`. Nothing asserted that an outcome ever
+    REACHED the tally, because the arms that check the classification did so on a tally they made up
+    themselves. There is now one list and one derivation from it, so "reaching the tally" is not a
+    separate step that can be severed — and the end-to-end arms drive the whole path anyway.
+    """
+    return _verdict(len(outcomes), outcomes.count("pass"), outcomes.count("unavailable"), graded_ok)
+
+
+# The exact source line the M3 arm replaces in its CHILD copy to simulate a pure fixture-builder
+# regression. Asserted present before use: if a refactor moves it, the arm says so instead of
+# silently testing nothing.
+BUILDER_ANCHOR = "        _normalize_floors(target, SYNTHETIC_PIN, shown=display(descriptor))"
+BUILDER_REGRESSION = (
+    '        raise FloorError(f"{display(descriptor)}: INJECTED fixture-builder regression")'
+)
+
+
+def _end_to_end(name: str, results: list[str]) -> str:
+    """Run THIS script as CI runs it, over a synthetic checkout, and read the verdict off stderr.
+
+    WHY A SUBPROCESS AND NOT A CALL. `main` grades, then demonstrates, then decides whom to blame
+    from both. Round-1 review found two mutations no in-process arm here could see: severing the step
+    that puts an `unavailable` outcome into the tally (the suite stayed green while production
+    misreported), and never consulting the grading before blaming a descriptor. Both live in the
+    WIRING between the pieces, so the assertion has to drive the whole thing.
+
+    The synthetic checkout is `<tmp>/child/scripts/check-provider-floors.py` beside
+    `<tmp>/child/providers/`, so the child's `REAL_PROVIDERS` — derived from `__file__` — resolves
+    into the temporary tree, not into this repository. **Both arms pass `--providers` equal to that
+    same tree**, which is the production relationship: the tree that gets graded is the tree the
+    builder copies. The arms differ only in WHY the builder fails:
+
+      * a descriptor that cannot be normalized  -> grading red   -> blame the DESCRIPTOR
+      * a coherent tree + a regression injected
+        into the builder itself                 -> grading green -> blame the CHECKER
+
+    The second is round-1 review's M3 verbatim: a pure checker regression that used to report
+    `BASELINE UNAVAILABLE` and name a descriptor the same run had just graded correct.
+    """
+    blames_checker = name.endswith("blames-the-checker")
+    with tempfile.TemporaryDirectory() as raw:
+        root = Path(raw)
+        built = _build_fixture(name, root, results)
+        if built is None:
+            return "unavailable"
+        coherent, registry = built
+
+        child = root / "child"
+        (child / "scripts").mkdir(parents=True)
+        providers = child / "providers"
+        providers.mkdir(parents=True)
+
+        source = Path(__file__).resolve().read_text(encoding="utf-8")
+        if blames_checker:
+            # A COHERENT tree — copies of the real descriptors, already normalized to the synthetic
+            # pin — so the grading passes and the only thing wrong is the checker.
+            for descriptor in sorted(coherent.glob(DESCRIPTOR_GLOB)):
+                shutil.copy2(descriptor, providers / descriptor.name)
+            # Matched with its line boundaries: the unanchored text also occurs inside the
+            # BUILDER_ANCHOR constant a few lines above, which is not the line to break.
+            anchored = f"\n{BUILDER_ANCHOR}\n"
+            if source.count(anchored) != 1:
+                results.append(
+                    f"FAIL  self-test/{name}: could not find the fixture-builder line this arm has to "
+                    f"break ({BUILDER_ANCHOR.strip()!r}). The arm is stale, not the checker."
+                )
+                return "fail"
+            source = source.replace(anchored, f"\n{BUILDER_REGRESSION}\n", 1)
+        else:
+            (providers / "unbuildable.providers.yml").write_bytes(PROVIDER_LESS_DESCRIPTOR)
+
+        script = child / "scripts" / "check-provider-floors.py"
+        script.write_text(source, encoding="utf-8")
+
+        try:
+            proc = subprocess.run(
+                [sys.executable, str(script), "--providers", str(providers), "--registry", registry],
+                capture_output=True, text=True, timeout=300,
+                env={**os.environ, CHILD_GUARD: "1", "GITHUB_ACTIONS": ""},
+            )
+        except (OSError, subprocess.SubprocessError) as error:
+            results.append(f"SKIP  self-test/{name}: baseline unavailable — could not run the child ({error})")
+            return "unavailable"
+
+        output = f"{proc.stdout}\n{proc.stderr}"
+        wanted = "SELF-TEST CHECKER BROKEN" if blames_checker else "SELF-TEST BASELINE UNAVAILABLE"
+        unwanted = "SELF-TEST BASELINE UNAVAILABLE" if blames_checker else "SELF-TEST CHECKER BROKEN"
+
+        if "Traceback (most recent call last)" in output:
+            results.append(f"FAIL  self-test/{name}: the child emitted a traceback\n{_tail(output)}")
+            return "fail"
+        if proc.returncode == 0:
+            results.append(
+                f"FAIL  self-test/{name}: the child exited 0 on a tree it could not demonstrate on"
+                f"\n{_tail(output)}"
+            )
+            return "fail"
+        if wanted not in output:
+            results.append(
+                f"FAIL  self-test/{name}: expected the child to report {wanted!r}, and it did not. "
+                "That is the WIRING, not the classifier: an outcome that never reaches the tally, or "
+                f"a verdict that never consults the grading, both look exactly like this.\n{_tail(output)}"
+            )
+            return "fail"
+        if unwanted in output:
+            results.append(
+                f"FAIL  self-test/{name}: the child ALSO reported {unwanted!r}, so the two verdicts are "
+                f"not exclusive and the reader is told to fix two different things\n{_tail(output)}"
+            )
+            return "fail"
+        if blames_checker and "every declared floor mirrors" not in output:
+            results.append(
+                f"FAIL  self-test/{name}: this arm only means anything if the child's LIVE grading was "
+                f"GREEN — otherwise it is not the misattribution case at all\n{_tail(output)}"
+            )
+            return "fail"
+
+    subject = "the CHECKER, on a tree its own grading just passed" if blames_checker else "the DESCRIPTOR it named"
+    results.append(f"PASS  self-test/{name} (child exited {proc.returncode}, blaming {subject})")
+    return "pass"
+
+
+def _tail(output: str, lines: int = 12) -> str:
+    return "\n".join(f"      | {line}" for line in output.strip().splitlines()[-lines:])
+
+
+def self_test(graded_ok: bool | None = None) -> int:
     results: list[str] = []
     cases = [
         # The unmutated set is green. Without this, every red below could be red for a reason that
@@ -646,6 +908,24 @@ def self_test() -> int:
             True,
             f"sixth: floor {SYNTHETIC_BELOW} != registry pin {SYNTHETIC_PIN}",
         ),
+        # FS.GG.Templates#398, THE LIVE-GRADING LEG. Both descriptor states that used to escape the
+        # grading as a raw traceback must now be a NAMED refusal. These run through the ordinary
+        # machinery because that is exactly the route `main` takes: `grade` raises `FloorError`,
+        # `main` catches it, and the diagnostic reaches the log, the `::error` and the step summary.
+        # The non-UTF-8 arm is the one that was not merely ugly: at `1166da62` the decode error was
+        # not a `FloorError`, so `main` caught nothing and the run emitted NO report at all.
+        (
+            "provider-less-descriptor-fails-closed",
+            lambda providers: (providers / "empty.providers.yml").write_bytes(PROVIDER_LESS_DESCRIPTOR),
+            True,
+            "declares no providers",
+        ),
+        (
+            "non-utf8-descriptor-fails-closed",
+            lambda providers: (providers / "undecodable.providers.yml").write_bytes(NON_UTF8_DESCRIPTOR),
+            True,
+            "is not valid UTF-8",
+        ),
         # An unreadable authority fails closed rather than grading against nothing.
         # NAMED HONESTLY (round-1 review, non-material observation): this arm exercises the LOCAL
         # missing-file branch only. The live-URL failure branch — DNS failure, 404, or a 200 that is
@@ -666,10 +946,92 @@ def self_test() -> int:
             True,
             "",
         ),
+        # FS.GG.Templates#398, THE FIXTURE-BUILDER LEG. The same two states, but in the directory the
+        # BUILDER copies from — where they are not a gradable descriptor at all, but a reason the
+        # baseline could not be built. Each asserts BOTH halves of #398's acceptance: the builder
+        # gives up as a named refusal rather than a traceback, AND the harness classifies the outcome
+        # as `unavailable`, so `SELF-TEST BROKEN` never claims the checker's behaviour changed.
+        (
+            "builder-refuses-a-provider-less-descriptor",
+            lambda providers: None,
+            True,
+            "",
+        ),
+        (
+            "builder-refuses-a-non-utf8-descriptor",
+            lambda providers: None,
+            True,
+            "",
+        ),
+        # END TO END, THROUGH `main`, IN A SUBPROCESS (round-1 review, M1 and M3). Everything above
+        # asserts a PIECE. These two run this script the way CI runs it — grade, then demonstrate,
+        # then combine — against a synthetic checkout whose real `providers/` cannot be built from,
+        # and read the verdict off stderr. That is the only way to assert the WIRING rather than the
+        # parts: that an unavailable outcome reaches the tally at all, and that the verdict consults
+        # the grading before it decides whom to blame. A mutation that severs either is invisible to
+        # a unit-shaped arm and fatal to these.
+        (
+            "end-to-end-an-unbuildable-descriptor-blames-the-descriptor",
+            lambda providers: None,
+            True,
+            "",
+        ),
+        (
+            "end-to-end-a-green-grade-with-an-unbuildable-fixture-blames-the-checker",
+            lambda providers: None,
+            True,
+            "",
+        ),
     ]
 
-    passed = 0
+    # In the child these two are dropped, or it would spawn a child of its own without end. The
+    # child's own suite is smaller and internally consistent; what the parent reads is its VERDICT.
+    if os.environ.get(CHILD_GUARD) == "1":
+        cases = [case for case in cases if not case[0].startswith("end-to-end-")]
+
+    builder_cases = {
+        "builder-refuses-a-provider-less-descriptor": PROVIDER_LESS_DESCRIPTOR,
+        "builder-refuses-a-non-utf8-descriptor": NON_UTF8_DESCRIPTOR,
+    }
+
+    outcomes: list[str] = []
     for index, (name, mutate, expect_fail, expect) in enumerate(cases):
+        if name.startswith("end-to-end-"):
+            outcomes.append(_end_to_end(name, results))
+            continue
+        if name in builder_cases:
+            with tempfile.TemporaryDirectory() as raw:
+                source = Path(raw) / "providers"
+                source.mkdir(parents=True)
+                descriptor = source / "unbuildable.providers.yml"
+                descriptor.write_bytes(builder_cases[name])
+                observed: list[str] = []
+                outcome = _run_case(name, lambda providers: None, True, "", observed, source)
+            note = observed[0] if observed else "(the case recorded nothing)"
+            if outcome != "unavailable":
+                results.append(
+                    f"FAIL  self-test/{name}: the builder was handed a descriptor it cannot normalize "
+                    f"and the case came back {outcome!r}, not \'unavailable\' — a fixture that could "
+                    f"not be built is not a disagreement about the checker (FS.GG.Templates#398). {note}"
+                )
+                outcomes.append("fail")
+                continue
+            # THE PREDICATE IS THE FULL SOURCE PATH, NOT ITS BASENAME (round-1 review, M2). The
+            # fixture is a COPY that shares the basename, so a basename check passed just as happily
+            # when the line named `/tmp/tmpXXXXXXXX/providers/unbuildable.providers.yml` — a path
+            # already deleted by the time anyone reads it. The message claims the reader can act on
+            # what is named; only the source path makes that true, so that is what is asserted.
+            if str(descriptor) not in note:
+                results.append(
+                    f"FAIL  self-test/{name}: the refusal must name {descriptor}, the descriptor a "
+                    f"reader can open — naming the temporary fixture copy, which shares its basename "
+                    f"and no longer exists, is not actionable. Got: {note}"
+                )
+                outcomes.append("fail")
+                continue
+            results.append(f"PASS  self-test/{name} (baseline unavailable, reported as such, not as BROKEN)")
+            outcomes.append("pass")
+            continue
         if name == "fixture-is-independent-of-the-live-pin":
             # `floor` is None for a provider with no declaration, so these are rendered as strings
             # before they are sorted. A drifted or block-less real descriptor is EXACTLY the state
@@ -682,14 +1044,20 @@ def self_test() -> int:
                     for _, floor, _ in parse_descriptor(descriptor)
                 }
 
-            try:
-                with tempfile.TemporaryDirectory() as raw:
-                    providers, _ = _fixture(Path(raw))
-                    fixture_floors = floors_of(providers)
-                    real_floors = floors_of(Path(__file__).resolve().parents[1] / "providers")
-            except (FloorError, OSError, ValueError) as error:
-                results.append(f"FAIL  self-test/fixture-is-independent-of-the-live-pin: {error}")
-                continue
+            with tempfile.TemporaryDirectory() as raw:
+                built = _build_fixture(name, Path(raw), results)
+                if built is None:
+                    outcomes.append("unavailable")
+                    continue
+                try:
+                    fixture_floors = floors_of(built[0])
+                    real_floors = floors_of(REAL_PROVIDERS)
+                except FIXTURE_FAILURES as error:
+                    # Reading the REAL tree is part of building this case's baseline, so a real
+                    # descriptor that cannot be parsed makes the case unavailable, not broken.
+                    results.append(f"SKIP  self-test/{name}: baseline unavailable — {_brief(error)}")
+                    outcomes.append("unavailable")
+                    continue
             if fixture_floors != {SYNTHETIC_PIN}:
                 results.append(
                     f"FAIL  self-test/fixture-is-independent-of-the-live-pin: the fixture carries "
@@ -707,41 +1075,86 @@ def self_test() -> int:
                     f"PASS  self-test/fixture-is-independent-of-the-live-pin (fixture {SYNTHETIC_PIN}; "
                     f"real tree declares {sorted(real_floors)} and no outcome above depends on it)"
                 )
-                passed += 1
+                outcomes.append("pass")
+                continue
+            outcomes.append("fail")
             continue
         if name == "unreadable-local-registry-fails-closed":
             out: list[str] = []
             with tempfile.TemporaryDirectory() as raw:
-                providers, _ = _fixture(Path(raw))
+                built = _build_fixture(name, Path(raw), results)
+                if built is None:
+                    outcomes.append("unavailable")
+                    continue
+                providers, _ = built
                 try:
                     grade(providers, str(Path(raw) / "absent.yml"), out)
                     results.append("FAIL  self-test/unreadable-local-registry-fails-closed: it passed")
+                    outcomes.append("fail")
                 except FloorError as error:
                     if "no such file" in str(error):
                         results.append("PASS  self-test/unreadable-local-registry-fails-closed")
-                        passed += 1
+                        outcomes.append("pass")
                     else:
                         results.append(f"FAIL  self-test/unreadable-local-registry-fails-closed: {error}")
+                        outcomes.append("fail")
             continue
-        if _run_case(name, mutate, expect_fail, expect, results):
-            passed += 1
+        outcomes.append(_run_case(name, mutate, expect_fail, expect, results))
 
     print("\n".join(results))
     total = len(cases)
-    if passed != total:
-        # THE PREDICATE AND THE ACCUSATION NOW MATCH, which they did not in round 1. Every case above
-        # runs on a fixture this file builds and normalizes itself: the real descriptors' VALUES, the
-        # org pin, and the state of the working tree cannot reach any of these outcomes. So a failure
-        # here really does mean the checker (or this demonstration) is broken, and saying so is no
-        # longer a guess dressed as a verdict. A mirror that has genuinely drifted is reported by the
-        # LIVE grading, which `main` runs first and never suppresses — read that report above this
-        # line before touching anything here.
+    verdict = _summarize(outcomes, graded_ok)
+    unavailable = outcomes.count("unavailable")
+    passed = outcomes.count("pass")
+    if len(outcomes) != total:
+        # The tally must cover every case. A case that fell through without recording an outcome
+        # would silently shrink the denominator and could turn a red suite green.
         print(
-            f"check-provider-floors: SELF-TEST BROKEN — {total - passed} of {total} outcomes did not "
-            "reproduce on a fixture this demonstration builds and normalizes itself, so the checker's "
-            "own behaviour has changed. This is NOT a statement about providers/ — a real floor that "
-            "disagrees with the registry is named in the live grading printed above. Fix the checker; "
-            "do NOT delete the self-demonstration (FS.GG.Templates#383).",
+            f"check-provider-floors: SELF-TEST BROKEN — {total} cases ran but {len(outcomes)} "
+            "outcomes were recorded, so the tally does not cover the suite. Fix the checker.",
+            file=sys.stderr,
+        )
+        return 1
+    if verdict == "broken":
+        # THE PREDICATE AND THE ACCUSATION MATCH. Every case above runs on a fixture this file builds
+        # and normalizes itself: the real descriptors' VALUES, the org pin, and the state of the
+        # working tree cannot reach any of these outcomes. So a failure here really does mean the
+        # checker (or this demonstration) is broken. A mirror that has genuinely drifted is reported
+        # by the LIVE grading, which `main` runs first and never suppresses — read that report above
+        # this line before touching anything here.
+        print(
+            f"check-provider-floors: SELF-TEST BROKEN — {total - passed - unavailable} of {total} "
+            "outcomes did not reproduce on a fixture this demonstration builds and normalizes itself, "
+            "so the checker's own behaviour has changed. This is NOT a statement about providers/ — a "
+            "real floor that disagrees with the registry is named in the live grading printed above. "
+            "Fix the checker; do NOT delete the self-demonstration (FS.GG.Templates#383).",
+            file=sys.stderr,
+        )
+        return 1
+    if verdict == "builder-broken":
+        # THE GRADING PASSED AND THE BUILDER STILL COULD NOT COPY THAT SAME TREE (round-1 review, M3).
+        # So the descriptors are fine — the run just certified them, above — and blaming one would
+        # name a file this very output declares correct. The fault is in the fixture builder.
+        print(
+            f"check-provider-floors: SELF-TEST CHECKER BROKEN — the live grading above passed every "
+            f"descriptor, yet {unavailable} of {total} outcomes could not run because the fixture "
+            "builder failed to copy and normalize that same coherent tree. Do NOT go looking at "
+            "providers/: the descriptors were just graded correct. The fault is in this checker's "
+            "fixture builder — see the SKIP lines above. (FS.GG.Templates#398)",
+            file=sys.stderr,
+        )
+        return 1
+    if verdict == "unavailable":
+        # A DIFFERENT VERDICT BECAUSE IT HAS A DIFFERENT REMEDY. The demonstration builds its fixture
+        # by COPYING the real descriptors, so a descriptor that cannot be read or normalized stops the
+        # baseline from existing. Nothing here is evidence about the checker; the descriptor is named
+        # in the SKIP lines above and in the live report above those.
+        print(
+            f"check-provider-floors: SELF-TEST BASELINE UNAVAILABLE — {unavailable} of {total} "
+            "outcomes could not run, because the fixture is built from the real descriptors and one "
+            "of them could not be copied and normalized. The checker's behaviour is NOT in question "
+            "here: fix the descriptor named above, then this demonstration runs again. "
+            "(FS.GG.Templates#398)",
             file=sys.stderr,
         )
         return 1
@@ -816,7 +1229,13 @@ def main() -> int:
         print(f"check-provider-floors: every declared floor mirrors {REGISTRY_SOURCE} = {pin}")
 
     print()
-    demonstrated = self_test()
+    # THE SIGNAL IS ONLY EVIDENCE IF BOTH HALVES LOOKED AT THE SAME TREE. `grade` reads
+    # `--providers`; the fixture builder always copies the repository's own `providers/`. They are
+    # the same directory on every real run and the flag exists for offline experiments, so when they
+    # differ a green grading says nothing about the tree the builder failed on, and this falls back
+    # to blaming the descriptor the SKIP lines name.
+    same_tree = args.providers.resolve() == REAL_PROVIDERS.resolve()
+    demonstrated = self_test(graded_ok=(graded == 0 and same_tree))
 
     if graded or demonstrated:
         return 1
