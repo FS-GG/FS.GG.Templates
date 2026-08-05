@@ -81,6 +81,8 @@ FIXTURES="$COMPOSITION_DIR/fixtures"
 . "$COMPOSITION_DIR/lib/lane-coverage.sh"     # lane discovery + the #379 unreached-lane gate and its self-demonstration
 # shellcheck source=tests/composition/lib/game-skill-release.sh
 . "$COMPOSITION_DIR/lib/game-skill-release.sh" # the #349 Game Skills materialization assertion + release resolver and its self-demonstration
+# shellcheck source=tests/composition/lib/content-exclusions.sh
+. "$COMPOSITION_DIR/lib/content-exclusions.sh" # the #386 .nuget//node_modules content-filter gate and its self-demonstration
 
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/fsgg-composition.XXXXXX")"
 ARTIFACTS="$WORKDIR/artifacts"
@@ -139,6 +141,20 @@ step "lanes — every discovered lane is reached by a required path (#379)"
 assert_lane_coverage_can_fire "lanes" "$WORKDIR/lane-coverage-fixtures"
 assert_lane_coverage "$COMPOSITION_DIR" "$REPO_ROOT"
 assert_lane_fails_closed "$COMPOSITION_DIR"
+
+# ── The template source tree's own build output leaves nothing behind (FS.GG.Templates#386) ───
+# HERE and not in a per-identity lane, for the reason the two neighbours above give: the subject is
+# the REPOSITORY's three content filters — `.gitignore`, the csproj pack `Exclude`, and every
+# template's `sources.exclude` — not one scaffolded product, and a run that selected one lane must
+# still evaluate all three. It also must not run AFTER stage 1: stage 1 packs the checkout as it
+# stands, and this gate's whole point is that no ordinary run ever produces the condition it grades
+# (no CI job restores or installs inside `templates/`, and the release gate packs from a clean
+# checkout), so it manufactures that condition in a COPY under WORKDIR and leaves the caller's
+# checkout untouched. Offline — one local `dotnet pack` plus a folder install per template, no
+# network and no token. See lib/content-exclusions.sh for why the three legs are graded separately.
+step "exclusions — .nuget/ and node_modules/ reach neither git, the package, nor a product (#386)"
+assert_content_exclusions_can_fire "exclusions" "$WORKDIR/content-exclusion-fixtures"
+assert_content_exclusions "$REPO_ROOT" "$WORKDIR"
 
 # ── THIS REPO's runtime skill-root set (FS-GG/.github#1676, ADR-0067 §8/§9 phase 4) ──────────
 # Here for the same reason the alarm above is: it is a fact about THIS REPOSITORY, not about a

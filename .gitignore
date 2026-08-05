@@ -12,6 +12,24 @@ TestResults/
 .tmp/
 nuget-cache/
 
+# Workspace-local restore/install output INSIDE the template source tree (FS.GG.Templates#386).
+# The `templates/fs-gg-*/` directories are themselves working solutions, and each one's own README
+# documents a regeneration command that must be run IN that directory. Two of those commands write
+# a build-output directory that the list above does not name:
+#   .nuget/        — FS.GG.Templates#380/#382/#384 set `<RestorePackagesPath>$(MSBuildThisFileDirectory).nuget/packages</RestorePackagesPath>`
+#                    in all four templates' Directory.Build.props, so a workspace-private package
+#                    folder is what makes a committed `contentHash` enforceable. The documented
+#                    `dotnet restore <Workspace>.slnx --force-evaluate` therefore materializes it:
+#                    measured at 118M (fable-game) and 75M (web).
+#   node_modules/  — templates/fs-gg-web and templates/fs-gg-fable-game are npm workspaces with five
+#                    package.json roots between them; `npm install` in any of them writes a
+#                    Playwright/Vite/@babylonjs dev closure of hundreds of megabytes.
+# Neither was ignored, so the documented maintenance action left an unignored tree that `git add -A`
+# would commit. `*.nupkg` above hides only the archives inside such a folder, never the folder: the
+# .nuspec/.sha512/lib payload beside them is what `git status` reported.
+.nuget/
+node_modules/
+
 # Templates-local: packaging + editor cruft.
 *.nupkg
 *.user
