@@ -12,6 +12,11 @@ TestResults/
 .tmp/
 nuget-cache/
 
+# Python tooling under scripts/ can produce bytecode caches when modules are compiled or imported.
+# Keep those generated files out of `git add -A` just like the .NET build output above.
+__pycache__/
+*.py[cod]
+
 # Workspace-local restore/install output INSIDE the template source tree (FS.GG.Templates#386).
 # The `templates/fs-gg-*/` directories are themselves working solutions, and each one's own README
 # documents a regeneration command that must be run IN that directory. Two of those commands write
