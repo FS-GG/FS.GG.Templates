@@ -15,7 +15,7 @@
           <PropertyGroup Condition=" '$(DisableImplicitLibraryPacksFolder)' != 'true' ">
             <RestoreAdditionalProjectSources>...;$(_FSharpCoreLibraryPacksFolder)</...>
 
-      That folder ships FSharp.Core at the SDK's own version — the same 10.1.302 this
+      That folder ships FSharp.Core at the SDK's own version — the same 10.1.400 this
       workspace resolves — but as a DIFFERENT ARCHIVE from the one on nuget.org. Two
       byte-different packages, one id and version, both reachable in the same restore:
 
@@ -27,7 +27,7 @@
       same cold cache resolved library-packs. One build performs several restores, so
       two of them can disagree — and locked mode reports that disagreement as
 
-        error NU1403: Package content hash validation failed for FSharp.Core.10.1.302.
+        error NU1403: Package content hash validation failed for FSharp.Core.10.1.400.
                       The package is different than the last restore.
 
       which is #380 exactly. `<clear />` in NuGet.config cannot close this: the folder
@@ -49,7 +49,7 @@
 
       `DisableImplicitLibraryPacksFolder` above decides which SOURCE is consulted — but only for a
       package that must be fetched at all. NuGet's global packages folder is keyed by id+version
-      alone, so once `fsharp.core/10.1.302/` is extracted there, every later restore on that machine
+      alone, so once `fsharp.core/10.1.400/` is extracted there, every later restore on that machine
       uses it and validates the lock against the `contentHash` recorded in its `.nupkg.metadata`.
       Whichever build reached that folder FIRST decides which of the two archives lives there, and
       nothing a product declares can overrule an entry that already exists.
