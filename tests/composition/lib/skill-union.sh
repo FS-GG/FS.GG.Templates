@@ -67,7 +67,7 @@
 # — `git log -S SKILL_ASSERT_REF -- tests/composition/lib/skill-union.sh` (a line number would go stale
 # the moment this comment block changes length, as it did while being written).
 # renovate: datasource=git-refs depName=FS-GG/.github packageName=https://github.com/FS-GG/.github
-SKILL_ASSERT_REF="391cc6de5e910c4cca88c2a8a67ed09909b64918"
+SKILL_ASSERT_REF="158be72cd757b895cf4f024a3fa6e5c6c8d5932b"
 # ── THE STALENESS THRESHOLD, AND WHY IT IS 14 DAYS (#315) ────────────────────────────────────
 # This sits here, immediately under the pin, because a threshold recorded anywhere else is a fact
 # in a place that cannot execute it — the drift class .github#1611 catalogued as category C. The
