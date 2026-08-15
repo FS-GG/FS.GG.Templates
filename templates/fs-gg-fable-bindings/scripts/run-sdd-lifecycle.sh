@@ -8,7 +8,13 @@ TITLE='Fable bindings lifecycle'
 export DOTNET_NOLOGO=1 DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
 
 command -v fsgg-sdd >/dev/null || { echo "fsgg-sdd is required" >&2; exit 1; }
+command -v fsgg-fsharp-surface >/dev/null || { echo "fsgg-fsharp-surface is required" >&2; exit 1; }
 run() { fsgg-sdd "$@" --root "$ROOT" --work "$WORK_ID" --title "$TITLE"; }
+
+# SDD 1.0.1 requires a Governance-owned public-surface receipt before it can certify
+# public-impact F# work. The producer owns the stable readiness path and evaluates the exact
+# generated library project; redirecting stdout only discards its duplicate terminal projection.
+fsgg-fsharp-surface --root "$ROOT" --project src/AcmeBindings/AcmeBindings.fsproj >/dev/null
 
 fsgg-sdd init --root "$ROOT" >"$ROOT/reports/sdd-init.json"
 run charter >"$ROOT/reports/sdd-charter.json"

@@ -399,6 +399,8 @@ jobs:
           # claim that was already here checked instead of decorative.
           install_global_tool FS.GG.Governance.Cli fsgg-governance 1.1.0 \
             'declared in this workflow: spec-081 consumer, FS.GG.Governance#28'
+          install_global_tool FS.GG.Governance.FSharpSurfaceCommand fsgg-fsharp-surface 1.12.1 \
+            'required by FS.GG.SDD.Cli 1.0.1 public-impact ship verification'
           install_global_tool FS.GG.SDD.Cli fsgg-sdd "$MIN_SDD" \
             "minimumFsggSdd in EVERY providers/*.providers.yml, each graded EQUAL to registry fs-gg-ui-template.minimum-fsgg-sdd by scripts/check-provider-floors.py (#383)"
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
