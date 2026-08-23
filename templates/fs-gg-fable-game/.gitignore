@@ -1,0 +1,22 @@
+# Build and generated application output
+bin/
+obj/
+artifacts/
+Client/dist/
+Client/output/
+Protocol.Tests/cross-runtime/CodecProbe.Fable/output/
+Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js
+Protocol.Tests/cross-runtime/CodecProbe.Fable/Protocol/
+Browser.Tests/test-results/
+Browser.Tests/playwright-report/
+Browser.Tests/blob-report/
+
+# Restored dependencies and local tooling
+node_modules/
+.nuget/
+.config/.store/
+
+# Editor and user-local state
+.vs/
+.idea/
+*.user
