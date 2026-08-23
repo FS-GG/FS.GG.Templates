@@ -8,27 +8,13 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Workspace.Template</PackageId>
-    <!-- 0.8.0 → 0.8.1 because this PR is the FIRST packed-content change after 0.8.0 was published
-         (FS.GG.Templates#386). `fs-gg-templates/v0.8.0` is tagged at fef78f5, which is `main`, and the
-         release went to both feeds on 2026-08-05T07:24:48Z — so `main` and the published archive
-         agreed until this commit, and leaving `<Version>` alone would make one version number name
-         two different artifacts. It would ALSO make the next release uncuttable: release.yml's first
-         gate asserts tag ⇔ `<Version>`, so a `fs-gg-templates/v0.8.0` re-tag is the only tag this
-         csproj would accept, and re-publishing an existing version is exactly the case .github#2240
-         measured — `dotnet pack` GUID-names its OPC `.psmdcp` part per invocation, so the retry
-         strands divergent bytes behind `nuget push`'s skip-duplicate flag. AND THE PACKED CONTENT
-         REALLY DOES CHANGE, which is what makes the bump obligatory rather than merely conventional:
-         the entry SET is 152/153 identical to a clean pack of fef78f5 (the sole difference being that
-         same `.psmdcp` GUID), but all FIVE `content/templates/*/.template.config/template.json`
-         PAYLOADS differ from the published 0.8.0 — measured by sha256 of the extracted members. A
-         consumer of the published package receives the unfixed lists until this ships. PATCH, not
-         MINOR: no template gains, loses or retypes a parameter, and no file is added to or removed
-         from the archive; what changes is which directories are FILTERED when the source tree
-         happens to carry restore/install output. The bump is the convention this repo has followed
-         in both preceding cycles, not a new one: 44c558c (#356) carried 0.7.1 → 0.8.0 as the first
-         packed-content commit after v0.7.1, and c42e0e7 (#343) carried 0.7.0 → 0.7.1 after v0.7.0.
-         The TAG is a separate act and this PR does not cut it. -->
-    <Version>0.8.1</Version>
+    <!-- 0.8.1 → 0.8.2 because FS.GG.Templates#385 updates the packed README after 0.8.1 was
+         published; leaving the version unchanged would give two package payloads one identity.
+         This PR changes no template identity, parameter, or generated-product file, so PATCH is
+         sufficient. The resulting release also carries the template changes already merged on
+         main since v0.8.1; the post-merge dual-feed obligation therefore verifies the complete
+         candidate rather than treating this README-only delta as the whole release. -->
+    <Version>0.8.2</Version>
     <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new workspace templates for FS.GG.SDD: governance, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</Description>

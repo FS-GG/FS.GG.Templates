@@ -76,6 +76,24 @@ test -f "$work/sdd/Server.Tests/Server.Tests.fsproj"
 grep -q '^namespace RogueFableGame.Server$' "$work/sdd/Server/Program.fs"
 fsgg-sdd doctor --root "$work/sdd" --json >"$work/doctor.json"
 jq -e '.outcome == "noChange" and (.diagnostics | length) == 0' "$work/doctor.json" >/dev/null
+# The ownership assertion's changed arm needs a real producer-emitted subject. Public SDD 1.2.4
+# supplies this Rendering row with an off-Templates supplier namespace; without this liveness leg,
+# deleting the only foreign product row would make the ownership arm vacuous while the lane stayed
+# green. Exercise the same predicate against a removed-row mutation so the liveness gate proves it
+# can red rather than merely predicting that it would.
+assert_feedback_report_manifest_subject() {
+  jq -e '[.skills[] | select(.id == "fs-gg-feedback-report" and .scope == "product" and ."supplied-by" == "template/feedback-report/skill/")] | length == 1' "$1" >/dev/null
+}
+provider_manifest="$work/sdd/.agents/skills/skill-manifest.json"
+assert_feedback_report_manifest_subject "$provider_manifest" || {
+  echo "fable-game composition: public SDD provider emitted no uniquely supplier-attributed fs-gg-feedback-report product row" >&2
+  exit 1
+}
+jq 'del(.skills[] | select(.id == "fs-gg-feedback-report"))' "$provider_manifest" >"$work/provider-manifest-without-feedback-report.json"
+if assert_feedback_report_manifest_subject "$work/provider-manifest-without-feedback-report.json"; then
+  echo "fable-game composition: feedback-report manifest-subject removal mutation unexpectedly passed" >&2
+  exit 1
+fi
 # The orchestrated lane is a SECOND delivery route, not a rerun of the first: SDD resolves the
 # provider descriptor and drives `dotnet new` itself. A package item that survives direct
 # instantiation but not the provider route would leave products scaffolded the supported way with
