@@ -265,10 +265,12 @@ catalog: `fsgg-sdd scaffold` appends rows to it for the driver and product skill
 org-wide skill-union assertion already grades it under those set semantics. So
 `--assert-product` requires this catalog's rows to appear in it **field for field** — exactly the
 fields this catalog declares, same values, none missing and none added. Another `"scope": "product"`
-row is foreign only when it carries a non-empty string `"supplied-by"`; public SDD 1.2.4 preserves
-that attribution when it adds Rendering-owned rows. An unattributed product row is refused rather
-than guessed to be somebody else's, and every row must still carry a `scope`. The assertion does
-**not** require the file to be byte-identical to the producer's copy, which no product scaffolded
+row is foreign only when it carries a valid supplier path outside this producer's
+`template/product-skills/` namespace; public SDD 1.2.4 preserves that attribution when it adds
+Rendering-owned rows. An unattributed/malformed row, or an unknown row claiming this producer's
+namespace, is refused rather than guessed to be somebody else's, and every row must still carry a
+`scope`. The assertion does **not** require the file to be byte-identical to the producer's copy,
+which no product scaffolded
 through a provider could ever satisfy. Explicitly supplier-attributed rows from another producer
 are still graded for delivery; they are simply not required to match this catalog.
 

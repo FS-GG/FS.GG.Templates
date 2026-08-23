@@ -34,12 +34,13 @@
 // this catalog renders must appear in the product's manifest carrying EXACTLY the fields this
 // catalog declares, with the same values — no field missing, none added. Every row must also carry
 // a `scope`, because that is the field the ownership half is decided on. A product-scoped row
-// outside this catalog is foreign only when it carries a non-empty string `supplied-by`: public
-// SDD 1.2.4 preserves that producer attribution
-// when it adds Rendering-owned rows such as `fs-gg-feedback-report`. This keeps the whole of what
+// outside this catalog is foreign only when `supplied-by` is a valid path outside this producer's
+// `template/product-skills/` namespace. Public SDD 1.2.4 preserves that producer attribution when
+// it adds Rendering-owned rows such as `fs-gg-feedback-report`. This keeps the whole of what
 // byte-equality was protecting — "its digests describe THIS catalog" — while permitting rows that
-// explicitly name another supplier. An unattributed product row is still refused rather than
-// guessed foreign. The rejected alternative was to make `fsgg-sdd` stop rewriting the file; that
+// explicitly name another supplier. An unattributed/malformed row, or an unknown row claiming this
+// producer's namespace, is still refused rather than guessed foreign. The rejected alternative was
+// to make `fsgg-sdd` stop rewriting the file; that
 // is cross-repo work in FS.GG.SDD, and it would have to fight requirement 1 as well.
 //
 // Digest semantics are UTF-8 text SHA-256, matching Fsgg.SkillMirror: File.ReadAllText removes an
@@ -131,20 +132,41 @@ let schemaVersionOf (text: string) =
     | true, v -> v.GetRawText()
     | _ -> "<absent>"
 
-/// Product rows outside this catalog may be classified as foreign only from an explicit supplier
-/// string. Keep this read separate from `parseRows`: that comparison intentionally preserves raw
-/// scalar text, while ownership must not mistake JSON null/number/bool for supplier attribution.
-let explicitlySuppliedIds (text: string) =
+type SupplierOwnership = TemplatesOwned | Foreign | Invalid
+
+let templatesSupplierRoot = "template/product-skills/"
+
+/// Supplier attribution is a relative producer path, not merely a non-empty scalar. In particular,
+/// an unknown row under this producer's `template/product-skills/` namespace remains this producer's
+/// claim and must red; only a valid path outside that namespace establishes foreign ownership.
+let classifySupplier (supplier: string) =
+    if String.IsNullOrWhiteSpace supplier
+       || supplier <> supplier.Trim()
+       || supplier.Contains '\\'
+       || supplier.Contains ':'
+       || supplier.Contains "//"
+       || Path.IsPathRooted supplier then Invalid
+    else
+        let normalized = supplier.TrimEnd '/'
+        let segments = normalized.Split('/', StringSplitOptions.None)
+        if segments |> Array.exists (fun segment -> String.IsNullOrWhiteSpace segment || segment <> segment.Trim() || segment = "." || segment = "..") then Invalid
+        elif supplier.StartsWith(templatesSupplierRoot, StringComparison.Ordinal) then TemplatesOwned
+        else Foreign
+
+/// Keep this read separate from `parseRows`: that comparison intentionally preserves raw scalar
+/// text, while ownership must not mistake JSON null/number/bool for supplier attribution.
+let supplierOwnershipById (text: string) =
     use doc = JsonDocument.Parse text
     [ for row in doc.RootElement.GetProperty("skills").EnumerateArray() do
         match row.TryGetProperty "id", row.TryGetProperty "supplied-by" with
         | (true, id), (true, supplier)
             when id.ValueKind = JsonValueKind.String
-                 && supplier.ValueKind = JsonValueKind.String
-                 && not (String.IsNullOrWhiteSpace(supplier.GetString())) ->
-            yield id.GetString()
+                 && supplier.ValueKind = JsonValueKind.String ->
+            yield id.GetString(), classifySupplier (supplier.GetString())
+        | (true, id), _ when id.ValueKind = JsonValueKind.String ->
+            yield id.GetString(), Invalid
         | _ -> () ]
-    |> Set.ofList
+    |> Map.ofList
 
 let target = path manifestRel
 
@@ -197,7 +219,7 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
         let canonicalById = parseRows rendered |> Map.ofList
         let productRows = parseRows productText
         let productById = productRows |> Map.ofList
-        let explicitlySupplied = explicitlySuppliedIds productText
+        let supplierOwnership = supplierOwnershipById productText
         for (id, n) in productRows |> List.countBy fst |> List.filter (fun (_, n) -> n > 1) do
             bad "the product's %s/skill-manifest.json declares '%s' %d times — a duplicated id makes every verdict below depend on row order, so this reds rather than grading one of them arbitrarily" skillRoot id n
         for KeyValue (id, canonFields) in canonicalById do
@@ -224,9 +246,14 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
                         bad "the product's manifest row for '%s' carries an extra field '%s' ('%s') that %s does not declare — this catalog's own rows are graded field for field, and a field this assertion cannot read could change what the row means" id field prodValue manifestRel
         for (id, fields) in productRows do
             if fields.TryFind "scope" = Some "product"
-               && not (canonicalById.ContainsKey id)
-               && not (explicitlySupplied.Contains id) then
-                bad "the product's %s/skill-manifest.json declares product-scoped skill '%s', but %s declares no such skill and the row carries no non-empty string 'supplied-by' — an unattributed product row cannot be classified as another producer's output" skillRoot id manifestRel
+               && not (canonicalById.ContainsKey id) then
+                match supplierOwnership.TryFind id with
+                | Some Foreign -> ()
+                | Some TemplatesOwned ->
+                    bad "the product's %s/skill-manifest.json declares product-scoped skill '%s', but %s declares no such skill and its 'supplied-by' claims this producer's '%s' namespace — an unknown row in this producer's namespace is refused, not laundered as foreign" skillRoot id manifestRel templatesSupplierRoot
+                | Some Invalid
+                | None ->
+                    bad "the product's %s/skill-manifest.json declares product-scoped skill '%s', but %s declares no such skill and the row carries no valid foreign 'supplied-by' path — an unattributed or malformed product row cannot be classified as another producer's output" skillRoot id manifestRel
         // Grade against the manifest the PRODUCT carries, not this repository's copy. A row missing
         // a field this grading needs is refused outright: skipping it would let an unreadable row
         // pass as a delivered one.
@@ -407,7 +434,11 @@ let demonstrateAssertion () =
         case "a producer row this catalog renders is missing from the product's manifest"
             (Some "diverged") (Some(manifestOf (renderedRows |> List.skip 1))) materialized []
         case "an unattributed product-scoped row this catalog does not own"
-            (Some "carries no non-empty string 'supplied-by'") (Some(manifestOf (renderedRows @ [ foreignRow "product" "forged-skill" "always" ])))
+            (Some "carries no valid foreign 'supplied-by' path") (Some(manifestOf (renderedRows @ [ foreignRow "product" "forged-skill" "always" ])))
+            (materialized @ [ ("forged-skill", driverBody "forged-skill") ]) []
+        case "an unknown product row claiming this producer's supplier namespace"
+            (Some "claims this producer's 'template/product-skills/' namespace")
+            (Some(manifestOf (renderedRows @ [ suppliedForeignRow "product" "forged-skill" "always" "template/product-skills/forged-skill/" ])))
             (materialized @ [ ("forged-skill", driverBody "forged-skill") ]) []
         // A row that omits `scope` ALTOGETHER. `scope` is the field the ownership half is decided on,
         // so an absent one used to fall through to "somebody else's row" and pass — the same
