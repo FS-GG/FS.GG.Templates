@@ -1,6 +1,6 @@
 import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { basename, join, resolve } from "node:path";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 
 const workspace = resolve(process.argv[2] ?? "templates/fs-gg-fable-game");
@@ -10,12 +10,13 @@ const read = (path) => readFileSync(join(workspace, path), "utf8");
 const required = (path) => {
   if (!existsSync(join(workspace, path))) fail(`missing required shipped file ${path}`);
 };
-const references = (xml) => [...xml.matchAll(/<ProjectReference Include="([^"]+)"/g)].map((match) => match[1]);
+const references = (xml) => [...xml.matchAll(/<ProjectReference\b[^>]*\bInclude\s*=\s*["']([^"']+)["']/gi)].map((match) => match[1]);
 
 const projects = [
   "Domain/Domain.fsproj", "Domain.Tests/Domain.Tests.fsproj", "Protocol/Protocol.fsproj",
   "Protocol.Tests/Protocol.Tests.fsproj", "Server/Server.fsproj", "Server.Tests/Server.Tests.fsproj"
 ];
+const allProjects = [...projects, "Client/Client.fsproj"];
 const locks = [
   "Domain/packages.lock.json", "Domain.Tests/packages.lock.json", "Protocol/packages.lock.json",
   "Protocol.Tests/packages.lock.json", "Server/packages.lock.json", "Server.Tests/packages.lock.json",
@@ -48,8 +49,22 @@ const validate = (input) => {
   const serverReferences = references(server).join(" ");
   if (!serverReferences.includes("../Domain/Domain.fsproj") || !serverReferences.includes("../Protocol/Protocol.fsproj"))
     fail("Server lacks the Domain/Protocol authority boundary");
-  if (serverReferences.includes("Client/Client.fsproj") || server.includes("Fable."))
-    fail("Server references the Fable client boundary");
+  const projectReferences = (project) => references(input.read(project)).map((reference) =>
+    relative(workspace, resolve(workspace, dirname(project), reference)).replaceAll("\\", "/"));
+  const serverClosure = new Set();
+  const visitServerDependency = (project) => {
+    if (serverClosure.has(project)) return;
+    if (!allProjects.includes(project)) fail(`Server dependency closure reaches unknown project ${project}`);
+    serverClosure.add(project);
+    for (const dependency of projectReferences(project)) visitServerDependency(dependency);
+  };
+  visitServerDependency("Server/Server.fsproj");
+  if (serverClosure.has("Client/Client.fsproj")) fail("Server dependency closure reaches forbidden Fable Client project");
+  for (const project of serverClosure) {
+    const packages = [...input.read(project).matchAll(/<PackageReference\b[^>]*\bInclude\s*=\s*["']([^"']+)["']/gi)].map((match) => match[1]);
+    if (packages.some((packageName) => /^Fable(?:\.|$)/i.test(packageName)))
+      fail(`Server dependency closure includes forbidden Fable package through ${project}`);
+  }
   if (references(client).length !== 0) fail("Fable Client must not carry ProjectReference edges");
   for (const shared of ["../Protocol/Http.fs", "../Protocol/Realtime.fs"]) {
     if (!client.includes(`Compile Include=\"${shared}\"`)) fail(`Fable Client lacks shared wire source ${shared}`);
@@ -60,7 +75,7 @@ const validate = (input) => {
 
   const global = JSON.parse(input.read("global.json"));
   const tools = JSON.parse(input.read(".config/dotnet-tools.json"));
-  if (global.sdk?.version !== "10.0.302" || global.sdk?.rollForward !== "latestFeature") fail("global.json SDK pin is not the supported exact toolchain metadata");
+  if (global.sdk?.version !== "10.0.400" || global.sdk?.rollForward !== "latestFeature") fail("global.json SDK pin is not the supported exact toolchain metadata");
   if (tools.tools?.fable?.version !== "5.13.0" || !tools.tools.fable.commands?.includes("fable")) fail("dotnet tool manifest lacks the exact Fable tool pin");
   const clientPackage = JSON.parse(input.read("Client/package.json"));
   const browserPackage = JSON.parse(input.read("Browser.Tests/package.json"));
@@ -84,7 +99,9 @@ const mutateAndExpect = (path, mutate, expected) => {
 };
 
 if (process.argv.includes("--self-test")) {
-  mutateAndExpect("Server/Server.fsproj", (source) => `${source}\n<ProjectReference Include=\"../Client/Client.fsproj\" />`, "Server references the Fable client boundary");
+  mutateAndExpect("Server/Server.fsproj", (source) => `${source}\n<ProjectReference Include=\"../Client/Client.fsproj\" />`, "Server dependency closure reaches forbidden Fable Client project");
+  mutateAndExpect("Domain/Domain.fsproj", (source) => `${source}\n<ItemGroup><ProjectReference Include=\"../Client/Client.fsproj\" /></ItemGroup>`, "Server dependency closure reaches forbidden Fable Client project");
+  mutateAndExpect("Domain/Domain.fsproj", (source) => `${source}\n<ItemGroup><PackageReference Include=\"Fable.Core\" Version=\"[5.2.0]\" /></ItemGroup>`, "Server dependency closure includes forbidden Fable package through Domain/Domain.fsproj");
   mutateAndExpect(solutionPath[0], (source) => source.replace('Project Path="Protocol/Protocol.fsproj"', 'Project Path="Protocol/Removed.fsproj"'), "solution omits Protocol/Protocol.fsproj");
   mutateAndExpect("Client/package-lock.json", (source) => source.replace('"lockfileVersion": 3', '"lockfileVersion": 2'), "Client package manifest and lockfile are incoherent");
 

@@ -62,7 +62,19 @@ test -f "$work/scaffold/Browser.Tests/package-lock.json"
   test -s artifacts/test-results/browser.junit.xml
   # Generated output belongs to the product build, not source control.
   git init -q
+  for ignored_path in artifacts Client/dist Client/output Client/node_modules Browser.Tests/node_modules Browser.Tests/test-results; do
+    test -e "$ignored_path"
+    git check-ignore -q "$ignored_path" || {
+      echo "fable-game composition: generated output is not ignored: $ignored_path" >&2
+      exit 1
+    }
+  done
   git add -A
+  tracked_generated="$(git ls-files artifacts Client/dist Client/output Client/node_modules Browser.Tests/node_modules Browser.Tests/test-results)"
+  if [[ -n "$tracked_generated" ]]; then
+    printf 'fable-game composition: generated outputs entered the Git index:\n%s\n' "$tracked_generated" >&2
+    exit 1
+  fi
   git -c user.name='FS.GG composition' -c user.email='composition@fs.gg' commit -qm baseline
   ignored="$(git status --ignored --short)"
   [[ "$ignored" == *$'!! artifacts/'* ]]
