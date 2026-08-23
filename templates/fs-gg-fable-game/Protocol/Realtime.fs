@@ -18,7 +18,11 @@ module RealtimeV1 =
     /// One input intent, client -> server. `Sequence` is a monotonic per-connection
     /// counter; `Room/InputRouter.fs` (server) drops any input whose sequence does not
     /// strictly increase, which is the stale-input handling this DTO exists to carry.
-    type InputCommand = { Sequence: int; TargetCol: int; TargetRow: int }
+    type InputCommand = { Version: int; Sequence: int; TargetCol: int; TargetRow: int }
+
+    /// The capability issued by the HTTP bootstrap. This is deliberately a message,
+    /// rather than query identity: the hub accepts no player or credential in its URL.
+    type SessionHello = { Version: int; SessionCapability: string }
 
     type PlayerSnapshot = { PlayerId: string; Col: int; Row: int }
 
@@ -39,19 +43,29 @@ module RealtimeV1 =
     /// by automatic union encoding.
     type Message =
         | InputMessage of InputCommand
+        | SessionHelloMessage of SessionHello
         | SnapshotMessage of Snapshot
         | PresenceMessage of Presence
         | ResyncRequestMessage of ResyncRequest
         | ResyncSnapshotMessage of Snapshot
 
     let private encodeInput (v: InputCommand) =
-        Encode.object [ "sequence", Encode.int v.Sequence; "targetCol", Encode.int v.TargetCol; "targetRow", Encode.int v.TargetRow ]
+        Encode.object [ "version", Encode.int v.Version; "sequence", Encode.int v.Sequence; "targetCol", Encode.int v.TargetCol; "targetRow", Encode.int v.TargetRow ]
 
     let private decodeInput: Decoder<InputCommand> =
         Decode.object (fun get ->
-            { Sequence = get.Required.Field "sequence" Decode.int
+            { Version = get.Required.Field "version" Decode.int
+              Sequence = get.Required.Field "sequence" Decode.int
               TargetCol = get.Required.Field "targetCol" Decode.int
               TargetRow = get.Required.Field "targetRow" Decode.int })
+
+    let private encodeSessionHello (v: SessionHello) =
+        Encode.object [ "version", Encode.int v.Version; "sessionCapability", Encode.string v.SessionCapability ]
+
+    let private decodeSessionHello: Decoder<SessionHello> =
+        Decode.object (fun get ->
+            { Version = get.Required.Field "version" Decode.int
+              SessionCapability = get.Required.Field "sessionCapability" Decode.string })
 
     let private encodePlayerSnapshot (v: PlayerSnapshot) =
         Encode.object [ "playerId", Encode.string v.PlayerId; "col", Encode.int v.Col; "row", Encode.int v.Row ]
@@ -95,6 +109,7 @@ module RealtimeV1 =
         let kind, payload =
             match value with
             | InputMessage v -> "input", encodeInput v
+            | SessionHelloMessage v -> "sessionHello", encodeSessionHello v
             | SnapshotMessage v -> "snapshot", encodeSnapshot v
             | PresenceMessage v -> "presence", encodePresence v
             | ResyncRequestMessage v -> "resyncRequest", encodeResyncRequest v
@@ -109,6 +124,7 @@ module RealtimeV1 =
         |> Decode.andThen (fun kind ->
             match kind with
             | "input" -> Decode.field "payload" decodeInput |> Decode.map InputMessage
+            | "sessionHello" -> Decode.field "payload" decodeSessionHello |> Decode.map SessionHelloMessage
             | "snapshot" -> Decode.field "payload" decodeSnapshot |> Decode.map SnapshotMessage
             | "presence" -> Decode.field "payload" decodePresence |> Decode.map PresenceMessage
             | "resyncRequest" -> Decode.field "payload" decodeResyncRequest |> Decode.map ResyncRequestMessage

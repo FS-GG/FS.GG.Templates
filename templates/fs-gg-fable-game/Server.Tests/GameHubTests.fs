@@ -10,284 +10,150 @@ open Microsoft.Extensions.Configuration
 open Microsoft.AspNetCore.SignalR
 open Microsoft.AspNetCore.SignalR.Client
 open Xunit
+open FableGameWorkspaceNamespace.Protocol.Http
 open FableGameWorkspaceNamespace.Protocol.Realtime
 open FableGameWorkspaceNamespace.Server
 
-/// Exercises the SignalR real-time leg #348's acceptance names, over a real
-/// `HubConnection` talking to an in-memory `TestServer` (not a bare function call):
-/// join/resync-on-connect, one authoritative input round trip, stale-input rejection,
-/// disconnect/reconnect bounded full resync, subscription cleanup, an in-flight
-/// cancellation, and the client-may-not-send-authoritative-kinds rejection.
+/// Production-route tests for the starter's security and tick-frontier contracts:
+/// no query identity, one validated hello, bounded resync, and inputs changing state
+/// only when the server's next tick commits the sorted frontier.
 type GameHubTests() =
-    do RoomAuthority.resetForTests () // isolates this test from RoomAuthority's process-wide static state
-    // `TickIntervalMilliseconds` pushed out to effectively "never": these tests assert
-    // on the very next inbound `Message` after a specific action, and the real
-    // 200ms-default `TickBroadcaster` hosted service (still running for real here, not
-    // mocked) would otherwise race with that.
+    do RoomAuthority.resetForTests ()
     let factory =
         (new WebApplicationFactory<Program>())
             .WithWebHostBuilder(fun builder ->
                 builder.ConfigureAppConfiguration(fun _ config ->
-                    config.AddInMemoryCollection(dict [ "TickIntervalMilliseconds", "600000" ]) |> ignore)
+                    config.AddInMemoryCollection(dict [ "TickIntervalMilliseconds", "25" ]) |> ignore)
                 |> ignore)
 
-    let buildConnection (playerId: string) : HubConnection =
-        let baseAddress = factory.Server.BaseAddress
+    let buildConnection () : HubConnection =
         HubConnectionBuilder()
             .WithUrl(
-                Uri(baseAddress, $"/hub/game?playerId={playerId}"),
+                Uri(factory.Server.BaseAddress, "/hub/game"),
                 fun (opts: HttpConnectionOptions) ->
                     opts.HttpMessageHandlerFactory <- fun _ -> factory.Server.CreateHandler()
-                    opts.Transports <- HttpTransportType.LongPolling
-            )
+                    opts.Transports <- HttpTransportType.LongPolling)
             .Build()
 
-    /// Awaits the next inbound `Message` and decodes it, or fails after `timeoutMs`.
-    let nextMessage (connection: HubConnection) (timeoutMs: int) : Task<RealtimeV1.Message> =
+    let nextMatching (connection: HubConnection) (predicate: RealtimeV1.Message -> bool) : Task<RealtimeV1.Message> =
         let tcs = TaskCompletionSource<RealtimeV1.Message>()
         let subscription =
-            connection.On<string>(
-                "Message",
-                fun json ->
-                    match RealtimeV1.messageFromJson json with
-                    | Ok message -> tcs.TrySetResult message |> ignore
-                    | Error err -> tcs.TrySetException(Exception err) |> ignore
-            )
+            connection.On<string>("Message", fun json ->
+                match RealtimeV1.messageFromJson json with
+                | Ok message when predicate message -> tcs.TrySetResult message |> ignore
+                | Ok _ -> ()
+                | Error error -> tcs.TrySetException(Exception error) |> ignore)
         task {
             use _ = subscription
-            use cts = new CancellationTokenSource(timeoutMs)
+            use cts = new CancellationTokenSource(5000)
             use _ = cts.Token.Register(fun () -> tcs.TrySetCanceled() |> ignore)
             return! tcs.Task
         }
 
-    /// Like `nextMessage`, but resolves on the first inbound `Message` satisfying
-    /// `predicate` -- everything else received in between is silently ignored. Needed
-    /// once a test has more than one message in flight at a time (the burst test
-    /// below): a plain "next message" wait would resolve on whichever broadcast
-    /// happens to arrive first, not the one the assertion actually cares about.
-    let nextMatching (connection: HubConnection) (timeoutMs: int) (predicate: RealtimeV1.Message -> bool) : Task<RealtimeV1.Message> =
-        let tcs = TaskCompletionSource<RealtimeV1.Message>()
-        let subscription =
-            connection.On<string>(
-                "Message",
-                fun json ->
-                    match RealtimeV1.messageFromJson json with
-                    | Ok message when predicate message -> tcs.TrySetResult message |> ignore
-                    | Ok _ -> ()
-                    | Error err -> tcs.TrySetException(Exception err) |> ignore
-            )
+    let bootstrap name = Program.bootstrap { Version = 1; PlayerName = name }
+
+    let hello (connection: HubConnection) capability =
+        let json = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 1; SessionCapability = capability })
+        connection.InvokeAsync("SendMessage", json)
+
+    let startBound name =
         task {
-            use _ = subscription
-            use cts = new CancellationTokenSource(timeoutMs)
-            use _ = cts.Token.Register(fun () -> tcs.TrySetCanceled() |> ignore)
-            return! tcs.Task
+            let response = bootstrap name
+            let connection = buildConnection ()
+            let waiting = nextMatching connection (function | RealtimeV1.ResyncSnapshotMessage _ -> true | _ -> false)
+            do! connection.StartAsync()
+            do! hello connection response.SessionCapability
+            let! resync = waiting
+            return response, connection, resync
         }
 
     [<Fact>]
-    member _.``connecting sends the joining client an immediate full resync snapshot``() =
+    member _.``the hub URL contains no player identity and a validated hello returns a full resync``() =
         task {
-            use connection = buildConnection "p-connect"
-            let waiting = nextMessage connection 5000
+            let response = bootstrap "p-hello"
+            use connection = buildConnection ()
+            let waiting = nextMatching connection (function | RealtimeV1.ResyncSnapshotMessage _ -> true | _ -> false)
             do! connection.StartAsync()
+            do! hello connection response.SessionCapability
             let! message = waiting
             match message with
-            | RealtimeV1.ResyncSnapshotMessage snapshot ->
-                Assert.Contains(snapshot.Players, fun p -> p.PlayerId = "p-connect")
-            | other -> Assert.Fail $"expected ResyncSnapshotMessage, got {other}"
+            | RealtimeV1.ResyncSnapshotMessage snapshot -> Assert.Contains(snapshot.Players, fun p -> p.PlayerId = response.PlayerId)
+            | other -> Assert.Fail $"expected resync, got {other}"
             do! connection.StopAsync()
         }
 
     [<Fact>]
-    member _.``one accepted input moves the player and broadcasts an authoritative snapshot``() =
+    member _.``unknown capability and mismatched protocol version are rejected before authority is granted``() =
         task {
-            use connection = buildConnection "p-move"
-            let joinWaiting = nextMessage connection 5000
+            use connection = buildConnection ()
             do! connection.StartAsync()
-            let! (_: RealtimeV1.Message) = joinWaiting // the connect-time resync
-            let waiting = nextMessage connection 5000
-            let input: RealtimeV1.InputCommand = { Sequence = 1; TargetCol = 1; TargetRow = 0 }
-            do! connection.InvokeAsync("SendMessage", RealtimeV1.encodeMessage (RealtimeV1.InputMessage input))
-            let! message = waiting
-            match message with
-            | RealtimeV1.SnapshotMessage snapshot ->
-                let mover = snapshot.Players |> List.find (fun p -> p.PlayerId = "p-move")
-                Assert.Equal((1, 0), (mover.Col, mover.Row))
-            | other -> Assert.Fail $"expected SnapshotMessage, got {other}"
+            let unknown = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 1; SessionCapability = "not-issued" })
+            let! unknownError = Assert.ThrowsAsync<HubException>(fun () -> connection.InvokeAsync("SendMessage", unknown))
+            Assert.Contains("unknown", unknownError.Message)
+            let badVersion = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 2; SessionCapability = "not-issued" })
+            let! versionError = Assert.ThrowsAsync<HubException>(fun () -> connection.InvokeAsync("SendMessage", badVersion))
+            Assert.Contains("unsupported realtime version", versionError.Message)
             do! connection.StopAsync()
         }
 
     [<Fact>]
-    member _.``a repeated, non-increasing sequence is dropped as stale input``() =
+    member _.``input is not applied on hub arrival and commits at the next tick frontier``() =
         task {
-            use connection = buildConnection "p-stale"
-            let joinWaiting = nextMessage connection 5000
-            do! connection.StartAsync()
-            let! (_: RealtimeV1.Message) = joinWaiting
-
-            let sendAndAwaitPosition (sequence: int) =
-                task {
-                    let waiting = nextMessage connection 5000
-                    let input: RealtimeV1.InputCommand = { Sequence = sequence; TargetCol = 3; TargetRow = 0 }
-                    do! connection.InvokeAsync("SendMessage", RealtimeV1.encodeMessage (RealtimeV1.InputMessage input))
-                    let! message = waiting
-                    match message with
-                    | RealtimeV1.SnapshotMessage snapshot -> return snapshot.Players |> List.find (fun p -> p.PlayerId = "p-stale") |> fun p -> p.Col, p.Row
-                    | other -> return failwith $"expected SnapshotMessage, got {other}"
-                }
-
-            let! afterFirst = sendAndAwaitPosition 5
-            let! afterReplay = sendAndAwaitPosition 5 // same sequence again: must be dropped
-            Assert.Equal(afterFirst, afterReplay)
-            do! connection.StopAsync()
-        }
-
-    [<Fact>]
-    member _.``disconnect then reconnect performs a bounded full authoritative resync``() =
-        task {
-            use first = buildConnection "p-reconnect"
-            let firstJoinWaiting = nextMessage first 5000
-            do! first.StartAsync()
-            let! (firstResync: RealtimeV1.Message) = firstJoinWaiting
-            match firstResync with
-            | RealtimeV1.ResyncSnapshotMessage snapshot -> Assert.Contains(snapshot.Players, fun p -> p.PlayerId = "p-reconnect")
-            | other -> Assert.Fail $"expected ResyncSnapshotMessage, got {other}"
-            do! first.StopAsync()
-
-            use second = buildConnection "p-reconnect"
-            let waiting = nextMessage second 5000
-            do! second.StartAsync()
-            let! secondResync = waiting
-            match secondResync with
-            | RealtimeV1.ResyncSnapshotMessage snapshot ->
-                // The reconnect gets a *fresh*, currently-true snapshot -- not a replay of
-                // whatever the first connection last saw -- which is what "bounded full
-                // authoritative resync" means operationally.
-                Assert.Contains(snapshot.Players, fun p -> p.PlayerId = "p-reconnect")
-            | other -> Assert.Fail $"expected ResyncSnapshotMessage, got {other}"
-
-            let explicitWaiting = nextMessage second 5000
-            let request: RealtimeV1.ResyncRequest = { Version = 1; LastKnownTick = 0 }
-            do! second.InvokeAsync("SendMessage", RealtimeV1.encodeMessage (RealtimeV1.ResyncRequestMessage request))
-            let! explicitResync = explicitWaiting
-            match explicitResync with
-            | RealtimeV1.ResyncSnapshotMessage snapshot -> Assert.Contains(snapshot.Players, fun p -> p.PlayerId = "p-reconnect")
-            | other -> Assert.Fail $"expected ResyncSnapshotMessage, got {other}"
-            do! second.StopAsync()
-        }
-
-    [<Fact>]
-    member _.``disconnecting a client cleans up its room membership: it stops receiving broadcasts and is retired from authoritative state``() =
-        task {
-            use leaver = buildConnection "p-leaver"
-            let leaverJoinWaiting = nextMessage leaver 5000
-            do! leaver.StartAsync()
-            let! (_: RealtimeV1.Message) = leaverJoinWaiting
-
-            use stayer = buildConnection "p-stayer"
-            let stayerJoinWaiting = nextMessage stayer 5000 // stayer's own connect-time resync
-            do! stayer.StartAsync()
-            let! (_: RealtimeV1.Message) = stayerJoinWaiting
-
-            // The stayer observes the leaver's presence-departed broadcast, proving
-            // OnDisconnectedAsync actually ran (not just that the socket closed).
-            let departedWaiting = nextMessage stayer 5000
-            do! leaver.StopAsync()
-            let! departed = departedWaiting
-            match departed with
-            | RealtimeV1.PresenceMessage presence ->
-                Assert.Equal("p-leaver", presence.PlayerId)
-                Assert.False presence.Joined
-            | other -> Assert.Fail $"expected a departure PresenceMessage, got {other}"
-
-            // Cleanup is observable in authoritative state, not merely in a socket
-            // closing: a subsequent broadcast still succeeds (no lingering group entry
-            // throws), and the leaver no longer appears in the authoritative snapshot.
-            let snapshotWaiting = nextMessage stayer 5000
-            let input: RealtimeV1.InputCommand = { Sequence = 1; TargetCol = 1; TargetRow = 0 }
-            do! stayer.InvokeAsync("SendMessage", RealtimeV1.encodeMessage (RealtimeV1.InputMessage input))
-            let! snapshotMessage = snapshotWaiting
-            match snapshotMessage with
-            | RealtimeV1.SnapshotMessage snapshot -> Assert.DoesNotContain(snapshot.Players, fun p -> p.PlayerId = "p-leaver")
-            | other -> Assert.Fail $"expected SnapshotMessage, got {other}"
-            do! stayer.StopAsync()
-        }
-
-    [<Fact>]
-    member _.``stopping a connection while a hub call is in flight completes without hanging``() =
-        task {
-            use connection = buildConnection "p-cancel"
-            let joinWaiting = nextMessage connection 5000
-            do! connection.StartAsync()
-            let! (_: RealtimeV1.Message) = joinWaiting
-            let input: RealtimeV1.InputCommand = { Sequence = 1; TargetCol = 1; TargetRow = 0 }
-            let invoke = connection.InvokeAsync("SendMessage", RealtimeV1.encodeMessage (RealtimeV1.InputMessage input))
-            let stop = connection.StopAsync()
-            let both = Task.WhenAll(invoke, stop)
-            let! _ = Task.WhenAny(both, Task.Delay 5000)
-            Assert.True(invoke.IsCompleted && stop.IsCompleted, "stopping while a hub call is in flight must not hang")
-        }
-
-    [<Fact>]
-    member _.``a burst of duplicate-sequence inputs applies each legitimate step exactly once, dropping every stale duplicate under load``() =
-        task {
-            use connection = buildConnection "p-burst"
-            let joinWaiting = nextMessage connection 5000
-            do! connection.StartAsync()
-            let! (_: RealtimeV1.Message) = joinWaiting // spawn at (0,0), the only player in a fresh room
-
-            // A genuine burst against the SignalR path, not a slow drip: for every
-            // legitimate, strictly-increasing-sequence step (sequence i -> one column
-            // right, the correct behaviour), an immediate duplicate resend of that SAME
-            // sequence targeting a far bogus cell is queued right behind it -- exactly
-            // the flood a real client retry storm produces. All 2*steps+1 invocations
-            // (the last requests an explicit resync) are issued before any of them is
-            // individually awaited, so the server receives them as a burst.
-            let steps = 15
-            let resyncWaiting =
-                nextMatching connection 5000 (function
-                    | RealtimeV1.ResyncSnapshotMessage _ -> true
+            let! response, connection, _ = startBound "p-frontier"
+            use connection = connection
+            let beforeTick, beforePlayers = RoomAuthority.snapshot ()
+            let before = beforePlayers |> List.find (fun (id, _, _) -> id = response.PlayerId)
+            let input = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; TargetCol = 1; TargetRow = 0 })
+            do! connection.InvokeAsync("SendMessage", input)
+            let immediateTick, immediatePlayers = RoomAuthority.snapshot ()
+            Assert.Equal(beforeTick, immediateTick)
+            Assert.Equal(before, immediatePlayers |> List.find (fun (id, _, _) -> id = response.PlayerId))
+            let! committed =
+                nextMatching connection (function
+                    | RealtimeV1.SnapshotMessage snapshot -> snapshot.Tick > beforeTick
                     | _ -> false)
-            let calls =
-                [| for i in 1..steps do
-                       let legit: RealtimeV1.InputCommand = { Sequence = i; TargetCol = i; TargetRow = 0 }
-                       yield connection.InvokeAsync("SendMessage", RealtimeV1.encodeMessage (RealtimeV1.InputMessage legit))
-                       let duplicate: RealtimeV1.InputCommand = { Sequence = i; TargetCol = 0; TargetRow = 10 }
-                       yield connection.InvokeAsync("SendMessage", RealtimeV1.encodeMessage (RealtimeV1.InputMessage duplicate))
-                   yield
-                       connection.InvokeAsync(
-                           "SendMessage",
-                           RealtimeV1.encodeMessage (RealtimeV1.ResyncRequestMessage { Version = 1; LastKnownTick = 0 })
-                       ) |]
-
-            do! Task.WhenAll calls
-            let! resync = resyncWaiting
-            match resync with
-            | RealtimeV1.ResyncSnapshotMessage snapshot ->
-                let mover = snapshot.Players |> List.find (fun p -> p.PlayerId = "p-burst")
-                // Falsifiable: if the stale-sequence guard (RoomAuthority.submitInput's
-                // `sequence > last`) were bypassed, every "duplicate" above would ALSO be
-                // accepted and each would nudge the player one cell toward (0, 10) --
-                // landing far from (steps, 0), never exactly on it. See the PR description
-                // for the before/after run that confirms this test reddens when the guard
-                // is disabled.
-                Assert.Equal((steps, 0), (mover.Col, mover.Row))
-            | other -> Assert.Fail $"expected ResyncSnapshotMessage, got {other}"
+            match committed with
+            | RealtimeV1.SnapshotMessage snapshot ->
+                let player = snapshot.Players |> List.find (fun p -> p.PlayerId = response.PlayerId)
+                Assert.Equal((1, 0), (player.Col, player.Row))
+            | other -> Assert.Fail $"expected tick snapshot, got {other}"
             do! connection.StopAsync()
         }
 
     [<Fact>]
-    member _.``a client may not send a server-authoritative message kind``() =
+    member _.``a duplicate sequence cannot replace an already admitted frontier intent``() =
         task {
-            use connection = buildConnection "p-illegal"
-            let joinWaiting = nextMessage connection 5000
-            do! connection.StartAsync()
-            let! (_: RealtimeV1.Message) = joinWaiting
-            let illegal: RealtimeV1.Presence = { Version = 1; PlayerId = "p-illegal"; Joined = true }
-            let! exn =
-                Assert.ThrowsAsync<HubException>(fun () ->
-                    connection.InvokeAsync("SendMessage", RealtimeV1.encodeMessage (RealtimeV1.PresenceMessage illegal)))
-            Assert.Contains("server-authoritative", exn.Message)
+            let! response, connection, _ = startBound "p-stale"
+            use connection = connection
+            let first = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; TargetCol = 1; TargetRow = 0 })
+            let duplicate = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; TargetCol = 0; TargetRow = 10 })
+            do! connection.InvokeAsync("SendMessage", first)
+            do! connection.InvokeAsync("SendMessage", duplicate)
+            let! committed =
+                nextMatching connection (function
+                    | RealtimeV1.SnapshotMessage snapshot -> snapshot.Players |> List.exists (fun p -> p.PlayerId = response.PlayerId && p.Col = 1 && p.Row = 0)
+                    | _ -> false)
+            match committed with
+            | RealtimeV1.SnapshotMessage _ -> ()
+            | other -> Assert.Fail $"expected committed tick snapshot, got {other}"
             do! connection.StopAsync()
+        }
+
+    [<Fact>]
+    member _.``disconnect then rehello with the same capability gets a bounded full resync``() =
+        task {
+            let! response, first, _ = startBound "p-reconnect"
+            use first = first
+            do! first.StopAsync()
+            use second = buildConnection ()
+            let waiting = nextMatching second (function | RealtimeV1.ResyncSnapshotMessage _ -> true | _ -> false)
+            do! second.StartAsync()
+            do! hello second response.SessionCapability
+            let! message = waiting
+            match message with
+            | RealtimeV1.ResyncSnapshotMessage snapshot -> Assert.Contains(snapshot.Players, fun p -> p.PlayerId = response.PlayerId)
+            | other -> Assert.Fail $"expected resync, got {other}"
+            do! second.StopAsync()
         }
 
     interface IDisposable with

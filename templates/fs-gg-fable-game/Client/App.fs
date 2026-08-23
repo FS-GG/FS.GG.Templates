@@ -20,6 +20,7 @@ module App =
 
     type Model =
         { PlayerId: string option
+          SessionCapability: string option
           RoomId: string
           ArenaWidth: int
           ArenaHeight: int
@@ -33,6 +34,9 @@ module App =
         | Bootstrapped of BootstrapV1.Response
         | BootstrapFailed of exn
         | Connected
+        | Reconnecting
+        | Reconnected
+        | ConnectionClosed
         | ConnectionFailed of string
         | ReceivedRealtime of RealtimeV1.Message
         | CellClicked of Cell
@@ -44,8 +48,14 @@ module App =
     /// function signature -- documented here, not hidden.
     let mutable private connection: SignalR.HubConnection option = None
 
-    let private connectSub (playerId: string) (dispatch: Msg -> unit) : unit =
-        let conn = SignalR.build $"/hub/game?playerId={playerId}"
+    let private sendHello (capability: string) (dispatch: Msg -> unit) (conn: SignalR.HubConnection) : unit =
+        let hello = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 1; SessionCapability = capability })
+        thenBoth (conn.invoke ("SendMessage", hello)) ignore (fun err -> dispatch (ConnectionFailed(string err)))
+
+    let private connectSub (capability: string) (dispatch: Msg -> unit) : unit =
+        // The URL contains neither player identity nor capability. The latter is sent
+        // only after the transport opens, in a versioned protocol message.
+        let conn = SignalR.build "/hub/game"
         conn.on (
             "Message",
             fun json ->
@@ -53,12 +63,16 @@ module App =
                 | Ok message -> dispatch (ReceivedRealtime message)
                 | Error err -> dispatch (ConnectionFailed err)
         )
+        conn.onreconnecting(fun _ -> dispatch Reconnecting)
+        conn.onreconnected(fun _ -> dispatch Reconnected)
+        conn.onclose(fun _ -> connection <- None; dispatch ConnectionClosed)
         connection <- Some conn
         thenBoth (conn.start ()) (fun () -> dispatch Connected) (fun err -> dispatch (ConnectionFailed(string err)))
 
     let init () : Model * Cmd<Msg> =
         let model =
             { PlayerId = None
+              SessionCapability = None
               RoomId = ""
               ArenaWidth = 0
               ArenaHeight = 0
@@ -76,25 +90,44 @@ module App =
             let self: Cell = { Col = response.SpawnCol; Row = response.SpawnRow }
             { model with
                 PlayerId = Some response.PlayerId
+                SessionCapability = Some response.SessionCapability
                 RoomId = response.RoomId
                 ArenaWidth = response.ArenaWidth
                 ArenaHeight = response.ArenaHeight
                 Players = Map.ofList [ response.PlayerId, self ]
                 Status = "connecting" },
-            Cmd.ofEffect (connectSub response.PlayerId)
+            Cmd.ofEffect (connectSub response.SessionCapability)
         | BootstrapFailed exn -> { model with Status = $"bootstrap failed: {exn.Message}" }, Cmd.none
-        | Connected -> { model with Status = "connected" }, Cmd.none
+        | Connected ->
+            match model.SessionCapability, connection with
+            | Some capability, Some conn ->
+                { model with Status = "connected; authorizing session" }, Cmd.ofEffect (fun dispatch -> sendHello capability dispatch conn)
+            | _ -> { model with Status = "connection closed before session authorization" }, Cmd.none
+        | Reconnecting -> { model with Status = "reconnecting" }, Cmd.none
+        | Reconnected ->
+            match model.SessionCapability, connection with
+            | Some capability, Some conn ->
+                { model with Status = "reconnected; requesting bounded resync" }, Cmd.ofEffect (fun dispatch -> sendHello capability dispatch conn)
+            | _ -> { model with Status = "reconnect closed before session authorization" }, Cmd.none
+        | ConnectionClosed -> { model with Status = "closed" }, Cmd.none
         | ConnectionFailed message -> { model with Status = $"connection failed: {message}" }, Cmd.none
         | ReceivedRealtime message ->
             match message with
             | RealtimeV1.SnapshotMessage snapshot
             | RealtimeV1.ResyncSnapshotMessage snapshot ->
                 let players = snapshot.Players |> List.map (fun p -> p.PlayerId, ({ Col = p.Col; Row = p.Row }: Cell)) |> Map.ofList
-                { model with Players = players; Tick = snapshot.Tick; PreviewPath = [] }, Cmd.none
+                if snapshot.Version <> 1 then
+                    { model with Status = $"unsupported realtime version {snapshot.Version}" }, Cmd.none
+                elif snapshot.Tick < model.Tick then
+                    // A delayed hub callback cannot rewind the view after a newer tick.
+                    model, Cmd.none
+                else
+                    { model with Players = players; Tick = snapshot.Tick; PreviewPath = []; Status = "synchronized" }, Cmd.none
             | RealtimeV1.PresenceMessage presence ->
                 let verb = if presence.Joined then "joined" else "left"
                 { model with Status = $"{presence.PlayerId} {verb}" }, Cmd.none
             | RealtimeV1.InputMessage _
+            | RealtimeV1.SessionHelloMessage _
             | RealtimeV1.ResyncRequestMessage _ ->
                 // The server never sends these two kinds; GameHub.SendMessage rejects a
                 // client that does. Receiving one here would mean this client is talking
@@ -120,7 +153,7 @@ module App =
                     | Some conn ->
                         let json =
                             RealtimeV1.encodeMessage (
-                                RealtimeV1.InputMessage { Sequence = model.NextSequence; TargetCol = target.Col; TargetRow = target.Row }
+                                RealtimeV1.InputMessage { Version = 1; Sequence = model.NextSequence; TargetCol = target.Col; TargetRow = target.Row }
                             )
                         thenBoth (conn.invoke ("SendMessage", json)) ignore ignore
                         { model with PreviewPath = preview; NextSequence = model.NextSequence + 1 }, Cmd.none

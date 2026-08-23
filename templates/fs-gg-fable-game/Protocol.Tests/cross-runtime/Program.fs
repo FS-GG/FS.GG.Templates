@@ -44,6 +44,7 @@ let private canonicalBootstrapRequest: BootstrapV1.Request = { Version = 1; Play
 let private canonicalBootstrapResponse: BootstrapV1.Response =
     { Version = 1
       PlayerId = "cross-runtime-player"
+      SessionCapability = "cross-runtime-capability"
       RoomId = "cross-runtime-room"
       SpawnCol = 3
       SpawnRow = 4
@@ -52,7 +53,8 @@ let private canonicalBootstrapResponse: BootstrapV1.Response =
 
 let private canonicalRealtimeCase (name: string) : RealtimeV1.Message option =
     match name with
-    | "input" -> Some(RealtimeV1.InputMessage { Sequence = 7; TargetCol = 5; TargetRow = 2 })
+    | "input" -> Some(RealtimeV1.InputMessage { Version = 1; Sequence = 7; TargetCol = 5; TargetRow = 2 })
+    | "sessionHello" -> Some(RealtimeV1.SessionHelloMessage { Version = 1; SessionCapability = "cross-runtime-capability" })
     | "snapshot" ->
         Some(
             RealtimeV1.SnapshotMessage
@@ -72,7 +74,7 @@ let private canonicalRealtimeCase (name: string) : RealtimeV1.Message option =
 /// encoder never produces something the other rejects.
 let private rejectedCases =
     [ "unrecognised-kind", """{"kind":"teleport","payload":{}}"""
-      "wrong-field-type", """{"kind":"input","payload":{"sequence":"not-a-number","targetCol":1,"targetRow":1}}""" ]
+      "wrong-field-type", """{"kind":"input","payload":{"version":1,"sequence":"not-a-number","targetCol":1,"targetRow":1}}""" ]
 
 [<EntryPoint>]
 let main _ =

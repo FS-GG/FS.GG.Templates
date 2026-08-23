@@ -16,6 +16,7 @@ module SignalR =
     /// there is nothing to import a constructor for.
     type HubConnection =
         abstract on: methodName: string * handler: (string -> unit) -> unit
+        abstract onreconnecting: handler: (obj -> unit) -> unit
         abstract onreconnected: handler: (string -> unit) -> unit
         abstract onclose: handler: (obj -> unit) -> unit
         abstract start: unit -> JS.Promise<unit>

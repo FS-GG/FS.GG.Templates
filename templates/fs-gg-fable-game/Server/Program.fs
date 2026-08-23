@@ -30,8 +30,7 @@ type TickBroadcaster(hub: IHubContext<GameHub>, configuration: IConfiguration) =
         task {
             while not stoppingToken.IsCancellationRequested do
                 do! Task.Delay(TimeSpan.FromMilliseconds intervalMilliseconds, stoppingToken)
-                RoomAuthority.advanceTick ()
-                let tick, players = RoomAuthority.snapshot ()
+                let tick, players = RoomAuthority.advanceTick ()
                 let snapshot: RealtimeV1.Snapshot =
                     { Version = 1; Tick = tick; Players = players |> List.map (fun (pid, col, row) -> { PlayerId = pid; Col = col; Row = row }) }
                 do! hub.Clients.Group(RoomAuthority.RoomId).SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.SnapshotMessage snapshot))
@@ -52,9 +51,10 @@ module Program =
 
     let bootstrap (request: BootstrapV1.Request) : BootstrapV1.Response =
         let playerId = Guid.NewGuid().ToString "N"
-        let spawn = RoomAuthority.join playerId
+        let capability, spawn = RoomAuthority.createSession playerId
         { Version = 1
           PlayerId = playerId
+          SessionCapability = capability
           RoomId = RoomAuthority.RoomId
           SpawnCol = spawn.Col
           SpawnRow = spawn.Row
@@ -79,6 +79,7 @@ module Program =
                     let! body = reader.ReadToEndAsync()
                     match BootstrapV1.requestFromJson body with
                     | Error message -> return Results.BadRequest {| error = message |}
+                    | Ok parsed when parsed.Version <> 1 -> return Results.BadRequest {| error = "unsupported bootstrap version" |}
                     | Ok parsed ->
                         let response = bootstrap parsed
                         return Results.Text(BootstrapV1.encodeResponse response, "application/json")

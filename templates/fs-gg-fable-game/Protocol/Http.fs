@@ -29,6 +29,7 @@ module BootstrapV1 =
     type Response =
         { Version: int
           PlayerId: string
+          SessionCapability: string
           RoomId: string
           SpawnCol: int
           SpawnRow: int
@@ -50,6 +51,7 @@ module BootstrapV1 =
         Encode.object
             [ "version", Encode.int value.Version
               "playerId", Encode.string value.PlayerId
+              "sessionCapability", Encode.string value.SessionCapability
               "roomId", Encode.string value.RoomId
               "spawnCol", Encode.int value.SpawnCol
               "spawnRow", Encode.int value.SpawnRow
@@ -61,6 +63,7 @@ module BootstrapV1 =
         Decode.object (fun get ->
             { Version = get.Required.Field "version" Decode.int
               PlayerId = get.Required.Field "playerId" Decode.string
+              SessionCapability = get.Required.Field "sessionCapability" Decode.string
               RoomId = get.Required.Field "roomId" Decode.string
               SpawnCol = get.Required.Field "spawnCol" Decode.int
               SpawnRow = get.Required.Field "spawnRow" Decode.int
