@@ -32,12 +32,15 @@
 //      ownership of a file in a directory this script itself documents as jointly occupied.
 // So the divergence check below is a SUBSET-AND-OWNERSHIP check, not a byte comparison: every row
 // this catalog renders must appear in the product's manifest carrying EXACTLY the fields this
-// catalog declares, with the same values — no field missing, none added — and no OTHER
-// `scope: "product"` row may appear. Every row must also carry a `scope`, because that is the field
-// the ownership half is decided on. That keeps the whole of what byte-equality was protecting —
-// "its digests describe THIS catalog" — while permitting the rows another producer legitimately
-// added. The rejected alternative was to make `fsgg-sdd` stop rewriting the file; that is
-// cross-repo work in FS.GG.SDD, and it would have to fight requirement 1 as well.
+// catalog declares, with the same values — no field missing, none added. Every row must also carry
+// a `scope`, because that is the field the ownership half is decided on. A product-scoped row
+// outside this catalog is foreign only when it carries a non-empty string `supplied-by`: public
+// SDD 1.2.4 preserves that producer attribution
+// when it adds Rendering-owned rows such as `fs-gg-feedback-report`. This keeps the whole of what
+// byte-equality was protecting — "its digests describe THIS catalog" — while permitting rows that
+// explicitly name another supplier. An unattributed product row is still refused rather than
+// guessed foreign. The rejected alternative was to make `fsgg-sdd` stop rewriting the file; that
+// is cross-repo work in FS.GG.SDD, and it would have to fight requirement 1 as well.
 //
 // Digest semantics are UTF-8 text SHA-256, matching Fsgg.SkillMirror: File.ReadAllText removes an
 // optional BOM before hashing. `--assert-product` hashes the MATERIALIZED file the same way, so a
@@ -128,6 +131,21 @@ let schemaVersionOf (text: string) =
     | true, v -> v.GetRawText()
     | _ -> "<absent>"
 
+/// Product rows outside this catalog may be classified as foreign only from an explicit supplier
+/// string. Keep this read separate from `parseRows`: that comparison intentionally preserves raw
+/// scalar text, while ownership must not mistake JSON null/number/bool for supplier attribution.
+let explicitlySuppliedIds (text: string) =
+    use doc = JsonDocument.Parse text
+    [ for row in doc.RootElement.GetProperty("skills").EnumerateArray() do
+        match row.TryGetProperty "id", row.TryGetProperty "supplied-by" with
+        | (true, id), (true, supplier)
+            when id.ValueKind = JsonValueKind.String
+                 && supplier.ValueKind = JsonValueKind.String
+                 && not (String.IsNullOrWhiteSpace(supplier.GetString())) ->
+            yield id.GetString()
+        | _ -> () ]
+    |> Set.ofList
+
 let target = path manifestRel
 
 // ── product-side assertion ──────────────────────────────────────────────────────────────────────
@@ -168,9 +186,9 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
         //   (a) SUBSET — every row this catalog renders appears in the product's manifest, field for
         //       field. A dropped, truncated or edited producer row still reds, which is the whole of
         //       "its digests describe THIS catalog".
-        //   (b) OWNERSHIP — no OTHER `scope: "product"` row appears. A product-scoped row is this
-        //       producer's claim, so a forged or stale one still reds instead of being waved through
-        //       as somebody else's business.
+        //   (b) OWNERSHIP — an OTHER `scope: "product"` row is foreign only when it explicitly
+        //       names its supplier. An unattributed product row still reds instead of being waved
+        //       through as somebody else's business.
         // Rows at any other scope are another producer's declarations. They are legitimate, they are
         // still graded for DELIVERY below like any other declared row, and they are not required to
         // match anything here.
@@ -179,6 +197,7 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
         let canonicalById = parseRows rendered |> Map.ofList
         let productRows = parseRows productText
         let productById = productRows |> Map.ofList
+        let explicitlySupplied = explicitlySuppliedIds productText
         for (id, n) in productRows |> List.countBy fst |> List.filter (fun (_, n) -> n > 1) do
             bad "the product's %s/skill-manifest.json declares '%s' %d times — a duplicated id makes every verdict below depend on row order, so this reds rather than grading one of them arbitrarily" skillRoot id n
         for KeyValue (id, canonFields) in canonicalById do
@@ -204,8 +223,10 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
                     if not (canonFields.ContainsKey field) then
                         bad "the product's manifest row for '%s' carries an extra field '%s' ('%s') that %s does not declare — this catalog's own rows are graded field for field, and a field this assertion cannot read could change what the row means" id field prodValue manifestRel
         for (id, fields) in productRows do
-            if fields.TryFind "scope" = Some "product" && not (canonicalById.ContainsKey id) then
-                bad "the product's %s/skill-manifest.json declares product-scoped skill '%s', but %s declares no such skill — a product-scoped row is THIS producer's claim, and this one is not one it makes" skillRoot id manifestRel
+            if fields.TryFind "scope" = Some "product"
+               && not (canonicalById.ContainsKey id)
+               && not (explicitlySupplied.Contains id) then
+                bad "the product's %s/skill-manifest.json declares product-scoped skill '%s', but %s declares no such skill and the row carries no non-empty string 'supplied-by' — an unattributed product row cannot be classified as another producer's output" skillRoot id manifestRel
         // Grade against the manifest the PRODUCT carries, not this repository's copy. A row missing
         // a field this grading needs is refused outright: skipping it would let an unreadable row
         // pass as a delivered one.
@@ -314,6 +335,9 @@ let demonstrateAssertion () =
     let foreignRow (scope: string) (id: string) (when_: string) =
         sprintf "    {\n      \"id\": \"%s\",\n      \"scope\": \"%s\",\n      \"sha256\": \"%s\",\n      \"resolvablePath\": \"%s/%s/SKILL.md\",\n      \"materializes-when\": \"%s\"\n    }"
             id scope (digest (driverBody id)) skillRoot id when_
+    let suppliedForeignRow (scope: string) (id: string) (when_: string) (supplier: string) =
+        foreignRow scope id when_
+        |> fun row -> row.Replace("\n    }", sprintf ",\n      \"supplied-by\": \"%s\"\n    }" (esc supplier))
     // Run the real assertion against a synthetic product, capture what it reported, and restore the
     // live failure list. `assertProduct` speaks through `failures` and `printfn`, so both are
     // intercepted — this drives the ASSERTION, not a copy of its predicates.
@@ -352,17 +376,19 @@ let demonstrateAssertion () =
     let sddCoTenants = [ "fs-gg-sdd-*"; "padd-item"; "work-board" ]
     let driverRows = [ foreignRow "driver" "padd-item" "always"; foreignRow "driver" "work-board" "always" ]
     let driverSkills = [ "padd-item", driverBody "padd-item"; "work-board", driverBody "work-board" ]
+    let renderingRow = suppliedForeignRow "product" "fs-gg-feedback-report" "always" "template/feedback-report/skill/"
+    let renderingSkill = "fs-gg-feedback-report", driverBody "fs-gg-feedback-report"
     try
         // ── the two lanes that must PASS ────────────────────────────────────────────────────────
         // (1) the direct `dotnet new` route: the product's manifest IS this catalog's, untouched.
         case "direct route — the product ships this catalog's manifest verbatim"
             None (Some rendered) materialized []
-        // (2) the SDD provider route, which is #385 itself: `fsgg-sdd scaffold` has appended its
-        //     `always` driver rows to the product's copy and seeded both those skills and its own
-        //     undeclared `fs-gg-sdd-*` process skills into the same root.
-        case "provider route — shared manifest carrying another producer's 'always' driver rows"
-            None (Some(manifestOf (renderedRows @ driverRows)))
-            (materialized @ driverSkills @ [ ("fs-gg-sdd-plan", "# fs-gg-sdd-plan\n") ]) sddCoTenants
+        // (2) the public SDD 1.2.4 provider route, which is #385 itself: `fsgg-sdd scaffold` has
+        //     appended its `always` driver rows and a supplier-attributed Rendering product row to
+        //     the product's copy, then seeded those plus its undeclared process skills into the root.
+        case "provider route — shared manifest carrying driver rows and an attributed foreign product row"
+            None (Some(manifestOf (renderedRows @ driverRows @ [ renderingRow ])))
+            (materialized @ driverSkills @ [ renderingSkill; ("fs-gg-sdd-plan", "# fs-gg-sdd-plan\n") ]) sddCoTenants
         // ── every lane this assertion was built to catch, still firing ──────────────────────────
         case "a selected skill did not materialize"
             (Some "ABSENT:") (Some rendered) (materialized |> List.filter (fun (id, _) -> id <> List.head selected)) []
@@ -380,8 +406,8 @@ let demonstrateAssertion () =
             materialized []
         case "a producer row this catalog renders is missing from the product's manifest"
             (Some "diverged") (Some(manifestOf (renderedRows |> List.skip 1))) materialized []
-        case "a product-scoped row this catalog does not own"
-            (Some "declares no such skill") (Some(manifestOf (renderedRows @ [ foreignRow "product" "forged-skill" "always" ])))
+        case "an unattributed product-scoped row this catalog does not own"
+            (Some "carries no non-empty string 'supplied-by'") (Some(manifestOf (renderedRows @ [ foreignRow "product" "forged-skill" "always" ])))
             (materialized @ [ ("forged-skill", driverBody "forged-skill") ]) []
         // A row that omits `scope` ALTOGETHER. `scope` is the field the ownership half is decided on,
         // so an absent one used to fall through to "somebody else's row" and pass — the same
