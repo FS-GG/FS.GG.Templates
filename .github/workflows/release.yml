@@ -19,12 +19,92 @@ on:
   push:
     tags:
       - 'fs-gg-templates/v*'
+  # A failed tag run must be replayable from the CURRENT workflow without moving the
+  # immutable tag. The dispatcher supplies that existing tag; pack and gate still check
+  # out the tag's source, while this workflow definition comes from main.
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing fs-gg-templates/v* tag to replay
+        required: true
+        type: string
+      source_run_id:
+        description: Failed release run whose checksum-bound artifact must be resumed
+        required: true
+        type: string
+  # release.yml is otherwise tag-only, so a broken prerequisite could not be exercised
+  # before the tag became immutable. This path-scoped run packs the PR artifact and executes
+  # the exact gate bootstrap, while publication remains disabled below.
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
 
 permissions:
   contents: read
 
 jobs:
+  route:
+    runs-on: ubuntu-latest
+    outputs:
+      source-ref: ${{ steps.route.outputs.source-ref }}
+      release-tag: ${{ steps.route.outputs.release-tag }}
+      publish: ${{ steps.route.outputs.publish }}
+    steps:
+      - name: Resolve and assert release route
+        id: route
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PUSH_REF: ${{ github.ref }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          case "$EVENT_NAME" in
+            push)
+              release_tag="${PUSH_REF#refs/tags/}"
+              source_ref="$PUSH_REF"
+              publish=true
+              ;;
+            workflow_dispatch)
+              if [[ ! "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]; then
+                echo "::error::release replay requires the numeric failed source run id; got '${SOURCE_RUN_ID:-<nothing>}'"
+                exit 1
+              fi
+              release_tag="$REQUESTED_TAG"
+              source_ref="refs/tags/$REQUESTED_TAG"
+              publish=true
+              ;;
+            pull_request)
+              release_tag=''
+              source_ref="$PR_HEAD_SHA"
+              publish=false
+              ;;
+            *)
+              echo "::error::unsupported release route event '$EVENT_NAME'"
+              exit 1
+              ;;
+          esac
+
+          if [ "$publish" = true ]; then
+            if [[ ! "$release_tag" =~ ^fs-gg-templates/v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::release route requires an existing fs-gg-templates/v<semver> tag; got '${release_tag:-<nothing>}'"
+              exit 1
+            fi
+          elif [ -z "$source_ref" ]; then
+            echo "::error::pull-request release-route validation has no head SHA"
+            exit 1
+          fi
+
+          {
+            echo "source-ref=$source_ref"
+            echo "release-tag=$release_tag"
+            echo "publish=$publish"
+          } >> "$GITHUB_OUTPUT"
+          echo "release route: event=$EVENT_NAME source=$source_ref publish=$publish"
+
   pack:
+    needs: route
     runs-on: ubuntu-latest
     outputs:
       package-version: ${{ steps.version.outputs.package-version }}
@@ -32,8 +112,11 @@ jobs:
       package-file: ${{ steps.version.outputs.package-file }}
     permissions:
       contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.route.outputs.source-ref }}
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
@@ -54,11 +137,13 @@ jobs:
       # than the one instance, and the post-pack assertion below proves the derivation held.
       - name: Assert tag ⇔ csproj version coherence
         id: version
+        env:
+          RELEASE_TAG: ${{ needs.route.outputs.release-tag }}
+          PUBLISH: ${{ needs.route.outputs.publish }}
         run: |
-          TAG_VERSION="${GITHUB_REF#refs/tags/fs-gg-templates/v}"
+          set -euo pipefail
           CSPROJ_VERSION="$(grep -oE '<Version>[0-9][^<]*</Version>' FS.GG.Templates.csproj | head -1 | sed -E 's#</?Version>##g')"
           CSPROJ_ID="$(grep -oE '<PackageId>[^<]+</PackageId>' FS.GG.Templates.csproj | head -1 | sed -E 's#</?PackageId>##g')"
-          echo "tag version:    $TAG_VERSION"
           echo "csproj version: $CSPROJ_VERSION"
           echo "csproj id:      $CSPROJ_ID"
           if [ -z "$CSPROJ_VERSION" ]; then
@@ -68,20 +153,26 @@ jobs:
             echo "::error::could not read <PackageId> from FS.GG.Templates.csproj. The published package id is not the project-file stem and must never be assumed to be — see FS.GG.Templates#349."
             exit 1
           fi
-          if [ "$TAG_VERSION" != "$CSPROJ_VERSION" ]; then
-            echo "::error::release tag ($TAG_VERSION) != <Version> in FS.GG.Templates.csproj ($CSPROJ_VERSION). Bump the csproj to match the tag before tagging (publish-before-flip)."
-            exit 1
+          if [ "$PUBLISH" = true ]; then
+            TAG_VERSION="${RELEASE_TAG#fs-gg-templates/v}"
+            echo "tag version:    $TAG_VERSION"
+            if [ "$TAG_VERSION" != "$CSPROJ_VERSION" ]; then
+              echo "::error::release tag ($TAG_VERSION) != <Version> in FS.GG.Templates.csproj ($CSPROJ_VERSION). Bump the csproj to match the tag before tagging (publish-before-flip)."
+              exit 1
+            fi
           fi
           {
-            echo "package-version=$TAG_VERSION"
+            echo "package-version=$CSPROJ_VERSION"
             echo "package-id=$CSPROJ_ID"
-            echo "package-file=$CSPROJ_ID.$TAG_VERSION.nupkg"
+            echo "package-file=$CSPROJ_ID.$CSPROJ_VERSION.nupkg"
           } >> "$GITHUB_OUTPUT"
 
       - name: Restore (locked)
+        if: github.event_name != 'workflow_dispatch'
         run: dotnet restore FS.GG.Templates.csproj --locked-mode
 
       - name: Pack once and checksum
+        if: github.event_name != 'workflow_dispatch'
         env:
           PACKAGE_FILE: ${{ steps.version.outputs.package-file }}
         run: |
@@ -92,25 +183,51 @@ jobs:
             -o artifacts
           (
             cd artifacts
-            # The derivation above is an ASSERTION, not a guess: `dotnet pack` is the authority on
-            # what it produced, so compare its output set against the single file this release is
-            # about to checksum, gate, publish and tag. A pack that emitted a differently-named or
-            # additional archive reds HERE, naming both sides, instead of surfacing as a feed that
-            # advertises something no one verified.
-            produced="$(find . -maxdepth 1 -name '*.nupkg' -printf '%f\n' | sort)"
-            if [ "$produced" != "$PACKAGE_FILE" ]; then
-              echo "::error::dotnet pack produced [$(echo "$produced" | tr '\n' ' ')] but this release is built around exactly '$PACKAGE_FILE' (<PackageId>.<Version> from FS.GG.Templates.csproj). Reconcile the csproj with the pack output before tagging."
-              exit 1
-            fi
             sha256sum "$PACKAGE_FILE" > SHA256SUMS
-            sha256sum --check SHA256SUMS
-            echo "release artifact: $(cat SHA256SUMS)"
           )
+
+      # Resume the bytes produced by the failed run; do not re-pack and silently replace the
+      # artifact whose successful pack/checksum is the evidence being recovered.
+      - name: Download failed run's immutable release artifact
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/download-artifact@v8
+        with:
+          pattern: fs-gg-templates-*
+          path: artifacts
+          merge-multiple: true
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ inputs.source_run_id }}
+
+      - name: Assert the one checksum-bound release archive
+        env:
+          PACKAGE_FILE: ${{ steps.version.outputs.package-file }}
+        run: |
+          cd artifacts
+          # The derivation above is an ASSERTION, not a guess: `dotnet pack` is the authority on
+          # what it produced, so compare its output set against the single file this release is
+          # about to checksum, gate, publish and tag. A pack that emitted a differently-named or
+          # additional archive reds HERE, naming both sides, instead of surfacing as a feed that
+          # advertises something no one verified.
+          produced="$(find . -maxdepth 1 -name '*.nupkg' -printf '%f\n' | sort)"
+          if [ "$produced" != "$PACKAGE_FILE" ]; then
+            echo "::error::release route contains [$(echo "$produced" | tr '\n' ' ')] but expects exactly '$PACKAGE_FILE' (<PackageId>.<Version> from FS.GG.Templates.csproj). Reconcile the source run or csproj before publishing."
+            exit 1
+          fi
+          sha256sum --check SHA256SUMS
+          source_commit="$(git -C "$GITHUB_WORKSPACE" rev-parse HEAD)"
+          package_commit="$(unzip -p "$PACKAGE_FILE" '*.nuspec' |
+            grep -oE 'repository [^>]*commit="[0-9a-f]{40}"' |
+            sed -E 's/.*commit="([0-9a-f]{40})"/\1/' | head -1)"
+          if [ -z "$package_commit" ] || [ "$package_commit" != "$source_commit" ]; then
+            echo "::error::release archive repository commit '${package_commit:-<nothing>}' != checked-out release source '$source_commit'. The replay run and immutable tag must identify the same source."
+            exit 1
+          fi
+          echo "release artifact: $(cat SHA256SUMS)"
 
       - name: Upload immutable release artifact
         uses: actions/upload-artifact@v7
         with:
-          name: fs-gg-templates-${{ github.sha }}
+          name: fs-gg-templates-${{ github.run_id }}
           path: |
             artifacts/${{ steps.version.outputs.package-file }}
             artifacts/SHA256SUMS
@@ -118,13 +235,16 @@ jobs:
           retention-days: 7
 
   gate:
-    needs: pack
+    name: release-route
+    needs: [route, pack]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: read   # pull the published FS-GG CLIs from the org feed (as composition.yml)
     steps:
       - uses: actions/checkout@v7
+        with:
+          ref: ${{ needs.route.outputs.source-ref }}
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
@@ -132,7 +252,7 @@ jobs:
       - name: Download immutable release artifact
         uses: actions/download-artifact@v8
         with:
-          name: fs-gg-templates-${{ github.sha }}
+          name: fs-gg-templates-${{ github.run_id }}
           path: artifacts
 
       - name: Verify release artifact checksum
@@ -155,13 +275,17 @@ jobs:
           install_global_tool() {
             package="$1"
             command_name="$2"
-            requested_version='latest stable'
+            requested_version="${3:-latest stable}"
             installed_version="$(dotnet tool list --global |
               awk -v package="$package" 'tolower($1) == tolower(package) { print $2; exit }')"
+            install_args=(--global "$package")
+            if [ "$requested_version" != 'latest stable' ]; then
+              install_args+=(--version "$requested_version")
+            fi
 
             if [ -n "$installed_version" ]; then
               echo "$package $installed_version is already installed; requested $requested_version."
-            elif dotnet tool install --global "$package"; then
+            elif dotnet tool install "${install_args[@]}"; then
               installed_version="$(dotnet tool list --global |
                 awk -v package="$package" 'tolower($1) == tolower(package) { print $2; exit }')"
               echo "Installed $package ${installed_version:-unknown}; requested $requested_version."
@@ -176,9 +300,14 @@ jobs:
               echo "::error title=$package unavailable::$package is listed as ${installed_version:-unknown}, but '$command_name' is not available on PATH."
               exit 1
             fi
+            if [ "$requested_version" != 'latest stable' ] && [ "$installed_version" != "$requested_version" ]; then
+              echo "::error title=$package version mismatch::$package resolved to ${installed_version:-unknown}, expected pinned release-gate version $requested_version."
+              exit 1
+            fi
           }
 
           install_global_tool FS.GG.Governance.Cli fsgg-governance
+          install_global_tool FS.GG.Governance.FSharpSurfaceCommand fsgg-fsharp-surface 1.12.1
           install_global_tool FS.GG.SDD.Cli fsgg-sdd
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
@@ -199,13 +328,15 @@ jobs:
       # each ran their own `dotnet pack`, so this job's header claim of running "against those
       # exact downloaded bytes" was true only of stages 01–06 and false of every identity lane.
       - name: Composition test the release artifact
+        if: needs.route.outputs.publish == 'true'
         env:
           FSGG_TEMPLATES_NUPKG: ${{ github.workspace }}/artifacts/${{ needs.pack.outputs.package-file }}
           COMPOSITION_LANES: console web fable-bindings fable-game
         run: tests/composition/run.sh
 
   publish:
-    needs: gate
+    needs: [route, gate]
+    if: needs.route.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write   # create the GitHub Release
@@ -219,7 +350,7 @@ jobs:
       - name: Download verified release artifact
         uses: actions/download-artifact@v8
         with:
-          name: fs-gg-templates-${{ github.sha }}
+          name: fs-gg-templates-${{ github.run_id }}
           path: artifacts
 
       - name: Verify release artifact checksum
@@ -271,15 +402,16 @@ jobs:
           # This publish job intentionally has no checkout, so gh cannot infer the repository
           # from a local .git directory.
           GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ needs.route.outputs.release-tag }}
         run: |
           # Idempotent like the --skip-duplicate push above: a re-pushed tag (or a re-run
           # after a transient failure between push and release) must not red-fail because the
           # Release already exists. Create it the first time; on a re-run re-attach the
           # artifact with --clobber instead. First publish is unchanged.
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" artifacts/*.nupkg --clobber
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" artifacts/*.nupkg --clobber
           else
-            gh release create "$GITHUB_REF_NAME" artifacts/*.nupkg \
-              --title "$GITHUB_REF_NAME" \
+            gh release create "$RELEASE_TAG" artifacts/*.nupkg \
+              --title "$RELEASE_TAG" \
               --generate-notes
           fi
