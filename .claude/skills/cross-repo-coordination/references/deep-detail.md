@@ -84,22 +84,42 @@ LIST needs it; `fsgg-coord issues` already pages for you.
 On a hit, **comment on the existing issue** rather than opening a rival — the finding's value is its
 context, and a comment carries that just as well.
 
-**End the body with a `Paths:` line.** An issue with no declared touch-set **cannot be
+**Put the touch-set in the intake draft's `paths` array.** An issue with no declared touch-set **cannot be
 scheduled**, and a request filed without one lands on the board looking like work while being
 invisible to every worker who asks for work
 ([#442](https://github.com/FS-GG/.github/issues/442): twelve items, filed by the book, none
 schedulable). You are the one holding the context — you can usually name the files better than
 the eventual claimant can. The rules the engine will hold you to are below, generated from it.
 
-```sh
-# REST: `gh issue create` is GraphQL, and the budget is shared by the whole fleet (#587).
-gh api -X POST repos/FS-GG/<target>/issues \
-  -f title='[cross-repo] <short summary>' \
-  -f 'labels[]=cross-repo' -f 'labels[]=cross-repo:request' \
-  -f body="From: <your repo>. Blocks: <ref>. Contract: <id>. <what you need and why>
-
-Paths: src/Scene/ tests/Scene/" --jq .html_url
+```json
+{
+  "schema": "fsgg.coord.intake/v1",
+  "id": "<stable-request-id>",
+  "owner": "FS-GG",
+  "repository": "<target>",
+  "title": "[cross-repo] <short summary>",
+  "observed": "From <source repo>: <what is needed and why>",
+  "rootCause": "<established contract or implementation cause>",
+  "acceptance": "<receiver-owned acceptance criteria>",
+  "verification": "<commands or evidence URLs>",
+  "paths": ["src/Scene", "tests/Scene"],
+  "class": "<defect|hardening|capability|decision>",
+  "severity": "<low|medium|high|critical>",
+  "status": "Backlog",
+  "backlogReason": "not-yet-actionable",
+  "blockedBy": "<qualified ref, only when authorship truly depends on it>",
+  "disposition": "create"
+}
 ```
+
+```sh
+scripts/fsgg-coord intake validate request-intake.json --json
+scripts/fsgg-coord intake apply request-intake.json --json
+```
+
+Omit `blockedBy` when there is no real dependency. The transaction composes `Paths:`, `Class:`, and
+the other body projections from validated fields and returns the canonical issue ref. Do not hand-author
+those lines or bypass this path with a direct issue-creation command.
 
 ### The rules your filing must satisfy
 
@@ -119,8 +139,8 @@ sentinel — so an omission is caught rather than sitting on the board looking l
 ```sh
 scripts/fsgg-coord issues <repo> --label cross-repo   # REST + ETag: 0 GraphQL, free on repeat.
                                                       # `gh issue list` costs 2 pts to say the same thing.
-# Post the response over REST — `gh issue comment` is GraphQL and spends the shared fleet budget.
-gh api -X POST repos/FS-GG/<repo>/issues/<n>/comments -f body="## Response ..."
+# Save the `## Response` body in an owned file. The typed verb posts it over REST and verifies readback.
+scripts/fsgg-coord comment create FS-GG/<repo>#<n> FS-GG/<repo>#<n> <owned-response-file> --text
 ```
 
 ## Track on the Coordination board (Projects v2)
@@ -309,7 +329,7 @@ by printing a success line; **earn** it — have the tool confirm both facts fir
 ```sh
 scripts/fsgg-coord done <issue>            # verify BOTH; green FSGG-DONE stamp (exit 0) or
                                            # red FSGG-NOT-DONE stamp naming the failing check (exit 1)
-scripts/fsgg-coord done <issue> --flip     # once the PR is merged, also set Status=Done, then stamp
+scripts/fsgg-coord delivery <issue> --pr <pr> --flip --apply  # verify the merge, receipt it, then project Done
 scripts/fsgg-coord done <issue> --pr <N>   # name the closing PR explicitly (else the first merged closer)
 ```
 
@@ -383,7 +403,7 @@ wrong and the registry advertises a version the feed can't serve. The universal 
    (e.g. `FS.GG.Templates` → `providers/<provider>.providers.yml` `source: <PkgId>::<V>`); its
    own CI (e.g. `composition`) must pass.
 4. **Land + record.** Merge both PRs, confirm the producer issue closed, then close out each board
-   item with `scripts/fsgg-coord done <issue> --flip` (see *Signal an item is finished*) — it flips
+   item with `scripts/fsgg-coord delivery <issue> --pr <pr> --flip --apply` (see *Signal an item is finished*) — it flips
    `Status: Done` only after re-confirming the merge, the green stamp is your proof, and the parent
    epic rolls up to `Done` on its own once the last child stamps green.
 
