@@ -22,9 +22,12 @@ for locked in \
 do
   [[ -f "$locked/packages.lock.json" ]] || missing+=("$locked/packages.lock.json")
 done
+for locked in Client/package-lock.json Browser.Tests/package-lock.json; do
+  [[ -f "$locked" ]] || missing+=("$locked")
+done
 if (( ${#missing[@]} > 0 )); then
   {
-    echo "build.sh: refusing to restore — this workspace shipped without NuGet lockfiles:"
+    echo "build.sh: refusing to restore — this workspace shipped without required dependency lockfiles:"
     printf '  missing: %s\n' "${missing[@]}"
     echo "A --locked-mode restore would not fail on this; it would AUTHOR a lock from"
     echo "whatever this machine resolves, which is exactly how FS.GG.Templates#380"

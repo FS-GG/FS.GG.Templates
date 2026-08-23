@@ -28,6 +28,7 @@ test -f "$work/scaffold/Client/Client.fsproj"
 test -f "$work/scaffold/Client/package.json"
 test -f "$work/scaffold/Browser.Tests/two-client.spec.ts"
 test -f "$work/scaffold/Protocol.Tests/cross-runtime/run-cross-runtime.sh"
+node "$root/tests/composition/fable-game/verify-workspace-integrity.mjs" "$work/scaffold" --self-test --audit
 
 # ── Owner-sourced product skills reach the PACKED product (FS.GG.Templates#347) ────────────────
 # Asserted here, against the scaffold produced from the packed-and-installed nupkg above, because
@@ -59,6 +60,18 @@ test -f "$work/scaffold/Browser.Tests/package-lock.json"
   test -s artifacts/test-results/protocol.trx
   test -s artifacts/test-results/server.trx
   test -s artifacts/test-results/browser.junit.xml
+  # Generated output belongs to the product build, not source control.
+  git init -q
+  git add -A
+  git -c user.name='FS.GG composition' -c user.email='composition@fs.gg' commit -qm baseline
+  ignored="$(git status --ignored --short)"
+  [[ "$ignored" == *$'!! artifacts/'* ]]
+  [[ "$ignored" == *$'!! Client/dist/'* ]]
+  visible="$(git status --short)"
+  if [[ -n "$visible" ]]; then
+    printf 'fable-game composition: generated outputs visible to Git:\n%s\n' "$visible" >&2
+    exit 1
+  fi
 )
 
 # Prove the declared provider contract through SDD with distinct raw and identifier

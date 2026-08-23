@@ -8,13 +8,12 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Workspace.Template</PackageId>
-    <!-- 0.8.1 → 0.8.2 because FS.GG.Templates#385 updates the packed README after 0.8.1 was
-         published; leaving the version unchanged would give two package payloads one identity.
-         This PR changes no template identity, parameter, or generated-product file, so PATCH is
-         sufficient. The resulting release also carries the template changes already merged on
-         main since v0.8.1; the post-merge dual-feed obligation therefore verifies the complete
-         candidate rather than treating this README-only delta as the whole release. -->
-    <Version>0.8.2</Version>
+    <!-- 0.8.2 → 0.8.3 because FS.GG.Templates#418 changes the generated fable-game workspace
+         while 0.8.2 is already public; leaving the version unchanged would give two package
+         payloads one identity. The integrity checks and generated-output exclusions are
+         additive hardening and do not change a template identity or parameter, so PATCH is
+         sufficient. The post-merge dual-feed obligation verifies the complete candidate. -->
+    <Version>0.8.3</Version>
     <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new workspace templates for FS.GG.SDD: governance, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</Description>
