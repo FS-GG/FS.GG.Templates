@@ -35,7 +35,7 @@
 // catalog declares, with the same values — no field missing, none added. Every row must also carry
 // a `scope`, because that is the field the ownership half is decided on. A product-scoped row
 // outside this catalog is foreign only when `supplied-by` is a valid path outside this producer's
-// `template/product-skills/` namespace. Public SDD 1.2.4 preserves that producer attribution when
+// `template/product-skills` namespace. Public SDD 1.2.5 preserves that producer attribution when
 // it adds Rendering-owned rows such as `fs-gg-feedback-report`. This keeps the whole of what
 // byte-equality was protecting — "its digests describe THIS catalog" — while permitting rows that
 // explicitly name another supplier. An unattributed/malformed row, or an unknown row claiming this
@@ -134,10 +134,10 @@ let schemaVersionOf (text: string) =
 
 type SupplierOwnership = TemplatesOwned | Foreign | Invalid
 
-let templatesSupplierRoot = "template/product-skills/"
+let templatesSupplierRoot = "template/product-skills"
 
 /// Supplier attribution is a relative producer path, not merely a non-empty scalar. In particular,
-/// an unknown row under this producer's `template/product-skills/` namespace remains this producer's
+/// an unknown row at or under this producer's `template/product-skills` namespace remains this producer's
 /// claim and must red; only a valid path outside that namespace establishes foreign ownership.
 let classifySupplier (supplier: string) =
     if String.IsNullOrWhiteSpace supplier
@@ -150,7 +150,8 @@ let classifySupplier (supplier: string) =
         let normalized = supplier.TrimEnd '/'
         let segments = normalized.Split('/', StringSplitOptions.None)
         if segments |> Array.exists (fun segment -> String.IsNullOrWhiteSpace segment || segment <> segment.Trim() || segment = "." || segment = "..") then Invalid
-        elif supplier.StartsWith(templatesSupplierRoot, StringComparison.Ordinal) then TemplatesOwned
+        elif supplier = templatesSupplierRoot
+             || supplier.StartsWith(templatesSupplierRoot + "/", StringComparison.Ordinal) then TemplatesOwned
         else Foreign
 
 /// Keep this read separate from `parseRows`: that comparison intentionally preserves raw scalar
@@ -437,9 +438,13 @@ let demonstrateAssertion () =
             (Some "carries no valid foreign 'supplied-by' path") (Some(manifestOf (renderedRows @ [ foreignRow "product" "forged-skill" "always" ])))
             (materialized @ [ ("forged-skill", driverBody "forged-skill") ]) []
         case "an unknown product row claiming this producer's supplier namespace"
-            (Some "claims this producer's 'template/product-skills/' namespace")
+            (Some "claims this producer's 'template/product-skills' namespace")
             (Some(manifestOf (renderedRows @ [ suppliedForeignRow "product" "forged-skill" "always" "template/product-skills/forged-skill/" ])))
             (materialized @ [ ("forged-skill", driverBody "forged-skill") ]) []
+        case "an unknown product row claiming this producer's exact supplier root"
+            (Some "claims this producer's 'template/product-skills' namespace")
+            (Some(manifestOf (renderedRows @ [ suppliedForeignRow "product" "forged-root-skill" "always" "template/product-skills" ])))
+            (materialized @ [ ("forged-root-skill", driverBody "forged-root-skill") ]) []
         // A row that omits `scope` ALTOGETHER. `scope` is the field the ownership half is decided on,
         // so an absent one used to fall through to "somebody else's row" and pass — the same
         // unreadable-form-graded-as-a-negative shape as the `always` defect, one field over (repair 1).
