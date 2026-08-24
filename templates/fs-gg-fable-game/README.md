@@ -40,6 +40,29 @@ stale-input guard (a non-increasing input sequence is dropped) and the
 disconnect/reconnect contract: a reconnecting client always gets a bounded, full
 authoritative resync, never a delta log.
 
+The realtime baseline has four deliberately small but production-relevant rules:
+
+- Bootstrap issues an opaque session capability. The hub URL carries neither player
+  identity nor capability; the client sends a versioned `sessionHello` only after the
+  SignalR transport opens, and the server rejects unknown, duplicate-live, or
+  incompatible bindings.
+- A reconnect performs that hello again and receives one full authoritative snapshot.
+  Explicit resync cursors are accepted only from zero through the current tick; a
+  negative or future cursor is rejected instead of being treated as a valid frontier.
+  Client transport callbacks only dispatch Elmish messages, making connecting,
+  reconnecting, closed, and failed states explicit rather than retaining a hidden
+  second UI state.
+- Inputs are admitted at hub arrival but resolve at the next server tick frontier,
+  sorted by player identity and sequence. Transport scheduling therefore cannot decide
+  gameplay order; snapshots with an older tick cannot rewind the client view.
+- Admission is bounded to the arena's 240 cells, with no occupied-cell fallback. A
+  bootstrap that would exceed that bound returns HTTP 429. Unbound and disconnected
+  capabilities expire after two minutes; the tick loop cleans them up and releases
+  their reserved authority.
+- `stop`/disconnect removes a connection's group membership and room presence. The
+  capability remains available for its bounded reconnect window, keeping the starter
+  zero-config while making the resource boundary visible and testable.
+
 ## Running it
 
 Two terminals for development: `dotnet run --project Server/Server.fsproj` and

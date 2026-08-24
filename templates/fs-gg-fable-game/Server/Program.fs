@@ -30,8 +30,7 @@ type TickBroadcaster(hub: IHubContext<GameHub>, configuration: IConfiguration) =
         task {
             while not stoppingToken.IsCancellationRequested do
                 do! Task.Delay(TimeSpan.FromMilliseconds intervalMilliseconds, stoppingToken)
-                RoomAuthority.advanceTick ()
-                let tick, players = RoomAuthority.snapshot ()
+                let tick, players = RoomAuthority.advanceTick ()
                 let snapshot: RealtimeV1.Snapshot =
                     { Version = 1; Tick = tick; Players = players |> List.map (fun (pid, col, row) -> { PlayerId = pid; Col = col; Row = row }) }
                 do! hub.Clients.Group(RoomAuthority.RoomId).SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.SnapshotMessage snapshot))
@@ -50,16 +49,18 @@ type Program() =
 
 module Program =
 
-    let bootstrap (request: BootstrapV1.Request) : BootstrapV1.Response =
+    let bootstrap (request: BootstrapV1.Request) : Result<BootstrapV1.Response, RoomAuthority.AdmissionError> =
         let playerId = Guid.NewGuid().ToString "N"
-        let spawn = RoomAuthority.join playerId
-        { Version = 1
-          PlayerId = playerId
-          RoomId = RoomAuthority.RoomId
-          SpawnCol = spawn.Col
-          SpawnRow = spawn.Row
-          ArenaWidth = RoomAuthority.ArenaWidth
-          ArenaHeight = RoomAuthority.ArenaHeight }
+        RoomAuthority.createSession playerId
+        |> Result.map (fun (capability, spawn) ->
+            { Version = 1
+              PlayerId = playerId
+              SessionCapability = capability
+              RoomId = RoomAuthority.RoomId
+              SpawnCol = spawn.Col
+              SpawnRow = spawn.Row
+              ArenaWidth = RoomAuthority.ArenaWidth
+              ArenaHeight = RoomAuthority.ArenaHeight })
 
     [<EntryPoint>]
     let main args =
@@ -79,9 +80,14 @@ module Program =
                     let! body = reader.ReadToEndAsync()
                     match BootstrapV1.requestFromJson body with
                     | Error message -> return Results.BadRequest {| error = message |}
+                    | Ok parsed when parsed.Version <> 1 -> return Results.BadRequest {| error = "unsupported bootstrap version" |}
                     | Ok parsed ->
-                        let response = bootstrap parsed
-                        return Results.Text(BootstrapV1.encodeResponse response, "application/json")
+                        match bootstrap parsed with
+                        | Ok response -> return Results.Text(BootstrapV1.encodeResponse response, "application/json")
+                        | Error error ->
+                            return Results.Json(
+                                {| error = RoomAuthority.admissionError error |},
+                                statusCode = StatusCodes.Status429TooManyRequests)
                 })
         )
         |> ignore

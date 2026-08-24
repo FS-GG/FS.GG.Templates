@@ -76,7 +76,7 @@ expect_ok "bootstrap-response: fable encode" fbl encode-bootstrap-response "$TMP
 expect_ok "bootstrap-response: net decodes fable's encoding" net decode-bootstrap-response "$TMP/res-fable.json"
 
 # Every RealtimeV1.Message case, both directions -- this is the "arbitrary DU" boundary.
-for case_name in input snapshot presence resyncRequest resyncSnapshot; do
+for case_name in input sessionHello snapshot presence resyncRequest resyncSnapshot; do
   expect_ok "realtime[$case_name]: net encode" net encode-realtime "$case_name" "$TMP/rt-net-$case_name.json"
   expect_ok "realtime[$case_name]: fable decodes net's encoding" fbl decode-realtime "$case_name" "$TMP/rt-net-$case_name.json"
   expect_ok "realtime[$case_name]: fable encode" fbl encode-realtime "$case_name" "$TMP/rt-fable-$case_name.json"

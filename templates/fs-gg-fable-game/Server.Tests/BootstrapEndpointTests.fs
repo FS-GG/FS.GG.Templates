@@ -1,5 +1,7 @@
 module FableGameWorkspaceNamespace.Server.Tests.BootstrapEndpointTests
 
+open System
+open System.Net
 open System.Net.Http
 open System.Text
 open Microsoft.AspNetCore.Mvc.Testing
@@ -62,6 +64,44 @@ type BootstrapEndpointTests() =
             use content = new StringContent("""{"version":1}""", Encoding.UTF8, "application/json")
             use! response = client.PostAsync("/api/bootstrap", content)
             Assert.Equal(System.Net.HttpStatusCode.BadRequest, response.StatusCode)
+        }
+
+    [<Fact>]
+    member _.``bootstrap admission is bounded and expired unbound sessions release their cells``() =
+        task {
+            use client = factory.CreateClient()
+            let call index =
+                task {
+                    let request: BootstrapV1.Request = { Version = 1; PlayerName = $"player-{index}" }
+                    use content = new StringContent(BootstrapV1.encodeRequest request, Encoding.UTF8, "application/json")
+                    use! response = client.PostAsync("/api/bootstrap", content)
+                    let! body = response.Content.ReadAsStringAsync()
+                    return response.StatusCode, body
+                }
+
+            let cells = ResizeArray<int * int>()
+            for index in 1 .. RoomAuthority.MaxSessions do
+                let! status, body = call index
+                Assert.Equal(HttpStatusCode.OK, status)
+                match BootstrapV1.responseFromJson body with
+                | Ok response -> cells.Add(response.SpawnCol, response.SpawnRow)
+                | Error error -> Assert.Fail $"accepted bootstrap did not decode: {error}"
+
+            Assert.Equal(RoomAuthority.MaxSessions, cells.Count)
+            Assert.Equal(RoomAuthority.MaxSessions, cells |> Seq.distinct |> Seq.length)
+
+            let! overflowStatus, overflowBody = call (RoomAuthority.MaxSessions + 1)
+            Assert.Equal(HttpStatusCode.TooManyRequests, overflowStatus)
+            Assert.Contains("session capacity reached", overflowBody)
+
+            RoomAuthority.expireSessionsAt(DateTimeOffset.UtcNow.Add(RoomAuthority.SessionLifetime).AddSeconds 1.0)
+            let! recoveredStatus, recoveredBody = call (RoomAuthority.MaxSessions + 2)
+            Assert.Equal(HttpStatusCode.OK, recoveredStatus)
+            match BootstrapV1.responseFromJson recoveredBody with
+            | Ok response ->
+                Assert.InRange(response.SpawnCol, 0, RoomAuthority.ArenaWidth - 1)
+                Assert.InRange(response.SpawnRow, 0, RoomAuthority.ArenaHeight - 1)
+            | Error error -> Assert.Fail $"bootstrap after expiry did not decode: {error}"
         }
 
     interface System.IDisposable with
