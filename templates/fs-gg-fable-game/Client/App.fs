@@ -205,9 +205,13 @@ module App =
         grid.setAttribute ("aria-label", "Game board")
         grid.setAttribute ("aria-rowcount", string model.ArenaHeight)
         grid.setAttribute ("aria-colcount", string model.ArenaWidth)
-        grid.setAttribute ("style", $"display:grid;grid-template-columns:repeat({model.ArenaWidth},24px)")
+        grid.setAttribute ("style", "display:inline-flex;flex-direction:column")
         let mutable built = Map.empty
         for row in 0 .. model.ArenaHeight - 1 do
+            let rowElement = Browser.Dom.document.createElement "div"
+            rowElement.setAttribute ("role", "row")
+            rowElement.setAttribute ("aria-rowindex", string (row + 1))
+            rowElement.setAttribute ("style", "display:flex")
             for col in 0 .. model.ArenaWidth - 1 do
                 let cell: Cell = { Col = col; Row = row }
                 let el = Browser.Dom.document.createElement "div"
@@ -221,8 +225,9 @@ module App =
                 el.addEventListener ("focus", (fun _ ->
                     for KeyValue(_, other) in cellElements do
                         other.tabIndex <- if obj.ReferenceEquals(other, el) then 0 else -1))
-                grid.appendChild el |> ignore
+                rowElement.appendChild el |> ignore
                 built <- built |> Map.add cell el
+            grid.appendChild rowElement |> ignore
         container.appendChild grid |> ignore
         cellElements <- built
 

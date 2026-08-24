@@ -80,8 +80,21 @@ test("two keyboard-driven browser contexts see each other's authoritative moves 
     await expect(pageB.locator(`[data-occupant="${playerIdA}"]`)).toHaveClass(/other/);
     await expect(pageA.getByRole("status")).toContainText("synchronized");
     await expect(pageA.locator("#presence")).toContainText("Players present: 2");
-    await expect(pageA.getByRole("grid", { name: "Game board" })).toHaveAttribute("aria-rowcount", "12");
-    await expect(pageA.getByRole("gridcell")).toHaveCount(240);
+    const gameGrid = pageA.getByRole("grid", { name: "Game board" });
+    await expect(gameGrid).toHaveAttribute("aria-rowcount", "12");
+    await expect(gameGrid.getByRole("row")).toHaveCount(12);
+    await expect(gameGrid.locator(':scope > [role="row"]')).toHaveCount(12);
+    await expect(gameGrid.getByRole("gridcell")).toHaveCount(240);
+    for (const row of await gameGrid.getByRole("row").all()) {
+      await expect(row.getByRole("gridcell")).toHaveCount(20);
+      await expect(row.locator(':scope > [role="gridcell"]')).toHaveCount(20);
+    }
+    const gridAccessibility = await gameGrid.ariaSnapshot();
+    await testInfo.attach("game-grid-accessibility", {
+      body: Buffer.from(gridAccessibility),
+      contentType: "text/yaml"
+    });
+    expect(gridAccessibility.split("\n").filter(line => /^- '?row(?:\s|\")/.test(line.trimStart()))).toHaveLength(12);
 
     const ownCellOnA = pageA.locator(`[data-occupant="${playerIdA}"]`);
     const startCellAttr = await ownCellOnA.getAttribute("data-cell");
