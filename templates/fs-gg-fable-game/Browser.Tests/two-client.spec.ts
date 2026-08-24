@@ -1,4 +1,31 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
+
+type BrowserDiagnostic = { kind: "console" | "pageerror" | "requestfailed"; detail: string };
+
+const expectedConsolePatterns = [
+  /^info: \[.+] Information: Normalizing '\/hub\/game' to 'http:\/\/127\.0\.0\.1:5100\/hub\/game'\.$/,
+  /^info: \[.+] Information: WebSocket connected to ws:\/\/127\.0\.0\.1:5100\/hub\/game\?id=.+\.$/
+];
+
+function observeDiagnostics(page: Page, diagnostics: BrowserDiagnostic[], expectedConsole: string[]): void {
+  page.on("console", message => {
+    const detail = `${message.type()}: ${message.text()}`;
+    if (expectedConsolePatterns.some(pattern => pattern.test(detail))) expectedConsole.push(detail);
+    else diagnostics.push({ kind: "console", detail });
+  });
+  page.on("pageerror", error => diagnostics.push({ kind: "pageerror", detail: error.message }));
+  page.on("requestfailed", request => diagnostics.push({
+    kind: "requestfailed",
+    detail: `${request.method()} ${request.url()}: ${request.failure()?.errorText ?? "unknown failure"}`
+  }));
+}
+
+async function attachDiagnostics(testInfo: TestInfo, diagnostics: BrowserDiagnostic[], expectedConsole: string[]): Promise<void> {
+  await testInfo.attach("browser-diagnostics", {
+    body: Buffer.from(JSON.stringify({ diagnostics, expectedConsole }, null, 2)),
+    contentType: "application/json"
+  });
+}
 
 // The Playwright two-client scenario #348's acceptance names: two independent browser
 // *contexts* (not two tabs sharing storage/cookies -- two genuinely separate clients,
@@ -6,12 +33,23 @@ import { expect, test } from "@playwright/test";
 // request/response call (the bootstrap fetch each page performs on load) and one
 // SignalR real-time flow (client A's input, broadcast to client B as an authoritative
 // snapshot) end to end against the real published server.
-test("two independent browser contexts see each other's authoritative moves over SignalR", async ({ browser }) => {
+test("two keyboard-driven browser contexts see each other's authoritative moves over SignalR", async ({ browser, request }, testInfo) => {
+  const diagnostics: BrowserDiagnostic[] = [];
+  const expectedConsole: string[] = [];
+  const preflight = await request.get("/");
+  expect(preflight.status()).toBe(200);
+  expect(preflight.headers()["content-type"]).toContain("text/html");
+  await testInfo.attach("two-client-preflight", {
+    body: Buffer.from(JSON.stringify({ url: preflight.url(), status: preflight.status(), contentType: preflight.headers()["content-type"] })),
+    contentType: "application/json"
+  });
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
   try {
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
+    observeDiagnostics(pageA, diagnostics, expectedConsole);
+    observeDiagnostics(pageB, diagnostics, expectedConsole);
 
     await pageA.goto("/");
     await pageB.goto("/");
@@ -40,6 +78,10 @@ test("two independent browser contexts see each other's authoritative moves over
     await expect(pageA.locator(`[data-occupant="${playerIdB}"]`)).toHaveClass(/other/);
     await expect(pageB.locator(`[data-occupant="${playerIdB}"]`)).toHaveClass(/self/);
     await expect(pageB.locator(`[data-occupant="${playerIdA}"]`)).toHaveClass(/other/);
+    await expect(pageA.getByRole("status")).toContainText("synchronized");
+    await expect(pageA.locator("#presence")).toContainText("Players present: 2");
+    await expect(pageA.getByRole("grid", { name: "Game board" })).toHaveAttribute("aria-rowcount", "12");
+    await expect(pageA.getByRole("gridcell")).toHaveCount(240);
 
     const ownCellOnA = pageA.locator(`[data-occupant="${playerIdA}"]`);
     const startCellAttr = await ownCellOnA.getAttribute("data-cell");
@@ -53,11 +95,17 @@ test("two independent browser contexts see each other's authoritative moves over
     const targetCol = startCol;
     const targetRow = startRow + 1;
 
-    // Client A drives one authoritative move: a click dispatches CellClicked, which
+    // Client A drives one authoritative move through the keyboard surface: focus plus
+    // Enter dispatches CellClicked, which
     // sends a SignalR "input" message; the server (RoomAuthority, GameHub) is the sole
     // authority that decides whether it is applied and broadcasts the resulting
     // snapshot to the whole room, including client B.
-    await pageA.locator(`[data-cell="${targetCol}-${targetRow}"]`).click();
+    const targetCell = pageA.locator(`[data-cell="${targetCol}-${targetRow}"]`);
+    await ownCellOnA.focus();
+    await ownCellOnA.press("ArrowDown");
+    await expect(targetCell).toBeFocused();
+    await expect(targetCell).toHaveAttribute("aria-label", /empty/);
+    await targetCell.press("Enter");
 
     // Client B never talked to client A directly -- this assertion only passes if the
     // server's SignalR broadcast actually reached client B's independent connection.
@@ -65,8 +113,14 @@ test("two independent browser contexts see each other's authoritative moves over
     // The move is authoritative, so client A's own view reflects the same committed
     // position too (not merely its own optimistic preview).
     await expect(pageA.locator(`[data-occupant="${playerIdA}"]`)).toHaveAttribute("data-cell", `${targetCol}-${targetRow}`);
+    await expect(pageA.locator("#arena")).toHaveAttribute("data-grid-cell-count", "240");
+    await expect(pageA.locator("#arena")).toHaveAttribute("data-grid-build-count", "1");
   } finally {
+    await attachDiagnostics(testInfo, diagnostics, expectedConsole);
     await contextA.close();
     await contextB.close();
   }
+  expect(expectedConsole.filter(message => message.includes("Normalizing"))).toHaveLength(2);
+  expect(expectedConsole.filter(message => message.includes("WebSocket connected"))).toHaveLength(2);
+  expect(diagnostics, "unexpected browser diagnostics").toEqual([]);
 });

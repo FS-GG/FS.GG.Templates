@@ -6,8 +6,9 @@
     <title>FableGameWorkspace</title>
     <style>
       body { font-family: system-ui, sans-serif; background: #10131a; color: #e8e8e8; }
-      #status { font-size: 0.9rem; opacity: 0.8; }
-      .cell { width: 24px; height: 24px; box-sizing: border-box; border: 1px solid #2a2f3a; cursor: pointer; }
+      #status, #presence { font-size: 0.9rem; opacity: 0.9; }
+      .cell { width: 24px; height: 24px; box-sizing: border-box; border: 1px solid #737b8c; cursor: pointer; }
+      .cell:focus-visible { outline: 3px solid #fff; outline-offset: 2px; position: relative; z-index: 1; }
       .cell.self { background: #3fa7ff; }
       .cell.other { background: #ff7043; }
       .cell.preview { outline: 2px dashed #ffd54f; outline-offset: -2px; }
@@ -16,9 +17,11 @@
   <body>
     <main>
       <h1>FableGameWorkspace</h1>
-      <p id="status">Loading…</p>
+      <p id="status" role="status" aria-live="polite" aria-atomic="true">Loading…</p>
+      <p id="tick" aria-live="off">Tick 0</p>
+      <p id="presence">Players present: 0.</p>
       <p id="player-id" hidden></p>
-      <div id="arena"></div>
+      <div id="arena" aria-busy="true"></div>
     </main>
     <script type="module" src="./output/Program.js"></script>
   </body>
