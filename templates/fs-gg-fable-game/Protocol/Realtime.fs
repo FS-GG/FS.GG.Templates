@@ -32,9 +32,10 @@ module RealtimeV1 =
 
     type Presence = { Version: int; PlayerId: string; Joined: bool }
 
-    /// Sent by a reconnecting client so the server can decide whether a delta would
-    /// suffice; this template always answers with a full `ResyncSnapshotMessage`
-    /// (a *bounded* full resync, not a delta log) per #348's acceptance.
+    /// Sent by a reconnecting client so the server can validate its deterministic
+    /// frontier. This template rejects negative/future cursors and answers every
+    /// reached frontier with one full `ResyncSnapshotMessage` (a bounded resync,
+    /// never an unbounded delta log) per #348's acceptance.
     type ResyncRequest = { Version: int; LastKnownTick: int }
 
     /// The hub message envelope. This is the deliberate "arbitrary DU" boundary case

@@ -50,7 +50,10 @@ type GameHubTests() =
             return! tcs.Task
         }
 
-    let bootstrap name = Program.bootstrap { Version = 1; PlayerName = name }
+    let bootstrap name =
+        match Program.bootstrap { Version = 1; PlayerName = name } with
+        | Ok response -> response
+        | Error error -> failwith $"bootstrap unexpectedly rejected: {RoomAuthority.admissionError error}"
 
     let hello (connection: HubConnection) capability =
         let json = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 1; SessionCapability = capability })
@@ -93,6 +96,64 @@ type GameHubTests() =
             let badVersion = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 2; SessionCapability = "not-issued" })
             let! versionError = Assert.ThrowsAsync<HubException>(fun () -> connection.InvokeAsync("SendMessage", badVersion))
             Assert.Contains("unsupported realtime version", versionError.Message)
+            do! connection.StopAsync()
+        }
+
+    [<Fact>]
+    member _.``a rejected second hello does not consume or strand its capability``() =
+        task {
+            let firstResponse = bootstrap "p-first-binding"
+            let secondResponse = bootstrap "p-second-binding"
+            use first = buildConnection ()
+            let firstWaiting = nextMatching first (function | RealtimeV1.ResyncSnapshotMessage _ -> true | _ -> false)
+            do! first.StartAsync()
+            do! hello first firstResponse.SessionCapability
+            let! _ = firstWaiting
+
+            let! rejected =
+                Assert.ThrowsAsync<HubException>(fun () -> hello first secondResponse.SessionCapability)
+            Assert.Contains("only one session", rejected.Message)
+            do! first.StopAsync()
+
+            use second = buildConnection ()
+            let secondWaiting = nextMatching second (function | RealtimeV1.ResyncSnapshotMessage _ -> true | _ -> false)
+            do! second.StartAsync()
+            do! hello second secondResponse.SessionCapability
+            let! rebound = secondWaiting
+            match rebound with
+            | RealtimeV1.ResyncSnapshotMessage snapshot ->
+                Assert.Contains(snapshot.Players, fun player -> player.PlayerId = secondResponse.PlayerId)
+            | other -> Assert.Fail $"expected second capability to remain usable, got {other}"
+            do! second.StopAsync()
+        }
+
+    [<Fact>]
+    member _.``resync rejects an inconsistent future cursor and accepts a reached frontier``() =
+        task {
+            let! _, connection, initial = startBound "p-resync-cursor"
+            use connection = connection
+            let initialTick =
+                match initial with
+                | RealtimeV1.ResyncSnapshotMessage snapshot -> snapshot.Tick
+                | other -> failwith $"expected initial resync, got {other}"
+
+            let future =
+                RealtimeV1.encodeMessage (
+                    RealtimeV1.ResyncRequestMessage { Version = 1; LastKnownTick = Int32.MaxValue }
+                )
+            let! rejected = Assert.ThrowsAsync<HubException>(fun () -> connection.InvokeAsync("SendMessage", future))
+            Assert.Contains("inconsistent resync cursor", rejected.Message)
+
+            let waiting = nextMatching connection (function | RealtimeV1.ResyncSnapshotMessage _ -> true | _ -> false)
+            let reached =
+                RealtimeV1.encodeMessage (
+                    RealtimeV1.ResyncRequestMessage { Version = 1; LastKnownTick = initialTick }
+                )
+            do! connection.InvokeAsync("SendMessage", reached)
+            let! response = waiting
+            match response with
+            | RealtimeV1.ResyncSnapshotMessage snapshot -> Assert.True(snapshot.Tick >= initialTick)
+            | other -> Assert.Fail $"expected bounded resync snapshot, got {other}"
             do! connection.StopAsync()
         }
 

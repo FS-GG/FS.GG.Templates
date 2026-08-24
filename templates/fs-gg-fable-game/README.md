@@ -47,15 +47,21 @@ The realtime baseline has four deliberately small but production-relevant rules:
   SignalR transport opens, and the server rejects unknown, duplicate-live, or
   incompatible bindings.
 - A reconnect performs that hello again and receives one full authoritative snapshot.
+  Explicit resync cursors are accepted only from zero through the current tick; a
+  negative or future cursor is rejected instead of being treated as a valid frontier.
   Client transport callbacks only dispatch Elmish messages, making connecting,
   reconnecting, closed, and failed states explicit rather than retaining a hidden
   second UI state.
 - Inputs are admitted at hub arrival but resolve at the next server tick frontier,
   sorted by player identity and sequence. Transport scheduling therefore cannot decide
   gameplay order; snapshots with an older tick cannot rewind the client view.
+- Admission is bounded to the arena's 240 cells, with no occupied-cell fallback. A
+  bootstrap that would exceed that bound returns HTTP 429. Unbound and disconnected
+  capabilities expire after two minutes; the tick loop cleans them up and releases
+  their reserved authority.
 - `stop`/disconnect removes a connection's group membership and room presence. The
-  capability remains available for its ordinary reconnect lifecycle, keeping the
-  starter zero-config while making the resource boundary visible and testable.
+  capability remains available for its bounded reconnect window, keeping the starter
+  zero-config while making the resource boundary visible and testable.
 
 ## Running it
 

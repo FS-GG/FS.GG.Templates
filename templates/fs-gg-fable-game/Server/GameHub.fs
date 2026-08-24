@@ -43,15 +43,17 @@ type GameHub() =
             | Ok(RealtimeV1.SessionHelloMessage hello) when hello.Version <> 1 ->
                 raise (HubException "unsupported realtime version")
             | Ok(RealtimeV1.SessionHelloMessage hello) ->
-                match binding this, RoomAuthority.activateSession hello.SessionCapability this.Context.ConnectionId with
-                | Some _, _ -> raise (HubException "a hub connection may bind only one session")
-                | None, Some(playerId, tick, players) ->
-                    this.Context.Items["playerId"] <- playerId
-                    do! this.Groups.AddToGroupAsync(this.Context.ConnectionId, RoomAuthority.RoomId)
-                    do! this.Clients.Caller.SendAsync("Message", snapshotMessage (tick, players))
-                    let presence: RealtimeV1.Presence = { Version = 1; PlayerId = playerId; Joined = true }
-                    do! this.Clients.OthersInGroup(RoomAuthority.RoomId).SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.PresenceMessage presence))
-                | None, None -> raise (HubException "unknown or already-active game session")
+                match binding this with
+                | Some _ -> raise (HubException "a hub connection may bind only one session")
+                | None ->
+                    match RoomAuthority.activateSession hello.SessionCapability this.Context.ConnectionId with
+                    | Some(playerId, tick, players) ->
+                        this.Context.Items["playerId"] <- playerId
+                        do! this.Groups.AddToGroupAsync(this.Context.ConnectionId, RoomAuthority.RoomId)
+                        do! this.Clients.Caller.SendAsync("Message", snapshotMessage (tick, players))
+                        let presence: RealtimeV1.Presence = { Version = 1; PlayerId = playerId; Joined = true }
+                        do! this.Clients.OthersInGroup(RoomAuthority.RoomId).SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.PresenceMessage presence))
+                    | None -> raise (HubException "unknown, expired, or already-active game session")
             | Ok(RealtimeV1.InputMessage input) when input.Version <> 1 ->
                 raise (HubException "unsupported realtime version")
             | Ok(RealtimeV1.InputMessage input) ->
@@ -63,12 +65,15 @@ type GameHub() =
                     // broadcasting here would make hub-arrival order a game rule.
             | Ok(RealtimeV1.ResyncRequestMessage request) when request.Version <> 1 ->
                 raise (HubException "unsupported realtime version")
-            | Ok(RealtimeV1.ResyncRequestMessage _) ->
+            | Ok(RealtimeV1.ResyncRequestMessage request) ->
                 match binding this with
                 | None -> raise (HubException "session hello is required before resync")
                 | Some _ ->
-                    // Always a bounded full authoritative resync, never a delta log.
-                    do! this.Clients.Caller.SendAsync("Message", snapshotMessage (RoomAuthority.snapshot ()))
+                    match RoomAuthority.resyncFrom request.LastKnownTick with
+                    | Error message -> raise (HubException message)
+                    | Ok snapshot ->
+                        // Always one bounded full authoritative resync, never a delta log.
+                        do! this.Clients.Caller.SendAsync("Message", snapshotMessage snapshot)
             | Ok(RealtimeV1.SnapshotMessage _)
             | Ok(RealtimeV1.PresenceMessage _)
             | Ok(RealtimeV1.ResyncSnapshotMessage _) ->
