@@ -15,7 +15,7 @@ import re
 import shutil
 import tempfile
 
-LANES = ("none", "sdd", "typed-sdd")
+LANES = ("none", "sdd", "typed-sdd", "spec-kit")
 PROVIDER = re.compile(r"^  - name:\s*(\S+)", re.MULTILINE)
 TEMPLATE = re.compile(r"^    templateId:\s*(\S+)", re.MULTILINE)
 LIFECYCLE = re.compile(
@@ -73,6 +73,7 @@ def self_test(root: Path) -> list[str]:
         ("dropped-provider-parameter", "lifecycle.parameterMissingOrWrongDefault", lambda p: p.write_text(p.read_text().replace("      - key: lifecycle", "      - key: dropped"))),
         ("wrong-provider-default", "lifecycle.parameterMissingOrWrongDefault", lambda p: p.write_text(p.read_text().replace("        default: sdd", "        default: none"))),
         ("missing-template-choice", "lifecycle.templateChoicesWrong", lambda p: p.write_text(p.read_text().replace('{ "choice": "typed-sdd", "description": "Standard SDD plus the Typed Protocol Kernel." }', '{ "choice": "sdd", "description": "aliased" }'))),
+        ("missing-legacy-template-choice", "lifecycle.templateChoicesWrong", lambda p: p.write_text(p.read_text().replace('{ "choice": "spec-kit", "description": "Legacy Spec Kit lifecycle (retiring; compatibility only)." }', '{ "choice": "none", "description": "aliased" }'))),
         ("wrong-template-default", "lifecycle.templateDefaultWrong", lambda p: p.write_text(p.read_text().replace('"defaultValue": "sdd"', '"defaultValue": "none"'))),
     )
     failures: list[str] = []

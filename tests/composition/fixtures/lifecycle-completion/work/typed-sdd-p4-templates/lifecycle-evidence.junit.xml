@@ -1,8 +1,8 @@
 <?xml version='1.0' encoding='utf-8'?>
-<testsuite name="typed-sdd-p4-templates" tests="10" failures="0" errors="0" skipped="0" time="297.982"><testcase classname="FS.GG.Templates.TypedSddP4" name="static lifecycle contract and mutation controls" time="0.108"><system-out>PASS lifecycle contract: 5 providers; lanes=none,sdd,typed-sdd; omitted=sdd
+<testsuite name="typed-sdd-p4-templates" tests="10" failures="0" errors="0" skipped="0" time="339.543"><testcase classname="FS.GG.Templates.TypedSddP4" name="static lifecycle contract and mutation controls" time="0.102"><system-out>PASS lifecycle contract: 5 providers; lanes=none,sdd,typed-sdd,spec-kit; omitted=sdd
 PASS lifecycle contract self-test: every mutation class fired
-</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="omitted lifecycle tree equivalence mutation control" time="0.066"><system-out>PASS lifecycle tree equivalence can fire on content drift
-</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="provider floors and mutation controls" time="0.219"><system-out>registry pin: 1.4.0-preview.1 (read from /home/developer/projects/.github-typed-sdd-p4-floor/registry/dependencies.yml, FS-GG/.github registry/dependencies.yml -&gt; fs-gg-ui-template.minimum-fsgg-sdd)
+</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="omitted lifecycle tree equivalence mutation control" time="0.058"><system-out>PASS lifecycle tree equivalence can fire on content drift
+</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="provider floors and mutation controls" time="0.191"><system-out>registry pin: 1.4.0-preview.1 (read from /home/developer/projects/.github-typed-sdd-p4-floor-repair/registry/dependencies.yml, FS-GG/.github registry/dependencies.yml -&gt; fs-gg-ui-template.minimum-fsgg-sdd)
 descriptors:  5 matched providers/*.providers.yml
 ok    providers/console.providers.yml:6  console: floor 1.4.0-preview.1 == registry pin 1.4.0-preview.1
 ok    providers/fable-bindings.providers.yml:22  fable-bindings: floor 1.4.0-preview.1 == registry pin 1.4.0-preview.1
@@ -27,12 +27,13 @@ PASS  self-test/builder-refuses-a-non-utf8-descriptor (baseline unavailable, rep
 PASS  self-test/end-to-end-an-unbuildable-descriptor-blames-the-descriptor (child exited 1, blaming the DESCRIPTOR it named)
 PASS  self-test/end-to-end-a-green-grade-with-an-unbuildable-fixture-blames-the-checker (child exited 1, blaming the CHECKER, on a tree its own grading just passed)
 check-provider-floors: self-test green — 15/15 outcomes reproduced, red arms included
-</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="release candidate archive and dual-feed mechanism preflight" time="0.053"><system-out>PASS release preflight: 0.9.0 candidate and checksum-bound byte-identical dual-feed mechanism
-</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="console installed-package lifecycle matrix" time="44.707"><system-out>PASS lifecycle completion: console/none is explicitly not applicable and owns no lifecycle state
+</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="release candidate archive and dual-feed mechanism preflight" time="0.036"><system-out>PASS release preflight: 0.9.0 candidate and checksum-bound byte-identical dual-feed mechanism
+</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="console installed-package lifecycle matrix" time="49.182"><system-out>PASS lifecycle completion: console/none is explicitly not applicable and owns no lifecycle state
 PASS lifecycle completion: console/sdd reached shipReady
 PASS lifecycle completion: console/typed-sdd reached shipReady
+PASS lifecycle compatibility: console/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state
 PASS lifecycle completion: console/omitted reached shipReady
-PASS lifecycle matrix: console none/sdd/typed-sdd/omitted clean-create, complete, restore, build, and test from installed package
+PASS lifecycle matrix: console none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
 PASS typed lifecycle controls: wrong lifecycle, stale projection, unsupported extension, direct edit, missing compiler, agent unavailable
 
 Welcome to .NET 10.0!
@@ -58,11 +59,12 @@ Report issues and find source on GitHub: https://github.com/dotnet/core
 Use 'dotnet --help' to see available commands or visit: https://aka.ms/dotnet-cli
 --------------------------------------------------------------------------------------
 An issue was encountered verifying workloads. For more information, run "dotnet workload update".
-</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="web installed-package lifecycle matrix" time="41.682"><system-out>PASS lifecycle completion: web/none is explicitly not applicable and owns no lifecycle state
+</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="web installed-package lifecycle matrix" time="48.341"><system-out>PASS lifecycle completion: web/none is explicitly not applicable and owns no lifecycle state
 PASS lifecycle completion: web/sdd reached shipReady
 PASS lifecycle completion: web/typed-sdd reached shipReady
+PASS lifecycle compatibility: web/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state
 PASS lifecycle completion: web/omitted reached shipReady
-PASS lifecycle matrix: web none/sdd/typed-sdd/omitted clean-create, complete, restore, build, and test from installed package
+PASS lifecycle matrix: web none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
 
 Welcome to .NET 10.0!
 ---------------------
@@ -87,11 +89,12 @@ Report issues and find source on GitHub: https://github.com/dotnet/core
 Use 'dotnet --help' to see available commands or visit: https://aka.ms/dotnet-cli
 --------------------------------------------------------------------------------------
 An issue was encountered verifying workloads. For more information, run "dotnet workload update".
-</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="fable-game installed-package lifecycle matrix" time="52.493"><system-out>PASS lifecycle completion: fable-game/none is explicitly not applicable and owns no lifecycle state
+</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="fable-game installed-package lifecycle matrix" time="60.644"><system-out>PASS lifecycle completion: fable-game/none is explicitly not applicable and owns no lifecycle state
 PASS lifecycle completion: fable-game/sdd reached shipReady
 PASS lifecycle completion: fable-game/typed-sdd reached shipReady
+PASS lifecycle compatibility: fable-game/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state
 PASS lifecycle completion: fable-game/omitted reached shipReady
-PASS lifecycle matrix: fable-game none/sdd/typed-sdd/omitted clean-create, complete, restore, build, and test from installed package
+PASS lifecycle matrix: fable-game none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
 
 Welcome to .NET 10.0!
 ---------------------
@@ -116,11 +119,12 @@ Report issues and find source on GitHub: https://github.com/dotnet/core
 Use 'dotnet --help' to see available commands or visit: https://aka.ms/dotnet-cli
 --------------------------------------------------------------------------------------
 An issue was encountered verifying workloads. For more information, run "dotnet workload update".
-</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="fable-bindings installed-package lifecycle matrix" time="38.649"><system-out>PASS lifecycle completion: fable-bindings/none is explicitly not applicable and owns no lifecycle state
+</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="fable-bindings installed-package lifecycle matrix" time="45.159"><system-out>PASS lifecycle completion: fable-bindings/none is explicitly not applicable and owns no lifecycle state
 PASS lifecycle completion: fable-bindings/sdd reached shipReady
 PASS lifecycle completion: fable-bindings/typed-sdd reached shipReady
+PASS lifecycle compatibility: fable-bindings/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state
 PASS lifecycle completion: fable-bindings/omitted reached shipReady
-PASS lifecycle matrix: fable-bindings none/sdd/typed-sdd/omitted clean-create, complete, restore, build, and test from installed package
+PASS lifecycle matrix: fable-bindings none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
 
 Welcome to .NET 10.0!
 ---------------------
@@ -144,14 +148,16 @@ Explore documentation: https://aka.ms/dotnet-docs
 Report issues and find source on GitHub: https://github.com/dotnet/core
 Use 'dotnet --help' to see available commands or visit: https://aka.ms/dotnet-cli
 --------------------------------------------------------------------------------------
-</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="rendering game published-package lifecycle matrix" time="62.536"><system-out>PASS lifecycle completion: rendering/none is explicitly not applicable and owns no lifecycle state
+</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="rendering game published-package lifecycle matrix" time="72.228"><system-out>PASS lifecycle completion: rendering/none is explicitly not applicable and owns no lifecycle state
 PASS lifecycle completion: rendering/sdd reached shipReady
 PASS lifecycle completion: rendering/typed-sdd reached shipReady
+PASS lifecycle compatibility: rendering/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state
 PASS lifecycle completion: rendering/omitted reached shipReady
-PASS lifecycle matrix: rendering none/sdd/typed-sdd/omitted clean-create, complete, restore, build, and test from installed package
-</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="rendering app published-package lifecycle matrix" time="57.468"><system-out>PASS lifecycle completion: rendering/none is explicitly not applicable and owns no lifecycle state
+PASS lifecycle matrix: rendering none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
+</system-out></testcase><testcase classname="FS.GG.Templates.TypedSddP4" name="rendering app published-package lifecycle matrix" time="63.603"><system-out>PASS lifecycle completion: rendering/none is explicitly not applicable and owns no lifecycle state
 PASS lifecycle completion: rendering/sdd reached shipReady
 PASS lifecycle completion: rendering/typed-sdd reached shipReady
+PASS lifecycle compatibility: rendering/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state
 PASS lifecycle completion: rendering/omitted reached shipReady
-PASS lifecycle matrix: rendering none/sdd/typed-sdd/omitted clean-create, complete, restore, build, and test from installed package
+PASS lifecycle matrix: rendering none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
 </system-out></testcase></testsuite>

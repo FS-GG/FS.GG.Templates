@@ -25,9 +25,9 @@ publicOrToolFacingImpact: true
 - CQ-003: Every cell must prove installed-package scaffold semantics; expensive restore/build/test/publish remains once per provider identity, with lifecycle-specific semantic checks applied to every cell.
 
 ## Decisions
-- **DEC-001** [CQ-001] [FR-001] [FR-002]: Add a choice-valued lifecycle symbol to the four owned workspace templates and an optional defaulted lifecycle parameter to all five providers; only FS.GG.SDD writes lifecycle artifacts.
+- **DEC-001** [CQ-001] [FR-001] [FR-002]: Add a choice-valued lifecycle symbol to the four owned workspace templates and an optional defaulted lifecycle parameter to all five providers; preserve the separately retiring `spec-kit` wire value; only FS.GG.SDD writes SDD lifecycle artifacts.
 - **DEC-002** [CQ-002] [FR-010]: Release FS.GG.Workspace.Template 0.9.0 and dual-publish the same packed artifact.
-- **DEC-003** [CQ-003] [FR-007] [FR-008] [FR-009]: Split acceptance into a complete installed-package lifecycle per provider identity and a deterministic lifecycle semantic matrix for every provider/profile/lane, including can-fire controls.
+- **DEC-003** [CQ-003] [FR-007] [FR-008] [FR-009]: Split acceptance into a complete installed-package lifecycle per provider identity and a deterministic lifecycle semantic matrix for every provider/profile/lane, including retained `spec-kit` compatibility and can-fire controls.
 
 ## Accepted Deferrals
 No accepted deferrals recorded.

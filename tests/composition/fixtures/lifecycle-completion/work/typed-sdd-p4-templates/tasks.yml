@@ -13,19 +13,19 @@ work:
 sources:
   - label: spec
     path: work/typed-sdd-p4-templates/spec.md
-    digest: 31f5a7e099aae95427edf8ad938c9a89264a7ab69ee3a1fcdcc7a9542d66080a
+    digest: 34f6091fbbaf0680e25ea78dab405b9608b2a5fc856f91be7e158330baee866c
     schemaVersion: 1
   - label: clarifications
     path: work/typed-sdd-p4-templates/clarifications.md
-    digest: 28f767efc02e0e959be14f09dde01a81ebb0d865ff039622e183d913a48301ca
+    digest: 3da02a2740e179d5d59b73757f978eeec2914b947111024e5857adbb791d980b
     schemaVersion: 1
   - label: checklist
     path: work/typed-sdd-p4-templates/checklist.md
-    digest: 81f43f88f0caa7b28c8a78c796cd55eb78e3eec91e8f1c42a4e09b65a1ca6276
+    digest: fbd5b34392e7d1c97de8dd1d2318d0858f0dc8ada488e38c895465ed5f3bad46
     schemaVersion: 1
   - label: plan
     path: work/typed-sdd-p4-templates/plan.md
-    digest: fba68df0b3f683e4ab4d52459de1f19db48b8d07cf24da44f7789bae3f3e3c6a
+    digest: f3ab282ce200b6dc9ac364cd3f6927fc911e67f68fb712b6f2457716340b12e6
     schemaVersion: 1
 tasks:
   - id: T001
@@ -118,16 +118,6 @@ tasks:
     sourceIds: [AC-002, FR-009, PD-009]
     requiredSkills: [fsharp, implementation]
     requiredEvidence: [EV009]
-  - id: T010
-    title: Implement the FR-010 release mechanism and declare its post-merge publication obligation
-    status: done
-    owner: sdd
-    dependencies: []
-    requirements: [FR-010]
-    decisions: []
-    sourceIds: [AC-005, FR-010]
-    requiredSkills: [fsharp, implementation]
-    requiredEvidence: [EV010]
   - id: T011
     title: Implement clarification decision DEC-001
     status: done
@@ -278,16 +268,6 @@ tasks:
     sourceIds: [PD-008, PD-009, VO-005]
     requiredSkills: [automated-tests, readiness-evidence]
     requiredEvidence: [EV025]
-  - id: T026
-    title: Record release-candidate preflight evidence VO-006
-    status: done
-    owner: sdd
-    dependencies: [T001]
-    requirements: []
-    decisions: []
-    sourceIds: [PD-010, VO-006]
-    requiredSkills: [automated-tests, readiness-evidence]
-    requiredEvidence: [EV026]
   - id: T027
     title: Handle migration posture PM-001
     status: done
@@ -318,6 +298,26 @@ tasks:
     sourceIds: [GV-001, PD-001, PD-006]
     requiredSkills: [deterministic-json]
     requiredEvidence: [EV029]
+  - id: T030
+    title: Implement requirement FR-010
+    status: done
+    owner: sdd
+    dependencies: []
+    requirements: [FR-010]
+    decisions: []
+    sourceIds: [AC-005, FR-010]
+    requiredSkills: [fsharp, implementation]
+    requiredEvidence: [EV030]
+  - id: T031
+    title: Record verification evidence VO-006
+    status: done
+    owner: sdd
+    dependencies: [T001]
+    requirements: []
+    decisions: []
+    sourceIds: [PD-010, VO-006]
+    requiredSkills: [automated-tests, readiness-evidence]
+    requiredEvidence: [EV031]
 acceptedDeferrals: []
 findings: []
 advisoryNotes:

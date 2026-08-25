@@ -31,7 +31,8 @@
       "choices": [
         { "choice": "none", "description": "Product files only; no SDD lifecycle tree." },
         { "choice": "sdd", "description": "Standard SDD lifecycle (default)." },
-        { "choice": "typed-sdd", "description": "Standard SDD plus the Typed Protocol Kernel." }
+        { "choice": "typed-sdd", "description": "Standard SDD plus the Typed Protocol Kernel." },
+        { "choice": "spec-kit", "description": "Legacy Spec Kit lifecycle (retiring; compatibility only)." }
       ]
     },
     "productName": { "type": "parameter", "datatype": "text", "defaultValue": "", "description": "Binding/library name; --name is used when omitted." },

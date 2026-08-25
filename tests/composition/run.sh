@@ -148,7 +148,7 @@ assert_lane_coverage_can_fire "lanes" "$WORKDIR/lane-coverage-fixtures"
 assert_lane_coverage "$COMPOSITION_DIR" "$REPO_ROOT"
 assert_lane_fails_closed "$COMPOSITION_DIR"
 
-step "lifecycle — every provider exposes none/sdd/typed-sdd with omitted=sdd (#432)"
+step "lifecycle — every provider exposes none/sdd/typed-sdd/spec-kit with omitted=sdd (#432)"
 if python3 "$COMPOSITION_DIR/lib/lifecycle-contract.py" --root "$REPO_ROOT" --self-test \
   && assert_lifecycle_tree_equivalence_can_fire "$WORKDIR/lifecycle-tree-fixtures"; then
   ok "lifecycle provider/template contract and can-fire controls hold"

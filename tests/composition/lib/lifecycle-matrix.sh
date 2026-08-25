@@ -93,6 +93,16 @@ assert_generated_lifecycle_completion() {
     return 0
   fi
 
+  if [[ "$lane" == spec-kit ]]; then
+    # Legacy Spec Kit remains a separately retiring compatibility lane. It does not own Standard
+    # or Typed SDD work/readiness artifacts in this repository. The installed scaffolder must still
+    # preserve its explicit wire value and materialize the product rather than reject or alias it;
+    # retirement semantics remain owned upstream and are deliberately not widened by P4.
+    ! find "$root/work" "$root/readiness" -mindepth 1 -print -quit 2>/dev/null | grep -q .
+    echo "PASS lifecycle compatibility: $provider/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state"
+    return 0
+  fi
+
   mkdir -p "$root/work" "$root/readiness"
   cp -a "$fixture/work/$work_id" "$root/work/"
   cp -a "$fixture/readiness/$work_id" "$root/readiness/"
@@ -126,11 +136,11 @@ assert_provider_lifecycle_matrix() {
   local provider="$1" archive="$2" matrix_root="$3"
   shift 3
   local -a provider_params=("$@")
-  local lane root descriptor report actual
+  local lane root descriptor report actual direct_legacy
   local explicit_sdd_parameters=""
 
   mkdir -p "$matrix_root"
-  for lane in none sdd typed-sdd omitted; do
+  for lane in none sdd typed-sdd spec-kit omitted; do
     root="$matrix_root/$lane"
     mkdir -p "$root/.fsgg"
     descriptor="$root/.fsgg/providers.yml"
@@ -139,6 +149,7 @@ assert_provider_lifecycle_matrix() {
       lane_pin_provider_to_archive "$descriptor" "$archive"
     fi
 
+    direct_legacy=false
     local -a args=(--root "$root" --provider "$provider" --no-update --json)
     local parameter
     for parameter in "${provider_params[@]}"; do
@@ -149,18 +160,37 @@ assert_provider_lifecycle_matrix() {
     fi
 
     report="$matrix_root/$lane.scaffold.json"
-    if ! fsgg-sdd scaffold "${args[@]}" >"$report"; then
+    if [[ "$provider" == rendering && "$lane" == spec-kit && "$archive" == published ]]; then
+      # Rendering's retiring Spec Kit payload predates the SDD provider ownership contract and
+      # intentionally owns AGENTS.md plus .claude skills. The modern provider wrapper correctly
+      # refuses that overlap after seeding its own skeleton, so compatibility must be proved at
+      # the published template's native boundary. The four Templates-owned providers above still
+      # exercise spec-kit through fsgg-sdd scaffold and its provenance contract.
+      direct_legacy=true
+      local -a legacy_args=(dotnet new fs-gg-ui -o "$root" --force --lifecycle spec-kit)
+      for parameter in "${provider_params[@]}"; do
+        legacy_args+=("--${parameter%%=*}" "${parameter#*=}")
+      done
+      if ! "${legacy_args[@]}" >"$report" 2>&1; then
+        echo "lifecycle matrix: $provider/$lane native legacy scaffold failed" >&2
+        tail -n 80 "$report" >&2
+        return 1
+      fi
+      test -d "$root/.specify"
+    elif ! fsgg-sdd scaffold "${args[@]}" >"$report"; then
       echo "lifecycle matrix: $provider/$lane scaffold failed" >&2
       jq -r '.diagnostics[]? | "  \(.id): \(.message)"' "$report" >&2 || true
       return 1
     fi
-    jq -e --arg provider "$provider" '.outcome == "succeeded" and .scaffold.providerName == $provider and .scaffold.providerInvoked == true' "$report" >/dev/null
-    actual="$(jq -r '.effectiveParameters[] | select(.key == "lifecycle") | .value' "$root/.fsgg/scaffold-provenance.json")"
-    [[ "$actual" == "${lane/omitted/sdd}" ]] || {
-      echo "lifecycle matrix: $provider/$lane recorded '$actual', expected '${lane/omitted/sdd}'" >&2
-      return 1
-    }
-    jq -e '.requiredMinimumCliVersion == "1.4.0-preview.1"' "$root/.fsgg/scaffold-provenance.json" >/dev/null
+    if [[ "$direct_legacy" == false ]]; then
+      jq -e --arg provider "$provider" '.outcome == "succeeded" and .scaffold.providerName == $provider and .scaffold.providerInvoked == true' "$report" >/dev/null
+      actual="$(jq -r '.effectiveParameters[] | select(.key == "lifecycle") | .value' "$root/.fsgg/scaffold-provenance.json")"
+      [[ "$actual" == "${lane/omitted/sdd}" ]] || {
+        echo "lifecycle matrix: $provider/$lane recorded '$actual', expected '${lane/omitted/sdd}'" >&2
+        return 1
+      }
+      jq -e '.requiredMinimumCliVersion == "1.4.0-preview.1"' "$root/.fsgg/scaffold-provenance.json" >/dev/null
+    fi
 
     if [[ "$lane" == sdd ]]; then
       explicit_sdd_parameters="$(jq -cS '.effectiveParameters' "$root/.fsgg/scaffold-provenance.json")"
@@ -198,13 +228,13 @@ assert_provider_lifecycle_matrix() {
 
   # Keep the first loop a clean-scaffold proof. Completion and builds intentionally run only after
   # omitted-vs-explicit SDD has compared the unpolluted file trees.
-  for lane in none sdd typed-sdd omitted; do
+  for lane in none sdd typed-sdd spec-kit omitted; do
     root="$matrix_root/$lane"
     assert_generated_lifecycle_completion "$provider" "$lane" "$root" "$matrix_root"
     assert_generated_product_restore_build_test "$provider" "$lane" "$root"
   done
 
-  echo "PASS lifecycle matrix: $provider none/sdd/typed-sdd/omitted clean-create, complete, restore, build, and test from installed package"
+  echo "PASS lifecycle matrix: $provider none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package"
 }
 
 assert_typed_lifecycle_controls() {

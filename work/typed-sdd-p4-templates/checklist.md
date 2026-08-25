@@ -21,8 +21,8 @@ Prose status: checklistReady
 - work/typed-sdd-p4-templates/clarifications.md
 
 ## Source Snapshot
-- spec: work/typed-sdd-p4-templates/spec.md sha256:31f5a7e099aae95427edf8ad938c9a89264a7ab69ee3a1fcdcc7a9542d66080a schemaVersion:1
-- clarifications: work/typed-sdd-p4-templates/clarifications.md sha256:28f767efc02e0e959be14f09dde01a81ebb0d865ff039622e183d913a48301ca schemaVersion:1
+- spec: work/typed-sdd-p4-templates/spec.md sha256:34f6091fbbaf0680e25ea78dab405b9608b2a5fc856f91be7e158330baee866c schemaVersion:1
+- clarifications: work/typed-sdd-p4-templates/clarifications.md sha256:3da02a2740e179d5d59b73757f978eeec2914b947111024e5857adbb791d980b schemaVersion:1
 
 ## Checklist Items
 - CHK-001 [FR-001] [AC-001] blocking: Requirement FR-001 is testable and linked to acceptance coverage.

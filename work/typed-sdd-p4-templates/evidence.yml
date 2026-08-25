@@ -11,27 +11,27 @@ sourceAnalysis: readiness/typed-sdd-p4-templates/analysis.json
 sourceSnapshots:
   - label: analysis
     path: readiness/typed-sdd-p4-templates/analysis.json
-    digest: 1033e4790331a2d79e9a07b5d1c706fb9b6ef14a00c116aa8d24c1a546899c6e
+    digest: b383f9c4ecad5715c90b1ee608d72b7c737ed38f889f0ececd65b0c57816f159
     schemaVersion: 1
   - label: checklist
     path: work/typed-sdd-p4-templates/checklist.md
-    digest: 81f43f88f0caa7b28c8a78c796cd55eb78e3eec91e8f1c42a4e09b65a1ca6276
+    digest: fbd5b34392e7d1c97de8dd1d2318d0858f0dc8ada488e38c895465ed5f3bad46
     schemaVersion: 1
   - label: clarifications
     path: work/typed-sdd-p4-templates/clarifications.md
-    digest: 28f767efc02e0e959be14f09dde01a81ebb0d865ff039622e183d913a48301ca
+    digest: 3da02a2740e179d5d59b73757f978eeec2914b947111024e5857adbb791d980b
     schemaVersion: 1
   - label: plan
     path: work/typed-sdd-p4-templates/plan.md
-    digest: f760c72cd081b7dea3d3e43aebbc0cb37879b95e52ce2771a5f379ad56543dbf
+    digest: f3ab282ce200b6dc9ac364cd3f6927fc911e67f68fb712b6f2457716340b12e6
     schemaVersion: 1
   - label: spec
     path: work/typed-sdd-p4-templates/spec.md
-    digest: 31f5a7e099aae95427edf8ad938c9a89264a7ab69ee3a1fcdcc7a9542d66080a
+    digest: 34f6091fbbaf0680e25ea78dab405b9608b2a5fc856f91be7e158330baee866c
     schemaVersion: 1
   - label: tasks
     path: work/typed-sdd-p4-templates/tasks.yml
-    digest: 868ec392ec2ed5ad9f8c73c253d1fae31a8396e582dc2a8e76838e1d2eaf6313
+    digest: c59bad90b28645b57477c4d795a4a33c43bf5635ecb48ef8c55738a01549b825
     schemaVersion: 1
 evidence:
   - id: EV001
@@ -54,7 +54,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -81,7 +81,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -108,7 +108,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -135,7 +135,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -162,7 +162,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -189,7 +189,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -216,7 +216,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -243,7 +243,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -270,42 +270,13 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
       failed: 0
       skipped: 0
     notes: [Observed installed-package lifecycle acceptance passed.]
-  - id: EV010
-    kind: verification
-    subject:
-      type: task
-      id: T010
-    taskRefs: [T010]
-    requirementRefs: [FR-010]
-    acceptanceScenarioRefs: []
-    clarificationDecisionRefs: []
-    checklistResultRefs: []
-    planDecisionRefs: []
-    obligationRefs: [EV010]
-    artifacts: []
-    sourceRefs:
-      - kind: verification
-        path: tests/composition/lib/lifecycle-evidence.py
-      - kind: implementation
-        path: ".github/workflows/release.yml"
-    result: pass
-    synthetic: false
-    observedRun:
-      source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
-      digestContract: exact-bytes-v1
-      outcome: passed
-      passed: 10
-      failed: 0
-      skipped: 0
-    notes: ["Observed the 0.9.0 candidate metadata and checksum-bound dual-feed release mechanism preflight; actual feed publication remains the declared exact-head post-merge obligation."]
   - id: EV011
     kind: verification
     subject:
@@ -326,7 +297,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -353,7 +324,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -380,7 +351,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -407,7 +378,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -434,7 +405,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -461,7 +432,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -488,7 +459,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -515,7 +486,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -542,7 +513,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -569,7 +540,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -596,7 +567,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -623,7 +594,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -650,7 +621,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -677,7 +648,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -704,42 +675,13 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
       failed: 0
       skipped: 0
     notes: [Observed installed-package lifecycle acceptance passed.]
-  - id: EV026
-    kind: verification
-    subject:
-      type: task
-      id: T026
-    taskRefs: [T026]
-    requirementRefs: []
-    acceptanceScenarioRefs: []
-    clarificationDecisionRefs: []
-    checklistResultRefs: []
-    planDecisionRefs: [PD-010]
-    obligationRefs: [EV026]
-    artifacts: []
-    sourceRefs:
-      - kind: verification
-        path: tests/composition/lib/lifecycle-evidence.py
-      - kind: implementation
-        path: ".github/workflows/release.yml"
-    result: pass
-    synthetic: false
-    observedRun:
-      source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
-      digestContract: exact-bytes-v1
-      outcome: passed
-      passed: 10
-      failed: 0
-      skipped: 0
-    notes: ["Observed release-candidate preflight only; this does not claim feed reads, byte identity, public-only installation, or downstream registry provenance before publication."]
   - id: EV027
     kind: verification
     subject:
@@ -760,7 +702,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -787,7 +729,7 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
@@ -814,12 +756,70 @@ evidence:
     synthetic: false
     observedRun:
       source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
-      digest: "sha256:d6e80d4b676a8857f9bcd99e1a4924a5828615e34d147d219dd3708751372abd"
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
       digestContract: exact-bytes-v1
       outcome: passed
       passed: 10
       failed: 0
       skipped: 0
     notes: [Observed installed-package lifecycle acceptance passed.]
+  - id: EV030
+    kind: verification
+    subject:
+      type: task
+      id: T030
+    taskRefs: [T030]
+    requirementRefs: [FR-010]
+    acceptanceScenarioRefs: []
+    clarificationDecisionRefs: []
+    checklistResultRefs: []
+    planDecisionRefs: []
+    obligationRefs: [EV030]
+    artifacts: []
+    sourceRefs:
+      - kind: verification
+        path: tests/composition/lib/lifecycle-evidence.py
+      - kind: implementation
+        path: ".github/workflows/release.yml"
+    result: pass
+    synthetic: false
+    observedRun:
+      source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
+      digestContract: exact-bytes-v1
+      outcome: passed
+      passed: 10
+      failed: 0
+      skipped: 0
+    notes: ["Observed the 0.9.0 candidate metadata and checksum-bound dual-feed release mechanism preflight; actual feed publication remains the declared exact-head post-merge obligation."]
+  - id: EV031
+    kind: verification
+    subject:
+      type: task
+      id: T031
+    taskRefs: [T031]
+    requirementRefs: []
+    acceptanceScenarioRefs: []
+    clarificationDecisionRefs: []
+    checklistResultRefs: []
+    planDecisionRefs: [PD-010]
+    obligationRefs: [EV031]
+    artifacts: []
+    sourceRefs:
+      - kind: verification
+        path: tests/composition/lib/lifecycle-evidence.py
+      - kind: implementation
+        path: ".github/workflows/release.yml"
+    result: pass
+    synthetic: false
+    observedRun:
+      source: work/typed-sdd-p4-templates/lifecycle-evidence.junit.xml
+      digest: "sha256:4617415ba8aef49249f9a932c426df42faee6be441cc02550094a77c9f65c0ce"
+      digestContract: exact-bytes-v1
+      outcome: passed
+      passed: 10
+      failed: 0
+      skipped: 0
+    notes: ["Observed release-candidate preflight only; this does not claim feed reads, byte identity, public-only installation, or downstream registry provenance before publication."]
 lifecycleNotes:
   - "Next lifecycle action: verify."
