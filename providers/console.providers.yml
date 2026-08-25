@@ -6,7 +6,7 @@ providers:
   - name: console
     contractVersion: "1.1.0"
     templateId: fs-gg-console
-    source: FS.GG.Workspace.Template::0.9.0
+    source: FS.GG.Workspace.Template::0.10.0
     nameParameter: productName
     identifierParameter: rootNamespace
     minimumFsggSdd:

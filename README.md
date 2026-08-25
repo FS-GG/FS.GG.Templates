@@ -327,6 +327,15 @@ any downstream registry/pin flip advertises it.
 
 ### Release notes
 
+#### 0.10.0 — accessible fable-game browser baseline
+
+The `fs-gg-fable-game` identity now installs the accessible browser baseline merged in #417:
+semantic controls and status output, keyboard-reachable play controls, deterministic focus and
+reload behavior, and the two-client Playwright route that exercises those interactions. The
+package id and all five template identities remain unchanged. The four workspace provider
+descriptors self-pin `FS.GG.Workspace.Template::0.10.0`; external Game, Rendering, SDD, and npm
+pins remain unchanged.
+
 #### 0.9.0 — uniform lifecycle selection
 
 Every supported provider and profile accepts explicit `none`, `sdd`, and `typed-sdd`, while

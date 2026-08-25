@@ -1,0 +1,735 @@
+
+== pin — the shared skill-union assertion is not frozen (#315) ==
+  ✓ pin: the SKILL_ASSERT_REF staleness alarm can FIRE — driven offline through fresh, both sides of the 14d boundary, both observed freezes (14.02d/10.58d: missed at 14d by design, caught at 13d/9d), the 7.94d worst-observed-silence false-red floor, all four unresolvable inputs, five refused pin shapes plus one accepted, and the assertion's own stale/unresolvable → FAIL mapping (#315)
+  ✓ pin: SKILL_ASSERT_REF (e39ac6139df1) is 2d old, threshold 14d — the pinned assertion this run's verdict rests on is current (#315)
+
+== lanes — every discovered lane is reached by a required path (#379) ==
+  ✓ lanes: the unreached-lane and fail-closed gates can FIRE — driven offline through all 25 outcomes, every fixture carrying the same comment-and-prose decoys the real workflows carry (.github#2223): a whole repo, the #379 defect itself (a lane on disk the required check does not name), the same defect in a SIBLING caller whose pinned list fell behind, a deferral that clears it only while some caller still runs the lane, a deferral that is a deletion, one rescued only by a workflow that MENTIONS the suite without running it, a deferral with no issue, a stale one, one every workflow contradicts, a caller naming a lane that does not exist, the required workflow renamed / detached-but-still-naming-the-suite / absent, each detach paired with its reattached control, an empty discovery, a lane with no errexit and the 'set -uo pipefail' near-miss, all three spellings that do enable it, an in-lane skip, and both assertions' own ok+bad counter mappings
+  ✓ lanes: all 4 discovered lane(s) run on the required 'composition' check (console fable-bindings fable-game web), every caller's COMPOSITION_LANES names only lanes that exist, and the deferral registry is empty (#379)
+  ✓ lanes: every discovered lane aborts on an unmet prerequisite rather than running past it to its success line (errexit enabled, no in-lane skip), so an unrunnable lane FAILS instead of reporting green (#379)
+
+== lifecycle — every provider exposes none/sdd/typed-sdd/spec-kit with omitted=sdd (#432) ==
+PASS lifecycle contract: 5 providers; lanes=none,sdd,typed-sdd,spec-kit; omitted=sdd
+PASS lifecycle contract self-test: every mutation class fired
+PASS lifecycle tree equivalence can fire on content drift
+  ✓ lifecycle provider/template contract and can-fire controls hold
+
+== exclusions — .nuget/ and node_modules/ reach neither git, the package, nor a product (#386) ==
+  ✓ exclusions: the exclusion gate is demonstrated to fire — 22 cases, every leg driven to both outcomes
+  ✓ exclusions: every external tool this gate's verdict depends on is runnable (dotnet tar unzip python3 git find)
+  ✓ exclusions: .gitignore covers .nuget/ and node_modules/ under every template (leg 1)
+  ✓ exclusions: the tree about to be packed carries the seeded .nuget/ and node_modules/ trees (5 dir(s)), so the scan below has a subject
+  ✓ exclusions: the packed archive listing is a real reading — the archive lists its positive control (README.md)
+  ✓ exclusions: the packed archive carries no .nuget/ or node_modules/ entry (leg 2)
+  ✓ exclusions: fs-gg-console's sources.exclude names both .nuget/ and node_modules/
+  ✓ exclusions: fs-gg-console's source folder carries the seeded .nuget/ and node_modules/ trees (1 dir(s)), so the scan below has a subject
+  ✓ exclusions/fs-gg-console: no .nuget/ or node_modules/ reached the generated product (leg 3)
+  ✓ exclusions: fs-gg-fable-bindings's sources.exclude names both .nuget/ and node_modules/
+  ✓ exclusions: fs-gg-fable-bindings's source folder carries the seeded .nuget/ and node_modules/ trees (1 dir(s)), so the scan below has a subject
+  ✓ exclusions/fs-gg-fable-bindings: no .nuget/ or node_modules/ reached the generated product (leg 3)
+  ✓ exclusions: fs-gg-fable-game's sources.exclude names both .nuget/ and node_modules/
+  ✓ exclusions: fs-gg-fable-game's source folder carries the seeded .nuget/ and node_modules/ trees (1 dir(s)), so the scan below has a subject
+  ✓ exclusions/fs-gg-fable-game: no .nuget/ or node_modules/ reached the generated product (leg 3)
+  ✓ exclusions: fs-gg-governance's sources.exclude names both .nuget/ and node_modules/
+  ✓ exclusions: fs-gg-governance's source folder carries the seeded .nuget/ and node_modules/ trees (1 dir(s)), so the scan below has a subject
+  ✓ exclusions/fs-gg-governance: no .nuget/ or node_modules/ reached the generated product (leg 3)
+  ✓ exclusions: fs-gg-web's sources.exclude names both .nuget/ and node_modules/
+  ✓ exclusions: fs-gg-web's source folder carries the seeded .nuget/ and node_modules/ trees (1 dir(s)), so the scan below has a subject
+  ✓ exclusions/fs-gg-web: no .nuget/ or node_modules/ reached the generated product (leg 3)
+
+== roots — this repo's runtime skill-root set and its generated view (.github#1710) ==
+  ✓ roots: the skill-root alarm demonstrates every lane can fire (22 passed)
+  ✓ roots: the runtime skill-root declaration and the generated view both hold
+      roots-declaration: the runtime skill root set is '.agents/skills .claude/skills' — the union of <FsggKitSkillRoots> ('.claude/skills') and <FsggKitViewSkillRoots> ('.agents/skills')
+      view-root-tracking: git tracks nothing under 1 declared view root(s)
+      .agents/skills: 23/23 declared skill(s) visible
+      .claude/skills: 23/23 declared skill(s) visible
+
+== package — use prebuilt FS.GG.Workspace.Template artifact ==
+  ✓ using prebuilt FS.GG.Workspace.Template.0.10.0.nupkg
+PASS release preflight: 0.10.0 candidate and checksum-bound byte-identical dual-feed mechanism
+  ✓ release preflight and its feed/push mutation controls hold
+  ✓ package contains the NuGet README.md declared by PackageReadmeFile
+
+== install — dotnet new install <nupkg> ==
+  ✓ dotnet new install succeeded
+  ✓ template 'fs-gg-governance' registered
+
+== instantiate — dotnet new fs-gg-governance (appName=Acme, profile=strict) ==
+  ✓ instantiation succeeded
+
+== verify — emitted files ==
+  ✓ .fsgg/governance.yml emitted
+  ✓ .fsgg/policy.yml emitted
+  ✓ .fsgg/capabilities.yml emitted
+  ✓ .fsgg/tooling.yml emitted
+  ✓ .fsgg/controlled-imports.fsx emitted
+  ✓ .fsgg/controlled-imports.json emitted
+  ✓ schema-manifest.json emitted beside .fsgg
+  ✓ no stray .fsgg/project.yml (SDD slot left to SDD)
+
+== verify — parameter substitution (no stray tokens) ==
+  ✓ appName token '<App>' fully substituted
+  ✓ profile token 'GOV_DEFAULT_PROFILE' fully substituted
+  ✓ appName -> governance.yml id
+  ✓ appName -> tooling build command
+  ✓ appName -> tooling test command
+  ✓ defaultProfile -> policy default
+
+== verify — governance gate set is POPULATED (not inert) ==
+  ✓ capabilities: build check present
+  ✓ capabilities: test check present
+  ✓ capabilities: evidence check present
+  ✓ capabilities: gameplay FR-coverage floor present
+  ✓ capabilities: production-journey floor present
+  ✓ capabilities: build path map follows the emitted .slnx
+  ✓ tooling: dotnet-build command present
+  ✓ tooling: dotnet-test command present
+  ✓ tooling: build-evidence command present
+  ✓ capabilities.checks is not the inert empty list
+  ✓ tooling.commands is not the inert empty list
+  ✓ capabilities: gameplay:fr-covered is command-free and block-on-ship
+  ✓ capabilities: gameplay:production-journey is command-free and block-on-ship
+  ✓ controlled-import verifier accepts the emitted empty pinned manifest
+  ✓ schema manifest records governance generation 1
+  ✓ schema manifest records capabilities generation 2
+  ✓ schema manifest records policy generation 1
+  ✓ schema manifest records tooling generation 1
+
+== verify — governance overlay matches its immutable published authority ==
+  ✓ overlay matches FS.GG.Governance.ReferenceGateSet 1.5.0 with only declared template transforms
+
+== verify — rendering provider pin coherence ==
+PASS  the checked-in effective-provider summary is current
+PASS  a stale generated summary fails with its repair
+PASS  --write repairs only the generated view and preserves PIN HISTORY byte-for-byte
+PASS  duplicate provider names fail closed
+PASS  out-of-order providers fail closed
+effective-providers fixture: 5 passed, 0 failed
+  ✓ effective-provider generator forward fixture passes
+effective-providers: current — 1 ordered unique provider(s)
+  ✓ effective-provider summary is deterministic, unique, and ordered
+  ✓ provider pins FS.GG.UI.Template::0.28.0
+  ✓ provider comment tag matches the pinned version
+  ✓ README names the pinned template version
+  ✓ provider PIN HISTORY has no unwritten entry
+  ✓ provider default lifecycle=sdd (ADR-0002)
+  ✓ provider default profile=game
+
+== build — full fsgg-sdd scaffold + dotnet build (gated) ==
+
+== verify — the Game Skills release resolver's alarms can fire (#349) ==
+  ✓ game-skills: the Game Skills release resolver's alarms can FIRE — driven offline through a unique resolve on a discriminating row, an honestly ambiguous pair reported as both, the no-ids and no-match codes kept distinct, a drifted body, an absent body, the report reader's dedupe/empty/missing-section arms, and the completeness predicate across all four window shapes: complete, ceiling-truncated, a download GAP whose searched count is deliberately unequal to the published total, and an empty feed read (#349)
+
+== verify — rendering game/app lifecycle matrix from FS.GG.UI.Template 0.28.0 (#432) ==
+PASS lifecycle completion: rendering/none is explicitly not applicable and owns no lifecycle state
+PASS lifecycle completion: rendering/sdd reached shipReady
+PASS lifecycle completion: rendering/typed-sdd reached shipReady
+PASS lifecycle compatibility: rendering/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state
+PASS lifecycle completion: rendering/omitted reached shipReady
+PASS lifecycle matrix: rendering none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
+PASS lifecycle completion: rendering/none is explicitly not applicable and owns no lifecycle state
+PASS lifecycle completion: rendering/sdd reached shipReady
+PASS lifecycle completion: rendering/typed-sdd reached shipReady
+PASS lifecycle compatibility: rendering/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state
+PASS lifecycle completion: rendering/omitted reached shipReady
+PASS lifecycle matrix: rendering none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
+  ✓ rendering game/app accept none/sdd/typed-sdd and omitted=sdd
+  ✓ generated README documents the stock root build command
+  ✓ generated README documents the product-named FSI loader command
+  ✓ exact generated README build command succeeded from the composed-product root
+  ✓ generated README FSI load script 'load-Acme.fsx' exists for the non-default product name
+  ✓ exact generated README FSI loader command succeeded
+  ✓ composed tool manifest does not advertise fake-cli or dotnet fake
+  ✓ composed product contains no unsupported shared .fake state
+  ✓ generated guidance makes no shared .fake-state claim
+  ✓ composed product default launch uses an accepted family entrypoint (Viewer generatedHost | Controls interactive/audio host)
+  ✓ no '-- pong'-style flag gates the default launch (entrypoint relaxation, #36)
+
+== verify — governed commands are runnable against the composed product (A4, #59) ==
+  ✓ governed solution 'Acme.slnx' exists at the composed-product root — dotnet-build/dotnet-test are runnable, not phantom (A4)
+  ✓ governed 'build.fsx' exists at the composed-product root — the evidence gate is runnable out-of-the-box (A4)
+
+== verify — skill-union (orchestrated lane, ADR-0014 P3.T3.2) ==
+  ✓ orchestrated: the two agent-skill roots are the byte-identical union (P3.G3.1: present-in-each-root ∧ byte-identical-across-roots)
+  ✓ orchestrated: every count in the assertion's summary carries its population (.github#1506 shape) — the byte-identity verdict above states the denominator it was taken over
+  ✓ orchestrated: 19 co-tenant skill(s) matching 'fs-gg-sdd-*' present — the union is non-vacuous (minimum-cardinality floor)
+  ✓ orchestrated: producer skill-manifest present (.agents/skills/skill-manifest.json)
+  ✓ orchestrated: manifest cross-check green — every materialized manifest-declared skill matches its canonical-body sha256, and the union is manifest-declared ∪ lane co-tenants (fs-gg-sdd-*)
+  | skill-union-assert: 52 skill(s) — in-every-root=52/52 partitioned=0 | byte-comparable=52 byte-compared=52 byte-identical=52/52 byte-differing=0 single-root=0 | manifest-declared=33/52 manifest-comparable=33 manifest-examined=33 manifest-matched=33/33 manifest-no-reference=0 undeclared-rejected=0/19 co-tenant=19/19 declared-absent=1/34
+
+== verify — the Game Skills release reaching a game scaffold (#349) ==
+  ✓ game-skills: the production SDD materializer delivered 11 Game Skill(s) including 'fs-gg-game-fable'; every body is byte-identical to published FS.GG.Game.Skills 0.7.0 — the exact release reaching a game scaffold, resolved by content against all 8 published release(s) — 0.8.0 0.7.0 0.6.0 0.5.0 0.4.0 0.3.0 0.2.0 0.1.0 (#349)
+
+== standalone — spec-kit lane: one materialize step + skill-union (ADR-0014 P3.T3.2, gated) ==
+  ✓ standalone fs-gg-ui instantiation succeeded at the pinned 0.28.0 (explicit spec-kit lifecycle; ADR-0056 default is now sdd)
+  ✓ producer-side materialize+verify green (materialize-skill-roots.fsx --enforce — the one standalone materialize step)
+  ✓ standalone: the two agent-skill roots are the byte-identical union (P3.G3.1: present-in-each-root ∧ byte-identical-across-roots)
+  ✓ standalone: every count in the assertion's summary carries its population (.github#1506 shape) — the byte-identity verdict above states the denominator it was taken over
+  ✓ standalone: 16 co-tenant skill(s) matching 'speckit-*' present — the union is non-vacuous (minimum-cardinality floor)
+  ✓ standalone: producer skill-manifest present (.agents/skills/skill-manifest.json)
+  ✓ standalone: manifest cross-check green — every materialized manifest-declared skill matches its canonical-body sha256, and the union is manifest-declared ∪ lane co-tenants (speckit-*)
+  | skill-union-assert: 28 skill(s) — in-every-root=28/28 partitioned=0 | byte-comparable=28 byte-compared=28 byte-identical=28/28 byte-differing=0 single-root=0 | manifest-declared=12/28 manifest-comparable=12 manifest-examined=12 manifest-matched=12/12 manifest-no-reference=0 undeclared-rejected=0/16 co-tenant=16/16 declared-absent=6/18
+
+== govern — the governance overlay ENFORCES the SDD handoff (gated) ==
+  – SKIP: fsgg-sdd ship emitted no handoff (no ship-ready work item in a bare scaffold) — producer seam not exercised; the consumer/enforcement matrix below still runs against a contract fixture
+  ✓ strict + failing handoff → blocked (exit 2): the overlay consumed the handoff and ENFORCED it
+  ✓ strict + satisfied handoff → clean verdict — the verdict tracks the declared facts, so consumption is real (not just overlay-populated) (exit 0)
+  ✓ light + same failing handoff → not blocked (exit 0): the profile shifts the blocking boundary — the overlay enforces only when the profile says so
+
+== console — generated workspace lifecycle ==
+console composition: installing /tmp/fsgg-templates-436-candidate.OICpuu/FS.GG.Workspace.Template.0.10.0.nupkg
+PASS lifecycle completion: console/none is explicitly not applicable and owns no lifecycle state
+PASS lifecycle completion: console/sdd reached shipReady
+PASS lifecycle completion: console/typed-sdd reached shipReady
+PASS lifecycle compatibility: console/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state
+PASS lifecycle completion: console/omitted reached shipReady
+PASS lifecycle matrix: console none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
+PASS typed lifecycle controls: wrong lifecycle, stale projection, unsupported extension, direct edit, missing compiler, agent unavailable
+  Determining projects to restore...
+  Restored /tmp/tmp.UbePVETCNK/clean/src/SignalConsole/SignalConsole.fsproj (in 278 ms).
+  Restored /tmp/tmp.UbePVETCNK/clean/tests/SignalConsole.Tests/SignalConsole.Tests.fsproj (in 278 ms).
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  SignalConsole -> /tmp/tmp.UbePVETCNK/clean/src/SignalConsole/bin/Debug/net10.0/SignalConsole.dll
+  SignalConsole.Tests -> /tmp/tmp.UbePVETCNK/clean/tests/SignalConsole.Tests/bin/Debug/net10.0/SignalConsole.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.91
+[15:09:06 INF] EXPECTO? Running tests... <Expecto>
+[15:09:06 INF] EXPECTO! 4 tests run in 00:00:00.0439558 for console contract – 4 passed, 0 ignored, 0 failed, 0 errored. Success! <Expecto>
+  Determining projects to restore...
+  Restored /tmp/tmp.UbePVETCNK/sdd/src/SignalConsole/SignalConsole.fsproj (in 269 ms).
+  Restored /tmp/tmp.UbePVETCNK/sdd/tests/SignalConsole.Tests/SignalConsole.Tests.fsproj (in 269 ms).
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  SignalConsole -> /tmp/tmp.UbePVETCNK/sdd/src/SignalConsole/bin/Debug/net10.0/SignalConsole.dll
+  SignalConsole.Tests -> /tmp/tmp.UbePVETCNK/sdd/tests/SignalConsole.Tests/bin/Debug/net10.0/SignalConsole.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.88
+[15:09:16 INF] EXPECTO? Running tests... <Expecto>
+[15:09:16 INF] EXPECTO! 4 tests run in 00:00:00.0338518 for console contract – 4 passed, 0 ignored, 0 failed, 0 errored. Success! <Expecto>
+PASS console template packs, instantiates, restores, builds, tests, observes process seams, and composes one SDD lifecycle
+  ✓ console template lifecycle passes
+
+== web — generated workspace lifecycle ==
+web composition: selected system browser /usr/sbin/chromium
+web composition: installing /tmp/fsgg-templates-436-candidate.OICpuu/FS.GG.Workspace.Template.0.10.0.nupkg
+The following template packages will be installed:
+   /tmp/fsgg-templates-436-candidate.OICpuu/FS.GG.Workspace.Template.0.10.0.nupkg
+
+Success: FS.GG.Workspace.Template@0.10.0 installed the following templates:
+Template Name                                        Short Name            Language  Tags
+---------------------------------------------------  --------------------  --------  -------------------------------------
+FS.GG F# console workspace                           fs-gg-console                   F#/Console/SDD/Workspace
+FS.GG Fable bindings workspace                       fs-gg-fable-bindings            F#/Fable/Interop/Library/Workspace
+FS.GG Governance overlay                             fs-gg-governance                FS.GG/Governance/Config
+FS.GG neutral F# + TypeScript web workspace          fs-gg-web                       FS-GG/Web/TypeScript/ASP.NET Core
+FS.GG server-authoritative Fable game web workspace  fs-gg-fable-game                FS-GG/Game/Fable/ASP.NET Core/SignalR
+
+PASS lifecycle completion: web/none is explicitly not applicable and owns no lifecycle state
+PASS lifecycle completion: web/sdd reached shipReady
+PASS lifecycle completion: web/typed-sdd reached shipReady
+PASS lifecycle compatibility: web/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state
+PASS lifecycle completion: web/omitted reached shipReady
+PASS lifecycle matrix: web none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
+The template "FS.GG neutral F# + TypeScript web workspace" was created successfully.
+
+  Determining projects to restore...
+  Restored /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server/CleanWeb.Server.fsproj (in 320 ms).
+  Restored /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server.Tests/CleanWeb.Server.Tests.fsproj (in 332 ms).
+  CleanWeb.Server -> /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server/bin/Debug/net10.0/CleanWeb.Server.dll
+  CleanWeb.Server.Tests -> /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server.Tests/bin/Debug/net10.0/CleanWeb.Server.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:02.42
+
+added 15 packages, and audited 16 packages in 674ms
+
+5 packages are looking for funding
+  run `npm fund` for details
+
+2 high severity vulnerabilities
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+npm warn install-scripts 1 package had install scripts blocked because they are not covered by allowScripts:
+npm warn install-scripts   esbuild@0.25.12 (postinstall: node install.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+npm notice run cleanweb-web@0.1.0 build
+npm notice run tsc --noEmit && vite build
+vite v7.1.3 building for production...
+transforming...
+✓ 5 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                 0.40 kB │ gzip: 0.29 kB
+dist/assets/index-BytelGRd.css  0.22 kB │ gzip: 0.19 kB
+dist/assets/index-DsbYYzhQ.js   0.99 kB │ gzip: 0.53 kB
+✓ built in 43ms
+
+added 5 packages, and audited 6 packages in 426ms
+
+2 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+npm warn install-scripts 1 package had install scripts blocked because they are not covered by allowScripts:
+npm warn install-scripts   esbuild@0.25.12 (postinstall: node install.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+npm notice run cleanweb-web-tests@0.1.0 test
+npm notice run tsx --test *.test.ts
+(node:1900426) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✔ loadMessage requests the JSON endpoint and returns its payload (11.789376ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 119.561922
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  CleanWeb.Server -> /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server/bin/Debug/net10.0/CleanWeb.Server.dll
+  CleanWeb.Server.Tests -> /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server.Tests/bin/Debug/net10.0/CleanWeb.Server.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.34
+Test run for /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server.Tests/bin/Debug/net10.0/CleanWeb.Server.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+Results File: /tmp/fs-gg-web-composition.8LpTnR/scaffold/artifacts/test-results/server.trx
+
+Passed!  - Failed:     0, Passed:     1, Skipped:     0, Total:     1, Duration: 4 ms - CleanWeb.Server.Tests.dll (net10.0)
+  CleanWeb.Server -> /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server/bin/Release/net10.0/CleanWeb.Server.dll
+  CleanWeb.Server -> /tmp/fs-gg-web-composition.8LpTnR/scaffold/artifacts/publish/
+
+added 3 packages, and audited 4 packages in 703ms
+
+2 high severity vulnerabilities
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+browser runtime: external /usr/sbin/chromium (Chromium 151.0.7922.173 Arch Linux)
+npm notice run test
+npm notice run playwright test
+(node:1900739) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:1900792) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:1900792) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+
+(node:1900792) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/1] home.spec.ts:2:1 › serves the built client and its JSON message
+  1 passed (1.3s)
+
+added 15 packages, and audited 16 packages in 533ms
+
+5 packages are looking for funding
+  run `npm fund` for details
+
+2 high severity vulnerabilities
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+npm warn install-scripts 1 package had install scripts blocked because they are not covered by allowScripts:
+npm warn install-scripts   esbuild@0.25.12 (postinstall: node install.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+npm notice run rogue-web-web@0.1.0 build
+npm notice run tsc --noEmit && vite build
+vite v7.1.3 building for production...
+transforming...
+✓ 5 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                 0.40 kB │ gzip: 0.29 kB
+dist/assets/index-BytelGRd.css  0.22 kB │ gzip: 0.19 kB
+dist/assets/index-DsbYYzhQ.js   0.99 kB │ gzip: 0.53 kB
+✓ built in 43ms
+
+added 5 packages, and audited 6 packages in 434ms
+
+2 packages are looking for funding
+  run `npm fund` for details
+
+found 0 vulnerabilities
+npm warn install-scripts 1 package had install scripts blocked because they are not covered by allowScripts:
+npm warn install-scripts   esbuild@0.25.12 (postinstall: node install.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+npm notice run rogue-web-web-tests@0.1.0 test
+npm notice run tsx --test *.test.ts
+(node:1901230) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+✔ loadMessage requests the JSON endpoint and returns its payload (11.965242ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 119.945612
+  Determining projects to restore...
+  Restored /tmp/fs-gg-web-composition.8LpTnR/sdd/Server/Rogue-Web.Server.fsproj (in 289 ms).
+  Restored /tmp/fs-gg-web-composition.8LpTnR/sdd/Server.Tests/Rogue-Web.Server.Tests.fsproj (in 304 ms).
+  Rogue-Web.Server -> /tmp/fs-gg-web-composition.8LpTnR/sdd/Server/bin/Debug/net10.0/Rogue-Web.Server.dll
+  Rogue-Web.Server.Tests -> /tmp/fs-gg-web-composition.8LpTnR/sdd/Server.Tests/bin/Debug/net10.0/Rogue-Web.Server.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.91
+Test run for /tmp/fs-gg-web-composition.8LpTnR/sdd/Server.Tests/bin/Debug/net10.0/Rogue-Web.Server.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+Results File: /tmp/fs-gg-web-composition.8LpTnR/sdd/artifacts/test-results/server.trx
+
+Passed!  - Failed:     0, Passed:     1, Skipped:     0, Total:     1, Duration: 4 ms - Rogue-Web.Server.Tests.dll (net10.0)
+  Rogue-Web.Server -> /tmp/fs-gg-web-composition.8LpTnR/sdd/Server/bin/Release/net10.0/Rogue-Web.Server.dll
+  Rogue-Web.Server -> /tmp/fs-gg-web-composition.8LpTnR/sdd/artifacts/publish/
+
+added 3 packages, and audited 4 packages in 633ms
+
+2 high severity vulnerabilities
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+browser runtime: external /usr/sbin/chromium (Chromium 151.0.7922.173 Arch Linux)
+npm notice run test
+npm notice run playwright test
+(node:1901703) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+
+Running 1 test using 1 worker
+
+(node:1901775) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:1901775) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+
+(node:1901775) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/1] home.spec.ts:2:1 › serves the built client and its JSON message
+  1 passed (1.2s)
+web composition: generated clean scaffold production lifecycle
+  ✓ web template lifecycle passes
+
+== fable-bindings — generated workspace lifecycle ==
+fable-bindings composition: installing /tmp/fsgg-templates-436-candidate.OICpuu/FS.GG.Workspace.Template.0.10.0.nupkg
+PASS lifecycle completion: fable-bindings/none is explicitly not applicable and owns no lifecycle state
+PASS lifecycle completion: fable-bindings/sdd reached shipReady
+PASS lifecycle completion: fable-bindings/typed-sdd reached shipReady
+PASS lifecycle compatibility: fable-bindings/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state
+PASS lifecycle completion: fable-bindings/omitted reached shipReady
+PASS lifecycle matrix: fable-bindings none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
+skill-manifest: fable-bindings product OK — 4 of 6 producer-declared skills materialized, every digest matches the shipped manifest, none dangling
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'acmebindings-workspace@0.0.0',
+npm warn EBADENGINE   required: { node: '26.5.0', npm: '12.0.1' },
+npm warn EBADENGINE   current: { node: 'v26.7.0', npm: '12.0.2' }
+npm warn EBADENGINE }
+npm notice run acmebindings-workspace@0.0.0 doctor
+npm notice run node scripts/doctor.mjs
+npm notice run acmebindings-workspace@0.0.0 check:drift
+npm notice run node scripts/lock-declarations.mjs --check
+npm notice run acmebindings-workspace@0.0.0 test:runtime
+npm notice run node runtime/node/smoke.mjs
+  Determining projects to restore...
+  Restored /tmp/tmp.8d7najz2IS/product/tests/AcmeBindings.CompileTests/AcmeBindings.CompileTests.fsproj (in 231 ms).
+  Restored /tmp/tmp.8d7najz2IS/product/src/AcmeBindings/AcmeBindings.fsproj (in 231 ms).
+  AcmeBindings -> /tmp/tmp.8d7najz2IS/product/src/AcmeBindings/bin/Debug/netstandard2.1/AcmeBindings.dll
+  Successfully created package '/tmp/tmp.8d7najz2IS/product/src/AcmeBindings/bin/Debug/AcmeBindings.0.1.0.nupkg'.
+  AcmeBindings.CompileTests -> /tmp/tmp.8d7najz2IS/product/tests/AcmeBindings.CompileTests/bin/Debug/netstandard2.1/AcmeBindings.CompileTests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:01.65
+lifecycle evidence: clean
+npm notice run acmebindings-workspace@0.0.0 test:lifecycle
+npm notice run bash scripts/run-sdd-lifecycle.sh reports/bindings.junit.xml
+skill-manifest: fable-bindings product OK — 4 of 6 producer-declared skills materialized, every digest matches the shipped manifest, none dangling, 6 co-tenant manifest row(s) from another producer graded and delivered, 19 co-tenant directory(ies) accepted as 'fs-gg-sdd-* work-board work-board-best work-board-normal work-roadmap padd-item'
+lifecycle evidence: drift
+npm warn EBADENGINE Unsupported engine {
+npm warn EBADENGINE   package: 'acmebindings-workspace@0.0.0',
+npm warn EBADENGINE   required: { node: '26.5.0', npm: '12.0.1' },
+npm warn EBADENGINE   current: { node: 'v26.7.0', npm: '12.0.2' }
+npm warn EBADENGINE }
+npm notice run acmebindings-workspace@0.0.0 check:drift
+npm notice run node scripts/lock-declarations.mjs --check
+npm notice run acmebindings-workspace@0.0.0 generate:candidate
+npm notice run node scripts/generate-candidate.mjs
+npm notice run acmebindings-workspace@0.0.0 generate:candidate
+npm notice run node scripts/generate-candidate.mjs
+file:///tmp/tmp.8d7najz2IS/product/scripts/lock-declarations.mjs:53
+  if (await readFile(lockPath, "utf8") !== rendered) throw new Error("declaration closure drifted; review the lock, curated bindings, runtime evidence, and release notes together");
+                                                           ^
+
+Error: declaration closure drifted; review the lock, curated bindings, runtime evidence, and release notes together
+    at file:///tmp/tmp.8d7najz2IS/product/scripts/lock-declarations.mjs:53:60
+
+Node.js v26.7.0
+PASS fable-bindings template executes locked declaration, candidate, NuGet/npm/Fable/Node/Chromium, SDD, doctor, Governance, drift-review and owner-sourced product-skill delivery evidence
+  ✓ fable-bindings template lifecycle passes
+
+== fable-game — generated workspace lifecycle ==
+fable-game composition: selected system browser /usr/sbin/chromium
+fable-game composition: installing /tmp/fsgg-templates-436-candidate.OICpuu/FS.GG.Workspace.Template.0.10.0.nupkg
+The following template packages will be installed:
+   /tmp/fsgg-templates-436-candidate.OICpuu/FS.GG.Workspace.Template.0.10.0.nupkg
+
+Success: FS.GG.Workspace.Template@0.10.0 installed the following templates:
+Template Name                                        Short Name            Language  Tags
+---------------------------------------------------  --------------------  --------  -------------------------------------
+FS.GG F# console workspace                           fs-gg-console                   F#/Console/SDD/Workspace
+FS.GG Fable bindings workspace                       fs-gg-fable-bindings            F#/Fable/Interop/Library/Workspace
+FS.GG Governance overlay                             fs-gg-governance                FS.GG/Governance/Config
+FS.GG neutral F# + TypeScript web workspace          fs-gg-web                       FS-GG/Web/TypeScript/ASP.NET Core
+FS.GG server-authoritative Fable game web workspace  fs-gg-fable-game                FS-GG/Game/Fable/ASP.NET Core/SignalR
+
+PASS lifecycle completion: fable-game/none is explicitly not applicable and owns no lifecycle state
+PASS lifecycle completion: fable-game/sdd reached shipReady
+PASS lifecycle completion: fable-game/typed-sdd reached shipReady
+PASS lifecycle compatibility: fable-game/spec-kit remains explicitly selectable and owns no Standard/Typed SDD work state
+PASS lifecycle completion: fable-game/omitted reached shipReady
+PASS lifecycle matrix: fable-game none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
+The template "FS.GG server-authoritative Fable game web workspace" was created successfully.
+
+workspace integrity self-test: graph, lock coherence, shipped-prerequisite, and per-root npm-audit mutations rejected
+found 0 vulnerabilities
+found 0 vulnerabilities
+workspace integrity verified: /tmp/fs-gg-fable-game-composition.NITxt6/scaffold
+skill-manifest: fable-game product OK — 5 of 6 producer-declared skills materialized, every digest matches the shipped manifest, none dangling
+  Determining projects to restore...
+  Restored /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain/Domain.fsproj (in 365 ms).
+  Restored /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol/Protocol.fsproj (in 365 ms).
+  Restored /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server/Server.fsproj (in 365 ms).
+  Restored /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol.Tests/Protocol.Tests.fsproj (in 376 ms).
+  Restored /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain.Tests/Domain.Tests.fsproj (in 376 ms).
+  Restored /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server.Tests/Server.Tests.fsproj (in 390 ms).
+  Domain -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain/bin/Debug/net10.0/Domain.dll
+  Protocol -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol/bin/Debug/net10.0/Protocol.dll
+  Protocol.Tests -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol.Tests/bin/Debug/net10.0/Protocol.Tests.dll
+  Domain.Tests -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain.Tests/bin/Debug/net10.0/Domain.Tests.dll
+  Server -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server/bin/Debug/net10.0/Server.dll
+  Server.Tests -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server.Tests/bin/Debug/net10.0/Server.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:04.12
+  Determining projects to restore...
+  All projects are up-to-date for restore.
+  Domain -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain/bin/Debug/net10.0/Domain.dll
+  Protocol -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol/bin/Debug/net10.0/Protocol.dll
+  Protocol.Tests -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol.Tests/bin/Debug/net10.0/Protocol.Tests.dll
+  Server -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server/bin/Debug/net10.0/Server.dll
+  Server.Tests -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server.Tests/bin/Debug/net10.0/Server.Tests.dll
+  Domain.Tests -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain.Tests/bin/Debug/net10.0/Domain.Tests.dll
+
+Build succeeded.
+    0 Warning(s)
+    0 Error(s)
+
+Time Elapsed 00:00:00.34
+Test run for /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain.Tests/bin/Debug/net10.0/Domain.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+Results File: /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/artifacts/test-results/domain.trx
+
+Passed!  - Failed:     0, Passed:     8, Skipped:     0, Total:     8, Duration: 30 ms - Domain.Tests.dll (net10.0)
+Test run for /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol.Tests/bin/Debug/net10.0/Protocol.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+Results File: /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/artifacts/test-results/protocol.trx
+
+Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12, Duration: 54 ms - Protocol.Tests.dll (net10.0)
+cross-runtime: building .NET codec probe
+cross-runtime: building Fable codec probe (dotnet fable)
+cross-runtime: OK - bootstrap-request: net encode
+cross-runtime: OK - bootstrap-request: fable decodes net's encoding
+cross-runtime: OK - bootstrap-request: fable encode
+cross-runtime: OK - bootstrap-request: net decodes fable's encoding
+cross-runtime: OK - bootstrap-response: net encode
+cross-runtime: OK - bootstrap-response: fable decodes net's encoding
+cross-runtime: OK - bootstrap-response: fable encode
+cross-runtime: OK - bootstrap-response: net decodes fable's encoding
+cross-runtime: OK - realtime[input]: net encode
+cross-runtime: OK - realtime[input]: fable decodes net's encoding
+cross-runtime: OK - realtime[input]: fable encode
+cross-runtime: OK - realtime[input]: net decodes fable's encoding
+cross-runtime: OK - realtime[sessionHello]: net encode
+cross-runtime: OK - realtime[sessionHello]: fable decodes net's encoding
+cross-runtime: OK - realtime[sessionHello]: fable encode
+cross-runtime: OK - realtime[sessionHello]: net decodes fable's encoding
+cross-runtime: OK - realtime[snapshot]: net encode
+cross-runtime: OK - realtime[snapshot]: fable decodes net's encoding
+cross-runtime: OK - realtime[snapshot]: fable encode
+cross-runtime: OK - realtime[snapshot]: net decodes fable's encoding
+cross-runtime: OK - realtime[presence]: net encode
+cross-runtime: OK - realtime[presence]: fable decodes net's encoding
+cross-runtime: OK - realtime[presence]: fable encode
+cross-runtime: OK - realtime[presence]: net decodes fable's encoding
+cross-runtime: OK - realtime[resyncRequest]: net encode
+cross-runtime: OK - realtime[resyncRequest]: fable decodes net's encoding
+cross-runtime: OK - realtime[resyncRequest]: fable encode
+cross-runtime: OK - realtime[resyncRequest]: net decodes fable's encoding
+cross-runtime: OK - realtime[resyncSnapshot]: net encode
+cross-runtime: OK - realtime[resyncSnapshot]: fable decodes net's encoding
+cross-runtime: OK - realtime[resyncSnapshot]: fable encode
+cross-runtime: OK - realtime[resyncSnapshot]: net decodes fable's encoding
+cross-runtime: OK - rejected cases: net rejects both malformed cases
+cross-runtime: OK - rejected cases: fable rejects both malformed cases
+cross-runtime: OK - every DTO round-tripped net<->fable in both directions, including the rejected-case proof on both runtimes
+Test run for /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server.Tests/bin/Debug/net10.0/Server.Tests.dll (.NETCoreApp,Version=v10.0)
+A total of 1 test files matched the specified pattern.
+Results File: /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/artifacts/test-results/server.trx
+
+Passed!  - Failed:     0, Passed:    11, Skipped:     0, Total:    11, Duration: 513 ms - Server.Tests.dll (net10.0)
+
+added 32 packages, and audited 33 packages in 534ms
+
+6 packages are looking for funding
+  run `npm fund` for details
+
+2 high severity vulnerabilities
+
+To address issues that do not require attention, run:
+  npm audit fix
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+npm warn install-scripts 1 package had install scripts blocked because they are not covered by allowScripts:
+npm warn install-scripts   esbuild@0.25.12 (postinstall: node install.js)
+npm warn install-scripts
+npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
+npm notice run cleanfablegame-client@0.1.0 build
+npm notice run dotnet tool restore && dotnet fable . -o output --noCache && vite build
+Tool 'fable' (version '5.13.0') was restored. Available commands: fable
+
+Restore was successful.
+Fable 5.13.0: F# to JavaScript compiler
+Minimum @fable-org/fable-library-js version (when installed from npm): 2.5.1
+
+Thanks to the contributor! @0x53A
+Stand with Ukraine! https://standwithukraine.com.ua/
+
+Parsing Client.fsproj...
+Project and references (25 source files) parsed in 4651ms
+
+Started Fable compilation...
+
+Fable compilation finished in 2733ms
+
+vite v7.1.3 building for production...
+transforming...
+node_modules/@microsoft/signalr/dist/esm/Utils.js (190:0): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/@microsoft/signalr/dist/esm/Utils.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+node_modules/@microsoft/signalr/dist/esm/Utils.js (208:0): A comment
+
+"/*#__PURE__*/"
+
+in "node_modules/@microsoft/signalr/dist/esm/Utils.js" contains an annotation that Rollup cannot interpret due to the position of the comment. The comment will be removed to avoid issues.
+✓ 89 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                  1.40 kB │ gzip:  0.76 kB
+dist/assets/index-BAwC1pTP.js  134.21 kB │ gzip: 36.54 kB
+✓ built in 405ms
+  Protocol -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol/bin/Release/net10.0/Protocol.dll
+  Domain -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain/bin/Release/net10.0/Domain.dll
+  Server -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server/bin/Release/net10.0/Server.dll
+  Server -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/artifacts/publish/
+
+added 3 packages, and audited 4 packages in 659ms
+
+2 high severity vulnerabilities
+
+To address all issues, run:
+  npm audit fix --force
+
+Run `npm audit` for details.
+browser runtime: external /usr/sbin/chromium (Chromium 151.0.7922.173 Arch Linux)
+npm notice run test
+npm notice run playwright test
+(node:1925291) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(Use `node --trace-deprecation ...` to show where the warning was created)
+[WebServer] npm notice run cleanfablegame-client@0.1.0 dev
+
+[WebServer] npm notice run dotnet tool restore && dotnet fable watch . -o output --noCache --run vite
+
+[WebServer] (node:1926231) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+
+Running 1 test using 1 worker
+
+(node:1926299) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+(node:1926299) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+
+(node:1926299) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+
+[1/1] two-client.spec.ts:39:1 › two keyboard-driven browser contexts see each other's authoritative moves over SignalR
+  1 passed (7.9s)
+skill-manifest: fable-game product OK — 5 of 6 producer-declared skills materialized, every digest matches the shipped manifest, none dangling, 6 co-tenant manifest row(s) from another producer graded and delivered, 19 co-tenant directory(ies) accepted as 'fs-gg-sdd-* work-board work-board-best work-board-normal work-roadmap padd-item'
+fable-game composition: generated clean scaffold production lifecycle, including cross-runtime codec proof, the Playwright two-client scenario, and owner-sourced product-skill delivery through both the direct and provider routes
+  ✓ fable-game template lifecycle passes
+
+== product skills — owner catalog coherence, and delivery into a packed product ==
+  ✓ product-skill catalog, manifest and package items agree (skill-manifest: up to date (6 skills, packed into fs-gg-fable-bindings + fs-gg-fable-game))
+  ✓ fable-game: skill-manifest: fable-game product OK — 5 of 6 producer-declared skills materialized, every digest matches the shipped manifest, none dangling
+
+== summary ==  112 passed, 0 failed

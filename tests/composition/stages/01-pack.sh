@@ -26,7 +26,7 @@ fi
 # The required composition route proves the release mechanism can fail and that this exact packed
 # candidate is the declared version consumed by both checksum-bound feed pushes (#432).
 if python3 "$COMPOSITION_DIR/lib/release-preflight.py" --self-test --archive "$NUPKG" \
-  --workflow "$REPO_ROOT/.github/workflows/release.yml" --expected-version 0.9.0; then
+  --workflow "$REPO_ROOT/.github/workflows/release.yml" --expected-version 0.10.0; then
   ok "release preflight and its feed/push mutation controls hold"
 else
   bad "release preflight failed for the exact composition candidate"
