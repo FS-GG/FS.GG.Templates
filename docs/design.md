@@ -30,9 +30,9 @@ framework copy**. `providers/rendering.providers.yml` + the
 
 - **Rendering** — `fsgg-sdd scaffold --provider rendering` installs the **live,
   un-vendored** `FS.GG.Rendering` app from the published `FS.GG.UI.Template` package
-  pinned by the provider descriptor, passing `lifecycle=sdd` so the workspace carries only
-  the runnable app (the `.fsgg/` lifecycle comes from the SDD skeleton, not a second
-  copy).
+  pinned by the provider descriptor. All providers preserve explicit `none`, `sdd`, and
+  `typed-sdd` selection, with omission resolving to `sdd`; product templates carry no lifecycle
+  files because FS.GG.SDD owns `.fsgg/`, `work/`, and `readiness/`.
 - **SDD** — the lifecycle skeleton (`.fsgg/{project,sdd,agents}.yml` + `work/` +
   `readiness/`), owned by `fsgg-sdd`.
 - **Governance** — the populated `fs-gg-governance` overlay, derived from the exact

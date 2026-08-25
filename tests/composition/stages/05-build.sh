@@ -46,6 +46,14 @@ step "verify — the Game Skills release resolver's alarms can fire (#349)"
 assert_game_skill_alarms_can_fire "game-skills"
 
 if [[ "$RUN_FULL" == "1" ]]; then
+  step "verify — rendering game/app lifecycle matrix from FS.GG.UI.Template 0.28.0 (#432)"
+  if assert_provider_lifecycle_matrix rendering published "$WORKDIR/rendering-game-lifecycle" productName=MatrixGame rootNamespace=MatrixGame profile=game designSystem=wcag \
+    && assert_provider_lifecycle_matrix rendering published "$WORKDIR/rendering-app-lifecycle" productName=MatrixApp rootNamespace=MatrixApp profile=app designSystem=wcag; then
+    ok "rendering game/app accept none/sdd/typed-sdd and omitted=sdd"
+  else
+    bad "rendering provider/profile lifecycle matrix failed"
+  fi
+
   if compose_full "$FULL" "$FULL_PRODUCT" "$FULL_SCAFFOLD_REPORT" >"$WORKDIR/scaffold.log" 2>&1; then
     GENERATED_README="$FULL/README.md"
     LOAD_SCRIPT="load-${FULL_PRODUCT}.fsx"

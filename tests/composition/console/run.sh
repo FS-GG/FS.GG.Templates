@@ -10,12 +10,16 @@ mkdir -p "$DOTNET_CLI_HOME"
 LANE_REPO_ROOT="$ROOT"
 # shellcheck source=tests/composition/lib/lane-package.sh
 . "$ROOT/tests/composition/lib/lane-package.sh"
+# shellcheck source=tests/composition/lib/lifecycle-matrix.sh
+. "$ROOT/tests/composition/lib/lifecycle-matrix.sh"
 # The release gate sets FSGG_TEMPLATES_NUPKG to the downloaded, checksum-verified artifact, so this
 # lane proves the console identity against the bytes that are about to be published rather than
 # against a second archive packed here (FS.GG.Templates#349).
 PACKAGE="$(lane_package_path "$WORK")"
 echo "console composition: installing $PACKAGE"
 dotnet new install "$PACKAGE" >/dev/null
+assert_provider_lifecycle_matrix console "$PACKAGE" "$WORK/lifecycle-matrix" productName=MatrixConsole rootNamespace=MatrixConsole
+assert_typed_lifecycle_controls "$WORK/lifecycle-matrix/typed-sdd" "$WORK/lifecycle-controls"
 dotnet new fs-gg-console -o "$WORK/clean" --productName SignalConsole --rootNamespace SignalConsole >/dev/null
 
 test -f "$WORK/clean/global.json"

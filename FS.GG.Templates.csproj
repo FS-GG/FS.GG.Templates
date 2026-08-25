@@ -8,12 +8,10 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Workspace.Template</PackageId>
-    <!-- 0.8.3 → 0.8.4 because FS.GG.Templates#416 changes the generated fable-game workspace
-         while 0.8.3 is already public; leaving the version unchanged would give two package
-         payloads one identity. The deterministic reconnect-safe realtime baseline is additive
-         hardening and does not change a template identity or parameter, so PATCH is sufficient.
-         The post-merge dual-feed obligation verifies the complete candidate. -->
-    <Version>0.8.4</Version>
+    <!-- 0.8.4 → 0.9.0 because FS.GG.Templates#432 adds one public lifecycle choice contract to
+         every workspace identity and provider. Existing omitted invocations remain lifecycle=sdd;
+         the minor release exposes the additive none/sdd/typed-sdd selection surface. -->
+    <Version>0.9.0</Version>
     <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new workspace templates for FS.GG.SDD: governance, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</Description>

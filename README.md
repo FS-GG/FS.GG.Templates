@@ -62,7 +62,7 @@ independently owned; the scaffold just glues them:
 mkdir -p ./MyApp/.fsgg
 cp providers/rendering.providers.yml ./MyApp/.fsgg/providers.yml
 
-# 2. SDD skeleton + the live FS.GG.Rendering app (lifecycle=sdd → app-only workspace).
+# 2. Selected lifecycle + the live FS.GG.Rendering app (omitted lifecycle defaults to sdd).
 fsgg-sdd scaffold --root ./MyApp --provider rendering --param productName=MyApp
 
 # 3. Activate Governance: drop the populated reference gate set into the project.
@@ -82,10 +82,10 @@ It produces:
 
 - **Rendering** — the FS.GG.Rendering `fs-gg-ui` app (Skia/OpenGL, Elmish/MVU, Scene,
   SkiaViewer, Controls), installed live from the published `FS.GG.UI.Template` package
-  pinned by the provider (currently `FS.GG.UI.Template@0.25.1`, behind the
-  immutable tag `fs-gg-ui-template/v0.25.1`). The provider passes
-  `lifecycle=sdd` so the workspace carries **only the runnable app** — the `.fsgg/`
-  lifecycle comes from the SDD skeleton, not a second copy.
+  pinned by the provider (currently `FS.GG.UI.Template@0.28.0`, behind the
+  immutable tag `fs-gg-ui-template/v0.28.0`). Every provider accepts `none`, `sdd`,
+  and `typed-sdd`; omission resolves to `sdd`. Product templates emit only product files —
+  lifecycle artifacts always come from FS.GG.SDD, never a second template-owned copy.
 - **SDD** — the lifecycle skeleton: `.fsgg/project.yml`, `.fsgg/sdd.yml`,
   `.fsgg/agents.yml`, `work/`, `readiness/` (drive it with `fsgg-sdd charter …`).
 - **Governance** — the populated reference gate set from the immutable
@@ -327,6 +327,13 @@ any downstream registry/pin flip advertises it.
 
 ### Release notes
 
+#### 0.9.0 — uniform lifecycle selection
+
+Every supported provider and profile accepts explicit `none`, `sdd`, and `typed-sdd`, while
+omission remains equivalent to `sdd`. `FS.GG.SDD.Cli` owns Standard and Typed SDD artifacts;
+the four workspace templates accept the choice only as orchestration metadata. Rendering is pinned
+to `FS.GG.UI.Template` 0.28.0 and the coherent orchestrator floor is 1.4.0-preview.1.
+
 #### 0.8.0 — the four-identity workspace set
 
 **The package id changed: `FS.GG.Templates` → `FS.GG.Workspace.Template`.** Read the upgrade
@@ -370,13 +377,14 @@ release behind the published 0.8.0, whose only content difference is `fs-gg-mapc
 
 | component | minimum | where it is declared |
 |---|---|---|
-| `fsgg-sdd` (`FS.GG.SDD.Cli`) | **0.6.0** | `minimumFsggSdd` in every provider descriptor under `providers/` |
-| `new-sdd-workspace` (`FS.GG.NewSddWorkspace`, the no-checkout wizard) | **0.9.0** | the release that resolves the four new provider descriptors over the network |
+| `fsgg-sdd` (`FS.GG.SDD.Cli`) | **1.4.0-preview.1** | `minimumFsggSdd` in every provider descriptor under `providers/` |
+| `new-sdd-workspace` (`FS.GG.NewSddWorkspace`, the no-checkout wizard) | **0.10.0** | the first release carrying the Typed SDD workspace contract |
 | `fsgg-governance` (`FS.GG.Governance.Cli`) | **1.5.0** ReferenceGateSet authority | `templates/fs-gg-governance/.template.config/reference-gate-set.json` |
 | .NET SDK | **10.0** | `global.json` in each generated workspace |
 
-**Compatibility.** The scaffold-provider contract stays at **1.1.0** — the four new descriptors add
-no field, so an SDD at or above the 0.6.0 floor resolves them without change. Generated workspaces
+**Compatibility.** The scaffold-provider contract stays at **1.1.0** — lifecycle is an existing
+value-preserving provider parameter, so an SDD at or above the 1.4.0-preview.1 floor resolves all
+three lanes without a descriptor schema change. Generated workspaces
 are unaffected by this release: composition happens at scaffold time (ADR-0002), so an already
 scaffolded product keeps the payload it was created with until it is re-scaffolded. The `rendering`
 and `fs-gg-governance` identities are byte-unchanged from 0.7.1 apart from the package they arrive in.
@@ -402,7 +410,7 @@ scaffolding script — needs the same one-line change; the descriptors in `provi
 
 | Path | What |
 |---|---|
-| `providers/rendering.providers.yml` | the SDD scaffold-provider descriptor, pinned to `FS.GG.UI.Template` and passing `lifecycle=sdd` (the **primary** composition path). |
+| `providers/rendering.providers.yml` | the SDD scaffold-provider descriptor, pinned to `FS.GG.UI.Template` and exposing `none` / `sdd` / `typed-sdd` (`sdd` by default). |
 | `providers/console.providers.yml`, `web.providers.yml`, `fable-bindings.providers.yml`, `fable-game.providers.yml` | the four workspace-identity descriptors, each pinned to this package's own published `FS.GG.Workspace.Template::<ver>`. |
 | `templates/fs-gg-governance/` | the populated Governance-config overlay (`fs-gg-governance`). |
 | `templates/fs-gg-console/`, `fs-gg-web/`, `fs-gg-fable-bindings/`, `fs-gg-fable-game/` | the four packaged workspace identities. |

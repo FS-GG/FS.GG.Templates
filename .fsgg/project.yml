@@ -1,0 +1,7 @@
+schemaVersion: 1
+project:
+  id: fs.gg.templates-typed-sdd-p4
+  defaultWorkRoot: work
+sdd:
+  config: .fsgg/sdd.yml
+  agents: .fsgg/agents.yml

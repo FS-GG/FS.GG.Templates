@@ -25,15 +25,17 @@ type TickBroadcaster(hub: IHubContext<GameHub>, configuration: IConfiguration) =
     // effectively "never" -- a 200ms real-world default would otherwise race with tests
     // that assert on the very next inbound `Message` after a specific action.
     let intervalMilliseconds = configuration.GetValue("TickIntervalMilliseconds", 200.0)
+    let enabled = configuration.GetValue("TickBroadcasterEnabled", true)
 
     override _.ExecuteAsync(stoppingToken: CancellationToken) : Task =
         task {
-            while not stoppingToken.IsCancellationRequested do
-                do! Task.Delay(TimeSpan.FromMilliseconds intervalMilliseconds, stoppingToken)
-                let tick, players = RoomAuthority.advanceTick ()
-                let snapshot: RealtimeV1.Snapshot =
-                    { Version = 1; Tick = tick; Players = players |> List.map (fun (pid, col, row) -> { PlayerId = pid; Col = col; Row = row }) }
-                do! hub.Clients.Group(RoomAuthority.RoomId).SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.SnapshotMessage snapshot))
+            if enabled then
+                while not stoppingToken.IsCancellationRequested do
+                    do! Task.Delay(TimeSpan.FromMilliseconds intervalMilliseconds, stoppingToken)
+                    let tick, players = RoomAuthority.advanceTick ()
+                    let snapshot: RealtimeV1.Snapshot =
+                        { Version = 1; Tick = tick; Players = players |> List.map (fun (pid, col, row) -> { PlayerId = pid; Col = col; Row = row }) }
+                    do! hub.Clients.Group(RoomAuthority.RoomId).SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.SnapshotMessage snapshot))
         }
 
 /// Marker type for `WebApplicationFactory<Program>` in Server.Tests. An F# `module`

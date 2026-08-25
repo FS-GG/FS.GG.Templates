@@ -23,6 +23,15 @@ else
   }
 fi
 
+# The required composition route proves the release mechanism can fail and that this exact packed
+# candidate is the declared version consumed by both checksum-bound feed pushes (#432).
+if python3 "$COMPOSITION_DIR/lib/release-preflight.py" --self-test --archive "$NUPKG" \
+  --workflow "$REPO_ROOT/.github/workflows/release.yml" --expected-version 0.9.0; then
+  ok "release preflight and its feed/push mutation controls hold"
+else
+  bad "release preflight failed for the exact composition candidate"
+fi
+
 PACKAGE_ENTRIES="$(unzip -Z1 "$NUPKG")"
 if grep -Fxq 'README.md' <<<"$PACKAGE_ENTRIES"; then
   ok "package contains the NuGet README.md declared by PackageReadmeFile"

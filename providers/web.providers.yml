@@ -4,7 +4,7 @@ providers:
     contractVersion: "1.1.0"
     templateId: fs-gg-web
     # This intended release pin is not an activation lead; FS.GG.Templates#349 publishes and independently verifies it.
-    source: FS.GG.Workspace.Template::0.8.0
+    source: FS.GG.Workspace.Template::0.9.0
     nameParameter: productName
     identifierParameter: rootNamespace
     # THE ORCHESTRATOR AXIS (ADR-0008). A scaffold has TWO inputs — this template@<source pin>,
@@ -26,11 +26,14 @@ providers:
     # see tests/composition/web/run.sh. So the floor is the coherent-set minimum, not a web-specific
     # requirement, and it must move only when that registry pin moves.
     minimumFsggSdd:
-      version: "0.6.0"
-      requires: "SDD lifecycle and scaffold provenance support"
+      version: "1.4.0-preview.1"
+      requires: "Typed Protocol Kernel lifecycle selection, compilation, provenance, refresh, and diagnostics"
       adr: "FS-GG/.github docs/adr/0071-two-web-workspace-providers-one-template-package.md"
     parameters:
       - key: productName
         required: true
       - key: rootNamespace
         required: true
+      - key: lifecycle
+        required: false
+        default: sdd

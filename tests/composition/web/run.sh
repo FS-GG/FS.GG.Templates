@@ -14,12 +14,15 @@ done
 LANE_REPO_ROOT="$root"
 # shellcheck source=tests/composition/lib/lane-package.sh
 . "$root/tests/composition/lib/lane-package.sh"
+# shellcheck source=tests/composition/lib/lifecycle-matrix.sh
+. "$root/tests/composition/lib/lifecycle-matrix.sh"
 # The release gate sets FSGG_TEMPLATES_NUPKG to the downloaded, checksum-verified artifact, so this
 # lane proves the web identity against the bytes that are about to be published rather than against
 # a second archive packed here (FS.GG.Templates#349).
 package="$(lane_package_path "$work")"
 echo "web composition: installing $package"
 dotnet new install "$package" --force
+assert_provider_lifecycle_matrix web "$package" "$work/lifecycle-matrix" productName=MatrixWeb rootNamespace=MatrixWeb
 dotnet new fs-gg-web -n CleanWeb -o "$work/scaffold"
 test -f "$work/scaffold/Server/CleanWeb.Server.fsproj"
 test -f "$work/scaffold/Web/package.json"
