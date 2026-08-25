@@ -30,7 +30,7 @@ Prose status: planned
 - PD-002 [AC-001] [FR-002] [DEC-001] complete: Do not edit the #417 browser sources or external dependency pins; advance the four workspace provider self-package sources to 0.10.0, regenerate/check their effective projection, and inspect the packed `.template.config/template.json` inventory for the five existing identities plus the accessible fable-game payload.
 - PD-003 [AC-002] [FR-003] [DEC-002] complete: Restore locked inputs, pack once to an isolated artifact directory with repository commit metadata, bind the package path through `FSGG_TEMPLATES_NUPKG`, and run the full composition suite so all identity and browser lanes consume that archive.
 - PD-004 [AC-003] [FR-004] [DEC-003] complete: Open a canonical `item/436-*` PR that closes #436 and declares exact-head obligations for tag creation/publication, dual-feed verification/clean install, and registry/downstream reconciliation; create no tag during preparation.
-- PD-005 [AC-003] [FR-005] [DEC-002] complete: Retain the current producer workflow because it already binds tag/version/source, downloads the one uploaded archive into its gate and publish jobs, pushes GitHub Packages before nuget.org, and supports immutable-tag replay.
+- PD-005 [AC-003] [FR-005] [DEC-002] complete: Retain the current producer workflow and strengthen its preflight predicate so it proves the tag/version/source bindings and associates the first exact-artifact push with GitHub Packages and the second with nuget.org, including a named reversed-order mutation that must fail.
 - PD-006 [AC-004] [FR-006] [DEC-003] complete: After merge, verify tag SHA, workflow source SHA, nuspec repository commit, both feed downloads, normalized payload identity, and a clean nuget.org-only install before completing the publication obligation.
 - PD-007 [AC-004] [FR-007] [DEC-003] complete: Only after both feeds agree, route the feed-derived Coordination registry update and downstream dispatch as the final obligation; do not author registry state in this repository.
 
@@ -42,7 +42,7 @@ Prose status: planned
 ## Verification Obligations
 - VO-001 [PD-001] [PD-002] [PC-001] packageInspection: Assert the nuspec id/version/repository commit, the exact template identity inventory, and representative #417 accessible-browser payload paths in the one prepared archive.
 - VO-002 [PD-003] [PC-001] generatedProductTest: Run `tests/composition/run.sh` with every configured lane against `FSGG_TEMPLATES_NUPKG`; retain its command-produced JUnit and require the fable-game Playwright/two-client acceptance route to pass.
-- VO-003 [PD-004] [PD-005] [PC-002] releasePreflight: Parse the current workflow to prove tag/version/source binding, one uploaded package artifact, gate use of that artifact, and GitHub-first/nuget-second publication; invert the candidate version/tag relation and require the existing release guard to fail.
+- VO-003 [PD-004] [PD-005] [PC-002] releasePreflight: Parse the current workflow to prove tag/version/source binding, one uploaded package artifact, gate use of that artifact, and GitHub-first/nuget-second publication; invert both the candidate version/tag relation and the feed order and require each named mutation to fail.
 - VO-004 [PD-006] [PD-007] [PC-002] [PC-003] postMergeVerification: After merge and publication, compare feed downloads excluding only signatures, run a clean public-only install, verify the tag/source metadata, and attach the registry/downstream receipts.
 
 ## Performance Intent

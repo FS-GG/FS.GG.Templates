@@ -11,7 +11,7 @@ sourceAnalysis: readiness/436-workspace-template-0-10-0-release/analysis.json
 sourceSnapshots:
   - label: analysis
     path: readiness/436-workspace-template-0-10-0-release/analysis.json
-    digest: 78247b64b2e3d15fa55308d7c860eacf6d4e044c99992cd9eb6c2b0b32af8339
+    digest: e89dd732f1b73137e3b91d9be2dfefbd05149d61bb8a0840d5ef515e34ac057f
     schemaVersion: 1
   - label: checklist
     path: work/436-workspace-template-0-10-0-release/checklist.md
@@ -23,7 +23,7 @@ sourceSnapshots:
     schemaVersion: 1
   - label: plan
     path: work/436-workspace-template-0-10-0-release/plan.md
-    digest: e3842ae6e80675cbc158a359459e6d52154c4bf62f0480f0a834fe2f7bbdb48d
+    digest: e4dd4335ed5319e6b8288c0f327d78c6285ad19ab205d91557f08e5d71f60819
     schemaVersion: 1
   - label: spec
     path: work/436-workspace-template-0-10-0-release/spec.md
@@ -31,7 +31,7 @@ sourceSnapshots:
     schemaVersion: 1
   - label: tasks
     path: work/436-workspace-template-0-10-0-release/tasks.yml
-    digest: 9df19f8075f4b20556d5b19e8468f05b507b7d9a87b9e4811963f150203760b7
+    digest: e6252c9358fc71b9fb36a4891b2f12a37ea2e5bf87d9131a3304408ad7acc5f3
     schemaVersion: 1
 evidence:
   - id: EV001
@@ -763,5 +763,32 @@ evidence:
       failed: 0
       skipped: 0
     notes: [The release verification suite exercised the prepared package across all declared lanes and preserved post-merge publication as a delivery obligation.]
+  - id: EV028
+    kind: verification
+    subject:
+      type: task
+      id: T028
+    taskRefs: [T028]
+    requirementRefs: [FR-005]
+    acceptanceScenarioRefs: [AC-003]
+    clarificationDecisionRefs: []
+    checklistResultRefs: []
+    planDecisionRefs: [PD-005]
+    obligationRefs: [EV028]
+    artifacts: [tests/composition/lib/release-preflight.py, work/436-workspace-template-0-10-0-release/release-verification.junit.log, work/436-workspace-template-0-10-0-release/release-verification.junit.xml]
+    sourceRefs:
+      - kind: verification
+        path: work/436-workspace-template-0-10-0-release/run-release-verification.sh
+    result: pass
+    synthetic: false
+    observedRun:
+      source: work/436-workspace-template-0-10-0-release/release-verification.junit.xml
+      digest: "sha256:7ab0884ffcf8d6e339474167b6cb4ad7e60b69be88aa6519cdd5b83a070a504a"
+      digestContract: exact-bytes-v1
+      outcome: passed
+      passed: 1
+      failed: 0
+      skipped: 0
+    notes: [Round-1 repair proved the real GitHub-first workflow green and the named reversed-feed-order mutation red before the full 112-assertion generated matrix completed without failures.]
 lifecycleNotes:
   - "Next lifecycle action: verify."

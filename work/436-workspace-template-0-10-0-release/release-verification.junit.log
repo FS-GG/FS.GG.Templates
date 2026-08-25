@@ -42,7 +42,7 @@ PASS lifecycle tree equivalence can fire on content drift
   ✓ roots: the runtime skill-root declaration and the generated view both hold
       roots-declaration: the runtime skill root set is '.agents/skills .claude/skills' — the union of <FsggKitSkillRoots> ('.claude/skills') and <FsggKitViewSkillRoots> ('.agents/skills')
       view-root-tracking: git tracks nothing under 1 declared view root(s)
-      .agents/skills: absent — accepted by --absent-ok: the required 'composition' job runs on a bare checkout that never materializes, so an ungenerated view is its normal state; absence is caught on the materialize path instead — measured above, and NOT on any required context here
+      .agents/skills: 23/23 declared skill(s) visible
       .claude/skills: 23/23 declared skill(s) visible
 
 == package — use prebuilt FS.GG.Workspace.Template artifact ==
@@ -187,35 +187,35 @@ PASS lifecycle completion: console/omitted reached shipReady
 PASS lifecycle matrix: console none/sdd/typed-sdd/spec-kit/omitted clean-create, compatibility/completion, restore, build, and test from installed package
 PASS typed lifecycle controls: wrong lifecycle, stale projection, unsupported extension, direct edit, missing compiler, agent unavailable
   Determining projects to restore...
-  Restored /tmp/tmp.IVcfdOb7jx/clean/tests/SignalConsole.Tests/SignalConsole.Tests.fsproj (in 269 ms).
-  Restored /tmp/tmp.IVcfdOb7jx/clean/src/SignalConsole/SignalConsole.fsproj (in 269 ms).
+  Restored /tmp/tmp.UbePVETCNK/clean/src/SignalConsole/SignalConsole.fsproj (in 278 ms).
+  Restored /tmp/tmp.UbePVETCNK/clean/tests/SignalConsole.Tests/SignalConsole.Tests.fsproj (in 278 ms).
   Determining projects to restore...
   All projects are up-to-date for restore.
-  SignalConsole -> /tmp/tmp.IVcfdOb7jx/clean/src/SignalConsole/bin/Debug/net10.0/SignalConsole.dll
-  SignalConsole.Tests -> /tmp/tmp.IVcfdOb7jx/clean/tests/SignalConsole.Tests/bin/Debug/net10.0/SignalConsole.Tests.dll
+  SignalConsole -> /tmp/tmp.UbePVETCNK/clean/src/SignalConsole/bin/Debug/net10.0/SignalConsole.dll
+  SignalConsole.Tests -> /tmp/tmp.UbePVETCNK/clean/tests/SignalConsole.Tests/bin/Debug/net10.0/SignalConsole.Tests.dll
 
 Build succeeded.
     0 Warning(s)
     0 Error(s)
 
-Time Elapsed 00:00:01.84
-[14:21:07 INF] EXPECTO? Running tests... <Expecto>
-[14:21:07 INF] EXPECTO! 4 tests run in 00:00:00.0445958 for console contract – 4 passed, 0 ignored, 0 failed, 0 errored. Success! <Expecto>
+Time Elapsed 00:00:01.91
+[15:09:06 INF] EXPECTO? Running tests... <Expecto>
+[15:09:06 INF] EXPECTO! 4 tests run in 00:00:00.0439558 for console contract – 4 passed, 0 ignored, 0 failed, 0 errored. Success! <Expecto>
   Determining projects to restore...
-  Restored /tmp/tmp.IVcfdOb7jx/sdd/src/SignalConsole/SignalConsole.fsproj (in 268 ms).
-  Restored /tmp/tmp.IVcfdOb7jx/sdd/tests/SignalConsole.Tests/SignalConsole.Tests.fsproj (in 268 ms).
+  Restored /tmp/tmp.UbePVETCNK/sdd/src/SignalConsole/SignalConsole.fsproj (in 269 ms).
+  Restored /tmp/tmp.UbePVETCNK/sdd/tests/SignalConsole.Tests/SignalConsole.Tests.fsproj (in 269 ms).
   Determining projects to restore...
   All projects are up-to-date for restore.
-  SignalConsole -> /tmp/tmp.IVcfdOb7jx/sdd/src/SignalConsole/bin/Debug/net10.0/SignalConsole.dll
-  SignalConsole.Tests -> /tmp/tmp.IVcfdOb7jx/sdd/tests/SignalConsole.Tests/bin/Debug/net10.0/SignalConsole.Tests.dll
+  SignalConsole -> /tmp/tmp.UbePVETCNK/sdd/src/SignalConsole/bin/Debug/net10.0/SignalConsole.dll
+  SignalConsole.Tests -> /tmp/tmp.UbePVETCNK/sdd/tests/SignalConsole.Tests/bin/Debug/net10.0/SignalConsole.Tests.dll
 
 Build succeeded.
     0 Warning(s)
     0 Error(s)
 
 Time Elapsed 00:00:01.88
-[14:21:17 INF] EXPECTO? Running tests... <Expecto>
-[14:21:17 INF] EXPECTO! 4 tests run in 00:00:00.0440225 for console contract – 4 passed, 0 ignored, 0 failed, 0 errored. Success! <Expecto>
+[15:09:16 INF] EXPECTO? Running tests... <Expecto>
+[15:09:16 INF] EXPECTO! 4 tests run in 00:00:00.0338518 for console contract – 4 passed, 0 ignored, 0 failed, 0 errored. Success! <Expecto>
 PASS console template packs, instantiates, restores, builds, tests, observes process seams, and composes one SDD lifecycle
   ✓ console template lifecycle passes
 
@@ -243,18 +243,18 @@ PASS lifecycle matrix: web none/sdd/typed-sdd/spec-kit/omitted clean-create, com
 The template "FS.GG neutral F# + TypeScript web workspace" was created successfully.
 
   Determining projects to restore...
-  Restored /tmp/fs-gg-web-composition.REsfUv/scaffold/Server/CleanWeb.Server.fsproj (in 317 ms).
-  Restored /tmp/fs-gg-web-composition.REsfUv/scaffold/Server.Tests/CleanWeb.Server.Tests.fsproj (in 329 ms).
-  CleanWeb.Server -> /tmp/fs-gg-web-composition.REsfUv/scaffold/Server/bin/Debug/net10.0/CleanWeb.Server.dll
-  CleanWeb.Server.Tests -> /tmp/fs-gg-web-composition.REsfUv/scaffold/Server.Tests/bin/Debug/net10.0/CleanWeb.Server.Tests.dll
+  Restored /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server/CleanWeb.Server.fsproj (in 320 ms).
+  Restored /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server.Tests/CleanWeb.Server.Tests.fsproj (in 332 ms).
+  CleanWeb.Server -> /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server/bin/Debug/net10.0/CleanWeb.Server.dll
+  CleanWeb.Server.Tests -> /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server.Tests/bin/Debug/net10.0/CleanWeb.Server.Tests.dll
 
 Build succeeded.
     0 Warning(s)
     0 Error(s)
 
-Time Elapsed 00:00:02.38
+Time Elapsed 00:00:02.42
 
-added 15 packages, and audited 16 packages in 679ms
+added 15 packages, and audited 16 packages in 674ms
 
 5 packages are looking for funding
   run `npm fund` for details
@@ -284,7 +284,7 @@ dist/assets/index-BytelGRd.css  0.22 kB │ gzip: 0.19 kB
 dist/assets/index-DsbYYzhQ.js   0.99 kB │ gzip: 0.53 kB
 ✓ built in 43ms
 
-added 5 packages, and audited 6 packages in 413ms
+added 5 packages, and audited 6 packages in 426ms
 
 2 packages are looking for funding
   run `npm fund` for details
@@ -296,9 +296,9 @@ npm warn install-scripts
 npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
 npm notice run cleanweb-web-tests@0.1.0 test
 npm notice run tsx --test *.test.ts
-(node:1617634) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:1900426) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ loadMessage requests the JSON endpoint and returns its payload (11.738252ms)
+✔ loadMessage requests the JSON endpoint and returns its payload (11.789376ms)
 ℹ tests 1
 ℹ suites 0
 ℹ pass 1
@@ -306,26 +306,26 @@ npm notice run tsx --test *.test.ts
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 118.891571
+ℹ duration_ms 119.561922
   Determining projects to restore...
   All projects are up-to-date for restore.
-  CleanWeb.Server -> /tmp/fs-gg-web-composition.REsfUv/scaffold/Server/bin/Debug/net10.0/CleanWeb.Server.dll
-  CleanWeb.Server.Tests -> /tmp/fs-gg-web-composition.REsfUv/scaffold/Server.Tests/bin/Debug/net10.0/CleanWeb.Server.Tests.dll
+  CleanWeb.Server -> /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server/bin/Debug/net10.0/CleanWeb.Server.dll
+  CleanWeb.Server.Tests -> /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server.Tests/bin/Debug/net10.0/CleanWeb.Server.Tests.dll
 
 Build succeeded.
     0 Warning(s)
     0 Error(s)
 
-Time Elapsed 00:00:00.35
-Test run for /tmp/fs-gg-web-composition.REsfUv/scaffold/Server.Tests/bin/Debug/net10.0/CleanWeb.Server.Tests.dll (.NETCoreApp,Version=v10.0)
+Time Elapsed 00:00:00.34
+Test run for /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server.Tests/bin/Debug/net10.0/CleanWeb.Server.Tests.dll (.NETCoreApp,Version=v10.0)
 A total of 1 test files matched the specified pattern.
-Results File: /tmp/fs-gg-web-composition.REsfUv/scaffold/artifacts/test-results/server.trx
+Results File: /tmp/fs-gg-web-composition.8LpTnR/scaffold/artifacts/test-results/server.trx
 
 Passed!  - Failed:     0, Passed:     1, Skipped:     0, Total:     1, Duration: 4 ms - CleanWeb.Server.Tests.dll (net10.0)
-  CleanWeb.Server -> /tmp/fs-gg-web-composition.REsfUv/scaffold/Server/bin/Release/net10.0/CleanWeb.Server.dll
-  CleanWeb.Server -> /tmp/fs-gg-web-composition.REsfUv/scaffold/artifacts/publish/
+  CleanWeb.Server -> /tmp/fs-gg-web-composition.8LpTnR/scaffold/Server/bin/Release/net10.0/CleanWeb.Server.dll
+  CleanWeb.Server -> /tmp/fs-gg-web-composition.8LpTnR/scaffold/artifacts/publish/
 
-added 3 packages, and audited 4 packages in 785ms
+added 3 packages, and audited 4 packages in 703ms
 
 2 high severity vulnerabilities
 
@@ -336,25 +336,25 @@ Run `npm audit` for details.
 browser runtime: external /usr/sbin/chromium (Chromium 151.0.7922.173 Arch Linux)
 npm notice run test
 npm notice run playwright test
-(node:1618079) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:1900739) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 
 Running 1 test using 1 worker
 
-(node:1618138) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:1900792) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
 
 
-(node:1618138) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:1900792) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 
-(node:1618138) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:1900792) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
 
 
 [1/1] home.spec.ts:2:1 › serves the built client and its JSON message
-  1 passed (1.2s)
+  1 passed (1.3s)
 
-added 15 packages, and audited 16 packages in 555ms
+added 15 packages, and audited 16 packages in 533ms
 
 5 packages are looking for funding
   run `npm fund` for details
@@ -382,9 +382,9 @@ computing gzip size...
 dist/index.html                 0.40 kB │ gzip: 0.29 kB
 dist/assets/index-BytelGRd.css  0.22 kB │ gzip: 0.19 kB
 dist/assets/index-DsbYYzhQ.js   0.99 kB │ gzip: 0.53 kB
-✓ built in 46ms
+✓ built in 43ms
 
-added 5 packages, and audited 6 packages in 416ms
+added 5 packages, and audited 6 packages in 434ms
 
 2 packages are looking for funding
   run `npm fund` for details
@@ -396,9 +396,9 @@ npm warn install-scripts
 npm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.
 npm notice run rogue-web-web-tests@0.1.0 test
 npm notice run tsx --test *.test.ts
-(node:1618722) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:1901230) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
-✔ loadMessage requests the JSON endpoint and returns its payload (12.153572ms)
+✔ loadMessage requests the JSON endpoint and returns its payload (11.965242ms)
 ℹ tests 1
 ℹ suites 0
 ℹ pass 1
@@ -406,27 +406,27 @@ npm notice run tsx --test *.test.ts
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 120.756739
+ℹ duration_ms 119.945612
   Determining projects to restore...
-  Restored /tmp/fs-gg-web-composition.REsfUv/sdd/Server/Rogue-Web.Server.fsproj (in 301 ms).
-  Restored /tmp/fs-gg-web-composition.REsfUv/sdd/Server.Tests/Rogue-Web.Server.Tests.fsproj (in 324 ms).
-  Rogue-Web.Server -> /tmp/fs-gg-web-composition.REsfUv/sdd/Server/bin/Debug/net10.0/Rogue-Web.Server.dll
-  Rogue-Web.Server.Tests -> /tmp/fs-gg-web-composition.REsfUv/sdd/Server.Tests/bin/Debug/net10.0/Rogue-Web.Server.Tests.dll
+  Restored /tmp/fs-gg-web-composition.8LpTnR/sdd/Server/Rogue-Web.Server.fsproj (in 289 ms).
+  Restored /tmp/fs-gg-web-composition.8LpTnR/sdd/Server.Tests/Rogue-Web.Server.Tests.fsproj (in 304 ms).
+  Rogue-Web.Server -> /tmp/fs-gg-web-composition.8LpTnR/sdd/Server/bin/Debug/net10.0/Rogue-Web.Server.dll
+  Rogue-Web.Server.Tests -> /tmp/fs-gg-web-composition.8LpTnR/sdd/Server.Tests/bin/Debug/net10.0/Rogue-Web.Server.Tests.dll
 
 Build succeeded.
     0 Warning(s)
     0 Error(s)
 
-Time Elapsed 00:00:01.89
-Test run for /tmp/fs-gg-web-composition.REsfUv/sdd/Server.Tests/bin/Debug/net10.0/Rogue-Web.Server.Tests.dll (.NETCoreApp,Version=v10.0)
+Time Elapsed 00:00:01.91
+Test run for /tmp/fs-gg-web-composition.8LpTnR/sdd/Server.Tests/bin/Debug/net10.0/Rogue-Web.Server.Tests.dll (.NETCoreApp,Version=v10.0)
 A total of 1 test files matched the specified pattern.
-Results File: /tmp/fs-gg-web-composition.REsfUv/sdd/artifacts/test-results/server.trx
+Results File: /tmp/fs-gg-web-composition.8LpTnR/sdd/artifacts/test-results/server.trx
 
 Passed!  - Failed:     0, Passed:     1, Skipped:     0, Total:     1, Duration: 4 ms - Rogue-Web.Server.Tests.dll (net10.0)
-  Rogue-Web.Server -> /tmp/fs-gg-web-composition.REsfUv/sdd/Server/bin/Release/net10.0/Rogue-Web.Server.dll
-  Rogue-Web.Server -> /tmp/fs-gg-web-composition.REsfUv/sdd/artifacts/publish/
+  Rogue-Web.Server -> /tmp/fs-gg-web-composition.8LpTnR/sdd/Server/bin/Release/net10.0/Rogue-Web.Server.dll
+  Rogue-Web.Server -> /tmp/fs-gg-web-composition.8LpTnR/sdd/artifacts/publish/
 
-added 3 packages, and audited 4 packages in 646ms
+added 3 packages, and audited 4 packages in 633ms
 
 2 high severity vulnerabilities
 
@@ -437,18 +437,18 @@ Run `npm audit` for details.
 browser runtime: external /usr/sbin/chromium (Chromium 151.0.7922.173 Arch Linux)
 npm notice run test
 npm notice run playwright test
-(node:1619624) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:1901703) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 
 Running 1 test using 1 worker
 
-(node:1619714) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:1901775) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
 
 
-(node:1619714) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:1901775) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 
-(node:1619714) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:1901775) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
 
 
@@ -478,17 +478,17 @@ npm notice run node scripts/lock-declarations.mjs --check
 npm notice run acmebindings-workspace@0.0.0 test:runtime
 npm notice run node runtime/node/smoke.mjs
   Determining projects to restore...
-  Restored /tmp/tmp.HQPNeHXvGr/product/src/AcmeBindings/AcmeBindings.fsproj (in 230 ms).
-  Restored /tmp/tmp.HQPNeHXvGr/product/tests/AcmeBindings.CompileTests/AcmeBindings.CompileTests.fsproj (in 230 ms).
-  AcmeBindings -> /tmp/tmp.HQPNeHXvGr/product/src/AcmeBindings/bin/Debug/netstandard2.1/AcmeBindings.dll
-  Successfully created package '/tmp/tmp.HQPNeHXvGr/product/src/AcmeBindings/bin/Debug/AcmeBindings.0.1.0.nupkg'.
-  AcmeBindings.CompileTests -> /tmp/tmp.HQPNeHXvGr/product/tests/AcmeBindings.CompileTests/bin/Debug/netstandard2.1/AcmeBindings.CompileTests.dll
+  Restored /tmp/tmp.8d7najz2IS/product/tests/AcmeBindings.CompileTests/AcmeBindings.CompileTests.fsproj (in 231 ms).
+  Restored /tmp/tmp.8d7najz2IS/product/src/AcmeBindings/AcmeBindings.fsproj (in 231 ms).
+  AcmeBindings -> /tmp/tmp.8d7najz2IS/product/src/AcmeBindings/bin/Debug/netstandard2.1/AcmeBindings.dll
+  Successfully created package '/tmp/tmp.8d7najz2IS/product/src/AcmeBindings/bin/Debug/AcmeBindings.0.1.0.nupkg'.
+  AcmeBindings.CompileTests -> /tmp/tmp.8d7najz2IS/product/tests/AcmeBindings.CompileTests/bin/Debug/netstandard2.1/AcmeBindings.CompileTests.dll
 
 Build succeeded.
     0 Warning(s)
     0 Error(s)
 
-Time Elapsed 00:00:01.68
+Time Elapsed 00:00:01.65
 lifecycle evidence: clean
 npm notice run acmebindings-workspace@0.0.0 test:lifecycle
 npm notice run bash scripts/run-sdd-lifecycle.sh reports/bindings.junit.xml
@@ -505,12 +505,12 @@ npm notice run acmebindings-workspace@0.0.0 generate:candidate
 npm notice run node scripts/generate-candidate.mjs
 npm notice run acmebindings-workspace@0.0.0 generate:candidate
 npm notice run node scripts/generate-candidate.mjs
-file:///tmp/tmp.HQPNeHXvGr/product/scripts/lock-declarations.mjs:53
+file:///tmp/tmp.8d7najz2IS/product/scripts/lock-declarations.mjs:53
   if (await readFile(lockPath, "utf8") !== rendered) throw new Error("declaration closure drifted; review the lock, curated bindings, runtime evidence, and release notes together");
                                                            ^
 
 Error: declaration closure drifted; review the lock, curated bindings, runtime evidence, and release notes together
-    at file:///tmp/tmp.HQPNeHXvGr/product/scripts/lock-declarations.mjs:53:60
+    at file:///tmp/tmp.8d7najz2IS/product/scripts/lock-declarations.mjs:53:60
 
 Node.js v26.7.0
 PASS fable-bindings template executes locked declaration, candidate, NuGet/npm/Fable/Node/Chromium, SDD, doctor, Governance, drift-review and owner-sourced product-skill delivery evidence
@@ -542,55 +542,51 @@ The template "FS.GG server-authoritative Fable game web workspace" was created s
 workspace integrity self-test: graph, lock coherence, shipped-prerequisite, and per-root npm-audit mutations rejected
 found 0 vulnerabilities
 found 0 vulnerabilities
-workspace integrity verified: /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold
+workspace integrity verified: /tmp/fs-gg-fable-game-composition.NITxt6/scaffold
 skill-manifest: fable-game product OK — 5 of 6 producer-declared skills materialized, every digest matches the shipped manifest, none dangling
   Determining projects to restore...
-  Restored /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Protocol/Protocol.fsproj (in 382 ms).
-  Restored /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Domain/Domain.fsproj (in 382 ms).
-  Restored /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Domain.Tests/Domain.Tests.fsproj (in 382 ms).
-  Restored /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Protocol.Tests/Protocol.Tests.fsproj (in 382 ms).
-  Restored /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Server/Server.fsproj (in 382 ms).
-  Restored /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Server.Tests/Server.Tests.fsproj (in 396 ms).
-  Domain -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Domain/bin/Debug/net10.0/Domain.dll
-  Protocol -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Protocol/bin/Debug/net10.0/Protocol.dll
-  Protocol.Tests -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Protocol.Tests/bin/Debug/net10.0/Protocol.Tests.dll
-  Domain.Tests -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Domain.Tests/bin/Debug/net10.0/Domain.Tests.dll
-  Server -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Server/bin/Debug/net10.0/Server.dll
-  Server.Tests -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Server.Tests/bin/Debug/net10.0/Server.Tests.dll
+  Restored /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain/Domain.fsproj (in 365 ms).
+  Restored /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol/Protocol.fsproj (in 365 ms).
+  Restored /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server/Server.fsproj (in 365 ms).
+  Restored /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol.Tests/Protocol.Tests.fsproj (in 376 ms).
+  Restored /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain.Tests/Domain.Tests.fsproj (in 376 ms).
+  Restored /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server.Tests/Server.Tests.fsproj (in 390 ms).
+  Domain -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain/bin/Debug/net10.0/Domain.dll
+  Protocol -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol/bin/Debug/net10.0/Protocol.dll
+  Protocol.Tests -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol.Tests/bin/Debug/net10.0/Protocol.Tests.dll
+  Domain.Tests -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain.Tests/bin/Debug/net10.0/Domain.Tests.dll
+  Server -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server/bin/Debug/net10.0/Server.dll
+  Server.Tests -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server.Tests/bin/Debug/net10.0/Server.Tests.dll
 
 Build succeeded.
     0 Warning(s)
     0 Error(s)
 
-Time Elapsed 00:00:04.42
+Time Elapsed 00:00:04.12
   Determining projects to restore...
-  Restored /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Protocol/Protocol.fsproj (in 172 ms).
-  Restored /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Server/Server.fsproj (in 172 ms).
-  Restored /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Protocol.Tests/Protocol.Tests.fsproj (in 172 ms).
-  Restored /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Server.Tests/Server.Tests.fsproj (in 173 ms).
-  2 of 6 projects are up-to-date for restore.
-  Protocol -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Protocol/bin/Debug/net10.0/Protocol.dll
-  Domain -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Domain/bin/Debug/net10.0/Domain.dll
-  Protocol.Tests -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Protocol.Tests/bin/Debug/net10.0/Protocol.Tests.dll
-  Server -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Server/bin/Debug/net10.0/Server.dll
-  Server.Tests -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Server.Tests/bin/Debug/net10.0/Server.Tests.dll
-  Domain.Tests -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Domain.Tests/bin/Debug/net10.0/Domain.Tests.dll
+  All projects are up-to-date for restore.
+  Domain -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain/bin/Debug/net10.0/Domain.dll
+  Protocol -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol/bin/Debug/net10.0/Protocol.dll
+  Protocol.Tests -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol.Tests/bin/Debug/net10.0/Protocol.Tests.dll
+  Server -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server/bin/Debug/net10.0/Server.dll
+  Server.Tests -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server.Tests/bin/Debug/net10.0/Server.Tests.dll
+  Domain.Tests -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain.Tests/bin/Debug/net10.0/Domain.Tests.dll
 
 Build succeeded.
     0 Warning(s)
     0 Error(s)
 
-Time Elapsed 00:00:00.43
-Test run for /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Domain.Tests/bin/Debug/net10.0/Domain.Tests.dll (.NETCoreApp,Version=v10.0)
+Time Elapsed 00:00:00.34
+Test run for /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain.Tests/bin/Debug/net10.0/Domain.Tests.dll (.NETCoreApp,Version=v10.0)
 A total of 1 test files matched the specified pattern.
-Results File: /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/artifacts/test-results/domain.trx
+Results File: /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/artifacts/test-results/domain.trx
 
-Passed!  - Failed:     0, Passed:     8, Skipped:     0, Total:     8, Duration: 45 ms - Domain.Tests.dll (net10.0)
-Test run for /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Protocol.Tests/bin/Debug/net10.0/Protocol.Tests.dll (.NETCoreApp,Version=v10.0)
+Passed!  - Failed:     0, Passed:     8, Skipped:     0, Total:     8, Duration: 30 ms - Domain.Tests.dll (net10.0)
+Test run for /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol.Tests/bin/Debug/net10.0/Protocol.Tests.dll (.NETCoreApp,Version=v10.0)
 A total of 1 test files matched the specified pattern.
-Results File: /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/artifacts/test-results/protocol.trx
+Results File: /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/artifacts/test-results/protocol.trx
 
-Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12, Duration: 61 ms - Protocol.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    12, Skipped:     0, Total:    12, Duration: 54 ms - Protocol.Tests.dll (net10.0)
 cross-runtime: building .NET codec probe
 cross-runtime: building Fable codec probe (dotnet fable)
 cross-runtime: OK - bootstrap-request: net encode
@@ -628,13 +624,13 @@ cross-runtime: OK - realtime[resyncSnapshot]: net decodes fable's encoding
 cross-runtime: OK - rejected cases: net rejects both malformed cases
 cross-runtime: OK - rejected cases: fable rejects both malformed cases
 cross-runtime: OK - every DTO round-tripped net<->fable in both directions, including the rejected-case proof on both runtimes
-Test run for /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Server.Tests/bin/Debug/net10.0/Server.Tests.dll (.NETCoreApp,Version=v10.0)
+Test run for /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server.Tests/bin/Debug/net10.0/Server.Tests.dll (.NETCoreApp,Version=v10.0)
 A total of 1 test files matched the specified pattern.
-Results File: /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/artifacts/test-results/server.trx
+Results File: /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/artifacts/test-results/server.trx
 
-Passed!  - Failed:     0, Passed:    11, Skipped:     0, Total:    11, Duration: 561 ms - Server.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    11, Skipped:     0, Total:    11, Duration: 513 ms - Server.Tests.dll (net10.0)
 
-added 32 packages, and audited 33 packages in 542ms
+added 32 packages, and audited 33 packages in 534ms
 
 6 packages are looking for funding
   run `npm fund` for details
@@ -660,15 +656,15 @@ Restore was successful.
 Fable 5.13.0: F# to JavaScript compiler
 Minimum @fable-org/fable-library-js version (when installed from npm): 2.5.1
 
-Thanks to the contributor! @mexx
+Thanks to the contributor! @0x53A
 Stand with Ukraine! https://standwithukraine.com.ua/
 
 Parsing Client.fsproj...
-Project and references (25 source files) parsed in 1856ms
+Project and references (25 source files) parsed in 4651ms
 
 Started Fable compilation...
 
-Fable compilation finished in 2811ms
+Fable compilation finished in 2733ms
 
 vite v7.1.3 building for production...
 transforming...
@@ -687,13 +683,13 @@ rendering chunks...
 computing gzip size...
 dist/index.html                  1.40 kB │ gzip:  0.76 kB
 dist/assets/index-BAwC1pTP.js  134.21 kB │ gzip: 36.54 kB
-✓ built in 396ms
-  Protocol -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Protocol/bin/Release/net10.0/Protocol.dll
-  Domain -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Domain/bin/Release/net10.0/Domain.dll
-  Server -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/Server/bin/Release/net10.0/Server.dll
-  Server -> /tmp/fs-gg-fable-game-composition.VNbPoG/scaffold/artifacts/publish/
+✓ built in 405ms
+  Protocol -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Protocol/bin/Release/net10.0/Protocol.dll
+  Domain -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Domain/bin/Release/net10.0/Domain.dll
+  Server -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/Server/bin/Release/net10.0/Server.dll
+  Server -> /tmp/fs-gg-fable-game-composition.NITxt6/scaffold/artifacts/publish/
 
-added 3 packages, and audited 4 packages in 641ms
+added 3 packages, and audited 4 packages in 659ms
 
 2 high severity vulnerabilities
 
@@ -704,30 +700,30 @@ Run `npm audit` for details.
 browser runtime: external /usr/sbin/chromium (Chromium 151.0.7922.173 Arch Linux)
 npm notice run test
 npm notice run playwright test
-(node:1644708) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:1925291) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 (Use `node --trace-deprecation ...` to show where the warning was created)
 [WebServer] npm notice run cleanfablegame-client@0.1.0 dev
 
 [WebServer] npm notice run dotnet tool restore && dotnet fable watch . -o output --noCache --run vite
 
-[WebServer] (node:1644984) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (node:1926231) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 [WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
 
 
 Running 1 test using 1 worker
 
-(node:1645099) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:1926299) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
 
 
-(node:1645099) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
+(node:1926299) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.
 
-(node:1645099) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(node:1926299) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
 (Use `node --trace-warnings ...` to show where the warning was created)
 
 
 [1/1] two-client.spec.ts:39:1 › two keyboard-driven browser contexts see each other's authoritative moves over SignalR
-  1 passed (7.8s)
+  1 passed (7.9s)
 skill-manifest: fable-game product OK — 5 of 6 producer-declared skills materialized, every digest matches the shipped manifest, none dangling, 6 co-tenant manifest row(s) from another producer graded and delivered, 19 co-tenant directory(ies) accepted as 'fs-gg-sdd-* work-board work-board-best work-board-normal work-roadmap padd-item'
 fable-game composition: generated clean scaffold production lifecycle, including cross-runtime codec proof, the Playwright two-client scenario, and owner-sourced product-skill delivery through both the direct and provider routes
   ✓ fable-game template lifecycle passes

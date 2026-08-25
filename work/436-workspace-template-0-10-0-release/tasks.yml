@@ -298,9 +298,19 @@ tasks:
     sourceIds: [GV-002, PD-007]
     requiredSkills: [deterministic-json]
     requiredEvidence: [EV027]
+  - id: T028
+    title: Repair review round 1 release feed-order predicate
+    status: done
+    owner: sdd
+    dependencies: [T005, T022]
+    requirements: [FR-005]
+    decisions: []
+    sourceIds: [AC-003, FR-005, PD-005, VO-003]
+    requiredSkills: [automated-tests, readiness-evidence]
+    requiredEvidence: [EV028]
 acceptedDeferrals: []
 findings: []
 advisoryNotes:
   - "Optional Governance pointers remain compatibility facts only."
 lifecycleNotes:
-  - "All implementation tasks are complete; the current evidence package is ready for protected-boundary review."
+  - "Round-1 repair is complete: the feed-order mutation now fails, the full generated matrix is green, and the repaired head must remain delivery-unbound until successor review and host acceptance."

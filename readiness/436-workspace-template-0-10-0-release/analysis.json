@@ -41,7 +41,7 @@
       "kind": "workModel",
       "digest": {
         "algorithm": "sha256",
-        "value": "d4cca560bb6ae8d26c692d8d9aa0244cfd7f1e854512fdf91acbd51d1d7e6d5c"
+        "value": "37f17e4d9fd4750118ffa16d859a6c799925129a8aedc7ee1ac938d315d5c16e"
       },
       "schemaVersion": 1,
       "schemaStatus": "current"
@@ -71,7 +71,7 @@
       "kind": "plan",
       "digest": {
         "algorithm": "sha256",
-        "value": "e3842ae6e80675cbc158a359459e6d52154c4bf62f0480f0a834fe2f7bbdb48d"
+        "value": "e4dd4335ed5319e6b8288c0f327d78c6285ad19ab205d91557f08e5d71f60819"
       },
       "schemaVersion": 1,
       "schemaStatus": "current"
@@ -91,7 +91,7 @@
       "kind": "tasks",
       "digest": {
         "algorithm": "sha256",
-        "value": "9df19f8075f4b20556d5b19e8468f05b507b7d9a87b9e4811963f150203760b7"
+        "value": "e6252c9358fc71b9fb36a4891b2f12a37ea2e5bf87d9131a3304408ad7acc5f3"
       },
       "schemaVersion": 1,
       "schemaStatus": "current"
@@ -717,11 +717,31 @@
       "relationship": "taskDependency",
       "state": "current",
       "diagnosticIds": []
+    },
+    {
+      "id": "AR063",
+      "sourcePath": "work/436-workspace-template-0-10-0-release/tasks.yml",
+      "targetPath": "work/436-workspace-template-0-10-0-release/tasks.yml",
+      "sourceId": "T028",
+      "targetId": "T005",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR064",
+      "sourcePath": "work/436-workspace-template-0-10-0-release/tasks.yml",
+      "targetPath": "work/436-workspace-template-0-10-0-release/tasks.yml",
+      "sourceId": "T028",
+      "targetId": "T022",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
     }
   ],
   "readiness": {
     "status": "implementationReady",
-    "readyCount": 62,
+    "readyCount": 64,
     "advisoryCount": 0,
     "warningCount": 0,
     "blockingCount": 0,
