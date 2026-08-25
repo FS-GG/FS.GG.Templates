@@ -313,13 +313,33 @@ jobs:
           cd artifacts
           sha256sum --check SHA256SUMS
 
+      # The release gate must grade the same provider-owned floor as composition.yml. In
+      # particular, "latest stable" is not sufficient when a provider deliberately declares a
+      # prerelease floor: the latest stable may be older and unable to render that provider.
+      - name: Grade provider minimumFsggSdd floors against the org registry
+        id: floors
+        run: |
+          set -euo pipefail
+          scripts/check-provider-floors.py \
+            --github-output "$GITHUB_OUTPUT" \
+            --step-summary "$GITHUB_STEP_SUMMARY"
+
       # Same authenticated CLI setup as composition.yml so the gated stages ASSERT instead of
       # skipping (never green-by-omission). See composition.yml for why a classic PAT is the
       # only credential that reads the private FS.GG.UI.* closure the scaffold restores.
       - name: Install FS-GG CLIs (governance enforcement + sdd producer/scaffold)
         env:
           FEED_TOKEN: ${{ secrets.FSGG_PACKAGES_PAT }}
+          MIN_SDD: ${{ steps.floors.outputs.floor }}
         run: |
+          case "$MIN_SDD" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *)
+              echo "::error title=the agreed minimumFsggSdd floor did not arrive::steps.floors.outputs.floor is '${MIN_SDD:-<nothing>}'. The release gate cannot select a compatible fsgg-sdd without the provider/registry floor."
+              exit 1
+              ;;
+          esac
+
           dotnet nuget add source \
             --username fs-gg --password "$FEED_TOKEN" --store-password-in-clear-text \
             --name fs-gg-github "https://nuget.pkg.github.com/FS-GG/index.json" || true
@@ -361,7 +381,10 @@ jobs:
 
           install_global_tool FS.GG.Governance.Cli fsgg-governance
           install_global_tool FS.GG.Governance.FSharpSurfaceCommand fsgg-fsharp-surface 1.12.1
-          install_global_tool FS.GG.SDD.Cli fsgg-sdd
+          # Pin the release gate to the declared floor. Unlike the early-regression composition
+          # gate, a release must be reproducible and must not select an older stable CLI when the
+          # provider's compatible floor is a prerelease.
+          install_global_tool FS.GG.SDD.Cli fsgg-sdd "$MIN_SDD"
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
       # The generated-product gate: install the downloaded archive → instantiate →
