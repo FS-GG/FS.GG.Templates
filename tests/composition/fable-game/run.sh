@@ -15,12 +15,15 @@ done
 LANE_REPO_ROOT="$root"
 # shellcheck source=tests/composition/lib/lane-package.sh
 . "$root/tests/composition/lib/lane-package.sh"
+# shellcheck source=tests/composition/lib/lifecycle-matrix.sh
+. "$root/tests/composition/lib/lifecycle-matrix.sh"
 # The release gate sets FSGG_TEMPLATES_NUPKG to the downloaded, checksum-verified artifact, so this
 # lane proves the fable-game identity against the bytes that are about to be published rather than
 # against a second archive packed here (FS.GG.Templates#349).
 package="$(lane_package_path "$work")"
 echo "fable-game composition: installing $package"
 dotnet new install "$package" --force
+assert_provider_lifecycle_matrix fable-game "$package" "$work/lifecycle-matrix" productName=MatrixGame rootNamespace=MatrixGame
 dotnet new fs-gg-fable-game -n CleanFableGame -o "$work/scaffold"
 test -f "$work/scaffold/Domain/Domain.fsproj"
 test -f "$work/scaffold/Server/Server.fsproj"

@@ -23,6 +23,17 @@
     }
   ],
   "symbols": {
+    "lifecycle": {
+      "type": "parameter",
+      "datatype": "choice",
+      "defaultValue": "sdd",
+      "description": "Lifecycle lane forwarded by fsgg-sdd; the orchestrator owns lifecycle artifacts.",
+      "choices": [
+        { "choice": "none", "description": "Product files only; no SDD lifecycle tree." },
+        { "choice": "sdd", "description": "Standard SDD lifecycle (default)." },
+        { "choice": "typed-sdd", "description": "Standard SDD plus the Typed Protocol Kernel." }
+      ]
+    },
     "productName": { "type": "parameter", "datatype": "text", "defaultValue": "", "description": "Binding/library name; --name is used when omitted." },
     "npmPackage": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "@babylonjs/core" } ], "defaultValue": "@babylonjs/core", "description": "The selected v1 declaration corpus; arbitrary packages require a separately qualified template." },
     "npmVersion": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "9.19.0" } ], "defaultValue": "9.19.0", "description": "Exact selected Babylon declaration-corpus version." },

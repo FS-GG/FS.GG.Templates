@@ -69,6 +69,10 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+# Shared lifecycle helpers resolve provider descriptors from this checkout. Provider-specific lane
+# scripts set the same variable themselves; the in-process Rendering stage needs the orchestrator to
+# establish it once before sourcing stages.
+LANE_REPO_ROOT="$REPO_ROOT"
 COMPOSITION_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIXTURES="$COMPOSITION_DIR/fixtures"
 # shellcheck source=scripts/lib/read-pin.sh
@@ -83,6 +87,8 @@ FIXTURES="$COMPOSITION_DIR/fixtures"
 . "$COMPOSITION_DIR/lib/game-skill-release.sh" # the #349 Game Skills materialization assertion + release resolver and its self-demonstration
 # shellcheck source=tests/composition/lib/content-exclusions.sh
 . "$COMPOSITION_DIR/lib/content-exclusions.sh" # the #386 .nuget//node_modules content-filter gate and its self-demonstration
+# shellcheck source=tests/composition/lib/lifecycle-matrix.sh
+. "$COMPOSITION_DIR/lib/lifecycle-matrix.sh" # installed provider/profile lifecycle selection matrix (#432)
 
 WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/fsgg-composition.XXXXXX")"
 ARTIFACTS="$WORKDIR/artifacts"
@@ -141,6 +147,14 @@ step "lanes — every discovered lane is reached by a required path (#379)"
 assert_lane_coverage_can_fire "lanes" "$WORKDIR/lane-coverage-fixtures"
 assert_lane_coverage "$COMPOSITION_DIR" "$REPO_ROOT"
 assert_lane_fails_closed "$COMPOSITION_DIR"
+
+step "lifecycle — every provider exposes none/sdd/typed-sdd with omitted=sdd (#432)"
+if python3 "$COMPOSITION_DIR/lib/lifecycle-contract.py" --root "$REPO_ROOT" --self-test \
+  && assert_lifecycle_tree_equivalence_can_fire "$WORKDIR/lifecycle-tree-fixtures"; then
+  ok "lifecycle provider/template contract and can-fire controls hold"
+else
+  bad "lifecycle provider/template contract failed"
+fi
 
 # ── The template source tree's own build output leaves nothing behind (FS.GG.Templates#386) ───
 # HERE and not in a per-identity lane, for the reason the two neighbours above give: the subject is

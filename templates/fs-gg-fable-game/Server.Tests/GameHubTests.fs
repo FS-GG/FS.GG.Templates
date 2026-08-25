@@ -19,21 +19,24 @@ open FableGameWorkspaceNamespace.Server
 /// only when the server's next tick commits the sorted frontier.
 type GameHubTests() =
     do RoomAuthority.resetForTests ()
-    let factory =
+    let createFactory settings =
         (new WebApplicationFactory<Program>())
             .WithWebHostBuilder(fun builder ->
                 builder.ConfigureAppConfiguration(fun _ config ->
-                    config.AddInMemoryCollection(dict [ "TickIntervalMilliseconds", "25" ]) |> ignore)
+                    config.AddInMemoryCollection(dict settings) |> ignore)
                 |> ignore)
+    let factory = createFactory [ "TickIntervalMilliseconds", "25" ]
 
-    let buildConnection () : HubConnection =
+    let buildConnectionFor (host: WebApplicationFactory<Program>) : HubConnection =
         HubConnectionBuilder()
             .WithUrl(
-                Uri(factory.Server.BaseAddress, "/hub/game"),
+                Uri(host.Server.BaseAddress, "/hub/game"),
                 fun (opts: HttpConnectionOptions) ->
-                    opts.HttpMessageHandlerFactory <- fun _ -> factory.Server.CreateHandler()
+                    opts.HttpMessageHandlerFactory <- fun _ -> host.Server.CreateHandler()
                     opts.Transports <- HttpTransportType.LongPolling)
             .Build()
+
+    let buildConnection () : HubConnection = buildConnectionFor factory
 
     let nextMatching (connection: HubConnection) (predicate: RealtimeV1.Message -> bool) : Task<RealtimeV1.Message> =
         let tcs = TaskCompletionSource<RealtimeV1.Message>()
@@ -160,8 +163,16 @@ type GameHubTests() =
     [<Fact>]
     member _.``input is not applied on hub arrival and commits at the next tick frontier``() =
         task {
-            let! response, connection, _ = startBound "p-frontier"
+            // Pause only the hosted wall-clock driver for this boundary test. The test owns the
+            // frontier explicitly, so no scheduler tick can race the before/immediate snapshots.
+            use controlledFactory = createFactory [ "TickBroadcasterEnabled", "false" ]
+            let response = bootstrap "p-frontier"
+            let connection = buildConnectionFor controlledFactory
             use connection = connection
+            let waiting = nextMatching connection (function | RealtimeV1.ResyncSnapshotMessage _ -> true | _ -> false)
+            do! connection.StartAsync()
+            do! hello connection response.SessionCapability
+            let! _ = waiting
             let beforeTick, beforePlayers = RoomAuthority.snapshot ()
             let before = beforePlayers |> List.find (fun (id, _, _) -> id = response.PlayerId)
             let input = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; TargetCol = 1; TargetRow = 0 })
@@ -169,15 +180,10 @@ type GameHubTests() =
             let immediateTick, immediatePlayers = RoomAuthority.snapshot ()
             Assert.Equal(beforeTick, immediateTick)
             Assert.Equal(before, immediatePlayers |> List.find (fun (id, _, _) -> id = response.PlayerId))
-            let! committed =
-                nextMatching connection (function
-                    | RealtimeV1.SnapshotMessage snapshot -> snapshot.Tick > beforeTick
-                    | _ -> false)
-            match committed with
-            | RealtimeV1.SnapshotMessage snapshot ->
-                let player = snapshot.Players |> List.find (fun p -> p.PlayerId = response.PlayerId)
-                Assert.Equal((1, 0), (player.Col, player.Row))
-            | other -> Assert.Fail $"expected tick snapshot, got {other}"
+            let committedTick, committedPlayers = RoomAuthority.advanceTick ()
+            Assert.Equal(beforeTick + 1, committedTick)
+            let _, col, row = committedPlayers |> List.find (fun (id, _, _) -> id = response.PlayerId)
+            Assert.Equal((1, 0), (col, row))
             do! connection.StopAsync()
         }
 

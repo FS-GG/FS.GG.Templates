@@ -357,12 +357,20 @@ jobs:
             floor="$3"
             floor_source="$4"
             requested_version='latest stable'
+            install_args=(--global "$package")
+            if [[ "$floor" == *-* ]]; then
+              # A prerelease floor cannot be satisfied by `dotnet tool install`'s stable-only
+              # resolver when the stable line is still below it. During a preview rollout the
+              # coherent floor is therefore the exact requested version, not an accidental 1.3.x.
+              requested_version="$floor (declared preview floor)"
+              install_args+=(--version "$floor")
+            fi
             installed_version="$(dotnet tool list --global |
               awk -v package="$package" 'tolower($1) == tolower(package) { print $2; exit }')"
 
             if [ -n "$installed_version" ]; then
               echo "$package $installed_version is already installed; requested $requested_version."
-            elif dotnet tool install --global "$package"; then
+            elif dotnet tool install "${install_args[@]}"; then
               installed_version="$(dotnet tool list --global |
                 awk -v package="$package" 'tolower($1) == tolower(package) { print $2; exit }')"
               echo "Installed $package ${installed_version:-unknown}; requested $requested_version."

@@ -1,0 +1,852 @@
+{
+  "schemaVersion": 1,
+  "viewVersion": "1.0",
+  "workId": "typed-sdd-p4-templates",
+  "stage": "analyze",
+  "status": "implementationReady",
+  "generator": "FS.GG.SDD.Artifacts/1.4.0-preview.1",
+  "sources": [
+    {
+      "path": ".fsgg/agents.yml",
+      "kind": "agentsConfig",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "c67035b1cf31b6fa802c10f761eeb1e5bf5d198c38d159b54fac299957b5aac3"
+      },
+      "schemaVersion": 1,
+      "schemaStatus": "current"
+    },
+    {
+      "path": ".fsgg/project.yml",
+      "kind": "projectConfig",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "bbbfbaf1f9c742405f6ee8fe098f6e84b62e13456d29055e5827a49b729d2e84"
+      },
+      "schemaVersion": 1,
+      "schemaStatus": "current"
+    },
+    {
+      "path": ".fsgg/sdd.yml",
+      "kind": "sddConfig",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "fe5a7c270a975153e80ab0d08a610c9b302585dcb0b5f7c654841ceced9272cb"
+      },
+      "schemaVersion": 1,
+      "schemaStatus": "current"
+    },
+    {
+      "path": "readiness/typed-sdd-p4-templates/work-model.json",
+      "kind": "workModel",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "cd5bb862eba6236e872e2f9332b22dc47db442029fad2c54be41612974f66716"
+      },
+      "schemaVersion": 1,
+      "schemaStatus": "current"
+    },
+    {
+      "path": "work/typed-sdd-p4-templates/checklist.md",
+      "kind": "checklist",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "81f43f88f0caa7b28c8a78c796cd55eb78e3eec91e8f1c42a4e09b65a1ca6276"
+      },
+      "schemaVersion": 1,
+      "schemaStatus": "current"
+    },
+    {
+      "path": "work/typed-sdd-p4-templates/clarifications.md",
+      "kind": "clarification",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "28f767efc02e0e959be14f09dde01a81ebb0d865ff039622e183d913a48301ca"
+      },
+      "schemaVersion": 1,
+      "schemaStatus": "current"
+    },
+    {
+      "path": "work/typed-sdd-p4-templates/plan.md",
+      "kind": "plan",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "f760c72cd081b7dea3d3e43aebbc0cb37879b95e52ce2771a5f379ad56543dbf"
+      },
+      "schemaVersion": 1,
+      "schemaStatus": "current"
+    },
+    {
+      "path": "work/typed-sdd-p4-templates/spec.md",
+      "kind": "specification",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "31f5a7e099aae95427edf8ad938c9a89264a7ab69ee3a1fcdcc7a9542d66080a"
+      },
+      "schemaVersion": 1,
+      "schemaStatus": "current"
+    },
+    {
+      "path": "work/typed-sdd-p4-templates/tasks.yml",
+      "kind": "tasks",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "868ec392ec2ed5ad9f8c73c253d1fae31a8396e582dc2a8e76838e1d2eaf6313"
+      },
+      "schemaVersion": 1,
+      "schemaStatus": "current"
+    }
+  ],
+  "sourceRelationships": [
+    {
+      "id": "AR001",
+      "sourcePath": "work/typed-sdd-p4-templates/checklist.md",
+      "targetPath": "work/typed-sdd-p4-templates/plan.md",
+      "sourceId": null,
+      "targetId": null,
+      "relationship": "planSourceChecklist",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR002",
+      "sourcePath": "work/typed-sdd-p4-templates/checklist.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": null,
+      "targetId": null,
+      "relationship": "taskSourceChecklist",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR003",
+      "sourcePath": "work/typed-sdd-p4-templates/clarifications.md",
+      "targetPath": "work/typed-sdd-p4-templates/checklist.md",
+      "sourceId": null,
+      "targetId": null,
+      "relationship": "checklistSourceClarifications",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR004",
+      "sourcePath": "work/typed-sdd-p4-templates/clarifications.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "DEC-001",
+      "targetId": null,
+      "relationship": "clarificationDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR005",
+      "sourcePath": "work/typed-sdd-p4-templates/clarifications.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "DEC-002",
+      "targetId": null,
+      "relationship": "clarificationDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR006",
+      "sourcePath": "work/typed-sdd-p4-templates/clarifications.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "DEC-003",
+      "targetId": null,
+      "relationship": "clarificationDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR007",
+      "sourcePath": "work/typed-sdd-p4-templates/clarifications.md",
+      "targetPath": "work/typed-sdd-p4-templates/plan.md",
+      "sourceId": null,
+      "targetId": null,
+      "relationship": "planSourceClarifications",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR008",
+      "sourcePath": "work/typed-sdd-p4-templates/clarifications.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": null,
+      "targetId": null,
+      "relationship": "taskSourceClarifications",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR009",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PC-001",
+      "targetId": null,
+      "relationship": "contractDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR010",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PC-002",
+      "targetId": null,
+      "relationship": "contractDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR011",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PC-003",
+      "targetId": null,
+      "relationship": "contractDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR012",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PC-004",
+      "targetId": null,
+      "relationship": "contractDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR013",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "GV-001",
+      "targetId": null,
+      "relationship": "generatedViewDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR014",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PM-001",
+      "targetId": null,
+      "relationship": "migrationDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR015",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PM-002",
+      "targetId": null,
+      "relationship": "migrationDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR016",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PD-001",
+      "targetId": null,
+      "relationship": "planDecisionDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR017",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PD-002",
+      "targetId": null,
+      "relationship": "planDecisionDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR018",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PD-003",
+      "targetId": null,
+      "relationship": "planDecisionDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR019",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PD-004",
+      "targetId": null,
+      "relationship": "planDecisionDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR020",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PD-005",
+      "targetId": null,
+      "relationship": "planDecisionDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR021",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PD-006",
+      "targetId": null,
+      "relationship": "planDecisionDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR022",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PD-007",
+      "targetId": null,
+      "relationship": "planDecisionDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR023",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PD-008",
+      "targetId": null,
+      "relationship": "planDecisionDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR024",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PD-009",
+      "targetId": null,
+      "relationship": "planDecisionDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR025",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "PD-010",
+      "targetId": null,
+      "relationship": "planDecisionDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR026",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": null,
+      "targetId": null,
+      "relationship": "taskSourcePlan",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR027",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "VO-001",
+      "targetId": null,
+      "relationship": "verificationDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR028",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "VO-002",
+      "targetId": null,
+      "relationship": "verificationDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR029",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "VO-003",
+      "targetId": null,
+      "relationship": "verificationDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR030",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "VO-004",
+      "targetId": null,
+      "relationship": "verificationDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR031",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "VO-005",
+      "targetId": null,
+      "relationship": "verificationDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR032",
+      "sourcePath": "work/typed-sdd-p4-templates/plan.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "VO-006",
+      "targetId": null,
+      "relationship": "verificationDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR033",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "AC-001",
+      "targetId": null,
+      "relationship": "acceptanceDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR034",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "AC-002",
+      "targetId": null,
+      "relationship": "acceptanceDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR035",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "AC-003",
+      "targetId": null,
+      "relationship": "acceptanceDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR036",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "AC-004",
+      "targetId": null,
+      "relationship": "acceptanceDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR037",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "AC-005",
+      "targetId": null,
+      "relationship": "acceptanceDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR038",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/checklist.md",
+      "sourceId": null,
+      "targetId": null,
+      "relationship": "checklistSourceSpec",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR039",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/plan.md",
+      "sourceId": null,
+      "targetId": null,
+      "relationship": "planSourceSpec",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR040",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "FR-001",
+      "targetId": null,
+      "relationship": "requirementDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR041",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "FR-002",
+      "targetId": null,
+      "relationship": "requirementDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR042",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "FR-003",
+      "targetId": null,
+      "relationship": "requirementDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR043",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "FR-004",
+      "targetId": null,
+      "relationship": "requirementDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR044",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "FR-005",
+      "targetId": null,
+      "relationship": "requirementDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR045",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "FR-006",
+      "targetId": null,
+      "relationship": "requirementDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR046",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "FR-007",
+      "targetId": null,
+      "relationship": "requirementDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR047",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "FR-008",
+      "targetId": null,
+      "relationship": "requirementDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR048",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "FR-009",
+      "targetId": null,
+      "relationship": "requirementDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR049",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "FR-010",
+      "targetId": null,
+      "relationship": "requirementDisposition",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR050",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/clarifications.md",
+      "sourceId": null,
+      "targetId": null,
+      "relationship": "sourceSpec",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR051",
+      "sourcePath": "work/typed-sdd-p4-templates/spec.md",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": null,
+      "targetId": null,
+      "relationship": "taskSourceSpec",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR052",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T011",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR053",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T012",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR054",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T013",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR055",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T014",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR056",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T015",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR057",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T016",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR058",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T017",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR059",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T018",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR060",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T019",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR061",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T020",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR062",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T021",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR063",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T022",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR064",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T023",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR065",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T024",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR066",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T025",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR067",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T026",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR068",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T027",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR069",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T028",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    },
+    {
+      "id": "AR070",
+      "sourcePath": "work/typed-sdd-p4-templates/tasks.yml",
+      "targetPath": "work/typed-sdd-p4-templates/tasks.yml",
+      "sourceId": "T029",
+      "targetId": "T001",
+      "relationship": "taskDependency",
+      "state": "current",
+      "diagnosticIds": []
+    }
+  ],
+  "readiness": {
+    "status": "implementationReady",
+    "readyCount": 70,
+    "advisoryCount": 0,
+    "warningCount": 0,
+    "blockingCount": 0,
+    "staleSourceCount": 0,
+    "missingDispositionCount": 0,
+    "malformedSourceCount": 0,
+    "generatedViewFindingCount": 0,
+    "acceptedDeferralCount": 0
+  },
+  "findings": [],
+  "generatedViews": [
+    {
+      "path": "readiness/typed-sdd-p4-templates/work-model.json",
+      "kind": "workModel",
+      "currency": "current",
+      "diagnosticIds": []
+    }
+  ],
+  "optionalBoundaryFacts": [
+    {
+      "path": ".fsgg/policy.yml",
+      "relationship": "optionalGovernancePolicy",
+      "requiredBySdd": false,
+      "state": "notEvaluated",
+      "diagnosticIds": []
+    },
+    {
+      "path": ".fsgg/capabilities.yml",
+      "relationship": "optionalGovernanceCapabilities",
+      "requiredBySdd": false,
+      "state": "notEvaluated",
+      "diagnosticIds": []
+    },
+    {
+      "path": ".fsgg/tooling.yml",
+      "relationship": "optionalGovernanceTooling",
+      "requiredBySdd": false,
+      "state": "notEvaluated",
+      "diagnosticIds": []
+    }
+  ],
+  "diagnostics": [],
+  "nextAction": {
+    "actionId": "analysis.next.implement",
+    "command": null,
+    "reason": "Lifecycle sources are current and ready for implementation."
+  }
+}

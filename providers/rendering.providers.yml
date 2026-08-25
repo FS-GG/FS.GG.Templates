@@ -18,13 +18,13 @@
 # It left "RE-COUPLE at 0.2.0" untouched beside it, because the sed matched only the full
 # `0.2.0-preview.1` token — a self-contradicting line, and the tell that no human wrote it.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# pin-tag: fs-gg-ui-template/v0.25.1
-# pin-contract: fs-gg-ui-template@0.25.1
+# pin-tag: fs-gg-ui-template/v0.28.0
+# pin-contract: fs-gg-ui-template@0.28.0
 #
 # BEGIN GENERATED: effective-providers
 # Effective providers — generated; ordered by unique provider name.
 # Review this block for the current selection; the release narrative remains in PIN HISTORY.
-# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.25.1 | contract=1.1.0
+# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.28.0 | contract=1.1.0
 # END GENERATED: effective-providers
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -48,6 +48,12 @@
 #
 #
 #
+#
+# 0.28.0 — 2026-08-25. FS.GG.Rendering#1269 / PRs #1270 and #1271
+#   (merge 6f0c46f5; release-tags run 32786664161). FRAMEWORK + TEMPLATE MINOR: the
+#   17-package FS.GG.UI.* coherent set, BOM packages, and FS.GG.UI.Template advance to
+#   0.28.0. The template exposes explicit none/sdd/typed-sdd/spec-kit lifecycle choices,
+#   keeps sdd as the omitted default, and leaves Typed SDD artifact ownership to FS.GG.SDD.
 # 0.25.1 — 2026-07-30. FS.GG.Rendering#1155 and #1157 / PRs #1156 and #1158
 #   (merge dcd1c55c637ebb9d8ad8ff39698e59d613a7a127; release-tags run 30568765092).
 #   TEMPLATE-ONLY MINOR+PATCH: FS.GG.UI.Template advances from 0.22.0 to 0.25.1 while
@@ -227,7 +233,7 @@ providers:
   - name: rendering
     contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.25.1   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
+    source: FS.GG.UI.Template::0.28.0   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
@@ -248,18 +254,11 @@ providers:
     # Mirrors registry `fs-gg-ui-template.minimum-fsgg-sdd` (coherence id
     # `fsgg-sdd-orchestrator-axis`). Bump `version` in lockstep with the registry.
     minimumFsggSdd:
-      version: "0.6.0"         # PINNED (FR-007 satisfied): FS.GG.SDD released v0.6.0 (FS.GG.SDD.Cli
-                               # 0.6.0 on the org feed; dual-published to nuget.org), shipping
-                               # Feature 073 (transient-artifact taxonomy): the CLI now SEEDS a
-                               # `.gitignore` for regenerable output into scaffolded products. That
-                               # grows the seeded-artifact surface a product on this pin is EXPECTED
-                               # to contain, so per FR-011 the minimum coherent CLI advances
-                               # 0.4.0 -> 0.6.0. 0.6.0 is the OLDEST published CLI that seeds the
-                               # `.gitignore` (0.5.0 did not). Supersedes the prior 0.4.0 pin
-                               # (Feature 056, 3-root skill union — still seeded, floor now higher).
-                               # Mirrors registry pin fs-gg-ui-template.minimum-fsgg-sdd
-                               # (FS-GG/.github#189), re-mirrored here by FS.GG.Templates#99.
-      requires: "FS.GG.SDD Feature 049 (early-stage-guidance) + Feature 051 (seeded fs-gg-sdd-* process skills) + Feature 056 (3-root byte-identical union fan-out) + Feature 073 (seeded .gitignore for regenerable output)"
+      version: "1.4.0-preview.1" # PINNED: first published CLI carrying the Typed Protocol Kernel.
+                               # It retains the seeded Standard SDD process surface and adds the
+                               # explicit typed-sdd compiler/model/projection contract consumed by
+                               # this provider set. Mirrors the hub registry coherent floor.
+      requires: "Typed Protocol Kernel lifecycle selection, compilation, provenance, refresh, and diagnostics; plus the existing seeded SDD process surface"
       adr: "FS-GG/.github docs/adr/0008-fsgg-sdd-cli-first-class-member-of-coherent-set.md"
       registry: "FS-GG/.github registry/dependencies.yml -> fs-gg-ui-template.minimum-fsgg-sdd"
       tracking: "https://github.com/FS-GG/FS.GG.Templates/issues/99"

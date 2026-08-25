@@ -10,12 +10,15 @@ mkdir -p "$DOTNET_CLI_HOME"
 LANE_REPO_ROOT="$ROOT"
 # shellcheck source=tests/composition/lib/lane-package.sh
 . "$ROOT/tests/composition/lib/lane-package.sh"
+# shellcheck source=tests/composition/lib/lifecycle-matrix.sh
+. "$ROOT/tests/composition/lib/lifecycle-matrix.sh"
 # The release gate sets FSGG_TEMPLATES_NUPKG to the downloaded, checksum-verified artifact, so this
 # lane proves the fable-bindings identity against the bytes that are about to be published rather
 # than against a second archive packed here (FS.GG.Templates#349).
 PACKAGE="$(lane_package_path "$WORK")"
 echo "fable-bindings composition: installing $PACKAGE"
 dotnet new install "$PACKAGE" >/dev/null
+assert_provider_lifecycle_matrix fable-bindings "$PACKAGE" "$WORK/lifecycle-matrix" productName=MatrixBindings rootNamespace=MatrixBindings
 dotnet new fs-gg-fable-bindings -o "$WORK/product" --name AcmeBindings --productName AcmeBindings --rootNamespace AcmeBindings --npmPackage=@babylonjs/core --npmVersion 9.19.0 --bindingTarget browser >/dev/null
 if dotnet new fs-gg-fable-bindings -o "$WORK/rejected" --name Rejected --npmPackage other --npmVersion 1.0.0 --bindingTarget node >/dev/null 2>&1; then echo "unqualified corpus unexpectedly accepted" >&2; exit 1; fi
 

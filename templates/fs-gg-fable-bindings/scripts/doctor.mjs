@@ -8,7 +8,7 @@ import { existsSync, readFileSync } from "node:fs";
 // reviewed locks were committed here and zero reached any generated product while every gate stayed
 // green. `BindingsProduct` is rewritten to the product's name on instantiation, as in
 // `lifecycle-evidence.mjs`, so these paths name the delivered projects rather than the template's.
-for (const file of ["package-lock.json", "declaration-lock.json", "coverage-and-drift.json", "scaffold-provenance.json", ".fsgg/bindings-evidence.yml", "src/BindingsProduct/packages.lock.json", "tests/BindingsProduct.CompileTests/packages.lock.json"]) if (!existsSync(file)) throw new Error(`missing required evidence artifact: ${file}`);
+for (const file of ["package-lock.json", "declaration-lock.json", "coverage-and-drift.json", "scaffold-provenance.json", "bindings-evidence.yml", "src/BindingsProduct/packages.lock.json", "tests/BindingsProduct.CompileTests/packages.lock.json"]) if (!existsSync(file)) throw new Error(`missing required evidence artifact: ${file}`);
 const provenance = JSON.parse(readFileSync("scaffold-provenance.json"));
 if (provenance.activation !== "not-published-or-registry-active") throw new Error("publication/activation boundary is invalid");
 console.log("fable-bindings doctor passed: local proof remains required before publication")
