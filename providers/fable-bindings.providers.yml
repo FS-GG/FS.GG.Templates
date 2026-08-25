@@ -16,13 +16,13 @@ schemaVersion: 1
 # BEGIN GENERATED: effective-providers
 # Effective providers — generated; ordered by unique provider name.
 # Review this block for the current selection; the release narrative remains in PIN HISTORY.
-# effective[1]: name=fable-bindings | template=fs-gg-fable-bindings | source=FS.GG.Workspace.Template::0.9.0 | contract=1.1.0
+# effective[1]: name=fable-bindings | template=fs-gg-fable-bindings | source=FS.GG.Workspace.Template::0.10.0 | contract=1.1.0
 # END GENERATED: effective-providers
 providers:
   - name: fable-bindings
     contractVersion: "1.1.0"
     templateId: fs-gg-fable-bindings
-    source: FS.GG.Workspace.Template::0.9.0
+    source: FS.GG.Workspace.Template::0.10.0
     nameParameter: productName
     identifierParameter: rootNamespace
     minimumFsggSdd:
