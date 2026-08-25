@@ -125,14 +125,19 @@ jobs:
 
             jobs_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/jobs?per_page=100")"
             pack_success="$(jq '[.jobs[] | select(.name == "pack" and .status == "completed" and .conclusion == "success")] | length' <<<"$jobs_json")"
-            gate_failure="$(jq '[.jobs[] | select(.name == "gate" and .status == "completed" and .conclusion == "failure")] | length' <<<"$jobs_json")"
+            # The jobs API exposes the job's display `name`, not its YAML id (`gate`). Keep this
+            # selector aligned with `gate.name` below; the failed tag run is the measured proof.
+            gate_failure="$(jq '[.jobs[] | select(.name == "release-route" and .status == "completed" and .conclusion == "failure")] | length' <<<"$jobs_json")"
             publish_skipped="$(jq '[.jobs[] | select(.name == "publish" and .status == "completed" and .conclusion == "skipped")] | length' <<<"$jobs_json")"
             if [ "$pack_success" != 1 ] || [ "$gate_failure" != 1 ] || [ "$publish_skipped" != 1 ]; then
               echo "::error::source run $SOURCE_RUN_ID is not the resumable release state: expected exactly one successful pack, failed gate, and skipped publish; got pack=$pack_success gate=$gate_failure publish=$publish_skipped."
               exit 1
             fi
 
-            artifact_name="fs-gg-templates-$source_head"
+            # upload-artifact names the source archive with that run's github.run_id. The head SHA
+            # remains an independent binding checked in artifact metadata and in the package's
+            # repository commit; it is not the artifact's name.
+            artifact_name="fs-gg-templates-$SOURCE_RUN_ID"
             artifacts_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN_ID/artifacts?per_page=100")"
             artifact_count="$(jq --arg name "$artifact_name" --arg run "$SOURCE_RUN_ID" --arg head "$source_head" --arg branch "$release_tag" --arg repo "$REPOSITORY_ID" \
               '[.artifacts[] | select(.name == $name and .expired == false and ((.digest // "") | test("^sha256:[0-9a-f]{64}$")) and (.workflow_run.id | tostring) == $run and (.workflow_run.repository_id | tostring) == $repo and .workflow_run.head_sha == $head and .workflow_run.head_branch == $branch)] | length' <<<"$artifacts_json")"
@@ -313,13 +318,33 @@ jobs:
           cd artifacts
           sha256sum --check SHA256SUMS
 
+      # The release gate must grade the same provider-owned floor as composition.yml. In
+      # particular, "latest stable" is not sufficient when a provider deliberately declares a
+      # prerelease floor: the latest stable may be older and unable to render that provider.
+      - name: Grade provider minimumFsggSdd floors against the org registry
+        id: floors
+        run: |
+          set -euo pipefail
+          scripts/check-provider-floors.py \
+            --github-output "$GITHUB_OUTPUT" \
+            --step-summary "$GITHUB_STEP_SUMMARY"
+
       # Same authenticated CLI setup as composition.yml so the gated stages ASSERT instead of
       # skipping (never green-by-omission). See composition.yml for why a classic PAT is the
       # only credential that reads the private FS.GG.UI.* closure the scaffold restores.
       - name: Install FS-GG CLIs (governance enforcement + sdd producer/scaffold)
         env:
           FEED_TOKEN: ${{ secrets.FSGG_PACKAGES_PAT }}
+          MIN_SDD: ${{ steps.floors.outputs.floor }}
         run: |
+          case "$MIN_SDD" in
+            [0-9]*.[0-9]*.[0-9]*) ;;
+            *)
+              echo "::error title=the agreed minimumFsggSdd floor did not arrive::steps.floors.outputs.floor is '${MIN_SDD:-<nothing>}'. The release gate cannot select a compatible fsgg-sdd without the provider/registry floor."
+              exit 1
+              ;;
+          esac
+
           dotnet nuget add source \
             --username fs-gg --password "$FEED_TOKEN" --store-password-in-clear-text \
             --name fs-gg-github "https://nuget.pkg.github.com/FS-GG/index.json" || true
@@ -361,7 +386,10 @@ jobs:
 
           install_global_tool FS.GG.Governance.Cli fsgg-governance
           install_global_tool FS.GG.Governance.FSharpSurfaceCommand fsgg-fsharp-surface 1.12.1
-          install_global_tool FS.GG.SDD.Cli fsgg-sdd
+          # Pin the release gate to the declared floor. Unlike the early-regression composition
+          # gate, a release must be reproducible and must not select an older stable CLI when the
+          # provider's compatible floor is a prerelease.
+          install_global_tool FS.GG.SDD.Cli fsgg-sdd "$MIN_SDD"
           echo "$HOME/.dotnet/tools" >> "$GITHUB_PATH"
 
       # The generated-product gate: install the downloaded archive → instantiate →
