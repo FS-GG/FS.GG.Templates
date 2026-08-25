@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "viewVersion": "1.0",
+  "workId": "436-workspace-template-0-10-0-release",
+  "stage": "ship",
+  "status": "shipReady",
+  "generator": "FS.GG.SDD.Artifacts/1.2.5",
+  "sourcesDigest": {
+    "algorithm": "sha256",
+    "value": "de6070b50340c05912a094ef7764a361c7a725e4495637db1ba3bcbe2040df89"
+  },
+  "verificationReadiness": {
+    "status": "verificationReady",
+    "evidenceSupportedCount": 27,
+    "evidenceSelfAttestedCount": 0,
+    "evidenceObservedCount": 27
+  },
+  "disposition": {
+    "state": "shipReady",
+    "blockingFindingIds": []
+  },
+  "readiness": "shipReady"
+}

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuite name="FS.GG.Templates.0.10.0.Release" tests="1" failures="0" errors="0" skipped="0">
+  <testcase classname="FS.GG.Templates.Release" name="one prepared archive passes all composition and browser lanes"></testcase>
+  <system-out>archive=FS.GG.Workspace.Template.0.10.0.nupkg sha256=aa52a192407022d2d03e6ea6092e2d3de2c3f2857b3a43d57d92f2ba035fd646; lanes=console,web,fable-bindings,fable-game; command=tests/composition/run.sh</system-out>
+</testsuite>
