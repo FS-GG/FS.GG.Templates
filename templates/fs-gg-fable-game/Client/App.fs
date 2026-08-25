@@ -167,20 +167,67 @@ module App =
     /// click was in flight against, silently dropping the input. Reusing nodes removes
     /// that race entirely rather than papering over it with a delay.
     let mutable private cellElements: Map<Cell, Browser.Types.HTMLElement> = Map.empty
+    let mutable private gridBuildCount = 0
+
+    let private focusCell (current: Browser.Types.HTMLElement) (target: Cell) : unit =
+        match Map.tryFind target cellElements with
+        | None -> ()
+        | Some next ->
+            current.tabIndex <- -1
+            next.tabIndex <- 0
+            next.focus ()
+
+    let private handleCellKey (cell: Cell) (el: Browser.Types.HTMLElement) (dispatch: Msg -> unit) (event: Browser.Types.Event) : unit =
+        let keyEvent: Browser.Types.KeyboardEvent = unbox event
+        let target =
+            match keyEvent.key with
+            | "ArrowLeft" -> Some { cell with Col = cell.Col - 1 }
+            | "ArrowRight" -> Some { cell with Col = cell.Col + 1 }
+            | "ArrowUp" -> Some { cell with Row = cell.Row - 1 }
+            | "ArrowDown" -> Some { cell with Row = cell.Row + 1 }
+            | _ -> None
+        match target with
+        | Some next ->
+            keyEvent.preventDefault ()
+            focusCell el next
+        | None when keyEvent.key = "Enter" || keyEvent.key = " " ->
+            keyEvent.preventDefault ()
+            dispatch (CellClicked cell)
+        | None -> ()
 
     let private buildGrid (container: Browser.Types.HTMLElement) (model: Model) (dispatch: Msg -> unit) : unit =
         container.innerHTML <- ""
+        gridBuildCount <- gridBuildCount + 1
+        container.setAttribute ("data-grid-build-count", string gridBuildCount)
+        container.setAttribute ("data-grid-cell-count", string (model.ArenaWidth * model.ArenaHeight))
         let grid = Browser.Dom.document.createElement "div"
-        grid.setAttribute ("style", $"display:grid;grid-template-columns:repeat({model.ArenaWidth},24px)")
+        grid.setAttribute ("role", "grid")
+        grid.setAttribute ("aria-label", "Game board")
+        grid.setAttribute ("aria-rowcount", string model.ArenaHeight)
+        grid.setAttribute ("aria-colcount", string model.ArenaWidth)
+        grid.setAttribute ("style", "display:inline-flex;flex-direction:column")
         let mutable built = Map.empty
         for row in 0 .. model.ArenaHeight - 1 do
+            let rowElement = Browser.Dom.document.createElement "div"
+            rowElement.setAttribute ("role", "row")
+            rowElement.setAttribute ("aria-rowindex", string (row + 1))
+            rowElement.setAttribute ("style", "display:flex")
             for col in 0 .. model.ArenaWidth - 1 do
                 let cell: Cell = { Col = col; Row = row }
                 let el = Browser.Dom.document.createElement "div"
                 el.setAttribute ("data-cell", $"{col}-{row}")
+                el.setAttribute ("role", "gridcell")
+                el.setAttribute ("aria-rowindex", string (row + 1))
+                el.setAttribute ("aria-colindex", string (col + 1))
+                el.tabIndex <- if row = 0 && col = 0 then 0 else -1
                 el.addEventListener ("click", (fun _ -> dispatch (CellClicked cell)))
-                grid.appendChild el |> ignore
+                el.addEventListener ("keydown", handleCellKey cell el dispatch)
+                el.addEventListener ("focus", (fun _ ->
+                    for KeyValue(_, other) in cellElements do
+                        other.tabIndex <- if obj.ReferenceEquals(other, el) then 0 else -1))
+                rowElement.appendChild el |> ignore
                 built <- built |> Map.add cell el
+            grid.appendChild rowElement |> ignore
         container.appendChild grid |> ignore
         cellElements <- built
 
@@ -191,6 +238,7 @@ module App =
             if model.ArenaWidth > 0 && model.ArenaHeight > 0 then
                 if Map.isEmpty cellElements then
                     buildGrid container model dispatch
+                container.setAttribute ("aria-busy", "false")
                 for KeyValue(cell, el) in cellElements do
                     let occupant = model.Players |> Map.toSeq |> Seq.tryFind (fun (_, c) -> c = cell) |> Option.map fst
                     let classes =
@@ -200,11 +248,29 @@ module App =
                           if List.contains cell model.PreviewPath then "preview" ]
                     el.className <- String.concat " " classes
                     match occupant with
-                    | Some playerId -> el.setAttribute ("data-occupant", playerId)
-                    | None -> el.removeAttribute "data-occupant"
+                    | Some playerId ->
+                        el.setAttribute ("data-occupant", playerId)
+                        let identity = if Some playerId = model.PlayerId then "you" else "another player"
+                        let selection = if List.contains cell model.PreviewPath then ", selected path" else ""
+                        el.setAttribute ("aria-label", $"Column {cell.Col + 1}, row {cell.Row + 1}: {identity}{selection}")
+                    | None ->
+                        el.removeAttribute "data-occupant"
+                        let selection = if List.contains cell model.PreviewPath then ", selected path" else ""
+                        el.setAttribute ("aria-label", $"Column {cell.Col + 1}, row {cell.Row + 1}: empty{selection}")
+                    el.setAttribute ("aria-selected", (string (List.contains cell model.PreviewPath)).ToLowerInvariant())
+                    if occupant = model.PlayerId && Option.isSome occupant then el.setAttribute ("aria-current", "true")
+                    else el.removeAttribute "aria-current"
             match Browser.Dom.document.getElementById "status" with
             | null -> ()
-            | status -> status.textContent <- $"room {model.RoomId} - tick {model.Tick} - {model.Status}"
+            | status -> status.textContent <- $"room {model.RoomId} - {model.Status}"
+            match Browser.Dom.document.getElementById "tick" with
+            | null -> ()
+            | tick -> tick.textContent <- $"Tick {model.Tick}"
+            match Browser.Dom.document.getElementById "presence" with
+            | null -> ()
+            | presence ->
+                let others = max 0 (model.Players.Count - (if Option.isSome model.PlayerId then 1 else 0))
+                presence.textContent <- $"Players present: {model.Players.Count}. You plus {others} other player(s)."
             // A minimal, explicit test hook: the assigned player id, otherwise invisible
             // in the DOM. Browser.Tests reads this to know which rendered cell is "this"
             // browser context's own player without depending on class-name heuristics.

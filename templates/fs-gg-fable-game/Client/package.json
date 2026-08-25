@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "dotnet tool restore && dotnet fable . -o output --noCache && vite",
+    "dev": "dotnet tool restore && dotnet fable watch . -o output --noCache --run vite",
     "build": "dotnet tool restore && dotnet fable . -o output --noCache && vite build"
   },
   "dependencies": {
