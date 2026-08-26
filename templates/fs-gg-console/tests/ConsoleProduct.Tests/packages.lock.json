@@ -4,9 +4,9 @@
     "net10.0": {
       "Expecto": {
         "type": "Direct",
-        "requested": "[10.2.1, )",
-        "resolved": "10.2.1",
-        "contentHash": "nV9ACIccY2cv23KvtMfflQdMPhF7oTXf0dRMz1Jq6GuQjLnuf+zBj4IlBzmZEz9VeCrCOWxdnt/5VFCrGcn+pA==",
+        "requested": "[10.2.3, )",
+        "resolved": "10.2.3",
+        "contentHash": "mwGOvtkKfMwakKeONwWYy5RgnO7Ijx/THt50GHh8mkSPySVOW/BsOppHzNwby45uaO6X0IKpqS76BrlYgOqcIg==",
         "dependencies": {
           "FSharp.Core": "7.0.200",
           "Mono.Cecil": "[0.11.4, 1.0.0)"
