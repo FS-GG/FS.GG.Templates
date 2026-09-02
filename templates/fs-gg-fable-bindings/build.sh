@@ -44,4 +44,8 @@ dotnet build BindingsProduct.slnx --no-restore
 npm ci --ignore-scripts
 npm run doctor
 npm run check:drift
+npm run test:side-effect-control
+npm run test:imports
+dotnet tool restore
+npm run compile:fable
 npm run test:runtime

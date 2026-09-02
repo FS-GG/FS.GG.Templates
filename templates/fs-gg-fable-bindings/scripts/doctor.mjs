@@ -8,7 +8,12 @@ import { existsSync, readFileSync } from "node:fs";
 // reviewed locks were committed here and zero reached any generated product while every gate stayed
 // green. `BindingsProduct` is rewritten to the product's name on instantiation, as in
 // `lifecycle-evidence.mjs`, so these paths name the delivered projects rather than the template's.
-for (const file of ["package-lock.json", "declaration-lock.json", "coverage-and-drift.json", "scaffold-provenance.json", "bindings-evidence.yml", "src/BindingsProduct/packages.lock.json", "tests/BindingsProduct.CompileTests/packages.lock.json"]) if (!existsSync(file)) throw new Error(`missing required evidence artifact: ${file}`);
+for (const file of ["package-lock.json", ".config/dotnet-tools.json", "declaration-lock.json", "binding-plan.json", "coverage-and-drift.json", "generated-candidates/declaration-analysis.json", "scaffold-provenance.json", "bindings-evidence.yml", "src/BindingsProduct/packages.lock.json", "tests/BindingsProduct.CompileTests/packages.lock.json"]) if (!existsSync(file)) throw new Error(`missing required evidence artifact: ${file}`);
 const provenance = JSON.parse(readFileSync("scaffold-provenance.json"));
 if (provenance.activation !== "not-published-or-registry-active") throw new Error("publication/activation boundary is invalid");
+const plan = JSON.parse(readFileSync("binding-plan.json"));
+const coverage = JSON.parse(readFileSync("coverage-and-drift.json"));
+if (!plan.slice?.journey || plan.mappingLedger?.length === 0) throw new Error("binding plan has no executable slice or mapping ledger");
+if (coverage.bindingPlan !== "binding-plan.json" || coverage.schemaVersion < 2) throw new Error("coverage report is not bound to the advanced mapping plan");
+if (plan.mappingLedger.some(row => row.coverage === "dynamic") && coverage.typedCoverage.includes(plan.mappingLedger.find(row => row.coverage === "dynamic")?.symbol)) throw new Error("dynamic escape hatch counted as typed coverage");
 console.log("fable-bindings doctor passed: local proof remains required before publication")

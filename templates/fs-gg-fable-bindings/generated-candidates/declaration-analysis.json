@@ -1,0 +1,556 @@
+{
+  "schemaVersion": 1,
+  "declarationClosureSha256": "3171be522100b5cd9be0d9c58b22de86afd6401979ea01549795dd879885e7e4",
+  "declarationFileCount": 2898,
+  "hazardCounts": {
+    "conditionalTypes": 56,
+    "mappedTypes": 19,
+    "templateLiteralTypes": 0,
+    "indexSignatures": 270,
+    "inferredTypes": 21
+  },
+  "declarationMergingCandidates": [
+    {
+      "symbol": "AbstractEngine",
+      "files": [
+        "@babylonjs/core/DeviceInput/internalDeviceSourceManager.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.alpha.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.cubeTexture.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.dom.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.loadFile.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.loadingScreen.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.query.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.renderPass.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.scissor.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.states.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.stencil.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.texture.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.textureSelector.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.timeQuery.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.views.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.alpha.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.computeShader.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.cubeTexture.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.debugging.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.dynamicBuffer.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.dynamicTexture.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.multiRender.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.prefilteredCubeTexture.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.rawTexture.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.readTexture.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.renderTarget.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.renderTargetCube.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.renderTargetTexture.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.texture2DArrayImageSource.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.videoTexture.types.d.ts",
+        "@babylonjs/core/Engines/WebGPU/Extensions/engine.alpha.types.d.ts",
+        "@babylonjs/core/Engines/WebGPU/Extensions/engine.cubeTexture.types.d.ts",
+        "@babylonjs/core/Engines/WebGPU/Extensions/engine.dynamicTexture.types.d.ts",
+        "@babylonjs/core/Engines/WebGPU/Extensions/engine.multiRender.types.d.ts",
+        "@babylonjs/core/Engines/WebGPU/Extensions/engine.rawTexture.types.d.ts",
+        "@babylonjs/core/Engines/WebGPU/Extensions/engine.readTexture.types.d.ts",
+        "@babylonjs/core/Engines/WebGPU/Extensions/engine.renderTarget.types.d.ts",
+        "@babylonjs/core/Engines/WebGPU/Extensions/engine.renderTargetCube.types.d.ts",
+        "@babylonjs/core/Engines/WebGPU/Extensions/engine.renderTargetTexture.types.d.ts",
+        "@babylonjs/core/Engines/WebGPU/Extensions/engine.videoTexture.types.d.ts",
+        "@babylonjs/core/Engines/abstractEngine.pure.d.ts",
+        "@babylonjs/core/Particles/particleSystemComponent.types.d.ts",
+        "@babylonjs/core/PostProcesses/postProcess.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "AbstractMesh",
+      "files": [
+        "@babylonjs/core/Culling/Octrees/octreeSceneComponent.types.d.ts",
+        "@babylonjs/core/Engines/AbstractEngine/abstractEngine.query.types.d.ts",
+        "@babylonjs/core/Meshes/abstractMesh.decalMap.types.d.ts",
+        "@babylonjs/core/Meshes/abstractMesh.pure.d.ts",
+        "@babylonjs/core/Meshes/instancedMesh.types.d.ts",
+        "@babylonjs/core/Physics/v1/physicsEngineComponent.types.d.ts",
+        "@babylonjs/core/Rendering/boundingBoxRenderer.types.d.ts",
+        "@babylonjs/core/Rendering/edgesRenderer.types.d.ts",
+        "@babylonjs/core/Rendering/outlineRenderer.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "Animation",
+      "files": [
+        "@babylonjs/core/Animations/animation.pure.d.ts",
+        "@babylonjs/core/Animations/animation.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "AnimationGroup",
+      "files": [
+        "@babylonjs/core/Animations/animationGroup.pure.d.ts",
+        "@babylonjs/core/Animations/animationGroup.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "ArcRotateCameraInputsManager",
+      "files": [
+        "@babylonjs/core/Cameras/Inputs/arcRotateCameraVRDeviceOrientationInput.types.d.ts",
+        "@babylonjs/core/Cameras/arcRotateCameraInputsManager.pure.d.ts",
+        "@babylonjs/core/Gamepads/gamepadSceneComponent.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "BaseTexture",
+      "files": [
+        "@babylonjs/core/Materials/Textures/baseTexture.polynomial.types.d.ts",
+        "@babylonjs/core/Materials/Textures/baseTexture.pure.d.ts"
+      ]
+    },
+    {
+      "symbol": "Bone",
+      "files": [
+        "@babylonjs/core/Animations/animatable.types.d.ts",
+        "@babylonjs/core/Bones/bone.pure.d.ts"
+      ]
+    },
+    {
+      "symbol": "Camera",
+      "files": [
+        "@babylonjs/core/Cameras/camera.pure.d.ts",
+        "@babylonjs/core/Cameras/camera.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.multiview.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "ColorCurves",
+      "files": [
+        "@babylonjs/core/Materials/colorCurves.pure.d.ts",
+        "@babylonjs/core/Materials/colorCurves.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "ColorGradingTexture",
+      "files": [
+        "@babylonjs/core/Materials/Textures/colorGradingTexture.pure.d.ts",
+        "@babylonjs/core/Materials/Textures/colorGradingTexture.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "ComputeShader",
+      "files": [
+        "@babylonjs/core/Compute/computeShader.pure.d.ts",
+        "@babylonjs/core/Compute/computeShader.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "CubeTexture",
+      "files": [
+        "@babylonjs/core/Materials/Textures/cubeTexture.pure.d.ts",
+        "@babylonjs/core/Materials/Textures/cubeTexture.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "DefaultRenderingPipeline",
+      "files": [
+        "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline.pure.d.ts",
+        "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/defaultRenderingPipeline.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "Effect",
+      "files": [
+        "@babylonjs/core/Engines/thinNativeEngine.types.d.ts",
+        "@babylonjs/core/Materials/Textures/renderTargetTexture.types.d.ts",
+        "@babylonjs/core/Materials/effect.pure.d.ts",
+        "@babylonjs/core/PostProcesses/postProcess.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "Engine",
+      "files": [
+        "@babylonjs/core/Engines/Extensions/engine.multiview.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.transformFeedback.types.d.ts",
+        "@babylonjs/core/Engines/engine.pure.d.ts"
+      ]
+    },
+    {
+      "symbol": "FreeCameraInputsManager",
+      "files": [
+        "@babylonjs/core/Cameras/Inputs/freeCameraDeviceOrientationInput.types.d.ts",
+        "@babylonjs/core/Cameras/Inputs/freeCameraVirtualJoystickInput.types.d.ts",
+        "@babylonjs/core/Cameras/freeCameraInputsManager.pure.d.ts",
+        "@babylonjs/core/Gamepads/gamepadSceneComponent.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "FresnelParameters",
+      "files": [
+        "@babylonjs/core/Materials/fresnelParameters.pure.d.ts",
+        "@babylonjs/core/Materials/fresnelParameters.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "GLTFLoader",
+      "files": [
+        "@babylonjs/loaders/glTF/1.0/glTFLoader.d.ts",
+        "@babylonjs/loaders/glTF/2.0/glTFLoader.pure.d.ts"
+      ]
+    },
+    {
+      "symbol": "GLTFLoaderExtensionOptions",
+      "files": [
+        "@babylonjs/loaders/glTF/2.0/Extensions/EXT_lights_area.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/EXT_lights_ies.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/EXT_lights_image_based.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/EXT_mesh_gpu_instancing.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/EXT_meshopt_compression.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/EXT_texture_avif.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/EXT_texture_webp.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/ExtrasAsMetadata.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_animation_pointer.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_draco_mesh_compression.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_gaussian_splatting.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_interactivity.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_lights_punctual.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_anisotropy.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_clearcoat.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_coat.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_diffuse_roughness.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_diffuse_transmission.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_dispersion.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_emissive_strength.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_fuzz.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_ior.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_iridescence.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_pbrSpecularGlossiness.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_sheen.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_specular.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_transmission.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_unlit.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_variants.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_volume.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_volume_scatter.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_mesh_quantization.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_node_hoverability.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_node_selectability.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_node_visibility.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_basisu.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_texture_transform.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_xmp_json_ld.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/MSFT_audio_emitter.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/MSFT_lod.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/MSFT_minecraftMesh.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/MSFT_sRGBFactors.types.d.ts",
+        "@babylonjs/loaders/glTF/glTFFileLoader.pure.d.ts"
+      ]
+    },
+    {
+      "symbol": "IGLTFLoaderExtension",
+      "files": [
+        "@babylonjs/loaders/glTF/2.0/glTFLoaderExtension.d.ts",
+        "@babylonjs/loaders/glTF/glTFFileLoader.pure.d.ts"
+      ]
+    },
+    {
+      "symbol": "IImage",
+      "files": [
+        "@babylonjs/core/Engines/ICanvas.d.ts",
+        "@babylonjs/loaders/glTF/2.0/glTFLoaderInterfaces.d.ts"
+      ]
+    },
+    {
+      "symbol": "ImageProcessingConfiguration",
+      "files": [
+        "@babylonjs/core/Materials/imageProcessingConfiguration.pure.d.ts",
+        "@babylonjs/core/Materials/imageProcessingConfiguration.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "INode",
+      "files": [
+        "@babylonjs/core/Materials/Textures/ktx2decoderTypes.d.ts",
+        "@babylonjs/loaders/glTF/2.0/glTFLoaderInterfaces.d.ts"
+      ]
+    },
+    {
+      "symbol": "InstancedLinesMesh",
+      "files": [
+        "@babylonjs/core/Meshes/linesMesh.pure.d.ts",
+        "@babylonjs/core/Rendering/edgesRenderer.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "LinesMesh",
+      "files": [
+        "@babylonjs/core/Meshes/linesMesh.pure.d.ts",
+        "@babylonjs/core/Rendering/edgesRenderer.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "Material",
+      "files": [
+        "@babylonjs/core/Materials/material.pure.d.ts",
+        "@babylonjs/core/Materials/materialPluginManager.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "MaterialVariantsController",
+      "files": [
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_variants.pure.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_variants.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "Mesh",
+      "files": [
+        "@babylonjs/core/Meshes/instancedMesh.types.d.ts",
+        "@babylonjs/core/Meshes/mesh.pure.d.ts",
+        "@babylonjs/core/Meshes/meshSimplificationSceneComponent.types.d.ts",
+        "@babylonjs/core/Meshes/thinInstanceMesh.types.d.ts",
+        "@babylonjs/core/Particles/particleSystemComponent.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "MultiMaterial",
+      "files": [
+        "@babylonjs/core/Materials/multiMaterial.pure.d.ts",
+        "@babylonjs/core/Materials/multiMaterial.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "NodeMaterial",
+      "files": [
+        "@babylonjs/core/Materials/Node/nodeMaterial.pure.d.ts",
+        "@babylonjs/core/Materials/Node/nodeMaterial.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "Observable",
+      "files": [
+        "@babylonjs/core/Misc/observable.extensions.types.d.ts",
+        "@babylonjs/core/Misc/observable.pure.d.ts",
+        "@babylonjs/core/Misc/observableCoroutine.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "PBRBaseMaterial",
+      "files": [
+        "@babylonjs/core/Materials/PBR/pbrBaseMaterial.pure.d.ts",
+        "@babylonjs/core/Materials/PBR/pbrMaterial.decalMap.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "PhysicsEngine",
+      "files": [
+        "@babylonjs/core/Physics/v1/physicsEngine.d.ts",
+        "@babylonjs/core/Physics/v2/physicsEngine.d.ts"
+      ]
+    },
+    {
+      "symbol": "ReflectionProbe",
+      "files": [
+        "@babylonjs/core/Probes/reflectionProbe.pure.d.ts",
+        "@babylonjs/core/Probes/reflectionProbe.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "RenderTargetTexture",
+      "files": [
+        "@babylonjs/core/Materials/Textures/renderTargetTexture.pure.d.ts",
+        "@babylonjs/core/Rendering/prePassRendererSceneComponent.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "Scene",
+      "files": [
+        "@babylonjs/core/Animations/animatable.types.d.ts",
+        "@babylonjs/core/Audio/audioSceneComponent.types.d.ts",
+        "@babylonjs/core/Culling/Octrees/octreeSceneComponent.types.d.ts",
+        "@babylonjs/core/Debug/debugLayer.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.multiview.types.d.ts",
+        "@babylonjs/core/Gamepads/gamepadSceneComponent.types.d.ts",
+        "@babylonjs/core/Helpers/sceneHelpers.types.d.ts",
+        "@babylonjs/core/Layers/glowLayer.types.d.ts",
+        "@babylonjs/core/Layers/highlightLayer.types.d.ts",
+        "@babylonjs/core/Layers/selectionOutlineLayer.types.d.ts",
+        "@babylonjs/core/LensFlares/lensFlareSystemSceneComponent.types.d.ts",
+        "@babylonjs/core/Lights/areaLight.types.d.ts",
+        "@babylonjs/core/Meshes/meshSimplificationSceneComponent.types.d.ts",
+        "@babylonjs/core/Meshes/meshUVSpaceRenderer.types.d.ts",
+        "@babylonjs/core/Physics/joinedPhysicsEngineComponent.types.d.ts",
+        "@babylonjs/core/PostProcesses/RenderPipeline/postProcessRenderPipelineManagerSceneComponent.types.d.ts",
+        "@babylonjs/core/Probes/reflectionProbe.types.d.ts",
+        "@babylonjs/core/Rendering/boundingBoxRenderer.types.d.ts",
+        "@babylonjs/core/Rendering/depthPeelingSceneComponent.types.d.ts",
+        "@babylonjs/core/Rendering/depthRendererSceneComponent.types.d.ts",
+        "@babylonjs/core/Rendering/edgesRenderer.types.d.ts",
+        "@babylonjs/core/Rendering/fluidRenderer/fluidRenderer.types.d.ts",
+        "@babylonjs/core/Rendering/geometryBufferRendererSceneComponent.types.d.ts",
+        "@babylonjs/core/Rendering/iblCdfGeneratorSceneComponent.types.d.ts",
+        "@babylonjs/core/Rendering/outlineRenderer.types.d.ts",
+        "@babylonjs/core/Rendering/prePassRendererSceneComponent.types.d.ts",
+        "@babylonjs/core/Rendering/subSurfaceSceneComponent.types.d.ts",
+        "@babylonjs/core/Sprites/spriteSceneComponent.types.d.ts",
+        "@babylonjs/core/scene.pure.d.ts"
+      ]
+    },
+    {
+      "symbol": "SceneLoaderPluginOptions",
+      "files": [
+        "@babylonjs/core/Loading/sceneLoader.d.ts",
+        "@babylonjs/loaders/glTF/glTFFileLoader.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "ShaderMaterial",
+      "files": [
+        "@babylonjs/core/Materials/shaderMaterial.pure.d.ts",
+        "@babylonjs/core/Materials/shaderMaterial.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "SSAO2RenderingPipeline",
+      "files": [
+        "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/ssao2RenderingPipeline.pure.d.ts",
+        "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/ssao2RenderingPipeline.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "SSRRenderingPipeline",
+      "files": [
+        "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/ssrRenderingPipeline.pure.d.ts",
+        "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/ssrRenderingPipeline.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "StandardMaterial",
+      "files": [
+        "@babylonjs/core/Materials/standardMaterial.decalMap.types.d.ts",
+        "@babylonjs/core/Materials/standardMaterial.pure.d.ts"
+      ]
+    },
+    {
+      "symbol": "StandardRenderingPipeline",
+      "files": [
+        "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/standardRenderingPipeline.pure.d.ts",
+        "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/standardRenderingPipeline.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "SubMesh",
+      "files": [
+        "@babylonjs/core/Meshes/subMesh.project.types.d.ts",
+        "@babylonjs/core/Meshes/subMesh.pure.d.ts"
+      ]
+    },
+    {
+      "symbol": "TAARenderingPipeline",
+      "files": [
+        "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/taaRenderingPipeline.pure.d.ts",
+        "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/taaRenderingPipeline.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "ThinEngine",
+      "files": [
+        "@babylonjs/core/Engines/Extensions/engine.alphaToCoverage.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.query.types.d.ts",
+        "@babylonjs/core/Engines/Extensions/engine.uniformBuffer.types.d.ts",
+        "@babylonjs/core/Engines/thinEngine.pure.d.ts"
+      ]
+    },
+    {
+      "symbol": "ThinNativeEngine",
+      "files": [
+        "@babylonjs/core/Engines/Native/Extensions/nativeEngine.cubeTexture.types.d.ts",
+        "@babylonjs/core/Engines/thinNativeEngine.pure.d.ts"
+      ]
+    },
+    {
+      "symbol": "ThinWebGPUEngine",
+      "files": [
+        "@babylonjs/core/Engines/WebGPU/Extensions/engine.alphaToCoverage.types.d.ts",
+        "@babylonjs/core/Engines/thinWebGPUEngine.d.ts"
+      ]
+    },
+    {
+      "symbol": "TransformNode",
+      "files": [
+        "@babylonjs/core/Meshes/transformNode.pure.d.ts",
+        "@babylonjs/core/Meshes/transformNode.types.d.ts",
+        "@babylonjs/core/Physics/v2/physicsEngineComponent.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "VertexBuffer",
+      "files": [
+        "@babylonjs/core/Buffers/buffer.align.types.d.ts",
+        "@babylonjs/core/Buffers/buffer.pure.d.ts",
+        "@babylonjs/core/Buffers/buffer.types.d.ts"
+      ]
+    },
+    {
+      "symbol": "WebGPUEngine",
+      "files": [
+        "@babylonjs/core/Engines/WebGPU/Extensions/engine.computeShader.types.d.ts",
+        "@babylonjs/core/Engines/webgpuEngine.pure.d.ts"
+      ]
+    },
+    {
+      "symbol": "WebXRNearInteraction",
+      "files": [
+        "@babylonjs/core/XR/features/WebXRNearInteraction.pure.d.ts",
+        "@babylonjs/core/XR/features/WebXRNearInteraction.types.d.ts"
+      ]
+    }
+  ],
+  "bareModuleReferences": [
+    "@babylonjs/core/Animations/animatable.interface.js",
+    "@babylonjs/core/Animations/animation.js",
+    "@babylonjs/core/Animations/animation.pure.js",
+    "@babylonjs/core/Animations/animationGroup.js",
+    "@babylonjs/core/Animations/animationGroup.pure.js",
+    "@babylonjs/core/Audio/audioSceneComponent.js",
+    "@babylonjs/core/Bones/bone.js",
+    "@babylonjs/core/Bones/skeleton.js",
+    "@babylonjs/core/Buffers/buffer.js",
+    "@babylonjs/core/Buffers/buffer.pure.js",
+    "@babylonjs/core/Cameras/camera.js",
+    "@babylonjs/core/Cameras/camera.pure.js",
+    "@babylonjs/core/Culling/boundingInfo.js",
+    "@babylonjs/core/FlowGraph/Blocks/flowGraphBlockNames.js",
+    "@babylonjs/core/FlowGraph/flowGraphBlock.js",
+    "@babylonjs/core/FlowGraph/flowGraphDataConnection.js",
+    "@babylonjs/core/FlowGraph/flowGraphRichTypes.js",
+    "@babylonjs/core/FlowGraph/typeDefinitions.js",
+    "@babylonjs/core/Lights/light.js",
+    "@babylonjs/core/Loading/sceneLoader.js",
+    "@babylonjs/core/Materials/PBR/openpbrMaterial.js",
+    "@babylonjs/core/Materials/PBR/pbrMaterial.js",
+    "@babylonjs/core/Materials/Textures/baseTexture.js",
+    "@babylonjs/core/Materials/Textures/texture.js",
+    "@babylonjs/core/Materials/effect.js",
+    "@babylonjs/core/Materials/material.js",
+    "@babylonjs/core/Materials/shaderMaterial.js",
+    "@babylonjs/core/Maths/math.color.js",
+    "@babylonjs/core/Maths/math.color.pure.js",
+    "@babylonjs/core/Maths/math.vector.pure.js",
+    "@babylonjs/core/Meshes/Compression/dracoDecoder.js",
+    "@babylonjs/core/Meshes/abstractMesh.js",
+    "@babylonjs/core/Meshes/abstractMesh.pure.js",
+    "@babylonjs/core/Meshes/geometry.js",
+    "@babylonjs/core/Meshes/instancedMesh.js",
+    "@babylonjs/core/Meshes/mesh.js",
+    "@babylonjs/core/Meshes/mesh.pure.js",
+    "@babylonjs/core/Meshes/thinInstanceMesh.js",
+    "@babylonjs/core/Meshes/transformNode.js",
+    "@babylonjs/core/Meshes/transformNode.pure.js",
+    "@babylonjs/core/Misc/dataReader.js",
+    "@babylonjs/core/Misc/fileRequest.js",
+    "@babylonjs/core/Misc/fileTools.pure.js",
+    "@babylonjs/core/Misc/observable.js",
+    "@babylonjs/core/Misc/webRequest.js",
+    "@babylonjs/core/ObjectModel/objectModelInterfaces.js",
+    "@babylonjs/core/assetContainer.js",
+    "@babylonjs/core/node.js",
+    "@babylonjs/core/scene.js",
+    "@babylonjs/core/types.js",
+    "babylonjs-gltf2interface"
+  ],
+  "interpretation": "Counts identify manual review pressure; they are not typed-coverage claims."
+}

@@ -33,6 +33,9 @@ let private meshBuilder: obj = jsNative
 [<ImportAll("@babylonjs/loaders/glTF/index.js")>]
 let private gltfLoader: obj = jsNative
 
+[<Import("SceneLoader", "@babylonjs/core/Loading/sceneLoader.js")>]
+let private sceneLoader: obj = jsNative
+
 [<Emit("new $0()")>]
 let createNullEngine (constructor: obj): obj = jsNative
 
@@ -51,6 +54,9 @@ let createHemisphericLight (constructor: obj) (name: string) (direction: obj) (s
 [<Emit("$0.CreateBox($1, {}, $2)")>]
 let createBox (meshBuilder: obj) (name: string) (scene: obj): obj = jsNative
 
+[<Emit("$0.IsPluginForExtensionAvailable('.gltf')")>]
+let private isGltfRegistered (loader: obj): bool = jsNative
+
 let nullEngine () = Engine (createNullEngine nullEngineConstructor)
 let scene (Engine engine) = Scene (createScene sceneConstructor engine)
 let vector3 x y z = Vector3 (createVector3 vector3Constructor x y z)
@@ -58,3 +64,4 @@ let freeCamera name (Vector3 position) (Scene scene) = Camera (createFreeCamera 
 let hemisphericLight name (Vector3 direction) (Scene scene) = Light (createHemisphericLight hemisphericLightConstructor name direction scene)
 let box name (Scene scene) = Box (createBox meshBuilder name scene)
 let initialiseLoader () = gltfLoader |> ignore
+let loaderRegistered () = isGltfRegistered sceneLoader
