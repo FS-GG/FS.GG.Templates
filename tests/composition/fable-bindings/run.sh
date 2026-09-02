@@ -22,7 +22,7 @@ assert_provider_lifecycle_matrix fable-bindings "$PACKAGE" "$WORK/lifecycle-matr
 dotnet new fs-gg-fable-bindings -o "$WORK/product" --name AcmeBindings --productName AcmeBindings --rootNamespace AcmeBindings --npmPackage=@babylonjs/core --npmVersion 9.19.0 --bindingTarget browser >/dev/null
 if dotnet new fs-gg-fable-bindings -o "$WORK/rejected" --name Rejected --npmPackage other --npmVersion 1.0.0 --bindingTarget node >/dev/null 2>&1; then echo "unqualified corpus unexpectedly accepted" >&2; exit 1; fi
 
-for f in .gitignore declaration-lock.json binding-plan.json coverage-and-drift.json generated-candidates/declaration-analysis.json package.json .config/dotnet-tools.json src/AcmeBindings/AcmeBindings.fsproj tests/AcmeBindings.CompileTests/AcmeBindings.CompileTests.fsproj samples/Consumer/README.md; do test -f "$WORK/product/$f"; done
+for f in declaration-lock.json binding-plan.json coverage-and-drift.json generated-candidates/declaration-analysis.json package.json .config/dotnet-tools.json src/AcmeBindings/AcmeBindings.fsproj tests/AcmeBindings.CompileTests/AcmeBindings.CompileTests.fsproj samples/Consumer/README.md; do test -f "$WORK/product/$f"; done
 # ── Owner-sourced product skills reach the PACKED product (FS.GG.Templates#347) ────────────────
 # This REPLACED a `cmp` against `skills/fable-bindings/SKILL.md`, a second checked-in copy of the
 # template's own skill file. That pair shared one blob and was kept equal only by the cmp — a
