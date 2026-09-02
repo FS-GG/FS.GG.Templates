@@ -59,7 +59,8 @@ node scripts/lock-declarations.mjs        # deterministic transitive closure
 node scripts/generate-candidate.mjs       # proposal and hazard inventory only
 dotnet restore --locked-mode
 dotnet tool restore
-dotnet fable tests/BindingsProduct.CompileTests/BindingsProduct.CompileTests.fsproj --outDir runtime/fable-dist --noCache
+binding_test_project=$(find tests -name '*.CompileTests.fsproj' -print -quit)
+dotnet fable "$binding_test_project" --outDir runtime/fable-dist --noCache
 node runtime/fable-dist/Program.js
 dotnet pack --no-restore
 ```
