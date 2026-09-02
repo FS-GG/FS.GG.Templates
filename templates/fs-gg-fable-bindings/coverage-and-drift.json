@@ -1,1 +1,11 @@
-{ "schemaVersion": 1, "typedCoverage": [ "NullEngine", "Scene", "Vector3", "FreeCamera", "HemisphericLight", "MeshBuilder.CreateBox" ], "dynamicEscapeHatches": [ "internal only; excluded from typed coverage" ], "unsupportedConstructs": [ "overloaded constructors", "conditional/mapped/template-literal types", "index signatures", "module augmentation" ], "declarationLock": "declaration-lock.json", "status": "reviewed-babylon-modular-slice" }
+{
+  "schemaVersion": 2,
+  "bindingPlan": "binding-plan.json",
+  "typedCoverage": [ "NullEngine", "Scene", "Vector3", "FreeCamera", "HemisphericLight", "MeshBuilder.CreateBox", "glTF loader registration" ],
+  "typedPassThrough": [],
+  "dynamicEscapeHatches": [ "internal only; excluded from typed coverage" ],
+  "unsupportedConstructs": [ "overloaded constructors", "conditional/mapped/template-literal types", "index signatures", "module augmentation outside the selected registration path" ],
+  "evidenceJourneys": [ "fresh Node process proves glTF is absent without the side effect", "Node executes Fable-emitted modular scene and observes glTF registration", "Chromium executes the same Fable-emitted modular scene and observes glTF registration" ],
+  "declarationLock": "declaration-lock.json",
+  "status": "reviewed-babylon-modular-slice"
+}

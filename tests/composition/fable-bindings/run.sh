@@ -22,7 +22,7 @@ assert_provider_lifecycle_matrix fable-bindings "$PACKAGE" "$WORK/lifecycle-matr
 dotnet new fs-gg-fable-bindings -o "$WORK/product" --name AcmeBindings --productName AcmeBindings --rootNamespace AcmeBindings --npmPackage=@babylonjs/core --npmVersion 9.19.0 --bindingTarget browser >/dev/null
 if dotnet new fs-gg-fable-bindings -o "$WORK/rejected" --name Rejected --npmPackage other --npmVersion 1.0.0 --bindingTarget node >/dev/null 2>&1; then echo "unqualified corpus unexpectedly accepted" >&2; exit 1; fi
 
-for f in declaration-lock.json coverage-and-drift.json package.json src/AcmeBindings/AcmeBindings.fsproj tests/AcmeBindings.CompileTests/AcmeBindings.CompileTests.fsproj samples/Consumer/README.md; do test -f "$WORK/product/$f"; done
+for f in .gitignore declaration-lock.json binding-plan.json coverage-and-drift.json generated-candidates/declaration-analysis.json package.json .config/dotnet-tools.json src/AcmeBindings/AcmeBindings.fsproj tests/AcmeBindings.CompileTests/AcmeBindings.CompileTests.fsproj samples/Consumer/README.md; do test -f "$WORK/product/$f"; done
 # ── Owner-sourced product skills reach the PACKED product (FS.GG.Templates#347) ────────────────
 # This REPLACED a `cmp` against `skills/fable-bindings/SKILL.md`, a second checked-in copy of the
 # template's own skill file. That pair shared one blob and was kept equal only by the cmp — a
@@ -37,8 +37,9 @@ grep -Fq '"@babylonjs/core": "9.19.0"' "$WORK/product/package.json"
 grep -Fq '@babylonjs/core/Engines/nullEngine.d.ts' "$WORK/product/declaration-lock.json"
 grep -Fq 'ImportAll("@babylonjs/loaders/glTF/index.js")' "$WORK/product/src/AcmeBindings/Bindings.fs"
 grep -Fq 'GENERATED CANDIDATE — NOT COMPILED' "$WORK/product/generated-candidates/BabylonBindings.generated.fs"
+grep -Fq 'declarationMergingCandidates' "$WORK/product/generated-candidates/declaration-analysis.json"
 
-(cd "$WORK/product" && git init -q && git config user.email test@example.invalid && git config user.name test && git add generated-candidates && git commit -qm baseline && npm ci --ignore-scripts >/dev/null && npm run doctor >/dev/null && npm run check:drift >/dev/null && npm run test:runtime >/dev/null)
+(cd "$WORK/product" && git init -q && git config user.email test@example.invalid && git config user.name test && git add generated-candidates && git commit -qm baseline && npm ci --ignore-scripts >/dev/null && npm run doctor >/dev/null && npm run check:drift >/dev/null && npm run test:side-effect-control >/dev/null && npm run test:imports >/dev/null && dotnet tool restore >/dev/null && npm run compile:fable >/dev/null && npm run test:runtime >/dev/null)
 solution="$(find "$WORK/product" -maxdepth 1 -name '*.slnx' -print -quit)"
 dotnet restore "$solution" --locked-mode
 dotnet build "$solution" --no-restore

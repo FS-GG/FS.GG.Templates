@@ -2,11 +2,12 @@
 
 ## Result
 
-The narrow workflow is qualified as the v1 shape for a future
+The narrow workflow was qualified as the v1 foundation for the
 `fs-gg-fable-bindings` template: lock an exact npm artifact and selected `.d.ts`
 closure, use assisted generation only to propose a candidate, curate the public
 Fable surface, and require compile/import-resolution/runtime/drift/consumer
-evidence before release. This spike does not publish a template.
+evidence before release. The spike itself does not publish the template; its
+findings are now enforced by the generated workspace and composition gate.
 
 ## Exact inputs
 
@@ -60,5 +61,43 @@ NuGet source, independently installs the exact npm dependencies, compiles the
 consumer through Fable, and executes the emitted JavaScript in Node. The library
 uses `Fable.Package.SDK` as a Fable library so its curated source is available to
 the consumer compiler. Browser-targeted packages additionally need a real-browser
-smoke test. The future template never republishes the JavaScript package and
+smoke test. The template never republishes the JavaScript package and
 consumers install the npm runtime dependency.
+
+## Babylon prototype feedback incorporated
+
+The template and product skill were re-evaluated against the complete
+`EHotwagner/babylonjsBindings` prototype at commit
+`474573cc5695012c8c266f38cd6ebf0d970dacaf`, not only its HelloCube surface. Its
+first generation attempt began from all 2,213 Babylon declaration files:
+Glutinum produced 1,420 F# files, rejected 53 complex inputs, and still left the
+compiler's 100-error cap concentrated in about 20 engine/culling files. The
+dominant failures were cross-file ordering, declaration merging and module
+augmentation, generic arity, browser API gaps, cyclic inheritance, and missing
+runtime import paths. Hundreds of forward declarations and alphabetical file
+ordering reduced individual errors but did not provide a maintainable type
+architecture. Broad text rewriting also corrupted nested nullable function
+types, demonstrating why declaration transforms need parser-shaped controls.
+
+The successful second pass was narrow and curated: about 35 types across ten
+subsystems, deep ESM paths, interface/static-companion constructors,
+`[<ParamObject>]` option bags, explicit side-effect imports, browser/TypeScript
+shims, subsystem-oriented F# files, a runnable sample, and documented dynamic
+escape hatches. That result is much more usable, but it also retained floating
+NuGet/npm ranges and had no automated locked compile, runtime, drift, or clean
+consumer evidence. Both halves matter: the failed broad attempt explains the
+mapping process; the curated attempt identifies the interop techniques worth
+preserving.
+
+The generated workspace now makes those lessons executable. `binding-plan.json`
+records the consumer journey, runtime imports, subsystem/file strategy, browser
+type ownership and mapping ledger. Candidate generation parses the entire locked
+closure and records conditional/mapped types, index signatures, bare module
+references, and cross-file declaration-merging candidates without guessing an
+F# public surface. For the qualified Babylon slice that reports 2,898 transitive
+declaration files, including 43-file merge candidates around `AbstractEngine`
+and loader extension options. The normal workspace build restores the exact
+Fable tool and executes the curated F# slice after emission; Node and Chromium
+run that same emitted program. A separate fresh Node process proves glTF is not
+registered without the side-effect import before the positive binding journey
+observes that registration.

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "runtimeTarget": "browser",
+  "slice": {
+    "name": "modular-scene",
+    "journey": "construct an engine, scene, camera, light and mesh; register glTF loading",
+    "entryPoints": [
+      "@babylonjs/core/Engines/nullEngine.js",
+      "@babylonjs/core/scene.js",
+      "@babylonjs/core/Maths/math.vector.js",
+      "@babylonjs/core/Cameras/freeCamera.js",
+      "@babylonjs/core/Lights/hemisphericLight.js",
+      "@babylonjs/core/Meshes/meshBuilder.js",
+      "@babylonjs/loaders/glTF/index.js"
+    ]
+  },
+  "architecture": {
+    "fileStrategy": "subsystem slices ordered from a type-dependency graph; strongly connected and declaration-merged types stay together",
+    "browserTypeBoundary": "browser/WebGL/WebAudio/WebXR types require an explicit shim or maintained package boundary",
+    "moduleAugmentation": "registration modules are explicit side effects and require a negative control"
+  },
+  "mappingLedger": [
+    { "symbol": "NullEngine", "representation": "opaque instance", "import": "named", "coverage": "typed" },
+    { "symbol": "Scene", "representation": "opaque instance", "import": "named", "coverage": "typed" },
+    { "symbol": "Vector3", "representation": "opaque instance", "import": "named", "coverage": "typed" },
+    { "symbol": "FreeCamera", "representation": "opaque instance", "import": "named", "coverage": "typed" },
+    { "symbol": "HemisphericLight", "representation": "opaque instance", "import": "named", "coverage": "typed" },
+    { "symbol": "MeshBuilder.CreateBox", "representation": "static companion call", "import": "named", "coverage": "typed" },
+    { "symbol": "glTF loader registration", "representation": "side-effect import plus typed registration query", "import": "side-effect", "coverage": "typed" }
+  ]
+}

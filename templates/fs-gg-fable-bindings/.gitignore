@@ -1,0 +1,5 @@
+**/bin/
+**/obj/
+.nuget/
+node_modules/
+runtime/fable-dist/

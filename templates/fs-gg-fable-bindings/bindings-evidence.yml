@@ -4,6 +4,7 @@ requiredEvidence:
   - locked-dotnet-restore
   - locked-npm-restore
   - fable-compile-and-emitted-import-resolution
+  - side-effect-import-negative-control
   - node-runtime-smoke
   - real-browser-runtime-smoke
   - declaration-closure-drift
