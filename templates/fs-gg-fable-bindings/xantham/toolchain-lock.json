@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "qualifiedAt": "2026-09-08T09:30:50.986Z",
+  "cli": {
+    "package": "xantham",
+    "version": "0.1.0-alpha.2",
+    "sourceRevision": "ce841e91500f8b4a668c6d64def61936eccda50f",
+    "linuxX64ApphostSha256": "c8e5c1ab8153a590cafe2bdc5b654f040f97d3149fc41b5c42b0c732b4a8254c",
+    "packageSha512": "QFtQDQbqj6mJ++Kf/QblhenO3vkguMxa4S70/NIdWXZ/P2y8Ie/2JVs8UBvkTq71jmFuOXHtJKrEmcOyr4aLFA==",
+    "generatorAssemblySha256": "b58dc7626aa3d16cb33b31b63c7587a1aa3e54eed4dee13406436f893d8e005c"
+  },
+  "compiler": {
+    "package": "typescript",
+    "version": "7.1.0-dev.20260902.1",
+    "linuxX64Executable": "node_modules/@typescript/typescript-linux-x64/lib/tsc",
+    "linuxX64Sha256": "aee0bac365d2477e73c06a36909b1c8f2bc7bea3839874215120e4b9da173b46"
+  },
+  "wire": { "package": "Xantham.TypeScript.Wire", "version": "0.2.0" },
+  "support": { "package": "Xantham.Fable.Core", "version": "0.1.0-alpha.1" },
+  "inspectedUpstreamRevision": "0d785c68bbc539bb2f07ff2bc3e8750a153c8d55"
+}

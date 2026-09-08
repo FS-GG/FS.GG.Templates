@@ -5,6 +5,17 @@ description: Maintain a versioned Fable binding over an exact npm declaration cl
 
 # Fable bindings capability
 
+On every load, run `npm run xantham:assess` from a generated bindings workspace before advising on
+generator work. Read its primary-source package and source-diff evidence, then state whether an update
+is published or source-only, which compiler/config/output/support contracts it affects, and the exact
+qualification and integration steps. An incomplete network check is `partial` or `unavailable`, never
+“no updates.” If the helper is missing, report that the workspace must be upgraded and, when network
+tools are available, inspect the pinned NuGet package indexes plus the upstream commit/compare APIs
+directly. This opening assessment is read-only: do not install or run fetched code, change exact pins,
+regenerate bindings, publish, or contact maintainers merely because the skill loaded. Carry out a
+recommended update only when it is within the user's active task, and retain exact pins until its
+qualification passes.
+
 Use this skill for a library that wraps a JS/TS package. Treat the JavaScript runtime, its TypeScript
 declarations, the emitted ESM graph, and the public F# API as four related but distinct contracts.
 Pin the npm package/version and lockfile, selected declaration entry points and transitive `.d.ts`
@@ -48,10 +59,13 @@ shim or package boundary rather than inventing lookalike domain types throughout
 - Use exact package export paths that the pinned artifact actually serves. Validate extension and
   case sensitivity on the target host and through the consumer's bundler/module resolver.
 
-Assisted generation (Glutinum when qualified; `ts2fable` only as comparison input) writes a tracked
+Assisted generation writes a tracked
 candidate and analysis, never maintained source, the mapping ledger, or declaration lock. Review
 generator diagnostics as coverage information. Parser-aware transforms are acceptable; broad regex
-rewrites of nested type syntax are not. Curated `[<Import>]`/`jsNative` code remains the public API.
+rewrites of nested type syntax are not. Use the optional Xantham backend only after
+`npm run xantham:prepare`, with `npm run generate:candidate -- --backend xantham --config
+xantham/ansi-regex.json`; its `proposal-ready` result is review material, while curated
+`[<Import>]`/`jsNative` code remains the public API.
 
 ```sh
 npm ci

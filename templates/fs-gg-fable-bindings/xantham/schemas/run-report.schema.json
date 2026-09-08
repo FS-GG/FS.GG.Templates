@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fs.gg/schemas/fable-bindings/xantham-run-report-v1.json",
+  "type": "object",
+  "required": ["schemaVersion", "runId", "startedAt", "endedAt", "status", "toolchain", "input", "process", "artifacts", "findings", "verification", "diagnostics"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "status": { "enum": ["rejected", "proposal-ready"] },
+    "diagnostics": { "type": "array", "items": { "type": "string" } }
+  },
+  "additionalProperties": true
+}

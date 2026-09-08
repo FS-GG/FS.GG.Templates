@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "package": { "name": "ansi-regex", "version": "6.2.2", "integrity": "sha512-Bq3SmSpyFHaWjPk8If9yc6svM8c56dB5BAtW4Qbw5jHTwwXXcTLoRMkpDJp6VL0XzlWaCHTXrkFURMYmD0sLqg==" },
+  "packageDirectory": ".nuget/xantham-tools/pilot/node_modules/ansi-regex",
+  "declarationEntry": "index.d.ts",
+  "runtimeImport": "ansi-regex",
+  "fsharpModule": "AnsiRegex",
+  "xanthamConfig": "xantham/ansi-regex.xantham.json",
+  "selectedSignatures": ["Exports.ansiRegex", "Options.Create", "Options.onlyFirst"],
+  "lossDispositions": [
+    { "grade": "ergonomic", "count": 2, "disposition": "reviewed", "reason": "The exported function and generated parameter object retain the exercised JavaScript call shapes." }
+  ],
+  "limits": { "timeoutSeconds": 90, "sampledProcessGroupRssBytes": 1610612736, "addressSpaceBytes": 8589934592, "outputBytes": 1048576, "logBytes": 1048576 },
+  "maintainedEvidence": ["binding-plan.json", "coverage-and-drift.json"]
+}
