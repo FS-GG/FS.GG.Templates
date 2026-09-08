@@ -64,7 +64,7 @@
        and reds if any of the three legs stops filtering. -->
   <ItemGroup>
     <Content Include="templates/**/*"
-             Exclude="templates/**/bin/**;templates/**/obj/**;templates/**/.nuget/**;templates/**/node_modules/**" />
+             Exclude="templates/**/bin/**;templates/**/obj/**;templates/**/.nuget/**;templates/**/node_modules/**;templates/fs-gg-fable-bindings/generated-candidates/xantham/runs/**" />
     <None Include="README.md" Pack="true" PackagePath="\" />
     <Compile Remove="**/*" />
   </ItemGroup>

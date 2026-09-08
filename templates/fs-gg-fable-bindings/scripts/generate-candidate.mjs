@@ -1,9 +1,21 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import ts from "typescript";
+import { spawnSync } from "node:child_process";
 
 const root = resolve(import.meta.dirname, "..");
+if (process.argv.length > 2) {
+  const argv = process.argv.slice(2);
+  const backendAt = argv.indexOf("--backend");
+  const configAt = argv.indexOf("--config");
+  if (backendAt < 0 || !argv[backendAt + 1]) throw new Error("candidate options require --backend; supported backends: xantham");
+  if (argv[backendAt + 1] !== "xantham") throw new Error(`unknown candidate backend '${argv[backendAt + 1]}'; supported backends: xantham`);
+  if (configAt < 0 || !argv[configAt + 1]) throw new Error("the xantham backend requires --config <workspace-relative-config>");
+  const child = spawnSync(process.execPath, [resolve(import.meta.dirname, "run-xantham.mjs"), "--config", argv[configAt + 1]], { cwd: root, stdio: "inherit", env: process.env });
+  if (child.error) throw child.error;
+  process.exit(child.status ?? 1);
+}
+const { default: ts } = await import("typescript");
 const lockBytes = await readFile(resolve(root, "declaration-lock.json"));
 const lock = JSON.parse(lockBytes);
 const digest = createHash("sha256").update(lockBytes).digest("hex");

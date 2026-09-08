@@ -18,7 +18,8 @@
         "**/*.filelist",
         "**/*.user",
         "**/node_modules/**",
-        "**/.nuget/**"
+        "**/.nuget/**",
+        "**/generated-candidates/xantham/runs/**"
       ]
     }
   ],

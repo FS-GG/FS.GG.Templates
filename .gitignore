@@ -38,6 +38,7 @@ __pycache__/
 # .nuspec/.sha512/lib payload beside them is what `git status` reported.
 .nuget/
 node_modules/
+/templates/fs-gg-fable-bindings/generated-candidates/xantham/runs/
 
 # Templates-local: packaging + editor cruft.
 *.nupkg

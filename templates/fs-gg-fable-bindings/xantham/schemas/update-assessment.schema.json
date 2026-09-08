@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fs.gg/schemas/fable-bindings/xantham-update-assessment-v1.json",
+  "type": "object",
+  "required": ["schemaVersion", "checkedAt", "baseline", "baselineSha256", "sources", "status", "relevantChanges", "compatibility", "recommendation"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "status": { "enum": ["current", "updates-found", "unavailable", "partial"] },
+    "compatibility": { "enum": ["qualified", "unqualified"] },
+    "recommendation": { "type": "object", "required": ["disposition", "affectedFiles", "qualificationChecks", "integrationSteps"] }
+  },
+  "additionalProperties": true
+}

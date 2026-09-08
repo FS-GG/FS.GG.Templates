@@ -18,6 +18,9 @@
     "test:imports": "node runtime/node/smoke.mjs",
     "test:runtime": "node runtime/fable-dist/Program.js",
     "generate:candidate": "node scripts/generate-candidate.mjs",
+    "xantham:prepare": "node scripts/prepare-xantham.mjs",
+    "xantham:generate": "node scripts/generate-candidate.mjs --backend xantham",
+    "xantham:assess": "node scripts/assess-xantham-updates.mjs",
     "test:browser": "chromium --headless --no-sandbox --disable-gpu --virtual-time-budget=3000 --dump-dom http://127.0.0.1:4173/runtime/browser/",
     "test:lifecycle": "bash scripts/run-sdd-lifecycle.sh reports/bindings.junit.xml",
     "doctor": "node scripts/doctor.mjs"

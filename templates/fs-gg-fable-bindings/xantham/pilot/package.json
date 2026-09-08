@@ -1,0 +1,9 @@
+{
+  "name": "fsgg-xantham-ansi-pilot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ansi-regex": "6.2.2"
+  }
+}

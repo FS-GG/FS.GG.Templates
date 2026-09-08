@@ -4,6 +4,31 @@ The initial qualified forcing corpus is `@babylonjs/core@9.19.0` plus `@babylonj
 
 `npm run generate:candidate` writes only tracked `generated-candidates/`; it never overwrites maintained source or advances the declaration lock. `npm run check:drift` follows every selected relative declaration import/export and fails on changed transitive hashes. Keep the slice, symbol-to-import mapping, declaration-merging decisions, dependency order, side effects, typed pass-throughs, and unsupported constructs in `binding-plan.json` and `coverage-and-drift.json`; never silently expose a failed conversion as `obj`. Product skills are supplied by the Templates-owned `fable-bindings` skill manifest rather than copied into this provider template. Local proof precedes publication and any registry/wizard activation.
 
+Xantham is an explicit candidate backend for the qualified `ansi-regex@6.2.2` pilot. `npm run
+xantham:prepare` installs the exact reviewed CLI and native TypeScript compiler under excluded
+`.nuget/xantham-tools`; normal builds and skill loading do not install it. Then run `npm run
+generate:candidate -- --backend xantham --config xantham/ansi-regex.json`. Each bounded Linux-x64 run
+uses a fresh child-only home/cache, verifies tool versions and hashes, and retains a versioned report
+under `generated-candidates/xantham/runs/`. Only a bounded, import-resolved, compiling candidate with
+accounted losses updates `generated-candidates/xantham/proposal`; it never changes `src/`, declaration
+locks, mapping decisions or accepted coverage. Process-group RSS and generated output are sampled every
+100 ms and oversize results are rejected; timeout/log capture are bounded by the runner, while the
+8 GiB address-space ceiling is enforced by the operating system.
+
+`npm run xantham:assess` performs bounded, read-only checks of the NuGet CLI/Wire/support indexes and
+the upstream GitHub source head/diff. It distinguishes published packages from source-only work and
+prints affected contracts plus qualification steps. Add `-- --output
+generated-candidates/xantham/update-assessment.json` to retain the schema-v1 report. A partial or
+unavailable network check stays explicit and never changes pins or executes downloaded code.
+
+For an existing workspace, first install the exact Templates package and instantiate a temporary clean
+workspace, then compare its `scripts/`, `xantham/`, package commands and
+`.agents/skills/fable-bindings/SKILL.md` with the workspace. Merge those additions deliberately; keep
+owner edits and resolve conflicts instead of forcing the new files over maintained bindings,
+declaration locks, mapping decisions or accepted coverage. Run `npm run doctor`, the existing curated
+build/runtime checks, then the Xantham pilot before treating the workspace as upgraded. A fresh
+template install alone does not modify an existing workspace or establish per-load assessment there.
+
 ## Package locking
 
 `./build.sh` (also `npm run build`) is this workspace's .NET entrypoint: it asserts the lockfiles, restores in locked mode, builds, then runs the pinned npm install, doctor, drift and Node runtime lanes.

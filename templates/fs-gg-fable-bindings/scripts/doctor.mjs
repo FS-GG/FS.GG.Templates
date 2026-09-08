@@ -8,7 +8,7 @@ import { existsSync, readFileSync } from "node:fs";
 // reviewed locks were committed here and zero reached any generated product while every gate stayed
 // green. `BindingsProduct` is rewritten to the product's name on instantiation, as in
 // `lifecycle-evidence.mjs`, so these paths name the delivered projects rather than the template's.
-for (const file of ["package-lock.json", ".config/dotnet-tools.json", "declaration-lock.json", "binding-plan.json", "coverage-and-drift.json", "generated-candidates/declaration-analysis.json", "scaffold-provenance.json", "bindings-evidence.yml", "src/BindingsProduct/packages.lock.json", "tests/BindingsProduct.CompileTests/packages.lock.json"]) if (!existsSync(file)) throw new Error(`missing required evidence artifact: ${file}`);
+for (const file of ["package-lock.json", ".config/dotnet-tools.json", "declaration-lock.json", "binding-plan.json", "coverage-and-drift.json", "generated-candidates/declaration-analysis.json", "scaffold-provenance.json", "bindings-evidence.yml", "xantham/toolchain-lock.json", "xantham/ansi-regex.json", "xantham/ansi-regex.xantham.json", "xantham/compiler/package-lock.json", "xantham/schemas/run-report.schema.json", "xantham/schemas/update-assessment.schema.json", "src/BindingsProduct/packages.lock.json", "tests/BindingsProduct.CompileTests/packages.lock.json"]) if (!existsSync(file)) throw new Error(`missing required evidence artifact: ${file}`);
 const provenance = JSON.parse(readFileSync("scaffold-provenance.json"));
 if (provenance.activation !== "not-published-or-registry-active") throw new Error("publication/activation boundary is invalid");
 const plan = JSON.parse(readFileSync("binding-plan.json"));

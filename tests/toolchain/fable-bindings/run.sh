@@ -63,3 +63,4 @@ dotnet tool install Fable --tool-path "$consumer/fable" --version 5.13.0 >/dev/n
 node "$consumer/app/dist/Program.js"
 
 echo "PASS Fable declaration closure, tracked candidate, and isolated NuGet/npm consumer gate"
+bash "$ROOT/tests/toolchain/fable-bindings/xantham-run.sh"

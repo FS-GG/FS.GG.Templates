@@ -1,0 +1,9 @@
+{
+  "groups": {
+    "typescript/lib": {
+      "map": {
+        "RegExp": "System.Text.RegularExpressions.Regex"
+      }
+    }
+  }
+}

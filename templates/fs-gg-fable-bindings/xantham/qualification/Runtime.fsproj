@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../generated-candidates/xantham/proposal/AnsiRegex.fs" Link="Generated.fs" />
+    <Compile Include="Program.fs" />
+    <PackageReference Include="Fable.Core" />
+  </ItemGroup>
+</Project>
