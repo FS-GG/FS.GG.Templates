@@ -39,4 +39,18 @@ jobs:
             "$(find "$work" -maxdepth 1 -name '*.nupkg' -print -quit)" \
             "$work/qualification"
       - name: Rehearse exact preview packet and retained adoption
-        run: tests/composition/fable-game/verify-svg-preview-packet.sh "$(mktemp -d)/packet"
+        run: tests/composition/fable-game/verify-svg-preview-packet.sh "${RUNNER_TEMP}/svg-foundation-preview-packet"
+      - name: Upload exact preview packet evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: svg-foundation-preview-packet-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/svg-foundation-preview-packet/feed/*.nupkg
+            ${{ runner.temp }}/svg-foundation-preview-packet/preview-packet.json
+            ${{ runner.temp }}/svg-foundation-preview-packet/browser-observation.json
+            ${{ runner.temp }}/svg-foundation-preview-packet/adoption.log
+            ${{ runner.temp }}/svg-foundation-preview-packet/conflict.log
+            ${{ runner.temp }}/svg-foundation-preview-packet/server.log
+          if-no-files-found: warn
+          retention-days: 14
