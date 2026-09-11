@@ -3,6 +3,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 out="${1:?packet output directory is required}"
 rendering_revision=d29f272c741d534a8269c4995c3b2da00fb97669
+older_templates_revision=d19fc1d48647edfebad4a706db64648017fead65
 template_version=0.11.0-preview.1
 scene_version=0.4.0-preview.1
 rm -rf "$out"; mkdir -p "$out/feed" "$out/build" "$out/homes/current" "$out/homes/old"
@@ -14,7 +15,10 @@ dotnet pack "$out/build/rendering/src/Scene.SvgBrowser/Scene.SvgBrowser.fsproj" 
 dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/feed" -p:Version="$template_version" >/dev/null
 
 mkdir -p "$out/build/old-source"
-git -C "$root" archive d19fc1d48647edfebad4a706db64648017fead65 | tar -x -C "$out/build/old-source"
+if ! git -C "$root" cat-file -e "$older_templates_revision^{commit}" 2>/dev/null; then
+  git -C "$root" fetch --quiet --depth=1 origin "$older_templates_revision"
+fi
+git -C "$root" archive "$older_templates_revision" | tar -x -C "$out/build/old-source"
 dotnet pack "$out/build/old-source/FS.GG.Templates.csproj" -c Release -o "$out/build" -p:Version=0.10.0-baseline.1 >/dev/null
 rm -rf "$out/build/rendering" "$out/build/old-source"
 
@@ -89,10 +93,10 @@ dotnet run --project "$out/older/SvgFoundation/TacticalCompatibility.Tests.fspro
 
 payload_tree="$(find "$payload" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
 templates_source="$(git -C "$root" rev-parse HEAD)"
-jq -n --arg rendering "$rendering_revision" --arg templates "$templates_source" --arg payload "$payload_tree" --argjson browser "$(cat "$out/browser-observation.json")" \
+jq -n --arg rendering "$rendering_revision" --arg templates "$templates_source" --arg older "$older_templates_revision" --arg payload "$payload_tree" --argjson browser "$(cat "$out/browser-observation.json")" \
   --arg sceneHash "$(sha256sum "$out/feed/FS.GG.UI.Scene.$scene_version.nupkg" | cut -d' ' -f1)" \
   --arg browserHash "$(sha256sum "$out/feed/FS.GG.UI.Scene.SvgBrowser.$scene_version.nupkg" | cut -d' ' -f1)" \
   --arg templateHash "$(sha256sum "$template_package" | cut -d' ' -f1)" \
-  '{schema:"fsgg.svg-foundation-preview-packet/1",sources:{rendering:$rendering,templates:$templates,olderTemplateBaseline:"d19fc1d48647edfebad4a706db64648017fead65"},artifacts:{scene:{file:"feed/FS.GG.UI.Scene.0.4.0-preview.1.nupkg",version:"0.4.0-preview.1",sha256:$sceneHash},svgBrowser:{file:"feed/FS.GG.UI.Scene.SvgBrowser.0.4.0-preview.1.nupkg",version:"0.4.0-preview.1",sha256:$browserHash},template:{file:"feed/FS.GG.Workspace.Template.0.11.0-preview.1.nupkg",version:"0.11.0-preview.1",sha256:$templateHash,payloadTreeSha256:$payload}},requiredLocalFeed:"feed/",selection:"--svgFoundation true --lifecycle none",releaseOrder:[{package:"FS.GG.UI.Scene",owner:"Rendering"},{package:"FS.GG.UI.Scene.SvgBrowser",owner:"Rendering"},{package:"FS.GG.Workspace.Template",owner:"Templates"}],consumerPins:{scene:"[0.4.0-preview.1]",svgBrowser:"[0.4.0-preview.1]",template:"[0.11.0-preview.1]"},browserObservation:$browser,journeys:{fresh:"passed-build-fable-serve-browser",retainedUpgrade:"passed-fable-contract",conflict:"reported-without-any-write",authoredFiles:"unchanged",lifecycleSelection:"none-no-lifecycle-state",ownerGuidance:"installed-skill-manifest-retained",installedSkills:"unchanged-no-backfill"},rollback:{input:"retained workspace or source-control commit",limit:"bounded managed SVG foundation files only; no scaffold rerun or automatic skill refresh"},authority:{localRehearsal:"passed",producerPublication:"pending",templatePublication:"pending",installedPublicQualification:"pending",defaultActivation:"pending"},archiveReproducibility:"not-claimed; exact packet bytes are retained and hashed"}' > "$out/preview-packet.json"
+  '{schema:"fsgg.svg-foundation-preview-packet/1",sources:{rendering:$rendering,templates:$templates,olderTemplateBaseline:$older},artifacts:{scene:{file:"feed/FS.GG.UI.Scene.0.4.0-preview.1.nupkg",version:"0.4.0-preview.1",sha256:$sceneHash},svgBrowser:{file:"feed/FS.GG.UI.Scene.SvgBrowser.0.4.0-preview.1.nupkg",version:"0.4.0-preview.1",sha256:$browserHash},template:{file:"feed/FS.GG.Workspace.Template.0.11.0-preview.1.nupkg",version:"0.11.0-preview.1",sha256:$templateHash,payloadTreeSha256:$payload}},requiredLocalFeed:"feed/",selection:"--svgFoundation true --lifecycle none",releaseOrder:[{package:"FS.GG.UI.Scene",owner:"Rendering"},{package:"FS.GG.UI.Scene.SvgBrowser",owner:"Rendering"},{package:"FS.GG.Workspace.Template",owner:"Templates"}],consumerPins:{scene:"[0.4.0-preview.1]",svgBrowser:"[0.4.0-preview.1]",template:"[0.11.0-preview.1]"},browserObservation:$browser,journeys:{fresh:"passed-build-fable-serve-browser",retainedUpgrade:"passed-fable-contract",conflict:"reported-without-any-write",authoredFiles:"unchanged",lifecycleSelection:"none-no-lifecycle-state",ownerGuidance:"installed-skill-manifest-retained",installedSkills:"unchanged-no-backfill"},rollback:{input:"retained workspace or source-control commit",limit:"bounded managed SVG foundation files only; no scaffold rerun or automatic skill refresh"},authority:{localRehearsal:"passed",producerPublication:"pending",templatePublication:"pending",installedPublicQualification:"pending",defaultActivation:"pending"},archiveReproducibility:"not-claimed; exact packet bytes are retained and hashed"}' > "$out/preview-packet.json"
 jq -e '.journeys.fresh == "passed-build-fable-serve-browser" and .authority.producerPublication == "pending"' "$out/preview-packet.json" >/dev/null
 echo "svg-foundation-preview-packet: fresh-serve=passed retained-upgrade=passed conflict=passed manifest=$out/preview-packet.json"
