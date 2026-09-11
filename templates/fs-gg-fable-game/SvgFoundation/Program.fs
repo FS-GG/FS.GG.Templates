@@ -4,6 +4,7 @@ open Browser.Dom
 open Browser.Types
 open FS.GG.UI.Scene
 open FS.GG.UI.Scene.SvgBrowser
+open FableGameWorkspaceNamespace.TacticalCompatibility
 
 let private color red green blue =
     { Red = red; Green = green; Blue = blue; Alpha = 255uy }
@@ -58,6 +59,8 @@ let continuousScene =
                           FillType = PathFillType.Winding },
                         stroke (color 15uy 118uy 110uy) 2.0) ] ] } ] }
 
+let tacticalCompatibilityScene = (characterizedProjection 41 "shared-scene:41" |> project).Scene
+
 let private mount id label scene =
     let container = document.createElement("section")
     container.id <- id
@@ -70,8 +73,19 @@ let private mount id label scene =
 
 let gridHost = mount "foundation-grid-host" "Neutral grid fixture" gridScene
 let continuousHost = mount "foundation-continuous-host" "Neutral continuous-coordinate fixture" continuousScene
+let tacticalCompatibilityHost =
+    mount "foundation-tactical-compatibility-host" "Disclosed tactical compatibility fixture" tacticalCompatibilityScene
+let private requireTransition name result =
+    match result.Error with
+    | None -> ()
+    | Some error -> failwithf "SVG foundation %s transition failed: %A" name error
+requireTransition "tactical selection"
+    (tacticalCompatibilityHost.Dispatch(RetainedInteractionMessage.Select(41, "unit:7")))
+requireTransition "tactical focus"
+    (tacticalCompatibilityHost.Dispatch(RetainedInteractionMessage.FocusNext 41))
 
 // Keep the mounted hosts alive for the lifetime of the generated sample.
 window.addEventListener("beforeunload", fun _ ->
     (gridHost :> System.IDisposable).Dispose()
-    (continuousHost :> System.IDisposable).Dispose())
+    (continuousHost :> System.IDisposable).Dispose()
+    (tacticalCompatibilityHost :> System.IDisposable).Dispose())
