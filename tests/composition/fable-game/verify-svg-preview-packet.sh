@@ -91,7 +91,7 @@ dotnet restore "$out/older/SvgFoundation/TacticalCompatibility.Tests.fsproj" --c
 (cd "$out/older" && dotnet fable SvgFoundation/SvgFoundation.fsproj --outDir SvgFoundation/output --noCache >/dev/null)
 dotnet run --project "$out/older/SvgFoundation/TacticalCompatibility.Tests.fsproj" --no-restore >/dev/null
 
-payload_tree="$(find "$payload" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
+payload_tree="$(cd "$payload" && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1)"
 templates_source="$(git -C "$root" rev-parse HEAD)"
 jq -n --arg rendering "$rendering_revision" --arg templates "$templates_source" --arg older "$older_templates_revision" --arg payload "$payload_tree" --argjson browser "$(cat "$out/browser-observation.json")" \
   --arg sceneHash "$(sha256sum "$out/feed/FS.GG.UI.Scene.$scene_version.nupkg" | cut -d' ' -f1)" \
