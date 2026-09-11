@@ -19,10 +19,22 @@
         "**/*.user",
         "**/node_modules/**",
         "**/.nuget/**"
+      ],
+      "modifiers": [
+        {
+          "condition": "(!svgFoundation)",
+          "exclude": [ "SvgFoundation/**" ]
+        }
       ]
     }
   ],
   "symbols": {
+    "svgFoundation": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "false",
+      "description": "Include the opt-in retained SVG foundation fixture. This candidate path requires a feed containing FS.GG.UI.Scene 0.4.0-preview.1 and FS.GG.UI.Scene.SvgBrowser 0.4.0-preview.1."
+    },
     "lifecycle": {
       "type": "parameter",
       "datatype": "choice",
