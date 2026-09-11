@@ -5,23 +5,31 @@ on:
     paths:
       - 'templates/fs-gg-fable-game/**'
       - 'tests/composition/fable-game/verify-svg-foundation.sh'
+      - 'tests/composition/fable-game/verify-svg-preview-packet.sh'
+      - 'scripts/apply-svg-foundation-preview.sh'
+      - 'scripts/svg-foundation-preview-baseline.manifest'
+      - 'docs/reports/2026-09-11-svg-foundation-preview-packet.md'
       - '.github/workflows/svg-foundation-candidate.yml'
   push:
     branches: [main]
     paths:
       - 'templates/fs-gg-fable-game/**'
       - 'tests/composition/fable-game/verify-svg-foundation.sh'
+      - 'tests/composition/fable-game/verify-svg-preview-packet.sh'
+      - 'scripts/apply-svg-foundation-preview.sh'
+      - 'scripts/svg-foundation-preview-baseline.manifest'
+      - 'docs/reports/2026-09-11-svg-foundation-preview-packet.md'
       - '.github/workflows/svg-foundation-candidate.yml'
 
 jobs:
   candidate-package-consumer:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          dotnet-version: '10.0.400'
       - name: Pack template and verify selected candidate consumer
         run: |
           set -euo pipefail
@@ -30,3 +38,5 @@ jobs:
           tests/composition/fable-game/verify-svg-foundation.sh \
             "$(find "$work" -maxdepth 1 -name '*.nupkg' -print -quit)" \
             "$work/qualification"
+      - name: Rehearse exact preview packet and retained adoption
+        run: tests/composition/fable-game/verify-svg-preview-packet.sh "$(mktemp -d)/packet"
