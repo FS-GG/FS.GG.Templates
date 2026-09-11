@@ -40,6 +40,9 @@ providers:
         required: true
       - key: rootNamespace
         required: false
+      - key: svgFoundation
+        required: false
+        default: false
       - key: lifecycle
         required: false
         default: sdd
