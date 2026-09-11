@@ -28,12 +28,12 @@ dotnet restore "$work/selected/SvgFoundation/SvgFoundation.fsproj" --configfile 
 dotnet tool restore --tool-manifest "$work/selected/.config/dotnet-tools.json" --configfile "$work/NuGet.Config"
 (cd "$work/selected" && dotnet fable SvgFoundation/SvgFoundation.fsproj --outDir "$work/fable" --noCache)
 test -f "$work/fable/Program.js"
-if rg -n 'ProjectReference|<Link>' "$work/selected/SvgFoundation/SvgFoundation.fsproj"; then
+if grep -En 'ProjectReference|<Link>' "$work/selected/SvgFoundation/SvgFoundation.fsproj"; then
   echo 'foundation fixture acquired a sibling source edge' >&2; exit 1
 fi
-rg -q 'foundation-grid' "$work/selected/SvgFoundation/Program.fs"
-rg -q 'foundation-continuous' "$work/selected/SvgFoundation/Program.fs"
-if rg -n 'SIR\.' "$work/selected/SvgFoundation"; then
+grep -q 'foundation-grid' "$work/selected/SvgFoundation/Program.fs"
+grep -q 'foundation-continuous' "$work/selected/SvgFoundation/Program.fs"
+if grep -REn 'SIR\.' "$work/selected/SvgFoundation"; then
   echo 'neutral fixture contains S.I.R. types' >&2; exit 1
 fi
 echo "svg-foundation-template: explicit-selection=passed package-only=passed grid=passed continuous=passed"
