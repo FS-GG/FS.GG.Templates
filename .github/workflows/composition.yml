@@ -152,7 +152,10 @@ jobs:
       - uses: actions/setup-dotnet@v6
         if: steps.scope.outputs.run == 'true'
         with:
-          dotnet-version: '10.0.x'
+          # Generated workspaces lock the SDK-carried FSharp.Core 10.1.400 identity.
+          # Installing a floating feature band moved this gate to 10.0.401 while every
+          # generated global.json still selects 10.0.400, making all locked restores fail.
+          dotnet-version: '10.0.400'
       # ── EVERY provider floor, graded against the live org registry (FS.GG.Templates#383) ──────
       #
       # This step used to live INSIDE the CLI install below, and it read exactly one descriptor:
