@@ -18,13 +18,13 @@
 # It left "RE-COUPLE at 0.2.0" untouched beside it, because the sed matched only the full
 # `0.2.0-preview.1` token — a self-contradicting line, and the tell that no human wrote it.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# pin-tag: fs-gg-ui-template/v0.28.0
-# pin-contract: fs-gg-ui-template@0.28.0
+# pin-tag: fs-gg-ui-template/v0.29.0
+# pin-contract: fs-gg-ui-template@0.29.0
 #
 # BEGIN GENERATED: effective-providers
 # Effective providers — generated; ordered by unique provider name.
 # Review this block for the current selection; the release narrative remains in PIN HISTORY.
-# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.28.0 | contract=1.1.0
+# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.29.0 | contract=1.1.0
 # END GENERATED: effective-providers
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -49,6 +49,12 @@
 #
 #
 #
+# 0.29.0 — 2026-09-12. FS.GG.Rendering PRs #1297–#1301 (release tag commit c654a33b;
+#   release-tags run 34690467974). FRAMEWORK + TEMPLATE MINOR: the 17-package FS.GG.UI.*
+#   coherent set, BOM, and FS.GG.UI.Template advance to 0.29.0. The release adds the typed
+#   retained SVG document surface, browser SVG host, portable keyboard input, and generated API
+#   guidance used by the opt-in SVG foundation. GitHub Packages and NuGet.org readback matched all
+#   19 retained custody payloads; Templates moves only after that public verification.
 # 0.28.0 — 2026-08-25. FS.GG.Rendering#1269 / PRs #1270 and #1271
 #   (merge 6f0c46f5; release-tags run 32786664161). FRAMEWORK + TEMPLATE MINOR: the
 #   17-package FS.GG.UI.* coherent set, BOM packages, and FS.GG.UI.Template advance to
@@ -233,7 +239,7 @@ providers:
   - name: rendering
     contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.28.0   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
+    source: FS.GG.UI.Template::0.29.0   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the

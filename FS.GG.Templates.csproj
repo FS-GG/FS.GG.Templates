@@ -8,10 +8,10 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Workspace.Template</PackageId>
-    <!-- 0.9.0 → 0.10.0 because FS.GG.Templates#417 adds an accessible, browser-tested
-         fable-game baseline to the generated product. The package id and five template identities
-         remain stable; the minor release makes the additive generated behavior installable. -->
-    <Version>0.10.0</Version>
+    <!-- 0.10.0 → 0.11.0 because SVG Preview A adds an opt-in, browser-tested SVG game foundation
+         to fs-gg-fable-game and moves its package graph to the public Rendering 0.29.0 release.
+         The package id, five template identities, and default generated product remain stable. -->
+    <Version>0.11.0</Version>
     <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new workspace templates for FS.GG.SDD: governance, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</Description>

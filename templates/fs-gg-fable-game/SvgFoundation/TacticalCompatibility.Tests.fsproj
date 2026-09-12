@@ -12,6 +12,6 @@
     <Compile Include="TacticalCompatibility.Tests.fs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="FS.GG.UI.Scene" Version="[0.29.0-preview.1]" />
+    <PackageReference Include="FS.GG.UI.Scene" Version="[0.29.0]" />
   </ItemGroup>
 </Project>

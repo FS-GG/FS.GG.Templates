@@ -116,7 +116,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--workflow", type=Path)
-    parser.add_argument("--expected-version", default="0.10.0")
+    parser.add_argument("--expected-version", default="0.11.0")
     parser.add_argument("--self-test", action="store_true")
     args = parser.parse_args()
     if args.self_test:
