@@ -19,6 +19,8 @@ tagged="$(git ls-remote https://github.com/FS-GG/FS.GG.Rendering.git refs/tags/v
 [[ "$tagged" == "$rendering_revision" ]] || { echo "Rendering v${scene_version} tag drifted: $tagged" >&2; exit 1; }
 templates_tagged="$(git ls-remote https://github.com/FS-GG/FS.GG.Templates.git "refs/tags/fs-gg-templates/v${template_version}^{}" | cut -f1)"
 [[ "$templates_tagged" == "$templates_revision" ]] || { echo "Templates v${template_version} tag drifted: $templates_tagged" >&2; exit 1; }
+older_templates_tagged="$(git ls-remote https://github.com/FS-GG/FS.GG.Templates.git "refs/tags/fs-gg-templates/v${older_template_version}^{}" | cut -f1)"
+[[ "$older_templates_tagged" == "$older_templates_revision" ]] || { echo "Templates v${older_template_version} tag drifted: $older_templates_tagged" >&2; exit 1; }
 for id in FS.GG.UI.Scene FS.GG.UI.KeyboardInput FS.GG.UI.Scene.SvgBrowser; do
   lower="${id,,}"
   curl --fail --location --retry 3 \
@@ -61,7 +63,7 @@ kill "$server_pid"; trap - EXIT
 
 old_package="$out/feed/FS.GG.Workspace.Template.$older_template_version.nupkg"
 DOTNET_CLI_HOME="$out/homes/old" dotnet new install "$old_package" --force >/dev/null
-DOTNET_CLI_HOME="$out/homes/old" dotnet new fs-gg-fable-game -n RetainedOlder -o "$out/older" --svgFoundation true --lifecycle none >/dev/null
+DOTNET_CLI_HOME="$out/homes/old" dotnet new fs-gg-fable-game -n RetainedOlder -o "$out/older" --lifecycle none >/dev/null
 DOTNET_CLI_HOME="$out/homes/current" dotnet new fs-gg-fable-game -n RetainedOlder -o "$out/current-materialized" --svgFoundation true --lifecycle none >/dev/null
 mkdir -p "$out/current-payload"; unzip -q "$template_package" -d "$out/current-payload"
 payload="$out/current-payload/content/templates/fs-gg-fable-game"
@@ -71,12 +73,11 @@ test -f "$out/older/.agents/skills/skill-manifest.json"
 skills_before="$(find "$out/older/.agents/skills" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum)"
 retained_before="$(tree_sha "$out/older")"
 cp -a "$out/older" "$out/conflict"
+mkdir -p "$out/conflict/SvgFoundation"
 printf 'authored collision\n' > "$out/conflict/SvgFoundation/TacticalCompatibility.fs"
-collision_before="$(sha256sum "$out/conflict/SvgFoundation/TacticalCompatibility.fs")"
-collision_program_before="$(sha256sum "$out/conflict/SvgFoundation/Program.fs")"
+collision_before="$(tree_sha "$out/conflict")"
 if "$root/scripts/apply-svg-foundation-preview.sh" apply "$adoption_source" "$out/conflict" "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/conflict-backup" >"$out/conflict.log" 2>&1; then echo 'collision unexpectedly applied' >&2; exit 1; fi
-test "$collision_before" = "$(sha256sum "$out/conflict/SvgFoundation/TacticalCompatibility.fs")"
-test "$collision_program_before" = "$(sha256sum "$out/conflict/SvgFoundation/Program.fs")"
+test "$collision_before" = "$(tree_sha "$out/conflict")"
 grep -q 'preview adoption conflict: SvgFoundation/TacticalCompatibility.fs' "$out/conflict.log"
 test ! -e "$out/conflict-backup"
 cp -a "$out/older" "$out/interrupted"

@@ -36,6 +36,10 @@ git -C "$out/build/rendering" checkout --quiet "$rendering_revision"
 [[ "$(git -C "$out/build/rendering" rev-parse HEAD)" == "$rendering_revision" ]] || fail 'Rendering source drifted'
 [[ "$(git ls-remote https://github.com/FS-GG/FS.GG.Rendering.git refs/tags/v${scene_version} | cut -f1)" == "$rendering_revision" ]] || fail 'Rendering release tag drifted'
 [[ "$(git ls-remote https://github.com/FS-GG/FS.GG.Templates.git "refs/tags/fs-gg-templates/v${template_version}^{}" | cut -f1)" == "$templates_revision" ]] || fail 'Templates release tag drifted'
+[[ "$(git ls-remote https://github.com/FS-GG/FS.GG.Templates.git "refs/tags/fs-gg-templates/v${older_template_version}^{}" | cut -f1)" == "$older_templates_revision" ]] || fail 'Templates retained-baseline tag drifted'
+curl --fail --location --retry 3 \
+  "https://raw.githubusercontent.com/FS-GG/FS.GG.Templates/fs-gg-templates/v${older_template_version}/providers/fable-game.providers.yml" \
+  --output "$out/build/fable-game-${older_template_version}.providers.yml"
 for id in FS.GG.UI.Scene FS.GG.UI.KeyboardInput FS.GG.UI.Scene.SvgBrowser; do
   lower="${id,,}"
   curl --fail --location --retry 3 \
@@ -77,9 +81,9 @@ fi
 jq -e '.outcome == "succeeded" and .profile == "fsgg-quint-profile/2"' "$out/provision.json" >/dev/null
 
 pin_provider() {
-  local destination="$1" package="$2"
+  local destination="$1" package="$2" descriptor="$3"
   mkdir -p "$destination/.fsgg"
-  cp "$root/providers/fable-game.providers.yml" "$destination/.fsgg/providers.yml"
+  cp "$descriptor" "$destination/.fsgg/providers.yml"
   python3 - "$destination/.fsgg/providers.yml" "$package" <<'PY'
 from pathlib import Path
 import sys
@@ -91,25 +95,28 @@ PY
 }
 
 scaffold() {
-  local destination="$1" package="$2" report="$3" lifecycle="$4"
+  local destination="$1" package="$2" report="$3" lifecycle="$4" include_svg="$5" descriptor="$6"
   local receiver_name="$(basename "$destination")"
-  pin_provider "$destination" "$package"
+  local params=(--param productName=TypedReceiver --param rootNamespace=TypedReceiver --param lifecycle="$lifecycle")
+  [[ "$include_svg" == true ]] && params+=(--param svgFoundation=true)
+  pin_provider "$destination" "$package" "$descriptor"
   DOTNET_CLI_HOME="$out/homes/$receiver_name" "$cli" scaffold --root "$destination" --provider fable-game --no-update --json \
-    --param productName=TypedReceiver --param rootNamespace=TypedReceiver \
-    --param lifecycle="$lifecycle" --param svgFoundation=true >"$report"
+    "${params[@]}" >"$report"
   jq -e '.outcome == "succeeded" and .scaffold.providerInvoked == true' "$report" >/dev/null
   jq -e --arg lifecycle "$lifecycle" '[.effectiveParameters[] | select(.key == "lifecycle" and .value == $lifecycle)] | length == 1' \
     "$destination/.fsgg/scaffold-provenance.json" >/dev/null
-  jq -e '[.effectiveParameters[] | select(.key == "svgFoundation" and (.value == "true" or .value == true))] | length == 1' \
-    "$destination/.fsgg/scaffold-provenance.json" >/dev/null
+  if [[ "$include_svg" == true ]]; then
+    jq -e '[.effectiveParameters[] | select(.key == "svgFoundation" and (.value == "true" or .value == true))] | length == 1' \
+      "$destination/.fsgg/scaffold-provenance.json" >/dev/null
+  fi
   test -f "$destination/.agents/skills/skill-manifest.json"
 }
 
 current_package="$out/feed/FS.GG.Workspace.Template.$template_version.nupkg"
 old_package="$out/feed/FS.GG.Workspace.Template.$older_template_version.nupkg"
-scaffold "$out/clean" "$current_package" "$out/clean-scaffold.json" typed-sdd
-scaffold "$out/retained" "$old_package" "$out/retained-scaffold.json" typed-sdd
-scaffold "$out/sdd-none" "$current_package" "$out/sdd-none-scaffold.json" none
+scaffold "$out/clean" "$current_package" "$out/clean-scaffold.json" typed-sdd true "$root/providers/fable-game.providers.yml"
+scaffold "$out/retained" "$old_package" "$out/retained-scaffold.json" typed-sdd false "$out/build/fable-game-${older_template_version}.providers.yml"
+scaffold "$out/sdd-none" "$current_package" "$out/sdd-none-scaffold.json" none true "$root/providers/fable-game.providers.yml"
 
 wizard_dir="$out/tools/wizard"
 DOTNET_CLI_HOME="$out/homes/tool" dotnet tool install FS.GG.NewSddWorkspace --version "$wizard_version" \
@@ -121,13 +128,16 @@ test ! -e "$out/wizard/SvgFoundation"
 "$root/scripts/apply-svg-foundation-preview.sh" apply "$out/sdd-none" "$out/wizard" \
   "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/wizard-adoption-backup" >"$out/wizard-adoption.log"
 test -f "$out/wizard/SvgFoundation/PreviewDocument.fs"
-test ! -e "$out/wizard/work"; test ! -e "$out/wizard/readiness"
+jq -e '[.effectiveParameters[] | select(.key == "lifecycle" and .value == "none")] | length == 1' \
+  "$out/wizard/.fsgg/scaffold-provenance.json" >/dev/null
+jq -e '.status == "pending"' "$out/wizard/.fsgg/workspace-initialization.json" >/dev/null
 
 authored_before="$(sha256sum "$out/retained/Domain/Room.fs" "$out/retained/Client/App.fs")"
 lifecycle_before="$(tree_sha "$out/retained/.fsgg")"
 skills_before="$(tree_sha "$out/retained/.agents/skills")"
 retained_before="$(tree_sha "$out/retained")"
 cp -a "$out/retained" "$out/conflict"
+mkdir -p "$out/conflict/SvgFoundation"
 printf 'authored collision\n' >"$out/conflict/SvgFoundation/TacticalCompatibility.fs"
 conflict_before="$(tree_sha "$out/conflict")"
 if "$root/scripts/apply-svg-foundation-preview.sh" apply "$out/clean" "$out/conflict" "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/conflict-backup" >"$out/conflict.log" 2>&1; then
