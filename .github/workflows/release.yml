@@ -480,7 +480,7 @@ jobs:
 
       - name: Read back GitHub Packages payload
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          FEED_TOKEN: ${{ secrets.FSGG_PACKAGES_PAT }}
           PACKAGE_ID: ${{ needs.pack.outputs.package-id }}
           PACKAGE_VERSION: ${{ needs.pack.outputs.package-version }}
           PACKAGE_FILE: ${{ needs.pack.outputs.package-file }}
@@ -492,7 +492,7 @@ jobs:
           url="https://nuget.pkg.github.com/FS-GG/download/$lower/$PACKAGE_VERSION/$lower.$PACKAGE_VERSION.nupkg"
           for attempt in {1..60}; do
             if curl --fail --location --silent --show-error \
-              --user "$GITHUB_ACTOR:$GITHUB_TOKEN" "$url" --output "$remote"; then
+              --user "fs-gg:$FEED_TOKEN" "$url" --output "$remote"; then
               break
             fi
             [[ "$attempt" != 60 ]] || exit 4
