@@ -75,7 +75,7 @@ const validate = (input) => {
 
   const global = JSON.parse(input.read("global.json"));
   const tools = JSON.parse(input.read(".config/dotnet-tools.json"));
-  if (global.sdk?.version !== "10.0.400" || global.sdk?.rollForward !== "latestFeature") fail("global.json SDK pin is not the supported exact toolchain metadata");
+  if (global.sdk?.version !== "10.0.400" || global.sdk?.rollForward !== "disable") fail("global.json SDK pin is not the supported exact toolchain metadata");
   if (tools.tools?.fable?.version !== "5.13.0" || !tools.tools.fable.commands?.includes("fable")) fail("dotnet tool manifest lacks the exact Fable tool pin");
   const clientPackage = JSON.parse(input.read("Client/package.json"));
   const browserPackage = JSON.parse(input.read("Browser.Tests/package.json"));

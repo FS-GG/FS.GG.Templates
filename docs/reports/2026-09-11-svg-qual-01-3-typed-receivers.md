@@ -7,11 +7,11 @@ configuration delta. Both select `lifecycle=typed-sdd` and `svgFoundation=true` 
 the ordinary template defaults remain unchanged.
 
 The receiver copies the canonical Markdown authority, explicit bindings, and model-generated trace
-corpus from Rendering merge `815783987fbf1d6f2e8165e2ae31ddf0bf61db2d`. Public
+corpus from Rendering release commit `c654a33bb206c6f3aa0a3adb310231a0d54aec63`. Public
 `FS.GG.SDD.Cli` 1.7.0 authors and inspects profile `fsgg-quint-profile/2` with backend
 `quint-specification-v1` offline. Independent .NET and Fable/Node programs then replay that corpus
-through `SvgRetained.update` from locally packed `FS.GG.UI.Scene` 0.4.0-preview.1. The selected SVG
-workspace also Fable-compiles against the locally packed Scene and SvgBrowser candidates.
+through `SvgRetained.update` from public `FS.GG.UI.Scene` 0.29.0. The selected SVG workspace also
+Fable-compiles against public Scene and SvgBrowser 0.29.0 packages.
 
 An implementation-only repair changes receiver diagnostics and reuses the current extracted
 authority. The semantic-change case widens the bounded pointer domain, refreshes the explicit source
@@ -22,8 +22,7 @@ lifecycle provenance, and installed owner guidance retain their digests; the col
 the colliding path and writes no file. Installed product skills are observed as retained state and
 are not presumed to refresh during package backfill.
 
-Rendering and Templates archives remain local qualification artifacts. No package is published and
-no provider, template default, lifecycle default, or registry activation changes. NuGet archives are
-not claimed byte-deterministic across packs; the workflow uploads and hashes the exact files used.
-Templates still has no base-loaded routine validator, so the delivery records that instrumentation
-gap alongside the local canonical eligibility, claim, and exact-head marker evidence.
+Rendering archives are downloaded from NuGet.org and retained with their hashes and Fable interface
+digests; only the exact-head Templates 0.11.0 candidate remains local. This step publishes no Templates
+package and changes no template, lifecycle, or registry default. The qualification workflow uploads
+the exact public producer files and local template archive it used.

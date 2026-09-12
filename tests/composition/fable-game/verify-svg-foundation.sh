@@ -1,21 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 package="${1:?template package path is required}"
 work="${2:-$(mktemp -d "${TMPDIR:-/tmp}/fable-game-svg-foundation.XXXXXX")}"
-rendering="${FSGG_RENDERING_REPO:-$root/../FS.GG.Rendering}"
-expected_rendering="c4e50dcb239ccb62453cdd47505f1a8d1095814e"
 
-if [ ! -d "$rendering/.git" ] || [ "$(git -C "$rendering" rev-parse HEAD)" != "$expected_rendering" ]; then
-  rendering="$work/FS.GG.Rendering"
-  git clone --quiet https://github.com/FS-GG/FS.GG.Rendering.git "$rendering"
-  git -C "$rendering" checkout --quiet "$expected_rendering"
-fi
-
-mkdir -p "$work/feed" "$work/packages" "$work/dotnet-home"
-dotnet pack "$rendering/src/Scene/Scene.fsproj" -c Release -o "$work/feed" -p:Version=0.29.0-preview.1
-dotnet pack "$rendering/src/KeyboardInput/KeyboardInput.fsproj" -c Release -o "$work/feed" -p:Version=0.29.0-preview.1
-dotnet pack "$rendering/src/Scene.SvgBrowser/Scene.SvgBrowser.fsproj" -c Release -o "$work/feed" -p:Version=0.29.0-preview.1
+mkdir -p "$work/packages" "$work/dotnet-home"
 DOTNET_CLI_HOME="$work/dotnet-home" dotnet new install "$package" --force >/dev/null
 DOTNET_CLI_HOME="$work/dotnet-home" dotnet new fs-gg-fable-game -n FoundationFixture -o "$work/default" >/dev/null
 test ! -e "$work/default/SvgFoundation"
@@ -23,7 +11,7 @@ DOTNET_CLI_HOME="$work/dotnet-home" dotnet new fs-gg-fable-game -n FoundationFix
 test -f "$work/selected/SvgFoundation/Program.fs"
 test -f "$work/selected/SvgFoundation/TacticalCompatibility.fs"
 cat > "$work/NuGet.Config" <<CONFIG
-<configuration><packageSources><clear/><add key="candidate" value="$work/feed"/><add key="nuget" value="https://api.nuget.org/v3/index.json"/></packageSources><packageSourceMapping><packageSource key="candidate"><package pattern="FS.GG.UI.Scene*"/><package pattern="FS.GG.UI.KeyboardInput"/></packageSource><packageSource key="nuget"><package pattern="*"/></packageSource></packageSourceMapping></configuration>
+<configuration><packageSources><clear/><add key="nuget" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>
 CONFIG
 export NUGET_PACKAGES="$work/packages"
 dotnet restore "$work/selected/SvgFoundation/SvgFoundation.fsproj" --configfile "$work/NuGet.Config"

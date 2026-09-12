@@ -40,11 +40,11 @@ stale-input guard (a non-increasing input sequence is dropped) and the
 disconnect/reconnect contract: a reconnecting client always gets a bounded, full
 authoritative resync, never a delta log.
 
-An unpublished retained SVG foundation fixture is available only when explicitly selected with
-`--svgFoundation true`. It consumes the coherent locally packed `FS.GG.UI.Scene`, transitive
-`FS.GG.UI.KeyboardInput`, and `FS.GG.UI.Scene.SvgBrowser` `0.29.0-preview.1` candidates. It mounts
+An opt-in retained SVG foundation fixture is available only when explicitly selected with
+`--svgFoundation true`. It consumes the coherent public `FS.GG.UI.Scene`, transitive
+`FS.GG.UI.KeyboardInput`, and `FS.GG.UI.Scene.SvgBrowser` `0.29.0` packages. It mounts
 the retained grid/fractional examples and a complete typed Preview-A document. The ordinary
-server-authoritative arena remains the default until the candidate packages have a supported release.
+server-authoritative arena remains the default while the SVG foundation completes its release qualification.
 
 The realtime baseline has four deliberately small but production-relevant rules:
 

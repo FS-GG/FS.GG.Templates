@@ -82,8 +82,8 @@ It produces:
 
 - **Rendering** — the FS.GG.Rendering `fs-gg-ui` app (Skia/OpenGL, Elmish/MVU, Scene,
   SkiaViewer, Controls), installed live from the published `FS.GG.UI.Template` package
-  pinned by the provider (currently `FS.GG.UI.Template@0.28.0`, behind the
-  immutable tag `fs-gg-ui-template/v0.28.0`). Every provider accepts `none`, `sdd`,
+  pinned by the provider (currently `FS.GG.UI.Template@0.29.0`, behind the
+  immutable tag `fs-gg-ui-template/v0.29.0`). Every provider accepts `none`, `sdd`,
   and `typed-sdd`; omission resolves to `sdd`. Product templates emit only product files —
   lifecycle artifacts always come from FS.GG.SDD, never a second template-owned copy.
 - **SDD** — the lifecycle skeleton: `.fsgg/project.yml`, `.fsgg/sdd.yml`,
@@ -326,6 +326,14 @@ producer side of the org **publish-before-flip** dance — the package is LIVE o
 any downstream registry/pin flip advertises it.
 
 ### Release notes
+
+#### 0.11.0 — opt-in SVG game foundation
+
+The `fs-gg-fable-game` identity can now add the SVG game foundation with
+`--svgFoundation true`. The opt-in path uses the public Rendering 0.29.0 package graph and is
+qualified through fresh, retained-upgrade, browser, and typed-SDD receiver routes. The default
+template output remains unchanged. All four workspace provider descriptors self-pin
+`FS.GG.Workspace.Template::0.11.0`.
 
 #### 0.10.0 — accessible fable-game browser baseline
 

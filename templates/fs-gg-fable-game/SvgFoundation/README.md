@@ -19,7 +19,6 @@ camera and relevant selection/focus state into the Rendering contract.
 The embedded Noto Sans Latin 400 object is sourced from `@fontsource/noto-sans` 5.3.0 and remains under
 OFL-1.1; its exact identity and license are recorded in `THIRD-PARTY-NOTICES.md`.
 
-Until these packages are published, restore this project with a NuGet source containing the
-locally packed `0.29.0-preview.1` candidate artifacts. The default template remains the supported
-arena sample. Public publication, installed receiver qualification and default activation belong to
-SVG-PREVIEW-A rather than this local candidate.
+Restore this project from NuGet.org using the exact public `0.29.0` packages. The default template
+remains the supported arena sample. Templates publication, installed receiver qualification, and
+default activation remain later SVG-PREVIEW-A operations.

@@ -2,20 +2,23 @@
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 out="${1:?packet output directory is required}"
-rendering_revision=c4e50dcb239ccb62453cdd47505f1a8d1095814e
+rendering_revision=c654a33bb206c6f3aa0a3adb310231a0d54aec63
 older_templates_revision=d19fc1d48647edfebad4a706db64648017fead65
-template_version=0.11.0-preview.1
-scene_version=0.29.0-preview.1
+template_version=0.11.0
+scene_version=0.29.0
 rm -rf "$out"; mkdir -p "$out/feed" "$out/build" "$out/homes/current" "$out/homes/old"
 tree_sha() { (cd "$1" && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1); }
 sha() { sha256sum "$1" | cut -d' ' -f1; }
 fable_api_sha() { unzip -p "$1" 'fable/*.fsi' | sha256sum | cut -d' ' -f1; }
 
-git clone --quiet https://github.com/FS-GG/FS.GG.Rendering.git "$out/build/rendering"
-git -C "$out/build/rendering" checkout --quiet "$rendering_revision"
-dotnet pack "$out/build/rendering/src/Scene/Scene.fsproj" -c Release -o "$out/feed" -p:Version="$scene_version" >/dev/null
-dotnet pack "$out/build/rendering/src/KeyboardInput/KeyboardInput.fsproj" -c Release -o "$out/feed" -p:Version="$scene_version" >/dev/null
-dotnet pack "$out/build/rendering/src/Scene.SvgBrowser/Scene.SvgBrowser.fsproj" -c Release -o "$out/feed" -p:Version="$scene_version" >/dev/null
+tagged="$(git ls-remote https://github.com/FS-GG/FS.GG.Rendering.git refs/tags/v${scene_version} | cut -f1)"
+[[ "$tagged" == "$rendering_revision" ]] || { echo "Rendering v${scene_version} tag drifted: $tagged" >&2; exit 1; }
+for id in FS.GG.UI.Scene FS.GG.UI.KeyboardInput FS.GG.UI.Scene.SvgBrowser; do
+  lower="${id,,}"
+  curl --fail --location --retry 3 \
+    "https://api.nuget.org/v3-flatcontainer/$lower/$scene_version/$lower.$scene_version.nupkg" \
+    --output "$out/feed/$id.$scene_version.nupkg"
+done
 dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/feed" -p:Version="$template_version" >/dev/null
 
 mkdir -p "$out/build/old-source"
@@ -24,13 +27,13 @@ if ! git -C "$root" cat-file -e "$older_templates_revision^{commit}" 2>/dev/null
 fi
 git -C "$root" archive "$older_templates_revision" | tar -x -C "$out/build/old-source"
 dotnet pack "$out/build/old-source/FS.GG.Templates.csproj" -c Release -o "$out/build" -p:Version=0.10.0-baseline.1 >/dev/null
-rm -rf "$out/build/rendering" "$out/build/old-source"
+rm -rf "$out/build/old-source"
 
 template_package="$out/feed/FS.GG.Workspace.Template.$template_version.nupkg"
 DOTNET_CLI_HOME="$out/homes/current" dotnet new install "$template_package" --force >/dev/null
 DOTNET_CLI_HOME="$out/homes/current" dotnet new fs-gg-fable-game -n PreviewFresh -o "$out/fresh" --svgFoundation true --lifecycle none >/dev/null
 cat > "$out/NuGet.Config" <<CONFIG
-<configuration><packageSources><clear/><add key="candidate" value="$out/feed"/><add key="nuget" value="https://api.nuget.org/v3/index.json"/></packageSources><packageSourceMapping><packageSource key="candidate"><package pattern="FS.GG.UI.Scene*"/><package pattern="FS.GG.UI.KeyboardInput"/><package pattern="FS.GG.Workspace.Template"/></packageSource><packageSource key="nuget"><package pattern="*"/></packageSource></packageSourceMapping></configuration>
+<configuration><packageSources><clear/><add key="nuget" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>
 CONFIG
 export NUGET_PACKAGES="$out/packages"
 dotnet restore "$out/fresh/SvgFoundation/SvgFoundation.fsproj" --configfile "$out/NuGet.Config" >/dev/null
@@ -100,6 +103,6 @@ jq -n --arg rendering "$rendering_revision" --arg templates "$templates_source" 
   --arg browserHash "$(sha "$browser_package")" --arg templateHash "$(sha "$template_package")" \
   --arg sceneFableApi "$(fable_api_sha "$scene_package")" --arg keyboardFableApi "$(fable_api_sha "$keyboard_package")" \
   --arg browserFableApi "$(fable_api_sha "$browser_package")" \
-  '{schema:"fsgg.svg-scene-preview-a-handoff/1",sources:{rendering:$rendering,templates:$templates,olderTemplateBaseline:$older},artifacts:{scene:{file:"feed/FS.GG.UI.Scene.0.29.0-preview.1.nupkg",version:"0.29.0-preview.1",sha256:$sceneHash,fableApiSha256:$sceneFableApi},keyboardInput:{file:"feed/FS.GG.UI.KeyboardInput.0.29.0-preview.1.nupkg",version:"0.29.0-preview.1",sha256:$keyboardHash,fableApiSha256:$keyboardFableApi},svgBrowser:{file:"feed/FS.GG.UI.Scene.SvgBrowser.0.29.0-preview.1.nupkg",version:"0.29.0-preview.1",sha256:$browserHash,fableApiSha256:$browserFableApi},template:{file:"feed/FS.GG.Workspace.Template.0.11.0-preview.1.nupkg",version:"0.11.0-preview.1",sha256:$templateHash,payloadTreeSha256:$payload}},requiredLocalFeed:{path:"feed/",publicFallback:"nuget.org for non-FS.GG dependencies",publicationPlan:"Rendering coherent Scene/KeyboardInput/SvgBrowser set, then Templates immutable pins and package, then installed receivers"},selection:"--svgFoundation true --lifecycle none",releaseOrder:[{package:"FS.GG.UI.Scene",owner:"Rendering"},{package:"FS.GG.UI.KeyboardInput",owner:"Rendering"},{package:"FS.GG.UI.Scene.SvgBrowser",owner:"Rendering"},{package:"FS.GG.Workspace.Template",owner:"Templates"}],consumerPins:{scene:"[0.29.0-preview.1]",keyboardInput:"transitive [0.29.0-preview.1]",svgBrowser:"[0.29.0-preview.1]",template:"[0.11.0-preview.1]"},browserObservation:$browser,journeys:{fresh:"passed-build-fable-serve-browser-full-document",retainedUpgrade:"passed-fable-contract",conflict:"reported-without-any-write",interrupted:"refused-and-rolled-back-without-write",explicitRollback:"restored-byte-identical-managed-baseline",authoredFiles:"unchanged",lifecycleSelection:"none-no-lifecycle-state",ownerGuidance:"installed-skill-manifest-retained",installedSkills:"unchanged-no-backfill"},apiComparison:{assembly:"Rendering exact-head ApiCompat gate passed against its published baseline",fable:"generated consumers compiled against the exact archived candidate interfaces whose digests are recorded per package",result:"compatible-candidate"},authority:{localRehearsal:"passed",producerPublication:"pending",templatePublication:"pending",installedPublicQualification:"pending",defaultActivation:"pending"},archiveRetention:"exact candidate archives, interface hashes and receipt uploaded from the exact-head workflow"}' > "$out/preview-packet.json"
-jq -e '.journeys.fresh == "passed-build-fable-serve-browser-full-document" and .authority.producerPublication == "pending" and .artifacts.keyboardInput.version == "0.29.0-preview.1"' "$out/preview-packet.json" >/dev/null
+  '{schema:"fsgg.svg-scene-preview-a-handoff/2",sources:{rendering:$rendering,templates:$templates,olderTemplateBaseline:$older},artifacts:{scene:{file:"feed/FS.GG.UI.Scene.0.29.0.nupkg",version:"0.29.0",source:"nuget.org",sha256:$sceneHash,fableApiSha256:$sceneFableApi},keyboardInput:{file:"feed/FS.GG.UI.KeyboardInput.0.29.0.nupkg",version:"0.29.0",source:"nuget.org",sha256:$keyboardHash,fableApiSha256:$keyboardFableApi},svgBrowser:{file:"feed/FS.GG.UI.Scene.SvgBrowser.0.29.0.nupkg",version:"0.29.0",source:"nuget.org",sha256:$browserHash,fableApiSha256:$browserFableApi},template:{file:"feed/FS.GG.Workspace.Template.0.11.0.nupkg",version:"0.11.0",source:"local exact-head candidate",sha256:$templateHash,payloadTreeSha256:$payload}},qualificationInputs:{rendering:"public nuget.org archives and restore graph",template:"local exact-head candidate archive",publicationPlan:"publish Templates 0.11.0, then repeat installed receivers from public feeds"},selection:"--svgFoundation true --lifecycle none",releaseOrder:[{package:"FS.GG.UI.Scene",owner:"Rendering",status:"published"},{package:"FS.GG.UI.KeyboardInput",owner:"Rendering",status:"published"},{package:"FS.GG.UI.Scene.SvgBrowser",owner:"Rendering",status:"published"},{package:"FS.GG.Workspace.Template",owner:"Templates",status:"pending"}],consumerPins:{scene:"[0.29.0]",keyboardInput:"transitive [0.29.0]",svgBrowser:"[0.29.0]",template:"[0.11.0]"},browserObservation:$browser,journeys:{fresh:"passed-build-fable-serve-browser-full-document",retainedUpgrade:"passed-fable-contract",conflict:"reported-without-any-write",interrupted:"refused-and-rolled-back-without-write",explicitRollback:"restored-byte-identical-managed-baseline",authoredFiles:"unchanged",lifecycleSelection:"none-no-lifecycle-state",ownerGuidance:"installed-skill-manifest-retained",installedSkills:"unchanged-no-backfill"},apiComparison:{assembly:"Rendering 0.29.0 release gates passed against the public baseline",fable:"generated consumers compiled against the public archived interfaces whose digests are recorded per package",result:"compatible-public-producer"},authority:{producerPublication:"verified",templatePublication:"pending",installedPublicQualification:"pending",defaultActivation:"pending"},archiveRetention:"exact public Rendering archives, local template candidate, interface hashes and receipt uploaded from the exact-head workflow"}' > "$out/preview-packet.json"
+jq -e '.journeys.fresh == "passed-build-fable-serve-browser-full-document" and .authority.producerPublication == "verified" and .artifacts.keyboardInput.version == "0.29.0"' "$out/preview-packet.json" >/dev/null
 echo "svg-foundation-preview-packet: fresh-serve=passed retained-upgrade=passed conflict=passed manifest=$out/preview-packet.json"

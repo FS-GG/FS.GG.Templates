@@ -1,24 +1,23 @@
-# SVG foundation local preview packet
+# SVG foundation public-producer packet
 
-SVG-FOUND-01.5 prepares a local candidate and adoption rehearsal. It publishes no package, changes no
-default, and does not qualify an installed public consumer.
+SVG-PREVIEW-A.3 qualifies the Templates 0.11.0 candidate against published Rendering 0.29.0. It
+publishes no Templates package and changes no default.
 
-The coherent candidate identities are `FS.GG.UI.Scene` `0.4.0-preview.1`,
-`FS.GG.UI.Scene.SvgBrowser` `0.4.0-preview.1`, and `FS.GG.Workspace.Template`
-`0.11.0-preview.1`. Rendering is packed from exact source
-`d29f272c741d534a8269c4995c3b2da00fb97669`; the packet manifest records the exact Templates source,
-archive hashes, and template payload-tree hash observed by each run. NuGet archive bytes are retained and
-hashed as produced. They are not claimed deterministic across independent packs.
+The producer identities are `FS.GG.UI.Scene`, `FS.GG.UI.KeyboardInput`, and
+`FS.GG.UI.Scene.SvgBrowser` 0.29.0 from NuGet.org. Rendering tag `v0.29.0` is fixed at
+`c654a33bb206c6f3aa0a3adb310231a0d54aec63`. `FS.GG.Workspace.Template` 0.11.0 is packed once from
+the exact Templates head and installed directly for candidate qualification.
 
-Run `tests/composition/fable-game/verify-svg-preview-packet.sh <output-directory>`. The output directory is
-the packet: `feed/` contains the three exact candidate archives and `preview-packet.json` binds their hashes,
-source identities, selection, feed, observed browser result, and authority state. The supported selection is
-`dotnet new fs-gg-fable-game --svgFoundation true --lifecycle none`; the ordinary arena remains the default.
+Run `tests/composition/fable-game/verify-svg-preview-packet.sh <output-directory>`. The output packet
+retains the downloaded public Rendering archives, the local Templates candidate, their hashes and
+Fable interface digests, source identities, selection, browser result, and authority state. Generated
+projects restore only from NuGet.org. The supported selection is
+`dotnet new fs-gg-fable-game --svgFoundation true --lifecycle none`; the ordinary arena remains the
+default.
 
-Release order is Scene, SvgBrowser, then Workspace.Template. Rendering owns the first two releases and
-Templates owns the template release. The consumer pins are exact bracketed versions in
-`SvgFoundation.fsproj`. Publication of both producers, publication of Templates, registry/default activation,
-and public-feed installed qualification all remain separately authorized pending operations.
+Rendering publication and dual-feed custody readback are complete. Templates 0.11.0 publication,
+installed-public receiver qualification, and any registry/default activation remain later roadmap
+operations. Consumer pins are exact bracketed versions in `SvgFoundation.fsproj`.
 
 For a retained workspace created from Templates `d19fc1d48647edfebad4a706db64648017fead65`, materialize the current
 candidate with the retained workspace's name and parameters, then run
