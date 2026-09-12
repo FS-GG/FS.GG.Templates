@@ -419,7 +419,9 @@ jobs:
         run: tests/composition/run.sh
 
   publish:
-    needs: [route, gate]
+    # `needs.pack.outputs.*` below is available only when `pack` is a direct dependency. The gate also
+    # depends on pack, but GitHub does not expose transitive `needs` contexts to this job.
+    needs: [route, pack, gate]
     if: needs.route.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
