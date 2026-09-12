@@ -4,10 +4,15 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 out="${1:?qualification output directory is required}"
 rendering_revision=c654a33bb206c6f3aa0a3adb310231a0d54aec63
-older_templates_revision=d19fc1d48647edfebad4a706db64648017fead65
+templates_revision=6a66e0a31c33feab4c8f650709b585df6ac3d4c4
+older_templates_revision=565ad45d2dda386e9d1673071cc0b424cfd02be6
 sdd_version=1.7.0
+wizard_version=0.11.1
 scene_version=0.29.0
 template_version=0.11.0
+older_template_version=0.10.0
+template_public_sha=41fa91ba1674a4c1140c4054d4e76cff00cd514462dcdb3d9b3e3cdfa22ba4d9
+older_template_public_sha=69cbed30447e6bd4d221e0ce78060c8245d2744fc3993b4c27368aeeb48d11c8
 quint_sha=939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f
 lmt_sha=37e0b0365c2641edce40b48605471f61fa12e97c3e2376152f0e849abdc31f10
 : "${QUINT_BIN:?set QUINT_BIN to qualified Quint 0.32.0}"
@@ -22,7 +27,7 @@ tree_sha() { (cd "$1" && find . -type f -print0 | sort -z | xargs -0 sha256sum |
 [[ "$($QUINT_BIN --version)" == 0.32.0 ]] || fail 'Quint version mismatch'
 
 rm -rf "$out"
-mkdir -p "$out/feed" "$out/build" "$out/packages" "$out/http" "$out/tools" "$out/homes/tool" "$out/homes/clean" "$out/homes/retained"
+mkdir -p "$out/feed" "$out/build" "$out/packages" "$out/http" "$out/tools" "$out/homes/tool" "$out/homes/clean" "$out/homes/retained" "$out/homes/sdd-none" "$out/homes/wizard"
 export NUGET_PACKAGES="$out/packages"
 export NUGET_HTTP_CACHE_PATH="$out/http"
 
@@ -30,19 +35,20 @@ git clone --quiet https://github.com/FS-GG/FS.GG.Rendering.git "$out/build/rende
 git -C "$out/build/rendering" checkout --quiet "$rendering_revision"
 [[ "$(git -C "$out/build/rendering" rev-parse HEAD)" == "$rendering_revision" ]] || fail 'Rendering source drifted'
 [[ "$(git ls-remote https://github.com/FS-GG/FS.GG.Rendering.git refs/tags/v${scene_version} | cut -f1)" == "$rendering_revision" ]] || fail 'Rendering release tag drifted'
+[[ "$(git ls-remote https://github.com/FS-GG/FS.GG.Templates.git "refs/tags/fs-gg-templates/v${template_version}^{}" | cut -f1)" == "$templates_revision" ]] || fail 'Templates release tag drifted'
 for id in FS.GG.UI.Scene FS.GG.UI.KeyboardInput FS.GG.UI.Scene.SvgBrowser; do
   lower="${id,,}"
   curl --fail --location --retry 3 \
     "https://api.nuget.org/v3-flatcontainer/$lower/$scene_version/$lower.$scene_version.nupkg" \
     --output "$out/feed/$id.$scene_version.nupkg"
 done
-dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/feed" -p:Version="$template_version" >/dev/null
-mkdir -p "$out/build/old-source"
-if ! git -C "$root" cat-file -e "$older_templates_revision^{commit}" 2>/dev/null; then
-  git -C "$root" fetch --quiet --depth=1 origin "$older_templates_revision"
-fi
-git -C "$root" archive "$older_templates_revision" | tar -x -C "$out/build/old-source"
-dotnet pack "$out/build/old-source/FS.GG.Templates.csproj" -c Release -o "$out/feed" -p:Version=0.10.0-baseline.1 >/dev/null
+for version in "$template_version" "$older_template_version"; do
+  curl --fail --location --retry 3 \
+    "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/$version/fs.gg.workspace.template.$version.nupkg" \
+    --output "$out/feed/FS.GG.Workspace.Template.$version.nupkg"
+done
+[[ "$(sha "$out/feed/FS.GG.Workspace.Template.$template_version.nupkg")" == "$template_public_sha" ]] || fail 'Templates 0.11.0 public archive drifted'
+[[ "$(sha "$out/feed/FS.GG.Workspace.Template.$older_template_version.nupkg")" == "$older_template_public_sha" ]] || fail 'Templates 0.10.0 public archive drifted'
 
 cat >"$out/Public.NuGet.Config" <<EOF
 <configuration><packageSources><clear/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>
@@ -85,14 +91,14 @@ PY
 }
 
 scaffold() {
-  local destination="$1" package="$2" report="$3"
+  local destination="$1" package="$2" report="$3" lifecycle="$4"
   local receiver_name="$(basename "$destination")"
   pin_provider "$destination" "$package"
   DOTNET_CLI_HOME="$out/homes/$receiver_name" "$cli" scaffold --root "$destination" --provider fable-game --no-update --json \
     --param productName=TypedReceiver --param rootNamespace=TypedReceiver \
-    --param lifecycle=typed-sdd --param svgFoundation=true >"$report"
+    --param lifecycle="$lifecycle" --param svgFoundation=true >"$report"
   jq -e '.outcome == "succeeded" and .scaffold.providerInvoked == true' "$report" >/dev/null
-  jq -e '[.effectiveParameters[] | select(.key == "lifecycle" and .value == "typed-sdd")] | length == 1' \
+  jq -e --arg lifecycle "$lifecycle" '[.effectiveParameters[] | select(.key == "lifecycle" and .value == $lifecycle)] | length == 1' \
     "$destination/.fsgg/scaffold-provenance.json" >/dev/null
   jq -e '[.effectiveParameters[] | select(.key == "svgFoundation" and (.value == "true" or .value == true))] | length == 1' \
     "$destination/.fsgg/scaffold-provenance.json" >/dev/null
@@ -100,9 +106,22 @@ scaffold() {
 }
 
 current_package="$out/feed/FS.GG.Workspace.Template.$template_version.nupkg"
-old_package="$out/feed/FS.GG.Workspace.Template.0.10.0-baseline.1.nupkg"
-scaffold "$out/clean" "$current_package" "$out/clean-scaffold.json"
-scaffold "$out/retained" "$old_package" "$out/retained-scaffold.json"
+old_package="$out/feed/FS.GG.Workspace.Template.$older_template_version.nupkg"
+scaffold "$out/clean" "$current_package" "$out/clean-scaffold.json" typed-sdd
+scaffold "$out/retained" "$old_package" "$out/retained-scaffold.json" typed-sdd
+scaffold "$out/sdd-none" "$current_package" "$out/sdd-none-scaffold.json" none
+
+wizard_dir="$out/tools/wizard"
+DOTNET_CLI_HOME="$out/homes/tool" dotnet tool install FS.GG.NewSddWorkspace --version "$wizard_version" \
+  --tool-path "$wizard_dir" --configfile "$out/Public.NuGet.Config" --no-cache >/dev/null
+PATH="$(dirname "$cli"):$PATH" DOTNET_CLI_HOME="$out/homes/wizard" "$wizard_dir/new-sdd-workspace" \
+  "$out/wizard" WizardReceiver --template fable-game --lifecycle none \
+  --ref "fs-gg-templates/v${template_version}" --pinned --no-governance --no-coordination >"$out/wizard-scaffold.log"
+test ! -e "$out/wizard/SvgFoundation"
+"$root/scripts/apply-svg-foundation-preview.sh" apply "$out/sdd-none" "$out/wizard" \
+  "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/wizard-adoption-backup" >"$out/wizard-adoption.log"
+test -f "$out/wizard/SvgFoundation/PreviewDocument.fs"
+test ! -e "$out/wizard/work"; test ! -e "$out/wizard/readiness"
 
 authored_before="$(sha256sum "$out/retained/Domain/Room.fs" "$out/retained/Client/App.fs")"
 lifecycle_before="$(tree_sha "$out/retained/.fsgg")"
@@ -133,7 +152,7 @@ cp -a "$out/retained" "$out/rollback-probe"
 [[ "$lifecycle_before" == "$(tree_sha "$out/retained/.fsgg")" ]] || fail 'retained lifecycle provenance changed'
 [[ "$skills_before" == "$(tree_sha "$out/retained/.agents/skills")" ]] || fail 'installed skills were refreshed during adoption'
 
-for receiver in clean retained; do
+for receiver in clean retained sdd-none wizard; do
   (cd "$out/$receiver" && bash ./build.sh >"$out/$receiver-root-build.log" 2>&1) || {
     tail -n 160 "$out/$receiver-root-build.log" >&2
     fail "$receiver root build/test/browser entry failed"
@@ -160,6 +179,8 @@ observe_foundation() {
 }
 observe_foundation clean 8131
 observe_foundation retained 8132
+observe_foundation sdd-none 8133
+observe_foundation wizard 8134
 
 # The retained journey deliberately changes the bounded pointer domain and updates every explicit
 # source range. This is a semantic revision with refreshed bindings, rather than an implementation repair.
@@ -270,7 +291,7 @@ replay_consumer() {
   done
 }
 
-for receiver in clean retained; do prepare_consumer "$receiver"; replay_consumer "$receiver"; done
+for receiver in clean retained sdd-none wizard; do prepare_consumer "$receiver"; replay_consumer "$receiver"; done
 
 # An implementation-only repair reuses the accepted authority and trace corpus.
 clean_authority_before="$(tree_sha "$out/clean/readiness/svg-qual-01-3/quint")"
@@ -315,7 +336,7 @@ jq -e '.outcome == "blocked" and any(.diagnostics[]; .id == "typedSdd.provision.
 scene_package="$out/feed/FS.GG.UI.Scene.$scene_version.nupkg"
 keyboard_package="$out/feed/FS.GG.UI.KeyboardInput.$scene_version.nupkg"
 browser_package="$out/feed/FS.GG.UI.Scene.SvgBrowser.$scene_version.nupkg"
-templates_source="$(git -C "$root" rev-parse HEAD)"
+templates_source="$templates_revision"
 jq -n --arg templates "$templates_source" --arg rendering "$rendering_revision" --arg older "$older_templates_revision" \
   --arg scene "$(sha "$scene_package")" --arg keyboard "$(sha "$keyboard_package")" --arg browser "$(sha "$browser_package")" --arg template "$(sha "$current_package")" \
   --arg sceneFableApi "$(fable_api_sha "$scene_package")" --arg keyboardFableApi "$(fable_api_sha "$keyboard_package")" \
@@ -330,6 +351,7 @@ jq -n --arg templates "$templates_source" --arg rendering "$rendering_revision" 
   --arg retainedCorpus "$(sha "$out/retained/models/svg-foundation/retained-interaction.traces.tsv")" \
   --arg documentCorpus "$(sha "$out/clean/models/svg-foundation/document-interaction.traces.tsv")" \
   --argjson cleanBrowser "$(cat "$out/clean-foundation-browser.json")" --argjson retainedBrowser "$(cat "$out/retained-foundation-browser.json")" \
-  '{schema:"fsgg.svg-typed-receivers/3",sources:{templates:$templates,rendering:$rendering,olderTemplate:$older},sdd:{package:"FS.GG.SDD.Cli",version:"1.7.0",source:"https://api.nuget.org/v3/index.json",backend:"quint-specification-v1",profile:"fsgg-quint-profile/2",authorInspect:"offline-passed"},artifacts:{scene:{version:"0.29.0",source:"nuget.org",sha256:$scene,fableApiSha256:$sceneFableApi},keyboardInput:{version:"0.29.0",source:"nuget.org",sha256:$keyboard,fableApiSha256:$keyboardFableApi},svgBrowser:{version:"0.29.0",source:"nuget.org",sha256:$browser,fableApiSha256:$browserFableApi},template:{version:"0.11.0",source:"local exact-head candidate",sha256:$template},distribution:"public-rendering-plus-local-template-candidate",releaseOrder:["FS.GG.UI.Scene","FS.GG.UI.KeyboardInput","FS.GG.UI.Scene.SvgBrowser","FS.GG.Workspace.Template"],archiveRetention:"exact public producer bytes, local template candidate and interface hashes uploaded"},corpora:{retainedTransitions:192,documentTransitions:192,relationship:"retained subject plus additive document-interaction expansion",documentSha256:$documentCorpus},journeys:{clean:{selection:"lifecycle=typed-sdd,svgFoundation=true",rootBuildTestBrowser:"passed",foundationBrowser:$cleanBrowser,model:{tests:"passed",corpusSha256:$cleanCorpus},authoritySha256:$cleanAuthority,projectionSha256:$cleanProjection,documentProjectionSha256:$cleanDocumentProjection,result:"passed"},retained:{base:"older installed template",adoption:"bounded-package-config-delta",rootBuildTestBrowser:"passed",foundationBrowser:$retainedBrowser,semanticChange:"pointer domain 1..2 to 1..3 with refreshed source bindings",model:{tests:"passed",boundedRun:"passed",steps:12,traces:32,seed:"0x0123456789abcdef",deterministic:"passed",newPointerWitness:3,corpusSha256:$retainedCorpus},authoritySha256:$retainedAuthority,projectionSha256:$retainedProjection,documentProjectionSha256:$retainedDocumentProjection,authoredFiles:"unchanged",lifecycle:"typed-sdd-preserved",ownerGuidance:"preserved",installedSkills:"unchanged-no-backfill",result:"passed"},implementationRepair:"reused-current-semantics-and-replayed",collision:"reported-without-write",interruptedAdoption:"refused-and-byte-identical-rollback",explicitRollback:"byte-identical"},refusals:{wrongTools:"passed",wrongProfile:"passed",staleBindings:"passed"},apiComparison:{assembly:"Rendering 0.29.0 release gates passed",fable:"public producer interface digests retained per package",result:"compatible-public-producer"},authority:{enginePublication:"verified",templatePublication:"pending",installedPublicQualification:"pending",defaultActivation:"unchanged"}}' >"$out/svg-typed-receivers.json"
-jq -e '.journeys.clean.result == "passed" and .journeys.retained.result == "passed" and .refusals.wrongTools == "passed" and .artifacts.keyboardInput.version == "0.29.0" and .authority.enginePublication == "verified" and .corpora.retainedTransitions == 192 and .corpora.documentTransitions == 192' "$out/svg-typed-receivers.json" >/dev/null
+  --argjson noneBrowser "$(cat "$out/sdd-none-foundation-browser.json")" --argjson wizardBrowser "$(cat "$out/wizard-foundation-browser.json")" \
+  '{schema:"fsgg.svg-typed-receivers/4",sources:{templates:$templates,rendering:$rendering,olderTemplate:$older},sdd:{package:"FS.GG.SDD.Cli",version:"1.7.0",source:"https://api.nuget.org/v3/index.json",backend:"quint-specification-v1",profile:"fsgg-quint-profile/2",authorInspect:"offline-passed"},wizard:{package:"FS.GG.NewSddWorkspace",version:"0.11.1",source:"nuget.org",route:"fable-game none then bounded SVG adopter"},artifacts:{scene:{version:"0.29.0",source:"nuget.org",sha256:$scene,fableApiSha256:$sceneFableApi},keyboardInput:{version:"0.29.0",source:"nuget.org",sha256:$keyboard,fableApiSha256:$keyboardFableApi},svgBrowser:{version:"0.29.0",source:"nuget.org",sha256:$browser,fableApiSha256:$browserFableApi},template:{version:"0.11.0",source:"nuget.org",sha256:$template},olderTemplate:{version:"0.10.0",source:"nuget.org"},distribution:"public-nuget-only",releaseOrder:["FS.GG.UI.Scene","FS.GG.UI.KeyboardInput","FS.GG.UI.Scene.SvgBrowser","FS.GG.Workspace.Template"],archiveRetention:"exact public producer bytes and interface hashes uploaded"},corpora:{retainedTransitions:192,documentTransitions:192,relationship:"retained subject plus additive document-interaction expansion",documentSha256:$documentCorpus},journeys:{clean:{selection:"lifecycle=typed-sdd,svgFoundation=true",rootBuildTestBrowser:"passed",foundationBrowser:$cleanBrowser,model:{tests:"passed",corpusSha256:$cleanCorpus},authoritySha256:$cleanAuthority,projectionSha256:$cleanProjection,documentProjectionSha256:$cleanDocumentProjection,result:"passed"},retained:{base:"public Templates 0.10.0",adoption:"bounded-package-config-delta",rootBuildTestBrowser:"passed",foundationBrowser:$retainedBrowser,semanticChange:"pointer domain 1..2 to 1..3 with refreshed source bindings",model:{tests:"passed",boundedRun:"passed",steps:12,traces:32,seed:"0x0123456789abcdef",deterministic:"passed",newPointerWitness:3,corpusSha256:$retainedCorpus},authoritySha256:$retainedAuthority,projectionSha256:$retainedProjection,documentProjectionSha256:$retainedDocumentProjection,authoredFiles:"unchanged",lifecycle:"typed-sdd-preserved",ownerGuidance:"preserved",installedSkills:"unchanged-no-backfill",result:"passed"},sddNone:{selection:"lifecycle=none,svgFoundation=true",rootBuildTestBrowser:"passed",foundationBrowser:$noneBrowser,result:"passed"},wizard:{selection:"fable-game,lifecycle=none",adoption:"released Templates bounded SVG adopter",rootBuildTestBrowser:"passed",foundationBrowser:$wizardBrowser,result:"passed"},implementationRepair:"reused-current-semantics-and-replayed",collision:"reported-without-write",interruptedAdoption:"refused-and-byte-identical-rollback",explicitRollback:"byte-identical"},refusals:{wrongTools:"passed",wrongProfile:"passed",staleBindings:"passed"},apiComparison:{assembly:"Rendering 0.29.0 release gates passed",fable:"public producer interface digests retained per package",result:"compatible-public-producer"},authority:{enginePublication:"verified",templatePublication:"verified",installedPublicQualification:"passed",defaultActivation:"unchanged"}}' >"$out/svg-typed-receivers.json"
+jq -e '.journeys.clean.result == "passed" and .journeys.retained.result == "passed" and .journeys.sddNone.result == "passed" and .journeys.wizard.result == "passed" and .refusals.wrongTools == "passed" and .artifacts.keyboardInput.version == "0.29.0" and .authority.installedPublicQualification == "passed" and .corpora.retainedTransitions == 192 and .corpora.documentTransitions == 192' "$out/svg-typed-receivers.json" >/dev/null
 echo "svg-typed-receivers: clean=passed retained=passed controls=passed evidence=$out/svg-typed-receivers.json"
