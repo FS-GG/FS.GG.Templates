@@ -61,6 +61,8 @@ let continuousScene =
 
 let tacticalCompatibilityScene = (characterizedProjection 41 "shared-scene:41" |> project).Scene
 
+let _, previewExport, previewState = PreviewDocument.verifyPortable ()
+
 let private mount id label scene =
     let container = document.createElement("section")
     container.id <- id
@@ -75,7 +77,27 @@ let gridHost = mount "foundation-grid-host" "Neutral grid fixture" gridScene
 let continuousHost = mount "foundation-continuous-host" "Neutral continuous-coordinate fixture" continuousScene
 let tacticalCompatibilityHost =
     mount "foundation-tactical-compatibility-host" "Disclosed tactical compatibility fixture" tacticalCompatibilityScene
-let private requireTransition name result =
+
+let previewContainer = document.createElement("section")
+previewContainer.id <- "foundation-preview-document-host"
+document.body.appendChild(previewContainer) |> ignore
+
+let previewDocumentHost =
+    match SvgBrowser.mountDocument previewContainer "generated-preview" PreviewDocument.document with
+    | Ok host -> host
+    | Error error -> failwithf "SVG Preview-A document failed to mount: %A" error
+
+previewDocumentHost.Root.setAttribute(
+    "data-preview-selected-semantic",
+    previewState.SelectedSemanticId |> Option.defaultValue "")
+
+let previewExportOutput = document.createElement("output")
+previewExportOutput.id <- "foundation-preview-export"
+previewExportOutput.setAttribute("hidden", "")
+previewExportOutput.textContent <- previewExport
+document.body.appendChild(previewExportOutput) |> ignore
+
+let private requireTransition name (result: RetainedInteractionResult) =
     match result.Error with
     | None -> ()
     | Some error -> failwithf "SVG foundation %s transition failed: %A" name error
@@ -88,4 +110,5 @@ requireTransition "tactical focus"
 window.addEventListener("beforeunload", fun _ ->
     (gridHost :> System.IDisposable).Dispose()
     (continuousHost :> System.IDisposable).Dispose()
-    (tacticalCompatibilityHost :> System.IDisposable).Dispose())
+    (tacticalCompatibilityHost :> System.IDisposable).Dispose()
+    (previewDocumentHost :> System.IDisposable).Dispose())

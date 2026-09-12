@@ -3,10 +3,10 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 out="${1:?qualification output directory is required}"
-rendering_revision=815783987fbf1d6f2e8165e2ae31ddf0bf61db2d
+rendering_revision=c4e50dcb239ccb62453cdd47505f1a8d1095814e
 older_templates_revision=d19fc1d48647edfebad4a706db64648017fead65
 sdd_version=1.7.0
-scene_version=0.4.0-preview.1
+scene_version=0.29.0-preview.1
 template_version=0.11.0-preview.1
 quint_sha=939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f
 lmt_sha=37e0b0365c2641edce40b48605471f61fa12e97c3e2376152f0e849abdc31f10
@@ -15,6 +15,7 @@ lmt_sha=37e0b0365c2641edce40b48605471f61fa12e97c3e2376152f0e849abdc31f10
 
 fail() { echo "svg-typed-receivers: $*" >&2; exit 1; }
 sha() { sha256sum "$1" | cut -d' ' -f1; }
+fable_api_sha() { unzip -p "$1" 'fable/*.fsi' | sha256sum | cut -d' ' -f1; }
 tree_sha() { (cd "$1" && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1); }
 [[ -x "$QUINT_BIN" && "$(sha "$QUINT_BIN")" == "$quint_sha" ]] || fail 'Quint object mismatch'
 [[ -x "$LMT_BIN" && "$(sha "$LMT_BIN")" == "$lmt_sha" ]] || fail 'lmt object mismatch'
@@ -29,6 +30,7 @@ git clone --quiet https://github.com/FS-GG/FS.GG.Rendering.git "$out/build/rende
 git -C "$out/build/rendering" checkout --quiet "$rendering_revision"
 [[ "$(git -C "$out/build/rendering" rev-parse HEAD)" == "$rendering_revision" ]] || fail 'Rendering source drifted'
 dotnet pack "$out/build/rendering/src/Scene/Scene.fsproj" -c Release -o "$out/feed" -p:Version="$scene_version" >/dev/null
+dotnet pack "$out/build/rendering/src/KeyboardInput/KeyboardInput.fsproj" -c Release -o "$out/feed" -p:Version="$scene_version" >/dev/null
 dotnet pack "$out/build/rendering/src/Scene.SvgBrowser/Scene.SvgBrowser.fsproj" -c Release -o "$out/feed" -p:Version="$scene_version" >/dev/null
 dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/feed" -p:Version="$template_version" >/dev/null
 mkdir -p "$out/build/old-source"
@@ -42,7 +44,7 @@ cat >"$out/Public.NuGet.Config" <<EOF
 <configuration><packageSources><clear/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>
 EOF
 cat >"$out/Candidate.NuGet.Config" <<EOF
-<configuration><packageSources><clear/><add key="candidate" value="$out/feed"/><add key="nuget" value="https://api.nuget.org/v3/index.json"/></packageSources><packageSourceMapping><packageSource key="candidate"><package pattern="FS.GG.UI.Scene*"/><package pattern="FS.GG.Workspace.Template"/></packageSource><packageSource key="nuget"><package pattern="*"/></packageSource></packageSourceMapping></configuration>
+<configuration><packageSources><clear/><add key="candidate" value="$out/feed"/><add key="nuget" value="https://api.nuget.org/v3/index.json"/></packageSources><packageSourceMapping><packageSource key="candidate"><package pattern="FS.GG.UI.Scene*"/><package pattern="FS.GG.UI.KeyboardInput"/><package pattern="FS.GG.Workspace.Template"/></packageSource><packageSource key="nuget"><package pattern="*"/></packageSource></packageSourceMapping></configuration>
 EOF
 
 cli=''
@@ -101,15 +103,28 @@ scaffold "$out/retained" "$old_package" "$out/retained-scaffold.json"
 authored_before="$(sha256sum "$out/retained/Domain/Room.fs" "$out/retained/Client/App.fs")"
 lifecycle_before="$(tree_sha "$out/retained/.fsgg")"
 skills_before="$(tree_sha "$out/retained/.agents/skills")"
+retained_before="$(tree_sha "$out/retained")"
 cp -a "$out/retained" "$out/conflict"
 printf 'authored collision\n' >"$out/conflict/SvgFoundation/TacticalCompatibility.fs"
 conflict_before="$(tree_sha "$out/conflict")"
-if "$root/scripts/apply-svg-foundation-preview.sh" "$out/clean" "$out/conflict" "$root/scripts/svg-foundation-preview-baseline.manifest" >"$out/conflict.log" 2>&1; then
+if "$root/scripts/apply-svg-foundation-preview.sh" apply "$out/clean" "$out/conflict" "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/conflict-backup" >"$out/conflict.log" 2>&1; then
   fail 'retained collision unexpectedly applied'
 fi
 [[ "$conflict_before" == "$(tree_sha "$out/conflict")" ]] || fail 'collision refusal modified retained workspace'
 grep -F 'preview adoption conflict: SvgFoundation/TacticalCompatibility.fs' "$out/conflict.log" >/dev/null
-"$root/scripts/apply-svg-foundation-preview.sh" "$out/clean" "$out/retained" "$root/scripts/svg-foundation-preview-baseline.manifest" >"$out/adoption.log"
+[[ ! -e "$out/conflict-backup" ]] || fail 'collision refusal created a backup/write artifact'
+cp -a "$out/retained" "$out/interrupted"
+interrupted_before="$(tree_sha "$out/interrupted")"
+if FSGG_SVG_PREVIEW_FAIL_AFTER=4 "$root/scripts/apply-svg-foundation-preview.sh" apply "$out/clean" "$out/interrupted" "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/interrupted-backup" >"$out/interrupted.log" 2>&1; then
+  fail 'interrupted retained adoption unexpectedly succeeded'
+fi
+[[ "$interrupted_before" == "$(tree_sha "$out/interrupted")" ]] || fail 'interrupted adoption was not rolled back atomically'
+grep -F 'injected interruption after 4 managed files; rollback completed' "$out/interrupted.log" >/dev/null
+cp -a "$out/retained" "$out/rollback-probe"
+"$root/scripts/apply-svg-foundation-preview.sh" apply "$out/clean" "$out/rollback-probe" "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/rollback-backup" >"$out/rollback-apply.log"
+"$root/scripts/apply-svg-foundation-preview.sh" rollback "$out/rollback-probe" "$out/rollback-backup" >"$out/rollback.log"
+[[ "$retained_before" == "$(tree_sha "$out/rollback-probe")" ]] || fail 'explicit rollback did not restore retained workspace bytes'
+"$root/scripts/apply-svg-foundation-preview.sh" apply "$out/clean" "$out/retained" "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/adoption-backup" >"$out/adoption.log"
 [[ "$authored_before" == "$(sha256sum "$out/retained/Domain/Room.fs" "$out/retained/Client/App.fs")" ]] || fail 'retained authored files changed'
 [[ "$lifecycle_before" == "$(tree_sha "$out/retained/.fsgg")" ]] || fail 'retained lifecycle provenance changed'
 [[ "$skills_before" == "$(tree_sha "$out/retained/.agents/skills")" ]] || fail 'installed skills were refreshed during adoption'
@@ -125,31 +140,17 @@ for receiver in clean retained; do
   cp "$out/build/rendering/models/svg-foundation/retained-interaction.md" "$out/$receiver/models/svg-foundation/"
   cp "$out/build/rendering/models/svg-foundation/retained-interaction.bindings.json" "$out/$receiver/models/svg-foundation/"
   cp "$out/build/rendering/models/svg-foundation/retained-interaction.traces.tsv" "$out/$receiver/models/svg-foundation/"
+  cp "$out/build/rendering/models/svg-foundation/document-interaction.traces.tsv" "$out/$receiver/models/svg-foundation/"
 done
 
 observe_foundation() {
   local receiver="$1" port="$2" server_pid
-  cat >"$out/$receiver/Browser.Tests/svg-foundation-observe.mjs" <<'JS'
-import { chromium } from '@playwright/test';
-const executablePath = process.env.PLAYWRIGHT_EXECUTABLE_PATH || undefined;
-const browser = await chromium.launch({ headless: true, executablePath });
-const page = await browser.newPage();
-await page.goto(process.argv[2], { waitUntil: 'networkidle' });
-await page.waitForSelector('[data-scene-root-id="foundation-grid"]');
-const value = await page.evaluate(() => ({
-  roots: [...document.querySelectorAll('[data-scene-root-id]')].map(x => x.getAttribute('data-scene-root-id')),
-  selected: document.querySelector('[data-scene-root-id="tactical-compatibility"] [aria-selected="true"]')?.getAttribute('data-scene-object-id'),
-  focusable: document.querySelector('[data-scene-root-id="tactical-compatibility"] [tabindex="0"]')?.getAttribute('data-scene-object-id')
-}));
-if (!value.roots.includes('foundation-continuous') || !value.roots.includes('tactical-compatibility') || value.selected !== 'unit:7' || value.focusable !== 'unit:11') throw new Error(JSON.stringify(value));
-console.log(JSON.stringify(value));
-await browser.close();
-JS
+  cp "$root/tests/composition/fable-game/svg-preview-observe.mjs" "$out/$receiver/Browser.Tests/"
   (cd "$out/$receiver/SvgFoundation" && python3 -m http.server "$port" --bind 127.0.0.1 >"$out/$receiver-foundation-server.log" 2>&1) &
   server_pid=$!
   trap 'kill "$server_pid" 2>/dev/null || true' RETURN
   for _ in {1..40}; do curl -fsS "http://127.0.0.1:$port/" >/dev/null && break; sleep .25; done
-  (cd "$out/$receiver/Browser.Tests" && node svg-foundation-observe.mjs "http://127.0.0.1:$port/") >"$out/$receiver-foundation-browser.json"
+  (cd "$out/$receiver/Browser.Tests" && node svg-preview-observe.mjs "http://127.0.0.1:$port/") >"$out/$receiver-foundation-browser.json"
   kill "$server_pid"; wait "$server_pid" 2>/dev/null || true
   trap - RETURN
 }
@@ -214,6 +215,10 @@ prepare_consumer() {
   mkdir -p "$out/$receiver/Qualification/DotNet" "$out/$receiver/Qualification/Fable" "$out/$receiver/readiness/svg-qual-01-3/correspondence"
   cp "$out/build/rendering/tests/Scene.PortableConsumers/Replay.fs" "$out/$receiver/Qualification/DotNet/"
   cp "$out/build/rendering/tests/Scene.PortableConsumers/Replay.fs" "$out/$receiver/Qualification/Fable/"
+  cp "$out/build/rendering/tests/Scene.PortableConsumers/DocumentRoundTrip.fs" "$out/$receiver/Qualification/DotNet/"
+  cp "$out/build/rendering/tests/Scene.PortableConsumers/DocumentRoundTrip.fs" "$out/$receiver/Qualification/Fable/"
+  cp "$out/build/rendering/tests/Scene.PortableConsumers/DocumentReplay.fs" "$out/$receiver/Qualification/DotNet/"
+  cp "$out/build/rendering/tests/Scene.PortableConsumers/DocumentReplay.fs" "$out/$receiver/Qualification/Fable/"
   cp "$out/build/rendering/tests/Scene.PortableConsumers/DotNet/"{DotNet.fsproj,Program.fs} "$out/$receiver/Qualification/DotNet/"
   cp "$out/build/rendering/tests/Scene.PortableConsumers/Fable/"{Fable.fsproj,Program.fs} "$out/$receiver/Qualification/Fable/"
 }
@@ -224,17 +229,28 @@ replay_consumer() {
   dotnet restore "$out/$receiver/Qualification/DotNet/DotNet.fsproj" --configfile "$out/Candidate.NuGet.Config" >/dev/null
   dotnet build "$out/$receiver/Qualification/DotNet/DotNet.fsproj" --no-restore >/dev/null
   dotnet run --project "$out/$receiver/Qualification/DotNet/DotNet.fsproj" --no-build -- \
-    "$out/$receiver/models/svg-foundation/retained-interaction.traces.tsv" "$evidence/dotnet.tsv" >"$evidence/dotnet.log"
+    "$out/$receiver/models/svg-foundation/retained-interaction.traces.tsv" "$evidence/dotnet.tsv" \
+    "$evidence/dotnet-document.txt" "$evidence/dotnet-export.svg" \
+    "$out/$receiver/models/svg-foundation/document-interaction.traces.tsv" "$evidence/dotnet-document.tsv" >"$evidence/dotnet.log"
   dotnet restore "$out/$receiver/Qualification/Fable/Fable.fsproj" --configfile "$out/Candidate.NuGet.Config" >/dev/null
   if [[ ! -x "$out/tools/fable/fable" ]]; then
     dotnet tool install fable --version 5.17.0 --tool-path "$out/tools/fable" --configfile "$out/Candidate.NuGet.Config" >/dev/null
   fi
   "$out/tools/fable/fable" "$out/$receiver/Qualification/Fable/Fable.fsproj" --outDir "$out/$receiver/Qualification/javascript" --noCache >/dev/null
   node "$out/$receiver/Qualification/javascript/Program.js" \
-    "$out/$receiver/models/svg-foundation/retained-interaction.traces.tsv" "$evidence/fable.tsv" >"$evidence/fable.log"
+    "$out/$receiver/models/svg-foundation/retained-interaction.traces.tsv" "$evidence/fable.tsv" \
+    "$evidence/fable-document.txt" "$evidence/fable-export.svg" \
+    "$out/$receiver/models/svg-foundation/document-interaction.traces.tsv" "$evidence/fable-document.tsv" >"$evidence/fable.log"
   cmp "$evidence/dotnet.tsv" "$evidence/fable.tsv" >/dev/null || fail "$receiver .NET/Fable first divergence"
+  cmp "$evidence/dotnet-document.tsv" "$evidence/fable-document.tsv" >/dev/null || fail "$receiver .NET/Fable document reducer first divergence"
+  cmp "$evidence/dotnet-document.txt" "$evidence/fable-document.txt" >/dev/null || fail "$receiver .NET/Fable document serialization drift"
+  cmp "$evidence/dotnet-export.svg" "$evidence/fable-export.svg" >/dev/null || fail "$receiver .NET/Fable SVG export drift"
   grep -F 'action-mapping-mutant=killed stale-acceptance-mutant=killed' "$evidence/dotnet.log" >/dev/null
   grep -F 'action-mapping-mutant=killed stale-acceptance-mutant=killed' "$evidence/fable.log" >/dev/null
+  for mutant in wrong-order stale-revision-acceptance invalid-reference-acceptance lost-capture non-atomic-edit; do
+    grep -F "name=$mutant killed-at=DOCUMENT-TRACE-DIVERGENCE" "$evidence/dotnet.log" >/dev/null
+    grep -F "name=$mutant killed-at=DOCUMENT-TRACE-DIVERGENCE" "$evidence/fable.log" >/dev/null
+  done
 }
 
 for receiver in clean retained; do prepare_consumer "$receiver"; replay_consumer "$receiver"; done
@@ -280,17 +296,23 @@ fi
 jq -e '.outcome == "blocked" and any(.diagnostics[]; .id == "typedSdd.provision.objectMismatch")' "$out/wrong-tools.json" >/dev/null
 
 scene_package="$out/feed/FS.GG.UI.Scene.$scene_version.nupkg"
+keyboard_package="$out/feed/FS.GG.UI.KeyboardInput.$scene_version.nupkg"
 browser_package="$out/feed/FS.GG.UI.Scene.SvgBrowser.$scene_version.nupkg"
 templates_source="$(git -C "$root" rev-parse HEAD)"
 jq -n --arg templates "$templates_source" --arg rendering "$rendering_revision" --arg older "$older_templates_revision" \
-  --arg scene "$(sha "$scene_package")" --arg browser "$(sha "$browser_package")" --arg template "$(sha "$current_package")" \
+  --arg scene "$(sha "$scene_package")" --arg keyboard "$(sha "$keyboard_package")" --arg browser "$(sha "$browser_package")" --arg template "$(sha "$current_package")" \
+  --arg sceneFableApi "$(fable_api_sha "$scene_package")" --arg keyboardFableApi "$(fable_api_sha "$keyboard_package")" \
+  --arg browserFableApi "$(fable_api_sha "$browser_package")" \
   --arg cleanAuthority "$(tree_sha "$out/clean/readiness/svg-qual-01-3/quint")" \
   --arg retainedAuthority "$(tree_sha "$out/retained/readiness/svg-qual-01-3/quint")" \
   --arg cleanProjection "$(sha "$out/clean/readiness/svg-qual-01-3/correspondence/dotnet.tsv")" \
   --arg retainedProjection "$(sha "$out/retained/readiness/svg-qual-01-3/correspondence/dotnet.tsv")" \
+  --arg cleanDocumentProjection "$(sha "$out/clean/readiness/svg-qual-01-3/correspondence/dotnet-document.tsv")" \
+  --arg retainedDocumentProjection "$(sha "$out/retained/readiness/svg-qual-01-3/correspondence/dotnet-document.tsv")" \
   --arg cleanCorpus "$(sha "$out/clean/models/svg-foundation/retained-interaction.traces.tsv")" \
   --arg retainedCorpus "$(sha "$out/retained/models/svg-foundation/retained-interaction.traces.tsv")" \
+  --arg documentCorpus "$(sha "$out/clean/models/svg-foundation/document-interaction.traces.tsv")" \
   --argjson cleanBrowser "$(cat "$out/clean-foundation-browser.json")" --argjson retainedBrowser "$(cat "$out/retained-foundation-browser.json")" \
-  '{schema:"fsgg.svg-typed-receivers/1",sources:{templates:$templates,rendering:$rendering,olderTemplate:$older},sdd:{package:"FS.GG.SDD.Cli",version:"1.7.0",source:"https://api.nuget.org/v3/index.json",backend:"quint-specification-v1",profile:"fsgg-quint-profile/2",authorInspect:"offline-passed"},artifacts:{scene:{version:"0.4.0-preview.1",sha256:$scene},svgBrowser:{version:"0.4.0-preview.1",sha256:$browser},template:{version:"0.11.0-preview.1",sha256:$template},distribution:"local-feed-only",archiveReproducibility:"not-claimed; exact qualification bytes retained and hashed"},journeys:{clean:{selection:"lifecycle=typed-sdd,svgFoundation=true",rootBuildTestBrowser:"passed",foundationBrowser:$cleanBrowser,model:{tests:"passed",corpusSha256:$cleanCorpus},authoritySha256:$cleanAuthority,projectionSha256:$cleanProjection,result:"passed"},retained:{base:"older installed template",adoption:"bounded-package-config-delta",rootBuildTestBrowser:"passed",foundationBrowser:$retainedBrowser,semanticChange:"pointer domain 1..2 to 1..3 with refreshed source bindings",model:{tests:"passed",boundedRun:"passed",steps:12,traces:32,seed:"0x0123456789abcdef",deterministic:"passed",newPointerWitness:3,corpusSha256:$retainedCorpus},authoritySha256:$retainedAuthority,projectionSha256:$retainedProjection,authoredFiles:"unchanged",lifecycle:"typed-sdd-preserved",ownerGuidance:"preserved",installedSkills:"unchanged-no-backfill",result:"passed"},implementationRepair:"reused-current-semantics-and-replayed",collision:"reported-without-write"},refusals:{wrongTools:"passed",wrongProfile:"passed",staleBindings:"passed"},authority:{enginePublication:"pending",templatePublication:"pending",defaultActivation:"unchanged"}}' >"$out/svg-typed-receivers.json"
-jq -e '.journeys.clean.result == "passed" and .journeys.retained.result == "passed" and .refusals.wrongTools == "passed"' "$out/svg-typed-receivers.json" >/dev/null
+  '{schema:"fsgg.svg-typed-receivers/2",sources:{templates:$templates,rendering:$rendering,olderTemplate:$older},sdd:{package:"FS.GG.SDD.Cli",version:"1.7.0",source:"https://api.nuget.org/v3/index.json",backend:"quint-specification-v1",profile:"fsgg-quint-profile/2",authorInspect:"offline-passed"},artifacts:{scene:{version:"0.29.0-preview.1",sha256:$scene,fableApiSha256:$sceneFableApi},keyboardInput:{version:"0.29.0-preview.1",sha256:$keyboard,fableApiSha256:$keyboardFableApi},svgBrowser:{version:"0.29.0-preview.1",sha256:$browser,fableApiSha256:$browserFableApi},template:{version:"0.11.0-preview.1",sha256:$template},distribution:"local-feed-only",releaseOrder:["FS.GG.UI.Scene","FS.GG.UI.KeyboardInput","FS.GG.UI.Scene.SvgBrowser","FS.GG.Workspace.Template"],archiveRetention:"exact qualification bytes and interface hashes uploaded"},corpora:{retainedTransitions:192,documentTransitions:192,relationship:"retained subject plus additive document-interaction expansion",documentSha256:$documentCorpus},journeys:{clean:{selection:"lifecycle=typed-sdd,svgFoundation=true",rootBuildTestBrowser:"passed",foundationBrowser:$cleanBrowser,model:{tests:"passed",corpusSha256:$cleanCorpus},authoritySha256:$cleanAuthority,projectionSha256:$cleanProjection,documentProjectionSha256:$cleanDocumentProjection,result:"passed"},retained:{base:"older installed template",adoption:"bounded-package-config-delta",rootBuildTestBrowser:"passed",foundationBrowser:$retainedBrowser,semanticChange:"pointer domain 1..2 to 1..3 with refreshed source bindings",model:{tests:"passed",boundedRun:"passed",steps:12,traces:32,seed:"0x0123456789abcdef",deterministic:"passed",newPointerWitness:3,corpusSha256:$retainedCorpus},authoritySha256:$retainedAuthority,projectionSha256:$retainedProjection,documentProjectionSha256:$retainedDocumentProjection,authoredFiles:"unchanged",lifecycle:"typed-sdd-preserved",ownerGuidance:"preserved",installedSkills:"unchanged-no-backfill",result:"passed"},implementationRepair:"reused-current-semantics-and-replayed",collision:"reported-without-write",interruptedAdoption:"refused-and-byte-identical-rollback",explicitRollback:"byte-identical"},refusals:{wrongTools:"passed",wrongProfile:"passed",staleBindings:"passed"},apiComparison:{assembly:"Rendering exact-head ApiCompat gate passed",fable:"exact candidate interface digests retained per package",result:"compatible-candidate"},authority:{enginePublication:"pending",templatePublication:"pending",installedPublicQualification:"pending",defaultActivation:"unchanged"}}' >"$out/svg-typed-receivers.json"
+jq -e '.journeys.clean.result == "passed" and .journeys.retained.result == "passed" and .refusals.wrongTools == "passed" and .artifacts.keyboardInput.version == "0.29.0-preview.1" and .corpora.retainedTransitions == 192 and .corpora.documentTransitions == 192' "$out/svg-typed-receivers.json" >/dev/null
 echo "svg-typed-receivers: clean=passed retained=passed controls=passed evidence=$out/svg-typed-receivers.json"

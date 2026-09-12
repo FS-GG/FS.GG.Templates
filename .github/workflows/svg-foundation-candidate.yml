@@ -6,9 +6,10 @@ on:
       - 'templates/fs-gg-fable-game/**'
       - 'tests/composition/fable-game/verify-svg-foundation.sh'
       - 'tests/composition/fable-game/verify-svg-preview-packet.sh'
+      - 'tests/composition/fable-game/svg-preview-observe.mjs'
       - 'scripts/apply-svg-foundation-preview.sh'
       - 'scripts/svg-foundation-preview-baseline.manifest'
-      - 'docs/reports/2026-09-11-svg-foundation-preview-packet.md'
+      - 'docs/reports/2026-09-12-svg-scene-02-preview-a-handoff.md'
       - '.github/workflows/svg-foundation-candidate.yml'
   push:
     branches: [main]
@@ -16,9 +17,10 @@ on:
       - 'templates/fs-gg-fable-game/**'
       - 'tests/composition/fable-game/verify-svg-foundation.sh'
       - 'tests/composition/fable-game/verify-svg-preview-packet.sh'
+      - 'tests/composition/fable-game/svg-preview-observe.mjs'
       - 'scripts/apply-svg-foundation-preview.sh'
       - 'scripts/svg-foundation-preview-baseline.manifest'
-      - 'docs/reports/2026-09-11-svg-foundation-preview-packet.md'
+      - 'docs/reports/2026-09-12-svg-scene-02-preview-a-handoff.md'
       - '.github/workflows/svg-foundation-candidate.yml'
 
 jobs:
@@ -53,6 +55,9 @@ jobs:
             ${{ runner.temp }}/svg-foundation-preview-packet/browser-observation.json
             ${{ runner.temp }}/svg-foundation-preview-packet/adoption.log
             ${{ runner.temp }}/svg-foundation-preview-packet/conflict.log
+            ${{ runner.temp }}/svg-foundation-preview-packet/interrupted.log
+            ${{ runner.temp }}/svg-foundation-preview-packet/rollback*.log
+            ${{ runner.temp }}/svg-foundation-preview-packet/*-backup/manifest.tsv
             ${{ runner.temp }}/svg-foundation-preview-packet/server.log
           if-no-files-found: warn
           retention-days: 14

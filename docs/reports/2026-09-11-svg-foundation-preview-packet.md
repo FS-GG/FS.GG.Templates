@@ -22,7 +22,9 @@ and public-feed installed qualification all remain separately authorized pending
 
 For a retained workspace created from Templates `d19fc1d48647edfebad4a706db64648017fead65`, materialize the current
 candidate with the retained workspace's name and parameters, then run
-`scripts/apply-svg-foundation-preview.sh <materialized-current-workspace> <retained-workspace>`.
+`scripts/apply-svg-foundation-preview.sh apply <materialized-current-workspace> <retained-workspace>
+scripts/svg-foundation-preview-baseline.manifest <backup-directory>`. Restore that exact backup with
+`scripts/apply-svg-foundation-preview.sh rollback <retained-workspace> <backup-directory>`.
 The updater changes only its declared SVG foundation files, preflights all collisions before writing, and
 refuses unknown content. The materialization is a staging input; it never targets the retained workspace. Keep
 the old workspace or a source-control commit as rollback input. The updater does not rerun

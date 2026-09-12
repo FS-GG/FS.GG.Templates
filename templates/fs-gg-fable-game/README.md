@@ -41,10 +41,10 @@ disconnect/reconnect contract: a reconnecting client always gets a bounded, full
 authoritative resync, never a delta log.
 
 An unpublished retained SVG foundation fixture is available only when explicitly selected with
-`--svgFoundation true`. It consumes locally packed `FS.GG.UI.Scene` and
-`FS.GG.UI.Scene.SvgBrowser` `0.4.0-preview.1` artifacts and mounts an integer grid plus a
-fractional continuous-coordinate scene. The ordinary server-authoritative arena remains the
-default until the candidate packages have a supported release.
+`--svgFoundation true`. It consumes the coherent locally packed `FS.GG.UI.Scene`, transitive
+`FS.GG.UI.KeyboardInput`, and `FS.GG.UI.Scene.SvgBrowser` `0.29.0-preview.1` candidates. It mounts
+the retained grid/fractional examples and a complete typed Preview-A document. The ordinary
+server-authoritative arena remains the default until the candidate packages have a supported release.
 
 The realtime baseline has four deliberately small but production-relevant rules:
 

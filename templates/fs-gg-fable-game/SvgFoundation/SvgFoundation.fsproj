@@ -7,12 +7,14 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="TacticalCompatibility.fs" />
+    <Compile Include="PreviewFont.fs" />
+    <Compile Include="PreviewDocument.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Fable.Core" Version="[5.2.0]" />
     <PackageReference Include="Fable.Browser.Dom" Version="[2.20.0]" />
-    <PackageReference Include="FS.GG.UI.Scene" Version="[0.4.0-preview.1]" />
-    <PackageReference Include="FS.GG.UI.Scene.SvgBrowser" Version="[0.4.0-preview.1]" />
+    <PackageReference Include="FS.GG.UI.Scene" Version="[0.29.0-preview.1]" />
+    <PackageReference Include="FS.GG.UI.Scene.SvgBrowser" Version="[0.29.0-preview.1]" />
   </ItemGroup>
 </Project>
