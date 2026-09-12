@@ -478,6 +478,101 @@ jobs:
             --source "https://api.nuget.org/v3/index.json" \
             --skip-duplicate
 
+      - name: Read back GitHub Packages payload
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGE_ID: ${{ needs.pack.outputs.package-id }}
+          PACKAGE_VERSION: ${{ needs.pack.outputs.package-version }}
+          PACKAGE_FILE: ${{ needs.pack.outputs.package-file }}
+        run: |
+          set -euo pipefail
+          lower="${PACKAGE_ID,,}"
+          mkdir -p artifacts/readback
+          remote="artifacts/readback/github-packages.nupkg"
+          url="https://nuget.pkg.github.com/FS-GG/download/$lower/$PACKAGE_VERSION/$lower.$PACKAGE_VERSION.nupkg"
+          for attempt in {1..60}; do
+            if curl --fail --location --silent --show-error \
+              --user "$GITHUB_ACTOR:$GITHUB_TOKEN" "$url" --output "$remote"; then
+              break
+            fi
+            [[ "$attempt" != 60 ]] || exit 4
+            echo "Waiting for GitHub Packages readback ($attempt/60)"
+            sleep 10
+          done
+          python3 - "artifacts/$PACKAGE_FILE" "$remote" github-packages <<'PY'
+          from hashlib import sha256
+          import json
+          from pathlib import Path
+          import sys
+          from zipfile import ZipFile
+
+          def payload(path):
+              with ZipFile(path) as archive:
+                  return {name: sha256(archive.read(name)).hexdigest()
+                          for name in archive.namelist() if name != '.signature.p7s'}
+
+          local, remote, feed = map(Path, sys.argv[1:])
+          expected, observed = payload(local), payload(remote)
+          if observed != expected:
+              missing = sorted(expected.keys() - observed.keys())
+              extra = sorted(observed.keys() - expected.keys())
+              changed = sorted(name for name in expected.keys() & observed.keys()
+                               if expected[name] != observed[name])
+              raise SystemExit(f'{feed}: payload mismatch missing={missing} extra={extra} changed={changed}')
+          Path('artifacts/github-packages-readback.json').write_text(json.dumps({
+              'feed': str(feed), 'archiveSha256': sha256(remote.read_bytes()).hexdigest(),
+              'payloadEntries': len(observed), 'payloadExact': True
+          }, sort_keys=True) + '\n')
+          print(f'{feed}: {len(observed)} payload entries exact')
+          PY
+
+      - name: Read back nuget.org payload
+        if: vars.NUGET_ORG_PUBLISH == 'true'
+        env:
+          PACKAGE_ID: ${{ needs.pack.outputs.package-id }}
+          PACKAGE_VERSION: ${{ needs.pack.outputs.package-version }}
+          PACKAGE_FILE: ${{ needs.pack.outputs.package-file }}
+        run: |
+          set -euo pipefail
+          lower="${PACKAGE_ID,,}"
+          mkdir -p artifacts/readback
+          remote="artifacts/readback/nuget-org.nupkg"
+          url="https://api.nuget.org/v3-flatcontainer/$lower/$PACKAGE_VERSION/$lower.$PACKAGE_VERSION.nupkg"
+          for attempt in {1..180}; do
+            if curl --fail --location --silent --show-error "$url" --output "$remote"; then
+              break
+            fi
+            [[ "$attempt" != 180 ]] || exit 4
+            echo "Waiting for nuget.org readback ($attempt/180)"
+            sleep 10
+          done
+          python3 - "artifacts/$PACKAGE_FILE" "$remote" nuget.org <<'PY'
+          from hashlib import sha256
+          import json
+          from pathlib import Path
+          import sys
+          from zipfile import ZipFile
+
+          def payload(path):
+              with ZipFile(path) as archive:
+                  return {name: sha256(archive.read(name)).hexdigest()
+                          for name in archive.namelist() if name != '.signature.p7s'}
+
+          local, remote, feed = map(Path, sys.argv[1:])
+          expected, observed = payload(local), payload(remote)
+          if observed != expected:
+              missing = sorted(expected.keys() - observed.keys())
+              extra = sorted(observed.keys() - expected.keys())
+              changed = sorted(name for name in expected.keys() & observed.keys()
+                               if expected[name] != observed[name])
+              raise SystemExit(f'{feed}: payload mismatch missing={missing} extra={extra} changed={changed}')
+          Path('artifacts/nuget-org-readback.json').write_text(json.dumps({
+              'feed': str(feed), 'archiveSha256': sha256(remote.read_bytes()).hexdigest(),
+              'payloadEntries': len(observed), 'payloadExact': True
+          }, sort_keys=True) + '\n')
+          print(f'{feed}: {len(observed)} payload entries exact')
+          PY
+
       # Confirm the push landed before cutting the Release, so a GitHub Release never
       # advertises a version the feed cannot serve (publish-before-flip, at this repo's seam).
       - name: GitHub Release
@@ -499,3 +594,11 @@ jobs:
               --title "$RELEASE_TAG" \
               --generate-notes
           fi
+
+      - name: Retain feed readback receipts
+        uses: actions/upload-artifact@v7
+        with:
+          name: fs-gg-templates-readback-${{ github.run_id }}
+          path: artifacts/*-readback.json
+          if-no-files-found: error
+          retention-days: 90
