@@ -305,7 +305,10 @@ jobs:
           ref: ${{ needs.route.outputs.source-ref }}
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.x'
+          # Composition invokes one generated-product build from the checkout root, where the
+          # product's global.json is not in the SDK resolver search path. Match the exact SDK and
+          # FSharp.Core identity carried by the generated workspace lock files.
+          dotnet-version: '10.0.400'
 
       - name: Download immutable release artifact
         uses: actions/download-artifact@v8
