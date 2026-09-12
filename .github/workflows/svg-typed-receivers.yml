@@ -9,6 +9,8 @@ on:
       - 'scripts/svg-foundation-preview-baseline.manifest'
       - 'templates/fs-gg-fable-game/**'
       - 'tests/composition/fable-game/verify-svg-typed-receivers.sh'
+      - 'tests/composition/fable-game/svg-preview-observe.mjs'
+      - 'docs/reports/2026-09-12-svg-scene-02-preview-a-handoff.md'
       - '.github/workflows/svg-typed-receivers.yml'
   pull_request:
     branches: [main]
@@ -18,6 +20,8 @@ on:
       - 'scripts/svg-foundation-preview-baseline.manifest'
       - 'templates/fs-gg-fable-game/**'
       - 'tests/composition/fable-game/verify-svg-typed-receivers.sh'
+      - 'tests/composition/fable-game/svg-preview-observe.mjs'
+      - 'docs/reports/2026-09-12-svg-scene-02-preview-a-handoff.md'
       - '.github/workflows/svg-typed-receivers.yml'
 
 concurrency:
@@ -82,4 +86,5 @@ jobs:
             ${{ runner.temp }}/svg-typed-receivers/*.txt
             ${{ runner.temp }}/svg-typed-receivers/clean/readiness/svg-qual-01-3/**
             ${{ runner.temp }}/svg-typed-receivers/retained/readiness/svg-qual-01-3/**
+            ${{ runner.temp }}/svg-typed-receivers/*-backup/manifest.tsv
           if-no-files-found: warn

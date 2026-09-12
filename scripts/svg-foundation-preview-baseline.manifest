@@ -1,5 +1,9 @@
 e961a80254ca576e39889e85d21ee0be8517257c102d7068050872b568d81446  SvgFoundation/Program.fs
+ABSENT  SvgFoundation/PreviewFont.fs
+ABSENT  SvgFoundation/PreviewDocument.fs
 e76560780660b84be4c69ce4d76e7a241e74dda8171645a83da4e119a05b2c6a  SvgFoundation/README.md
+ABSENT  SvgFoundation/THIRD-PARTY-NOTICES.md
+ABSENT  SvgFoundation/fonts/noto-sans-latin-400-normal.woff2
 5c0ba26a90c0b54cab836f0e9232a0dd1d4dd9bd3b39dae59853ff5647cd1a0e  SvgFoundation/SvgFoundation.fsproj
 ABSENT  SvgFoundation/TacticalCompatibility.fs
 ABSENT  SvgFoundation/TacticalCompatibility.Tests.fs
