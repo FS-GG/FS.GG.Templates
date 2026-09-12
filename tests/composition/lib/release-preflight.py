@@ -45,6 +45,7 @@ def validate(archive: Path, workflow: Path, expected_version: str) -> list[str]:
         "tag/version binding": 'if [ "$TAG_VERSION" != "$CSPROJ_VERSION" ]; then',
         "package/source binding": 'if [ -z "$package_commit" ] || [ "$package_commit" != "$source_commit" ]; then',
         "replay/source binding": 'if [ -n "$SOURCE_HEAD" ] && [ "$source_commit" != "$SOURCE_HEAD" ]; then',
+        "publish direct pack dependency": "needs: [route, pack, gate]",
     }
     for subject, token in required.items():
         if token not in text:
@@ -89,7 +90,8 @@ def self_test() -> None:
         nuspec = """<package><metadata><id>FS.GG.Workspace.Template</id><version>0.9.0</version></metadata></package>"""
         with zipfile.ZipFile(archive, "w") as package:
             package.writestr("FS.GG.Workspace.Template.nuspec", nuspec)
-        good = """sha256sum --check SHA256SUMS
+        good = """needs: [route, pack, gate]
+sha256sum --check SHA256SUMS
 if [ "$TAG_VERSION" != "$CSPROJ_VERSION" ]; then
 if [ -z "$package_commit" ] || [ "$package_commit" != "$source_commit" ]; then
 if [ -n "$SOURCE_HEAD" ] && [ "$source_commit" != "$SOURCE_HEAD" ]; then
