@@ -76,11 +76,12 @@ for receiver in public-11 public-10; do
 done
 [[ "$authored" == "$(sha256sum "$out/public-11/Domain/Room.fs" "$out/public-11/Client/App.fs")" ]]
 
-# The retained 0.10 exercise above intentionally replaced the installed public
-# template. Restore the wizard's pinned 0.11 provider identity before invoking it.
-dotnet new install "$out/feed/FS.GG.Workspace.Template.0.11.0.nupkg" --force >/dev/null
+# Isolate the wizard's pinned public baseline from the retained 0.10/0.11
+# installations above. The wizard delegates to dotnet new and inherits this home.
+mkdir -p "$out/wizard-home"
+DOTNET_CLI_HOME="$out/wizard-home" dotnet new install "$out/feed/FS.GG.Workspace.Template.0.11.0.nupkg" --force >/dev/null
 dotnet tool install FS.GG.NewSddWorkspace --version 0.11.1 --tool-path "$out/tools/wizard" --configfile "$out/NuGet.Config" --no-cache >/dev/null
-PATH="$(dirname "$sdd"):$PATH" "$out/tools/wizard/new-sdd-workspace" "$out/wizard" WizardReceiver --template fable-game --lifecycle none --ref fs-gg-templates/v0.11.0 --pinned --no-governance --no-coordination >"$out/wizard.log"
+DOTNET_CLI_HOME="$out/wizard-home" PATH="$(dirname "$sdd"):$PATH" "$out/tools/wizard/new-sdd-workspace" "$out/wizard" WizardReceiver --template fable-game --lifecycle none --ref fs-gg-templates/v0.11.0 --pinned --no-governance --no-coordination >"$out/wizard.log"
 test ! -e "$out/wizard/SvgFoundation"
 "$root/scripts/apply-svg-foundation-preview.sh" apply "$out/direct" "$out/wizard" "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/wizard-authoring-backup" >/dev/null
 
