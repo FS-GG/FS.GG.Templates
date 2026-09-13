@@ -17,4 +17,4 @@ browser_bin="${PLAYWRIGHT_EXECUTABLE_PATH:-$(command -v chromium || command -v c
 "$browser_bin" --no-sandbox --force-renderer-accessibility --user-data-dir="$(mktemp -d)" "$address" >"$output.browser.log" 2>&1 & browser_pid=$!
 cleanup() { kill "$browser_pid" "$orca_pid" 2>/dev/null || true; }
 trap cleanup EXIT
-ORCA_PID="$orca_pid" BROWSER_PID="$browser_pid" python3 "$script_dir/svg-authoring-orca.py" "$output"
+ORCA_PID="$orca_pid" BROWSER_PID="$browser_pid" /usr/bin/python3 "$script_dir/svg-authoring-orca.py" "$output"
