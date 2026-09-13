@@ -43,11 +43,11 @@ def activate(name):
 
 find("heading", name="Generated SVG scene studio")
 activate("Rectangle")
-find("status", contains="created and selected")
+find("status bar", contains="created and selected")
 activate("Edit scene properties")
-find("status", contains="properties and grid edited")
+find("status bar", contains="properties and grid edited")
 activate("Place two instances")
-find("status", contains="save the sample asset first")
+find("status bar", contains="save the sample asset first")
 
 with open(output, "w") as stream:
     json.dump({
