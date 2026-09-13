@@ -38,6 +38,11 @@ module App =
         | Reconnected
         | ConnectionClosed
         | ConnectionFailed of string
+        | DisconnectRequested
+        | ReconnectRequested
+#if SVG_NETWORK_CANDIDATE
+        | QualificationRaw of string
+#endif
         | ReceivedRealtime of RealtimeV1.Message
         | CellClicked of Cell
 
@@ -111,6 +116,27 @@ module App =
             | _ -> { model with Status = "reconnect closed before session authorization" }, Cmd.none
         | ConnectionClosed -> { model with Status = "closed" }, Cmd.none
         | ConnectionFailed message -> { model with Status = $"connection failed: {message}" }, Cmd.none
+        | DisconnectRequested ->
+            match connection with
+            | Some conn ->
+                { model with Status = "disconnecting" },
+                Cmd.ofEffect (fun dispatch -> thenBoth (conn.stop ()) ignore (fun error -> dispatch (ConnectionFailed(string error))))
+            | None -> { model with Status = "closed" }, Cmd.none
+        | ReconnectRequested ->
+            match model.SessionCapability, connection with
+            | Some capability, None ->
+                { model with Status = "reconnecting" }, Cmd.ofEffect (connectSub capability)
+            | _, Some _ -> { model with Status = "already connected" }, Cmd.none
+            | _ -> { model with Status = "reconnect unavailable" }, Cmd.none
+#if SVG_NETWORK_CANDIDATE
+        | QualificationRaw json ->
+            match connection with
+            | Some conn ->
+                model,
+                Cmd.ofEffect (fun dispatch ->
+                    thenBoth (conn.invoke ("SendMessage", json)) ignore (fun error -> dispatch (ConnectionFailed(string error))))
+            | None -> { model with Status = "connection failed: no live transport" }, Cmd.none
+#endif
         | ReceivedRealtime message ->
             match message with
             | RealtimeV1.SnapshotMessage snapshot
@@ -168,6 +194,11 @@ module App =
     /// that race entirely rather than papering over it with a delay.
     let mutable private cellElements: Map<Cell, Browser.Types.HTMLElement> = Map.empty
     let mutable private gridBuildCount = 0
+
+#if SVG_NETWORK_CANDIDATE
+    [<Emit("window.svgNetworkCandidate = { sendRaw: $0 }")>]
+    let private installQualificationHook (sendRaw: string -> unit) : unit = jsNative
+#endif
 
     let private focusCell (current: Browser.Types.HTMLElement) (target: Cell) : unit =
         match Map.tryFind target cellElements with
@@ -232,6 +263,21 @@ module App =
         cellElements <- built
 
     let view (model: Model) (dispatch: Msg -> unit) : unit =
+#if SVG_NETWORK_CANDIDATE
+        installQualificationHook (fun json -> dispatch (QualificationRaw json))
+#endif
+        match Browser.Dom.document.getElementById "disconnect" with
+        | null -> ()
+        | button when button.getAttribute "data-bound" <> "true" ->
+            button.setAttribute ("data-bound", "true")
+            button.addEventListener ("click", fun _ -> dispatch DisconnectRequested)
+        | _ -> ()
+        match Browser.Dom.document.getElementById "reconnect" with
+        | null -> ()
+        | button when button.getAttribute "data-bound" <> "true" ->
+            button.setAttribute ("data-bound", "true")
+            button.addEventListener ("click", fun _ -> dispatch ReconnectRequested)
+        | _ -> ()
         match Browser.Dom.document.getElementById "arena" with
         | null -> ()
         | container ->

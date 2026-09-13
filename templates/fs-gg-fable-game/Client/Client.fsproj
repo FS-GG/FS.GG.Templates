@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <EnableDefaultItems>false</EnableDefaultItems>
+    <DefineConstants Condition="'$(FsGgSvgNetworkCandidate)' == 'true'">$(DefineConstants);SVG_NETWORK_CANDIDATE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <!-- The same Protocol/*.fs source files Server/Server.fsproj compiles against
