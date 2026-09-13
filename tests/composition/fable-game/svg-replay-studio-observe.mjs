@@ -1,0 +1,41 @@
+import { chromium, firefox, webkit } from '@playwright/test';
+
+const [family, url] = process.argv.slice(2);
+const engines = { chromium, firefox, webkit };
+if (!engines[family] || !url) throw new Error('usage: node svg-replay-studio-observe.mjs <chromium|firefox|webkit> <url>');
+const browser = await engines[family].launch({ headless: true });
+const page = await browser.newPage();
+const errors = [];
+page.on('pageerror', error => errors.push(String(error)));
+await page.goto(url, { waitUntil: 'networkidle' });
+
+const press = async label => {
+  const button = page.getByRole('button', { name: label, exact: true });
+  await button.focus();
+  await page.keyboard.press('Enter');
+};
+await press('Replay complete recording');
+const replay = await page.locator('#generated-replay-timeline output').textContent();
+await press('Seek replay checkpoint');
+const seek = await page.locator('#generated-replay-timeline output').textContent();
+await press('Cancel replay safely');
+const cancel = await page.locator('#generated-replay-timeline output').textContent();
+await press('Diagnose replay divergence');
+const divergence = await page.locator('#generated-replay-inspector output').textContent();
+await press('Branch and compare scenario');
+const planning = await page.locator('#generated-scenario-planner output').textContent();
+await press('Cancel scenario');
+const cancelledPlan = await page.locator('#generated-scenario-planner output').textContent();
+await press('Explain door rule');
+const rule = await page.locator('#generated-rule-explorer output').textContent();
+const snapshot = await page.evaluate(() => window.svgGeneratedStudio.snapshot());
+const panels = await page.locator('section[tabindex="0"][aria-label]').count();
+const result = { family, errors, replay, seek, cancel, divergence, planning, cancelledPlan, rule, panels, snapshot };
+if (errors.length || panels !== 4) throw new Error(JSON.stringify(result));
+if (!replay.includes('accepted state 9') || !seek.includes('state 5') || !cancel.includes('event 1')) throw new Error(JSON.stringify(result));
+if (!divergence.includes('event 1') || !divergence.includes('actual 5')) throw new Error(JSON.stringify(result));
+if (!planning.includes('Accepted 0; predicted 4') || !cancelledPlan.includes('accepted remains 0')) throw new Error(JSON.stringify(result));
+if (!rule.includes('energy.available then door.enter') || rule.includes('hidden') || rule.includes('server-only')) throw new Error(JSON.stringify(result));
+if (!snapshot.replay.disclosureSafe || snapshot.replay.authoredValue !== 'authored-map') throw new Error(JSON.stringify(result));
+console.log(JSON.stringify(result));
+await browser.close();

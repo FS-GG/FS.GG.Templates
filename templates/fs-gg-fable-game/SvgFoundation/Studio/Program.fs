@@ -33,6 +33,10 @@ let private host =
 let private status: HTMLElement = document.getElementById("generated-scene-status")
 let private announce text = status.textContent <- text
 
+#if SVG_REPLAY_CANDIDATE
+let private replayStudio = ReplayStudio.mount announce
+#endif
+
 #if SVG_INPUT_CANDIDATE
 container.setAttribute("tabindex", "-1")
 let mutable private inputProfile = WorkspaceCommands.profile
@@ -304,6 +308,9 @@ let private snapshot () =
                 "collapsedPanelCount" ==> (host.WorkspaceState.Layout.Panels |> List.filter (fun panel -> panel.Effective = SvgPanelPlacement.Collapsed) |> List.length)
                 "inputBindingCount" ==> inputAdapter.Value.State.Profile.Bindings.Length
                 "inputLifecycle" ==> inputAdapter.Value.Observe()
+#endif
+#if SVG_REPLAY_CANDIDATE
+                "replay" ==> replayStudio.Snapshot()
 #endif
               ]
 

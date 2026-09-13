@@ -6,11 +6,15 @@
     <RestoreLockedMode>false</RestoreLockedMode>
     <FsGgSvgAuthoringVersion Condition="'$(FsGgSvgAuthoringVersion)' == ''">0.30.0</FsGgSvgAuthoringVersion>
     <FsGgSvgInputCandidate Condition="'$(FsGgSvgInputCandidate)' == ''">true</FsGgSvgInputCandidate>
+    <FsGgGameReplayVersion Condition="'$(FsGgGameReplayVersion)' == ''">0.15.0</FsGgGameReplayVersion>
+    <FsGgSvgReplayCandidate Condition="'$(FsGgSvgReplayCandidate)' == ''">false</FsGgSvgReplayCandidate>
     <DefineConstants Condition="'$(FsGgSvgInputCandidate)' == 'true'">$(DefineConstants);SVG_INPUT_CANDIDATE</DefineConstants>
+    <DefineConstants Condition="'$(FsGgSvgReplayCandidate)' == 'true'">$(DefineConstants);SVG_REPLAY_CANDIDATE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="SceneSchema.fs" />
     <Compile Include="WorkspaceInput.fs" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
+    <Compile Include="ReplayStudio.fs" Condition="'$(FsGgSvgReplayCandidate)' == 'true'" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
@@ -19,5 +23,6 @@
     <PackageReference Include="FS.GG.UI.Scene" Version="[$(FsGgSvgAuthoringVersion)]" />
     <PackageReference Include="FS.GG.UI.Scene.SvgBrowser" Version="[$(FsGgSvgAuthoringVersion)]" />
     <PackageReference Include="FS.GG.UI.KeyboardInput" Version="[$(FsGgSvgAuthoringVersion)]" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
+    <PackageReference Include="FS.GG.Game.Core" Version="[$(FsGgGameReplayVersion)]" Condition="'$(FsGgSvgReplayCandidate)' == 'true'" />
   </ItemGroup>
 </Project>

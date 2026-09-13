@@ -1,0 +1,34 @@
+{
+  "schema": "fsgg.quint.general-bindings/v1",
+  "profile": "fsgg-quint-profile/2",
+  "moduleName": "GeneratedEnergyRulesBinding",
+  "exports": [
+    {
+      "id": "EXPORT-InitialState",
+      "module": "GeneratedEnergyRules",
+      "declaration": "initialState",
+      "promoteCatalogueRows": false,
+      "source": { "path": "models/svg-replay/energy-rules.md", "start": { "line": 8, "column": 1 }, "end": { "line": 9, "column": 4 } }
+    }
+  ],
+  "actions": [
+    {
+      "id": "ACT-Init",
+      "module": "GeneratedEnergyRules",
+      "declaration": "init",
+      "source": { "path": "models/svg-replay/energy-rules.md", "start": { "line": 12, "column": 1 }, "end": { "line": 13, "column": 4 } }
+    },
+    {
+      "id": "ACT-PredictEnterDoor",
+      "module": "GeneratedEnergyRules",
+      "declaration": "predictEnterDoor",
+      "source": { "path": "models/svg-replay/energy-rules.md", "start": { "line": 14, "column": 1 }, "end": { "line": 19, "column": 4 } }
+    },
+    {
+      "id": "ACT-CancelPrediction",
+      "module": "GeneratedEnergyRules",
+      "declaration": "cancelPrediction",
+      "source": { "path": "models/svg-replay/energy-rules.md", "start": { "line": 20, "column": 1 }, "end": { "line": 24, "column": 4 } }
+    }
+  ]
+}
