@@ -31,6 +31,6 @@
          `Pathfinding.astar` (LockstepExact) for a local path *preview* only; the
          server (Server/RoomAuthority.fs) remains the sole authority that commits
          movement. -->
-    <PackageReference Include="FS.GG.Game.Core" Version="[0.13.0]" />
+    <PackageReference Include="FS.GG.Game.Core" Version="[$(FsGgGameVersion)]" />
   </ItemGroup>
 </Project>

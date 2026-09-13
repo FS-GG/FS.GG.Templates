@@ -195,7 +195,12 @@ type GameHubTests() =
             let first = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; TargetCol = 1; TargetRow = 0 })
             let duplicate = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; TargetCol = 0; TargetRow = 10 })
             do! connection.InvokeAsync("SendMessage", first)
-            do! connection.InvokeAsync("SendMessage", duplicate)
+            let! refused = Assert.ThrowsAsync<HubException>(fun () -> connection.InvokeAsync("SendMessage", duplicate))
+#if SVG_NETWORK_CANDIDATE
+            Assert.Contains("DuplicateInputSequence", refused.Message)
+#else
+            Assert.Contains("duplicate or stale", refused.Message)
+#endif
             let! committed =
                 nextMatching connection (function
                     | RealtimeV1.SnapshotMessage snapshot -> snapshot.Players |> List.exists (fun p -> p.PlayerId = response.PlayerId && p.Col = 1 && p.Row = 0)
@@ -222,6 +227,22 @@ type GameHubTests() =
             | other -> Assert.Fail $"expected resync, got {other}"
             do! second.StopAsync()
         }
+
+#if SVG_NETWORK_CANDIDATE
+    [<Fact>]
+    member _.``accepted network input is recorded by the replay authority``() =
+        let response = bootstrap "p-review"
+        let targetRow = response.SpawnRow + 1
+        let accepted =
+            RoomAuthority.submitInput response.PlayerId response.SessionCapability 1 response.SpawnCol targetRow
+            |> Result.defaultWith failwith
+        Assert.Equal(0UL, accepted)
+        RoomAuthority.advanceTick () |> ignore
+        let acceptedText, replayText, eventCount = RoomAuthority.review ()
+        Assert.Contains(response.PlayerId, acceptedText)
+        Assert.Contains("move", replayText)
+        Assert.True(eventCount >= 3)
+#endif
 
     interface IDisposable with
         member _.Dispose() = factory.Dispose()
