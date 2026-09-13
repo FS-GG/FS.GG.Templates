@@ -18,7 +18,7 @@ dotnet new fs-gg-fable-game -n DefaultReceiver -o "$out/default" >/dev/null
 dotnet new fs-gg-fable-game -n DirectReceiver -o "$out/direct" --lifecycle none --svgFoundation true >/dev/null
 test ! -e "$out/default/SvgFoundation"
 test -f "$out/direct/SvgFoundation/Studio/Studio.fsproj"
-grep -F ">0.29.0</FsGgSvgInputVersion>" "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null
+grep -F ">0.30.0</FsGgSvgInputVersion>" "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null
 grep -F 'Version="[$(FsGgSvgInputVersion)]"' "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null
 grep -F "$rendering_version" "$out/direct/SvgFoundation/Studio/Studio.fsproj" >/dev/null
 
@@ -30,7 +30,7 @@ scaffold() {
   python3 - "$destination/.fsgg/providers.yml" "$candidate" <<'PY'
 from pathlib import Path
 import sys
-p=Path(sys.argv[1]); p.write_text(p.read_text().replace('source: FS.GG.Workspace.Template::0.11.0',f'source: {Path(sys.argv[2]).resolve()}'))
+p=Path(sys.argv[1]); p.write_text(p.read_text().replace('source: FS.GG.Workspace.Template::0.12.0',f'source: {Path(sys.argv[2]).resolve()}'))
 PY
   params=(--param productName=AuthoringReceiver --param rootNamespace=AuthoringReceiver --param svgFoundation=true)
   [[ "$lifecycle" == omitted ]] || params+=(--param lifecycle="$lifecycle")

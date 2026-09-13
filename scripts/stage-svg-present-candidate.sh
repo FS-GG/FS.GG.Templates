@@ -42,13 +42,13 @@ def replace(path,old,new):
     text=path.read_text()
     if text.count(old)!=1: raise SystemExit(f'candidate seam drifted in {path}: {old}')
     path.write_text(text.replace(old,new))
-replace(player,'>0.29.0</FsGgSvgInputVersion>',f'>{rendering}</FsGgSvgInputVersion>')
-replace(player,'>0.14.0</FsGgGameRuntimeVersion>',f'>{game}</FsGgGameRuntimeVersion>')
-replace(player,'>0.5.0</FsGgAudioPresentVersion>',f'>{audio}</FsGgAudioPresentVersion>')
-replace(studio,'>0.29.0</FsGgSvgAuthoringVersion>',f'>{rendering}</FsGgSvgAuthoringVersion>')
-for path in (player,studio): replace(path,'>false</FsGgSvgInputCandidate>','>true</FsGgSvgInputCandidate>')
-replace(player,'>false</FsGgSvgRuntimeCandidate>','>true</FsGgSvgRuntimeCandidate>')
-replace(player,'>false</FsGgSvgPresentCandidate>','>true</FsGgSvgPresentCandidate>')
+replace(player,'>0.30.0</FsGgSvgInputVersion>',f'>{rendering}</FsGgSvgInputVersion>')
+replace(player,'>0.15.0</FsGgGameRuntimeVersion>',f'>{game}</FsGgGameRuntimeVersion>')
+replace(player,'>0.6.0</FsGgAudioPresentVersion>',f'>{audio}</FsGgAudioPresentVersion>')
+replace(studio,'>0.30.0</FsGgSvgAuthoringVersion>',f'>{rendering}</FsGgSvgAuthoringVersion>')
+for path in (player,studio): replace(path,'>true</FsGgSvgInputCandidate>','>true</FsGgSvgInputCandidate>')
+replace(player,'>true</FsGgSvgRuntimeCandidate>','>true</FsGgSvgRuntimeCandidate>')
+replace(player,'>true</FsGgSvgPresentCandidate>','>true</FsGgSvgPresentCandidate>')
 PY
 template_version="0.12.0-svg-present.1"
 dotnet pack "$work/FS.GG.Templates.csproj" -c Release -o "$output/feed" -p:Version="$template_version" >/dev/null
@@ -58,7 +58,7 @@ import hashlib,json,pathlib,sys,zipfile
 r,g,a,t,d=map(pathlib.Path,sys.argv[1:6]); revisions=sys.argv[6:10]
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 with zipfile.ZipFile(t) as z: payload=hashlib.sha256(b''.join(z.read(n) for n in sorted(z.namelist()) if n.startswith('content/templates/fs-gg-fable-game/'))).hexdigest()
-result={'schema':'fsgg.svg-present.template-candidate/v1','rendering':{'mergedRevision':revisions[0],'packetSha256':sha(r),**json.loads(r.read_text())},'game':{'mergedRevision':revisions[1],'packetSha256':sha(g),**json.loads(g.read_text())},'audio':{'mergedRevision':revisions[2],'packetSha256':sha(a),**json.loads(a.read_text())},'templates':{'sourceRevision':revisions[3],'package':{'file':t.name,'version':'0.12.0-svg-present.1','sha256':sha(t),'payloadSha256':payload}},'publicPins':{'templates':'0.11.0','rendering':'0.29.0','game':'0.14.0','audio':'0.5.0'},'publication':False}
+result={'schema':'fsgg.svg-present.template-candidate/v1','rendering':{'mergedRevision':revisions[0],'packetSha256':sha(r),**json.loads(r.read_text())},'game':{'mergedRevision':revisions[1],'packetSha256':sha(g),**json.loads(g.read_text())},'audio':{'mergedRevision':revisions[2],'packetSha256':sha(a),**json.loads(a.read_text())},'templates':{'sourceRevision':revisions[3],'package':{'file':t.name,'version':'0.12.0-svg-present.1','sha256':sha(t),'payloadSha256':payload}},'publicPins':{'templates':'0.12.0','rendering':'0.30.0','game':'0.15.0','audio':'0.6.0'},'publication':False}
 d.write_text(json.dumps(result,indent=2,sort_keys=True)+'\n')
 PY
 mv "$output" "$final_output"; output=''

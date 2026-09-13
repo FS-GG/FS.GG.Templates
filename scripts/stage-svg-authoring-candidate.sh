@@ -66,7 +66,7 @@ from pathlib import Path
 import sys
 p=Path(sys.argv[1]); version=sys.argv[2]
 text=p.read_text()
-old='<FsGgSvgAuthoringVersion Condition="\'$(FsGgSvgAuthoringVersion)\' == \'\'">0.29.0</FsGgSvgAuthoringVersion>'
+old='<FsGgSvgAuthoringVersion Condition="\'$(FsGgSvgAuthoringVersion)\' == \'\'">0.30.0</FsGgSvgAuthoringVersion>'
 new=f'<FsGgSvgAuthoringVersion Condition="\'$(FsGgSvgAuthoringVersion)\' == \'\'">{version}</FsGgSvgAuthoringVersion>'
 if text.count(old)!=1: raise SystemExit('studio candidate version seam drifted')
 p.write_text(text.replace(old,new))
@@ -82,7 +82,7 @@ rendering=json.loads(source.read_text())
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 with zipfile.ZipFile(template) as archive:
     payload=hashlib.sha256(b''.join(archive.read(n) for n in sorted(archive.namelist()) if n.startswith('content/templates/fs-gg-fable-game/'))).hexdigest()
-result={'schema':'fsgg.svg-authoring-template-candidate/v1','rendering':{'mergedRevision':sys.argv[4],'packetSha256':sha(source),'version':rendering['version'],'packages':rendering['packages'],'fableInterfaces':rendering['fableInterfaces'],'worker':rendering['worker'],'resources':rendering['resources'],'npmLocks':rendering['npmLocks']},'templates':{'sourceRevision':sys.argv[5],'package':{'file':template.name,'version':'0.11.0-svg-author.1','sha256':sha(template),'payloadSha256':payload}},'publicPins':{'templates':'0.11.0','rendering':'0.29.0'},'publication':False}
+result={'schema':'fsgg.svg-authoring-template-candidate/v1','rendering':{'mergedRevision':sys.argv[4],'packetSha256':sha(source),'version':rendering['version'],'packages':rendering['packages'],'fableInterfaces':rendering['fableInterfaces'],'worker':rendering['worker'],'resources':rendering['resources'],'npmLocks':rendering['npmLocks']},'templates':{'sourceRevision':sys.argv[5],'package':{'file':template.name,'version':'0.11.0-svg-author.1','sha256':sha(template),'payloadSha256':payload}},'publicPins':{'templates':'0.12.0','rendering':'0.30.0'},'publication':False}
 destination.write_text(json.dumps(result,indent=2)+'\n')
 PY
 mv "$output" "$final_output"

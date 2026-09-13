@@ -4,8 +4,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
     <RestoreLockedMode>false</RestoreLockedMode>
-    <FsGgSvgAuthoringVersion Condition="'$(FsGgSvgAuthoringVersion)' == ''">0.29.0</FsGgSvgAuthoringVersion>
-    <FsGgSvgInputCandidate Condition="'$(FsGgSvgInputCandidate)' == ''">false</FsGgSvgInputCandidate>
+    <FsGgSvgAuthoringVersion Condition="'$(FsGgSvgAuthoringVersion)' == ''">0.30.0</FsGgSvgAuthoringVersion>
+    <FsGgSvgInputCandidate Condition="'$(FsGgSvgInputCandidate)' == ''">true</FsGgSvgInputCandidate>
     <DefineConstants Condition="'$(FsGgSvgInputCandidate)' == 'true'">$(DefineConstants);SVG_INPUT_CANDIDATE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
