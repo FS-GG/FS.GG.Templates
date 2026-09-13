@@ -61,15 +61,32 @@ for archive in "${values[@]:2}"; do cp "$archive" "$output/feed/"; done
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/svg-authoring-template.XXXXXX")"
 git -C "$root" archive HEAD | tar -x -C "$work"
-python3 - "$work/templates/fs-gg-fable-game/SvgFoundation/Studio/Studio.fsproj" "$rendering_version" <<'PY'
+python3 - "$work/templates/fs-gg-fable-game/SvgFoundation/Studio/Studio.fsproj" "$work/templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj" "$rendering_version" <<'PY'
 from pathlib import Path
 import sys
-p=Path(sys.argv[1]); version=sys.argv[2]
-text=p.read_text()
-old='<FsGgSvgAuthoringVersion Condition="\'$(FsGgSvgAuthoringVersion)\' == \'\'">0.29.0</FsGgSvgAuthoringVersion>'
+studio=Path(sys.argv[1]); player=Path(sys.argv[2]); version=sys.argv[3]
+text=studio.read_text()
+old='<FsGgSvgAuthoringVersion Condition="\'$(FsGgSvgAuthoringVersion)\' == \'\'">0.30.0</FsGgSvgAuthoringVersion>'
 new=f'<FsGgSvgAuthoringVersion Condition="\'$(FsGgSvgAuthoringVersion)\' == \'\'">{version}</FsGgSvgAuthoringVersion>'
 if text.count(old)!=1: raise SystemExit('studio candidate version seam drifted')
-p.write_text(text.replace(old,new))
+text=text.replace(old,new)
+enabled='<FsGgSvgInputCandidate Condition="\'$(FsGgSvgInputCandidate)\' == \'\'">true</FsGgSvgInputCandidate>'
+disabled='<FsGgSvgInputCandidate Condition="\'$(FsGgSvgInputCandidate)\' == \'\'">false</FsGgSvgInputCandidate>'
+if text.count(enabled)!=1: raise SystemExit('studio input candidate seam drifted')
+studio.write_text(text.replace(enabled,disabled))
+
+text=player.read_text()
+replacements={
+    enabled: disabled,
+    '<FsGgSvgRuntimeCandidate Condition="\'$(FsGgSvgRuntimeCandidate)\' == \'\'">true</FsGgSvgRuntimeCandidate>':
+        '<FsGgSvgRuntimeCandidate Condition="\'$(FsGgSvgRuntimeCandidate)\' == \'\'">false</FsGgSvgRuntimeCandidate>',
+    '<FsGgSvgPresentCandidate Condition="\'$(FsGgSvgPresentCandidate)\' == \'\'">true</FsGgSvgPresentCandidate>':
+        '<FsGgSvgPresentCandidate Condition="\'$(FsGgSvgPresentCandidate)\' == \'\'">false</FsGgSvgPresentCandidate>',
+}
+for current,replacement in replacements.items():
+    if text.count(current)!=1: raise SystemExit('player authoring-tier seam drifted')
+    text=text.replace(current,replacement)
+player.write_text(text)
 PY
 template_version="0.11.0-svg-author.1"
 dotnet pack "$work/FS.GG.Templates.csproj" -c Release -o "$output/feed" -p:Version="$template_version" >/dev/null
@@ -82,7 +99,7 @@ rendering=json.loads(source.read_text())
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 with zipfile.ZipFile(template) as archive:
     payload=hashlib.sha256(b''.join(archive.read(n) for n in sorted(archive.namelist()) if n.startswith('content/templates/fs-gg-fable-game/'))).hexdigest()
-result={'schema':'fsgg.svg-authoring-template-candidate/v1','rendering':{'mergedRevision':sys.argv[4],'packetSha256':sha(source),'version':rendering['version'],'packages':rendering['packages'],'fableInterfaces':rendering['fableInterfaces'],'worker':rendering['worker'],'resources':rendering['resources'],'npmLocks':rendering['npmLocks']},'templates':{'sourceRevision':sys.argv[5],'package':{'file':template.name,'version':'0.11.0-svg-author.1','sha256':sha(template),'payloadSha256':payload}},'publicPins':{'templates':'0.11.0','rendering':'0.29.0'},'publication':False}
+result={'schema':'fsgg.svg-authoring-template-candidate/v1','rendering':{'mergedRevision':sys.argv[4],'packetSha256':sha(source),'version':rendering['version'],'packages':rendering['packages'],'fableInterfaces':rendering['fableInterfaces'],'worker':rendering['worker'],'resources':rendering['resources'],'npmLocks':rendering['npmLocks']},'templates':{'sourceRevision':sys.argv[5],'package':{'file':template.name,'version':'0.11.0-svg-author.1','sha256':sha(template),'payloadSha256':payload}},'publicPins':{'templates':'0.12.0','rendering':'0.30.0'},'publication':False}
 destination.write_text(json.dumps(result,indent=2)+'\n')
 PY
 mv "$output" "$final_output"

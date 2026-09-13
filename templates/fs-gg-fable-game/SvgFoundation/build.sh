@@ -2,7 +2,7 @@
 set -euo pipefail
 foundation="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workspace="$(cd "$foundation/.." && pwd)"
-version="${FSGG_SVG_INPUT_VERSION:-0.29.0}"
+version="${FSGG_SVG_INPUT_VERSION:-0.30.0}"
 export FsGgSvgInputVersion="$version"
 restore_args=(dotnet restore "$foundation/SvgFoundation.fsproj" -p:FsGgSvgInputVersion="$version")
 if [[ -n "${FSGG_SVG_CANDIDATE_FEED:-}" ]]; then

@@ -4,12 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
     <RestoreLockedMode>false</RestoreLockedMode>
-    <FsGgSvgInputVersion Condition="'$(FsGgSvgInputVersion)' == ''">0.29.0</FsGgSvgInputVersion>
-    <FsGgGameRuntimeVersion Condition="'$(FsGgGameRuntimeVersion)' == ''">0.14.0</FsGgGameRuntimeVersion>
-    <FsGgSvgInputCandidate Condition="'$(FsGgSvgInputCandidate)' == ''">false</FsGgSvgInputCandidate>
-    <FsGgSvgRuntimeCandidate Condition="'$(FsGgSvgRuntimeCandidate)' == ''">false</FsGgSvgRuntimeCandidate>
-    <FsGgSvgPresentCandidate Condition="'$(FsGgSvgPresentCandidate)' == ''">false</FsGgSvgPresentCandidate>
-    <FsGgAudioPresentVersion Condition="'$(FsGgAudioPresentVersion)' == ''">0.5.0</FsGgAudioPresentVersion>
+    <FsGgSvgInputVersion Condition="'$(FsGgSvgInputVersion)' == ''">0.30.0</FsGgSvgInputVersion>
+    <FsGgGameRuntimeVersion Condition="'$(FsGgGameRuntimeVersion)' == ''">0.15.0</FsGgGameRuntimeVersion>
+    <FsGgSvgInputCandidate Condition="'$(FsGgSvgInputCandidate)' == ''">true</FsGgSvgInputCandidate>
+    <FsGgSvgRuntimeCandidate Condition="'$(FsGgSvgRuntimeCandidate)' == ''">true</FsGgSvgRuntimeCandidate>
+    <FsGgSvgPresentCandidate Condition="'$(FsGgSvgPresentCandidate)' == ''">true</FsGgSvgPresentCandidate>
+    <FsGgAudioPresentVersion Condition="'$(FsGgAudioPresentVersion)' == ''">0.6.0</FsGgAudioPresentVersion>
     <DefineConstants Condition="'$(FsGgSvgInputCandidate)' == 'true'">$(DefineConstants);SVG_INPUT_CANDIDATE</DefineConstants>
     <DefineConstants Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'">$(DefineConstants);SVG_RUNTIME_CANDIDATE</DefineConstants>
     <DefineConstants Condition="'$(FsGgSvgPresentCandidate)' == 'true'">$(DefineConstants);SVG_PRESENT_CANDIDATE</DefineConstants>

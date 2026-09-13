@@ -290,7 +290,7 @@ jobs:
             artifacts/${{ steps.version.outputs.package-file }}
             artifacts/SHA256SUMS
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 90
 
   gate:
     name: release-route

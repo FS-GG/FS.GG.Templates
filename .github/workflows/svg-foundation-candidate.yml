@@ -19,6 +19,7 @@ on:
       - 'tests/composition/fable-game/verify-svg-runtime-candidate.sh'
       - 'tests/composition/fable-game/svg-present-player-observe.mjs'
       - 'tests/composition/fable-game/verify-svg-present-candidate.sh'
+      - 'tests/composition/fable-game/verify-svg-preview-b-source.sh'
       - 'tests/composition/fable-game/observe-svg-input-orca.sh'
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'scripts/stage-svg-authoring-candidate.sh'
@@ -58,6 +59,7 @@ on:
       - 'tests/composition/fable-game/verify-svg-runtime-candidate.sh'
       - 'tests/composition/fable-game/svg-present-player-observe.mjs'
       - 'tests/composition/fable-game/verify-svg-present-candidate.sh'
+      - 'tests/composition/fable-game/verify-svg-preview-b-source.sh'
       - 'tests/composition/fable-game/observe-svg-input-orca.sh'
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'scripts/stage-svg-authoring-candidate.sh'
@@ -80,6 +82,44 @@ on:
       - '.github/workflows/svg-foundation-candidate.yml'
 
 jobs:
+  preview-b-public-source:
+    name: Preview B public producer composition
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.400'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install browser hosts
+        working-directory: templates/fs-gg-fable-game/Browser.Tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox webkit
+      - name: Qualify source package against public producer bytes
+        run: |
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
+            bash tests/composition/fable-game/verify-svg-preview-b-source.sh "$RUNNER_TEMP/svg-preview-b-source"
+      - name: Upload Preview B source evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: svg-preview-b-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/svg-preview-b-source/qualification.json
+            ${{ runner.temp }}/svg-preview-b-source/*-present.json
+            ${{ runner.temp }}/svg-preview-b-source/*-authoring.json
+            ${{ runner.temp }}/svg-preview-b-source/*-input.json
+            ${{ runner.temp }}/svg-preview-b-source/*.log
+          if-no-files-found: warn
+          retention-days: 90
+
   candidate-package-consumer:
     runs-on: ubuntu-latest
     timeout-minutes: 25

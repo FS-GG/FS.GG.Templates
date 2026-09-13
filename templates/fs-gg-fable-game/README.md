@@ -42,20 +42,20 @@ authoritative resync, never a delta log.
 
 An opt-in retained SVG foundation fixture is available only when explicitly selected with
 `--svgFoundation true`. It consumes the coherent public `FS.GG.UI.Scene`, transitive
-`FS.GG.UI.KeyboardInput`, and `FS.GG.UI.Scene.SvgBrowser` `0.29.0` packages. It mounts
+`FS.GG.UI.KeyboardInput`, and `FS.GG.UI.Scene.SvgBrowser` `0.30.0` packages. It mounts
 the retained grid/fractional examples and a complete typed Preview-A document. The ordinary
 server-authoritative arena remains the default while the SVG foundation completes its release qualification.
 
-The selected payload also carries separate player and `SvgFoundation/Studio` entries. An internally
-staged candidate binds both to exact Rendering archives and enables the product-owned command profiles.
+The selected payload also carries separate player and `SvgFoundation/Studio` entries. Preview B binds
+both to exact public producer versions and enables the product-owned command profiles.
 Build them with `bash SvgFoundation/build.sh` and `bash SvgFoundation/Studio/build.sh`. The Studio
 build copies its worker, verified font data, notices and npm lock from the restored producer package
 into ignored output. The generated workspace exposes Create, Arrange, Play and Review modes, responsive
 docks, palette/help/rebind flows, and keyboard, pointer, touch and gamepad routes over the same effective
-profile. Public `0.11.0` and Rendering `0.29.0` pins remain unchanged until Preview-B publishes a
-coherent set.
+profile. Templates `0.12.0` uses Rendering `0.30.0`, Game `0.15.0`, and Audio `0.6.0` as one
+qualified public set.
 
-The SVG runtime candidate replaces the static continuous fixture with a Game.Core fixed-step session,
+The SVG runtime replaces the static continuous fixture with a Game.Core fixed-step session,
 the Game-owned kinematic collision adapter, Rendering's disposable browser clock, and monotonic retained
 scene replacement. `W/A/S/D`, the generated pointer and touch controls, and Gamepad button 0 all resolve
 through the same command catalog. Pause/resume, single-step, reset, win, lose, and restart update the

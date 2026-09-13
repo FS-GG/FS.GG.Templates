@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-rendering="${1:?Rendering packet directory required}"; game="${2:?Game packet directory required}"; audio="${3:?Audio packet directory required}"; out="${4:?empty output directory required}"
+out="${1:?empty output directory required}"
 [[ ! -e "$out" ]]
-bash "$root/scripts/stage-svg-present-candidate.sh" "$rendering/manifest.json" "$game/manifest.json" "$audio/manifest.json" "$out"
-candidate="$out/feed/FS.GG.Workspace.Template.0.12.0-svg-present.1.nupkg"
-rendering_version="$(jq -r .rendering.version "$out/candidate-packet.json")"; game_version="$(jq -r .game.version "$out/candidate-packet.json")"; audio_version="$(jq -r .audio.version "$out/candidate-packet.json")"
+mkdir -p "$out/feed"
+template="$out/feed/FS.GG.Workspace.Template.0.12.0.nupkg"
+dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/feed" -p:ContinuousIntegrationBuild=true >/dev/null
+[[ -f "$template" ]]
+rendering_version=0.30.0
+game_version=0.15.0
+audio_version=0.6.0
 mkdir -p "$out/home" "$out/packages" "$out/http" "$out/tools"
 export DOTNET_CLI_HOME="$out/home" NUGET_PACKAGES="$out/packages" NUGET_HTTP_CACHE_PATH="$out/http"
 cat >"$out/NuGet.Config" <<EOF
 <configuration><packageSources><clear/><add key="candidate" value="$out/feed"/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>
 EOF
-dotnet new install "$candidate" --force >/dev/null
+dotnet new install "$template" --force >/dev/null
 dotnet new fs-gg-fable-game -n PresentReceiver -o "$out/direct" --lifecycle none --svgFoundation true >/dev/null
 for expected in "$rendering_version" "$game_version" "$audio_version"; do grep -F "$expected" "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null; done
 for flag in FsGgSvgInputCandidate FsGgSvgRuntimeCandidate FsGgSvgPresentCandidate; do grep -F ">true</$flag>" "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null; done
@@ -21,7 +25,7 @@ dotnet tool install FS.GG.SDD.Cli --version 1.7.0 --tool-path "$out/tools/sdd" -
 sdd="$out/tools/sdd/fsgg-sdd"
 scaffold() {
   local name="$1" lifecycle="$2" destination="$out/$1"; mkdir -p "$destination/.fsgg"; cp "$root/providers/fable-game.providers.yml" "$destination/.fsgg/providers.yml"
-  python3 - "$destination/.fsgg/providers.yml" "$candidate" <<'PY'
+  python3 - "$destination/.fsgg/providers.yml" "$template" <<'PY'
 from pathlib import Path
 import sys
 p=Path(sys.argv[1]); p.write_text(p.read_text().replace('source: FS.GG.Workspace.Template::0.12.0',f'source: {Path(sys.argv[2]).resolve()}'))
@@ -59,13 +63,23 @@ DOTNET_CLI_HOME="$out/wizard-home" PATH="$(dirname "$sdd"):$PATH" "$out/tools/wi
 "$root/scripts/apply-svg-foundation-preview.sh" apply "$out/direct" "$out/wizard" "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/wizard-backup" >/dev/null
 
 (cd "$out/direct" && dotnet tool restore >/dev/null)
-FSGG_SVG_INPUT_VERSION="$rendering_version" FSGG_SVG_CANDIDATE_FEED="$out/feed" FSGG_GAME_RUNTIME_VERSION="$game_version" FSGG_AUDIO_PRESENT_VERSION="$audio_version" bash "$out/direct/SvgFoundation/build.sh" >"$out/player-build.log" 2>&1
+bash "$out/direct/SvgFoundation/build.sh" >"$out/player-build.log" 2>&1
 ! grep -RIE 'SvgStudio|SvgGeometryWorker|polygon-clipping|OpenAL|Silk.NET.OpenAL' "$out/direct/SvgFoundation/dist"
+bash "$out/direct/SvgFoundation/Studio/build.sh" >"$out/studio-build.log" 2>&1
 npm ci --prefix "$out/direct/Browser.Tests" >/dev/null
 cp "$root/tests/composition/fable-game/svg-present-player-observe.mjs" "$out/direct/Browser.Tests/"
+cp "$root/tests/composition/fable-game/svg-authoring-observe.mjs" "$out/direct/Browser.Tests/"
+cp "$root/tests/composition/fable-game/svg-input-observe.mjs" "$out/direct/Browser.Tests/"
 (cd "$out/direct/SvgFoundation/dist" && python3 -m http.server 8142 --bind 127.0.0.1 >"$out/server.log" 2>&1) & server=$!
-trap 'kill "$server" 2>/dev/null || true' EXIT
+(cd "$out/direct/SvgFoundation/Studio/dist" && python3 -m http.server 8143 --bind 127.0.0.1 >"$out/studio-server.log" 2>&1) & studio_server=$!
+trap 'kill "$server" "$studio_server" 2>/dev/null || true' EXIT
 for _ in {1..40}; do curl -fsS http://127.0.0.1:8142/ >/dev/null && break; sleep .25; done
-for family in chromium firefox webkit; do (cd "$out/direct/Browser.Tests" && node svg-present-player-observe.mjs "$family" http://127.0.0.1:8142/) >"$out/$family-present.json"; done
-jq -n --slurpfile packet "$out/candidate-packet.json" --slurpfile c "$out/chromium-present.json" --slurpfile f "$out/firefox-present.json" --slurpfile w "$out/webkit-present.json" '{schema:"fsgg.svg-present.template-qualification/v1",candidate:$packet[0],routes:{direct:"passed",sdd17:{none:"passed",default:"passed",typed:"passed"},wizard0111Adopter:"passed",retained011:"passed"},browser:{chromium:$c[0],firefox:$f[0],webkit:$w[0]},presentation:{animation:"passed",reducedMotion:"passed",gestureAudio:"passed",liveCueSeekPolicy:"passed",autosaveRecovery:"passed",reload:"passed",archive:"passed"},adopter:{collision:"refused-without-write",interruption:"rolled-back",rollback:"byte-identical",authoredFiles:"preserved"},publication:false}' >"$out/qualification.json"
-echo "svg-present-candidate: passed; evidence=$out/qualification.json"
+for _ in {1..40}; do curl -fsS http://127.0.0.1:8143/ >/dev/null && break; sleep .25; done
+for family in chromium firefox webkit; do
+  (cd "$out/direct/Browser.Tests" && node svg-present-player-observe.mjs "$family" http://127.0.0.1:8142/) >"$out/$family-present.json"
+  (cd "$out/direct/Browser.Tests" && node svg-authoring-observe.mjs "$family" http://127.0.0.1:8143/) >"$out/$family-authoring.json"
+  (cd "$out/direct/Browser.Tests" && node svg-input-observe.mjs "$family" http://127.0.0.1:8143/) >"$out/$family-input.json"
+done
+browser_evidence_sha="$(cat "$out"/*-present.json "$out"/*-authoring.json "$out"/*-input.json | sha256sum | cut -d' ' -f1)"
+jq -n --arg templateSha "$(sha256sum "$template" | cut -d' ' -f1)" --arg browserEvidenceSha "$browser_evidence_sha" --slurpfile c "$out/chromium-present.json" --slurpfile f "$out/firefox-present.json" --slurpfile w "$out/webkit-present.json" '{schema:"fsgg.svg-preview-b.source-qualification/v1",template:{version:"0.12.0",sha256:$templateSha},publicProducers:{rendering:"0.30.0",game:"0.15.0",audio:"0.6.0"},routes:{direct:"passed",sdd17:{none:"passed",default:"passed",typed:"passed"},wizard0111Adopter:"passed",retained011:"passed"},browser:{chromium:$c[0],firefox:$f[0],webkit:$w[0],authoringInputEvidenceSha256:$browserEvidenceSha},presentation:{animation:"passed",reducedMotion:"passed",gestureAudio:"passed",liveCueSeekPolicy:"passed",autosaveRecovery:"passed",reload:"passed",archive:"passed"},adopter:{collision:"refused-without-write",interruption:"rolled-back",rollback:"byte-identical",authoredFiles:"preserved"},publication:false,producerDistribution:"public-nuget-only"}' >"$out/qualification.json"
+echo "svg-preview-b-source: passed; evidence=$out/qualification.json"

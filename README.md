@@ -327,6 +327,14 @@ any downstream registry/pin flip advertises it.
 
 ### Release notes
 
+#### 0.12.0 — installed SVG authoring and local-play preview
+
+The opt-in `fs-gg-fable-game --svgFoundation true` payload now carries the complete authoring,
+input, fixed-step runtime, animation, browser-audio, save, and browser-storage composition. It pins
+Rendering 0.30.0, Game 0.15.0, and Audio 0.6.0 and keeps the player bundle isolated from Studio,
+geometry-worker, native rendering, and native audio modules. All four workspace provider descriptors
+self-pin `FS.GG.Workspace.Template::0.12.0`; the ordinary arena and lifecycle defaults are unchanged.
+
 #### 0.11.0 — opt-in SVG game foundation
 
 The `fs-gg-fable-game` identity can now add the SVG game foundation with

@@ -2,7 +2,7 @@
 set -euo pipefail
 studio="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workspace="$(cd "$studio/../.." && pwd)"
-version="${FSGG_SVG_AUTHORING_VERSION:-0.29.0}"
+version="${FSGG_SVG_AUTHORING_VERSION:-0.30.0}"
 export FsGgSvgAuthoringVersion="$version"
 restore_args=(dotnet restore "$studio/Studio.fsproj" -p:FsGgSvgAuthoringVersion="$version")
 if [[ -n "${FSGG_SVG_CANDIDATE_FEED:-}" ]]; then

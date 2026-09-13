@@ -71,17 +71,35 @@ def replace_once(path, old, new, message):
     text=path.read_text()
     if text.count(old)!=1: raise SystemExit(message)
     path.write_text(text.replace(old,new))
+def enable_once(path, old, new, message):
+    text=path.read_text()
+    if text.count(new)==1 and text.count(old)==0: return
+    if text.count(old)!=1 or text.count(new)!=0: raise SystemExit(message)
+    path.write_text(text.replace(old,new))
+def disable_once(path, old, new, message):
+    text=path.read_text()
+    if text.count(new)==1 and text.count(old)==0: return
+    if text.count(old)!=1 or text.count(new)!=0: raise SystemExit(message)
+    path.write_text(text.replace(old,new))
 replace_once(root_project,
-    '<FsGgSvgInputVersion Condition="\'$(FsGgSvgInputVersion)\' == \'\'">0.29.0</FsGgSvgInputVersion>',
+    '<FsGgSvgInputVersion Condition="\'$(FsGgSvgInputVersion)\' == \'\'">0.30.0</FsGgSvgInputVersion>',
     f'<FsGgSvgInputVersion Condition="\'$(FsGgSvgInputVersion)\' == \'\'">{version}</FsGgSvgInputVersion>',
     'input candidate version seam drifted')
 for path in (root_project, studio_project):
-    replace_once(path,
+    enable_once(path,
         '<FsGgSvgInputCandidate Condition="\'$(FsGgSvgInputCandidate)\' == \'\'">false</FsGgSvgInputCandidate>',
         '<FsGgSvgInputCandidate Condition="\'$(FsGgSvgInputCandidate)\' == \'\'">true</FsGgSvgInputCandidate>',
         f'input candidate flag seam drifted: {path}')
+disable_once(root_project,
+    '<FsGgSvgRuntimeCandidate Condition="\'$(FsGgSvgRuntimeCandidate)\' == \'\'">true</FsGgSvgRuntimeCandidate>',
+    '<FsGgSvgRuntimeCandidate Condition="\'$(FsGgSvgRuntimeCandidate)\' == \'\'">false</FsGgSvgRuntimeCandidate>',
+    'input candidate runtime-isolation seam drifted')
+disable_once(root_project,
+    '<FsGgSvgPresentCandidate Condition="\'$(FsGgSvgPresentCandidate)\' == \'\'">true</FsGgSvgPresentCandidate>',
+    '<FsGgSvgPresentCandidate Condition="\'$(FsGgSvgPresentCandidate)\' == \'\'">false</FsGgSvgPresentCandidate>',
+    'input candidate presentation-isolation seam drifted')
 replace_once(studio_project,
-    '<FsGgSvgAuthoringVersion Condition="\'$(FsGgSvgAuthoringVersion)\' == \'\'">0.29.0</FsGgSvgAuthoringVersion>',
+    '<FsGgSvgAuthoringVersion Condition="\'$(FsGgSvgAuthoringVersion)\' == \'\'">0.30.0</FsGgSvgAuthoringVersion>',
     f'<FsGgSvgAuthoringVersion Condition="\'$(FsGgSvgAuthoringVersion)\' == \'\'">{version}</FsGgSvgAuthoringVersion>',
     'studio authoring candidate version seam drifted')
 PY
@@ -96,7 +114,7 @@ rendering=json.loads(source.read_text())
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 with zipfile.ZipFile(template) as archive:
     payload=hashlib.sha256(b''.join(archive.read(n) for n in sorted(archive.namelist()) if n.startswith('content/templates/fs-gg-fable-game/'))).hexdigest()
-result={'schema':'fsgg.svg-input.template-candidate/v1','rendering':{'mergedRevision':sys.argv[4],'packetSha256':sha(source),'version':rendering['version'],'packages':rendering['packages'],'fableInterfaces':rendering['fableInterfaces'],'worker':rendering['worker'],'resources':rendering['resources'],'npmLocks':rendering['npmLocks'],'modelEvidence':rendering['modelEvidence']},'templates':{'sourceRevision':sys.argv[5],'package':{'file':template.name,'version':'0.12.0-svg-input.1','sha256':sha(template),'payloadSha256':payload}},'publicPins':{'templates':'0.11.0','rendering':'0.29.0'},'publication':False}
+result={'schema':'fsgg.svg-input.template-candidate/v1','rendering':{'mergedRevision':sys.argv[4],'packetSha256':sha(source),'version':rendering['version'],'packages':rendering['packages'],'fableInterfaces':rendering['fableInterfaces'],'worker':rendering['worker'],'resources':rendering['resources'],'npmLocks':rendering['npmLocks'],'modelEvidence':rendering['modelEvidence']},'templates':{'sourceRevision':sys.argv[5],'package':{'file':template.name,'version':'0.12.0-svg-input.1','sha256':sha(template),'payloadSha256':payload}},'publicPins':{'templates':'0.12.0','rendering':'0.30.0'},'publication':False}
 destination.write_text(json.dumps(result,indent=2)+'\n')
 PY
 mv "$output" "$final_output"
