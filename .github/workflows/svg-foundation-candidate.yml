@@ -17,6 +17,8 @@ on:
       - 'tests/composition/fable-game/verify-svg-input-candidate.sh'
       - 'tests/composition/fable-game/svg-runtime-player-observe.mjs'
       - 'tests/composition/fable-game/verify-svg-runtime-candidate.sh'
+      - 'tests/composition/fable-game/svg-present-player-observe.mjs'
+      - 'tests/composition/fable-game/verify-svg-present-candidate.sh'
       - 'tests/composition/fable-game/observe-svg-input-orca.sh'
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'scripts/stage-svg-authoring-candidate.sh'
@@ -26,11 +28,16 @@ on:
       - 'scripts/stage-game-runtime-packet.sh'
       - 'scripts/stage-rendering-runtime-packet.sh'
       - 'scripts/stage-svg-runtime-candidate.sh'
+      - 'scripts/stage-rendering-present-packet.sh'
+      - 'scripts/stage-game-present-packet.sh'
+      - 'scripts/stage-audio-present-packet.sh'
+      - 'scripts/stage-svg-present-candidate.sh'
       - 'scripts/apply-svg-foundation-preview.sh'
       - 'scripts/svg-foundation-preview-baseline.manifest'
       - 'docs/reports/2026-09-12-svg-scene-02-preview-a-handoff.md'
       - 'docs/reports/2026-09-13-svg-input-candidate.md'
       - 'docs/reports/2026-09-13-svg-runtime-candidate.md'
+      - 'docs/reports/2026-09-13-svg-present-candidate.md'
       - '.github/workflows/svg-foundation-candidate.yml'
   push:
     branches: [main]
@@ -49,6 +56,8 @@ on:
       - 'tests/composition/fable-game/verify-svg-input-candidate.sh'
       - 'tests/composition/fable-game/svg-runtime-player-observe.mjs'
       - 'tests/composition/fable-game/verify-svg-runtime-candidate.sh'
+      - 'tests/composition/fable-game/svg-present-player-observe.mjs'
+      - 'tests/composition/fable-game/verify-svg-present-candidate.sh'
       - 'tests/composition/fable-game/observe-svg-input-orca.sh'
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'scripts/stage-svg-authoring-candidate.sh'
@@ -58,11 +67,16 @@ on:
       - 'scripts/stage-game-runtime-packet.sh'
       - 'scripts/stage-rendering-runtime-packet.sh'
       - 'scripts/stage-svg-runtime-candidate.sh'
+      - 'scripts/stage-rendering-present-packet.sh'
+      - 'scripts/stage-game-present-packet.sh'
+      - 'scripts/stage-audio-present-packet.sh'
+      - 'scripts/stage-svg-present-candidate.sh'
       - 'scripts/apply-svg-foundation-preview.sh'
       - 'scripts/svg-foundation-preview-baseline.manifest'
       - 'docs/reports/2026-09-12-svg-scene-02-preview-a-handoff.md'
       - 'docs/reports/2026-09-13-svg-input-candidate.md'
       - 'docs/reports/2026-09-13-svg-runtime-candidate.md'
+      - 'docs/reports/2026-09-13-svg-present-candidate.md'
       - '.github/workflows/svg-foundation-candidate.yml'
 
 jobs:
@@ -280,5 +294,78 @@ jobs:
             ${{ runner.temp }}/svg-runtime-qualification/qualification.json
             ${{ runner.temp }}/svg-runtime-qualification/*.json
             ${{ runner.temp }}/svg-runtime-qualification/*.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  presentation-candidate:
+    name: Exact generated presentation candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact Templates candidate
+        uses: actions/checkout@v7
+        with:
+          path: templates
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout accepted Rendering source
+        uses: actions/checkout@v7
+        with:
+          repository: FS-GG/FS.GG.Rendering
+          ref: 65a64478527cfe12dce5cb401d0a5d6e592abb76
+          path: rendering
+      - name: Checkout accepted Game source
+        uses: actions/checkout@v7
+        with:
+          repository: FS-GG/FS.GG.Game
+          ref: 91ef49ea638032686ea967083198fd82f2de028e
+          path: game
+      - name: Checkout accepted Audio source
+        uses: actions/checkout@v7
+        with:
+          repository: FS-GG/FS.GG.Audio
+          ref: 3015051f95354f302d2d8b75a072c9ad300e1c6f
+          path: audio
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.400'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install browser hosts
+        working-directory: templates/templates/fs-gg-fable-game/Browser.Tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox webkit
+      - name: Stage exact producer packets
+        working-directory: templates
+        run: |
+          rendering_version="0.30.0-svg-present.1.65a64478.ci${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          game_version="0.15.0-svg-present.1.91ef49ea.ci${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          audio_version="0.6.0-svg-present.1.3015051f.ci${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          bash scripts/stage-rendering-present-packet.sh "$GITHUB_WORKSPACE/rendering" "$RUNNER_TEMP/rendering-present" "$rendering_version"
+          bash scripts/stage-game-present-packet.sh "$GITHUB_WORKSPACE/game" "$RUNNER_TEMP/game-present" "$game_version"
+          bash scripts/stage-audio-present-packet.sh "$GITHUB_WORKSPACE/audio" "$RUNNER_TEMP/audio-present" "$audio_version"
+      - name: Qualify installed generated presentation composition
+        working-directory: templates
+        run: |
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" bash tests/composition/fable-game/verify-svg-present-candidate.sh \
+            "$RUNNER_TEMP/rendering-present" "$RUNNER_TEMP/game-present" "$RUNNER_TEMP/audio-present" "$RUNNER_TEMP/svg-present-qualification"
+      - name: Upload exact presentation evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: svg-present-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/rendering-present/manifest.json
+            ${{ runner.temp }}/rendering-present/packages/*.nupkg
+            ${{ runner.temp }}/game-present/manifest.json
+            ${{ runner.temp }}/game-present/packages/*.nupkg
+            ${{ runner.temp }}/audio-present/manifest.json
+            ${{ runner.temp }}/audio-present/packages/*.nupkg
+            ${{ runner.temp }}/svg-present-qualification/candidate-packet.json
+            ${{ runner.temp }}/svg-present-qualification/qualification.json
+            ${{ runner.temp }}/svg-present-qualification/*.json
+            ${{ runner.temp }}/svg-present-qualification/*.log
           if-no-files-found: warn
           retention-days: 14

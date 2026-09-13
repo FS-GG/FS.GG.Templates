@@ -8,8 +8,11 @@
     <FsGgGameRuntimeVersion Condition="'$(FsGgGameRuntimeVersion)' == ''">0.14.0</FsGgGameRuntimeVersion>
     <FsGgSvgInputCandidate Condition="'$(FsGgSvgInputCandidate)' == ''">false</FsGgSvgInputCandidate>
     <FsGgSvgRuntimeCandidate Condition="'$(FsGgSvgRuntimeCandidate)' == ''">false</FsGgSvgRuntimeCandidate>
+    <FsGgSvgPresentCandidate Condition="'$(FsGgSvgPresentCandidate)' == ''">false</FsGgSvgPresentCandidate>
+    <FsGgAudioPresentVersion Condition="'$(FsGgAudioPresentVersion)' == ''">0.5.0</FsGgAudioPresentVersion>
     <DefineConstants Condition="'$(FsGgSvgInputCandidate)' == 'true'">$(DefineConstants);SVG_INPUT_CANDIDATE</DefineConstants>
     <DefineConstants Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'">$(DefineConstants);SVG_RUNTIME_CANDIDATE</DefineConstants>
+    <DefineConstants Condition="'$(FsGgSvgPresentCandidate)' == 'true'">$(DefineConstants);SVG_PRESENT_CANDIDATE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="TacticalCompatibility.fs" />
@@ -17,6 +20,7 @@
     <Compile Include="PreviewDocument.fs" />
     <Compile Include="PlayerInput.fs" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
     <Compile Include="ContinuousPlayer.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'" />
+    <Compile Include="PresentationPlayer.fs" Condition="'$(FsGgSvgPresentCandidate)' == 'true'" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
@@ -26,5 +30,7 @@
     <PackageReference Include="FS.GG.UI.Scene.SvgBrowser" Version="[$(FsGgSvgInputVersion)]" />
     <PackageReference Include="FS.GG.UI.KeyboardInput" Version="[$(FsGgSvgInputVersion)]" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
     <PackageReference Include="FS.GG.Game.Core" Version="[$(FsGgGameRuntimeVersion)]" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'" />
+    <PackageReference Include="FS.GG.Audio.Core" Version="[$(FsGgAudioPresentVersion)]" Condition="'$(FsGgSvgPresentCandidate)' == 'true'" />
+    <PackageReference Include="FS.GG.Audio.WebBrowser" Version="[$(FsGgAudioPresentVersion)]" Condition="'$(FsGgSvgPresentCandidate)' == 'true'" />
   </ItemGroup>
 </Project>

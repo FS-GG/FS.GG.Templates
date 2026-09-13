@@ -58,3 +58,21 @@ The packet records exact Rendering archive and curated Fable-interface hashes pl
 identity. Candidate qualification covers direct generation, SDD routes, the pinned wizard adopter,
 retained 0.10/0.11 upgrades, collision refusal, interrupted apply, byte-identical rollback, all three
 browser engines and Orca/AT-SPI. These candidate seams do not change the public package pins.
+
+## Presentation candidate
+
+`PresentationPlayer.fs` keeps animation and save codecs at the generated product boundary. The player
+uses the portable Game save/migration reducer, Rendering's disposable animation and IndexedDB hosts, and
+Audio's gesture-gated Web Audio host. Authority snapshots remain distinct from animation frames, audio
+voices, and browser storage operations.
+
+Movement and outcome clips apply to the retained player object. Live cue batches dispatch a product-owned
+sound, while timeline seek and reduced-motion settling remain silent. Four storage families use independent
+keys; the sample save uses `save:primary`. The archive control exports the host's complete, hash-bound
+archive and imports it only after all declared paths, contents, and SHA-256 identities validate.
+
+The candidate journey demonstrates gesture unlock, asset readiness, one-shot dispatch, cue suppression on
+seek, reduced-motion settling, successful autosave and reload, quota failure with the prior save preserved,
+recovery through a later valid edit, and archive replacement. Closing the page disposes the frame clock,
+audio graph, IndexedDB connection, input host, session host, and retained SVG hosts. Public package pins stay
+unchanged until SVG-PREVIEW-B publishes and qualifies the coherent set.
