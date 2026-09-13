@@ -100,6 +100,11 @@ def enable_once(path, old, new, message):
     if text.count(new)==1 and text.count(old)==0: return
     if text.count(old)!=1 or text.count(new)!=0: raise SystemExit(message)
     path.write_text(text.replace(old,new))
+def disable_once(path, old, new, message):
+    text=path.read_text()
+    if text.count(new)==1 and text.count(old)==0: return
+    if text.count(old)!=1 or text.count(new)!=0: raise SystemExit(message)
+    path.write_text(text.replace(old,new))
 replace_once(root_project,
     '<FsGgSvgInputVersion Condition="\'$(FsGgSvgInputVersion)\' == \'\'">0.30.0</FsGgSvgInputVersion>',
     f'<FsGgSvgInputVersion Condition="\'$(FsGgSvgInputVersion)\' == \'\'">{version}</FsGgSvgInputVersion>',
@@ -113,6 +118,10 @@ enable_once(root_project,
     '<FsGgSvgRuntimeCandidate Condition="\'$(FsGgSvgRuntimeCandidate)\' == \'\'">false</FsGgSvgRuntimeCandidate>',
     '<FsGgSvgRuntimeCandidate Condition="\'$(FsGgSvgRuntimeCandidate)\' == \'\'">true</FsGgSvgRuntimeCandidate>',
     'runtime candidate flag seam drifted')
+disable_once(root_project,
+    '<FsGgSvgPresentCandidate Condition="\'$(FsGgSvgPresentCandidate)\' == \'\'">true</FsGgSvgPresentCandidate>',
+    '<FsGgSvgPresentCandidate Condition="\'$(FsGgSvgPresentCandidate)\' == \'\'">false</FsGgSvgPresentCandidate>',
+    'runtime candidate presentation-isolation seam drifted')
 replace_once(root_project,
     '<FsGgGameRuntimeVersion Condition="\'$(FsGgGameRuntimeVersion)\' == \'\'">0.15.0</FsGgGameRuntimeVersion>',
     f'<FsGgGameRuntimeVersion Condition="\'$(FsGgGameRuntimeVersion)\' == \'\'">{game_version}</FsGgGameRuntimeVersion>',

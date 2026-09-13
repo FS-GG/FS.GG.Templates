@@ -76,6 +76,11 @@ def enable_once(path, old, new, message):
     if text.count(new)==1 and text.count(old)==0: return
     if text.count(old)!=1 or text.count(new)!=0: raise SystemExit(message)
     path.write_text(text.replace(old,new))
+def disable_once(path, old, new, message):
+    text=path.read_text()
+    if text.count(new)==1 and text.count(old)==0: return
+    if text.count(old)!=1 or text.count(new)!=0: raise SystemExit(message)
+    path.write_text(text.replace(old,new))
 replace_once(root_project,
     '<FsGgSvgInputVersion Condition="\'$(FsGgSvgInputVersion)\' == \'\'">0.30.0</FsGgSvgInputVersion>',
     f'<FsGgSvgInputVersion Condition="\'$(FsGgSvgInputVersion)\' == \'\'">{version}</FsGgSvgInputVersion>',
@@ -85,6 +90,14 @@ for path in (root_project, studio_project):
         '<FsGgSvgInputCandidate Condition="\'$(FsGgSvgInputCandidate)\' == \'\'">false</FsGgSvgInputCandidate>',
         '<FsGgSvgInputCandidate Condition="\'$(FsGgSvgInputCandidate)\' == \'\'">true</FsGgSvgInputCandidate>',
         f'input candidate flag seam drifted: {path}')
+disable_once(root_project,
+    '<FsGgSvgRuntimeCandidate Condition="\'$(FsGgSvgRuntimeCandidate)\' == \'\'">true</FsGgSvgRuntimeCandidate>',
+    '<FsGgSvgRuntimeCandidate Condition="\'$(FsGgSvgRuntimeCandidate)\' == \'\'">false</FsGgSvgRuntimeCandidate>',
+    'input candidate runtime-isolation seam drifted')
+disable_once(root_project,
+    '<FsGgSvgPresentCandidate Condition="\'$(FsGgSvgPresentCandidate)\' == \'\'">true</FsGgSvgPresentCandidate>',
+    '<FsGgSvgPresentCandidate Condition="\'$(FsGgSvgPresentCandidate)\' == \'\'">false</FsGgSvgPresentCandidate>',
+    'input candidate presentation-isolation seam drifted')
 replace_once(studio_project,
     '<FsGgSvgAuthoringVersion Condition="\'$(FsGgSvgAuthoringVersion)\' == \'\'">0.30.0</FsGgSvgAuthoringVersion>',
     f'<FsGgSvgAuthoringVersion Condition="\'$(FsGgSvgAuthoringVersion)\' == \'\'">{version}</FsGgSvgAuthoringVersion>',
