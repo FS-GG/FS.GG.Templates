@@ -46,12 +46,14 @@ An opt-in retained SVG foundation fixture is available only when explicitly sele
 the retained grid/fractional examples and a complete typed Preview-A document. The ordinary
 server-authoritative arena remains the default while the SVG foundation completes its release qualification.
 
-The selected payload also carries `SvgFoundation/Studio`, a separate authoring project and HTML entry.
-It is activated only by an internally staged candidate bound to exact Rendering archives. Build the
-ordinary player with `./build.sh`; build the authoring entry separately with
-`bash SvgFoundation/Studio/build.sh`. The latter copies its worker, verified font data, notices and
-npm lock from the restored producer package into ignored build output. Public `0.11.0` and Rendering
-`0.29.0` pins remain unchanged until Preview-B publishes a coherent set.
+The selected payload also carries separate player and `SvgFoundation/Studio` entries. An internally
+staged candidate binds both to exact Rendering archives and enables the product-owned command profiles.
+Build them with `bash SvgFoundation/build.sh` and `bash SvgFoundation/Studio/build.sh`. The Studio
+build copies its worker, verified font data, notices and npm lock from the restored producer package
+into ignored output. The generated workspace exposes Create, Arrange, Play and Review modes, responsive
+docks, palette/help/rebind flows, and keyboard, pointer, touch and gamepad routes over the same effective
+profile. Public `0.11.0` and Rendering `0.29.0` pins remain unchanged until Preview-B publishes a
+coherent set.
 
 The realtime baseline has four deliberately small but production-relevant rules:
 

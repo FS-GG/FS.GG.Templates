@@ -44,3 +44,17 @@ Scene-file migration is separate from workspace adoption. `fsgg.svg-document/1` 
 v1 values can be wrapped through `SvgScene.migrateLegacy`; preserve the originals and exports.
 Package rollback restores managed workspace files only. It never downgrades or deletes authored
 `fsgg.svg-scene/1` content, and an older consumer must report that format as unsupported.
+
+## Input candidate
+
+The SVG-INPUT candidate enables `PlayerInput.fs` and `Studio/WorkspaceInput.fs` only inside the staged
+package. `SvgFoundation/build.sh` produces the small player entry; its commands adapt to retained focus
+and activation and its output excludes Studio, workspace and geometry-worker modules. The Studio entry
+uses one effective product profile for mode shortcuts, Ctrl/Command palette access, sequence help,
+displacement-aware rebinding, pointer/touch actions and Gamepad API polling. Its accessible controls use
+the same semantic commands and keep focus restoration explicit.
+
+The packet records exact Rendering archive and curated Fable-interface hashes plus the Templates payload
+identity. Candidate qualification covers direct generation, SDD routes, the pinned wizard adopter,
+retained 0.10/0.11 upgrades, collision refusal, interrupted apply, byte-identical rollback, all three
+browser engines and Orca/AT-SPI. These candidate seams do not change the public package pins.

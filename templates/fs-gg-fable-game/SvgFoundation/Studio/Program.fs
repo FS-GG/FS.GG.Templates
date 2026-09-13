@@ -8,6 +8,10 @@ open Fable.Core.JsInterop
 open FS.GG.UI.Scene
 open FS.GG.UI.Scene.SvgBrowser
 open FableGameWorkspaceNamespace.SvgFoundation.Studio.SceneSchema
+#if SVG_INPUT_CANDIDATE
+open FS.GG.UI.KeyboardInput
+module WorkspaceCommands = FableGameWorkspaceNamespace.SvgFoundation.Studio.WorkspaceInput
+#endif
 
 [<ImportDefault("./vendor/noto-sans-latin-400-normal.woff2.base64?raw")>]
 let private notoBase64: string = jsNative
@@ -28,6 +32,128 @@ let private host =
 
 let private status: HTMLElement = document.getElementById("generated-scene-status")
 let private announce text = status.textContent <- text
+
+#if SVG_INPUT_CANDIDATE
+container.setAttribute("tabindex", "-1")
+let mutable private inputProfile = WorkspaceCommands.profile
+let mutable private inputAdapter: SvgInputHost option = None
+
+let private updateInput observation =
+    inputAdapter |> Option.iter (fun adapter -> adapter.Update observation |> ignore)
+
+let private workspaceMode = function
+    | SvgWorkspaceMode.Create -> "create"
+    | SvgWorkspaceMode.Arrange -> "arrange"
+    | SvgWorkspaceMode.Play -> "play"
+    | SvgWorkspaceMode.Review -> "review"
+
+let private renderWorkspace () =
+    container.setAttribute("data-workspace-mode", workspaceMode host.WorkspaceState.Mode)
+
+let private updateWorkspace message =
+    let effects = host.UpdateWorkspace message
+    effects
+    |> List.iter (function
+        | SvgWorkspaceEffect.ActiveContextsChanged contexts -> updateInput (CommandResolverObservation.ContextsChanged contexts)
+        | _ -> ())
+    renderWorkspace ()
+
+let private setMode mode =
+    updateWorkspace (SvgWorkspaceMessage.SetMode mode)
+    announce ("Workspace mode: " + workspaceMode mode)
+
+let private acceptCaptured gesture =
+    let adapter = inputAdapter.Value
+    let selected = "workspace.palette"
+    let displaced =
+        adapter.State.Profile.Bindings
+        |> List.filter (fun binding -> binding.Gesture = gesture && binding.Command <> selected)
+        |> List.map _.Command
+        |> List.distinct
+    let displacementOverrides =
+        displaced
+        |> List.map (fun command ->
+            let remaining = adapter.State.Profile.Bindings |> List.filter (fun binding -> binding.Command = command && binding.Gesture <> gesture)
+            if remaining.IsEmpty then InputBindingOverride.UnbindCommand command
+            else InputBindingOverride.ReplaceCommand(command, remaining))
+    let replacement =
+        InputBindingOverride.ReplaceCommand(selected, [ { Gesture = gesture; Command = selected; Context = "workspace" } ])
+    let candidate = { inputProfile with Overrides = inputProfile.Overrides @ displacementOverrides @ [ replacement ] }
+    match WorkspaceCommands.compile candidate with
+    | Error issues -> announce (sprintf "Input conflict refused: %A" issues)
+    | Ok effective ->
+        match host.Root.querySelector("[data-fsgg-workspace-overlay='rebind']") with
+        | null -> ()
+        | element -> element.textContent <- $"Rebind command accepted. Conflict feedback: displaced {displaced.Length} command(s)."
+        inputProfile <- candidate
+        updateInput (CommandResolverObservation.ProfileChanged effective)
+        updateWorkspace SvgWorkspaceMessage.CloseOverlay
+        announce ($"Input rebound; displaced commands: {displaced.Length}")
+
+let private handleInputEffect effect =
+    match effect with
+    | CommandResolverEffect.InvokeCommand invocation ->
+        container.setAttribute("data-last-workspace-command", invocation.Command)
+        match invocation.Command with
+        | "workspace.mode.create" -> setMode SvgWorkspaceMode.Create
+        | "workspace.mode.arrange" -> setMode SvgWorkspaceMode.Arrange
+        | "workspace.mode.play" -> setMode SvgWorkspaceMode.Play
+        | "workspace.mode.review" -> setMode SvgWorkspaceMode.Review
+        | "workspace.palette" ->
+            updateWorkspace (SvgWorkspaceMessage.OpenPalette "generated-authoring-studio--scene")
+            updateInput (CommandResolverObservation.PushModal { Context = "workspace.palette"; RestoreFocus = "generated-authoring-studio--scene" })
+            announce "Command palette opened"
+        | "workspace.help" ->
+            updateWorkspace (SvgWorkspaceMessage.OpenHelp "generated-authoring-studio--scene")
+            updateInput (CommandResolverObservation.PushModal { Context = "workspace.help"; RestoreFocus = "generated-authoring-studio--scene" })
+            announce "Possible input help opened"
+        | "workspace.rebind" ->
+            updateWorkspace (SvgWorkspaceMessage.BeginRebind("workspace.palette", "generated-authoring-studio--scene"))
+            updateInput (CommandResolverObservation.BeginCapture "generated-authoring-studio--scene")
+            announce "Rebind capture waiting for raw input"
+        | "workspace.pointer" -> setMode SvgWorkspaceMode.Arrange
+        | "workspace.touch" -> setMode SvgWorkspaceMode.Arrange
+        | "workspace.gamepad" -> setMode SvgWorkspaceMode.Play
+        | _ -> ()
+    | CommandResolverEffect.CapturedGesture gesture -> acceptCaptured gesture
+    | CommandResolverEffect.RequestFocus _ ->
+        if host.WorkspaceState.Overlay.IsSome then updateWorkspace SvgWorkspaceMessage.CloseOverlay
+        else updateInput (CommandResolverObservation.ContextsChanged (SvgWorkspace.activeContexts host.WorkspaceState))
+    | _ -> ()
+
+do
+    let effective = WorkspaceCommands.compile inputProfile |> Result.defaultWith (fun issues -> failwithf "%A" issues)
+    document.getElementById("generated-authoring-studio--scene").setAttribute("data-fsgg-input-action", "primary")
+    inputAdapter <-
+        Some(new SvgInputHost(
+            container,
+            WorkspaceCommands.catalog,
+            CommandResolver.init (SvgWorkspace.activeContexts host.WorkspaceState) effective,
+            (fun () -> WorkspaceCommands.catalog.Commands |> List.map _.Id),
+            handleInputEffect,
+            SvgInputHost.defaultOptions))
+    renderWorkspace ()
+    for selector in
+        [ "#generated-authoring-studio--workspace-mode-0"
+          "#generated-authoring-studio--workspace-mode-1"
+          "#generated-authoring-studio--workspace-mode-2"
+          "#generated-authoring-studio--workspace-mode-3"
+          "#generated-authoring-studio--workspace-palette"
+          "#generated-authoring-studio--workspace-help"
+          "#generated-authoring-studio--workspace-rebind" ] do
+        match host.Root.querySelector(selector) with
+        | null -> ()
+        | element ->
+            element.addEventListener("click", fun _ ->
+                updateInput (CommandResolverObservation.ContextsChanged (SvgWorkspace.activeContexts host.WorkspaceState))
+                match host.WorkspaceState.Overlay with
+                | Some(SvgWorkspaceOverlay.CommandPalette restore) -> updateInput (CommandResolverObservation.PushModal { Context="workspace.palette"; RestoreFocus=restore })
+                | Some(SvgWorkspaceOverlay.PossibleInputHelp restore) -> updateInput (CommandResolverObservation.PushModal { Context="workspace.help"; RestoreFocus=restore })
+                | Some(SvgWorkspaceOverlay.RebindCommand(_, restore)) -> updateInput (CommandResolverObservation.BeginCapture restore)
+                | None -> ()
+                renderWorkspace ())
+#endif
+
 let private hash document = SvgAsset.contentHash document |> Result.defaultWith (fun issues -> failwithf "%A" issues)
 let private transaction id operations = { Schema = SvgAuthoring.transactionSchema; Id = id; Operations = operations }
 let private commit id operations =
@@ -155,13 +281,44 @@ let private addControl name action =
   "Redo scene change",fun()->host.Redo()|>Result.iter(fun()->state<-host.State;announce "Redo completed") ]
 |>List.iter(fun(name,action)->addControl name action)
 
+#if SVG_INPUT_CANDIDATE
+[ "Command palette", fun () -> handleInputEffect (CommandResolverEffect.InvokeCommand { EventId="accessible-palette"; Source="pointer:control"; Command="workspace.palette" })
+  "Possible input help", fun () -> handleInputEffect (CommandResolverEffect.InvokeCommand { EventId="accessible-help"; Source="pointer:control"; Command="workspace.help" })
+  "Rebind command", fun () -> handleInputEffect (CommandResolverEffect.InvokeCommand { EventId="accessible-rebind"; Source="pointer:control"; Command="workspace.rebind" })
+  "Close workspace overlay", fun () -> updateInput CommandResolverObservation.PopModal; updateWorkspace SvgWorkspaceMessage.CloseOverlay
+  "Pointer workspace action", fun () -> handleInputEffect (CommandResolverEffect.InvokeCommand { EventId="accessible-pointer"; Source="pointer:control"; Command="workspace.pointer" })
+  "Touch workspace action", fun () -> handleInputEffect (CommandResolverEffect.InvokeCommand { EventId="accessible-touch"; Source="pointer:control"; Command="workspace.touch" })
+  "Gamepad workspace action", fun () -> handleInputEffect (CommandResolverEffect.InvokeCommand { EventId="accessible-gamepad"; Source="gamepad:accessible"; Command="workspace.gamepad" })
+  "Collapse side docks", fun () -> updateWorkspace (SvgWorkspaceMessage.SetViewportWidth 640.0)
+  "Restore side docks", fun () -> updateWorkspace (SvgWorkspaceMessage.SetViewportWidth 1200.0) ]
+|> List.iter (fun (name, action) -> addControl name action)
+#endif
+
 let private snapshot () =
     createObj [ "revision" ==> state.Revision; "assets" ==> state.Catalog.Assets.Length
                 "instances" ==> state.Instances.Length; "entities" ==> state.Metadata.Entities.Length
-                "conflicts" ==> state.Conflicts.Length; "schema" ==> SvgScene.schema ]
+                "conflicts" ==> state.Conflicts.Length; "schema" ==> SvgScene.schema
+#if SVG_INPUT_CANDIDATE
+                "workspaceMode" ==> workspaceMode host.WorkspaceState.Mode
+                "workspaceOverlay" ==> (host.WorkspaceState.Overlay |> Option.map string |> Option.defaultValue "")
+                "collapsedPanelCount" ==> (host.WorkspaceState.Layout.Panels |> List.filter (fun panel -> panel.Effective = SvgPanelPlacement.Collapsed) |> List.length)
+                "inputBindingCount" ==> inputAdapter.Value.State.Profile.Bindings.Length
+                "inputLifecycle" ==> inputAdapter.Value.Observe()
+#endif
+              ]
 
 [<Emit("window.svgGeneratedStudio = $0")>]
 let private expose (_value:obj) : unit = jsNative
 
-expose (createObj [ "snapshot" ==> snapshot; "descriptorsValid" ==> (fun () -> SvgScene.validateDescriptors descriptors state.Metadata |> List.isEmpty) ])
-window.addEventListener("beforeunload",fun _->(host:>IDisposable).Dispose())
+expose (createObj [ "snapshot" ==> snapshot
+                    "descriptorsValid" ==> (fun () -> SvgScene.validateDescriptors descriptors state.Metadata |> List.isEmpty)
+#if SVG_INPUT_CANDIDATE
+                    "pollGamepads" ==> (fun () -> inputAdapter.Value.PollGamepadsOnce())
+                    "disposeInput" ==> (fun () -> (inputAdapter.Value :> IDisposable).Dispose())
+#endif
+                  ])
+window.addEventListener("beforeunload",fun _->
+#if SVG_INPUT_CANDIDATE
+    inputAdapter |> Option.iter (fun value -> (value :> IDisposable).Dispose())
+#endif
+    (host:>IDisposable).Dispose())

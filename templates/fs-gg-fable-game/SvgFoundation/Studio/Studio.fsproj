@@ -5,9 +5,12 @@
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
     <RestoreLockedMode>false</RestoreLockedMode>
     <FsGgSvgAuthoringVersion Condition="'$(FsGgSvgAuthoringVersion)' == ''">0.29.0</FsGgSvgAuthoringVersion>
+    <FsGgSvgInputCandidate Condition="'$(FsGgSvgInputCandidate)' == ''">false</FsGgSvgInputCandidate>
+    <DefineConstants Condition="'$(FsGgSvgInputCandidate)' == 'true'">$(DefineConstants);SVG_INPUT_CANDIDATE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="SceneSchema.fs" />
+    <Compile Include="WorkspaceInput.fs" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
@@ -15,6 +18,6 @@
     <PackageReference Include="Fable.Browser.Dom" Version="[2.20.0]" />
     <PackageReference Include="FS.GG.UI.Scene" Version="[$(FsGgSvgAuthoringVersion)]" />
     <PackageReference Include="FS.GG.UI.Scene.SvgBrowser" Version="[$(FsGgSvgAuthoringVersion)]" />
+    <PackageReference Include="FS.GG.UI.KeyboardInput" Version="[$(FsGgSvgAuthoringVersion)]" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
   </ItemGroup>
 </Project>
-

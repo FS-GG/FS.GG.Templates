@@ -5,6 +5,7 @@ files=(
   SvgFoundation/Program.fs
   SvgFoundation/PreviewFont.fs
   SvgFoundation/PreviewDocument.fs
+  SvgFoundation/PlayerInput.fs
   SvgFoundation/README.md
   SvgFoundation/THIRD-PARTY-NOTICES.md
   SvgFoundation/fonts/noto-sans-latin-400-normal.woff2
@@ -13,7 +14,10 @@ files=(
   SvgFoundation/TacticalCompatibility.Tests.fs
   SvgFoundation/TacticalCompatibility.Tests.fsproj
   SvgFoundation/index.html
+  SvgFoundation/vite.config.js
+  SvgFoundation/build.sh
   SvgFoundation/Studio/SceneSchema.fs
+  SvgFoundation/Studio/WorkspaceInput.fs
   SvgFoundation/Studio/Program.fs
   SvgFoundation/Studio/SvgGeometryWorkerEntry.js
   SvgFoundation/Studio/Studio.fsproj
@@ -71,15 +75,25 @@ esac
 [[ ! -e "$backup" ]] || fail "backup target already exists: $backup"
 [[ -f "$baseline" ]] || fail "baseline manifest missing: $baseline"
 
-# Preview-A payloads predate the additive Studio surface. Keep their established
-# bounded transaction unchanged; once the first Studio file is present, require
-# and apply the complete authoring set declared above.
+# Preview-A payloads predate the additive input and Studio surfaces. Keep their
+# established bounded transaction unchanged; each later generation marker makes
+# its complete managed set mandatory.
 if [[ ! -e "$source_payload/SvgFoundation/Studio/SceneSchema.fs" ]]; then
   preview_a_files=()
   for path in "${files[@]}"; do
     [[ "$path" == SvgFoundation/Studio/* ]] || preview_a_files+=("$path")
   done
   files=("${preview_a_files[@]}")
+fi
+if [[ ! -e "$source_payload/SvgFoundation/PlayerInput.fs" ]]; then
+  without_player_runtime=()
+  for path in "${files[@]}"; do
+    case "$path" in
+      SvgFoundation/PlayerInput.fs|SvgFoundation/vite.config.js|SvgFoundation/build.sh) ;;
+      *) without_player_runtime+=("$path") ;;
+    esac
+  done
+  files=("${without_player_runtime[@]}")
 fi
 
 declare -A expected

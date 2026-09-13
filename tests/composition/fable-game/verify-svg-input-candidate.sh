@@ -3,9 +3,9 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 packet="${1:?Rendering packet directory required}"
 out="${2:?empty output directory required}"
-[[ ! -e "$out" ]] || { echo 'svg-authoring-candidate: output exists' >&2; exit 2; }
-bash "$root/scripts/stage-svg-authoring-candidate.sh" "$packet/manifest.json" "$out"
-candidate="$out/feed/FS.GG.Workspace.Template.0.11.0-svg-author.1.nupkg"
+[[ ! -e "$out" ]] || { echo 'svg-input-candidate: output exists' >&2; exit 2; }
+bash "$root/scripts/stage-svg-input-candidate.sh" "$packet/manifest.json" "$out"
+candidate="$out/feed/FS.GG.Workspace.Template.0.12.0-svg-input.1.nupkg"
 rendering_version="$(jq -r .rendering.version "$out/candidate-packet.json")"
 [[ "$(sha256sum "$candidate"|cut -d' ' -f1)" == "$(jq -r .templates.package.sha256 "$out/candidate-packet.json")" ]]
 mkdir -p "$out/home" "$out/packages" "$out/http" "$out/tools"
@@ -18,9 +18,12 @@ dotnet new fs-gg-fable-game -n DefaultReceiver -o "$out/default" >/dev/null
 dotnet new fs-gg-fable-game -n DirectReceiver -o "$out/direct" --lifecycle none --svgFoundation true >/dev/null
 test ! -e "$out/default/SvgFoundation"
 test -f "$out/direct/SvgFoundation/Studio/Studio.fsproj"
-grep -F ">0.29.0</FsGgSvgInputVersion>" "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null
-grep -F 'Version="[$(FsGgSvgInputVersion)]"' "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null
+grep -F "$rendering_version" "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null
 grep -F "$rendering_version" "$out/direct/SvgFoundation/Studio/Studio.fsproj" >/dev/null
+grep -F '<FsGgSvgInputCandidate Condition=' "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null
+grep -F '>true</FsGgSvgInputCandidate>' "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null
+test -f "$out/direct/SvgFoundation/PlayerInput.fs"
+test -f "$out/direct/SvgFoundation/Studio/WorkspaceInput.fs"
 
 dotnet tool install FS.GG.SDD.Cli --version 1.7.0 --tool-path "$out/tools/sdd" --configfile "$out/NuGet.Config" --no-cache >/dev/null
 sdd="$out/tools/sdd/fsgg-sdd"
@@ -87,9 +90,10 @@ test ! -e "$out/wizard/SvgFoundation"
 "$root/scripts/apply-svg-foundation-preview.sh" apply "$out/direct" "$out/wizard" "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/wizard-authoring-backup" >/dev/null
 
 (cd "$out/direct" && bash ./build.sh >"$out/direct-build.log" 2>&1)
+FSGG_SVG_INPUT_VERSION="$rendering_version" FSGG_SVG_CANDIDATE_FEED="$out/feed" bash "$out/direct/SvgFoundation/build.sh" >"$out/player-build.log" 2>&1
 FSGG_SVG_AUTHORING_VERSION="$rendering_version" FSGG_SVG_CANDIDATE_FEED="$out/feed" bash "$out/direct/SvgFoundation/Studio/build.sh" >"$out/studio-build.log" 2>&1
-! grep -RIE 'SvgStudio|SvgGeometryWorker|polygon-clipping' "$out/direct/Client/dist"
-! grep -RIE 'SvgInputHost|PlayerInput|WorkspaceInput' "$out/direct/SvgFoundation/dist"
+! grep -RIE 'SvgStudio|SvgWorkspace|WorkspaceInput|SvgGeometryWorker|polygon-clipping' "$out/direct/Client/dist" "$out/direct/SvgFoundation/dist"
+grep -RF 'game.focus-next' "$out/direct/SvgFoundation/dist" >/dev/null
 for item in svg-geometry-worker.js font-resource-manifest.json noto-sans-latin-400-normal.woff2.base64 package-lock.json; do
   expected="$(jq -r --arg p "contentFiles/any/any/$item" 'if $p=="contentFiles/any/any/svg-geometry-worker.js" then .rendering.worker.sha256 else .rendering.resources[$p].sha256 end' "$out/candidate-packet.json")"
   [[ "$(sha256sum "$out/direct/SvgFoundation/Studio/vendor/$item"|cut -d' ' -f1)" == "$expected" ]]
@@ -97,15 +101,20 @@ done
 for item in OFL-Noto-Sans.txt THIRD-PARTY-NOTICES.md; do
   [[ "$(sha256sum "$out/direct/SvgFoundation/Studio/vendor/$item"|cut -d' ' -f1)" == "$(jq -r --arg p "$item" '.rendering.resources[$p].sha256' "$out/candidate-packet.json")" ]]
 done
-cp "$root/tests/composition/fable-game/svg-authoring-observe.mjs" "$out/direct/Browser.Tests/"
-(cd "$out/direct/SvgFoundation/Studio/dist" && python3 -m http.server 8139 --bind 127.0.0.1 >"$out/studio-server.log" 2>&1) & server=$!
-trap 'kill "$server" 2>/dev/null || true' EXIT
-for _ in {1..40}; do curl -fsS http://127.0.0.1:8139/ >/dev/null && break; sleep .25; done
-for family in chromium firefox webkit; do (cd "$out/direct/Browser.Tests" && node svg-authoring-observe.mjs "$family" http://127.0.0.1:8139/) >"$out/$family.json"; done
+cp "$root/tests/composition/fable-game/svg-input-observe.mjs" "$out/direct/Browser.Tests/"
+cp "$root/tests/composition/fable-game/svg-player-input-observe.mjs" "$out/direct/Browser.Tests/"
+(cd "$out/direct/SvgFoundation/Studio/dist" && python3 -m http.server 8139 --bind 127.0.0.1 >"$out/studio-server.log" 2>&1) & studio_server=$!
+(cd "$out/direct/SvgFoundation/dist" && python3 -m http.server 8140 --bind 127.0.0.1 >"$out/player-server.log" 2>&1) & player_server=$!
+trap 'kill "$studio_server" "$player_server" 2>/dev/null || true' EXIT
+for address in http://127.0.0.1:8139/ http://127.0.0.1:8140/; do for _ in {1..40}; do curl -fsS "$address" >/dev/null && break; sleep .25; done; done
+for family in chromium firefox webkit; do
+  (cd "$out/direct/Browser.Tests" && node svg-input-observe.mjs "$family" http://127.0.0.1:8139/) >"$out/$family.json"
+  (cd "$out/direct/Browser.Tests" && node svg-player-input-observe.mjs "$family" http://127.0.0.1:8140/) >"$out/$family-player.json"
+done
 if [[ -z "${SVG_SCENE_ORCA_OBSERVATION:-}" ]]; then
   SVG_SCENE_ORCA_OBSERVATION="$out/orca.json"
-  bash "$root/tests/composition/fable-game/observe-svg-authoring-orca.sh" http://127.0.0.1:8139/ "$SVG_SCENE_ORCA_OBSERVATION"
+  bash "$root/tests/composition/fable-game/observe-svg-input-orca.sh" http://127.0.0.1:8139/ "$SVG_SCENE_ORCA_OBSERVATION"
 fi
-jq -e '.result=="passed" and .process.name=="orca" and (.process.pid|type)=="number" and .composition=="generated-svg-studio" and .keyboard.selection=="passed" and .keyboard.properties=="passed" and .keyboard.validationFeedback=="passed"' "$SVG_SCENE_ORCA_OBSERVATION" >/dev/null
-jq -n --slurpfile p "$out/candidate-packet.json" --slurpfile c "$out/chromium.json" --slurpfile f "$out/firefox.json" --slurpfile w "$out/webkit.json" --arg orca "$(sha256sum "$SVG_SCENE_ORCA_OBSERVATION"|cut -d' ' -f1)" '{schema:"fsgg.svg-authoring-template-qualification/v1",candidate:$p[0],routes:{direct:"passed",defaultUnselected:"passed",sdd17:{none:"passed",omittedDefault:"passed",typedProfile2:"passed"},wizard0111Adopter:"passed",retained011:"passed",retained010Staged:"passed"},browser:{chromium:$c[0],firefox:$f[0],webkit:$w[0],orcaSha256:$orca},adopter:{collision:"refused-without-write",interruption:"rolled-back",rollback:"byte-identical",provenance:"preserved"},contentMigration:{workspaceDistinct:true,newerSceneDowngrade:"unsupported-preserved"},publication:false}' >"$out/qualification.json"
-echo "svg-authoring-candidate: passed; evidence=$out/qualification.json"
+jq -e '.result=="passed" and .process.name=="orca" and (.process.pid|type)=="number" and .composition=="generated-svg-studio" and .keyboard.selection=="passed" and .keyboard.properties=="passed" and .keyboard.validationFeedback=="passed" and .workspace.mode=="passed" and .workspace.palette=="passed" and .workspace.help=="passed" and .workspace.rebind=="passed" and .workspace.focusRestoration=="passed"' "$SVG_SCENE_ORCA_OBSERVATION" >/dev/null
+jq -n --slurpfile p "$out/candidate-packet.json" --slurpfile c "$out/chromium.json" --slurpfile f "$out/firefox.json" --slurpfile w "$out/webkit.json" --slurpfile cp "$out/chromium-player.json" --slurpfile fp "$out/firefox-player.json" --slurpfile wp "$out/webkit-player.json" --arg orca "$(sha256sum "$SVG_SCENE_ORCA_OBSERVATION"|cut -d' ' -f1)" '{schema:"fsgg.svg-input.template-qualification/v1",candidate:$p[0],routes:{direct:"passed",defaultUnselected:"passed",sdd17:{none:"passed",omittedDefault:"passed",typedProfile2:"passed"},wizard0111Adopter:"passed",retained011:"passed",retained010Staged:"passed"},browser:{chromium:$c[0],firefox:$f[0],webkit:$w[0],player:{chromium:$cp[0],firefox:$fp[0],webkit:$wp[0]},orcaSha256:$orca},adopter:{collision:"refused-without-write",interruption:"rolled-back",rollback:"byte-identical",provenance:"preserved"},contentMigration:{workspaceDistinct:true,newerSceneDowngrade:"unsupported-preserved"},publication:false}' >"$out/qualification.json"
+echo "svg-input-candidate: passed; evidence=$out/qualification.json"

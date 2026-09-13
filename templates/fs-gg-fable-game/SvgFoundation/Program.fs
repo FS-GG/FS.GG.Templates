@@ -5,6 +5,10 @@ open Browser.Types
 open FS.GG.UI.Scene
 open FS.GG.UI.Scene.SvgBrowser
 open FableGameWorkspaceNamespace.TacticalCompatibility
+#if SVG_INPUT_CANDIDATE
+open FS.GG.UI.KeyboardInput
+module GameInput = FableGameWorkspaceNamespace.SvgFoundation.PlayerInput
+#endif
 
 let private color red green blue =
     { Red = red; Green = green; Blue = blue; Alpha = 255uy }
@@ -106,8 +110,46 @@ requireTransition "tactical selection"
 requireTransition "tactical focus"
     (tacticalCompatibilityHost.Dispatch(RetainedInteractionMessage.FocusNext 41))
 
+#if SVG_INPUT_CANDIDATE
+let private playerInputScope: HTMLElement = document.getElementById("foundation-tactical-compatibility-host")
+playerInputScope.setAttribute("tabindex", "-1")
+let private playerInputStatus = document.createElement("output")
+playerInputStatus.id <- "foundation-player-input-status"
+playerInputStatus.setAttribute("aria-live", "polite")
+playerInputStatus.setAttribute("hidden", "")
+playerInputScope.appendChild(playerInputStatus) |> ignore
+
+let private dispatchGameCommand command =
+    let revision = tacticalCompatibilityHost.State.Scene.Revision
+    let result =
+        match command with
+        | "game.focus-next" -> tacticalCompatibilityHost.Dispatch(RetainedInteractionMessage.FocusNext revision) |> Some
+        | "game.focus-previous" -> tacticalCompatibilityHost.Dispatch(RetainedInteractionMessage.FocusPrevious revision) |> Some
+        | "game.activate" ->
+            tacticalCompatibilityHost.State.FocusedObjectId
+            |> Option.map (fun id -> tacticalCompatibilityHost.Dispatch(RetainedInteractionMessage.Select(revision, id)))
+        | _ -> None
+    match result with
+    | Some accepted when accepted.Error.IsNone ->
+        playerInputScope.setAttribute("data-last-game-command", command)
+        playerInputStatus.textContent <- "Accepted " + command
+    | _ -> ()
+
+let private playerInputHost =
+    new SvgInputHost(
+        playerInputScope,
+        GameInput.catalog,
+        CommandResolver.init [ "game.play" ] GameInput.effective,
+        (fun () -> GameInput.catalog.Commands |> List.map _.Id),
+        (function CommandResolverEffect.InvokeCommand value -> dispatchGameCommand value.Command | _ -> ()),
+        SvgInputHost.defaultOptions)
+#endif
+
 // Keep the mounted hosts alive for the lifetime of the generated sample.
 window.addEventListener("beforeunload", fun _ ->
+#if SVG_INPUT_CANDIDATE
+    (playerInputHost :> System.IDisposable).Dispose()
+#endif
     (gridHost :> System.IDisposable).Dispose()
     (continuousHost :> System.IDisposable).Dispose()
     (tacticalCompatibilityHost :> System.IDisposable).Dispose()
