@@ -21,6 +21,10 @@ test -f "$out/direct/SvgFoundation/Studio/Studio.fsproj"
 grep -F ">0.30.0</FsGgSvgInputVersion>" "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null
 grep -F 'Version="[$(FsGgSvgInputVersion)]"' "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null
 grep -F "$rendering_version" "$out/direct/SvgFoundation/Studio/Studio.fsproj" >/dev/null
+grep -F '>false</FsGgSvgInputCandidate>' "$out/direct/SvgFoundation/Studio/Studio.fsproj" >/dev/null
+for flag in FsGgSvgInputCandidate FsGgSvgRuntimeCandidate FsGgSvgPresentCandidate; do
+  grep -F ">false</$flag>" "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null
+done
 
 dotnet tool install FS.GG.SDD.Cli --version 1.7.0 --tool-path "$out/tools/sdd" --configfile "$out/NuGet.Config" --no-cache >/dev/null
 sdd="$out/tools/sdd/fsgg-sdd"
