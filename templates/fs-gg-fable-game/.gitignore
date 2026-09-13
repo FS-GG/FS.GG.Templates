@@ -7,6 +7,10 @@ Client/output/
 Protocol.Tests/cross-runtime/CodecProbe.Fable/output/
 Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js
 Protocol.Tests/cross-runtime/CodecProbe.Fable/Protocol/
+SvgFoundation/Studio/output/
+SvgFoundation/Studio/dist/
+SvgFoundation/Studio/vendor/
+SvgFoundation/Studio/NuGet.candidate.generated.config
 Browser.Tests/test-results/
 Browser.Tests/playwright-report/
 Browser.Tests/blob-report/

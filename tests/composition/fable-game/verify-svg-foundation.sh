@@ -10,6 +10,8 @@ test ! -e "$work/default/SvgFoundation"
 DOTNET_CLI_HOME="$work/dotnet-home" dotnet new fs-gg-fable-game -n FoundationFixture -o "$work/selected" --svgFoundation true >/dev/null
 test -f "$work/selected/SvgFoundation/Program.fs"
 test -f "$work/selected/SvgFoundation/TacticalCompatibility.fs"
+test -f "$work/selected/SvgFoundation/Studio/Studio.fsproj"
+test -f "$work/selected/SvgFoundation/Studio/SceneSchema.fs"
 cat > "$work/NuGet.Config" <<CONFIG
 <configuration><packageSources><clear/><add key="nuget" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>
 CONFIG

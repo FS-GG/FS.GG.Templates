@@ -22,3 +22,25 @@ OFL-1.1; its exact identity and license are recorded in `THIRD-PARTY-NOTICES.md`
 Restore this project from NuGet.org using the exact public `0.29.0` packages. The default template
 remains the supported arena sample. Templates publication, installed receiver qualification, and
 default activation remain later SVG-PREVIEW-A operations.
+
+## Authoring candidate
+
+`Studio/` is a separately compiled and served authoring entry. It consumes the generic Rendering
+scene descriptors and mounts `SvgStudio`; the player `Program.fs` does not import studio or geometry
+modules. An exact candidate packet supplies the Rendering archives and replaces only the internal
+`FsGgSvgAuthoringVersion` seam. After restoring from that packet's isolated feed:
+
+```bash
+bash SvgFoundation/Studio/build.sh
+./Client/node_modules/.bin/vite --config SvgFoundation/Studio/vite.config.js
+```
+
+The build adapter extracts the geometry worker, npm lock, verified Noto bytes and manifest from the
+restored `FS.GG.UI.Scene.SvgBrowser` archive into ignored output. There is no checked-in worker,
+font, or polygon-clipping implementation. The generated controls use neutral sample descriptors;
+terrain rules, traversal, collision and gameplay meaning remain product-owned.
+
+Scene-file migration is separate from workspace adoption. `fsgg.svg-document/1` and asset-catalog
+v1 values can be wrapped through `SvgScene.migrateLegacy`; preserve the originals and exports.
+Package rollback restores managed workspace files only. It never downgrades or deletes authored
+`fsgg.svg-scene/1` content, and an older consumer must report that format as unsupported.

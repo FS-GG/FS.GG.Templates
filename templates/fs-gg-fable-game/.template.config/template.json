@@ -33,7 +33,7 @@
       "type": "parameter",
       "datatype": "bool",
       "defaultValue": "false",
-      "description": "Include the opt-in retained SVG Preview-A fixture. This candidate path requires a feed containing the coherent FS.GG.UI.Scene, FS.GG.UI.KeyboardInput, and FS.GG.UI.Scene.SvgBrowser 0.29.0-preview.1 candidates."
+      "description": "Include the opt-in retained SVG player fixture and separate studio source. Public 0.11.0 behavior remains Preview-A; an authoring candidate requires an exact staged Rendering packet."
     },
     "lifecycle": {
       "type": "parameter",
