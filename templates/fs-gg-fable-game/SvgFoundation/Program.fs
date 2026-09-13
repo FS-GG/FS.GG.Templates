@@ -9,6 +9,10 @@ open FableGameWorkspaceNamespace.TacticalCompatibility
 open FS.GG.UI.KeyboardInput
 module GameInput = FableGameWorkspaceNamespace.SvgFoundation.PlayerInput
 #endif
+#if SVG_RUNTIME_CANDIDATE
+open FS.GG.Game.Core
+module ContinuousPlayer = FableGameWorkspaceNamespace.SvgFoundation.ContinuousPlayer
+#endif
 
 let private color red green blue =
     { Red = red; Green = green; Blue = blue; Alpha = 255uy }
@@ -78,7 +82,13 @@ let private mount id label scene =
     | Error error -> failwithf "SVG foundation fixture failed to mount: %A" error
 
 let gridHost = mount "foundation-grid-host" "Neutral grid fixture" gridScene
+#if SVG_RUNTIME_CANDIDATE
+let private initialPlayerRuntime = ContinuousPlayer.initialize ()
+let continuousHost =
+    mount "foundation-continuous-host" "Generated continuous SVG game" (ContinuousPlayer.scene 1 initialPlayerRuntime.Current)
+#else
 let continuousHost = mount "foundation-continuous-host" "Neutral continuous-coordinate fixture" continuousScene
+#endif
 let tacticalCompatibilityHost =
     mount "foundation-tactical-compatibility-host" "Disclosed tactical compatibility fixture" tacticalCompatibilityScene
 
@@ -111,7 +121,12 @@ requireTransition "tactical focus"
     (tacticalCompatibilityHost.Dispatch(RetainedInteractionMessage.FocusNext 41))
 
 #if SVG_INPUT_CANDIDATE
-let private playerInputScope: HTMLElement = document.getElementById("foundation-tactical-compatibility-host")
+let private playerInputScope: HTMLElement =
+#if SVG_RUNTIME_CANDIDATE
+    document.getElementById("foundation-continuous-host")
+#else
+    document.getElementById("foundation-tactical-compatibility-host")
+#endif
 playerInputScope.setAttribute("tabindex", "-1")
 let private playerInputStatus = document.createElement("output")
 playerInputStatus.id <- "foundation-player-input-status"
@@ -119,6 +134,89 @@ playerInputStatus.setAttribute("aria-live", "polite")
 playerInputStatus.setAttribute("hidden", "")
 playerInputScope.appendChild(playerInputStatus) |> ignore
 
+#if SVG_RUNTIME_CANDIDATE
+let mutable private playerRuntime = initialPlayerRuntime
+let mutable private playerSequence = 0UL
+let mutable private presentationRevision = 1UL
+let mutable private sessionHost: SvgSessionHost<ContinuousPlayer.PlayerState> option = None
+
+let private updatePlayer observation =
+    let next, _ = SessionRuntime.update ContinuousPlayer.contract observation playerRuntime
+    playerRuntime <- next
+
+let private describePlayer (revision: uint64) (state: ContinuousPlayer.PlayerState) =
+    let outcome =
+        match state.Outcome with
+        | ContinuousPlayer.PlayerOutcome.Playing -> "playing"
+        | ContinuousPlayer.PlayerOutcome.Won -> "won"
+        | ContinuousPlayer.PlayerOutcome.Lost -> "lost"
+    playerInputScope.setAttribute("data-player-revision", string revision)
+    playerInputScope.setAttribute("data-player-x", string state.Player.X)
+    playerInputScope.setAttribute("data-player-y", string state.Player.Y)
+    playerInputScope.setAttribute("data-player-health", string state.Health)
+    playerInputScope.setAttribute("data-player-score", string state.Score)
+    playerInputScope.setAttribute("data-player-outcome", outcome)
+
+let private callbacks =
+    { AdvanceElapsed = fun elapsed -> updatePlayer (SessionRuntimeObservation.AdvanceElapsed elapsed)
+      Pause = fun () -> updatePlayer SessionRuntimeObservation.Pause
+      Resume = fun () -> updatePlayer SessionRuntimeObservation.Resume
+      StepOnce = fun () -> updatePlayer SessionRuntimeObservation.StepOnce
+      Reset = fun () -> updatePlayer SessionRuntimeObservation.Reset
+      RequestRecovery = fun _ -> window.setTimeout((fun () -> sessionHost |> Option.iter _.Resume()), 0) |> ignore
+      RequestProjection = fun generation ->
+          presentationRevision <- presentationRevision + 1UL
+          sessionHost |> Option.iter (fun host -> host.CompleteProjection(generation, presentationRevision, playerRuntime.Current))
+      ApplyProjection = fun revision projection ->
+          requireTransition "continuous projection" (continuousHost.Dispatch(RetainedInteractionMessage.ReplaceScene(ContinuousPlayer.scene (int revision) projection)))
+          describePlayer revision projection
+      CancelGeneration = ignore
+      Replace = ignore
+      Dispose = fun () -> () }
+
+let private playerSessionHost = new SvgSessionHost<ContinuousPlayer.PlayerState>(callbacks, SvgSessionHost.defaultConfig)
+sessionHost <- Some playerSessionHost
+describePlayer presentationRevision playerRuntime.Current
+
+let private submit commandId command =
+    playerSequence <- playerSequence + 1UL
+    updatePlayer
+        (SessionRuntimeObservation.AdmitInput
+            { SessionId = "generated-player"; InputId = commandId; Sequence = playerSequence; Value = command })
+    playerSessionHost.DemandProjection()
+
+let private dispatchGameCommand command =
+    match command with
+    | "game.move-up" -> submit command (ContinuousPlayer.PlayerCommand.Move(0.0, -3.0))
+    | "game.move-down" -> submit command (ContinuousPlayer.PlayerCommand.Move(0.0, 3.0))
+    | "game.move-left" -> submit command (ContinuousPlayer.PlayerCommand.Move(-3.0, 0.0))
+    | "game.move-right" -> submit command (ContinuousPlayer.PlayerCommand.Move(3.0, 0.0))
+    | "game.stop" -> submit command ContinuousPlayer.PlayerCommand.Stop
+    | "game.pause" ->
+        if playerSessionHost.Observe().Status = SvgSessionStatus.Running then playerSessionHost.Pause()
+        else playerSessionHost.Resume()
+    | "game.step" -> playerSessionHost.StepOnce()
+    | "game.reset"
+    | "game.restart" -> playerSessionHost.Reset()
+    | "game.win" -> submit command ContinuousPlayer.PlayerCommand.Collect
+    | "game.lose" -> submit command ContinuousPlayer.PlayerCommand.Damage
+    | _ -> ()
+    playerInputScope.setAttribute("data-last-game-command", command)
+    playerInputStatus.textContent <- "Accepted " + command
+
+let private addControl action label =
+    let control = document.createElement("span")
+    control.textContent <- label
+    control.setAttribute("data-fsgg-input-action", action)
+    control.setAttribute("role", "button")
+    control.setAttribute("tabindex", "0")
+    playerInputScope.appendChild(control) |> ignore
+
+for action, label in
+    [ "move-right", "Move right"; "move-left", "Move left"; "pause", "Pause or resume"
+      "step", "Single step"; "reset", "Reset"; "win", "Win"; "lose", "Take damage"; "restart", "Restart" ] do
+    addControl action label
+#else
 let private dispatchGameCommand command =
     let revision = tacticalCompatibilityHost.State.Scene.Revision
     let result =
@@ -134,6 +232,7 @@ let private dispatchGameCommand command =
         playerInputScope.setAttribute("data-last-game-command", command)
         playerInputStatus.textContent <- "Accepted " + command
     | _ -> ()
+#endif
 
 let private playerInputHost =
     new SvgInputHost(
@@ -143,12 +242,22 @@ let private playerInputHost =
         (fun () -> GameInput.catalog.Commands |> List.map _.Id),
         (function CommandResolverEffect.InvokeCommand value -> dispatchGameCommand value.Command | _ -> ()),
         SvgInputHost.defaultOptions)
+#if SVG_RUNTIME_CANDIDATE
+let private refreshGamepads (_: Event) =
+    playerInputHost.PollGamepadsOnce()
+    playerInputScope.setAttribute("data-gamepad-active-sources", string (playerInputHost.Observe().OwnedSourceCount))
+window.addEventListener("gamepadconnected", refreshGamepads)
+#endif
 #endif
 
 // Keep the mounted hosts alive for the lifetime of the generated sample.
 window.addEventListener("beforeunload", fun _ ->
 #if SVG_INPUT_CANDIDATE
     (playerInputHost :> System.IDisposable).Dispose()
+#if SVG_RUNTIME_CANDIDATE
+    window.removeEventListener("gamepadconnected", refreshGamepads)
+    (playerSessionHost :> System.IDisposable).Dispose()
+#endif
 #endif
     (gridHost :> System.IDisposable).Dispose()
     (continuousHost :> System.IDisposable).Dispose()

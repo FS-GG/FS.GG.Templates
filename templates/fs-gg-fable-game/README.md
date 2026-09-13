@@ -55,6 +55,13 @@ docks, palette/help/rebind flows, and keyboard, pointer, touch and gamepad route
 profile. Public `0.11.0` and Rendering `0.29.0` pins remain unchanged until Preview-B publishes a
 coherent set.
 
+The SVG runtime candidate replaces the static continuous fixture with a Game.Core fixed-step session,
+the Game-owned kinematic collision adapter, Rendering's disposable browser clock, and monotonic retained
+scene replacement. `W/A/S/D`, the generated pointer and touch controls, and Gamepad button 0 all resolve
+through the same command catalog. Pause/resume, single-step, reset, win, lose, and restart update the
+authority state whose projection is rendered; the separately bundled Studio is never linked into the
+player output.
+
 The realtime baseline has four deliberately small but production-relevant rules:
 
 - Bootstrap issues an opaque session capability. The hub URL carries neither player
