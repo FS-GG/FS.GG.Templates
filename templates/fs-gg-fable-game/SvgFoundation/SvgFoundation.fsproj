@@ -5,14 +5,18 @@
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
     <RestoreLockedMode>false</RestoreLockedMode>
     <FsGgSvgInputVersion Condition="'$(FsGgSvgInputVersion)' == ''">0.29.0</FsGgSvgInputVersion>
+    <FsGgGameRuntimeVersion Condition="'$(FsGgGameRuntimeVersion)' == ''">0.14.0</FsGgGameRuntimeVersion>
     <FsGgSvgInputCandidate Condition="'$(FsGgSvgInputCandidate)' == ''">false</FsGgSvgInputCandidate>
+    <FsGgSvgRuntimeCandidate Condition="'$(FsGgSvgRuntimeCandidate)' == ''">false</FsGgSvgRuntimeCandidate>
     <DefineConstants Condition="'$(FsGgSvgInputCandidate)' == 'true'">$(DefineConstants);SVG_INPUT_CANDIDATE</DefineConstants>
+    <DefineConstants Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'">$(DefineConstants);SVG_RUNTIME_CANDIDATE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="TacticalCompatibility.fs" />
     <Compile Include="PreviewFont.fs" />
     <Compile Include="PreviewDocument.fs" />
     <Compile Include="PlayerInput.fs" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
+    <Compile Include="ContinuousPlayer.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
@@ -21,5 +25,6 @@
     <PackageReference Include="FS.GG.UI.Scene" Version="[$(FsGgSvgInputVersion)]" />
     <PackageReference Include="FS.GG.UI.Scene.SvgBrowser" Version="[$(FsGgSvgInputVersion)]" />
     <PackageReference Include="FS.GG.UI.KeyboardInput" Version="[$(FsGgSvgInputVersion)]" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
+    <PackageReference Include="FS.GG.Game.Core" Version="[$(FsGgGameRuntimeVersion)]" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'" />
   </ItemGroup>
 </Project>

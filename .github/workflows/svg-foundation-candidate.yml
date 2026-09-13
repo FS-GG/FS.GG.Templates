@@ -15,16 +15,22 @@ on:
       - 'tests/composition/fable-game/svg-input-observe.mjs'
       - 'tests/composition/fable-game/svg-player-input-observe.mjs'
       - 'tests/composition/fable-game/verify-svg-input-candidate.sh'
+      - 'tests/composition/fable-game/svg-runtime-player-observe.mjs'
+      - 'tests/composition/fable-game/verify-svg-runtime-candidate.sh'
       - 'tests/composition/fable-game/observe-svg-input-orca.sh'
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'scripts/stage-svg-authoring-candidate.sh'
       - 'scripts/stage-rendering-authoring-packet.sh'
       - 'scripts/stage-svg-input-candidate.sh'
       - 'scripts/stage-rendering-input-packet.sh'
+      - 'scripts/stage-game-runtime-packet.sh'
+      - 'scripts/stage-rendering-runtime-packet.sh'
+      - 'scripts/stage-svg-runtime-candidate.sh'
       - 'scripts/apply-svg-foundation-preview.sh'
       - 'scripts/svg-foundation-preview-baseline.manifest'
       - 'docs/reports/2026-09-12-svg-scene-02-preview-a-handoff.md'
       - 'docs/reports/2026-09-13-svg-input-candidate.md'
+      - 'docs/reports/2026-09-13-svg-runtime-candidate.md'
       - '.github/workflows/svg-foundation-candidate.yml'
   push:
     branches: [main]
@@ -41,16 +47,22 @@ on:
       - 'tests/composition/fable-game/svg-input-observe.mjs'
       - 'tests/composition/fable-game/svg-player-input-observe.mjs'
       - 'tests/composition/fable-game/verify-svg-input-candidate.sh'
+      - 'tests/composition/fable-game/svg-runtime-player-observe.mjs'
+      - 'tests/composition/fable-game/verify-svg-runtime-candidate.sh'
       - 'tests/composition/fable-game/observe-svg-input-orca.sh'
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'scripts/stage-svg-authoring-candidate.sh'
       - 'scripts/stage-rendering-authoring-packet.sh'
       - 'scripts/stage-svg-input-candidate.sh'
       - 'scripts/stage-rendering-input-packet.sh'
+      - 'scripts/stage-game-runtime-packet.sh'
+      - 'scripts/stage-rendering-runtime-packet.sh'
+      - 'scripts/stage-svg-runtime-candidate.sh'
       - 'scripts/apply-svg-foundation-preview.sh'
       - 'scripts/svg-foundation-preview-baseline.manifest'
       - 'docs/reports/2026-09-12-svg-scene-02-preview-a-handoff.md'
       - 'docs/reports/2026-09-13-svg-input-candidate.md'
+      - 'docs/reports/2026-09-13-svg-runtime-candidate.md'
       - '.github/workflows/svg-foundation-candidate.yml'
 
 jobs:
@@ -203,5 +215,70 @@ jobs:
             ${{ runner.temp }}/svg-input-qualification/qualification.json
             ${{ runner.temp }}/svg-input-qualification/*.json
             ${{ runner.temp }}/svg-input-qualification/*.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  runtime-candidate:
+    name: Exact generated runtime candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout exact Templates candidate
+        uses: actions/checkout@v7
+        with:
+          path: templates
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout accepted Rendering source
+        uses: actions/checkout@v7
+        with:
+          repository: FS-GG/FS.GG.Rendering
+          ref: 50bb064c8acb0251a469ca406d193551f8e209d1
+          path: rendering
+      - name: Checkout accepted Game source
+        uses: actions/checkout@v7
+        with:
+          repository: FS-GG/FS.GG.Game
+          ref: c6de5b83eaa3d3f14909b42c3f8c3c94558157c9
+          path: game
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.400'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install browser and assistive-technology hosts
+        working-directory: templates/templates/fs-gg-fable-game/Browser.Tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox webkit
+          sudo apt-get update
+          sudo apt-get install --yes dbus-x11 gettext gir1.2-atspi-2.0 itstool libatspi2.0-dev libgtk-3-dev meson ninja-build openbox orca python-gi-dev python3-dasbus python3-dev python3-gi python3-speechd speech-dispatcher-espeak-ng xdotool xvfb
+      - name: Stage exact producer packets
+        working-directory: templates
+        run: |
+          rendering_version="0.30.0-svg-runtime.1.50bb064c.ci${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          game_version="0.15.0-svg-runtime.1.c6de5b83.ci${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          bash scripts/stage-rendering-runtime-packet.sh "$GITHUB_WORKSPACE/rendering" "$RUNNER_TEMP/rendering-runtime" "$rendering_version"
+          bash scripts/stage-game-runtime-packet.sh "$GITHUB_WORKSPACE/game" "$RUNNER_TEMP/game-runtime" "$game_version"
+      - name: Qualify installed generated runtime composition
+        working-directory: templates
+        run: |
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" bash tests/composition/fable-game/verify-svg-runtime-candidate.sh \
+            "$RUNNER_TEMP/rendering-runtime" "$RUNNER_TEMP/game-runtime" "$RUNNER_TEMP/svg-runtime-qualification"
+      - name: Upload exact runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: svg-runtime-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/rendering-runtime/manifest.json
+            ${{ runner.temp }}/rendering-runtime/packages/*.nupkg
+            ${{ runner.temp }}/game-runtime/manifest.json
+            ${{ runner.temp }}/game-runtime/packages/*.nupkg
+            ${{ runner.temp }}/svg-runtime-qualification/candidate-packet.json
+            ${{ runner.temp }}/svg-runtime-qualification/qualification.json
+            ${{ runner.temp }}/svg-runtime-qualification/*.json
+            ${{ runner.temp }}/svg-runtime-qualification/*.log
           if-no-files-found: warn
           retention-days: 14

@@ -6,6 +6,7 @@ files=(
   SvgFoundation/PreviewFont.fs
   SvgFoundation/PreviewDocument.fs
   SvgFoundation/PlayerInput.fs
+  SvgFoundation/ContinuousPlayer.fs
   SvgFoundation/README.md
   SvgFoundation/THIRD-PARTY-NOTICES.md
   SvgFoundation/fonts/noto-sans-latin-400-normal.woff2
@@ -94,6 +95,13 @@ if [[ ! -e "$source_payload/SvgFoundation/PlayerInput.fs" ]]; then
     esac
   done
   files=("${without_player_runtime[@]}")
+fi
+if [[ ! -e "$source_payload/SvgFoundation/ContinuousPlayer.fs" ]]; then
+  without_continuous_runtime=()
+  for path in "${files[@]}"; do
+    [[ "$path" == SvgFoundation/ContinuousPlayer.fs ]] || without_continuous_runtime+=("$path")
+  done
+  files=("${without_continuous_runtime[@]}")
 fi
 
 declare -A expected
