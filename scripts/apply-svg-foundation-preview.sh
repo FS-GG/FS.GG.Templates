@@ -101,8 +101,8 @@ for path in "${files[@]}"; do
 import hashlib,re,sys
 text=open(sys.argv[1]).read()
 match=re.search(r'^module ([A-Za-z_][A-Za-z0-9_.]*?)(?:\.SvgFoundation|\.PreviewDocument$|\.PreviewFont$|\.TacticalCompatibility(?:Tests)?$)',text,re.M)
-if not match: raise SystemExit('managed F# module namespace is unreadable')
-print(hashlib.sha256(text.replace(match.group(1),'FableGameWorkspaceNamespace').encode()).hexdigest())
+normalized=text if not match else text.replace(match.group(1),'FableGameWorkspaceNamespace')
+print(hashlib.sha256(normalized.encode()).hexdigest())
 PY
 )"
     else
