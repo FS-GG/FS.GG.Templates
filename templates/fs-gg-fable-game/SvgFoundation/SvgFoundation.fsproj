@@ -9,10 +9,12 @@
     <FsGgSvgInputCandidate Condition="'$(FsGgSvgInputCandidate)' == ''">true</FsGgSvgInputCandidate>
     <FsGgSvgRuntimeCandidate Condition="'$(FsGgSvgRuntimeCandidate)' == ''">true</FsGgSvgRuntimeCandidate>
     <FsGgSvgPresentCandidate Condition="'$(FsGgSvgPresentCandidate)' == ''">true</FsGgSvgPresentCandidate>
+    <FsGgSvgScaleCandidate Condition="'$(FsGgSvgScaleCandidate)' == ''">false</FsGgSvgScaleCandidate>
     <FsGgAudioPresentVersion Condition="'$(FsGgAudioPresentVersion)' == ''">0.6.0</FsGgAudioPresentVersion>
     <DefineConstants Condition="'$(FsGgSvgInputCandidate)' == 'true'">$(DefineConstants);SVG_INPUT_CANDIDATE</DefineConstants>
     <DefineConstants Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'">$(DefineConstants);SVG_RUNTIME_CANDIDATE</DefineConstants>
     <DefineConstants Condition="'$(FsGgSvgPresentCandidate)' == 'true'">$(DefineConstants);SVG_PRESENT_CANDIDATE</DefineConstants>
+    <DefineConstants Condition="'$(FsGgSvgScaleCandidate)' == 'true'">$(DefineConstants);SVG_SCALE_CANDIDATE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="TacticalCompatibility.fs" />
@@ -21,6 +23,7 @@
     <Compile Include="PlayerInput.fs" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
     <Compile Include="ContinuousPlayer.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'" />
     <Compile Include="PresentationPlayer.fs" Condition="'$(FsGgSvgPresentCandidate)' == 'true'" />
+    <Compile Include="ScalePlayer.fs" Condition="'$(FsGgSvgScaleCandidate)' == 'true'" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

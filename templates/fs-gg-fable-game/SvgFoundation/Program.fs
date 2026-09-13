@@ -2,6 +2,7 @@ module FableGameWorkspaceNamespace.SvgFoundation
 
 open Browser.Dom
 open Browser.Types
+open Fable.Core.JsInterop
 open FS.GG.UI.Scene
 open FS.GG.UI.Scene.SvgBrowser
 open FableGameWorkspaceNamespace.TacticalCompatibility
@@ -16,6 +17,9 @@ module ContinuousPlayer = FableGameWorkspaceNamespace.SvgFoundation.ContinuousPl
 #if SVG_PRESENT_CANDIDATE
 open FS.GG.Audio.Core
 open FS.GG.Audio.WebBrowser
+#endif
+#if SVG_SCALE_CANDIDATE
+module ScalePlayer = FableGameWorkspaceNamespace.SvgFoundation.ScalePlayer
 #endif
 
 let private color red green blue =
@@ -95,6 +99,11 @@ let continuousHost = mount "foundation-continuous-host" "Neutral continuous-coor
 #endif
 let tacticalCompatibilityHost =
     mount "foundation-tactical-compatibility-host" "Disclosed tactical compatibility fixture" tacticalCompatibilityScene
+
+#if SVG_SCALE_CANDIDATE
+ScalePlayer.mount ()
+window?svgGeneratedScale <- createObj [ "snapshot" ==> ScalePlayer.snapshot; "dispose" ==> ScalePlayer.dispose ]
+#endif
 
 let previewContainer = document.createElement("section")
 previewContainer.id <- "foundation-preview-document-host"
@@ -433,6 +442,9 @@ window.addEventListener("gamepadconnected", refreshGamepads)
 
 // Keep the mounted hosts alive for the lifetime of the generated sample.
 window.addEventListener("beforeunload", fun _ ->
+#if SVG_SCALE_CANDIDATE
+    ScalePlayer.dispose ()
+#endif
 #if SVG_INPUT_CANDIDATE
     (playerInputHost :> System.IDisposable).Dispose()
 #if SVG_RUNTIME_CANDIDATE
