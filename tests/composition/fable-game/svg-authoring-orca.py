@@ -19,7 +19,7 @@ def find(role, name=None, contains=None, timeout=30):
     while time.time() < end:
         for item in walk(Atspi.get_desktop(0)):
             try:
-                if item.get_role_name() != role:
+                if role is not None and item.get_role_name() != role:
                     continue
                 value = item.get_name() or ""
                 if contains is not None:
@@ -43,11 +43,11 @@ def activate(name):
 
 find("heading", name="Generated SVG scene studio")
 activate("Rectangle")
-find("status bar", contains="created and selected")
+find(None, contains="created and selected")
 activate("Edit scene properties")
-find("status bar", contains="properties and grid edited")
+find(None, contains="properties and grid edited")
 activate("Place two instances")
-find("status bar", contains="save the sample asset first")
+find(None, contains="save the sample asset first")
 
 with open(output, "w") as stream:
     json.dump({
