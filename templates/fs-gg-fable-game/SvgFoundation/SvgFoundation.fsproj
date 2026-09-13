@@ -4,17 +4,22 @@
     <TargetFramework>net10.0</TargetFramework>
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
     <RestoreLockedMode>false</RestoreLockedMode>
+    <FsGgSvgInputVersion Condition="'$(FsGgSvgInputVersion)' == ''">0.29.0</FsGgSvgInputVersion>
+    <FsGgSvgInputCandidate Condition="'$(FsGgSvgInputCandidate)' == ''">false</FsGgSvgInputCandidate>
+    <DefineConstants Condition="'$(FsGgSvgInputCandidate)' == 'true'">$(DefineConstants);SVG_INPUT_CANDIDATE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="TacticalCompatibility.fs" />
     <Compile Include="PreviewFont.fs" />
     <Compile Include="PreviewDocument.fs" />
+    <Compile Include="PlayerInput.fs" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Fable.Core" Version="[5.2.0]" />
     <PackageReference Include="Fable.Browser.Dom" Version="[2.20.0]" />
-    <PackageReference Include="FS.GG.UI.Scene" Version="[0.29.0]" />
-    <PackageReference Include="FS.GG.UI.Scene.SvgBrowser" Version="[0.29.0]" />
+    <PackageReference Include="FS.GG.UI.Scene" Version="[$(FsGgSvgInputVersion)]" />
+    <PackageReference Include="FS.GG.UI.Scene.SvgBrowser" Version="[$(FsGgSvgInputVersion)]" />
+    <PackageReference Include="FS.GG.UI.KeyboardInput" Version="[$(FsGgSvgInputVersion)]" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
   </ItemGroup>
 </Project>

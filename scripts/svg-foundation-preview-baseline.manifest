@@ -1,6 +1,7 @@
 e961a80254ca576e39889e85d21ee0be8517257c102d7068050872b568d81446  SvgFoundation/Program.fs
 ABSENT  SvgFoundation/PreviewFont.fs
 ABSENT  SvgFoundation/PreviewDocument.fs
+ABSENT  SvgFoundation/PlayerInput.fs
 e76560780660b84be4c69ce4d76e7a241e74dda8171645a83da4e119a05b2c6a  SvgFoundation/README.md
 ABSENT  SvgFoundation/THIRD-PARTY-NOTICES.md
 ABSENT  SvgFoundation/fonts/noto-sans-latin-400-normal.woff2
@@ -9,6 +10,8 @@ ABSENT  SvgFoundation/TacticalCompatibility.fs
 ABSENT  SvgFoundation/TacticalCompatibility.Tests.fs
 ABSENT  SvgFoundation/TacticalCompatibility.Tests.fsproj
 ABSENT  SvgFoundation/index.html
+ABSENT  SvgFoundation/vite.config.js
+ABSENT  SvgFoundation/build.sh
 # Public Templates 0.11.0 Preview-A managed bytes. Duplicate paths are intentional:
 # the adopter accepts this baseline and the staged 0.10.0 transition above.
 a0856855e3b1136ee09aa096f149f693855c63f00f5f9c55387d0c3515674cc8  SvgFoundation/Program.fs
@@ -23,6 +26,7 @@ ccb2f38de4a0a576a737424007e89ad8f35f0036594d078b4b6471288c6e56e4  SvgFoundation/
 cf3c17356bf282027508a076b25f88d444db855d4b3f50b49c88295328c1702e  SvgFoundation/TacticalCompatibility.Tests.fsproj
 848ced31aa0dde88882a9920198427f85a3c11b14c5e5a47aeb768992b07b189  SvgFoundation/index.html
 ABSENT  SvgFoundation/Studio/SceneSchema.fs
+ABSENT  SvgFoundation/Studio/WorkspaceInput.fs
 ABSENT  SvgFoundation/Studio/Program.fs
 ABSENT  SvgFoundation/Studio/SvgGeometryWorkerEntry.js
 ABSENT  SvgFoundation/Studio/Studio.fsproj
