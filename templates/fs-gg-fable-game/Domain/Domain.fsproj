@@ -12,6 +12,6 @@
          copied algorithm. Pathfinding.astar is the LockstepExact surface this
          authoritative server and the Fable client (see ../Client/Client.fsproj) both
          call, so movement resolution is identical on both runtimes by construction. -->
-    <PackageReference Include="FS.GG.Game.Core" Version="[0.13.0]" />
+    <PackageReference Include="FS.GG.Game.Core" Version="[$(FsGgGameVersion)]" />
   </ItemGroup>
 </Project>

@@ -40,7 +40,7 @@ module RoomAuthority =
 
     type private PendingInput =
         { PlayerId: string
-          Sequence: int
+          AcceptedOrder: uint64
           TargetCol: int
           TargetRow: int }
 
@@ -57,12 +57,19 @@ module RoomAuthority =
             state <- Room.create ArenaWidth ArenaHeight
             sessions.Clear()
             lastSequence.Clear()
-            pending.Clear())
+            pending.Clear()
+#if SVG_NETWORK_CANDIDATE
+            NetworkAuthority.reset (snapshotLocked ())
+#endif
+        )
 
     let private retirePlayerLocked (playerId: string) : unit =
         state <- Room.leave playerId state
         lastSequence.TryRemove playerId |> ignore
         pending.TryRemove playerId |> ignore
+#if SVG_NETWORK_CANDIDATE
+        NetworkAuthority.unbind playerId (snapshotLocked ())
+#endif
 
     let private pruneExpiredLocked (now: DateTimeOffset) : unit =
         sessions
@@ -109,6 +116,9 @@ module RoomAuthority =
                         { PlayerId = playerId
                           ConnectionId = None
                           ExpiresAt = Some(now.Add SessionLifetime) }
+#if SVG_NETWORK_CANDIDATE
+                    NetworkAuthority.bind playerId capability (uint64 state.Tick) (snapshotLocked ())
+#endif
                     Ok(capability, spawn))
 
     let createSession (playerId: string) : Result<string * Cell, AdmissionError> =
@@ -131,8 +141,16 @@ module RoomAuthority =
                 | Some _ ->
                     session.ConnectionId <- Some connectionId
                     session.ExpiresAt <- None
+#if SVG_NETWORK_CANDIDATE
+                    match NetworkAuthority.reconnect session.PlayerId capability (uint64 (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())) with
+                    | Error _ -> None
+                    | Ok _ ->
+                        let tick, players = snapshotLocked ()
+                        Some(session.PlayerId, tick, players)
+#else
                     let tick, players = snapshotLocked ()
                     Some(session.PlayerId, tick, players)
+#endif
             | _ -> None)
 
     /// Releases the transport binding and room presence. The capability remains valid
@@ -144,19 +162,43 @@ module RoomAuthority =
                 if pair.Value.PlayerId = playerId && pair.Value.ConnectionId = Some connectionId then
                     pair.Value.ConnectionId <- None
                     pair.Value.ExpiresAt <- Some(DateTimeOffset.UtcNow.Add SessionLifetime))
-            retirePlayerLocked playerId)
+#if SVG_NETWORK_CANDIDATE
+            NetworkAuthority.disconnect playerId (uint64 (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()))
+#else
+            retirePlayerLocked playerId
+#endif
+        )
 
     /// Queues the highest strictly-increasing input for this player. The accepted
     /// intent is not applied here: every queued player is resolved together at the
     /// next tick frontier in stable player/sequence order.
-    let submitInput (playerId: string) (sequence: int) (targetCol: int) (targetRow: int) : bool =
+    let submitInput (playerId: string) (capability: string) (sequence: int) (targetCol: int) (targetRow: int) : Result<uint64, string> =
         lock gate (fun () ->
+#if SVG_NETWORK_CANDIDATE
+            if sequence < 0 then Error "input sequence must be non-negative"
+            else
+                match NetworkAuthority.admit playerId capability (uint64 sequence) targetCol targetRow with
+                | Error issue -> Error issue
+                | Ok acceptedOrder ->
+                    pending.[playerId] <-
+                        { PlayerId = playerId
+                          AcceptedOrder = acceptedOrder
+                          TargetCol = targetCol
+                          TargetRow = targetRow }
+                    Ok acceptedOrder
+#else
             match lastSequence.TryGetValue playerId with
             | true, last when sequence > last ->
                 lastSequence.[playerId] <- sequence
-                pending.[playerId] <- { PlayerId = playerId; Sequence = sequence; TargetCol = targetCol; TargetRow = targetRow }
-                true
-            | _ -> false)
+                pending.[playerId] <-
+                    { PlayerId = playerId
+                      AcceptedOrder = uint64 sequence
+                      TargetCol = targetCol
+                      TargetRow = targetRow }
+                Ok(uint64 sequence)
+            | _ -> Error "input sequence is duplicate or stale"
+#endif
+        )
 
     let snapshot () : int * (string * int * int) list = lock gate snapshotLocked
 
@@ -166,10 +208,33 @@ module RoomAuthority =
     let resyncFrom (lastKnownTick: int) : Result<int * (string * int * int) list, string> =
         lock gate (fun () ->
             let tick, players = snapshotLocked ()
+#if SVG_NETWORK_CANDIDATE
+            match NetworkAuthority.resync (uint64 (max 0 lastKnownTick)) (uint64 tick) with
+            | NetworkResyncDecision.ClientAhead _ -> Error $"inconsistent resync cursor {lastKnownTick}; authoritative tick is {tick}"
+            | _ -> Ok(tick, players)
+#else
             if lastKnownTick < 0 || lastKnownTick > tick then
                 Error $"inconsistent resync cursor {lastKnownTick}; authoritative tick is {tick}"
             else
-                Ok(tick, players))
+                Ok(tick, players)
+#endif
+        )
+
+    let acknowledge (playerId: string) (revision: int) : Result<unit, string> =
+#if SVG_NETWORK_CANDIDATE
+        lock gate (fun () ->
+            if revision < 0 then Error "acknowledgement must be non-negative"
+            else NetworkAuthority.acknowledge playerId (uint64 revision))
+#else
+        Ok()
+#endif
+
+    let review () : string * string * int =
+#if SVG_NETWORK_CANDIDATE
+        lock gate NetworkAuthority.review
+#else
+        "", "", 0
+#endif
 
     /// Commits the complete input frontier deterministically, then advances time once.
     /// `ConcurrentDictionary` is only the admission buffer; its enumeration order is
@@ -179,12 +244,21 @@ module RoomAuthority =
             pruneExpiredLocked DateTimeOffset.UtcNow
             let frontier =
                 pending.Values
-                |> Seq.sortBy (fun input -> input.PlayerId, input.Sequence)
+                |> Seq.sortBy (fun input -> input.AcceptedOrder)
                 |> Seq.toList
             pending.Clear()
             for input in frontier do
                 match Room.planMove input.PlayerId { Col = input.TargetCol; Row = input.TargetRow } state with
-                | Some(_ :: next :: _) -> state <- Room.applyStep input.PlayerId next state
+                | Some(_ :: next :: _) ->
+                    state <- Room.applyStep input.PlayerId next state
+#if SVG_NETWORK_CANDIDATE
+                    NetworkAuthority.recordMove input.PlayerId { Col = input.TargetCol; Row = input.TargetRow } (snapshotLocked ())
+#endif
                 | _ -> ()
             state <- Room.advanceTick state
-            snapshotLocked ())
+            let snapshot = snapshotLocked ()
+#if SVG_NETWORK_CANDIDATE
+            NetworkAuthority.recordAdvance (uint64 state.Tick) snapshot
+            NetworkAuthority.publish (uint64 state.Tick) snapshot
+#endif
+            snapshot)

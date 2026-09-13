@@ -16,6 +16,11 @@ type GameHub() =
         | true, (:? string as value) -> Some value
         | _ -> None
 
+    let capability (hub: GameHub) : string option =
+        match hub.Context.Items.TryGetValue "sessionCapability" with
+        | true, (:? string as value) -> Some value
+        | _ -> None
+
     let snapshotMessage (tick, players) =
         let snapshot: RealtimeV1.Snapshot =
             { Version = 1
@@ -49,6 +54,7 @@ type GameHub() =
                     match RoomAuthority.activateSession hello.SessionCapability this.Context.ConnectionId with
                     | Some(playerId, tick, players) ->
                         this.Context.Items["playerId"] <- playerId
+                        this.Context.Items["sessionCapability"] <- hello.SessionCapability
                         do! this.Groups.AddToGroupAsync(this.Context.ConnectionId, RoomAuthority.RoomId)
                         do! this.Clients.Caller.SendAsync("Message", snapshotMessage (tick, players))
                         let presence: RealtimeV1.Presence = { Version = 1; PlayerId = playerId; Joined = true }
@@ -60,7 +66,12 @@ type GameHub() =
                 match binding this with
                 | None -> raise (HubException "session hello is required before input")
                 | Some playerId ->
-                    RoomAuthority.submitInput playerId input.Sequence input.TargetCol input.TargetRow |> ignore
+                    match capability this with
+                    | None -> raise (HubException "session capability is missing from the live binding")
+                    | Some token ->
+                        match RoomAuthority.submitInput playerId token input.Sequence input.TargetCol input.TargetRow with
+                        | Ok _ -> ()
+                        | Error issue -> raise (HubException(sprintf "input refused: %s" issue))
                     // Input acknowledgement is the next broadcast tick. Mutating or
                     // broadcasting here would make hub-arrival order a game rule.
             | Ok(RealtimeV1.ResyncRequestMessage request) when request.Version <> 1 ->

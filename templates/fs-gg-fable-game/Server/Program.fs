@@ -95,6 +95,15 @@ module Program =
         |> ignore
 
         app.MapHub<GameHub>("/hub/game") |> ignore
+#if SVG_NETWORK_CANDIDATE
+        app.MapGet(
+            "/api/review",
+            Func<IResult>(fun () ->
+                let accepted, replay, eventCount = RoomAuthority.review ()
+                Results.Json {| accepted = accepted; replay = replay; eventCount = eventCount |})
+        )
+        |> ignore
+#endif
         app.UseDefaultFiles() |> ignore
         app.UseStaticFiles() |> ignore
         app.MapFallbackToFile("index.html") |> ignore
