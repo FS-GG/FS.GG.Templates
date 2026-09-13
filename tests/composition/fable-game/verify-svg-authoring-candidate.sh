@@ -76,6 +76,9 @@ for receiver in public-11 public-10; do
 done
 [[ "$authored" == "$(sha256sum "$out/public-11/Domain/Room.fs" "$out/public-11/Client/App.fs")" ]]
 
+# The retained 0.10 exercise above intentionally replaced the installed public
+# template. Restore the wizard's pinned 0.11 provider identity before invoking it.
+dotnet new install "$out/feed/FS.GG.Workspace.Template.0.11.0.nupkg" --force >/dev/null
 dotnet tool install FS.GG.NewSddWorkspace --version 0.11.1 --tool-path "$out/tools/wizard" --configfile "$out/NuGet.Config" --no-cache >/dev/null
 PATH="$(dirname "$sdd"):$PATH" "$out/tools/wizard/new-sdd-workspace" "$out/wizard" WizardReceiver --template fable-game --lifecycle none --ref fs-gg-templates/v0.11.0 --pinned --no-governance --no-coordination >"$out/wizard.log"
 test ! -e "$out/wizard/SvgFoundation"
