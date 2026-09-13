@@ -4,7 +4,9 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/svg-authoring-source.XXXXXX")"
 trap 'rm -rf "$work"' EXIT
 dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$work" >/dev/null
-package="$work/FS.GG.Workspace.Template.0.11.0.nupkg"
+packages=("$work"/FS.GG.Workspace.Template.*.nupkg)
+[[ ${#packages[@]} -eq 1 && -f "${packages[0]}" ]]
+package="${packages[0]}"
 DOTNET_CLI_HOME="$work/home" dotnet new install "$package" --force >/dev/null
 DOTNET_CLI_HOME="$work/home" dotnet new fs-gg-fable-game -n Plain -o "$work/plain" >/dev/null
 DOTNET_CLI_HOME="$work/home" dotnet new fs-gg-fable-game -n Selected -o "$work/selected" --svgFoundation true >/dev/null
