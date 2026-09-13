@@ -51,7 +51,13 @@ dotnet new install "$out/feed/FS.GG.Workspace.Template.0.10.0.nupkg" --force >/d
 dotnet new fs-gg-fable-game -n PublicTen -o "$out/public-10" --lifecycle none >/dev/null
 # The combined manifest retains the established 0.10 Preview-A baseline and applies
 # its package/config transition before the additive Studio files in one transaction.
-tree_sha() { (cd "$1" && find . -type f -print0|sort -z|xargs -0 sha256sum|sha256sum|cut -d' ' -f1); }
+tree_sha() {
+  if [[ -d "$1" ]]; then
+    (cd "$1" && find . -type f -print0|sort -z|xargs -0 sha256sum|sha256sum|cut -d' ' -f1)
+  else
+    printf 'ABSENT\n'
+  fi
+}
 authored="$(sha256sum "$out/public-11/Domain/Room.fs" "$out/public-11/Client/App.fs")"
 cp -a "$out/public-11" "$out/collision"; printf '\nauthored collision\n' >>"$out/collision/SvgFoundation/Program.fs"; before="$(tree_sha "$out/collision")"
 if "$root/scripts/apply-svg-foundation-preview.sh" apply "$out/direct" "$out/collision" "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/collision-backup"; then exit 1; fi
