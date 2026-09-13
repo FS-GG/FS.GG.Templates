@@ -9,3 +9,23 @@ ABSENT  SvgFoundation/TacticalCompatibility.fs
 ABSENT  SvgFoundation/TacticalCompatibility.Tests.fs
 ABSENT  SvgFoundation/TacticalCompatibility.Tests.fsproj
 ABSENT  SvgFoundation/index.html
+# Public Templates 0.11.0 Preview-A managed bytes. Duplicate paths are intentional:
+# the adopter accepts this baseline and the staged 0.10.0 transition above.
+a0856855e3b1136ee09aa096f149f693855c63f00f5f9c55387d0c3515674cc8  SvgFoundation/Program.fs
+8fb512332d6440327d45d9dccb5e4f654d475c9c1405a4ce3602a4a2f4f2a442  SvgFoundation/PreviewFont.fs
+7259c2c042d2eb335c3364667a3f2915b1461cf1183e7bbf641a0e5d584055e1  SvgFoundation/PreviewDocument.fs
+3f118582c05b2f09aeda640170a5b9931bf7103046fbd882885fb19c0f585912  SvgFoundation/README.md
+dd1c91d9184ee0436f6aa1f05b925f2280e748627ccaadf4632097f097966af1  SvgFoundation/THIRD-PARTY-NOTICES.md
+09aee8065d25508f23a4c3d92cd777ac869c52d93fd868a88f025d888a7937d6  SvgFoundation/fonts/noto-sans-latin-400-normal.woff2
+8c4f9c7e94f7b535e0864c2ff0da6e03f57ad61fe416cabf5bf40b928a2c8f12  SvgFoundation/SvgFoundation.fsproj
+ccb2f38de4a0a576a737424007e89ad8f35f0036594d078b4b6471288c6e56e4  SvgFoundation/TacticalCompatibility.fs
+5543e9f3f8d83693520b884975e453e692ad7707f94bea02dfa23c738e6c405f  SvgFoundation/TacticalCompatibility.Tests.fs
+cf3c17356bf282027508a076b25f88d444db855d4b3f50b49c88295328c1702e  SvgFoundation/TacticalCompatibility.Tests.fsproj
+848ced31aa0dde88882a9920198427f85a3c11b14c5e5a47aeb768992b07b189  SvgFoundation/index.html
+ABSENT  SvgFoundation/Studio/SceneSchema.fs
+ABSENT  SvgFoundation/Studio/Program.fs
+ABSENT  SvgFoundation/Studio/SvgGeometryWorkerEntry.js
+ABSENT  SvgFoundation/Studio/Studio.fsproj
+ABSENT  SvgFoundation/Studio/index.html
+ABSENT  SvgFoundation/Studio/vite.config.js
+ABSENT  SvgFoundation/Studio/build.sh

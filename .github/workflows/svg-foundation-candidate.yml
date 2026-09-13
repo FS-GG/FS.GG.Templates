@@ -7,6 +7,13 @@ on:
       - 'tests/composition/fable-game/verify-svg-foundation.sh'
       - 'tests/composition/fable-game/verify-svg-preview-packet.sh'
       - 'tests/composition/fable-game/svg-preview-observe.mjs'
+      - 'tests/composition/fable-game/svg-authoring-observe.mjs'
+      - 'tests/composition/fable-game/verify-svg-authoring-source.sh'
+      - 'tests/composition/fable-game/verify-svg-authoring-candidate.sh'
+      - 'tests/composition/fable-game/observe-svg-authoring-orca.sh'
+      - 'tests/composition/fable-game/svg-authoring-orca.py'
+      - 'scripts/stage-svg-authoring-candidate.sh'
+      - 'scripts/stage-rendering-authoring-packet.sh'
       - 'scripts/apply-svg-foundation-preview.sh'
       - 'scripts/svg-foundation-preview-baseline.manifest'
       - 'docs/reports/2026-09-12-svg-scene-02-preview-a-handoff.md'
@@ -18,6 +25,13 @@ on:
       - 'tests/composition/fable-game/verify-svg-foundation.sh'
       - 'tests/composition/fable-game/verify-svg-preview-packet.sh'
       - 'tests/composition/fable-game/svg-preview-observe.mjs'
+      - 'tests/composition/fable-game/svg-authoring-observe.mjs'
+      - 'tests/composition/fable-game/verify-svg-authoring-source.sh'
+      - 'tests/composition/fable-game/verify-svg-authoring-candidate.sh'
+      - 'tests/composition/fable-game/observe-svg-authoring-orca.sh'
+      - 'tests/composition/fable-game/svg-authoring-orca.py'
+      - 'scripts/stage-svg-authoring-candidate.sh'
+      - 'scripts/stage-rendering-authoring-packet.sh'
       - 'scripts/apply-svg-foundation-preview.sh'
       - 'scripts/svg-foundation-preview-baseline.manifest'
       - 'docs/reports/2026-09-12-svg-scene-02-preview-a-handoff.md'
@@ -42,6 +56,8 @@ jobs:
           tests/composition/fable-game/verify-svg-foundation.sh \
             "$(find "$work" -maxdepth 1 -name '*.nupkg' -print -quit)" \
             "$work/qualification"
+      - name: Verify authoring composition and player isolation
+        run: bash tests/composition/fable-game/verify-svg-authoring-source.sh
       - name: Rehearse exact preview packet and retained adoption
         run: tests/composition/fable-game/verify-svg-preview-packet.sh "${RUNNER_TEMP}/svg-foundation-preview-packet"
       - name: Upload exact preview packet evidence
@@ -59,5 +75,61 @@ jobs:
             ${{ runner.temp }}/svg-foundation-preview-packet/rollback*.log
             ${{ runner.temp }}/svg-foundation-preview-packet/*-backup/manifest.tsv
             ${{ runner.temp }}/svg-foundation-preview-packet/server.log
+          if-no-files-found: warn
+          retention-days: 14
+
+  authoring-candidate:
+    name: Exact generated authoring candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout exact Templates candidate
+        uses: actions/checkout@v7
+        with:
+          path: templates
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Checkout accepted Rendering source
+        uses: actions/checkout@v7
+        with:
+          repository: FS-GG/FS.GG.Rendering
+          ref: ab0de59a5797393f1eaff6dd3146b53ae8bf1a67
+          path: rendering
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.400'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install browser and assistive-technology hosts
+        working-directory: templates/templates/fs-gg-fable-game/Browser.Tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox webkit
+          sudo apt-get update
+          sudo apt-get install --yes dbus-x11 gettext itstool libatspi2.0-dev libgtk-3-dev meson ninja-build openbox orca python-gi-dev python3-dasbus python3-dev python3-gi python3-speechd speech-dispatcher-espeak-ng xdotool xvfb
+      - name: Stage a unique exact Rendering packet
+        working-directory: templates
+        run: |
+          version="0.30.0-svg-author.1.ab0de59a.ci${GITHUB_RUN_ID}.${GITHUB_RUN_ATTEMPT}"
+          bash scripts/stage-rendering-authoring-packet.sh \
+            "$GITHUB_WORKSPACE/rendering" "$RUNNER_TEMP/rendering-authoring" "$version"
+      - name: Qualify installed generated authoring composition
+        working-directory: templates
+        run: |
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" bash tests/composition/fable-game/verify-svg-authoring-candidate.sh \
+            "$RUNNER_TEMP/rendering-authoring" "$RUNNER_TEMP/svg-authoring-qualification"
+      - name: Upload exact authoring evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: svg-authoring-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/rendering-authoring/manifest.json
+            ${{ runner.temp }}/rendering-authoring/packages/*.nupkg
+            ${{ runner.temp }}/svg-authoring-qualification/candidate-packet.json
+            ${{ runner.temp }}/svg-authoring-qualification/qualification.json
+            ${{ runner.temp }}/svg-authoring-qualification/*.json
+            ${{ runner.temp }}/svg-authoring-qualification/*.log
           if-no-files-found: warn
           retention-days: 14

@@ -13,6 +13,13 @@ files=(
   SvgFoundation/TacticalCompatibility.Tests.fs
   SvgFoundation/TacticalCompatibility.Tests.fsproj
   SvgFoundation/index.html
+  SvgFoundation/Studio/SceneSchema.fs
+  SvgFoundation/Studio/Program.fs
+  SvgFoundation/Studio/SvgGeometryWorkerEntry.js
+  SvgFoundation/Studio/Studio.fsproj
+  SvgFoundation/Studio/index.html
+  SvgFoundation/Studio/vite.config.js
+  SvgFoundation/Studio/build.sh
 )
 
 fail() { echo "preview adoption: $*" >&2; exit 2; }
@@ -66,7 +73,7 @@ esac
 
 declare -A expected
 while read -r digest path; do
-  [[ -n "${digest:-}" && -n "${path:-}" ]] && expected["$path"]="$digest"
+  [[ -n "${digest:-}" && -n "${path:-}" ]] && expected["$path"]="${expected[$path]:-} $digest"
 done < "$baseline"
 
 conflicts=()
@@ -77,13 +84,20 @@ for path in "${files[@]}"; do
   if [[ -e "$dst" ]]; then
     current="$(sha "$dst")"
     candidate="$(sha "$src")"
-    allowed="${expected[$path]:-ABSENT}"
-    if [[ "$path" == SvgFoundation/Program.fs ]]; then
-      normalized="$(sed -E 's/^module [A-Za-z_][A-Za-z0-9_.]*\.SvgFoundation$/module FableGameWorkspaceNamespace.SvgFoundation/' "$dst" | sha256sum | cut -d' ' -f1)"
+    allowed="${expected[$path]:- ABSENT}"
+    if [[ "$path" == *.fs ]]; then
+      normalized="$(python3 - "$dst" <<'PY'
+import hashlib,re,sys
+text=open(sys.argv[1]).read()
+match=re.search(r'^module ([A-Za-z_][A-Za-z0-9_.]*?)(?:\.SvgFoundation|\.PreviewDocument$|\.PreviewFont$|\.TacticalCompatibility(?:Tests)?$)',text,re.M)
+if not match: raise SystemExit('managed F# module namespace is unreadable')
+print(hashlib.sha256(text.replace(match.group(1),'FableGameWorkspaceNamespace').encode()).hexdigest())
+PY
+)"
     else
       normalized="$current"
     fi
-    [[ "$current" == "$candidate" || "$normalized" == "$allowed" ]] || conflicts+=("$path")
+    [[ "$current" == "$candidate" || " $allowed " == *" $normalized "* || " $allowed " == *" ABSENT "* && ! -e "$dst" ]] || conflicts+=("$path")
   fi
 done
 if (( ${#conflicts[@]} > 0 )); then
@@ -91,11 +105,28 @@ if (( ${#conflicts[@]} > 0 )); then
   exit 3
 fi
 
+if [[ -f "$workspace/SvgFoundation/Program.fs" ]]; then
+  destination_namespace="$(sed -nE 's/^module ([A-Za-z_][A-Za-z0-9_.]*)\.SvgFoundation$/\1/p' "$workspace/SvgFoundation/Program.fs")"
+else
+  destination_namespace="$(sed -nE 's/^namespace ([A-Za-z_][A-Za-z0-9_.]*)\.Domain$/\1/p' "$workspace/Domain/Room.fs")"
+fi
+[[ -n "$destination_namespace" ]] || fail "destination product namespace is unreadable"
 mkdir -p "$backup/files" "$backup/staged"
 : > "$backup/manifest.tsv"
 for path in "${files[@]}"; do
   mkdir -p "$(dirname "$backup/staged/$path")"
-  cp "$source_payload/$path" "$backup/staged/$path"
+  if [[ "$path" == *.fs ]]; then
+    python3 - "$source_payload/$path" "$backup/staged/$path" "$destination_namespace" <<'PY'
+import re,sys
+source,destination,target=sys.argv[1:]
+text=open(source).read()
+match=re.search(r'^module ([A-Za-z_][A-Za-z0-9_.]*?)(?:\.SvgFoundation|\.PreviewDocument$|\.PreviewFont$|\.TacticalCompatibility(?:Tests)?$)',text,re.M)
+if not match: raise SystemExit(f'candidate F# module namespace is unreadable: {source}')
+open(destination,'w').write(text.replace(match.group(1),target))
+PY
+  else
+    cp "$source_payload/$path" "$backup/staged/$path"
+  fi
   if [[ -f "$workspace/$path" ]]; then
     mkdir -p "$(dirname "$backup/files/$path")"
     cp "$workspace/$path" "$backup/files/$path"
