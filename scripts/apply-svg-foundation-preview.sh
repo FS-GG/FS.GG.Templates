@@ -7,6 +7,7 @@ files=(
   SvgFoundation/PreviewDocument.fs
   SvgFoundation/PlayerInput.fs
   SvgFoundation/ContinuousPlayer.fs
+  SvgFoundation/PresentationPlayer.fs
   SvgFoundation/README.md
   SvgFoundation/THIRD-PARTY-NOTICES.md
   SvgFoundation/fonts/noto-sans-latin-400-normal.woff2
@@ -103,6 +104,13 @@ if [[ ! -e "$source_payload/SvgFoundation/ContinuousPlayer.fs" ]]; then
   done
   files=("${without_continuous_runtime[@]}")
 fi
+if [[ ! -e "$source_payload/SvgFoundation/PresentationPlayer.fs" ]]; then
+  without_presentation=()
+  for path in "${files[@]}"; do
+    [[ "$path" == SvgFoundation/PresentationPlayer.fs ]] || without_presentation+=("$path")
+  done
+  files=("${without_presentation[@]}")
+fi
 
 declare -A expected
 while read -r digest path; do
@@ -123,6 +131,8 @@ for path in "${files[@]}"; do
 import hashlib,re,sys
 text=open(sys.argv[1]).read()
 match=re.search(r'^module ([A-Za-z_][A-Za-z0-9_.]*?)(?:\.SvgFoundation|\.PreviewDocument$|\.PreviewFont$|\.TacticalCompatibility(?:Tests)?$)',text,re.M)
+if not match and sys.argv[1].endswith('/PresentationPlayer.fs'):
+    match=re.search(r'^module Player = ([A-Za-z_][A-Za-z0-9_.]*?)\.SvgFoundation\.ContinuousPlayer$',text,re.M)
 normalized=text if not match else text.replace(match.group(1),'FableGameWorkspaceNamespace')
 print(hashlib.sha256(normalized.encode()).hexdigest())
 PY
@@ -154,6 +164,8 @@ import re,sys
 source,destination,target=sys.argv[1:]
 text=open(source).read()
 match=re.search(r'^module ([A-Za-z_][A-Za-z0-9_.]*?)(?:\.SvgFoundation|\.PreviewDocument$|\.PreviewFont$|\.TacticalCompatibility(?:Tests)?$)',text,re.M)
+if not match and source.endswith('/PresentationPlayer.fs'):
+    match=re.search(r'^module Player = ([A-Za-z_][A-Za-z0-9_.]*?)\.SvgFoundation\.ContinuousPlayer$',text,re.M)
 if not match: raise SystemExit(f'candidate F# module namespace is unreadable: {source}')
 open(destination,'w').write(text.replace(match.group(1),target))
 PY
