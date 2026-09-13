@@ -1,28 +1,31 @@
 import json, os, sys, time
-import pyatspi
+import gi
+
+gi.require_version("Atspi", "2.0")
+from gi.repository import Atspi
 
 output = sys.argv[1]
 
 def walk(node):
     yield node
-    for index in range(getattr(node, "childCount", 0)):
+    for index in range(node.get_child_count()):
         try:
-            yield from walk(node.getChildAtIndex(index))
+            yield from walk(node.get_child_at_index(index))
         except Exception:
             pass
 
 def find(role, name=None, contains=None, timeout=30):
     end = time.time() + timeout
     while time.time() < end:
-        for item in walk(pyatspi.Registry.getDesktop(0)):
+        for item in walk(Atspi.get_desktop(0)):
             try:
-                if item.getRoleName() != role:
+                if item.get_role_name() != role:
                     continue
-                value = item.name or ""
+                value = item.get_name() or ""
                 if contains is not None:
                     try:
-                        text = item.queryText()
-                        value += " " + text.getText(0, text.characterCount)
+                        text = item.get_text_iface()
+                        value += " " + text.get_text(0, text.get_character_count())
                     except Exception:
                         pass
                 if (name is None or value == name) and (contains is None or contains in value):
@@ -34,8 +37,8 @@ def find(role, name=None, contains=None, timeout=30):
 
 def activate(name):
     node = find("push button", name=name)
-    action = node.queryAction()
-    if not action.doAction(0):
+    action = node.get_action_iface()
+    if not action.do_action(0):
         raise RuntimeError(f"AT-SPI action refused: {name}")
 
 find("heading", name="Generated SVG scene studio")

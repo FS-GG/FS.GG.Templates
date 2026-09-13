@@ -106,7 +106,7 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium firefox webkit
           sudo apt-get update
-          sudo apt-get install --yes dbus-x11 gettext itstool libatspi2.0-dev libgtk-3-dev meson ninja-build openbox orca python-gi-dev python3-dasbus python3-dev python3-gi python3-speechd speech-dispatcher-espeak-ng xdotool xvfb
+          sudo apt-get install --yes dbus-x11 gettext gir1.2-atspi-2.0 itstool libatspi2.0-dev libgtk-3-dev meson ninja-build openbox orca python-gi-dev python3-dasbus python3-dev python3-gi python3-speechd speech-dispatcher-espeak-ng xdotool xvfb
       - name: Stage a unique exact Rendering packet
         working-directory: templates
         run: |
