@@ -71,12 +71,17 @@ def replace_once(path, old, new, message):
     text=path.read_text()
     if text.count(old)!=1: raise SystemExit(message)
     path.write_text(text.replace(old,new))
+def enable_once(path, old, new, message):
+    text=path.read_text()
+    if text.count(new)==1 and text.count(old)==0: return
+    if text.count(old)!=1 or text.count(new)!=0: raise SystemExit(message)
+    path.write_text(text.replace(old,new))
 replace_once(root_project,
     '<FsGgSvgInputVersion Condition="\'$(FsGgSvgInputVersion)\' == \'\'">0.30.0</FsGgSvgInputVersion>',
     f'<FsGgSvgInputVersion Condition="\'$(FsGgSvgInputVersion)\' == \'\'">{version}</FsGgSvgInputVersion>',
     'input candidate version seam drifted')
 for path in (root_project, studio_project):
-    replace_once(path,
+    enable_once(path,
         '<FsGgSvgInputCandidate Condition="\'$(FsGgSvgInputCandidate)\' == \'\'">false</FsGgSvgInputCandidate>',
         '<FsGgSvgInputCandidate Condition="\'$(FsGgSvgInputCandidate)\' == \'\'">true</FsGgSvgInputCandidate>',
         f'input candidate flag seam drifted: {path}')
