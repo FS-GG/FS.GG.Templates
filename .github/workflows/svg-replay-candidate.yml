@@ -55,6 +55,10 @@ jobs:
           echo '88bc47acae2c26919ab96a5cafa80b12fac762092c57840a2baad1afcc7feda3  '"$RUNNER_TEMP/svg-replay-tools/main.go" | sha256sum --check --strict
           (cd "$RUNNER_TEMP/svg-replay-tools" && GO111MODULE=off CGO_ENABLED=1 go build -trimpath -ldflags '-buildid=IvXAt1kJ-3iINki1alCT/Ut12KGabgkWIkwVpw-xO/c4zkZMLAubfWHvjZOY8o/8-oR_8tNNndNgfMVoD8F -B 0x03d1703027f57ed4dd2ba90b7cdfc8cdea2815da' -o lmt main.go)
           echo '37e0b0365c2641edce40b48605471f61fa12e97c3e2376152f0e849abdc31f10  '"$RUNNER_TEMP/svg-replay-tools/lmt" | sha256sum --check --strict
+      - name: Enable qualified network namespace isolation
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          /usr/bin/unshare --user --map-root-user --net -- /usr/bin/true
       - name: Stage Game packet and qualify installed generated candidate
         working-directory: templates
         env:
