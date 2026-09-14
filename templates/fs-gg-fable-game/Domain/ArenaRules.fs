@@ -1,5 +1,6 @@
 module FableGameWorkspaceNamespace.ArenaRules
 
+open System
 open FS.GG.Game.Core
 open FableGameWorkspaceNamespace.Domain
 open FableGameWorkspaceNamespace.ArenaContent
@@ -116,10 +117,20 @@ let compatibility =
 let canonicalState state =
     let content = state.Definition
     let boolean value = if value then "true" else "false"
+    // Encode the exact IEEE-754 payload in network byte order. Decimal formatting
+    // differs by locale and runtime, while quantization can merge two bounds that
+    // produce different collision or interaction outcomes.
+    let number (value: float) =
+        let hexDigit value = if value < 10 then char (int '0' + value) else char (int 'a' + value - 10)
+        let bytes = BitConverter.GetBytes value
+        let ordered = if BitConverter.IsLittleEndian then Array.rev bytes else bytes
+        ordered
+        |> Array.collect (fun value -> [| hexDigit (int value >>> 4); hexDigit (int value &&& 15) |])
+        |> String
     let players = Room.toSnapshotPairs state.Room |> List.map (fun (id, col, row) -> $"{id}:{col}:{row}") |> String.concat ";"
     let contacts = state.HazardContacts |> Set.toList |> String.concat ","
     let legacy = state.LegacyPlayers |> Set.toList |> String.concat ","
-    $"v2|{content.SchemaVersion}|{content.ContentId}|{content.CollectibleX},{content.CollectibleY}|{content.Hazard.X},{content.Hazard.Y},{content.Hazard.Width},{content.Hazard.Height}|{content.Goal.X},{content.Goal.Y},{content.Goal.Width},{content.Goal.Height}|{content.ThinWall.X},{content.ThinWall.Y},{content.ThinWall.Width},{content.ThinWall.Height}|{state.Room.Tick}|{state.Round}|{players}|{state.Status.Health}|{state.Status.Score}|{boolean state.Status.Collected}|{state.Status.Outcome}|{contacts}|{legacy}"
+    $"v2|{content.SchemaVersion}|{content.ContentId}|{number content.CollectibleX},{number content.CollectibleY}|{number content.Hazard.X},{number content.Hazard.Y},{number content.Hazard.Width},{number content.Hazard.Height}|{number content.Goal.X},{number content.Goal.Y},{number content.Goal.Width},{number content.Goal.Height}|{number content.ThinWall.X},{number content.ThinWall.Y},{number content.ThinWall.Width},{number content.ThinWall.Height}|{state.Room.Tick}|{state.Round}|{players}|{state.Status.Health}|{state.Status.Score}|{boolean state.Status.Collected}|{state.Status.Outcome}|{contacts}|{legacy}"
 
 /// The same pure contract factory is compiled by the .NET authority and Fable Studio.
 /// Restore is bound to the session's selected authored content identity.

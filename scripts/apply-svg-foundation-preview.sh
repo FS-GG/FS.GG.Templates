@@ -35,6 +35,21 @@ files=(
 fail() { echo "preview adoption: $*" >&2; exit 2; }
 sha() { sha256sum "$1" | cut -d' ' -f1; }
 
+# The selectable tactical example keeps its tests outside the Player root. The
+# adoption transaction retains the established destination paths while sourcing
+# those two files from their package-owned example directory.
+source_for() {
+  local path="$1"
+  if [[ -f "$source_payload/$path" ]]; then
+    printf '%s\n' "$source_payload/$path"
+  elif [[ "$path" == SvgFoundation/TacticalCompatibility.Tests.fs || "$path" == SvgFoundation/TacticalCompatibility.Tests.fsproj ]] \
+       && [[ -f "$source_payload/SvgFoundation/Examples/Tactical/${path##*/}" ]]; then
+    printf '%s\n' "$source_payload/SvgFoundation/Examples/Tactical/${path##*/}"
+  else
+    return 1
+  fi
+}
+
 restore_backup() {
   local workspace="$1" backup="$2" manifest="$2/manifest.tsv"
   [[ -f "$manifest" ]] || fail "rollback manifest missing: $manifest"
@@ -137,9 +152,8 @@ done < "$baseline"
 
 conflicts=()
 for path in "${files[@]}"; do
-  src="$source_payload/$path"
+  src="$(source_for "$path")" || fail "candidate payload missing $path"
   dst="$workspace/$path"
-  [[ -f "$src" ]] || fail "candidate payload missing $path"
   if [[ -e "$dst" ]]; then
     current="$(sha "$dst")"
     candidate="$(sha "$src")"
@@ -176,8 +190,9 @@ mkdir -p "$backup/files" "$backup/staged"
 : > "$backup/manifest.tsv"
 for path in "${files[@]}"; do
   mkdir -p "$(dirname "$backup/staged/$path")"
+  src="$(source_for "$path")" || fail "candidate payload missing $path"
   if [[ "$path" == *.fs ]]; then
-    python3 - "$source_payload/$path" "$backup/staged/$path" "$destination_namespace" <<'PY'
+    python3 - "$src" "$backup/staged/$path" "$destination_namespace" <<'PY'
 import re,sys
 source,destination,target=sys.argv[1:]
 text=open(source).read()
@@ -187,8 +202,21 @@ if not match and source.endswith('/PresentationPlayer.fs'):
 if not match: raise SystemExit(f'candidate F# module namespace is unreadable: {source}')
 open(destination,'w').write(text.replace(match.group(1),target))
 PY
+  elif [[ "$path" == SvgFoundation/TacticalCompatibility.Tests.fsproj ]]; then
+    python3 - "$src" "$backup/staged/$path" <<'PY'
+import sys
+source,destination=sys.argv[1:]
+text=open(source).read()
+text=text.replace('<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>',
+                  '<RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>')
+text=text.replace('<RestoreLockedMode>true</RestoreLockedMode>',
+                  '<RestoreLockedMode>false</RestoreLockedMode>')
+text=text.replace('<Compile Include="../../TacticalCompatibility.fs" />',
+                  '<Compile Include="TacticalCompatibility.fs" />')
+open(destination,'w').write(text)
+PY
   else
-    cp "$source_payload/$path" "$backup/staged/$path"
+    cp "$src" "$backup/staged/$path"
   fi
   if [[ -f "$workspace/$path" ]]; then
     mkdir -p "$(dirname "$backup/files/$path")"

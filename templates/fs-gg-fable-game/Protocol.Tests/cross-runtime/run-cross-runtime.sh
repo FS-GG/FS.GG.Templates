@@ -97,7 +97,13 @@ expect_ok "rejected cases: net rejects both malformed cases" net decode-rejected
 expect_ok "rejected cases: fable rejects both malformed cases" fbl decode-rejected-cases
 
 expect_ok "arena rules/session/replay: net complete sequence" net write-arena-proof "$TMP/arena-net.txt"
+expect_ok "arena rules/session/replay: net complete sequence under de-DE" net write-arena-proof-de "$TMP/arena-net-de.txt"
 expect_ok "arena rules/session/replay: fable complete sequence" fbl write-arena-proof "$TMP/arena-fable.txt"
+cmp "$TMP/arena-net.txt" "$TMP/arena-net-de.txt" || {
+  echo "cross-runtime: FAILED - ArenaRules replay bytes depend on .NET culture" >&2
+  diff -u "$TMP/arena-net.txt" "$TMP/arena-net-de.txt" >&2 || true
+  exit 1
+}
 cmp "$TMP/arena-net.txt" "$TMP/arena-fable.txt" || {
   echo "cross-runtime: FAILED - ArenaRules/SessionContract replay bytes differ between .NET and Fable" >&2
   diff -u "$TMP/arena-net.txt" "$TMP/arena-fable.txt" >&2 || true

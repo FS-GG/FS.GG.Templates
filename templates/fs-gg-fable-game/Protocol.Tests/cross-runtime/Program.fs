@@ -111,19 +111,43 @@ let private encodeArenaCommand = function
     | Command.Leave playerId -> $"leave:{playerId}"
     | Command.Apply(playerId, intent) -> $"apply:{playerId}:{encodeArenaIntent intent}"
 
+let private interactionBoundaryProof () =
+    let baseline = contentAt 0UL
+    let stateFor collectibleX =
+        let content =
+            { baseline with
+                ContentId = "continuous-arena/interaction-boundary"
+                CollectibleX = collectibleX
+                CollectibleY = 5.0 }
+        createWith content
+        |> join "boundary-player" { Col = 0; Row = 0 }
+        |> applyIntent "boundary-player" Intent.Interact
+    let atBoundary = stateFor 15.0
+    let justInside = stateFor 14.9999999999
+    if atBoundary.Status.Collected || not justInside.Status.Collected then
+        failwith "interaction boundary no longer distinguishes touching from overlap"
+    let atBoundaryBytes = canonicalState atBoundary
+    let justInsideBytes = canonicalState justInside
+    if atBoundaryBytes = justInsideBytes then
+        failwith "canonical state merged bounds with different interaction outcomes"
+    atBoundaryBytes + "\n" + justInsideBytes
+
 /// Execute the product's complete portable contract and Replay implementation from
 /// the same source on .NET and Fable. The exported bytes include every post-operation
 /// digest, so matching final state alone cannot hide a dropped Interact or Restart.
 let private arenaProof () =
+    let boundaryProof = interactionBoundaryProof ()
     let baseline = contentAt 0UL
     let content =
         { baseline with
             ContentId = "continuous-arena/cross-runtime-rules"
-            CollectibleX = cellX { Col = 0; Row = 0 } + playerWidth / 2.0
-            CollectibleY = cellY { Col = 0; Row = 0 } + playerHeight / 2.0
-            Hazard = playerBounds { Col = 1; Row = 0 }
-            Goal = { baseline.Goal with X = cellX { Col = 2; Row = 0 }; Y = cellY { Col = 2; Row = 0 } }
-            ThinWall = { baseline.ThinWall with X = arenaWidth - 2.0 } }
+            CollectibleX = 5.25
+            CollectibleY = 5.75
+            // Fractional AABBs model the bounds compiled from a rotated/scaled
+            // Studio element and force portable numeric canonicalization.
+            Hazard = { X = 9.625; Y = -1.25; Width = 13.75; Height = 12.5 }
+            Goal = { baseline.Goal with X = 21.75; Y = -0.5; Width = 13.5; Height = 11.25 }
+            ThinWall = { baseline.ThinWall with X = arenaWidth - 2.125; Y = 0.375 } }
     let contract = contractFor content.ContentId
     let mutable state =
         contract.Initialize { SessionId = "arena-1"; Compatibility = compatibility; Configuration = createWith content }
@@ -155,7 +179,7 @@ let private arenaProof () =
     match Replay.seek contract canonicalState (fun _ -> false) (uint64 recording.Events.Length) recording with
     | Ok(ReplayRunOutcome.Completed(_, replayed)) when canonicalState replayed = canonicalState state ->
         ReplayExport.canonicalText encodeArenaCommand canonicalState recording
-        |> Result.map (fun replay -> canonicalState state + "\n---REPLAY---\n" + replay)
+        |> Result.map (fun replay -> canonicalState state + "\n---BOUNDARY---\n" + boundaryProof + "\n---REPLAY---\n" + replay)
         |> Result.defaultWith (fun issues -> failwithf "%A" issues)
     | outcome -> failwithf "cross-runtime replay failed: %A" outcome
 
@@ -225,6 +249,13 @@ let main _ =
         writeFile outFile (arenaProof ())
         printfn "WROTE"
         0
+#if !FABLE_COMPILER
+    | [ "write-arena-proof-de"; outFile ] ->
+        System.Globalization.CultureInfo.CurrentCulture <- System.Globalization.CultureInfo.GetCultureInfo("de-DE")
+        writeFile outFile (arenaProof ())
+        printfn "WROTE"
+        0
+#endif
     | args ->
         printfn "USAGE: unrecognised arguments %A" args
         2
