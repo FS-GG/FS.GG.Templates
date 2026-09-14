@@ -179,7 +179,7 @@ module App =
                     | Some conn ->
                         let json =
                             RealtimeV1.encodeMessage (
-                                RealtimeV1.InputMessage { Version = 1; Sequence = model.NextSequence; TargetCol = target.Col; TargetRow = target.Row }
+                                RealtimeV1.InputMessage { Version = 1; Sequence = model.NextSequence; Action = "move"; TargetCol = target.Col; TargetRow = target.Row }
                             )
                         thenBoth (conn.invoke ("SendMessage", json)) ignore ignore
                         { model with PreviewPath = preview; NextSequence = model.NextSequence + 1 }, Cmd.none

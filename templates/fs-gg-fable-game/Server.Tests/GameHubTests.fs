@@ -175,7 +175,7 @@ type GameHubTests() =
             let! _ = waiting
             let beforeTick, beforePlayers = RoomAuthority.snapshot ()
             let before = beforePlayers |> List.find (fun (id, _, _) -> id = response.PlayerId)
-            let input = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; TargetCol = 1; TargetRow = 0 })
+            let input = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; Action = "move"; TargetCol = 1; TargetRow = 0 })
             do! connection.InvokeAsync("SendMessage", input)
             let immediateTick, immediatePlayers = RoomAuthority.snapshot ()
             Assert.Equal(beforeTick, immediateTick)
@@ -192,8 +192,8 @@ type GameHubTests() =
         task {
             let! response, connection, _ = startBound "p-stale"
             use connection = connection
-            let first = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; TargetCol = 1; TargetRow = 0 })
-            let duplicate = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; TargetCol = 0; TargetRow = 10 })
+            let first = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; Action = "move"; TargetCol = 1; TargetRow = 0 })
+            let duplicate = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; Action = "move"; TargetCol = 0; TargetRow = 10 })
             do! connection.InvokeAsync("SendMessage", first)
             let! refused = Assert.ThrowsAsync<HubException>(fun () -> connection.InvokeAsync("SendMessage", duplicate))
 #if SVG_NETWORK_CANDIDATE
@@ -230,11 +230,31 @@ type GameHubTests() =
 
 #if SVG_NETWORK_CANDIDATE
     [<Fact>]
+    member _.``authoritative arena owns collection win refusal and restart``() =
+        let response = bootstrap "arena-rules"
+        let submit sequence action col row =
+            RoomAuthority.submitInput response.PlayerId response.SessionCapability sequence action col row
+            |> Result.defaultWith failwith
+            |> ignore
+            RoomAuthority.advanceTick () |> ignore
+        for sequence in 1 .. 7 do submit sequence "move" 5 2
+        submit 8 "interact" 5 2
+        Assert.Equal((3, 100, true, "playing"), RoomAuthority.gameStatus ())
+        Assert.True(RoomAuthority.submitInput response.PlayerId "forged" 99 "interact" 5 2 |> Result.isError)
+        Assert.True(RoomAuthority.submitInput response.PlayerId response.SessionCapability 8 "interact" 5 2 |> Result.isError)
+        Assert.Equal((3, 100, true, "playing"), RoomAuthority.gameStatus ())
+        for sequence in 9 .. 22 do submit sequence "move" 16 5
+        submit 23 "interact" 16 5
+        Assert.Equal((3, 100, true, "won"), RoomAuthority.gameStatus ())
+        submit 24 "restart" 16 5
+        Assert.Equal((3, 0, false, "playing"), RoomAuthority.gameStatus ())
+
+    [<Fact>]
     member _.``accepted network input is recorded by the replay authority``() =
         let response = bootstrap "p-review"
         let targetRow = response.SpawnRow + 1
         let accepted =
-            RoomAuthority.submitInput response.PlayerId response.SessionCapability 1 response.SpawnCol targetRow
+            RoomAuthority.submitInput response.PlayerId response.SessionCapability 1 "move" response.SpawnCol targetRow
             |> Result.defaultWith failwith
         Assert.Equal(0UL, accepted)
         RoomAuthority.advanceTick () |> ignore

@@ -21,10 +21,7 @@ let catalog =
           command "game.move-right" "Move right" CommandTriggerPolicy.RepeatWhileHeld
           command "game.stop" "Stop moving" CommandTriggerPolicy.OncePerPress
           command "game.pause" "Pause game" CommandTriggerPolicy.OncePerPress
-          command "game.step" "Step paused game" CommandTriggerPolicy.OncePerPress
-          command "game.reset" "Reset game" CommandTriggerPolicy.OncePerPress
-          command "game.win" "Complete arena" CommandTriggerPolicy.OncePerPress
-          command "game.lose" "Take damage" CommandTriggerPolicy.OncePerPress
+          command "game.interact" "Interact" CommandTriggerPolicy.OncePerPress
           command "game.restart" "Restart game" CommandTriggerPolicy.OncePerPress ]
       ReservedGestures = []
       AllowTerminalPrefixes = false }
@@ -39,16 +36,15 @@ let profile =
           { Gesture = InputGesture.KeyChord(InputKeyIdentity.LogicalKey "d", CommandInput.noModifiers); Command = "game.move-right"; Context = "game.play" }
           { Gesture = InputGesture.KeyChord(InputKeyIdentity.PhysicalCode "Space", CommandInput.noModifiers); Command = "game.stop"; Context = "game.play" }
           { Gesture = InputGesture.KeyChord(InputKeyIdentity.LogicalKey "p", CommandInput.noModifiers); Command = "game.pause"; Context = "game.play" }
-          { Gesture = InputGesture.KeyChord(InputKeyIdentity.LogicalKey ".", CommandInput.noModifiers); Command = "game.step"; Context = "game.play" }
-          { Gesture = InputGesture.KeyChord(InputKeyIdentity.LogicalKey "r", CommandInput.noModifiers); Command = "game.reset"; Context = "game.play" }
+          { Gesture = InputGesture.KeyChord(InputKeyIdentity.LogicalKey "e", CommandInput.noModifiers); Command = "game.interact"; Context = "game.play" }
+          { Gesture = InputGesture.KeyChord(InputKeyIdentity.LogicalKey "r", CommandInput.noModifiers); Command = "game.restart"; Context = "game.play" }
+          { Gesture = InputGesture.Pointer "move-up"; Command = "game.move-up"; Context = "game.play" }
+          { Gesture = InputGesture.Pointer "move-down"; Command = "game.move-down"; Context = "game.play" }
           { Gesture = InputGesture.Pointer "move-right"; Command = "game.move-right"; Context = "game.play" }
           { Gesture = InputGesture.Touch "move-left"; Command = "game.move-left"; Context = "game.play" }
           { Gesture = InputGesture.Gamepad "button-0"; Command = "game.move-up"; Context = "game.play" }
           { Gesture = InputGesture.Pointer "pause"; Command = "game.pause"; Context = "game.play" }
-          { Gesture = InputGesture.Pointer "step"; Command = "game.step"; Context = "game.play" }
-          { Gesture = InputGesture.Pointer "reset"; Command = "game.reset"; Context = "game.play" }
-          { Gesture = InputGesture.Pointer "win"; Command = "game.win"; Context = "game.play" }
-          { Gesture = InputGesture.Pointer "lose"; Command = "game.lose"; Context = "game.play" }
+          { Gesture = InputGesture.Pointer "interact"; Command = "game.interact"; Context = "game.play" }
           { Gesture = InputGesture.Pointer "restart"; Command = "game.restart"; Context = "game.play" } ]
       Overrides = [] }
 #else

@@ -15,6 +15,7 @@ module GameInput = FableGameWorkspaceNamespace.SvgFoundation.PlayerInput
 #if SVG_RUNTIME_CANDIDATE
 open FS.GG.Game.Core
 module ContinuousPlayer = FableGameWorkspaceNamespace.SvgFoundation.ContinuousPlayer
+module SvgAuthority = FableGameWorkspaceNamespace.SvgAuthority
 #endif
 #if SVG_PRESENT_CANDIDATE
 open FS.GG.Audio.Core
@@ -167,6 +168,7 @@ let mutable private playerRuntime = initialPlayerRuntime
 let mutable private playerSequence = 0UL
 let mutable private presentationRevision = 1UL
 let mutable private sessionHost: SvgSessionHost<ContinuousPlayer.PlayerState> option = None
+let mutable private authorityPeers: (string * int * int) list = []
 
 let private updatePlayer observation =
     let next, _ = SessionRuntime.update ContinuousPlayer.contract observation playerRuntime
@@ -346,7 +348,7 @@ let private callbacks =
           presentationRevision <- presentationRevision + 1UL
           sessionHost |> Option.iter (fun host -> host.CompleteProjection(generation, presentationRevision, playerRuntime.Current))
       ApplyProjection = fun revision projection ->
-          requireTransition "continuous projection" (continuousHost.Dispatch(RetainedInteractionMessage.ReplaceScene(ContinuousPlayer.scene (int revision) projection)))
+          requireTransition "continuous projection" (continuousHost.Dispatch(RetainedInteractionMessage.ReplaceScene(ContinuousPlayer.sceneWithPeers (int revision) projection authorityPeers)))
           describePlayer revision projection
       CancelGeneration = ignore
       Replace = ignore
@@ -359,6 +361,35 @@ describePlayer presentationRevision playerRuntime.Current
 requestCurrentProjection <- fun () -> playerSessionHost.DemandProjection()
 #endif
 
+let private applyAuthority status (players: SvgAuthority.Player list) tick health score collected outcome =
+    playerInputScope.setAttribute("data-authority-status", status)
+    playerInputScope.setAttribute("data-authority-tick", string tick)
+    playerInputScope.setAttribute("data-authority-player-count", string players.Length)
+    playerInputScope.setAttribute("data-player-health", string health)
+    playerInputScope.setAttribute("data-player-score", string score)
+    playerInputScope.setAttribute("data-player-collected", string collected)
+    playerInputScope.setAttribute("data-player-outcome", outcome)
+    playerInputScope.setAttribute(
+        "data-authority-snapshot",
+        players |> List.sortBy _.Id |> List.map (fun player -> $"{player.Id}:{player.Col},{player.Row}") |> String.concat ";")
+    match players |> List.tryFind _.IsSelf with
+    | Some self ->
+        playerInputScope.setAttribute("data-authority-player-id", self.Id)
+        playerInputScope.setAttribute("data-authority-self-col", string self.Col)
+        playerInputScope.setAttribute("data-authority-self-row", string self.Row)
+        authorityPeers <- players |> List.filter (fun player -> not player.IsSelf) |> List.map (fun player -> player.Id, player.Col, player.Row)
+        let accepted = ContinuousPlayer.atAuthoritativeSnapshot self.Col self.Row health score collected outcome playerRuntime.Current
+        let snapshot: SessionSnapshot<ContinuousPlayer.PlayerState> =
+            { SessionId = "generated-player"
+              Revision = uint64 tick
+              Compatibility = ContinuousPlayer.compatibility
+              Value = accepted }
+        updatePlayer (SessionRuntimeObservation.Restore snapshot)
+        playerSessionHost.DemandProjection()
+    | None -> ()
+
+SvgAuthority.start applyAuthority
+
 let private submit commandId command =
     playerSequence <- playerSequence + 1UL
     updatePlayer
@@ -368,20 +399,18 @@ let private submit commandId command =
 
 let private dispatchGameCommand command =
     match command with
-    | "game.move-up" -> submit command (ContinuousPlayer.PlayerCommand.Move(0.0, -3.0))
-    | "game.move-down" -> submit command (ContinuousPlayer.PlayerCommand.Move(0.0, 3.0))
-    | "game.move-left" -> submit command (ContinuousPlayer.PlayerCommand.Move(-3.0, 0.0))
-    | "game.move-right" -> submit command (ContinuousPlayer.PlayerCommand.Move(3.0, 0.0))
+    | "game.move-up" -> SvgAuthority.move 0 -1
+    | "game.move-down" -> SvgAuthority.move 0 1
+    | "game.move-left" -> SvgAuthority.move -1 0
+    | "game.move-right" -> SvgAuthority.move 1 0
     | "game.stop" -> submit command ContinuousPlayer.PlayerCommand.Stop
     | "game.pause" ->
         if playerSessionHost.Observe().Status = SvgSessionStatus.Running then playerSessionHost.Pause()
         else playerSessionHost.Resume()
-    | "game.step" -> playerSessionHost.StepOnce()
-    | "game.reset"
-    | "game.restart" -> playerSessionHost.Reset()
-    | "game.win" -> submit command ContinuousPlayer.PlayerCommand.Collect
-    | "game.interact" -> submit command ContinuousPlayer.PlayerCommand.Collect
-    | "game.lose" -> submit command ContinuousPlayer.PlayerCommand.Damage
+    | "game.restart" ->
+        playerSessionHost.Reset()
+        SvgAuthority.command "restart"
+    | "game.interact" -> SvgAuthority.command "interact"
     | _ -> ()
 #if SVG_PRESENT_CANDIDATE
     if command.StartsWith("game.") && command <> "game.pause" && command <> "game.step" then
@@ -399,9 +428,8 @@ let private addControl action label =
     playerInputScope.appendChild(control) |> ignore
 
 for action, label in
-    [ "move-right", "Move right"; "move-left", "Move left"; "pause", "Pause or resume"
-      "step", "Single step"; "reset", "Reset"; "interact", "Interact"; "win", "Win"
-      "lose", "Take damage"; "restart", "Restart" ] do
+    [ "move-up", "Move up"; "move-down", "Move down"; "move-right", "Move right"; "move-left", "Move left"
+      "pause", "Pause or resume"; "interact", "Interact"; "restart", "Restart" ] do
     addControl action label
 #if SVG_PRESENT_CANDIDATE
 let private addPresentationControl id label action =
@@ -421,7 +449,9 @@ addPresentationControl "foundation-import" "Import archive" (fun () ->
 addPresentationControl "foundation-animation-seek" "Seek animation" (fun () ->
     if not (System.String.IsNullOrEmpty lastAnimationId) then
         animationHost.Seek(lastAnimationId, System.TimeSpan.FromMilliseconds 100.0))
+#if LEGACY_SVG_PREVIEW
 addPresentationControl "foundation-fail-save" "Exercise failed autosave" (fun () -> scheduleAutosave (System.String('x', 4097)))
+#endif
 #endif
 #else
 #if LEGACY_SVG_PREVIEW
@@ -468,6 +498,7 @@ window.addEventListener("beforeunload", fun _ ->
     (playerInputHost :> System.IDisposable).Dispose()
 #if SVG_RUNTIME_CANDIDATE
     window.removeEventListener("gamepadconnected", refreshGamepads)
+    SvgAuthority.dispose ()
     (playerSessionHost :> System.IDisposable).Dispose()
 #if SVG_PRESENT_CANDIDATE
     (animationHost :> System.IDisposable).Dispose()

@@ -53,18 +53,19 @@ let private canonicalBootstrapResponse: BootstrapV1.Response =
 
 let private canonicalRealtimeCase (name: string) : RealtimeV1.Message option =
     match name with
-    | "input" -> Some(RealtimeV1.InputMessage { Version = 1; Sequence = 7; TargetCol = 5; TargetRow = 2 })
+    | "input" -> Some(RealtimeV1.InputMessage { Version = 1; Sequence = 7; Action = "move"; TargetCol = 5; TargetRow = 2 })
     | "sessionHello" -> Some(RealtimeV1.SessionHelloMessage { Version = 1; SessionCapability = "cross-runtime-capability" })
     | "snapshot" ->
         Some(
             RealtimeV1.SnapshotMessage
                 { Version = 1
                   Tick = 42
-                  Players = [ { PlayerId = "p-1"; Col = 1; Row = 1 }; { PlayerId = "p-2"; Col = 2; Row = 3 } ] }
+                  Players = [ { PlayerId = "p-1"; Col = 1; Row = 1 }; { PlayerId = "p-2"; Col = 2; Row = 3 } ]
+                  Health = 3; Score = 100; Collected = true; Outcome = "playing" }
         )
     | "presence" -> Some(RealtimeV1.PresenceMessage { Version = 1; PlayerId = "p-1"; Joined = true })
     | "resyncRequest" -> Some(RealtimeV1.ResyncRequestMessage { Version = 1; LastKnownTick = 10 })
-    | "resyncSnapshot" -> Some(RealtimeV1.ResyncSnapshotMessage { Version = 1; Tick = 42; Players = [] })
+    | "resyncSnapshot" -> Some(RealtimeV1.ResyncSnapshotMessage { Version = 1; Tick = 42; Players = []; Health = 3; Score = 0; Collected = false; Outcome = "playing" })
     | _ -> None
 
 /// The two deliberately-rejected cases: an unrecognised discriminator, and a

@@ -22,10 +22,12 @@ type GameHub() =
         | _ -> None
 
     let snapshotMessage (tick, players) =
+        let health, score, collected, outcome = RoomAuthority.gameStatus ()
         let snapshot: RealtimeV1.Snapshot =
             { Version = 1
               Tick = tick
-              Players = players |> List.map (fun (playerId, col, row) -> { PlayerId = playerId; Col = col; Row = row }) }
+              Players = players |> List.map (fun (playerId, col, row) -> { PlayerId = playerId; Col = col; Row = row })
+              Health = health; Score = score; Collected = collected; Outcome = outcome }
         RealtimeV1.encodeMessage (RealtimeV1.ResyncSnapshotMessage snapshot)
 
     override _.OnConnectedAsync() : Task = Task.CompletedTask
@@ -69,7 +71,7 @@ type GameHub() =
                     match capability this with
                     | None -> raise (HubException "session capability is missing from the live binding")
                     | Some token ->
-                        match RoomAuthority.submitInput playerId token input.Sequence input.TargetCol input.TargetRow with
+                        match RoomAuthority.submitInput playerId token input.Sequence input.Action input.TargetCol input.TargetRow with
                         | Ok _ -> ()
                         | Error issue -> raise (HubException(sprintf "input refused: %s" issue))
                     // Input acknowledgement is the next broadcast tick. Mutating or

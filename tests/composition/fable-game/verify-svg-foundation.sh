@@ -20,9 +20,12 @@ dotnet tool restore --tool-manifest "$work/selected/.config/dotnet-tools.json" -
 (cd "$work/selected" && dotnet fable SvgFoundation/SvgFoundation.fsproj --outDir "$work/fable" --noCache)
 test -f "$work/fable/Program.js"
 dotnet run --project "$work/selected/SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fsproj" --no-restore
-if grep -En 'ProjectReference|<Link>' "$work/selected/SvgFoundation/"*.fsproj; then
-  echo 'foundation fixture acquired a sibling source edge' >&2; exit 1
+if grep -En 'ProjectReference' "$work/selected/SvgFoundation/"*.fsproj; then
+  echo 'foundation fixture acquired a compiled-project edge' >&2; exit 1
 fi
+for adapter in '../Protocol/Http.fs' '../Protocol/Realtime.fs' '../Client/SignalR.fs' '../Client/Api.fs'; do
+  grep -F "Include=\"$adapter\"" "$work/selected/SvgFoundation/SvgFoundation.fsproj" >/dev/null
+done
 grep -q 'foundation-grid' "$work/selected/SvgFoundation/Program.fs"
 grep -q 'foundation-continuous' "$work/selected/SvgFoundation/Program.fs"
 grep -q 'foundation-tactical-compatibility' "$work/selected/SvgFoundation/Program.fs"

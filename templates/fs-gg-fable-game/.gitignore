@@ -10,6 +10,7 @@ Protocol.Tests/cross-runtime/CodecProbe.Fable/Protocol/
 SvgFoundation/Studio/output/
 SvgFoundation/Studio/dist/
 SvgFoundation/Studio/vendor/
+SvgFoundation/Studio/.vite/
 SvgFoundation/output/
 SvgFoundation/dist/
 SvgFoundation/Studio/NuGet.candidate.generated.config

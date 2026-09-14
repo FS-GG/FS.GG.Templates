@@ -64,10 +64,13 @@ qualified public set.
 
 The SVG runtime replaces the static continuous fixture with a Game.Core fixed-step session,
 the Game-owned kinematic collision adapter, Rendering's disposable browser clock, and monotonic retained
-scene replacement. `W/A/S/D`, the generated pointer and touch controls, and Gamepad button 0 all resolve
-through the same command catalog. Pause/resume, single-step, reset, win, lose, and restart update the
-authority state whose projection is rendered; the separately bundled Studio is never linked into the
-player output.
+scene replacement. `W/A/S/D` submits movement to the required server, `E` interacts with nearby game
+content, and `R` requests a restart after a terminal outcome. The server owns position, health, score,
+collectible state, win state, and restart; every connected SVG player renders those snapshots. The
+separately bundled Studio is never linked into the player output. Studio opens the same
+`continuous-arena` document and editable `ArenaContent.fs` values as the player, so Create, Arrange,
+Play, Review, save, and reload retain one scene root and camera while authored hazard and player changes
+remain playable content.
 
 The realtime baseline has four deliberately small but production-relevant rules:
 
@@ -84,6 +87,12 @@ The realtime baseline has four deliberately small but production-relevant rules:
 - Inputs are admitted at hub arrival but resolve at the next server tick frontier,
   sorted by player identity and sequence. Transport scheduling therefore cannot decide
   gameplay order; snapshots with an older tick cannot rewind the client view.
+- Realtime DTO version 1 now carries an explicit action and the cooperative arena status. A 0.14
+  client and server are one deployment unit: missing required fields fail codec validation, and unknown
+  actions fail authority admission rather than receiving an inferred legacy meaning. Saved Studio scene
+  envelopes keep the Rendering-owned schema identifier and are round-tripped before acceptance; product
+  gameplay state is deliberately reconstructed by the authority instead of being embedded in that scene
+  envelope.
 - Admission is bounded to the arena's 240 cells, with no occupied-cell fallback. A
   bootstrap that would exceed that bound returns HTTP 429. Unbound and disconnected
   capabilities expire after two minutes; the tick loop cleans them up and releases

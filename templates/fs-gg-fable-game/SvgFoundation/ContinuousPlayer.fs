@@ -59,6 +59,10 @@ let private colliders revision =
 
 let private bound low high value = max low (min high value)
 
+let private near x y (player: FS.GG.Game.Core.Rect) =
+    abs ((player.X + player.Width / 2.0) - x) <= 12.0 &&
+    abs ((player.Y + player.Height / 2.0) - y) <= 12.0
+
 let private advanceOnce state =
     if state.Outcome <> PlayerOutcome.Playing then state
     else
@@ -96,7 +100,12 @@ let private applyCommand command state =
                 Outcome = (if health = 0 then PlayerOutcome.Lost else state.Outcome)
                 Revision = state.Revision + 1UL }
         | PlayerCommand.Collect ->
-            { state with Collected = 1; Score = state.Score + 100; Outcome = PlayerOutcome.Won; Revision = state.Revision + 1UL }
+            if state.Collected = 0 && near collectibleX collectibleY state.Player then
+                { state with Collected = 1; Score = state.Score + 100; Revision = state.Revision + 1UL }
+            elif state.Collected > 0 && near (goalX + 10.0) (goalY + 12.0) state.Player then
+                { state with Outcome = PlayerOutcome.Won; Revision = state.Revision + 1UL }
+            else
+                { state with Revision = state.Revision + 1UL }
 
 let contract: SessionContract<unit, PlayerState, PlayerCommand, PlayerState, PlayerState> =
     { Initialize = fun _ -> Ok(initialState 1UL)
@@ -116,12 +125,26 @@ let initialize () =
         { SessionId = "generated-player"; Compatibility = compatibility; Configuration = () }
     |> Result.defaultWith (fun error -> failwithf "Generated continuous player could not initialize: %A" error)
 
+let atAuthoritativeSnapshot col row health score collected outcome state =
+    let acceptedOutcome =
+        match outcome with
+        | "won" -> PlayerOutcome.Won
+        | "lost" -> PlayerOutcome.Lost
+        | _ -> PlayerOutcome.Playing
+    { state with
+        Player = { state.Player with X = float col * 11.0; Y = float row * 10.0 }
+        Velocity = { X = 0.0; Y = 0.0 }
+        Health = health
+        Score = score
+        Collected = if collected then 1 else 0
+        Outcome = acceptedOutcome }
+
 let private color red green blue = { Red = red; Green = green; Blue = blue; Alpha = 255uy }
 
 let private objectValue id label selectable nodes =
     { Id = id; Selectable = selectable; AccessibleLabel = label; Content = { Nodes = nodes } }
 
-let scene revision state =
+let sceneWithPeers revision state peers =
     let outcome =
         match state.Outcome with
         | PlayerOutcome.Playing -> "playing"
@@ -141,4 +164,9 @@ let scene revision state =
                     [ SceneNode.Rectangle((movingHazardX state.Revision, hazardY, 18.0, 18.0), color 220uy 38uy 38uy) ]
                 objectValue "goal" "Goal" true [ SceneNode.Rectangle((goalX, goalY, 20.0, 24.0), color 22uy 163uy 74uy) ]
                 objectValue "player" $"Player, {outcome}, health {state.Health}, score {state.Score}" true
-                    [ SceneNode.Rectangle((state.Player.X, state.Player.Y, state.Player.Width, state.Player.Height), color 37uy 99uy 235uy) ] ] } ] }
+                    [ SceneNode.Rectangle((state.Player.X, state.Player.Y, state.Player.Width, state.Player.Height), color 37uy 99uy 235uy) ]
+                for id, col, row in peers do
+                    objectValue ("peer:" + id) "Cooperative player" false
+                        [ SceneNode.Rectangle((float col * 11.0, float row * 10.0, 10.0, 10.0), color 124uy 58uy 237uy) ] ] } ] }
+
+let scene revision state = sceneWithPeers revision state []

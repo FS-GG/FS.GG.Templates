@@ -41,10 +41,15 @@ module RoomAuthority =
     type private PendingInput =
         { PlayerId: string
           AcceptedOrder: uint64
+          Action: string
           TargetCol: int
           TargetRow: int }
 
     let mutable private state = Room.create ArenaWidth ArenaHeight
+    let mutable private health = 3
+    let mutable private score = 0
+    let mutable private collected = false
+    let mutable private outcome = "playing"
     let private sessions = ConcurrentDictionary<string, Session>()
     let private lastSequence = ConcurrentDictionary<string, int>()
     let private pending = ConcurrentDictionary<string, PendingInput>()
@@ -55,6 +60,10 @@ module RoomAuthority =
     let resetForTests () : unit =
         lock gate (fun () ->
             state <- Room.create ArenaWidth ArenaHeight
+            health <- 3
+            score <- 0
+            collected <- false
+            outcome <- "playing"
             sessions.Clear()
             lastSequence.Clear()
             pending.Clear()
@@ -172,35 +181,42 @@ module RoomAuthority =
     /// Queues the highest strictly-increasing input for this player. The accepted
     /// intent is not applied here: every queued player is resolved together at the
     /// next tick frontier in stable player/sequence order.
-    let submitInput (playerId: string) (capability: string) (sequence: int) (targetCol: int) (targetRow: int) : Result<uint64, string> =
+    let submitInput (playerId: string) (capability: string) (sequence: int) (action: string) (targetCol: int) (targetRow: int) : Result<uint64, string> =
         lock gate (fun () ->
-#if SVG_NETWORK_CANDIDATE
-            if sequence < 0 then Error "input sequence must be non-negative"
+            if not (Set.contains action (Set.ofList [ "move"; "interact"; "restart" ])) then
+                Error "unknown arena action"
             else
+#if SVG_NETWORK_CANDIDATE
+              if sequence < 0 then Error "input sequence must be non-negative"
+              else
                 match NetworkAuthority.admit playerId capability (uint64 sequence) targetCol targetRow with
                 | Error issue -> Error issue
                 | Ok acceptedOrder ->
                     pending.[playerId] <-
                         { PlayerId = playerId
                           AcceptedOrder = acceptedOrder
+                          Action = action
                           TargetCol = targetCol
                           TargetRow = targetRow }
                     Ok acceptedOrder
 #else
-            match lastSequence.TryGetValue playerId with
-            | true, last when sequence > last ->
+              match lastSequence.TryGetValue playerId with
+              | true, last when sequence > last ->
                 lastSequence.[playerId] <- sequence
                 pending.[playerId] <-
                     { PlayerId = playerId
                       AcceptedOrder = uint64 sequence
+                      Action = action
                       TargetCol = targetCol
                       TargetRow = targetRow }
                 Ok(uint64 sequence)
-            | _ -> Error "input sequence is duplicate or stale"
+              | _ -> Error "input sequence is duplicate or stale"
 #endif
         )
 
     let snapshot () : int * (string * int * int) list = lock gate snapshotLocked
+
+    let gameStatus () = lock gate (fun () -> health, score, collected, outcome)
 
     /// A cursor is consistent only when it names a frontier this authority has already
     /// reached. This starter keeps no unbounded delta log, so every valid cursor gets
@@ -248,12 +264,27 @@ module RoomAuthority =
                 |> Seq.toList
             pending.Clear()
             for input in frontier do
-                match Room.planMove input.PlayerId { Col = input.TargetCol; Row = input.TargetRow } state with
-                | Some(_ :: next :: _) ->
-                    state <- Room.applyStep input.PlayerId next state
+                match input.Action with
+                | "restart" ->
+                    health <- 3; score <- 0; collected <- false; outcome <- "playing"
+                | "interact" ->
+                    match state.Players |> Map.tryFind input.PlayerId with
+                    | Some player when not collected && player.Cell.Col = 5 && player.Cell.Row = 2 ->
+                        collected <- true; score <- score + 100
+                    | Some player when collected && player.Cell.Col = 16 && player.Cell.Row = 5 -> outcome <- "won"
+                    | _ -> ()
+                | "move" when outcome = "playing" ->
+                    match Room.planMove input.PlayerId { Col = input.TargetCol; Row = input.TargetRow } state with
+                    | Some(_ :: next :: _) ->
+                        state <- Room.applyStep input.PlayerId next state
+                        let hazardCol = 7 + (state.Tick % 7)
+                        if next.Row = 8 && next.Col = hazardCol then
+                            health <- max 0 (health - 1)
+                            if health = 0 then outcome <- "lost"
 #if SVG_NETWORK_CANDIDATE
-                    NetworkAuthority.recordMove input.PlayerId { Col = input.TargetCol; Row = input.TargetRow } (snapshotLocked ())
+                        NetworkAuthority.recordMove input.PlayerId { Col = input.TargetCol; Row = input.TargetRow } (snapshotLocked ())
 #endif
+                    | _ -> ()
                 | _ -> ()
             state <- Room.advanceTick state
             let snapshot = snapshotLocked ()

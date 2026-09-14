@@ -33,8 +33,12 @@ type TickBroadcaster(hub: IHubContext<GameHub>, configuration: IConfiguration) =
                 while not stoppingToken.IsCancellationRequested do
                     do! Task.Delay(TimeSpan.FromMilliseconds intervalMilliseconds, stoppingToken)
                     let tick, players = RoomAuthority.advanceTick ()
+                    let health, score, collected, outcome = RoomAuthority.gameStatus ()
                     let snapshot: RealtimeV1.Snapshot =
-                        { Version = 1; Tick = tick; Players = players |> List.map (fun (pid, col, row) -> { PlayerId = pid; Col = col; Row = row }) }
+                        { Version = 1
+                          Tick = tick
+                          Players = players |> List.map (fun (pid, col, row) -> { PlayerId = pid; Col = col; Row = row })
+                          Health = health; Score = score; Collected = collected; Outcome = outcome }
                     do! hub.Clients.Group(RoomAuthority.RoomId).SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.SnapshotMessage snapshot))
         }
 

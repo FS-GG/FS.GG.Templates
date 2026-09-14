@@ -20,9 +20,9 @@ export default defineConfig({
       reuseExistingServer: false
     },
     {
-      command: "npm run dev",
-      cwd: "../Client",
-      url: "http://localhost:5173/",
+      command: "../../Client/node_modules/.bin/vite --config vite.config.js --host 127.0.0.1 --port 5200",
+      cwd: "../SvgFoundation/Studio",
+      url: "http://127.0.0.1:5200/",
       reuseExistingServer: false
     }
   ]

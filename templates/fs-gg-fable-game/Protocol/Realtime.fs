@@ -18,7 +18,7 @@ module RealtimeV1 =
     /// One input intent, client -> server. `Sequence` is a monotonic per-connection
     /// counter; `Room/InputRouter.fs` (server) drops any input whose sequence does not
     /// strictly increase, which is the stale-input handling this DTO exists to carry.
-    type InputCommand = { Version: int; Sequence: int; TargetCol: int; TargetRow: int }
+    type InputCommand = { Version: int; Sequence: int; Action: string; TargetCol: int; TargetRow: int }
 
     /// The capability issued by the HTTP bootstrap. This is deliberately a message,
     /// rather than query identity: the hub accepts no player or credential in its URL.
@@ -28,7 +28,14 @@ module RealtimeV1 =
 
     /// The authoritative world snapshot, server -> client, sent after every committed
     /// tick and again in full on `ResyncSnapshotMessage` after a reconnect.
-    type Snapshot = { Version: int; Tick: int; Players: PlayerSnapshot list }
+    type Snapshot =
+        { Version: int
+          Tick: int
+          Players: PlayerSnapshot list
+          Health: int
+          Score: int
+          Collected: bool
+          Outcome: string }
 
     type Presence = { Version: int; PlayerId: string; Joined: bool }
 
@@ -51,12 +58,13 @@ module RealtimeV1 =
         | ResyncSnapshotMessage of Snapshot
 
     let private encodeInput (v: InputCommand) =
-        Encode.object [ "version", Encode.int v.Version; "sequence", Encode.int v.Sequence; "targetCol", Encode.int v.TargetCol; "targetRow", Encode.int v.TargetRow ]
+        Encode.object [ "version", Encode.int v.Version; "sequence", Encode.int v.Sequence; "action", Encode.string v.Action; "targetCol", Encode.int v.TargetCol; "targetRow", Encode.int v.TargetRow ]
 
     let private decodeInput: Decoder<InputCommand> =
         Decode.object (fun get ->
             { Version = get.Required.Field "version" Decode.int
               Sequence = get.Required.Field "sequence" Decode.int
+              Action = get.Required.Field "action" Decode.string
               TargetCol = get.Required.Field "targetCol" Decode.int
               TargetRow = get.Required.Field "targetRow" Decode.int })
 
@@ -81,13 +89,21 @@ module RealtimeV1 =
         Encode.object
             [ "version", Encode.int v.Version
               "tick", Encode.int v.Tick
-              "players", Encode.list (v.Players |> List.map encodePlayerSnapshot) ]
+              "players", Encode.list (v.Players |> List.map encodePlayerSnapshot)
+              "health", Encode.int v.Health
+              "score", Encode.int v.Score
+              "collected", Encode.bool v.Collected
+              "outcome", Encode.string v.Outcome ]
 
     let private decodeSnapshot: Decoder<Snapshot> =
         Decode.object (fun get ->
             { Version = get.Required.Field "version" Decode.int
               Tick = get.Required.Field "tick" Decode.int
-              Players = get.Required.Field "players" (Decode.list decodePlayerSnapshot) })
+              Players = get.Required.Field "players" (Decode.list decodePlayerSnapshot)
+              Health = get.Required.Field "health" Decode.int
+              Score = get.Required.Field "score" Decode.int
+              Collected = get.Required.Field "collected" Decode.bool
+              Outcome = get.Required.Field "outcome" Decode.string })
 
     let private encodePresence (v: Presence) =
         Encode.object [ "version", Encode.int v.Version; "playerId", Encode.string v.PlayerId; "joined", Encode.bool v.Joined ]

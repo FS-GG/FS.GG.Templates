@@ -39,12 +39,12 @@ let ``BootstrapV1 rejects a request missing a required field`` () =
 let ``RealtimeV1 message round-trips through JSON for every case`` (caseIndex: int) =
     let value: RealtimeV1.Message =
         match caseIndex with
-        | 0 -> RealtimeV1.InputMessage { Version = 1; Sequence = 7; TargetCol = 5; TargetRow = 2 }
+        | 0 -> RealtimeV1.InputMessage { Version = 1; Sequence = 7; Action = "move"; TargetCol = 5; TargetRow = 2 }
         | 1 -> RealtimeV1.SessionHelloMessage { Version = 1; SessionCapability = "opaque-capability" }
-        | 2 -> RealtimeV1.SnapshotMessage { Version = 1; Tick = 42; Players = [ { PlayerId = "p-1"; Col = 1; Row = 1 }; { PlayerId = "p-2"; Col = 2; Row = 3 } ] }
+        | 2 -> RealtimeV1.SnapshotMessage { Version = 1; Tick = 42; Players = [ { PlayerId = "p-1"; Col = 1; Row = 1 }; { PlayerId = "p-2"; Col = 2; Row = 3 } ]; Health = 3; Score = 100; Collected = true; Outcome = "playing" }
         | 3 -> RealtimeV1.PresenceMessage { Version = 1; PlayerId = "p-1"; Joined = true }
         | 4 -> RealtimeV1.ResyncRequestMessage { Version = 1; LastKnownTick = 10 }
-        | _ -> RealtimeV1.ResyncSnapshotMessage { Version = 1; Tick = 42; Players = [] }
+        | _ -> RealtimeV1.ResyncSnapshotMessage { Version = 1; Tick = 42; Players = []; Health = 3; Score = 0; Collected = false; Outcome = "playing" }
     let decoded = value |> RealtimeV1.encodeMessage |> RealtimeV1.messageFromJson
     Assert.Equal(Ok value, decoded)
 

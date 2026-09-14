@@ -17,12 +17,17 @@
     <DefineConstants Condition="'$(FsGgLegacyPreview)' == 'true'">$(DefineConstants);LEGACY_SVG_PREVIEW</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../Protocol/Http.fs" Link="Protocol/Http.fs" />
+    <Compile Include="../Protocol/Realtime.fs" Link="Protocol/Realtime.fs" />
+    <Compile Include="../Client/SignalR.fs" Link="Network/SignalR.fs" />
+    <Compile Include="../Client/Api.fs" Link="Network/Api.fs" />
     <Compile Include="ArenaContent.fs" />
     <Compile Include="TacticalCompatibility.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
     <Compile Include="PreviewFont.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
     <Compile Include="PreviewDocument.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
     <Compile Include="PlayerInput.fs" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
     <Compile Include="ContinuousPlayer.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'" />
+    <Compile Include="SvgAuthority.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'" />
     <Compile Include="PresentationPlayer.fs" Condition="'$(FsGgSvgPresentCandidate)' == 'true'" />
     <Compile Include="ScalePlayer.fs" Condition="'$(FsGgSvgScaleCandidate)' == 'true'" />
     <Compile Include="Program.fs" />
@@ -31,6 +36,7 @@
     <PackageReference Update="FSharp.Core" Version="[10.1.400]" />
     <PackageReference Include="Fable.Core" Version="[5.2.0]" />
     <PackageReference Include="Fable.Browser.Dom" Version="[2.20.0]" />
+    <PackageReference Include="Thoth.Json" Version="[10.5.1]" />
     <PackageReference Include="FS.GG.UI.Scene" Version="[$(FsGgSvgInputVersion)]" />
     <PackageReference Include="FS.GG.UI.Scene.SvgBrowser" Version="[$(FsGgSvgInputVersion)]" />
     <PackageReference Include="FS.GG.UI.KeyboardInput" Version="[$(FsGgSvgInputVersion)]" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />

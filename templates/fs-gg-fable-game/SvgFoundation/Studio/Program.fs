@@ -32,6 +32,9 @@ let private host =
 
 let private status: HTMLElement = document.getElementById("generated-scene-status")
 let private announce text = status.textContent <- text
+let mutable private playSourceHash = ""
+let mutable private playHealth = 3
+let mutable private playCollision = false
 
 #if SVG_REPLAY_CANDIDATE
 let private replayStudio = ReplayStudio.mount announce
@@ -224,6 +227,19 @@ let private authorGridAndFreeform () =
     |> continuousAdapter
     |> fun metadata -> commit "Grid and freeform adapters authored" [ SvgAuthoringOperation.ReplaceSceneMetadata metadata ]
 
+let private movePlayableHazard () =
+    commit "Playable hazard moved" [ SvgAuthoringOperation.TransformElements([ "hazard" ], SvgAffine.translate 8.0 -4.0) ]
+
+let private playEditedArenaStep () =
+    setMode SvgWorkspaceMode.Play
+    playSourceHash <- hash state.Document
+    playCollision <-
+        state.Document.Children
+        |> List.tryFind (fun element -> element.Id = "hazard")
+        |> Option.exists (fun hazard -> hazard.Transform <> SvgAffine.identity)
+    if playCollision then playHealth <- max 0 (playHealth - 1)
+    commit "Edited arena play step" [ SvgAuthoringOperation.TransformElements([ "player" ], SvgAffine.translate 11.0 0.0) ]
+
 let private saveReload () =
     let envelope={Schema=SvgScene.schema;Metadata=state.Metadata;Document=state.Document;Catalog=state.Catalog;Instances=state.Instances;Fonts=[]}
     match SvgScene.serialize envelope |> Result.bind SvgScene.deserialize with
@@ -275,6 +291,8 @@ let private addControl name action =
   "Place two instances",placeInstances
   "Edit scene properties",editProperties
   "Author grid and freeform",authorGridAndFreeform
+  "Move playable hazard",movePlayableHazard
+  "Play edited arena step",playEditedArenaStep
   "Create asset revision",reviseAsset
   "Resolve asset conflicts",resolveConflicts
   "Save and reload scene",saveReload
@@ -302,6 +320,10 @@ let private snapshot () =
     createObj [ "revision" ==> state.Revision; "assets" ==> state.Catalog.Assets.Length
                 "instances" ==> state.Instances.Length; "entities" ==> state.Metadata.Entities.Length
                 "conflicts" ==> state.Conflicts.Length; "schema" ==> SvgScene.schema
+                "sceneId" ==> state.Metadata.SceneId; "documentId" ==> state.Document.Id
+                "contentHash" ==> hash state.Document; "playSourceHash" ==> playSourceHash
+                "viewBox" ==> $"{state.Document.ViewBox.X},{state.Document.ViewBox.Y},{state.Document.ViewBox.Width},{state.Document.ViewBox.Height}"
+                "playHealth" ==> playHealth; "playCollision" ==> playCollision
 #if SVG_INPUT_CANDIDATE
                 "workspaceMode" ==> workspaceMode host.WorkspaceState.Mode
                 "workspaceOverlay" ==> (host.WorkspaceState.Overlay |> Option.map string |> Option.defaultValue "")
