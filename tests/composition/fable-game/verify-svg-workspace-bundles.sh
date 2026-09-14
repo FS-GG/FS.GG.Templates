@@ -28,10 +28,12 @@ create LegacyFalse --svgFoundation false
 
 for product in Omitted Player; do
   assert_path "$work/$product/SvgFoundation/SvgFoundation.fsproj"
+  assert_path "$work/$product/SvgFoundation/packages.lock.json"
   refute_path "$work/$product/SvgFoundation/Studio"
   refute_path "$work/$product/SvgFoundation/Examples"
 done
 assert_path "$work/Studio/SvgFoundation/Studio/Studio.fsproj"
+assert_path "$work/Studio/SvgFoundation/Studio/packages.lock.json"
 refute_path "$work/Studio/SvgFoundation/Examples"
 assert_path "$work/Tactical/SvgFoundation/Studio/Studio.fsproj"
 assert_path "$work/Tactical/SvgFoundation/Examples/Tactical/README.md"
@@ -50,7 +52,7 @@ for lifecycle in none sdd typed-sdd spec-kit; do
     -o "$work/Lifecycle${lifecycle//-/}" --bundle player --lifecycle "$lifecycle" >/dev/null
 done
 
-for pair in "player false" "studio false" "player true" "arcade true"; do
+for pair in "player false" "studio false" "player true" "arcade true" "complete true"; do
   read -r bundle legacy <<<"$pair"
   destination="$work/conflict-$bundle-$legacy"
   mkdir -p "$destination"
@@ -65,7 +67,22 @@ for pair in "player false" "studio false" "player true" "arcade true"; do
   }
 done
 
+# The previous draft exposed a public acknowledgement parameter. Unknown bypass flags must
+# remain ordinary invalid template input and leave the destination byte-identical.
+destination="$work/conflict-bypass"
+mkdir -p "$destination"
+printf 'retained\n' >"$destination/sentinel"
+if DOTNET_CLI_HOME="$home" dotnet new fs-gg-fable-game -n Conflict -o "$destination" \
+     --bundle player --svgFoundation false --bundleCompatibilityConflict unreachable >"$work/bypass.log" 2>&1; then
+  echo "bundle composition: contradiction guard was bypassed" >&2; exit 1
+fi
+[[ "$(find "$destination" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == sentinel ]] || {
+  echo "bundle composition: bypass attempt wrote into $destination" >&2; exit 1;
+}
+
 grep -F 'source: FS.GG.Workspace.Template::0.14.0' "$root/providers/fable-game.providers.yml" >/dev/null
-grep -A3 -- '- key: bundle' "$root/providers/fable-game.providers.yml" | grep -F 'default: player' >/dev/null
+if grep -A3 -- '- key: bundle' "$root/providers/fable-game.providers.yml" | grep -F 'default:' >/dev/null; then
+  echo "bundle composition: provider must preserve bundle omission for legacy callers" >&2; exit 1
+fi
 
 echo "svg-workspace-bundles: default=player matrix=passed legacy=true/false contradiction=no-write lifecycle=preserved"

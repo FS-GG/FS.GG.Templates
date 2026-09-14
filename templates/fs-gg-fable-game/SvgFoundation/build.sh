@@ -6,7 +6,7 @@ version="${FSGG_SVG_INPUT_VERSION:-0.31.0}"
 export FsGgSvgInputVersion="$version"
 scale_candidate="${FSGG_SVG_SCALE_CANDIDATE:-true}"
 export FsGgSvgScaleCandidate="$scale_candidate"
-restore_args=(dotnet restore "$foundation/SvgFoundation.fsproj" -p:FsGgSvgInputVersion="$version" -p:FsGgSvgScaleCandidate="$scale_candidate")
+restore_args=(dotnet restore "$foundation/SvgFoundation.fsproj" --locked-mode -p:FsGgSvgInputVersion="$version" -p:FsGgSvgScaleCandidate="$scale_candidate")
 if [[ -n "${FSGG_SVG_CANDIDATE_FEED:-}" ]]; then
   config="$foundation/NuGet.candidate.generated.config"
   cat >"$config" <<CONFIG

@@ -22,6 +22,12 @@ for locked in \
 do
   [[ -f "$locked/packages.lock.json" ]] || missing+=("$locked/packages.lock.json")
 done
+if [[ -d SvgFoundation ]]; then
+  for locked in SvgFoundation SvgFoundation/Studio; do
+    [[ -d "$locked" ]] || continue
+    [[ -f "$locked/packages.lock.json" ]] || missing+=("$locked/packages.lock.json")
+  done
+fi
 for locked in Client/package-lock.json Browser.Tests/package-lock.json; do
   [[ -f "$locked" ]] || missing+=("$locked")
 done
@@ -71,18 +77,21 @@ dotnet test Server.Tests/Server.Tests.fsproj --no-build --logger "trx;LogFileNam
 # The Fable/Elmish client: compile, then production-bundle with Vite.
 (cd Client && npm ci && npm run build)
 
-# Build the selected static SVG product independently from its authority server.
-bash SvgFoundation/build.sh
-rm -rf artifacts/static-player
-mkdir -p artifacts/static-player
-cp -R SvgFoundation/dist/. artifacts/static-player/
+# Build the selected static SVG product independently from its authority server. The
+# compatibility `svgFoundation=false` product intentionally has no SVG tree.
+if [[ -f SvgFoundation/SvgFoundation.fsproj ]]; then
+  bash SvgFoundation/build.sh
+  rm -rf artifacts/static-player
+  mkdir -p artifacts/static-player
+  cp -R SvgFoundation/dist/. artifacts/static-player/
 
-# Player-only generation removes this project at template expansion time.
-if [[ -f SvgFoundation/Studio/Studio.fsproj ]]; then
-  bash SvgFoundation/Studio/build.sh
-  rm -rf artifacts/static-studio
-  mkdir -p artifacts/static-studio
-  cp -R SvgFoundation/Studio/dist/. artifacts/static-studio/
+  # Player-only generation removes this project at template expansion time.
+  if [[ -f SvgFoundation/Studio/Studio.fsproj ]]; then
+    bash SvgFoundation/Studio/build.sh
+    rm -rf artifacts/static-studio
+    mkdir -p artifacts/static-studio
+    cp -R SvgFoundation/Studio/dist/. artifacts/static-studio/
+  fi
 fi
 
 dotnet publish Server/Server.fsproj -c Release --no-restore -o artifacts/authority-server

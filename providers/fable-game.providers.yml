@@ -10,7 +10,7 @@
 #
 # PRODUCT SKILLS THIS PROVIDER DELIVERS (FS.GG.Templates#347). A product scaffolded through this
 # provider receives, in `.agents/skills/`, the owner-sourced generic Fable skills selected for
-# `fs-gg-fable-game` — `fable-project`, `fable-interop`, `fable-remoting`, `fable-signalr`,
+# `fs-gg-fable-game` — `fable-project`, `fable-interop`, `fable-http-codecs`, `fable-signalr`,
 # `fable-testing` — plus the producer manifest `.agents/skills/skill-manifest.json` that declares
 # and digests them. They are authored once under `template/product-skills/` and projected into this
 # template's packed payload by package items in FS.GG.Templates.csproj; the authority for WHICH
@@ -44,7 +44,6 @@ providers:
         required: false
       - key: bundle
         required: false
-        default: player
       - key: lifecycle
         required: false
         default: sdd

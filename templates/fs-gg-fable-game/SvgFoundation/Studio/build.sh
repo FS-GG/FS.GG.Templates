@@ -6,7 +6,7 @@ version="${FSGG_SVG_AUTHORING_VERSION:-0.31.0}"
 export FsGgSvgAuthoringVersion="$version"
 game_version="${FSGG_GAME_REPLAY_VERSION:-0.16.0}"
 export FsGgGameReplayVersion="$game_version"
-restore_args=(dotnet restore "$studio/Studio.fsproj" -p:FsGgSvgAuthoringVersion="$version" -p:FsGgGameReplayVersion="$game_version")
+restore_args=(dotnet restore "$studio/Studio.fsproj" --locked-mode -p:FsGgSvgAuthoringVersion="$version" -p:FsGgGameReplayVersion="$game_version")
 if [[ -n "${FSGG_SVG_CANDIDATE_FEED:-}" ]]; then
   config="$studio/NuGet.candidate.generated.config"
   cat >"$config" <<CONFIG

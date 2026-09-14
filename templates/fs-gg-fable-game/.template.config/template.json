@@ -67,10 +67,9 @@
     "bundleCompatibilityConflict": {
       "type": "parameter",
       "datatype": "choice",
-      "description": "Internal contradiction guard; callers must not set this option.",
-      "choices": [ { "choice": "unreachable" } ],
-      "isEnabled": "((svgFoundation == false && bundle != \"\") || (svgFoundation == true && bundle != \"\" && bundle != \"complete\"))",
-      "isRequired": "((svgFoundation == false && bundle != \"\") || (svgFoundation == true && bundle != \"\" && bundle != \"complete\"))"
+      "description": "Internal fail-closed guard for contradictory bundle and svgFoundation inputs.",
+      "choices": [ { "choice": "\u0000" } ],
+      "isRequired": "(bundle != \"\" && svgFoundation != \"unspecified\")"
     },
     "lifecycle": {
       "type": "parameter",

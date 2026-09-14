@@ -107,8 +107,8 @@
           PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-project/;content/templates/fs-gg-fable-bindings/.agents/skills/fable-project/" />
     <None Include="template/product-skills/fable-interop/SKILL.md" Pack="true"
           PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-interop/;content/templates/fs-gg-fable-bindings/.agents/skills/fable-interop/" />
-    <None Include="template/product-skills/fable-remoting/SKILL.md" Pack="true"
-          PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-remoting/" />
+    <None Include="template/product-skills/fable-http-codecs/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-http-codecs/" />
     <None Include="template/product-skills/fable-signalr/SKILL.md" Pack="true"
           PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-signalr/" />
     <None Include="template/product-skills/fable-testing/SKILL.md" Pack="true"

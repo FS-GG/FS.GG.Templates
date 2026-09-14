@@ -127,12 +127,14 @@ After changing any `PackageReference`, regenerate and commit the affected locks:
 ```bash
 dotnet restore FableGameWorkspace.slnx --force-evaluate
 dotnet restore Client/Client.fsproj --force-evaluate
+dotnet restore SvgFoundation/SvgFoundation.fsproj --force-evaluate
+dotnet restore SvgFoundation/Studio/Studio.fsproj --force-evaluate
 dotnet restore Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj --force-evaluate
 dotnet restore Protocol.Tests/cross-runtime/CodecProbe.Fable/CodecProbe.Fable.fsproj --force-evaluate
 ```
 
-`Client` and the two `cross-runtime` probes need their own lines because they are
-not members of the solution. Never hand-edit a lock file; a hash typed by a human
+`Client`, the selected SVG projects, and the two `cross-runtime` probes need their
+own lines because they are not members of the solution. Never hand-edit a lock file; a hash typed by a human
 is a hash no restore can reproduce.
 
 Two settings keep those hashes reproducible, and both are load-bearing (see
