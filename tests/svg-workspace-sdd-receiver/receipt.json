@@ -1,0 +1,155 @@
+{
+  "bundles": {
+    "arcade": {
+      "effectiveParameters": {
+        "bundle": "arcade",
+        "lifecycle": "none",
+        "productName": "ArcadeAudit",
+        "rootNamespace": "ArcadeAudit"
+      },
+      "selectedOwnerSkills": [
+        "fs-gg-browser-audio",
+        "fs-gg-collision",
+        "fs-gg-feedback-report",
+        "fs-gg-game-core",
+        "fs-gg-game-fable",
+        "fs-gg-game-shell",
+        "fs-gg-keyboard-input",
+        "fs-gg-layout",
+        "fs-gg-persistence",
+        "fs-gg-replay",
+        "fs-gg-scene",
+        "fs-gg-styling",
+        "fs-gg-svg-assets",
+        "fs-gg-svg-performance",
+        "fs-gg-testing",
+        "fs-gg-ui-widgets"
+      ]
+    },
+    "complete": {
+      "effectiveParameters": {
+        "bundle": "complete",
+        "lifecycle": "none",
+        "productName": "CompleteAudit",
+        "rootNamespace": "CompleteAudit"
+      },
+      "selectedOwnerSkills": [
+        "fs-gg-browser-audio",
+        "fs-gg-collision",
+        "fs-gg-feedback-report",
+        "fs-gg-game-core",
+        "fs-gg-game-fable",
+        "fs-gg-game-shell",
+        "fs-gg-keyboard-input",
+        "fs-gg-layout",
+        "fs-gg-persistence",
+        "fs-gg-replay",
+        "fs-gg-rules",
+        "fs-gg-scene",
+        "fs-gg-styling",
+        "fs-gg-svg-assets",
+        "fs-gg-svg-performance",
+        "fs-gg-testing",
+        "fs-gg-ui-widgets"
+      ]
+    },
+    "player": {
+      "effectiveParameters": {
+        "bundle": "player",
+        "lifecycle": "none",
+        "productName": "PlayerAudit",
+        "rootNamespace": "PlayerAudit"
+      },
+      "selectedOwnerSkills": [
+        "fs-gg-browser-audio",
+        "fs-gg-collision",
+        "fs-gg-feedback-report",
+        "fs-gg-game-core",
+        "fs-gg-game-fable",
+        "fs-gg-game-shell",
+        "fs-gg-keyboard-input",
+        "fs-gg-persistence",
+        "fs-gg-replay",
+        "fs-gg-scene",
+        "fs-gg-svg-performance",
+        "fs-gg-testing"
+      ]
+    },
+    "studio": {
+      "effectiveParameters": {
+        "bundle": "studio",
+        "lifecycle": "none",
+        "productName": "StudioAudit",
+        "rootNamespace": "StudioAudit"
+      },
+      "selectedOwnerSkills": [
+        "fs-gg-browser-audio",
+        "fs-gg-collision",
+        "fs-gg-feedback-report",
+        "fs-gg-game-core",
+        "fs-gg-game-fable",
+        "fs-gg-game-shell",
+        "fs-gg-keyboard-input",
+        "fs-gg-layout",
+        "fs-gg-persistence",
+        "fs-gg-replay",
+        "fs-gg-scene",
+        "fs-gg-styling",
+        "fs-gg-svg-assets",
+        "fs-gg-svg-performance",
+        "fs-gg-testing",
+        "fs-gg-ui-widgets"
+      ]
+    },
+    "tactical": {
+      "effectiveParameters": {
+        "bundle": "tactical",
+        "lifecycle": "none",
+        "productName": "TacticalAudit",
+        "rootNamespace": "TacticalAudit"
+      },
+      "selectedOwnerSkills": [
+        "fs-gg-browser-audio",
+        "fs-gg-collision",
+        "fs-gg-feedback-report",
+        "fs-gg-game-core",
+        "fs-gg-game-fable",
+        "fs-gg-game-shell",
+        "fs-gg-keyboard-input",
+        "fs-gg-layout",
+        "fs-gg-persistence",
+        "fs-gg-replay",
+        "fs-gg-rules",
+        "fs-gg-scene",
+        "fs-gg-styling",
+        "fs-gg-svg-assets",
+        "fs-gg-svg-performance",
+        "fs-gg-testing",
+        "fs-gg-ui-widgets"
+      ]
+    }
+  },
+  "legacySvgFoundationWithoutBundle": [
+    "true",
+    "false"
+  ],
+  "missingRoutineWorkflowReseeded": true,
+  "modifiedHelperPreserved": true,
+  "schema": "fsgg.svg-workspace.sdd-receiver-readback/v1",
+  "sdd": {
+    "artifactsSha256": "8eaff15a322f9455f1f7c4a8ef5644b78275ff6953ec373813f99ec6399ab204",
+    "cliSha256": "c6bc7a1625941a809ca93f036a6f7a85aa44db342338a2efb9e9f64ed9167cc5",
+    "gitTree": "7d7b54595461d5fe5828de56e870935b361d71f2",
+    "mergedSource": "bbca72b0730e87897da390f33b1be76b20074f8b",
+    "receiptArtifact": 10348083971,
+    "receiptDigest": "sha256:80e98e052296eb804ed708d18ffff920cecf33bc167b18cce7573b591de4f931",
+    "releaseRun": 34845942599,
+    "reviewedSource": "f24170beedd02e7f3da212d4c83d4f02fe0be663",
+    "version": "1.8.0"
+  },
+  "templatesCandidate": {
+    "sha256": "6aebc9dc9db10767d9cd57f9cef3b6370cd801f3ba71c9769a524ad1d5ef5d0a",
+    "source": "f4d2ee63a6e1200e733d7f36fdcbafa07c7907ef",
+    "version": "0.14.0"
+  }
+}

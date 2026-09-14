@@ -171,7 +171,7 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   verifies every schema-v2 file digest, exact public source/payload identity, all five bundle selections,
   the Player negatives, and Game-first collision selection.
 
-- [ ] **SVG-WORKSPACE-01.2 — Publish an SDD receiver that installs the approved workspace profile — route: routine**
+- [x] **SVG-WORKSPACE-01.2 — Publish an SDD receiver that installs the approved workspace profile — route: routine**
 
   Depends on: .1 public owner artifacts for final embedding; source preparation may overlap their release wait.
   Scope: SDD embeds the exact owner releases, supports Audio-owned delivery and the provider/bundle predicate
@@ -189,6 +189,30 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   ChangeProposal integration against SDD #927 without blocking this milestone on that optional format or
   taking over its organization-wide programme. Manifest-v2 alone is insufficient evidence; actual
   author/inspect/freshness/correspondence behavior is the acceptance subject.
+
+  Evidence (2026-09-14): shared producer [`.github#3472`](https://github.com/FS-GG/.github/pull/3472)
+  published and promoted coherent `FS.GG.Drivers` 0.89.0 from
+  `535970a06055dfcdbb96aad8726b4d7d981a5b72` in run `34841115333`; its public archive SHA-256 is
+  `630e7feb8d2fceb91d4ba1dc757ca661d52d24996e62c4dfbf9e2c2c20a9aa7d` and its closed workspace
+  manifest SHA-256 is `3a91a4704d408a26b7bfce0cdf5ed12d2ec822022a4cbecef2c678ba20f1709a`.
+  SDD [#984](https://github.com/FS-GG/FS.GG.SDD/pull/984) published 1.8.0 from reviewed source
+  `f24170beedd02e7f3da212d4c83d4f02fe0be663`, whose Git tree
+  `7d7b54595461d5fe5828de56e870935b361d71f2` equals merge
+  `bbca72b0730e87897da390f33b1be76b20074f8b`. Recovery run `34845942599` reused the retained
+  originals, verified both feeds, installed the public CLI in a clean cache and passed the network-isolated
+  neutral profile-1/profile-2 Quint author/inspect/provision, exact-IR mutation, concurrency, corruption,
+  recovery, bounded migration and rollback matrix. Public Artifacts/CLI archive SHA-256 values are
+  `8eaff15a322f9455f1f7c4a8ef5644b78275ff6953ec373813f99ec6399ab204` and
+  `c6bc7a1625941a809ca93f036a6f7a85aa44db342338a2efb9e9f64ed9167cc5`.
+  This repository's `tests/svg-workspace-sdd-receiver/receipt.json` binds public SDD 1.8.0 to exact
+  Templates 0.14.0 candidate source `f4d2ee63a6e1200e733d7f36fdcbafa07c7907ef` and archive SHA-256
+  `6aebc9dc9db10767d9cd57f9cef3b6370cd801f3ba71c9769a524ad1d5ef5d0a`, retained by no-push
+  run `34850052710` as artifact `10350411116`. The executable readback
+  verifies all five bundle selections across both configured agent roots, every selected owner file and
+  sidecar, all unselected owner negatives, Game-first shared guidance, closed routine files, no-clobber
+  repair and explicit legacy `svgFoundation=true/false` behavior without an injected bundle. Its receipt
+  SHA-256 is `51c9510f42c206e6bfbd3c442684a31bc560e48e48c2e2ccacc4bf3f1367ee3d`.
+  Universal ChangeProposal automation remains the explicitly unsupported future SDD #927 seam.
 
 - [ ] **SVG-WORKSPACE-01.3 — Compose the default SVG game and optional workspace bundles — route: routine**
 
