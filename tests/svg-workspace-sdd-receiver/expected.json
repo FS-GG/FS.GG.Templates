@@ -1,0 +1,55 @@
+{
+  "sdd": {
+    "version": "1.8.0",
+    "artifactsSha256": "8eaff15a322f9455f1f7c4a8ef5644b78275ff6953ec373813f99ec6399ab204",
+    "cliSha256": "c6bc7a1625941a809ca93f036a6f7a85aa44db342338a2efb9e9f64ed9167cc5",
+    "reviewedSource": "f24170beedd02e7f3da212d4c83d4f02fe0be663",
+    "mergedSource": "bbca72b0730e87897da390f33b1be76b20074f8b",
+    "gitTree": "7d7b54595461d5fe5828de56e870935b361d71f2",
+    "releaseRun": 34845942599,
+    "receiptArtifact": 10348083971,
+    "receiptDigest": "sha256:80e98e052296eb804ed708d18ffff920cecf33bc167b18cce7573b591de4f931"
+  },
+  "owners": [
+    {
+      "id": "FS.GG.Game.Skills",
+      "version": "0.9.0",
+      "archiveSha256": "22ff41c29378bfe29704f9c01471c94fb06af6b74bb79417e5cc2c07ec915922",
+      "contentRoot": "game-skills"
+    },
+    {
+      "id": "FS.GG.Rendering.Skills",
+      "version": "0.2.0",
+      "archiveSha256": "059ed3ef5f397c7735054b9233b0ddad57232df928812d6622b62397ed1bf558",
+      "contentRoot": "rendering-skills"
+    },
+    {
+      "id": "FS.GG.Audio.Skills",
+      "version": "0.1.0",
+      "archiveSha256": "c2b8f88ddf62c9af39c31a199fd2767c7a00a8284de3e9867a22d63f9fad29ff",
+      "contentRoot": "audio-skills"
+    }
+  ],
+  "base": [
+    "fs-gg-browser-audio",
+    "fs-gg-collision",
+    "fs-gg-feedback-report",
+    "fs-gg-game-core",
+    "fs-gg-game-fable",
+    "fs-gg-game-shell",
+    "fs-gg-keyboard-input",
+    "fs-gg-persistence",
+    "fs-gg-replay",
+    "fs-gg-scene",
+    "fs-gg-svg-performance",
+    "fs-gg-testing"
+  ],
+  "studio": ["fs-gg-layout", "fs-gg-styling", "fs-gg-svg-assets", "fs-gg-ui-widgets"],
+  "rules": ["fs-gg-rules"],
+  "routine": {
+    ".fsgg/routine-development.json": "631b83bd0b2204016679497917411dc90fa53e4e88c625b043942c0a82c0070d",
+    ".github/workflows/routine-eligibility.yml": "c5ce8b1b019a4a6dd0a48332664b60cdccee59725b12284bd3dfac3295c7b72d",
+    "tools/fsgg_telemetry_defaults.py": "15828fd867cf35a69a9e41369a15489927c2d25ae6bb1ceda5d7a007c1a2884d",
+    "tools/routine-delivery.py": "045d38b4ab93434fc0cd00e0fc927f2923091ab4e5dba886f720167af52eab0e"
+  }
+}
