@@ -44,6 +44,10 @@ def activate(name, role="push button"):
     action = node.get_action_iface()
     if not action.do_action(0):
         raise RuntimeError(f"AT-SPI action refused: {name}")
+    # Let Orca consume the accessibility event before this observer traverses
+    # the same tree. Immediate concurrent traversal can block Chromium's AX
+    # cache update and prevent the speech event from reaching Orca.
+    time.sleep(.75)
 
 def focused():
     candidate = None
@@ -60,7 +64,10 @@ def focused():
 
 def key(*keys):
     subprocess.run(["xdotool", "key", "--clearmodifiers", *keys], check=True)
-    time.sleep(.15)
+    # Keep observation behind the browser/Orca event boundary. This is a real X
+    # keyboard path; the delay avoids racing a second AT-SPI client against the
+    # focus event currently being presented by Orca.
+    time.sleep(.75)
 
 def tab_to(name, limit=80):
     observed = []
@@ -76,16 +83,38 @@ def tab_to(name, limit=80):
             return item
     raise RuntimeError(f"keyboard focus did not reach {name}; observed={observed[-20:]}")
 
-def wait_for_focus(name, timeout=10):
+def wait_for_focus(name, role=None, timeout=10):
     end = time.time() + timeout
     while time.time() < end:
-        item = focused()
-        if item is not None and (item.get_name() or "") == name:
-            return item
+        for item in walk(Atspi.get_desktop(0)):
+            try:
+                if (item.get_state_set().contains(Atspi.StateType.FOCUSED)
+                    and (item.get_name() or "") == name
+                    and (role is None or item.get_role_name() == role)):
+                    return item
+            except Exception:
+                pass
         time.sleep(.1)
     item = focused()
-    actual = None if item is None else (item.get_name() or item.get_role_name())
-    raise RuntimeError(f"focus was not restored to {name}; actual={actual}")
+    actual = None if item is None else {"name": item.get_name(), "role": item.get_role_name()}
+    raise RuntimeError(f"focus was not restored to role={role} name={name}; actual={actual}")
+
+def wait_until_absent(role, name, timeout=10):
+    end = time.time() + timeout
+    while time.time() < end:
+        present = False
+        for item in walk(Atspi.get_desktop(0)):
+            try:
+                if item.get_role_name() == role and (item.get_name() or "") == name:
+                    if item.get_state_set().contains(Atspi.StateType.SHOWING):
+                        present = True
+                        break
+            except Exception:
+                pass
+        if not present:
+            return
+        time.sleep(.1)
+    raise RuntimeError(f"AT-SPI object remained visible: role={role} name={name}")
 
 def wait_for_speech(*needles, timeout=10):
     debug = output + ".orca-debug.log"
@@ -123,7 +152,11 @@ tab_to("Command palette")
 key("Return")
 find("dialog", name="Command palette")
 key("Escape")
-wait_for_focus("Command palette")
+wait_until_absent("dialog", "Command palette")
+# The application contract records the scene id as RestoreFocus. Its SVG root
+# is exposed through Chromium AT-SPI as role=application with this exact label;
+# the similarly named document heading is not an acceptable substitute.
+wait_for_focus("Generated SVG scene studio", role="application")
 tab_to("Possible input help")
 key("Return")
 find("dialog", name="Possible input help")
@@ -140,7 +173,7 @@ with open(output, "w") as stream:
         "result": "passed",
         "composition": "generated-svg-studio",
         "process": {"name": "orca", "pid": int(os.environ["ORCA_PID"])},
-        "browser": {"pid": int(os.environ["BROWSER_PID"]), "accessibility": "AT-SPI2"},
+        "browser": {"name": os.environ["SVG_ORCA_BROWSER_FAMILY"], "pid": int(os.environ["BROWSER_PID"]), "accessibility": "AT-SPI2"},
         "keyboard": {"events": "xdotool-X11", "navigation": "passed", "activation": "passed", "selection": "passed", "palette": "passed", "escape": "passed", "focusRestoration": "passed"},
         "atspiActions": {"properties": "passed", "twoInstancesRefusal": "passed", "mode": "passed", "helpClose": "passed", "rebind": "passed", "validationFeedback": "passed"},
         "workspace": {"mode": "passed", "palette": "passed", "help": "passed", "rebind": "passed", "focusRestoration": "passed"},

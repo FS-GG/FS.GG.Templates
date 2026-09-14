@@ -229,10 +229,16 @@ test("two SVG arena clients observe the same authoritative move", async ({ brows
     const settledReconnectTick = Number(await arenaA.getAttribute("data-authority-tick"));
     await expect.poll(async () => Number(await arenaA.getAttribute("data-authority-tick"))).toBeGreaterThan(settledReconnectTick + 2);
     await expect(arenaA).toHaveAttribute("data-authority-self-row", String(settledReconnectRow));
-    const controlledReconnectDiagnostics = diagnostics.splice(diagnosticsBeforeReconnect);
+    const socketGenerations = await pageA.evaluate(() =>
+      (window as unknown as { __fsggAuthoritySockets: WebSocket[] }).__fsggAuthoritySockets.length);
+    const controlledReconnectDiagnostics = diagnostics.slice(diagnosticsBeforeReconnect);
     const controlledReconnectConsole = expectedConsole.splice(expectedBeforeReconnect);
-    await testInfo.attach("controlled-reconnect", {
-      body: Buffer.from(JSON.stringify({ staleInputsReplayed: false, socketGenerations: 2, diagnostics: controlledReconnectDiagnostics, expectedConsole: controlledReconnectConsole }, null, 2)),
+    expect(controlledReconnectDiagnostics.length).toBeGreaterThan(0);
+    expect(controlledReconnectDiagnostics.every(item =>
+      item.kind === "console" && /^info: \[.+] Information: Connection disconnected\.$/.test(item.detail))).toBe(true);
+    diagnostics.splice(diagnosticsBeforeReconnect, controlledReconnectDiagnostics.length);
+    await testInfo.attach("controlled-transport-reconnect", {
+      body: Buffer.from(JSON.stringify({ staleInputsReplayed: false, socketGenerations, diagnostics: controlledReconnectDiagnostics, expectedConsole: controlledReconnectConsole }, null, 2)),
       contentType: "application/json"
     });
     await pageA.locator("#foundation-export").click();
