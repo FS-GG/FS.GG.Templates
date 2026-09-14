@@ -1,4 +1,4 @@
-import json, os, sys, time
+import json, os, subprocess, sys, time
 import gi
 
 gi.require_version("Atspi", "2.0")
@@ -45,8 +45,66 @@ def activate(name, role="push button"):
     if not action.do_action(0):
         raise RuntimeError(f"AT-SPI action refused: {name}")
 
+def focused():
+    candidate = None
+    for item in walk(Atspi.get_desktop(0)):
+        try:
+            if item.get_state_set().contains(Atspi.StateType.FOCUSED):
+                # Containers and their focused descendant may both carry the
+                # state. The depth-first traversal leaves the actual control
+                # last, which is the focus value the keyboard user observes.
+                candidate = item
+        except Exception:
+            pass
+    return candidate
+
+def key(*keys):
+    subprocess.run(["xdotool", "key", "--clearmodifiers", *keys], check=True)
+    time.sleep(.15)
+
+def tab_to(name, limit=80):
+    observed = []
+    for _ in range(limit):
+        key("Tab")
+        item = focused()
+        if item is None:
+            continue
+        value = item.get_name() or ""
+        if value:
+            observed.append(value)
+        if value == name:
+            return item
+    raise RuntimeError(f"keyboard focus did not reach {name}; observed={observed[-20:]}")
+
+def wait_for_focus(name, timeout=10):
+    end = time.time() + timeout
+    while time.time() < end:
+        item = focused()
+        if item is not None and (item.get_name() or "") == name:
+            return item
+        time.sleep(.1)
+    item = focused()
+    actual = None if item is None else (item.get_name() or item.get_role_name())
+    raise RuntimeError(f"focus was not restored to {name}; actual={actual}")
+
+def wait_for_speech(*needles, timeout=10):
+    debug = output + ".orca-debug.log"
+    end = time.time() + timeout
+    while time.time() < end:
+        try:
+            text = open(debug, errors="replace").read()
+        except FileNotFoundError:
+            text = ""
+        if "SPEECH OUTPUT" in text and all(needle in text for needle in needles):
+            return True
+        time.sleep(.2)
+    raise RuntimeError("Orca did not record the expected speech output")
+
 find("heading", name="Generated SVG scene studio")
-activate("Rectangle")
+# Traverse and activate the real control with X keyboard events. AT-SPI is used
+# only to observe where focus arrived and what the application announced.
+tab_to("Rectangle")
+key("Return")
 find(None, contains="created and selected")
 activate("Edit scene properties")
 find(None, contains="properties and grid edited")
@@ -56,16 +114,20 @@ find(None, contains="save the sample asset first")
 # exposes the descriptive aria-label as their accessible name.
 activate("Arrange mode", role="toggle button")
 find(None, contains="Mode: Arrange")
-activate("Command palette")
+tab_to("Command palette")
+key("Return")
 find("dialog", name="Command palette")
-activate("Close workspace overlay")
-activate("Possible input help")
+key("Escape")
+wait_for_focus("Command palette")
+tab_to("Possible input help")
+key("Return")
 find("dialog", name="Possible input help")
 activate("Close workspace overlay")
 activate("Rebind command")
 find("dialog", name="Rebind command")
 find(None, contains="Conflict feedback")
 activate("Close workspace overlay")
+wait_for_speech("Rectangle", "created and selected")
 
 with open(output, "w") as stream:
     json.dump({
@@ -74,7 +136,8 @@ with open(output, "w") as stream:
         "composition": "generated-svg-studio",
         "process": {"name": "orca", "pid": int(os.environ["ORCA_PID"])},
         "browser": {"pid": int(os.environ["BROWSER_PID"]), "accessibility": "AT-SPI2"},
-        "keyboard": {"selection": "passed", "properties": "passed", "validationFeedback": "passed"},
+        "keyboard": {"events": "xdotool-X11", "navigation": "passed", "activation": "passed", "selection": "passed", "properties": "passed", "validationFeedback": "passed"},
         "workspace": {"mode": "passed", "palette": "passed", "help": "passed", "rebind": "passed", "focusRestoration": "passed"},
+        "screenReader": {"name": "Orca", "speechOutputObserved": True, "audibleHardwareOutput": "not-observed"},
     }, stream, indent=2)
     stream.write("\n")

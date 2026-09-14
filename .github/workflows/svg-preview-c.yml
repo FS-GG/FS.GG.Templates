@@ -45,6 +45,8 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium firefox webkit
+          sudo apt-get update
+          sudo apt-get install --yes dbus-x11 gettext gir1.2-atspi-2.0 libatspi2.0-dev orca python3-gi python3-speechd speech-dispatcher-espeak-ng xdotool xvfb
       - name: Acquire exact Quint
         shell: bash
         run: |
@@ -85,6 +87,23 @@ jobs:
             cp Browser.Tests/test-results/browser.json "$RUNNER_TEMP/svg-preview-c-source/complete-$family.browser.json"
             cp "artifacts/test-results/browser.$family.junit.xml" "$RUNNER_TEMP/svg-preview-c-source/complete-$family.junit.xml"
           done
+      - name: Observe real keyboard focus and Orca speech output
+        shell: bash
+        run: |
+          set -euo pipefail
+          orca --version | tee "$RUNNER_TEMP/svg-preview-c-source/orca-version.log"
+          studio="$RUNNER_TEMP/svg-preview-c-source/direct/SvgFoundation/Studio/dist"
+          test -f "$studio/index.html"
+          (cd "$studio" && exec python3 -m http.server 8143 --bind 127.0.0.1 > "$RUNNER_TEMP/svg-preview-c-source/orca-studio-server.log" 2>&1) &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for _ in {1..80}; do curl -fsS http://127.0.0.1:8143/ >/dev/null && break; sleep .25; done
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
+            bash tests/composition/fable-game/observe-svg-input-orca.sh \
+              http://127.0.0.1:8143/ "$RUNNER_TEMP/svg-preview-c-source/orca-input.json"
+          jq -e '.result=="passed" and .keyboard.events=="xdotool-X11" and .keyboard.navigation=="passed" and .keyboard.activation=="passed" and .workspace.focusRestoration=="passed" and .screenReader.name=="Orca" and .screenReader.speechOutputObserved==true and .screenReader.audibleHardwareOutput=="not-observed"' \
+            "$RUNNER_TEMP/svg-preview-c-source/orca-input.json" >/dev/null
       - name: Upload Release C source evidence
         if: always()
         uses: actions/upload-artifact@v7
