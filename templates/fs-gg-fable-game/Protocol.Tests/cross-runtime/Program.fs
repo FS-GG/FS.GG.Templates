@@ -10,6 +10,9 @@ open FableGameWorkspaceNamespace.SvgFoundation.Studio.SceneSchema
 open FS.GG.UI.Scene
 module Arcade = FableGameWorkspaceNamespace.ArcadeRules
 module Tactical = FableGameWorkspaceNamespace.TacticalRules
+#if CONTINUOUS_PLAYER
+module ContinuousPlayer = FableGameWorkspaceNamespace.SvgFoundation.ContinuousPlayer
+#endif
 
 /// A tiny CLI, compiled *twice* -- once as an ordinary .NET console app
 /// (`CodecProbe.Net.fsproj`, against `Thoth.Json.Net`) and once via `dotnet fable`
@@ -242,6 +245,25 @@ let private arenaModelCorrespondenceProof traceFile =
     String.concat "\n" observations
 
 let private arcadeProof traceFile =
+#if CONTINUOUS_PLAYER
+    let continuous = ContinuousPlayer.contract
+    let continuousInitial =
+        continuous.Initialize
+            { SessionId = "generated-player"; Compatibility = ContinuousPlayer.compatibility; Configuration = () }
+        |> Result.defaultWith (fun failure -> failwith failure.Code)
+    let continuousSnapshot = continuous.Snapshot continuousInitial
+    match continuous.Restore continuousSnapshot with
+    | Ok restored when restored = continuousInitial -> ()
+    | result -> failwith $"continuous player refused its own snapshot round trip: {result}"
+    match continuous.Restore { continuousSnapshot with SessionId = "foreign-session" } with
+    | Error failure when failure.Code = "continuous-player.snapshot.session" -> ()
+    | result -> failwith $"continuous player accepted a foreign session snapshot: {result}"
+    let priorCompatibility =
+        { ContinuousPlayer.compatibility with EngineVersion = "0"; ProfileId = "generated-player/prior" }
+    match continuous.Restore { continuousSnapshot with Compatibility = priorCompatibility } with
+    | Error failure when failure.Code = "continuous-player.snapshot.compatibility" -> ()
+    | result -> failwith $"continuous player accepted an incompatible snapshot: {result}"
+#endif
     let project (state: Arcade.ArcadeState) =
         let boolean value = if value then "true" else "false"
         let outcome = match state.Outcome with Arcade.ArcadeOutcome.Playing -> "playing" | Arcade.ArcadeOutcome.Won -> "won" | Arcade.ArcadeOutcome.Lost -> "lost"

@@ -3,6 +3,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <EnableDefaultItems>false</EnableDefaultItems>
+    <DefineConstants Condition="Exists('../../../SvgFoundation/ContinuousPlayer.fs')">$(DefineConstants);CONTINUOUS_PLAYER</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <!-- Same source files CodecProbe.Net.fsproj compiles against Thoth.Json.Net,
@@ -12,6 +13,7 @@
     <Compile Include="../../../Protocol/Http.fs" />
     <Compile Include="../../../Protocol/Realtime.fs" />
     <Compile Include="../../../Conformance/SceneSchema.fs" Link="SceneSchema.fs" />
+    <Compile Include="../../../SvgFoundation/ContinuousPlayer.fs" Link="ContinuousPlayer.fs" Condition="Exists('../../../SvgFoundation/ContinuousPlayer.fs')" />
     <Compile Include="../Program.fs" />
   </ItemGroup>
   <ItemGroup>

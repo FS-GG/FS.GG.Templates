@@ -124,7 +124,12 @@ let contract: SessionContract<unit, PlayerState, PlayerCommand, PlayerState, Pla
           Ok current
       Project = fun state -> { SessionId = "generated-player"; Revision = state.Revision; Value = state }
       Snapshot = fun state -> { SessionId = "generated-player"; Revision = state.Revision; Compatibility = compatibility; Value = state }
-      Restore = fun snapshot -> Ok snapshot.Value }
+      Restore = fun snapshot ->
+          if snapshot.SessionId <> "generated-player" then
+              Error { Code = "continuous-player.snapshot.session"; Message = "continuous player snapshot session mismatch" }
+          elif snapshot.Compatibility <> compatibility then
+              Error { Code = "continuous-player.snapshot.compatibility"; Message = "continuous player snapshot compatibility mismatch" }
+          else Ok snapshot.Value }
 
 let initialize () =
     SessionRuntime.initialize

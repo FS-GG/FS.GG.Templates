@@ -165,6 +165,10 @@ cp "$SCRIPT_DIR/Program.fs" "$MUTATED_ROOT/Protocol.Tests/cross-runtime/Program.
 cp "$NET_PROJECT" "$MUTATED_ROOT/Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj"
 cp "$SCRIPT_DIR/CodecProbe.Net/packages.lock.json" "$MUTATED_ROOT/Protocol.Tests/cross-runtime/CodecProbe.Net/packages.lock.json"
 cp "$WORKSPACE_ROOT/Conformance/SceneSchema.fs" "$MUTATED_ROOT/Conformance/SceneSchema.fs"
+if [[ -f "$WORKSPACE_ROOT/SvgFoundation/ContinuousPlayer.fs" ]]; then
+  mkdir -p "$MUTATED_ROOT/SvgFoundation"
+  cp "$WORKSPACE_ROOT/SvgFoundation/ContinuousPlayer.fs" "$MUTATED_ROOT/SvgFoundation/ContinuousPlayer.fs"
+fi
 
 run_mutant() {
   local label="$1"
