@@ -12,6 +12,15 @@ let private thenBoth (promise: JS.Promise<'T>) (onOk: 'T -> unit) (onError: obj 
 
 type Player = { Id: string; Col: int; Row: int; IsSelf: bool }
 
+type private QueuedIntent =
+    | RelativeMove of deltaCol: int * deltaRow: int
+    | Action of string
+
+type private InFlightIntent =
+    { Sequence: int
+      Intent: QueuedIntent
+      AdmittedAfterTick: int option }
+
 type private State =
     { PlayerId: string option
       Capability: string option
@@ -27,6 +36,10 @@ let mutable private publish: string -> Player list -> int -> int -> int -> int -
 let mutable private game = 3, 0, false, "playing", 7, 8
 let mutable private identity = 1, "continuous-arena/default-v2", 2
 let mutable private content = ArenaContent.contentAt 0UL
+let mutable private queuedIntents: QueuedIntent list = []
+let mutable private inFlightIntent: InFlightIntent option = None
+let mutable private dispatchNext: unit -> unit = ignore
+let private maximumQueuedIntents = 32
 
 let private notify status =
     let health, score, collected, outcome, hazardCol, hazardRow = game
@@ -57,6 +70,14 @@ let private accept message =
               Hazard = { X = snapshot.HazardX; Y = snapshot.HazardY; Width = snapshot.HazardWidth; Height = snapshot.HazardHeight }
               Goal = { X = snapshot.GoalX; Y = snapshot.GoalY; Width = snapshot.GoalWidth; Height = snapshot.GoalHeight }
               ThinWall = { X = snapshot.ThinWallX; Y = snapshot.ThinWallY; Width = snapshot.ThinWallWidth; Height = snapshot.ThinWallHeight } }
+        // Invocation success proves admission into a particular authority frontier.
+        // Wait for a later frontier before deriving the next relative target. This
+        // serializes edge-triggered input without guessing through collisions.
+        match inFlightIntent with
+        | Some pending when pending.AdmittedAfterTick |> Option.exists (fun tick -> snapshot.Tick > tick) ->
+            inFlightIntent <- None
+            dispatchNext ()
+        | _ -> ()
         notify "synchronized"
     | RealtimeV3.PresenceMessage _ -> notify "presence changed"
     | _ -> ()
@@ -65,8 +86,15 @@ let private connect capability =
     let connection = SignalR.build "/hub/game"
     connection.on("Message", fun json -> RealtimeV3.messageFromJson json |> Result.iter accept)
     connection.onreconnecting(fun _ -> notify "reconnecting")
-    connection.onreconnected(fun _ -> sendHello capability connection)
-    connection.onclose(fun _ -> state <- { state with Connection = None }; notify "closed")
+    connection.onreconnected(fun _ ->
+        queuedIntents <- []
+        inFlightIntent <- None
+        sendHello capability connection)
+    connection.onclose(fun _ ->
+        queuedIntents <- []
+        inFlightIntent <- None
+        state <- { state with Connection = None }
+        notify "closed")
     state <- { state with Connection = Some connection }
     thenBoth (connection.start()) (fun () -> sendHello capability connection) (fun error -> notify ("authority error: " + string error))
 
@@ -81,31 +109,54 @@ let start onSnapshot =
             connect response.SessionCapability
         with error -> notify ("bootstrap failed: " + error.Message) })
 
-let move deltaCol deltaRow =
-    match state.PlayerId, state.Connection, state.Players |> List.tryFind _.IsSelf with
-    | Some _, Some connection, Some self ->
+let private pump () =
+    match inFlightIntent, queuedIntents, state.PlayerId, state.Connection, state.Players |> List.tryFind _.IsSelf with
+    | None, intent :: remaining, Some _, Some connection, Some self ->
+        queuedIntents <- remaining
+        let sequence = state.Sequence
+        let action, targetCol, targetRow =
+            match intent with
+            | RelativeMove(deltaCol, deltaRow) -> "move", self.Col + deltaCol, self.Row + deltaRow
+            | Action action -> action, self.Col, self.Row
         let json =
             RealtimeV3.encodeMessage (
                 RealtimeV3.InputMessage
                     { Version = 3
-                      Sequence = state.Sequence
-                      Action = "move"
-                      TargetCol = self.Col + deltaCol
-                      TargetRow = self.Row + deltaRow })
-        state <- { state with Sequence = state.Sequence + 1 }
-        thenBoth (connection.invoke("SendMessage", json)) ignore (fun error -> notify ("authority error: " + string error))
+                      Sequence = sequence
+                      Action = action
+                      TargetCol = targetCol
+                      TargetRow = targetRow })
+        state <- { state with Sequence = sequence + 1 }
+        inFlightIntent <- Some { Sequence = sequence; Intent = intent; AdmittedAfterTick = None }
+        thenBoth (connection.invoke("SendMessage", json))
+            (fun _ ->
+                match inFlightIntent with
+                | Some pending when pending.Sequence = sequence ->
+                    inFlightIntent <- Some { pending with AdmittedAfterTick = Some state.Tick }
+                | _ -> ())
+            (fun error ->
+                match inFlightIntent with
+                | Some pending when pending.Sequence = sequence ->
+                    inFlightIntent <- None
+                    notify ("authority error: " + string error)
+                    dispatchNext ()
+                | _ -> ())
+    | _ -> ()
+
+dispatchNext <- pump
+
+let private enqueue intent =
+    match state.PlayerId, state.Connection, state.Players |> List.tryFind _.IsSelf with
+    | Some _, Some _, Some _ when queuedIntents.Length < maximumQueuedIntents ->
+        queuedIntents <- queuedIntents @ [ intent ]
+        dispatchNext ()
+    | Some _, Some _, Some _ -> notify "input queue full"
     | _ -> notify "authority unavailable"
 
+let move deltaCol deltaRow = enqueue (RelativeMove(deltaCol, deltaRow))
+
 let command action =
-    match state.Connection, state.Players |> List.tryFind _.IsSelf with
-    | Some connection, Some self ->
-        let json =
-            RealtimeV3.encodeMessage (
-                RealtimeV3.InputMessage
-                    { Version = 3; Sequence = state.Sequence; Action = action; TargetCol = self.Col; TargetRow = self.Row })
-        state <- { state with Sequence = state.Sequence + 1 }
-        thenBoth (connection.invoke("SendMessage", json)) ignore (fun error -> notify ("authority error: " + string error))
-    | _ -> notify "authority unavailable"
+    enqueue (Action action)
 
 /// Redacted disclosure assertion used by product adapters when they emit derived
 /// presentation, audio, or persistence bytes. The capability itself stays private.
@@ -114,4 +165,6 @@ let excludesCapability (value: string) =
     |> Option.forall (fun capability -> not (value.Contains(capability, System.StringComparison.Ordinal)))
 
 let dispose () =
+    queuedIntents <- []
+    inFlightIntent <- None
     state.Connection |> Option.iter (fun connection -> thenBoth (connection.stop()) ignore ignore)

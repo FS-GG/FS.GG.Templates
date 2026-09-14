@@ -156,17 +156,17 @@ test("two SVG arena clients observe the same authoritative move", async ({ brows
     }
     await expect.poll(async () => Number(await arenaA.getAttribute("data-player-health"))).toBeLessThan(3);
     await expect.poll(async () => Number(await arenaB.getAttribute("data-player-health"))).toBeLessThan(3);
-    // The wall covers the row-4 crossing at column 10. Prove that collision is
-    // authoritative, then return below it and use the open collectible column.
+    // Leave the moving hazard row immediately. The wall covers the row-4
+    // crossing at column 10; observe that collision from safe row 5, then use
+    // the open collectible column.
+    while (row > 5) await move("w", "row", --row);
     while (col < 10) await move("d", "col", ++col);
     while (col > 10) await move("a", "col", --col);
-    while (row > 5) await move("w", "row", --row);
     const beforeBlockedTick = Number(await arenaA.getAttribute("data-authority-tick"));
     await arenaA.press("w");
     await expect.poll(async () => Number(await arenaA.getAttribute("data-authority-tick"))).toBeGreaterThan(beforeBlockedTick);
     await expect(arenaA).toHaveAttribute("data-authority-self-row", "5");
     await expect(arenaB).toHaveAttribute("data-authority-snapshot", new RegExp(`${playerA}:10,5`));
-    while (row < 8) await move("s", "row", ++row);
     while (col < 5) await move("d", "col", ++col);
     while (col > 5) await move("a", "col", --col);
     while (row > 2) await move("w", "row", --row);
@@ -185,6 +185,11 @@ test("two SVG arena clients observe the same authoritative move", async ({ brows
     await expect(arenaB).toHaveAttribute("data-player-outcome", "playing");
     await expect(arenaA).toHaveAttribute("data-player-score", "0");
     await expect(arenaB).toHaveAttribute("data-player-score", "0");
+    const burstCol = Number(await arenaA.getAttribute("data-authority-self-col"));
+    const burstRow = Number(await arenaA.getAttribute("data-authority-self-row"));
+    for (let press = 0; press < 4; press += 1) await arenaA.press("s");
+    await expect(arenaA).toHaveAttribute("data-authority-self-row", String(burstRow + 4));
+    await expect(arenaB).toHaveAttribute("data-authority-snapshot", new RegExp(`${playerA}:${burstCol},${burstRow + 4}`));
     await pageA.locator("#foundation-export").click();
     await expect(pageA.locator("#foundation-persistence-status")).toContainText("Archive exported");
     await expect(arenaA).toHaveAttribute("data-archive-length", /[1-9][0-9]*/);

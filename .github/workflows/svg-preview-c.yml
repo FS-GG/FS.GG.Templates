@@ -61,6 +61,7 @@ jobs:
           echo '939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f  '"$RUNNER_TEMP/quint" | sha256sum --check --strict
           chmod +x "$RUNNER_TEMP/quint"
       - name: Qualify source package against public Release C producers
+        id: source_qualification
         run: |
           browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
           PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
@@ -92,6 +93,7 @@ jobs:
             cp "artifacts/test-results/browser.$family.junit.xml" "$RUNNER_TEMP/svg-preview-c-source/complete-$family.junit.xml"
           done
       - name: Observe real keyboard focus and Orca speech output
+        if: ${{ !cancelled() && steps.source_qualification.outcome == 'success' }}
         shell: bash
         run: |
           set -euo pipefail
