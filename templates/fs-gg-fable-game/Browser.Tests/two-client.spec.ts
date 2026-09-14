@@ -161,7 +161,9 @@ test("two SVG arena clients observe the same authoritative move", async ({ brows
     while (col < 10) await move("d", "col", ++col);
     while (col > 10) await move("a", "col", --col);
     while (row > 5) await move("w", "row", --row);
+    const beforeBlockedTick = Number(await arenaA.getAttribute("data-authority-tick"));
     await arenaA.press("w");
+    await expect.poll(async () => Number(await arenaA.getAttribute("data-authority-tick"))).toBeGreaterThan(beforeBlockedTick);
     await expect(arenaA).toHaveAttribute("data-authority-self-row", "5");
     await expect(arenaB).toHaveAttribute("data-authority-snapshot", new RegExp(`${playerA}:10,5`));
     while (row < 8) await move("s", "row", ++row);
