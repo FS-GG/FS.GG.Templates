@@ -63,7 +63,15 @@
        and reds if any of the three legs stops filtering. -->
   <ItemGroup>
     <Content Include="templates/**/*"
-             Exclude="templates/**/bin/**;templates/**/obj/**;templates/**/.nuget/**;templates/**/node_modules/**;templates/fs-gg-fable-bindings/generated-candidates/xantham/runs/**" />
+             Exclude="templates/**/bin/**;templates/**/obj/**;templates/**/.nuget/**;templates/**/node_modules/**;templates/fs-gg-fable-game/SvgFoundation/output/**;templates/fs-gg-fable-game/SvgFoundation/dist/**;templates/fs-gg-fable-game/SvgFoundation/Studio/output/**;templates/fs-gg-fable-game/SvgFoundation/Studio/dist/**;templates/fs-gg-fable-game/SvgFoundation/Studio/vendor/**;templates/fs-gg-fable-game/SvgFoundation/Studio/ArenaContent.js;templates/fs-gg-fable-game/artifacts/**;templates/fs-gg-fable-bindings/generated-candidates/xantham/runs/**" />
+    <!-- The legacy selector is a separate member of the same template group. Each member
+         owns one public composition parameter, so supplying both matches neither template
+         and the CLI refuses before instantiation on argv and response-file surfaces. -->
+    <Content Include="templates/fs-gg-fable-game/**/*"
+             Exclude="templates/fs-gg-fable-game/.template.config/**;templates/**/bin/**;templates/**/obj/**;templates/**/.nuget/**;templates/**/node_modules/**;templates/fs-gg-fable-game/SvgFoundation/output/**;templates/fs-gg-fable-game/SvgFoundation/dist/**;templates/fs-gg-fable-game/SvgFoundation/Studio/output/**;templates/fs-gg-fable-game/SvgFoundation/Studio/dist/**;templates/fs-gg-fable-game/SvgFoundation/Studio/vendor/**;templates/fs-gg-fable-game/SvgFoundation/Studio/ArenaContent.js;templates/fs-gg-fable-game/artifacts/**"
+             PackagePath="content/templates/fs-gg-fable-game-legacy/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Content Include="pack/fs-gg-fable-game-legacy/.template.config/template.json"
+             PackagePath="content/templates/fs-gg-fable-game-legacy/.template.config/template.json" />
     <None Include="README.md" Pack="true" PackagePath="\" />
     <Compile Remove="**/*" />
   </ItemGroup>

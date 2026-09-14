@@ -23,7 +23,7 @@ do
   [[ -f "$locked/packages.lock.json" ]] || missing+=("$locked/packages.lock.json")
 done
 if [[ -d SvgFoundation ]]; then
-  for locked in SvgFoundation SvgFoundation/Studio; do
+  for locked in SvgFoundation SvgFoundation/Studio SvgFoundation/Examples/Tactical; do
     [[ -d "$locked" ]] || continue
     [[ -f "$locked/packages.lock.json" ]] || missing+=("$locked/packages.lock.json")
   done
@@ -91,6 +91,10 @@ if [[ -f SvgFoundation/SvgFoundation.fsproj ]]; then
     rm -rf artifacts/static-studio
     mkdir -p artifacts/static-studio
     cp -R SvgFoundation/Studio/dist/. artifacts/static-studio/
+  fi
+  if [[ -f SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fsproj ]]; then
+    dotnet restore SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fsproj --locked-mode
+    dotnet run --project SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fsproj --no-restore
   fi
 fi
 

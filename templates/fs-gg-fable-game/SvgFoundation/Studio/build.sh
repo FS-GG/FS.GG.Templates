@@ -15,6 +15,7 @@ CONFIG
   restore_args+=(--configfile "$config")
 fi
 "${restore_args[@]}"
+(cd "$workspace" && dotnet tool restore)
 packages="$(python3 - "$studio/obj/project.assets.json" <<'PY'
 import json,sys
 folders=list(json.load(open(sys.argv[1]))['packageFolders'])

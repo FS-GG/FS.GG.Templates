@@ -1,0 +1,12 @@
+{
+  "schema": "fsgg.svg-example/v1",
+  "id": "tactical-planning",
+  "layers": [
+    { "id": "terrain", "visible": true, "locked": true },
+    { "id": "units", "visible": true, "locked": false },
+    { "id": "commands", "visible": false, "locked": false }
+  ],
+  "camera": { "panX": 13.5, "panY": -4.25, "zoom": 1.75 },
+  "selection": { "selected": "unit:7", "focused": "unit:11" },
+  "rules": [ "route", "overlay", "plan", "simulate", "review" ]
+}

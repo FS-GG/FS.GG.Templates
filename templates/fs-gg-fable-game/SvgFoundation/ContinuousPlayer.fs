@@ -2,6 +2,7 @@ module FableGameWorkspaceNamespace.SvgFoundation.ContinuousPlayer
 
 open FS.GG.Game.Core
 open FS.GG.UI.Scene
+open FableGameWorkspaceNamespace.ArenaContent
 
 [<RequireQualifiedAccess>]
 type PlayerOutcome =
@@ -34,7 +35,7 @@ let compatibility =
       SchemaVersion = 1 }
 
 let private initialState revision =
-    { Player = { X = 12.0; Y = 54.0; Width = 10.0; Height = 10.0 }
+    { Player = { X = playerStartX; Y = playerStartY; Width = 10.0; Height = 10.0 }
       Velocity = { X = 0.0; Y = 0.0 }
       Health = 2
       Score = 0
@@ -42,15 +43,15 @@ let private initialState revision =
       Outcome = PlayerOutcome.Playing
       Revision = revision }
 
-let private colliders =
+let private colliders revision =
     [ { Id = "collectible"
-        Shape = KinematicShape.AxisAlignedBox { X = 55.0; Y = 22.0; Width = 10.0; Height = 10.0 }
+        Shape = KinematicShape.AxisAlignedBox { X = collectibleX - 5.0; Y = collectibleY - 5.0; Width = 10.0; Height = 10.0 }
         Response = KinematicResponse.Trigger }
       { Id = "hazard"
-        Shape = KinematicShape.AxisAlignedBox { X = 80.0; Y = 78.0; Width = 18.0; Height = 18.0 }
+        Shape = KinematicShape.AxisAlignedBox { X = movingHazardX revision; Y = hazardY; Width = 18.0; Height = 18.0 }
         Response = KinematicResponse.Trigger }
       { Id = "goal"
-        Shape = KinematicShape.AxisAlignedBox { X = 175.0; Y = 48.0; Width = 20.0; Height = 24.0 }
+        Shape = KinematicShape.AxisAlignedBox { X = goalX; Y = goalY; Width = 20.0; Height = 24.0 }
         Response = KinematicResponse.Trigger }
       { Id = "thin-wall"
         Shape = KinematicShape.AxisAlignedBox { X = 112.0; Y = 0.0; Width = 2.0; Height = 48.0 }
@@ -62,7 +63,7 @@ let private advanceOnce state =
     if state.Outcome <> PlayerOutcome.Playing then state
     else
         let motion = { Bounds = state.Player; Displacement = state.Velocity }
-        let result = Kinematics.advance 24.0 motion colliders
+        let result = Kinematics.advance 24.0 motion (colliders state.Revision)
         let ids = result.Hits |> List.map _.ColliderId |> Set.ofList
         let collected = if Set.contains "collectible" ids then max 1 state.Collected else state.Collected
         let health = if Set.contains "hazard" ids then max 0 (state.Health - 1) else state.Health
@@ -74,8 +75,8 @@ let private advanceOnce state =
         { state with
             Player =
                 { result.Bounds with
-                    X = bound 0.0 210.0 result.Bounds.X
-                    Y = bound 0.0 110.0 result.Bounds.Y }
+                    X = bound 0.0 (arenaWidth - 10.0) result.Bounds.X
+                    Y = bound 0.0 (arenaHeight - 10.0) result.Bounds.Y }
             Health = health
             Score = score
             Collected = collected
@@ -133,10 +134,11 @@ let scene revision state =
         [ { Id = "arena"
             Visible = true
             Objects =
-              [ objectValue "arena" "Continuous arena" false [ SceneNode.Rectangle((0.0, 0.0, 220.0, 120.0), color 241uy 245uy 249uy) ]
+              [ objectValue "arena" "Continuous arena" false [ SceneNode.Rectangle((0.0, 0.0, arenaWidth, arenaHeight), color 241uy 245uy 249uy) ]
                 objectValue "thin-wall" "Thin wall" false [ SceneNode.Rectangle((112.0, 0.0, 2.0, 48.0), color 71uy 85uy 105uy) ]
-                objectValue "collectible" "Collectible" true [ SceneNode.Circle({ X = 60.0; Y = 27.0 }, 5.0, color 245uy 158uy 11uy) ]
-                objectValue "hazard" "Hazard" true [ SceneNode.Rectangle((80.0, 78.0, 18.0, 18.0), color 220uy 38uy 38uy) ]
-                objectValue "goal" "Goal" true [ SceneNode.Rectangle((175.0, 48.0, 20.0, 24.0), color 22uy 163uy 74uy) ]
+                objectValue "collectible" "Collectible" true [ SceneNode.Circle({ X = collectibleX; Y = collectibleY }, 5.0, color 245uy 158uy 11uy) ]
+                objectValue "hazard" "Moving hazard" true
+                    [ SceneNode.Rectangle((movingHazardX state.Revision, hazardY, 18.0, 18.0), color 220uy 38uy 38uy) ]
+                objectValue "goal" "Goal" true [ SceneNode.Rectangle((goalX, goalY, 20.0, 24.0), color 22uy 163uy 74uy) ]
                 objectValue "player" $"Player, {outcome}, health {state.Health}, score {state.Score}" true
                     [ SceneNode.Rectangle((state.Player.X, state.Player.Y, state.Player.Width, state.Player.Height), color 37uy 99uy 235uy) ] ] } ] }

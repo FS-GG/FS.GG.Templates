@@ -8,16 +8,19 @@
     <FsGgSvgRuntimeCandidate Condition="'$(FsGgSvgRuntimeCandidate)' == ''">true</FsGgSvgRuntimeCandidate>
     <FsGgSvgPresentCandidate Condition="'$(FsGgSvgPresentCandidate)' == ''">true</FsGgSvgPresentCandidate>
     <FsGgSvgScaleCandidate Condition="'$(FsGgSvgScaleCandidate)' == ''">true</FsGgSvgScaleCandidate>
+    <FsGgLegacyPreview Condition="'FS_GG_LEGACY_PREVIEW_VALUE' == 'true'">true</FsGgLegacyPreview>
     <FsGgAudioPresentVersion Condition="'$(FsGgAudioPresentVersion)' == ''">0.6.0</FsGgAudioPresentVersion>
     <DefineConstants Condition="'$(FsGgSvgInputCandidate)' == 'true'">$(DefineConstants);SVG_INPUT_CANDIDATE</DefineConstants>
     <DefineConstants Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'">$(DefineConstants);SVG_RUNTIME_CANDIDATE</DefineConstants>
     <DefineConstants Condition="'$(FsGgSvgPresentCandidate)' == 'true'">$(DefineConstants);SVG_PRESENT_CANDIDATE</DefineConstants>
     <DefineConstants Condition="'$(FsGgSvgScaleCandidate)' == 'true'">$(DefineConstants);SVG_SCALE_CANDIDATE</DefineConstants>
+    <DefineConstants Condition="'$(FsGgLegacyPreview)' == 'true'">$(DefineConstants);LEGACY_SVG_PREVIEW</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="TacticalCompatibility.fs" />
-    <Compile Include="PreviewFont.fs" />
-    <Compile Include="PreviewDocument.fs" />
+    <Compile Include="ArenaContent.fs" />
+    <Compile Include="TacticalCompatibility.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
+    <Compile Include="PreviewFont.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
+    <Compile Include="PreviewDocument.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
     <Compile Include="PlayerInput.fs" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
     <Compile Include="ContinuousPlayer.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'" />
     <Compile Include="PresentationPlayer.fs" Condition="'$(FsGgSvgPresentCandidate)' == 'true'" />

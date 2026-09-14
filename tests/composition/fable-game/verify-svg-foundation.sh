@@ -5,8 +5,6 @@ work="${2:-$(mktemp -d "${TMPDIR:-/tmp}/fable-game-svg-foundation.XXXXXX")}"
 
 mkdir -p "$work/packages" "$work/dotnet-home"
 DOTNET_CLI_HOME="$work/dotnet-home" dotnet new install "$package" --force >/dev/null
-DOTNET_CLI_HOME="$work/dotnet-home" dotnet new fs-gg-fable-game -n FoundationFixture -o "$work/default" >/dev/null
-test ! -e "$work/default/SvgFoundation"
 DOTNET_CLI_HOME="$work/dotnet-home" dotnet new fs-gg-fable-game -n FoundationFixture -o "$work/selected" --svgFoundation true >/dev/null
 test -f "$work/selected/SvgFoundation/Program.fs"
 test -f "$work/selected/SvgFoundation/TacticalCompatibility.fs"
@@ -17,11 +15,11 @@ cat > "$work/NuGet.Config" <<CONFIG
 CONFIG
 export NUGET_PACKAGES="$work/packages"
 dotnet restore "$work/selected/SvgFoundation/SvgFoundation.fsproj" --configfile "$work/NuGet.Config"
-dotnet restore "$work/selected/SvgFoundation/TacticalCompatibility.Tests.fsproj" --configfile "$work/NuGet.Config"
+dotnet restore "$work/selected/SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fsproj" --configfile "$work/NuGet.Config"
 dotnet tool restore --tool-manifest "$work/selected/.config/dotnet-tools.json" --configfile "$work/NuGet.Config"
 (cd "$work/selected" && dotnet fable SvgFoundation/SvgFoundation.fsproj --outDir "$work/fable" --noCache)
 test -f "$work/fable/Program.js"
-dotnet run --project "$work/selected/SvgFoundation/TacticalCompatibility.Tests.fsproj" --no-restore
+dotnet run --project "$work/selected/SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fsproj" --no-restore
 if grep -En 'ProjectReference|<Link>' "$work/selected/SvgFoundation/"*.fsproj; then
   echo 'foundation fixture acquired a sibling source edge' >&2; exit 1
 fi
@@ -34,7 +32,7 @@ grep -q '80e1ac9328865ec8d1ee3eeea130560ef22b1b01' "$work/selected/SvgFoundation
 if grep -REn 'SIR\.' "$work/selected/SvgFoundation"; then
   echo 'neutral fixture contains S.I.R. types' >&2; exit 1
 fi
-grep -q 'undisclosed-contact-at-grid-9' "$work/selected/SvgFoundation/TacticalCompatibility.Tests.fs"
+grep -q 'undisclosed-contact-at-grid-9' "$work/selected/SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fs"
 grep -q 'Selection = projection.Selection' "$work/selected/SvgFoundation/TacticalCompatibility.fs" && {
   echo 'tactical adapter bypasses relevant disclosed-selection filtering' >&2; exit 1
 }

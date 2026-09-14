@@ -1,0 +1,10 @@
+{
+  "schema": "fsgg.svg-example/v1",
+  "id": "continuous-arcade",
+  "arena": { "width": 220, "height": 120 },
+  "player": { "x": 12, "y": 54, "health": 2, "score": 0 },
+  "collectibles": [ { "id": "collectible", "x": 60, "y": 27, "score": 100 } ],
+  "movingObstacles": [ { "id": "hazard", "x": 80, "y": 78, "dx": 1.5, "healthCost": 1 } ],
+  "goal": { "id": "goal", "x": 175, "y": 48, "requiresCollectibles": 1 },
+  "commands": [ "move", "interact", "pause", "restart" ]
+}

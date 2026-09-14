@@ -15,6 +15,7 @@ CONFIG
   restore_args+=(--configfile "$config")
 fi
 "${restore_args[@]}"
+(cd "$workspace" && dotnet tool restore)
 (cd "$workspace" && dotnet fable SvgFoundation/SvgFoundation.fsproj --outDir SvgFoundation/output --noCache)
 (cd "$workspace/Client" && npm ci)
 (cd "$workspace" && ./Client/node_modules/.bin/vite build --config SvgFoundation/vite.config.js)

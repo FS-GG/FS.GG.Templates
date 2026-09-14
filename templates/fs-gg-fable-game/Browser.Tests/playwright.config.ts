@@ -15,7 +15,7 @@ export default defineConfig({
   webServer: [
     {
       command: "dotnet Server.dll --urls http://127.0.0.1:5100",
-      cwd: "../artifacts/publish",
+      cwd: "../artifacts/authority-server",
       url: "http://127.0.0.1:5100/",
       reuseExistingServer: false
     },

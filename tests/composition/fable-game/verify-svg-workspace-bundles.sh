@@ -7,6 +7,12 @@ package="$work/feed/FS.GG.Workspace.Template.0.14.0.nupkg"
 mkdir -p "$work/feed" "$home"
 
 dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$work/feed" >/dev/null
+if unzip -Z1 "$package" | rg '/(dist|output|vendor|artifacts)/' >/dev/null; then
+  echo "bundle composition: packed archive contains generated product output" >&2; exit 1
+fi
+[[ "$(unzip -Z1 "$package" | rg -c 'fs-gg-fable-game(-legacy)?/\.template\.config/template\.json$')" == 2 ]] || {
+  echo "bundle composition: grouped new/legacy template definitions missing from archive" >&2; exit 1;
+}
 DOTNET_CLI_HOME="$home" dotnet new install "$package" >/dev/null
 
 assert_path() { [[ -e "$1" ]] || { echo "bundle composition: missing $1" >&2; exit 1; }; }
@@ -31,18 +37,34 @@ for product in Omitted Player; do
   assert_path "$work/$product/SvgFoundation/packages.lock.json"
   refute_path "$work/$product/SvgFoundation/Studio"
   refute_path "$work/$product/SvgFoundation/Examples"
+  refute_path "$work/$product/SvgFoundation/TacticalCompatibility.fs"
+  refute_path "$work/$product/SvgFoundation/PreviewDocument.fs"
+  refute_path "$work/$product/SvgFoundation/PreviewFont.fs"
+  grep -F 'Cooperative SVG arena' "$work/$product/SvgFoundation/index.html" >/dev/null
+  if find "$work/$product" -type f \( -iname '*.qnt' -o -iname '*.java' \) -print -quit | grep -q .; then
+    echo "bundle composition: player contains Quint or Java source" >&2; exit 1
+  fi
+  if rg -l -i 'babylon|fable\.react|feliz' "$work/$product" \
+       -g '!README.md' -g '!packages.lock.json' -g '!package-lock.json' | grep -q .; then
+    echo "bundle composition: player contains an accidental Babylon/React/Feliz closure" >&2; exit 1
+  fi
 done
 assert_path "$work/Studio/SvgFoundation/Studio/Studio.fsproj"
 assert_path "$work/Studio/SvgFoundation/Studio/packages.lock.json"
 refute_path "$work/Studio/SvgFoundation/Examples"
 assert_path "$work/Tactical/SvgFoundation/Studio/Studio.fsproj"
 assert_path "$work/Tactical/SvgFoundation/Examples/Tactical/README.md"
+assert_path "$work/Tactical/SvgFoundation/Examples/Tactical/scene.json"
+assert_path "$work/Tactical/SvgFoundation/TacticalCompatibility.fs"
+assert_path "$work/Tactical/SvgFoundation/Examples/Tactical/packages.lock.json"
 refute_path "$work/Tactical/SvgFoundation/Examples/Arcade"
 assert_path "$work/Arcade/SvgFoundation/Studio/Studio.fsproj"
 assert_path "$work/Arcade/SvgFoundation/Examples/Arcade/README.md"
+assert_path "$work/Arcade/SvgFoundation/Examples/Arcade/scene.json"
 refute_path "$work/Arcade/SvgFoundation/Examples/Tactical"
 assert_path "$work/Complete/SvgFoundation/Examples/Tactical/README.md"
 assert_path "$work/Complete/SvgFoundation/Examples/Arcade/README.md"
+refute_path "$work/Complete/SvgFoundation/PreviewDocument.fs"
 assert_path "$work/LegacyTrue/SvgFoundation/Studio/Studio.fsproj"
 assert_path "$work/LegacyTrue/SvgFoundation/Examples/Tactical/README.md"
 refute_path "$work/LegacyFalse/SvgFoundation"
@@ -67,18 +89,60 @@ for pair in "player false" "studio false" "player true" "arcade true" "complete 
   }
 done
 
-# The previous draft exposed a public acknowledgement parameter. Unknown bypass flags must
-# remain ordinary invalid template input and leave the destination byte-identical.
-destination="$work/conflict-bypass"
+# Valid response-file selection reaches the same grouped template contract.
+response="$work/valid-response.rsp"
+printf '%s\n' fs-gg-fable-game -n ResponseStudio -o "$work/ResponseStudio" --bundle studio --lifecycle none >"$response"
+DOTNET_CLI_HOME="$home" dotnet new @"$response" >/dev/null
+assert_path "$work/ResponseStudio/SvgFoundation/Studio/Studio.fsproj"
+
+# A response file is a supported .NET host surface and can carry raw NUL even though argv cannot.
+# Reproduce the superseded sentinel bypass exactly; the removed internal parameter must now be
+# ordinary invalid input and the destination must remain byte-identical.
+destination="$work/conflict-response-nul"
 mkdir -p "$destination"
 printf 'retained\n' >"$destination/sentinel"
-if DOTNET_CLI_HOME="$home" dotnet new fs-gg-fable-game -n Conflict -o "$destination" \
-     --bundle player --svgFoundation false --bundleCompatibilityConflict unreachable >"$work/bypass.log" 2>&1; then
-  echo "bundle composition: contradiction guard was bypassed" >&2; exit 1
+response="$work/conflict-response-nul.rsp"
+printf '%s\n' fs-gg-fable-game -n Conflict -o "$destination" --bundle player --svgFoundation false \
+  --bundleCompatibilityConflict >"$response"
+printf '\0\n' >>"$response"
+if DOTNET_CLI_HOME="$home" dotnet new @"$response" >"$work/response-nul.log" 2>&1; then
+  echo "bundle composition: raw-NUL response-file bypass was accepted" >&2; exit 1
 fi
 [[ "$(find "$destination" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == sentinel ]] || {
-  echo "bundle composition: bypass attempt wrote into $destination" >&2; exit 1;
+  echo "bundle composition: raw-NUL response-file attempt wrote into $destination" >&2; exit 1;
 }
+
+destination="$work/conflict-response"
+mkdir -p "$destination"
+printf 'retained\n' >"$destination/sentinel"
+response="$work/conflict-response.rsp"
+printf '%s\n' fs-gg-fable-game -n Conflict -o "$destination" --bundle player --svgFoundation false >"$response"
+if DOTNET_CLI_HOME="$home" dotnet new @"$response" >"$work/response.log" 2>&1; then
+  echo "bundle composition: response-file contradiction was accepted" >&2; exit 1
+fi
+[[ "$(find "$destination" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == sentinel ]] || {
+  echo "bundle composition: response-file contradiction wrote into $destination" >&2; exit 1;
+}
+
+# Mixed argv/response input must enforce the same mutual exclusion before writes.
+destination="$work/conflict-response-mixed"
+mkdir -p "$destination"
+printf 'retained\n' >"$destination/sentinel"
+response="$work/conflict-response-mixed.rsp"
+printf '%s\n' --svgFoundation false -o "$destination" >"$response"
+if DOTNET_CLI_HOME="$home" dotnet new fs-gg-fable-game -n Conflict --bundle player @"$response" \
+     >"$work/response-mixed.log" 2>&1; then
+  echo "bundle composition: mixed response-file contradiction was accepted" >&2; exit 1
+fi
+[[ "$(find "$destination" -mindepth 1 -maxdepth 1 -type f -printf '%f\n')" == sentinel ]] || {
+  echo "bundle composition: mixed response-file contradiction wrote into $destination" >&2; exit 1;
+}
+
+jq -e '.dependencies["net10.0"]["FSharp.Core"].resolved == "10.1.400"' \
+  "$work/Player/SvgFoundation/packages.lock.json" \
+  "$work/Studio/SvgFoundation/Studio/packages.lock.json" >/dev/null
+grep -F 'artifacts/static-player' "$work/Player/build.sh" >/dev/null
+grep -F 'artifacts/authority-server' "$work/Player/build.sh" >/dev/null
 
 grep -F 'source: FS.GG.Workspace.Template::0.14.0' "$root/providers/fable-game.providers.yml" >/dev/null
 if grep -A3 -- '- key: bundle' "$root/providers/fable-game.providers.yml" | grep -F 'default:' >/dev/null; then

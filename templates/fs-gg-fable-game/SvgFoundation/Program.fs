@@ -5,7 +5,9 @@ open Browser.Types
 open Fable.Core.JsInterop
 open FS.GG.UI.Scene
 open FS.GG.UI.Scene.SvgBrowser
+#if LEGACY_SVG_PREVIEW
 open FableGameWorkspaceNamespace.TacticalCompatibility
+#endif
 #if SVG_INPUT_CANDIDATE
 open FS.GG.UI.KeyboardInput
 module GameInput = FableGameWorkspaceNamespace.SvgFoundation.PlayerInput
@@ -43,6 +45,22 @@ let private stroke value width =
       ImageFilter = ImageFilter.NoImageFilter
       PathEffect = PathEffect.NoPathEffect }
 
+let private mount id label scene =
+    let container = document.createElement("section")
+    container.id <- id
+    document.body.appendChild(container) |> ignore
+    match SvgBrowser.mount container
+              { Width = 220.0; Height = 140.0; AccessibleLabel = label; WheelZoomFactor = 1.1 }
+              scene ignore with
+    | Ok host -> host
+    | Error error -> failwithf "SVG product failed to mount: %A" error
+
+let private requireTransition name (result: RetainedInteractionResult) =
+    match result.Error with
+    | None -> ()
+    | Some error -> failwithf "SVG product %s transition failed: %A" name error
+
+#if LEGACY_SVG_PREVIEW
 let gridScene =
     { RootId = "foundation-grid"
       Revision = 0
@@ -79,24 +97,20 @@ let tacticalCompatibilityScene = (characterizedProjection 41 "shared-scene:41" |
 
 let _, previewExport, previewState = PreviewDocument.verifyPortable ()
 
-let private mount id label scene =
-    let container = document.createElement("section")
-    container.id <- id
-    document.body.appendChild(container) |> ignore
-    match SvgBrowser.mount container
-              { Width = 220.0; Height = 140.0; AccessibleLabel = label; WheelZoomFactor = 1.1 }
-              scene ignore with
-    | Ok host -> host
-    | Error error -> failwithf "SVG foundation fixture failed to mount: %A" error
-
 let gridHost = mount "foundation-grid-host" "Neutral grid fixture" gridScene
+#endif
 #if SVG_RUNTIME_CANDIDATE
 let private initialPlayerRuntime = ContinuousPlayer.initialize ()
 let continuousHost =
     mount "foundation-continuous-host" "Generated continuous SVG game" (ContinuousPlayer.scene 1 initialPlayerRuntime.Current)
 #else
+#if LEGACY_SVG_PREVIEW
 let continuousHost = mount "foundation-continuous-host" "Neutral continuous-coordinate fixture" continuousScene
+#else
+#error The production SVG player requires FsGgSvgRuntimeCandidate=true.
 #endif
+#endif
+#if LEGACY_SVG_PREVIEW
 let tacticalCompatibilityHost =
     mount "foundation-tactical-compatibility-host" "Disclosed tactical compatibility fixture" tacticalCompatibilityScene
 
@@ -124,21 +138,22 @@ previewExportOutput.setAttribute("hidden", "")
 previewExportOutput.textContent <- previewExport
 document.body.appendChild(previewExportOutput) |> ignore
 
-let private requireTransition name (result: RetainedInteractionResult) =
-    match result.Error with
-    | None -> ()
-    | Some error -> failwithf "SVG foundation %s transition failed: %A" name error
 requireTransition "tactical selection"
     (tacticalCompatibilityHost.Dispatch(RetainedInteractionMessage.Select(41, "unit:7")))
 requireTransition "tactical focus"
     (tacticalCompatibilityHost.Dispatch(RetainedInteractionMessage.FocusNext 41))
+#endif
 
 #if SVG_INPUT_CANDIDATE
 let private playerInputScope: HTMLElement =
 #if SVG_RUNTIME_CANDIDATE
     document.getElementById("foundation-continuous-host")
 #else
+#if LEGACY_SVG_PREVIEW
     document.getElementById("foundation-tactical-compatibility-host")
+#else
+    document.body
+#endif
 #endif
 playerInputScope.setAttribute("tabindex", "-1")
 let private playerInputStatus = document.createElement("output")
@@ -365,6 +380,7 @@ let private dispatchGameCommand command =
     | "game.reset"
     | "game.restart" -> playerSessionHost.Reset()
     | "game.win" -> submit command ContinuousPlayer.PlayerCommand.Collect
+    | "game.interact" -> submit command ContinuousPlayer.PlayerCommand.Collect
     | "game.lose" -> submit command ContinuousPlayer.PlayerCommand.Damage
     | _ -> ()
 #if SVG_PRESENT_CANDIDATE
@@ -384,7 +400,8 @@ let private addControl action label =
 
 for action, label in
     [ "move-right", "Move right"; "move-left", "Move left"; "pause", "Pause or resume"
-      "step", "Single step"; "reset", "Reset"; "win", "Win"; "lose", "Take damage"; "restart", "Restart" ] do
+      "step", "Single step"; "reset", "Reset"; "interact", "Interact"; "win", "Win"
+      "lose", "Take damage"; "restart", "Restart" ] do
     addControl action label
 #if SVG_PRESENT_CANDIDATE
 let private addPresentationControl id label action =
@@ -407,6 +424,7 @@ addPresentationControl "foundation-animation-seek" "Seek animation" (fun () ->
 addPresentationControl "foundation-fail-save" "Exercise failed autosave" (fun () -> scheduleAutosave (System.String('x', 4097)))
 #endif
 #else
+#if LEGACY_SVG_PREVIEW
 let private dispatchGameCommand command =
     let revision = tacticalCompatibilityHost.State.Scene.Revision
     let result =
@@ -422,6 +440,7 @@ let private dispatchGameCommand command =
         playerInputScope.setAttribute("data-last-game-command", command)
         playerInputStatus.textContent <- "Accepted " + command
     | _ -> ()
+#endif
 #endif
 
 let private playerInputHost =
@@ -457,7 +476,10 @@ window.addEventListener("beforeunload", fun _ ->
 #endif
 #endif
 #endif
-    (gridHost :> System.IDisposable).Dispose()
     (continuousHost :> System.IDisposable).Dispose()
+#if LEGACY_SVG_PREVIEW
+    (gridHost :> System.IDisposable).Dispose()
     (tacticalCompatibilityHost :> System.IDisposable).Dispose()
-    (previewDocumentHost :> System.IDisposable).Dispose())
+    (previewDocumentHost :> System.IDisposable).Dispose()
+#endif
+    )

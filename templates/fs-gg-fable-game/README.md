@@ -48,9 +48,10 @@ source. Rendering's profile remains independent from this product composition ch
 
 The compatibility flag remains readable for existing scripts: explicit
 `--svgFoundation true` selects the retained preview-compatible complete composition, while
-explicit `--svgFoundation false` retains the pre-0.14 non-SVG product. Combining the old flag
-with a contradictory `--bundle` is rejected during template argument validation, before the
-destination is written. Bundle selection does not select or activate a lifecycle.
+explicit `--svgFoundation false` retains the pre-0.14 non-SVG product. The old and new selectors
+are mutually exclusive, including redundant combinations; using both is rejected during template
+argument validation, before the destination is written. Bundle selection does not select or
+activate a lifecycle.
 
 The selected tool payload carries separate player and `SvgFoundation/Studio` entries. Preview B binds
 both to exact public producer versions and enables the product-owned command profiles.
