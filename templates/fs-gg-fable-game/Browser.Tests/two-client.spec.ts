@@ -734,6 +734,13 @@ test("selected tactical and arcade examples load and execute their engine paths"
     await expect(arcade).toHaveAttribute("data-paused", "false");
     await expect.poll(async () => Number(await arcade.getAttribute("data-hazard-x"))).not.toBe(pausedHazard);
 
+    // Start the terminal journey from a known state; the preceding input-source
+    // checks intentionally move the player and may already touch the hazard.
+    await page.getByRole("button", { name: "Arcade restart" }).click();
+    await expect(arcade).toHaveAttribute("data-x", "12");
+    await expect(arcade).toHaveAttribute("data-y", "54");
+    await expect(arcade).toHaveAttribute("data-health", "2");
+    await expect(arcade).toHaveAttribute("data-outcome", "playing");
     await arcade.focus();
     await page.keyboard.down("s");
     await expect.poll(async () => Number(await arcade.getAttribute("data-y")), { timeout: 3000, intervals: [10] }).toBeGreaterThan(75);
@@ -743,12 +750,47 @@ test("selected tactical and arcade examples load and execute their engine paths"
     await page.keyboard.up("a");
     await page.keyboard.down("d");
     await expect.poll(async () => Number(await arcade.getAttribute("data-health")), { timeout: 4000 }).toBe(1);
-    await expect.poll(async () => Number(await arcade.getAttribute("data-x")), { timeout: 3000 }).toBeGreaterThan(165);
     await page.keyboard.up("d");
-    await page.waitForTimeout(80);
-    await page.keyboard.down("a");
-    await expect(arcade).toHaveAttribute("data-outcome", "lost", { timeout: 5000 });
-    await page.keyboard.up("a");
+    // Leave the contact band before seeking a second entry. Horizontal travel
+    // on this safe row cannot accidentally consume the remaining health.
+    await page.keyboard.down("w");
+    await expect.poll(async () => Number(await arcade.getAttribute("data-y")), { timeout: 3000, intervals: [10] }).toBeLessThan(60);
+    await page.keyboard.up("w");
+    const damagedX = Number(await arcade.getAttribute("data-x"));
+    if (damagedX < 108) {
+      await page.keyboard.down("d");
+      await expect.poll(async () => Number(await arcade.getAttribute("data-x")), { timeout: 3000, intervals: [10] }).toBeGreaterThanOrEqual(108);
+      await page.keyboard.up("d");
+    } else if (damagedX > 112) {
+      await page.keyboard.down("a");
+      await expect.poll(async () => Number(await arcade.getAttribute("data-x")), { timeout: 3000, intervals: [10] }).toBeLessThanOrEqual(112);
+      await page.keyboard.up("a");
+    }
+    const secondContactX = Number(await arcade.getAttribute("data-x"));
+    await expect.poll(async () => {
+      const hazardX = Number(await arcade.getAttribute("data-hazard-x"));
+      return hazardX >= secondContactX - 4 && hazardX <= secondContactX + 4;
+    }, { timeout: 3000, intervals: [10] }).toBe(true);
+    await page.keyboard.down("s");
+    try {
+      await expect(arcade).toHaveAttribute("data-outcome", "lost", { timeout: 5000 });
+    } catch (error) {
+      const before = await arcade.evaluate(element => ({
+        health: element.getAttribute("data-health"), outcome: element.getAttribute("data-outcome"),
+        x: Number(element.getAttribute("data-x")), y: Number(element.getAttribute("data-y")),
+        hazardX: Number(element.getAttribute("data-hazard-x"))
+      }));
+      await page.waitForTimeout(34);
+      const after = await arcade.evaluate(element => ({
+        x: Number(element.getAttribute("data-x")), y: Number(element.getAttribute("data-y"))
+      }));
+      await testInfo.attach("arcade-loss-state.json", {
+        body: JSON.stringify({ ...before, velocityDelta: { x: after.x - before.x, y: after.y - before.y } }, null, 2),
+        contentType: "application/json"
+      });
+      throw error;
+    }
+    await page.keyboard.up("s");
     const lostX = await arcade.getAttribute("data-x");
     await page.keyboard.press("a");
     await page.getByRole("button", { name: "Arcade interact" }).click();
