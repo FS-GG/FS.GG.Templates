@@ -3,8 +3,10 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 
-const hasSvgPlayer = existsSync("../SvgFoundation/SvgFoundation.fsproj");
-const hasStudio = existsSync("../SvgFoundation/Studio/Studio.fsproj");
+const hasAnySvgPlayer = existsSync("../SvgFoundation/SvgFoundation.fsproj");
+const isLegacySvgPreview = existsSync("../SvgFoundation/LegacyPreview.props");
+const hasSvgPlayer = hasAnySvgPlayer && !isLegacySvgPreview;
+const hasStudio = existsSync("../SvgFoundation/Studio/Studio.fsproj") && !isLegacySvgPreview;
 
 type BrowserDiagnostic = { kind: "console" | "pageerror" | "requestfailed"; detail: string };
 const expectedConsolePatterns = [
@@ -247,7 +249,7 @@ test("Studio edits and plays the retained arena across all workspace modes", asy
 });
 
 test("legacy non-SVG client retains its V1 authoritative journey", async ({ browser }) => {
-  test.skip(hasSvgPlayer, "SVG composition uses the V2 arena journey");
+  test.skip(hasAnySvgPlayer, "SVG composition uses its selected player journey");
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
   try {

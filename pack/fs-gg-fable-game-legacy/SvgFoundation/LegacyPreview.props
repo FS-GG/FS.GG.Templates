@@ -1,0 +1,5 @@
+<Project>
+  <PropertyGroup>
+    <FsGgLegacyPreview>true</FsGgLegacyPreview>
+  </PropertyGroup>
+</Project>

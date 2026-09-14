@@ -12,16 +12,23 @@ files=(
   SvgFoundation/README.md
   SvgFoundation/THIRD-PARTY-NOTICES.md
   SvgFoundation/fonts/noto-sans-latin-400-normal.woff2
+  SvgFoundation/public/movement-cue.wav
   SvgFoundation/SvgFoundation.fsproj
+  SvgFoundation/LegacyPreview.props
+  SvgFoundation/AdoptedArenaContent.fs
   SvgFoundation/TacticalCompatibility.fs
   SvgFoundation/TacticalCompatibility.Tests.fs
   SvgFoundation/TacticalCompatibility.Tests.fsproj
+  SvgFoundation/TacticalCompatibility.Tests.packages.lock.json
   SvgFoundation/index.html
   SvgFoundation/vite.config.js
   SvgFoundation/build.sh
   SvgFoundation/Studio/SceneSchema.fs
   SvgFoundation/Studio/WorkspaceInput.fs
   SvgFoundation/Studio/ReplayStudio.fs
+  SvgFoundation/Studio/AdoptedRoom.fs
+  SvgFoundation/Studio/AdoptedArenaContent.fs
+  SvgFoundation/Studio/AdoptedArenaRules.fs
   SvgFoundation/Studio/Program.fs
   SvgFoundation/Studio/SvgGeometryWorkerEntry.js
   SvgFoundation/Studio/Studio.fsproj
@@ -45,6 +52,17 @@ source_for() {
   elif [[ "$path" == SvgFoundation/TacticalCompatibility.Tests.fs || "$path" == SvgFoundation/TacticalCompatibility.Tests.fsproj ]] \
        && [[ -f "$source_payload/SvgFoundation/Examples/Tactical/${path##*/}" ]]; then
     printf '%s\n' "$source_payload/SvgFoundation/Examples/Tactical/${path##*/}"
+  elif [[ "$path" == SvgFoundation/TacticalCompatibility.Tests.packages.lock.json ]] \
+       && [[ -f "$source_payload/SvgFoundation/Examples/Tactical/packages.lock.json" ]]; then
+    printf '%s\n' "$source_payload/SvgFoundation/Examples/Tactical/packages.lock.json"
+  elif [[ "$path" == SvgFoundation/Studio/AdoptedRoom.fs ]] && [[ -f "$source_payload/Domain/Room.fs" ]]; then
+    printf '%s\n' "$source_payload/Domain/Room.fs"
+  elif [[ "$path" == SvgFoundation/Studio/AdoptedArenaContent.fs ]] && [[ -f "$source_payload/Domain/ArenaContent.fs" ]]; then
+    printf '%s\n' "$source_payload/Domain/ArenaContent.fs"
+  elif [[ "$path" == SvgFoundation/Studio/AdoptedArenaRules.fs ]] && [[ -f "$source_payload/Domain/ArenaRules.fs" ]]; then
+    printf '%s\n' "$source_payload/Domain/ArenaRules.fs"
+  elif [[ "$path" == SvgFoundation/AdoptedArenaContent.fs ]] && [[ -f "$source_payload/Domain/ArenaContent.fs" ]]; then
+    printf '%s\n' "$source_payload/Domain/ArenaContent.fs"
   else
     return 1
   fi
@@ -116,6 +134,27 @@ if [[ ! -e "$source_payload/SvgFoundation/PlayerInput.fs" ]]; then
   done
   files=("${without_player_runtime[@]}")
 fi
+if [[ ! -e "$source_payload/SvgFoundation/LegacyPreview.props" ]]; then
+  without_legacy_property=()
+  for path in "${files[@]}"; do
+    [[ "$path" == SvgFoundation/LegacyPreview.props ]] || without_legacy_property+=("$path")
+  done
+  files=("${without_legacy_property[@]}")
+fi
+if [[ ! -e "$source_payload/SvgFoundation/public/movement-cue.wav" ]]; then
+  without_audio_cue=()
+  for path in "${files[@]}"; do
+    [[ "$path" == SvgFoundation/public/movement-cue.wav ]] || without_audio_cue+=("$path")
+  done
+  files=("${without_audio_cue[@]}")
+fi
+if [[ ! -e "$source_payload/SvgFoundation/Examples/Tactical/packages.lock.json" ]]; then
+  without_tactical_lock=()
+  for path in "${files[@]}"; do
+    [[ "$path" == SvgFoundation/TacticalCompatibility.Tests.packages.lock.json ]] || without_tactical_lock+=("$path")
+  done
+  files=("${without_tactical_lock[@]}")
+fi
 if [[ ! -e "$source_payload/SvgFoundation/ContinuousPlayer.fs" ]]; then
   without_continuous_runtime=()
   for path in "${files[@]}"; do
@@ -136,6 +175,13 @@ if [[ ! -e "$source_payload/SvgFoundation/Studio/ReplayStudio.fs" ]]; then
     case "$path" in SvgFoundation/Studio/ReplayStudio.fs|models/svg-replay/*) ;; *) without_replay+=("$path") ;; esac
   done
   files=("${without_replay[@]}")
+fi
+if [[ ! -e "$source_payload/Domain/ArenaRules.fs" ]]; then
+  without_adopted_domain=()
+  for path in "${files[@]}"; do
+    case "$path" in SvgFoundation/AdoptedArenaContent.fs|SvgFoundation/Studio/AdoptedRoom.fs|SvgFoundation/Studio/AdoptedArenaContent.fs|SvgFoundation/Studio/AdoptedArenaRules.fs) ;; *) without_adopted_domain+=("$path") ;; esac
+  done
+  files=("${without_adopted_domain[@]}")
 fi
 if [[ ! -e "$source_payload/SvgFoundation/PresentationPlayer.fs" ]]; then
   without_presentation=()
@@ -162,7 +208,9 @@ for path in "${files[@]}"; do
       normalized="$(python3 - "$dst" <<'PY'
 import hashlib,re,sys
 text=open(sys.argv[1]).read()
-match=re.search(r'^module ([A-Za-z_][A-Za-z0-9_.]*?)(?:\.SvgFoundation|\.PreviewDocument$|\.PreviewFont$|\.TacticalCompatibility(?:Tests)?$)',text,re.M)
+match=re.search(r'^module ([A-Za-z_][A-Za-z0-9_.]*?)(?:\.SvgFoundation|\.PreviewDocument$|\.PreviewFont$|\.TacticalCompatibility(?:Tests)?$|\.Domain$|\.ArenaContent$|\.ArenaRules$)',text,re.M)
+if not match:
+    match=re.search(r'^namespace ([A-Za-z_][A-Za-z0-9_.]*?)\.Domain$',text,re.M)
 if not match and sys.argv[1].endswith('/PresentationPlayer.fs'):
     match=re.search(r'^module Player = ([A-Za-z_][A-Za-z0-9_.]*?)\.SvgFoundation\.ContinuousPlayer$',text,re.M)
 normalized=text if not match else text.replace(match.group(1),'FableGameWorkspaceNamespace')
@@ -196,21 +244,38 @@ for path in "${files[@]}"; do
 import re,sys
 source,destination,target=sys.argv[1:]
 text=open(source).read()
-match=re.search(r'^module ([A-Za-z_][A-Za-z0-9_.]*?)(?:\.SvgFoundation|\.PreviewDocument$|\.PreviewFont$|\.TacticalCompatibility(?:Tests)?$)',text,re.M)
+match=re.search(r'^module ([A-Za-z_][A-Za-z0-9_.]*?)(?:\.SvgFoundation|\.PreviewDocument$|\.PreviewFont$|\.TacticalCompatibility(?:Tests)?$|\.Domain$|\.ArenaContent$|\.ArenaRules$)',text,re.M)
+if not match:
+    match=re.search(r'^namespace ([A-Za-z_][A-Za-z0-9_.]*?)\.Domain$',text,re.M)
 if not match and source.endswith('/PresentationPlayer.fs'):
     match=re.search(r'^module Player = ([A-Za-z_][A-Za-z0-9_.]*?)\.SvgFoundation\.ContinuousPlayer$',text,re.M)
 if not match: raise SystemExit(f'candidate F# module namespace is unreadable: {source}')
 open(destination,'w').write(text.replace(match.group(1),target))
+PY
+  elif [[ "$path" == SvgFoundation/SvgFoundation.fsproj ]]; then
+    python3 - "$src" "$backup/staged/$path" <<'PY'
+import sys
+source,destination=sys.argv[1:]
+text=open(source).read().replace('../Domain/ArenaContent.fs', 'AdoptedArenaContent.fs')
+open(destination,'w').write(text)
+PY
+  elif [[ "$path" == SvgFoundation/Studio/Studio.fsproj ]]; then
+    python3 - "$src" "$backup/staged/$path" <<'PY'
+import sys
+source,destination=sys.argv[1:]
+text=open(source).read()
+text=text.replace('../../Domain/Room.fs', 'AdoptedRoom.fs')
+text=text.replace('../../Domain/ArenaContent.fs', 'AdoptedArenaContent.fs')
+text=text.replace('../../Domain/ArenaRules.fs', 'AdoptedArenaRules.fs')
+open(destination,'w').write(text)
 PY
   elif [[ "$path" == SvgFoundation/TacticalCompatibility.Tests.fsproj ]]; then
     python3 - "$src" "$backup/staged/$path" <<'PY'
 import sys
 source,destination=sys.argv[1:]
 text=open(source).read()
-text=text.replace('<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>',
-                  '<RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>')
-text=text.replace('<RestoreLockedMode>true</RestoreLockedMode>',
-                  '<RestoreLockedMode>false</RestoreLockedMode>')
+text=text.replace('<TargetFramework>net10.0</TargetFramework>',
+                  '<TargetFramework>net10.0</TargetFramework>\n    <NuGetLockFilePath>TacticalCompatibility.Tests.packages.lock.json</NuGetLockFilePath>')
 text=text.replace('<Compile Include="../../TacticalCompatibility.fs" />',
                   '<Compile Include="TacticalCompatibility.fs" />')
 open(destination,'w').write(text)

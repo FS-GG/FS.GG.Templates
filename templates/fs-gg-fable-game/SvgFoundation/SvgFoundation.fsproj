@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="LegacyPreview.props" Condition="Exists('LegacyPreview.props')" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
@@ -8,7 +9,6 @@
     <FsGgSvgRuntimeCandidate Condition="'$(FsGgSvgRuntimeCandidate)' == ''">true</FsGgSvgRuntimeCandidate>
     <FsGgSvgPresentCandidate Condition="'$(FsGgSvgPresentCandidate)' == ''">true</FsGgSvgPresentCandidate>
     <FsGgSvgScaleCandidate Condition="'$(FsGgSvgScaleCandidate)' == ''">true</FsGgSvgScaleCandidate>
-    <FsGgLegacyPreview Condition="'FS_GG_LEGACY_PREVIEW_VALUE' == 'true'">true</FsGgLegacyPreview>
     <FsGgAudioPresentVersion Condition="'$(FsGgAudioPresentVersion)' == ''">0.6.0</FsGgAudioPresentVersion>
     <DefineConstants Condition="'$(FsGgSvgInputCandidate)' == 'true'">$(DefineConstants);SVG_INPUT_CANDIDATE</DefineConstants>
     <DefineConstants Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'">$(DefineConstants);SVG_RUNTIME_CANDIDATE</DefineConstants>
@@ -17,17 +17,17 @@
     <DefineConstants Condition="'$(FsGgLegacyPreview)' == 'true'">$(DefineConstants);LEGACY_SVG_PREVIEW</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="../Protocol/Http.fs" Link="Protocol/Http.fs" />
-    <Compile Include="../Protocol/Realtime.fs" Link="Protocol/Realtime.fs" />
-    <Compile Include="../Client/SignalR.fs" Link="Network/SignalR.fs" />
-    <Compile Include="../Client/Api.fs" Link="Network/Api.fs" />
+    <Compile Include="../Protocol/Http.fs" Link="Protocol/Http.fs" Condition="'$(FsGgLegacyPreview)' != 'true'" />
+    <Compile Include="../Protocol/Realtime.fs" Link="Protocol/Realtime.fs" Condition="'$(FsGgLegacyPreview)' != 'true'" />
+    <Compile Include="../Client/SignalR.fs" Link="Network/SignalR.fs" Condition="'$(FsGgLegacyPreview)' != 'true'" />
+    <Compile Include="../Client/Api.fs" Link="Network/Api.fs" Condition="'$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="../Domain/ArenaContent.fs" Link="ArenaContent.fs" />
     <Compile Include="TacticalCompatibility.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
     <Compile Include="PreviewFont.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
     <Compile Include="PreviewDocument.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
     <Compile Include="PlayerInput.fs" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
     <Compile Include="ContinuousPlayer.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'" />
-    <Compile Include="SvgAuthority.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'" />
+    <Compile Include="SvgAuthority.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="PresentationPlayer.fs" Condition="'$(FsGgSvgPresentCandidate)' == 'true'" />
     <Compile Include="ScalePlayer.fs" Condition="'$(FsGgSvgScaleCandidate)' == 'true'" />
     <Compile Include="Program.fs" />

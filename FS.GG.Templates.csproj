@@ -72,6 +72,8 @@
              PackagePath="content/templates/fs-gg-fable-game-legacy/%(RecursiveDir)%(Filename)%(Extension)" />
     <Content Include="pack/fs-gg-fable-game-legacy/.template.config/template.json"
              PackagePath="content/templates/fs-gg-fable-game-legacy/.template.config/template.json" />
+    <Content Include="pack/fs-gg-fable-game-legacy/SvgFoundation/LegacyPreview.props"
+             PackagePath="content/templates/fs-gg-fable-game-legacy/SvgFoundation/LegacyPreview.props" />
     <None Include="README.md" Pack="true" PackagePath="\" />
     <Compile Remove="**/*" />
   </ItemGroup>

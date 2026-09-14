@@ -63,11 +63,6 @@
       ],
       "isRequired": true
     },
-    "legacySvgPreview": {
-      "type": "computed",
-      "value": "(svgFoundation == true)",
-      "replaces": "FS_GG_LEGACY_PREVIEW_VALUE"
-    },
     "lifecycle": {
       "type": "parameter",
       "datatype": "choice",

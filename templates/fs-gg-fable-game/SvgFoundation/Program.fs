@@ -15,7 +15,9 @@ module GameInput = FableGameWorkspaceNamespace.SvgFoundation.PlayerInput
 #if SVG_RUNTIME_CANDIDATE
 open FS.GG.Game.Core
 module ContinuousPlayer = FableGameWorkspaceNamespace.SvgFoundation.ContinuousPlayer
+#if !LEGACY_SVG_PREVIEW
 module SvgAuthority = FableGameWorkspaceNamespace.SvgAuthority
+#endif
 #endif
 #if SVG_PRESENT_CANDIDATE
 open FS.GG.Audio.Core
@@ -371,6 +373,7 @@ describePlayer presentationRevision playerRuntime.Current
 requestCurrentProjection <- fun () -> playerSessionHost.DemandProjection()
 #endif
 
+#if !LEGACY_SVG_PREVIEW
 let private applyAuthority status (players: SvgAuthority.Player list) tick round health score collected outcome contentId contentSchema (content: FableGameWorkspaceNamespace.ArenaContent.ArenaContent) hazardCol hazardRow =
     playerInputScope.setAttribute("data-authority-status", status)
     playerInputScope.setAttribute("data-authority-tick", string tick)
@@ -406,6 +409,7 @@ let private applyAuthority status (players: SvgAuthority.Player list) tick round
     | None -> ()
 
 SvgAuthority.start applyAuthority
+#endif
 
 let private submit commandId command =
     playerSequence <- playerSequence + 1UL
@@ -414,24 +418,48 @@ let private submit commandId command =
             { SessionId = "generated-player"; InputId = commandId; Sequence = playerSequence; Value = command })
     playerSessionHost.DemandProjection()
 
+#if LEGACY_SVG_PREVIEW
+let private completeLegacyPreview () =
+    let current = playerRuntime.Current
+    let won =
+        { current with
+            Collected = 1
+            Score = current.Score + 100
+            Outcome = ContinuousPlayer.PlayerOutcome.Won
+            Revision = current.Revision + 1UL }
+    let snapshot: SessionSnapshot<ContinuousPlayer.PlayerState> =
+        { SessionId = "generated-player"
+          Revision = won.Revision
+          Compatibility = ContinuousPlayer.compatibility
+          Value = won }
+    updatePlayer (SessionRuntimeObservation.Restore snapshot)
+    playerSessionHost.DemandProjection()
+#endif
+
 let private dispatchGameCommand command =
     match command with
-    | "game.move-up" -> SvgAuthority.move 0 -1
-    | "game.move-down" -> SvgAuthority.move 0 1
-    | "game.move-left" -> SvgAuthority.move -1 0
-    | "game.move-right" -> SvgAuthority.move 1 0
 #if LEGACY_SVG_PREVIEW
+    | "game.move-up" -> submit command (ContinuousPlayer.PlayerCommand.Move(0.0, -3.0))
+    | "game.move-down" -> submit command (ContinuousPlayer.PlayerCommand.Move(0.0, 3.0))
+    | "game.move-left" -> submit command (ContinuousPlayer.PlayerCommand.Move(-3.0, 0.0))
+    | "game.move-right" -> submit command (ContinuousPlayer.PlayerCommand.Move(3.0, 0.0))
     | "game.stop" -> submit command ContinuousPlayer.PlayerCommand.Stop
     | "game.pause" ->
         if playerSessionHost.Observe().Status = SvgSessionStatus.Running then playerSessionHost.Pause()
         else playerSessionHost.Resume()
-#endif
-    | "game.restart" ->
-#if LEGACY_SVG_PREVIEW
-        playerSessionHost.Reset()
-#endif
-        SvgAuthority.command "restart"
+    | "game.step" -> playerSessionHost.StepOnce()
+    | "game.reset"
+    | "game.restart" -> playerSessionHost.Reset()
+    | "game.win" -> completeLegacyPreview ()
+    | "game.lose" -> submit command ContinuousPlayer.PlayerCommand.Damage
+#else
+    | "game.move-up" -> SvgAuthority.move 0 -1
+    | "game.move-down" -> SvgAuthority.move 0 1
+    | "game.move-left" -> SvgAuthority.move -1 0
+    | "game.move-right" -> SvgAuthority.move 1 0
+    | "game.restart" -> SvgAuthority.command "restart"
     | "game.interact" -> SvgAuthority.command "interact"
+#endif
     | _ -> ()
 #if SVG_PRESENT_CANDIDATE
     if command.StartsWith("game.") && command <> "game.pause" && command <> "game.step" then
@@ -451,7 +479,7 @@ let private addControl action label =
 for action, label in
     [ "move-up", "Move up"; "move-down", "Move down"; "move-right", "Move right"; "move-left", "Move left"
 #if LEGACY_SVG_PREVIEW
-      "pause", "Pause or resume"; "interact", "Interact"; "restart", "Restart" ] do
+      "pause", "Pause or resume"; "step", "Single step"; "reset", "Reset"; "win", "Win"; "lose", "Take damage"; "restart", "Restart" ] do
 #else
       "interact", "Interact"; "restart", "Restart" ] do
 #endif
@@ -523,7 +551,9 @@ window.addEventListener("beforeunload", fun _ ->
     (playerInputHost :> System.IDisposable).Dispose()
 #if SVG_RUNTIME_CANDIDATE
     window.removeEventListener("gamepadconnected", refreshGamepads)
+#if !LEGACY_SVG_PREVIEW
     SvgAuthority.dispose ()
+#endif
     (playerSessionHost :> System.IDisposable).Dispose()
 #if SVG_PRESENT_CANDIDATE
     (animationHost :> System.IDisposable).Dispose()

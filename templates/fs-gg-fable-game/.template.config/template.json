@@ -70,11 +70,6 @@
         { "choice": "complete", "description": "Arena, Studio, and both editable examples." }
       ]
     },
-    "legacySvgPreview": {
-      "type": "computed",
-      "value": "false",
-      "replaces": "FS_GG_LEGACY_PREVIEW_VALUE"
-    },
     "lifecycle": {
       "type": "parameter",
       "datatype": "choice",

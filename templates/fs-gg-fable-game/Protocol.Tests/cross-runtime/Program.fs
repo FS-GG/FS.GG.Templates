@@ -113,7 +113,7 @@ let private encodeArenaCommand = function
 
 let private interactionBoundaryProof () =
     let baseline = contentAt 0UL
-    let stateFor collectibleX =
+    let stateBefore collectibleX =
         let content =
             { baseline with
                 ContentId = "continuous-arena/interaction-boundary"
@@ -121,15 +121,16 @@ let private interactionBoundaryProof () =
                 CollectibleY = 5.0 }
         createWith content
         |> join "boundary-player" { Col = 0; Row = 0 }
-        |> applyIntent "boundary-player" Intent.Interact
-    let atBoundary = stateFor 15.0
-    let justInside = stateFor 14.9999999999
-    if atBoundary.Status.Collected || not justInside.Status.Collected then
-        failwith "interaction boundary no longer distinguishes touching from overlap"
-    let atBoundaryBytes = canonicalState atBoundary
-    let justInsideBytes = canonicalState justInside
+    let atBoundaryBefore = stateBefore 15.0
+    let justInsideBefore = stateBefore 14.9999999999
+    let atBoundaryBytes = canonicalState atBoundaryBefore
+    let justInsideBytes = canonicalState justInsideBefore
     if atBoundaryBytes = justInsideBytes then
         failwith "canonical state merged bounds with different interaction outcomes"
+    let atBoundary = applyIntent "boundary-player" Intent.Interact atBoundaryBefore
+    let justInside = applyIntent "boundary-player" Intent.Interact justInsideBefore
+    if atBoundary.Status.Collected || not justInside.Status.Collected then
+        failwith "interaction boundary no longer distinguishes touching from overlap"
     atBoundaryBytes + "\n" + justInsideBytes
 
 /// Execute the product's complete portable contract and Replay implementation from
