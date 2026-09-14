@@ -28,7 +28,8 @@ def find(role, name=None, contains=None, timeout=30):
                 if contains is not None:
                     try:
                         text = item.get_text_iface()
-                        value += " " + text.get_text(0, text.get_character_count())
+                        count = Atspi.Text.get_character_count(text)
+                        value += " " + Atspi.Text.get_text(text, 0, count)
                     except Exception:
                         pass
                 if (name is None or value == name) and (contains is None or contains in value):
