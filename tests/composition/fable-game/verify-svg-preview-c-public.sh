@@ -22,9 +22,8 @@ EOF
 # Bind the source qualification to the exact public API mirrors used by Release C.
 for spec in \
   fs.gg.ui.scene:0.31.0 fs.gg.ui.scene.svgbrowser:0.31.0 fs.gg.ui.keyboardinput:0.31.0 \
-  fs.gg.game.core:0.16.0 fs.gg.game.runtime:0.16.0 fs.gg.game.replay:0.16.0 fs.gg.game.network:0.16.0 \
-  fs.gg.net.core:0.6.0 fs.gg.net.transport:0.6.0 fs.gg.net.transport.signalr:0.6.0 \
-  fs.gg.audio.webaudio:0.6.0; do
+  fs.gg.game.core:0.16.0 fs.gg.net.core:0.6.0 \
+  fs.gg.audio.core:0.6.0 fs.gg.audio.webbrowser:0.6.0; do
   id="${spec%:*}"; version="${spec#*:}"
   curl -fsSL --retry 3 "https://api.nuget.org/v3-flatcontainer/$id/$version/$id.$version.nupkg" -o "$out/feed/$id.$version.nupkg"
 done
