@@ -37,7 +37,9 @@ speech-dispatcher -s -C "$speechd_config" -S "$speechd_socket" -P "$speechd_root
   >"$output.speechd.log" 2>&1 & speechd_pid=$!
 orca_pid=""
 browser_pid=""
+browser_launcher_pid=""
 cleanup() {
+  [[ -z "$browser_launcher_pid" ]] || kill "$browser_launcher_pid" 2>/dev/null || true
   [[ -z "$browser_pid" ]] || kill "$browser_pid" 2>/dev/null || true
   [[ -z "$orca_pid" ]] || kill "$orca_pid" 2>/dev/null || true
   kill "$speechd_pid" 2>/dev/null || true
@@ -58,7 +60,9 @@ browser_bin="${PLAYWRIGHT_EXECUTABLE_PATH:-$(command -v chromium || command -v c
 browser_family="${SVG_ORCA_BROWSER_FAMILY:-chromium}"
 if [[ "$browser_family" == firefox ]]; then
   browser_profile="$(mktemp -d)"
-  MOZ_ENABLE_WAYLAND=0 "$browser_bin" --profile "$browser_profile" --new-instance "$address" >"$output.browser.log" 2>&1 & browser_pid=$!
+  PLAYWRIGHT_MODULE_ROOT="${PLAYWRIGHT_MODULE_ROOT:?Playwright module root required for Firefox}" \
+    /usr/bin/node "$script_dir/orca-playwright-firefox.cjs" "$address" "$output.browser-dom.json" "$browser_profile" \
+    >"$output.browser.log" 2>&1 & browser_launcher_pid=$!
   browser_class='firefox|Navigator'
 elif [[ "$browser_family" == chromium ]]; then
   "$browser_bin" --no-sandbox --force-renderer-accessibility --user-data-dir="$(mktemp -d)" "$address" >"$output.browser.log" 2>&1 & browser_pid=$!
@@ -69,5 +73,8 @@ else
 fi
 browser_window="$(timeout --signal=TERM --kill-after=5s 45s xdotool search --sync --onlyvisible --class "$browser_class" | tail -1)"
 xdotool windowfocus --sync "$browser_window"
+if [[ "$browser_family" == firefox ]]; then
+  browser_pid="$(xdotool getwindowpid "$browser_window")"
+fi
 ORCA_PID="$orca_pid" BROWSER_PID="$browser_pid" SVG_ORCA_BROWSER_FAMILY="$browser_family" \
   /usr/bin/python3 "$script_dir/svg-input-orca.py" "$output"

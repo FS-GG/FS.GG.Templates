@@ -11,6 +11,7 @@ on:
       - 'tests/composition/fable-game/svg-*-observe.mjs'
       - 'tests/composition/fable-game/observe-svg-input-orca.sh'
       - 'tests/composition/fable-game/orca-faulthandler.py'
+      - 'tests/composition/fable-game/orca-playwright-firefox.cjs'
       - 'tests/composition/fable-game/speech-dispatcher-preflight.py'
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'tests/composition/fable-game/svg-preview-c-public-api.json'
@@ -27,6 +28,7 @@ on:
       - 'tests/composition/fable-game/svg-*-observe.mjs'
       - 'tests/composition/fable-game/observe-svg-input-orca.sh'
       - 'tests/composition/fable-game/orca-faulthandler.py'
+      - 'tests/composition/fable-game/orca-playwright-firefox.cjs'
       - 'tests/composition/fable-game/speech-dispatcher-preflight.py'
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'tests/composition/fable-game/svg-preview-c-public-api.json'
@@ -109,7 +111,9 @@ jobs:
           trap 'kill "$server" 2>/dev/null || true' EXIT
           for _ in {1..80}; do curl -fsS http://127.0.0.1:8143/ >/dev/null && break; sleep .25; done
           browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').firefox.executablePath())")"
-          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" SVG_ORCA_BROWSER_FAMILY=firefox \
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
+            PLAYWRIGHT_MODULE_ROOT="${{ github.workspace }}/templates/fs-gg-fable-game/Browser.Tests/node_modules" \
+            SVG_ORCA_BROWSER_FAMILY=firefox \
             timeout --signal=TERM --kill-after=15s 5m bash tests/composition/fable-game/observe-svg-input-orca.sh \
               http://127.0.0.1:8143/ "$RUNNER_TEMP/svg-preview-c-source/orca-input.json"
           jq -e '.result=="passed" and .browser.name=="firefox" and .keyboard.events=="xdotool-X11" and .keyboard.navigation=="passed" and .keyboard.activation=="passed" and .keyboard.palette=="passed" and .keyboard.escape=="passed" and .keyboard.focusRestoration=="passed" and .atspiActions.properties=="passed" and .atspiActions.validationFeedback=="passed" and .screenReader.name=="Orca" and .screenReader.speechOutputObserved==true and .screenReader.audibleHardwareOutput=="not-observed"' \
@@ -126,6 +130,7 @@ jobs:
             ${{ runner.temp }}/svg-preview-c-source/*-input.json
             ${{ runner.temp }}/svg-preview-c-source/*.speechd-*.json
             ${{ runner.temp }}/svg-preview-c-source/*.speechd-logs/**
+            ${{ runner.temp }}/svg-preview-c-source/*.browser-dom.json
             ${{ runner.temp }}/svg-preview-c-source/*-replay.json
             ${{ runner.temp }}/svg-preview-c-source/*-scale.json
             ${{ runner.temp }}/svg-preview-c-source/*-network.json

@@ -75,6 +75,13 @@ def tab_to(name, limit=80):
     observed = []
     for _ in range(limit):
         key("Tab")
+        dom = None
+        try:
+            dom = json.load(open(output + ".browser-dom.json"))
+        except Exception:
+            pass
+        active = ((dom or {}).get("observation") or {}).get("activeElement") or {}
+        dom_name = active.get("ariaLabel") or active.get("text")
         current = []
         for item in walk(Atspi.get_desktop(0)):
             try:
@@ -85,12 +92,12 @@ def tab_to(name, limit=80):
                     # Firefox can retain FOCUSED on an ancestor exposed later in
                     # the tree. Assert the named target's own state rather than
                     # selecting whichever focused object traversal visited last.
-                    if value == name:
+                    if value == name and (dom is None or dom_name == name):
                         return item
             except Exception:
                 pass
         window = subprocess.run(["xdotool", "getwindowfocus"], capture_output=True, text=True, check=False).stdout.strip()
-        observed.append({"window": window, "focused": current})
+        observed.append({"window": window, "focused": current, "dom": dom})
     raise RuntimeError(f"keyboard focus did not reach {name}; observed={observed[-10:]}")
 
 def wait_for_focus(name, role=None, timeout=10):
@@ -176,11 +183,16 @@ activate("Rebind command")
 find("dialog", name="Rebind command")
 find(None, contains="Conflict feedback")
 activate("Close workspace overlay")
-# Mode controls are rendered by the workspace host. Exercise their AT-SPI
-# action after the keyboard route because clicking one replaces that control;
-# a removed focused node is not a valid starting point for sequential focus.
+# Mode controls are rendered by the workspace host. Exercise the AT-SPI action,
+# then repeat the keyboard route so mode-render focus retention is observed.
 activate("Arrange mode", role="toggle button")
 find(None, contains="Mode: Arrange")
+# Repeat the real Tab route after the dynamic mode render. This preserves the
+# previously disputed focus-retention subject instead of inferring it from the
+# stable Rectangle route above.
+tab_to("Replay timeline")
+tab_to("Replay complete arena recording")
+tab_to("Command palette")
 wait_for_speech("Rectangle", "created and selected")
 
 with open(output, "w") as stream:
