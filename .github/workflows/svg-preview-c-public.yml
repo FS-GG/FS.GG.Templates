@@ -3,14 +3,24 @@ name: svg-preview-c-public
 on:
   pull_request:
     paths:
+      - 'providers/fable-game.providers.yml'
+      - 'scripts/apply-svg-foundation-preview.sh'
+      - 'scripts/svg-foundation-preview-baseline.manifest'
+      - 'readiness/svg-preview-c-5/**'
       - 'tests/composition/fable-game/svg-*-observe.mjs'
+      - 'tests/composition/fable-game/svg-preview-c-public-api.json'
       - 'tests/composition/fable-game/svg-scale-measure.mjs'
       - 'tests/composition/fable-game/verify-svg-preview-c-public.sh'
       - '.github/workflows/svg-preview-c-public.yml'
   push:
     branches: [main]
     paths:
+      - 'providers/fable-game.providers.yml'
+      - 'scripts/apply-svg-foundation-preview.sh'
+      - 'scripts/svg-foundation-preview-baseline.manifest'
+      - 'readiness/svg-preview-c-5/**'
       - 'tests/composition/fable-game/svg-*-observe.mjs'
+      - 'tests/composition/fable-game/svg-preview-c-public-api.json'
       - 'tests/composition/fable-game/svg-scale-measure.mjs'
       - 'tests/composition/fable-game/verify-svg-preview-c-public.sh'
       - '.github/workflows/svg-preview-c-public.yml'
