@@ -27,6 +27,7 @@
         "**/*.user",
         "**/node_modules/**",
         "**/.nuget/**",
+        "Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js",
         "SvgFoundation/output/**",
         "SvgFoundation/dist/**",
         "SvgFoundation/Studio/output/**",

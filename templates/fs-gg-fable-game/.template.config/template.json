@@ -26,6 +26,7 @@
         "Browser.Tests/test-results/**",
         "Browser.Tests/playwright-report/**",
         "Protocol.Tests/cross-runtime/CodecProbe.Fable/output/**",
+        "Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js",
         "SvgFoundation/output/**",
         "SvgFoundation/dist/**",
         "SvgFoundation/Studio/output/**",
