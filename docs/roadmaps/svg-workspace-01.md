@@ -232,8 +232,8 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   tokens, explicit compatibility choices and user-authored paths preserve their documented behavior.
 
   Candidate evidence (2026-09-14): Templates [#484](https://github.com/FS-GG/FS.GG.Templates/pull/484)
-  prepares 0.14.0 product source `7b6ded774d923747f68e39bc42ccd26583f4debc`. Native no-publish run
-  `34869414889` retained artifact `10358392590`; its package SHA-256 is
+  prepares the 0.14.0 product. Pre-closure product checkpoint `7b6ded774d923747f68e39bc42ccd26583f4debc`
+  was retained by native no-publish run `34869414889` as artifact `10358392590`; its package SHA-256 is
   `f76a302c2811af915d0df70ce7599d308ffd08645bc0659fe7409b4ccbea9a0e`. All 313 archive entries are
   source-only and byte-equal to the independently packed exact source payload (container metadata gives
   that local archive SHA-256 `8779109a70da68800587956cc8b18d652bbb41bda7b60d05b313e4931f685cfe`).
@@ -248,7 +248,9 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   absence. Missing and drifted Player/Studio locks refuse, while unmodified projects restore from empty
   isolated caches. The branch checkbox becomes authoritative only when #484's exact-head native source-C,
   typed/public receiver and composition checks pass, final merged-wizard selection is bound to the retained
-  product payload, and this candidate commit is merged. Templates 0.14.0 publication remains Release D.
+  final exact-head candidate, and this PR is merged. The PR's native artifact and installed receipt bind
+  that final identity without requiring this evidence paragraph to contain its own commit SHA. Templates
+  0.14.0 publication remains Release D.
 
 - [ ] **SVG-WORKSPACE-01.4 — Demonstrate complete games and publishable documentation from the composition — route: routine**
 
