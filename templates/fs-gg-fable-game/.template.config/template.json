@@ -22,18 +22,55 @@
       ],
       "modifiers": [
         {
-          "condition": "(!svgFoundation)",
+          "condition": "(svgFoundation == false)",
           "exclude": [ "SvgFoundation/**" ]
+        },
+        {
+          "condition": "((bundle == \"player\") || ((bundle != \"studio\") && (bundle != \"tactical\") && (bundle != \"arcade\") && (bundle != \"complete\") && (svgFoundation != true)))",
+          "exclude": [ "SvgFoundation/Studio/**" ]
+        },
+        {
+          "condition": "((bundle != \"tactical\") && (bundle != \"complete\") && (svgFoundation != true))",
+          "exclude": [ "SvgFoundation/Examples/Tactical/**" ]
+        },
+        {
+          "condition": "((bundle != \"arcade\") && (bundle != \"complete\") && (svgFoundation != true))",
+          "exclude": [ "SvgFoundation/Examples/Arcade/**" ]
         }
       ]
     }
   ],
   "symbols": {
+    "bundle": {
+      "type": "parameter",
+      "datatype": "choice",
+      "description": "Generated SVG workspace composition. Omission creates the production player.",
+      "choices": [
+        { "choice": "player", "description": "Production cooperative SVG arena only (default)." },
+        { "choice": "studio", "description": "Arena plus Create/Arrange/Play/Review tools." },
+        { "choice": "tactical", "description": "Arena, Studio, and the editable tactical example." },
+        { "choice": "arcade", "description": "Arena, Studio, and the editable arcade example." },
+        { "choice": "complete", "description": "Arena, Studio, and both editable examples." }
+      ]
+    },
     "svgFoundation": {
       "type": "parameter",
-      "datatype": "bool",
-      "defaultValue": "false",
-      "description": "Include the opt-in retained SVG player fixture and separate studio source. Public 0.12.0 includes the coherent Preview-B player and separate Studio against exact stable producer pins."
+      "datatype": "choice",
+      "defaultValue": "unspecified",
+      "description": "Compatibility flag for pre-0.14 callers. Explicit true selects the retained preview-compatible complete composition; explicit false retains the non-SVG product. Do not combine it with a contradictory bundle."
+      ,"choices": [
+        { "choice": "true", "description": "Retained preview-compatible complete SVG composition." },
+        { "choice": "false", "description": "Retained pre-0.14 non-SVG product." },
+        { "choice": "unspecified", "description": "Internal omitted state; use bundle for new callers." }
+      ]
+    },
+    "bundleCompatibilityConflict": {
+      "type": "parameter",
+      "datatype": "choice",
+      "description": "Internal contradiction guard; callers must not set this option.",
+      "choices": [ { "choice": "unreachable" } ],
+      "isEnabled": "((svgFoundation == false && bundle != \"\") || (svgFoundation == true && bundle != \"\" && bundle != \"complete\"))",
+      "isRequired": "((svgFoundation == false && bundle != \"\") || (svgFoundation == true && bundle != \"\" && bundle != \"complete\"))"
     },
     "lifecycle": {
       "type": "parameter",

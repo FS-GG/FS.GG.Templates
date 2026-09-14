@@ -71,7 +71,21 @@ dotnet test Server.Tests/Server.Tests.fsproj --no-build --logger "trx;LogFileNam
 # The Fable/Elmish client: compile, then production-bundle with Vite.
 (cd Client && npm ci && npm run build)
 
-dotnet publish Server/Server.fsproj -c Release --no-restore -o artifacts/publish
+# Build the selected static SVG product independently from its authority server.
+bash SvgFoundation/build.sh
+rm -rf artifacts/static-player
+mkdir -p artifacts/static-player
+cp -R SvgFoundation/dist/. artifacts/static-player/
+
+# Player-only generation removes this project at template expansion time.
+if [[ -f SvgFoundation/Studio/Studio.fsproj ]]; then
+  bash SvgFoundation/Studio/build.sh
+  rm -rf artifacts/static-studio
+  mkdir -p artifacts/static-studio
+  cp -R SvgFoundation/Studio/dist/. artifacts/static-studio/
+fi
+
+dotnet publish Server/Server.fsproj -c Release --no-restore -o artifacts/authority-server
 
 # CI may supply a disclosed browser executable; otherwise provision Playwright's pinned runtime.
 (

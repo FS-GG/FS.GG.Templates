@@ -1,8 +1,8 @@
 # FableGameWorkspace
 
-A minimal, server-authoritative multiplayer game workspace: one F# ASP.NET Core
-server and one Fable/Elmish browser client, sharing a product-owned `Domain` and an
-explicit, versioned wire protocol.
+A server-authoritative multiplayer SVG game workspace: one F# ASP.NET Core server,
+one Fable/Elmish browser client, and a package-backed SVG player sharing a
+product-owned `Domain` and an explicit, versioned wire protocol.
 
 ## The transport boundary (ADR-0073)
 
@@ -40,19 +40,25 @@ stale-input guard (a non-increasing input sequence is dropped) and the
 disconnect/reconnect contract: a reconnecting client always gets a bounded, full
 authoritative resync, never a delta log.
 
-An opt-in retained SVG foundation fixture is available only when explicitly selected with
-`--svgFoundation true`. It consumes the coherent public `FS.GG.UI.Scene`, transitive
-`FS.GG.UI.KeyboardInput`, and `FS.GG.UI.Scene.SvgBrowser` `0.30.0` packages. It mounts
-the retained grid/fractional examples and a complete typed Preview-A document. The ordinary
-server-authoritative arena remains the default while the SVG foundation completes its release qualification.
+The SVG player is the default product composition in Templates 0.14. Choose it explicitly
+with `--bundle player`, or select `studio`, `tactical`, `arcade`, or `complete`. Studio adds
+the integrated Create/Arrange/Play/Review tools; tactical and arcade add their editable
+examples plus Studio; complete includes both. The player bundle contains no Studio or example
+source. Rendering's profile remains independent from this product composition choice.
 
-The selected payload also carries separate player and `SvgFoundation/Studio` entries. Preview B binds
+The compatibility flag remains readable for existing scripts: explicit
+`--svgFoundation true` selects the retained preview-compatible complete composition, while
+explicit `--svgFoundation false` retains the pre-0.14 non-SVG product. Combining the old flag
+with a contradictory `--bundle` is rejected during template argument validation, before the
+destination is written. Bundle selection does not select or activate a lifecycle.
+
+The selected tool payload carries separate player and `SvgFoundation/Studio` entries. Preview B binds
 both to exact public producer versions and enables the product-owned command profiles.
 Build them with `bash SvgFoundation/build.sh` and `bash SvgFoundation/Studio/build.sh`. The Studio
 build copies its worker, verified font data, notices and npm lock from the restored producer package
 into ignored output. The generated workspace exposes Create, Arrange, Play and Review modes, responsive
 docks, palette/help/rebind flows, and keyboard, pointer, touch and gamepad routes over the same effective
-profile. Templates `0.13.0` uses Rendering `0.31.0`, Game `0.16.0`, Net `0.6.0`, and Audio `0.6.0` as one
+profile. Templates `0.14.0` uses Rendering `0.31.0`, Game `0.16.0`, Net `0.6.0`, and Audio `0.6.0` as one
 qualified public set.
 
 The SVG runtime replaces the static continuous fixture with a Game.Core fixed-step session,
@@ -87,16 +93,18 @@ The realtime baseline has four deliberately small but production-relevant rules:
 
 ## Running it
 
-Two terminals for development: `dotnet run --project Server/Server.fsproj` and
-`npm run dev --prefix Client`; Vite proxies `/api` and the `/hub` WebSocket upgrade
-to `http://localhost:5000`. For production, `Client/dist` is published into
-`Server`'s `wwwroot`; run `dotnet artifacts/publish/Server.dll` from the publish
-directory (not the source checkout).
+For local authority development, run `dotnet run --project Server/Server.fsproj`; the
+browser client proxies `/api` and the `/hub` WebSocket upgrade to
+`http://localhost:5000`. The root build writes the selected static SVG player to
+`artifacts/static-player`, optional Studio to `artifacts/static-studio`, and the required
+independently deployable ASP.NET Core authority to `artifacts/authority-server`. Deploy the
+static artifact and authority together; a static host alone is not a complete multiplayer game.
 
-`./build.sh` runs the whole lifecycle: restore/build/test the `.NET` solution
+`./build.sh` runs the whole lifecycle: locked restore/build/test the `.NET` solution
 (`Domain`, `Protocol`, `Server`, and their `.Tests` projects), the cross-runtime
 codec proof, the Fable/Vite client production build, the server publish, and the
-Playwright `Browser.Tests` two-context scenario. It writes TRX/JUnit evidence to
+selected SVG player (plus Studio when present), authority publish, and Playwright
+`Browser.Tests` two-context scenario. It writes TRX/JUnit evidence to
 `artifacts/test-results/`; import those observed reports with
 `fsgg-sdd evidence --from-test-report`. SDD remains the single lifecycle owner.
 
