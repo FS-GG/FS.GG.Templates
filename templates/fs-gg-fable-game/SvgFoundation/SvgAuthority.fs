@@ -19,7 +19,7 @@ type private QueuedIntent =
 type private InFlightIntent =
     { Sequence: int
       Intent: QueuedIntent
-      AdmittedAfterTick: int option }
+      InvocationCompletedAtTick: int option }
 
 type private State =
     { PlayerId: string option
@@ -40,6 +40,7 @@ let mutable private queuedIntents: QueuedIntent list = []
 let mutable private inFlightIntent: InFlightIntent option = None
 let mutable private dispatchNext: unit -> unit = ignore
 let private maximumQueuedIntents = 32
+let mutable private readyForInput = false
 
 let private notify status =
     let health, score, collected, outcome, hazardCol, hazardRow = game
@@ -70,14 +71,16 @@ let private accept message =
               Hazard = { X = snapshot.HazardX; Y = snapshot.HazardY; Width = snapshot.HazardWidth; Height = snapshot.HazardHeight }
               Goal = { X = snapshot.GoalX; Y = snapshot.GoalY; Width = snapshot.GoalWidth; Height = snapshot.GoalHeight }
               ThinWall = { X = snapshot.ThinWallX; Y = snapshot.ThinWallY; Width = snapshot.ThinWallWidth; Height = snapshot.ThinWallHeight } }
-        // Invocation success proves admission into a particular authority frontier.
-        // Wait for a later frontier before deriving the next relative target. This
+        // Invocation completion means the hub has accepted the command, but carries
+        // no sequence/frontier receipt. Conservatively wait for a snapshot observed
+        // after that completion before deriving the next relative target. This
         // serializes edge-triggered input without guessing through collisions.
         match inFlightIntent with
-        | Some pending when pending.AdmittedAfterTick |> Option.exists (fun tick -> snapshot.Tick > tick) ->
+        | Some pending when pending.InvocationCompletedAtTick |> Option.exists (fun tick -> snapshot.Tick > tick) ->
             inFlightIntent <- None
             dispatchNext ()
         | _ -> ()
+        readyForInput <- true
         notify "synchronized"
     | RealtimeV3.PresenceMessage _ -> notify "presence changed"
     | _ -> ()
@@ -85,12 +88,18 @@ let private accept message =
 let private connect capability =
     let connection = SignalR.build "/hub/game"
     connection.on("Message", fun json -> RealtimeV3.messageFromJson json |> Result.iter accept)
-    connection.onreconnecting(fun _ -> notify "reconnecting")
+    connection.onreconnecting(fun _ ->
+        readyForInput <- false
+        queuedIntents <- []
+        inFlightIntent <- None
+        notify "reconnecting")
     connection.onreconnected(fun _ ->
+        readyForInput <- false
         queuedIntents <- []
         inFlightIntent <- None
         sendHello capability connection)
     connection.onclose(fun _ ->
+        readyForInput <- false
         queuedIntents <- []
         inFlightIntent <- None
         state <- { state with Connection = None }
@@ -127,12 +136,12 @@ let private pump () =
                       TargetCol = targetCol
                       TargetRow = targetRow })
         state <- { state with Sequence = sequence + 1 }
-        inFlightIntent <- Some { Sequence = sequence; Intent = intent; AdmittedAfterTick = None }
+        inFlightIntent <- Some { Sequence = sequence; Intent = intent; InvocationCompletedAtTick = None }
         thenBoth (connection.invoke("SendMessage", json))
             (fun _ ->
                 match inFlightIntent with
                 | Some pending when pending.Sequence = sequence ->
-                    inFlightIntent <- Some { pending with AdmittedAfterTick = Some state.Tick }
+                    inFlightIntent <- Some { pending with InvocationCompletedAtTick = Some state.Tick }
                 | _ -> ())
             (fun error ->
                 match inFlightIntent with
@@ -147,10 +156,10 @@ dispatchNext <- pump
 
 let private enqueue intent =
     match state.PlayerId, state.Connection, state.Players |> List.tryFind _.IsSelf with
-    | Some _, Some _, Some _ when queuedIntents.Length < maximumQueuedIntents ->
+    | Some _, Some _, Some _ when readyForInput && queuedIntents.Length < maximumQueuedIntents ->
         queuedIntents <- queuedIntents @ [ intent ]
         dispatchNext ()
-    | Some _, Some _, Some _ -> notify "input queue full"
+    | Some _, Some _, Some _ when readyForInput -> notify "input queue full"
     | _ -> notify "authority unavailable"
 
 let move deltaCol deltaRow = enqueue (RelativeMove(deltaCol, deltaRow))
@@ -165,6 +174,7 @@ let excludesCapability (value: string) =
     |> Option.forall (fun capability -> not (value.Contains(capability, System.StringComparison.Ordinal)))
 
 let dispose () =
+    readyForInput <- false
     queuedIntents <- []
     inFlightIntent <- None
     state.Connection |> Option.iter (fun connection -> thenBoth (connection.stop()) ignore ignore)

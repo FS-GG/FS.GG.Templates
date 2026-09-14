@@ -63,6 +63,18 @@ test("two SVG arena clients observe the same authoritative move", async ({ brows
   const contextA = await browser.newContext();
   const contextB = await browser.newContext();
   try {
+    await contextA.addInitScript(() => {
+      const nativeWebSocket = window.WebSocket;
+      const sockets: WebSocket[] = [];
+      (window as unknown as { __fsggAuthoritySockets: WebSocket[] }).__fsggAuthoritySockets = sockets;
+      window.WebSocket = new Proxy(nativeWebSocket, {
+        construct(target, argumentsList) {
+          const socket = Reflect.construct(target, argumentsList) as WebSocket;
+          sockets.push(socket);
+          return socket;
+        }
+      });
+    });
     const pageA = await contextA.newPage();
     const pageB = await contextB.newPage();
     const otherClientFrames: string[] = [];
@@ -164,9 +176,12 @@ test("two SVG arena clients observe the same authoritative move", async ({ brows
     while (col > 10) await move("a", "col", --col);
     const beforeBlockedTick = Number(await arenaA.getAttribute("data-authority-tick"));
     await arenaA.press("w");
+    await arenaA.press("a");
     await expect.poll(async () => Number(await arenaA.getAttribute("data-authority-tick"))).toBeGreaterThan(beforeBlockedTick);
     await expect(arenaA).toHaveAttribute("data-authority-self-row", "5");
-    await expect(arenaB).toHaveAttribute("data-authority-snapshot", new RegExp(`${playerA}:10,5`));
+    await expect(arenaA).toHaveAttribute("data-authority-self-col", "9");
+    await expect(arenaB).toHaveAttribute("data-authority-snapshot", new RegExp(`${playerA}:9,5`));
+    col = 9;
     while (col < 5) await move("d", "col", ++col);
     while (col > 5) await move("a", "col", --col);
     while (row > 2) await move("w", "row", --row);
@@ -186,10 +201,40 @@ test("two SVG arena clients observe the same authoritative move", async ({ brows
     await expect(arenaA).toHaveAttribute("data-player-score", "0");
     await expect(arenaB).toHaveAttribute("data-player-score", "0");
     const burstCol = Number(await arenaA.getAttribute("data-authority-self-col"));
-    const burstRow = Number(await arenaA.getAttribute("data-authority-self-row"));
+    let burstRow = Number(await arenaA.getAttribute("data-authority-self-row"));
+    while (burstRow > 0) await move("w", "row", --burstRow);
+    await arenaA.press("w");
+    await arenaA.press("s");
+    await expect(arenaA).toHaveAttribute("data-authority-self-row", String(burstRow + 1));
     for (let press = 0; press < 4; press += 1) await arenaA.press("s");
-    await expect(arenaA).toHaveAttribute("data-authority-self-row", String(burstRow + 4));
-    await expect(arenaB).toHaveAttribute("data-authority-snapshot", new RegExp(`${playerA}:${burstCol},${burstRow + 4}`));
+    const afterBurstRow = burstRow + 5;
+    await expect(arenaA).toHaveAttribute("data-authority-self-row", String(afterBurstRow));
+    await expect(arenaB).toHaveAttribute("data-authority-snapshot", new RegExp(`${playerA}:${burstCol},${afterBurstRow}`));
+
+    const diagnosticsBeforeReconnect = diagnostics.length;
+    const expectedBeforeReconnect = expectedConsole.length;
+    for (let press = 0; press < 4; press += 1) await arenaA.press("s");
+    await pageA.evaluate(() => {
+      const sockets = (window as unknown as { __fsggAuthoritySockets: WebSocket[] }).__fsggAuthoritySockets;
+      sockets.at(-1)?.close(4000, "controlled reconnect");
+    });
+    await expect.poll(() => pageA.evaluate(() =>
+      (window as unknown as { __fsggAuthoritySockets: WebSocket[] }).__fsggAuthoritySockets.length)).toBeGreaterThan(1);
+    await expect(arenaA).toHaveAttribute("data-authority-status", "synchronized", { timeout: 15_000 });
+    const reconnectedTick = Number(await arenaA.getAttribute("data-authority-tick"));
+    await expect.poll(async () => Number(await arenaA.getAttribute("data-authority-tick"))).toBeGreaterThan(reconnectedTick + 1);
+    const settledReconnectRow = Number(await arenaA.getAttribute("data-authority-self-row"));
+    expect(settledReconnectRow).toBeGreaterThanOrEqual(afterBurstRow);
+    expect(settledReconnectRow).toBeLessThanOrEqual(afterBurstRow + 1); // At most the already-admitted command may commit.
+    const settledReconnectTick = Number(await arenaA.getAttribute("data-authority-tick"));
+    await expect.poll(async () => Number(await arenaA.getAttribute("data-authority-tick"))).toBeGreaterThan(settledReconnectTick + 2);
+    await expect(arenaA).toHaveAttribute("data-authority-self-row", String(settledReconnectRow));
+    const controlledReconnectDiagnostics = diagnostics.splice(diagnosticsBeforeReconnect);
+    const controlledReconnectConsole = expectedConsole.splice(expectedBeforeReconnect);
+    await testInfo.attach("controlled-reconnect", {
+      body: Buffer.from(JSON.stringify({ staleInputsReplayed: false, socketGenerations: 2, diagnostics: controlledReconnectDiagnostics, expectedConsole: controlledReconnectConsole }, null, 2)),
+      contentType: "application/json"
+    });
     await pageA.locator("#foundation-export").click();
     await expect(pageA.locator("#foundation-persistence-status")).toContainText("Archive exported");
     await expect(arenaA).toHaveAttribute("data-archive-length", /[1-9][0-9]*/);
