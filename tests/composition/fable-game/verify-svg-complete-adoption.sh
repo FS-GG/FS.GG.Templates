@@ -31,6 +31,42 @@ preserved_sha() {
     "$1/authored/keymap-v1.json" \
     "$1/authored/replay-v1.json"
 }
+validate_selected_skills() {
+  python3 - "$1" "$2" "$3" "${@:4}" <<'PY'
+from pathlib import Path
+import hashlib, json, sys
+candidate, workspace, prior = map(Path, sys.argv[1:4])
+mirrors = sys.argv[4:]
+source = json.loads((candidate/'.agents/skills/skill-manifest.json').read_text())
+package=[row for row in source['skills']
+         if row.get('scope') == 'product'
+         and row.get('supplied-by','').startswith('template/product-skills/fable-')]
+package_ids={row['id'] for row in package}
+before=json.loads((prior/'.agents/skills/skill-manifest.json').read_text())
+preserved=[row for row in before['skills'] if row['id'] not in package_ids and row['id'] != 'fable-remoting']
+expected={'schemaVersion':1,'skills':sorted(preserved+package,key=lambda row:row['id'])}
+assert json.loads((workspace/'.agents/skills/skill-manifest.json').read_text()) == expected
+missing=[]
+for row in expected['skills']:
+    body=workspace/row['resolvablePath']
+    if body.is_file():
+        assert hashlib.sha256(body.read_bytes()).hexdigest() == row['sha256']
+    else:
+        missing.append(row['id'])
+assert missing == ['fable-bindings']
+for mirror in mirrors:
+    mirror_root=workspace/mirror
+    assert json.loads((mirror_root/'skill-manifest.json').read_text()) == expected
+    for row in expected['skills']:
+        relative=Path(row['resolvablePath']).relative_to('.agents/skills')
+        body=mirror_root/relative
+        if row['id'] == 'fable-bindings':
+            assert not body.exists()
+        else:
+            assert body.is_file()
+            assert hashlib.sha256(body.read_bytes()).hexdigest() == row['sha256']
+PY
+}
 
 for version in 0.10.0 0.11.0 0.12.0 0.13.0; do
   archive="$public_archives/FS.GG.Workspace.Template.$version.nupkg"
@@ -57,6 +93,8 @@ for version in 0.10.0 0.11.0 0.12.0 0.13.0; do
     "$out/$version-inventory.json" "$out/$version-review.diff"
   jq -e '.ready==true and (.changes|length)>0 and (.conflicts|length)==0 and (.preserved|length)>0' \
     "$out/$version-inventory.json" >/dev/null
+  grep -F 'a/.agents/skills/fable-remoting/SKILL.md' "$out/$version-review.diff" >/dev/null
+  grep -F '+++ /dev/null' "$out/$version-review.diff" >/dev/null
   "$adopter" complete-apply "$candidate" "$workspace" "$manifest" \
     "$out/$version-inventory.json" "$out/$version-backup"
   preserved_sha "$workspace" >"$out/$version-preserved.after"
@@ -66,12 +104,85 @@ for version in 0.10.0 0.11.0 0.12.0 0.13.0; do
   test -f "$workspace/SvgFoundation/Examples/Tactical/scene.json"
   test -f "$workspace/SvgFoundation/Examples/Arcade/scene.json"
   test -f "$workspace/.github/workflows/product-ci.yml"
+  test -f "$workspace/.agents/skills/fable-http-codecs/SKILL.md"
+  test ! -e "$workspace/.agents/skills/fable-remoting/SKILL.md"
+  test ! -e "$workspace/.claude"
+  test ! -e "$workspace/.codex"
+  validate_selected_skills "$candidate" "$workspace" "$out/original-$version"
   test -x "$workspace/build.sh"
   grep -F "Retained${version//./}" "$workspace/Domain/ArenaRules.fs" >/dev/null
   grep -F "Retained${version//./}.slnx" "$workspace/build.sh" >/dev/null
   (cd "$workspace" && dotnet restore "Retained${version//./}.slnx" --locked-mode \
     && dotnet build "Retained${version//./}.slnx" --no-restore) >"$out/$version-build.log" 2>&1
 done
+
+# A real union manifest can contain an independently owned product row. The
+# transaction authenticates legacy Fable rows individually, merges the new
+# package rows, and preserves the unrelated declaration and body byte-for-byte.
+cp -a "$out/original-0.13.0" "$out/union"
+python3 - "$out/union" <<'PY'
+from pathlib import Path
+import hashlib, json, sys
+root=Path(sys.argv[1])
+manifest=root/'.agents/skills/skill-manifest.json'
+value=json.loads(manifest.read_text())
+body=root/'.agents/skills/local-gameplay/SKILL.md'
+value['skills'].append({
+    'id':'local-gameplay', 'scope':'product',
+    'sha256':hashlib.sha256(body.read_bytes()).hexdigest(),
+    'resolvablePath':'.agents/skills/local-gameplay/SKILL.md',
+    'materializes-when':'local receiver', 'supplied-by':'receiver/local-gameplay/'})
+value['skills'].sort(key=lambda row:row['id'])
+manifest.write_text(json.dumps(value,indent=2)+'\n')
+PY
+cp -a "$out/union" "$out/union-before"
+"$adopter" complete-inventory "$candidate" "$out/union" "$manifest" \
+  "$out/union-inventory.json" "$out/union-review.diff" >/dev/null
+"$adopter" complete-apply "$candidate" "$out/union" "$manifest" \
+  "$out/union-inventory.json" "$out/union-backup" >/dev/null
+validate_selected_skills "$candidate" "$out/union" "$out/union-before"
+cmp "$out/union/.agents/skills/local-gameplay/SKILL.md" "$out/union-before/.agents/skills/local-gameplay/SKILL.md"
+
+# A package row is authenticated as a whole declaration. Changing its metadata
+# while leaving its body digest intact refuses the inventory before writes.
+cp -a "$out/union-before" "$out/skill-row-metadata-collision"
+python3 - "$out/skill-row-metadata-collision/.agents/skills/skill-manifest.json" <<'PY'
+from pathlib import Path
+import json,sys
+p=Path(sys.argv[1]); value=json.loads(p.read_text())
+next(row for row in value['skills'] if row['id']=='fable-project')['materializes-when']='always'
+p.write_text(json.dumps(value,indent=2)+'\n')
+PY
+skill_row_before="$(tree_sha "$out/skill-row-metadata-collision")"
+if "$adopter" complete-inventory "$candidate" "$out/skill-row-metadata-collision" "$manifest" \
+  "$out/skill-row-metadata-inventory.json" "$out/skill-row-metadata-review.diff" \
+  >"$out/skill-row-metadata.log" 2>&1; then
+  echo 'edited package skill manifest row unexpectedly accepted' >&2; exit 1
+fi
+jq -e '.ready==false and any(.conflicts[]; .path==".agents/skills/skill-manifest.json")' \
+  "$out/skill-row-metadata-inventory.json" >/dev/null
+[[ "$skill_row_before" == "$(tree_sha "$out/skill-row-metadata-collision")" ]]
+
+# Existing supported skill mirrors are updated as one product-skill transaction;
+# absent mirror roots are not invented. Both known mirror layouts exercise the
+# same selected manifest and body digests while unrelated local skills survive.
+cp -a "$out/union-before" "$out/configured-mirrors"
+for mirror in .claude/skills; do
+  mkdir -p "$out/configured-mirrors/$mirror"
+  cp -a "$out/configured-mirrors/.agents/skills/fable-"* "$out/configured-mirrors/$mirror/"
+  cp -a "$out/configured-mirrors/.agents/skills/local-gameplay" "$out/configured-mirrors/$mirror/"
+  cp "$out/configured-mirrors/.agents/skills/skill-manifest.json" "$out/configured-mirrors/$mirror/skill-manifest.json"
+done
+mirror_preserved_before="$(sha256sum "$out/configured-mirrors/.agents/skills/local-gameplay/SKILL.md" | cut -d' ' -f1)"
+"$adopter" complete-inventory "$candidate" "$out/configured-mirrors" "$manifest" \
+  "$out/configured-mirrors-inventory.json" "$out/configured-mirrors-review.diff" >/dev/null
+"$adopter" complete-apply "$candidate" "$out/configured-mirrors" "$manifest" \
+  "$out/configured-mirrors-inventory.json" "$out/configured-mirrors-backup" >/dev/null
+validate_selected_skills "$candidate" "$out/configured-mirrors" "$out/union-before" .claude/skills
+test ! -e "$out/configured-mirrors/.claude/skills/fable-remoting/SKILL.md"
+[[ "$mirror_preserved_before" == "$(sha256sum "$out/configured-mirrors/.agents/skills/local-gameplay/SKILL.md" | cut -d' ' -f1)" ]]
+"$adopter" complete-rollback "$out/configured-mirrors" "$out/configured-mirrors-backup" >/dev/null
+test -f "$out/configured-mirrors/.claude/skills/fable-remoting/SKILL.md"
 
 # A customized shared Domain path is authored product code. Refuse the complete
 # transaction before creating a journal or changing any workspace byte.
@@ -85,6 +196,31 @@ fi
 jq -e '.ready==false and any(.conflicts[]; .path=="Domain/Room.fs" and .reason=="edited or unsupported managed content")' \
   "$out/collision-inventory.json" >/dev/null
 [[ "$collision_before" == "$(tree_sha "$out/collision")" && ! -e "$out/collision-backup" ]]
+
+# Package-owned skill paths follow the same collision rule. A receiver edit to
+# an active skill or an obsolete skill that would otherwise be retired refuses
+# the whole transaction while unrelated local skills remain preserved.
+cp -a "$out/original-0.13.0" "$out/skill-collision"
+printf '%s\n' '# retained owner edit' >>"$out/skill-collision/.agents/skills/fable-project/SKILL.md"
+skill_collision_before="$(tree_sha "$out/skill-collision")"
+if "$adopter" complete-inventory "$candidate" "$out/skill-collision" "$manifest" \
+  "$out/skill-collision-inventory.json" "$out/skill-collision-review.diff" >"$out/skill-collision.log" 2>&1; then
+  echo 'edited product skill unexpectedly accepted' >&2; exit 1
+fi
+jq -e '.ready==false and any(.conflicts[]; .path==".agents/skills/fable-project/SKILL.md")' \
+  "$out/skill-collision-inventory.json" >/dev/null
+[[ "$skill_collision_before" == "$(tree_sha "$out/skill-collision")" ]]
+
+cp -a "$out/original-0.13.0" "$out/retired-skill-collision"
+printf '%s\n' '# retained owner edit' >>"$out/retired-skill-collision/.agents/skills/fable-remoting/SKILL.md"
+retired_collision_before="$(tree_sha "$out/retired-skill-collision")"
+if "$adopter" complete-inventory "$candidate" "$out/retired-skill-collision" "$manifest" \
+  "$out/retired-skill-inventory.json" "$out/retired-skill-review.diff" >"$out/retired-skill.log" 2>&1; then
+  echo 'edited retired product skill unexpectedly deleted' >&2; exit 1
+fi
+jq -e '.ready==false and any(.conflicts[]; .path==".agents/skills/fable-remoting/SKILL.md" and .reason=="edited retired product skill")' \
+  "$out/retired-skill-inventory.json" >/dev/null
+[[ "$retired_collision_before" == "$(tree_sha "$out/retired-skill-collision")" ]]
 
 # Both sides of the reviewed transaction include executable modes. Changing a
 # candidate or receiver mode after inventory makes that inventory stale before
@@ -198,6 +334,6 @@ jq -n \
   --arg manifestSha256 "$(sha256sum "$manifest" | cut -d' ' -f1)" \
   --arg candidate "$(realpath "$candidate")" \
   --argjson versions "$(printf '%s\n' 0.10.0 0.11.0 0.12.0 0.13.0 | jq -R . | jq -s .)" \
-  '{schema:"fsgg.svg-complete-adoption-qualification/v1",result:"passed",candidate:$candidate,manifestSha256:$manifestSha256,publicBaselines:$versions,managedCollision:"refused-before-write",managedParentSymlink:"refused-before-write",candidateModeChange:"stale-inventory-refused-before-write",workspaceModeChange:"stale-inventory-refused-before-write",interruption:"rolled-back",interruptedRollback:"recovered-byte-and-mode-identical",explicitRecovery:"byte-and-mode-identical",newerManagedEdit:"rollback-refused-before-write",corruptBackup:"rollback-refused-before-write",authoredFiles:"preserved"}' \
+  '{schema:"fsgg.svg-complete-adoption-qualification/v1",result:"passed",candidate:$candidate,manifestSha256:$manifestSha256,publicBaselines:$versions,managedCollision:"refused-before-write",productSkillCollision:"refused-before-write",packageSkillRowMetadata:"refused-before-write",unrelatedManifestRows:"preserved-exact",editedRetiredSkill:"preserved-and-refused-before-write",retiredProductSkill:"deleted-with-review-and-rollback",selectedSkillManifest:"materialized-product-bodies-digest-matched",configuredSkillMirrors:"declared-agents-claude-roots-transactionally-matched",managedParentSymlink:"refused-before-write",candidateModeChange:"stale-inventory-refused-before-write",workspaceModeChange:"stale-inventory-refused-before-write",interruption:"rolled-back",interruptedRollback:"recovered-byte-and-mode-identical",explicitRecovery:"byte-and-mode-identical",newerManagedEdit:"rollback-refused-before-write",corruptBackup:"rollback-refused-before-write",authoredFiles:"preserved"}' \
   >"$out/qualification.json"
 echo "complete workspace adoption qualification: passed; evidence=$out/qualification.json"

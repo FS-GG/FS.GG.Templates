@@ -2,6 +2,18 @@
   "schema": "fsgg.svg-complete-adoption-manifest/v1",
   "candidateLayout": "materialized-complete-fable-game",
   "managedPaths": [
+    ".agents/skills/fable-http-codecs/SKILL.md",
+    ".agents/skills/fable-interop/SKILL.md",
+    ".agents/skills/fable-project/SKILL.md",
+    ".agents/skills/fable-signalr/SKILL.md",
+    ".agents/skills/fable-testing/SKILL.md",
+    ".agents/skills/skill-manifest.json",
+    ".claude/skills/fable-http-codecs/SKILL.md",
+    ".claude/skills/fable-interop/SKILL.md",
+    ".claude/skills/fable-project/SKILL.md",
+    ".claude/skills/fable-signalr/SKILL.md",
+    ".claude/skills/fable-testing/SKILL.md",
+    ".claude/skills/skill-manifest.json",
     ".github/workflows/product-ci.yml",
     "Browser.Tests/package-lock.json",
     "Browser.Tests/package.json",
@@ -119,6 +131,18 @@
   ],
   "baselineDigests": {
     "0.10.0": {
+      ".agents/skills/fable-interop/SKILL.md": "f24a1daa9fd9828f9299062413a1fcd9598527165b13b6a608ddd9d15dce55b0",
+      ".agents/skills/fable-project/SKILL.md": "3513c6c6b9c754b8ff5063204d0d254a98533dba76439ff42b945e2c3bf67b91",
+      ".agents/skills/fable-remoting/SKILL.md": "9b03e2cce0a9c3756d74100690aad5dcfe38cad65f77a31d2210a5f9cb0290e8",
+      ".agents/skills/fable-signalr/SKILL.md": "d02815368cdf32296d061d4755a683e1c30bbed5186fe7d9d1cf78d747eee3c8",
+      ".agents/skills/fable-testing/SKILL.md": "5d170adb4637b65b05e0574c5d69dc7e2aa7807729e8c3498c40f6051c14a16c",
+      ".agents/skills/skill-manifest.json": "1a5d9c12812d302340f433540a934e503e5dc43e41284c4be981c69bd2672f14",
+      ".claude/skills/fable-interop/SKILL.md": "f24a1daa9fd9828f9299062413a1fcd9598527165b13b6a608ddd9d15dce55b0",
+      ".claude/skills/fable-project/SKILL.md": "3513c6c6b9c754b8ff5063204d0d254a98533dba76439ff42b945e2c3bf67b91",
+      ".claude/skills/fable-remoting/SKILL.md": "9b03e2cce0a9c3756d74100690aad5dcfe38cad65f77a31d2210a5f9cb0290e8",
+      ".claude/skills/fable-signalr/SKILL.md": "d02815368cdf32296d061d4755a683e1c30bbed5186fe7d9d1cf78d747eee3c8",
+      ".claude/skills/fable-testing/SKILL.md": "5d170adb4637b65b05e0574c5d69dc7e2aa7807729e8c3498c40f6051c14a16c",
+      ".claude/skills/skill-manifest.json": "1a5d9c12812d302340f433540a934e503e5dc43e41284c4be981c69bd2672f14",
       "Browser.Tests/package-lock.json": "d2fddaaefd9ee75fe7ecb3c414ce22f8ef7a0bf4d57e971e2b542a5a80f2747a",
       "Browser.Tests/package.json": "d7a94cb7bf968d2446a26a770b99d7180dcf3a8737ba679150377b3617323a5b",
       "Browser.Tests/playwright.config.ts": "0dbc2a44f8fd0ab8a56284bf1073b35755e6cd72f2b7a173af7721934b66c213",
@@ -171,6 +195,18 @@
       "global.json": "309b86727e3d5df3e0e8537228528fd311fe098775076b928f2941703c00f2ee"
     },
     "0.11.0": {
+      ".agents/skills/fable-interop/SKILL.md": "f24a1daa9fd9828f9299062413a1fcd9598527165b13b6a608ddd9d15dce55b0",
+      ".agents/skills/fable-project/SKILL.md": "3513c6c6b9c754b8ff5063204d0d254a98533dba76439ff42b945e2c3bf67b91",
+      ".agents/skills/fable-remoting/SKILL.md": "9b03e2cce0a9c3756d74100690aad5dcfe38cad65f77a31d2210a5f9cb0290e8",
+      ".agents/skills/fable-signalr/SKILL.md": "d02815368cdf32296d061d4755a683e1c30bbed5186fe7d9d1cf78d747eee3c8",
+      ".agents/skills/fable-testing/SKILL.md": "5d170adb4637b65b05e0574c5d69dc7e2aa7807729e8c3498c40f6051c14a16c",
+      ".agents/skills/skill-manifest.json": "dfff7120ffd5836586aecca897d4d86bc6125a32e6fa31bdea0a6de49ec59e14",
+      ".claude/skills/fable-interop/SKILL.md": "f24a1daa9fd9828f9299062413a1fcd9598527165b13b6a608ddd9d15dce55b0",
+      ".claude/skills/fable-project/SKILL.md": "3513c6c6b9c754b8ff5063204d0d254a98533dba76439ff42b945e2c3bf67b91",
+      ".claude/skills/fable-remoting/SKILL.md": "9b03e2cce0a9c3756d74100690aad5dcfe38cad65f77a31d2210a5f9cb0290e8",
+      ".claude/skills/fable-signalr/SKILL.md": "d02815368cdf32296d061d4755a683e1c30bbed5186fe7d9d1cf78d747eee3c8",
+      ".claude/skills/fable-testing/SKILL.md": "5d170adb4637b65b05e0574c5d69dc7e2aa7807729e8c3498c40f6051c14a16c",
+      ".claude/skills/skill-manifest.json": "dfff7120ffd5836586aecca897d4d86bc6125a32e6fa31bdea0a6de49ec59e14",
       "Browser.Tests/package-lock.json": "d2fddaaefd9ee75fe7ecb3c414ce22f8ef7a0bf4d57e971e2b542a5a80f2747a",
       "Browser.Tests/package.json": "d7a94cb7bf968d2446a26a770b99d7180dcf3a8737ba679150377b3617323a5b",
       "Browser.Tests/playwright.config.ts": "0dbc2a44f8fd0ab8a56284bf1073b35755e6cd72f2b7a173af7721934b66c213",
@@ -230,6 +266,18 @@
       "global.json": "d1e06dd58128a2ef176b2637c3cb48f932775b4237bf9dd5b8075311c8f691e3"
     },
     "0.12.0": {
+      ".agents/skills/fable-interop/SKILL.md": "f24a1daa9fd9828f9299062413a1fcd9598527165b13b6a608ddd9d15dce55b0",
+      ".agents/skills/fable-project/SKILL.md": "3513c6c6b9c754b8ff5063204d0d254a98533dba76439ff42b945e2c3bf67b91",
+      ".agents/skills/fable-remoting/SKILL.md": "9b03e2cce0a9c3756d74100690aad5dcfe38cad65f77a31d2210a5f9cb0290e8",
+      ".agents/skills/fable-signalr/SKILL.md": "d02815368cdf32296d061d4755a683e1c30bbed5186fe7d9d1cf78d747eee3c8",
+      ".agents/skills/fable-testing/SKILL.md": "5d170adb4637b65b05e0574c5d69dc7e2aa7807729e8c3498c40f6051c14a16c",
+      ".agents/skills/skill-manifest.json": "dfff7120ffd5836586aecca897d4d86bc6125a32e6fa31bdea0a6de49ec59e14",
+      ".claude/skills/fable-interop/SKILL.md": "f24a1daa9fd9828f9299062413a1fcd9598527165b13b6a608ddd9d15dce55b0",
+      ".claude/skills/fable-project/SKILL.md": "3513c6c6b9c754b8ff5063204d0d254a98533dba76439ff42b945e2c3bf67b91",
+      ".claude/skills/fable-remoting/SKILL.md": "9b03e2cce0a9c3756d74100690aad5dcfe38cad65f77a31d2210a5f9cb0290e8",
+      ".claude/skills/fable-signalr/SKILL.md": "d02815368cdf32296d061d4755a683e1c30bbed5186fe7d9d1cf78d747eee3c8",
+      ".claude/skills/fable-testing/SKILL.md": "5d170adb4637b65b05e0574c5d69dc7e2aa7807729e8c3498c40f6051c14a16c",
+      ".claude/skills/skill-manifest.json": "dfff7120ffd5836586aecca897d4d86bc6125a32e6fa31bdea0a6de49ec59e14",
       "Browser.Tests/package-lock.json": "d2fddaaefd9ee75fe7ecb3c414ce22f8ef7a0bf4d57e971e2b542a5a80f2747a",
       "Browser.Tests/package.json": "d7a94cb7bf968d2446a26a770b99d7180dcf3a8737ba679150377b3617323a5b",
       "Browser.Tests/playwright.config.ts": "0dbc2a44f8fd0ab8a56284bf1073b35755e6cd72f2b7a173af7721934b66c213",
@@ -301,6 +349,18 @@
       "global.json": "d1e06dd58128a2ef176b2637c3cb48f932775b4237bf9dd5b8075311c8f691e3"
     },
     "0.13.0": {
+      ".agents/skills/fable-interop/SKILL.md": "f24a1daa9fd9828f9299062413a1fcd9598527165b13b6a608ddd9d15dce55b0",
+      ".agents/skills/fable-project/SKILL.md": "3513c6c6b9c754b8ff5063204d0d254a98533dba76439ff42b945e2c3bf67b91",
+      ".agents/skills/fable-remoting/SKILL.md": "9b03e2cce0a9c3756d74100690aad5dcfe38cad65f77a31d2210a5f9cb0290e8",
+      ".agents/skills/fable-signalr/SKILL.md": "d02815368cdf32296d061d4755a683e1c30bbed5186fe7d9d1cf78d747eee3c8",
+      ".agents/skills/fable-testing/SKILL.md": "5d170adb4637b65b05e0574c5d69dc7e2aa7807729e8c3498c40f6051c14a16c",
+      ".agents/skills/skill-manifest.json": "dfff7120ffd5836586aecca897d4d86bc6125a32e6fa31bdea0a6de49ec59e14",
+      ".claude/skills/fable-interop/SKILL.md": "f24a1daa9fd9828f9299062413a1fcd9598527165b13b6a608ddd9d15dce55b0",
+      ".claude/skills/fable-project/SKILL.md": "3513c6c6b9c754b8ff5063204d0d254a98533dba76439ff42b945e2c3bf67b91",
+      ".claude/skills/fable-remoting/SKILL.md": "9b03e2cce0a9c3756d74100690aad5dcfe38cad65f77a31d2210a5f9cb0290e8",
+      ".claude/skills/fable-signalr/SKILL.md": "d02815368cdf32296d061d4755a683e1c30bbed5186fe7d9d1cf78d747eee3c8",
+      ".claude/skills/fable-testing/SKILL.md": "5d170adb4637b65b05e0574c5d69dc7e2aa7807729e8c3498c40f6051c14a16c",
+      ".claude/skills/skill-manifest.json": "dfff7120ffd5836586aecca897d4d86bc6125a32e6fa31bdea0a6de49ec59e14",
       "Browser.Tests/package-lock.json": "d2fddaaefd9ee75fe7ecb3c414ce22f8ef7a0bf4d57e971e2b542a5a80f2747a",
       "Browser.Tests/package.json": "d7a94cb7bf968d2446a26a770b99d7180dcf3a8737ba679150377b3617323a5b",
       "Browser.Tests/playwright.config.ts": "0dbc2a44f8fd0ab8a56284bf1073b35755e6cd72f2b7a173af7721934b66c213",
@@ -405,5 +465,30 @@
       "version": "0.13.0",
       "sha256": "ab72f74a76d59ad4be6f11f367bbdf1b27f8bdedae7a2e3afecbe0e4b3fac10c"
     }
-  ]
+  ],
+  "retiredPaths": [
+    ".agents/skills/fable-remoting/SKILL.md",
+    ".claude/skills/fable-remoting/SKILL.md"
+  ],
+  "baselineSkillManifestRowDigests": {
+    "fable-bindings": [
+      "7d9382d294b1883bebb20038d23b57525ae40e5fd0ec5af5d3358329994dd804",
+      "87044f79a368808fca848097cf65ce8cc97ee04c2944f5470d2fc8793586b2d0"
+    ],
+    "fable-interop": [
+      "2f1d3e7f92f456677bba1e331894113636369592c3a35bfd6729fe526719816d"
+    ],
+    "fable-project": [
+      "24e84084f6d8a704b00b2d059504147b1e53c43b8a60eed8c6909f5bd2b4fd9b"
+    ],
+    "fable-remoting": [
+      "0383618c9437570a889d572550cd13e189e0268cebec9b88579caab3370872f4"
+    ],
+    "fable-signalr": [
+      "764112f01bb7603f8479f3deaa9bcc746de4aa31fab84cbd0b589499f539a7a6"
+    ],
+    "fable-testing": [
+      "d0a7eeb364f88675a241a4e00136bda3a2f4ed14debe50f029e690ba8dc9ae28"
+    ]
+  }
 }

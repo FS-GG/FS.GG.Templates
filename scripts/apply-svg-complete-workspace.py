@@ -135,6 +135,146 @@ def actual_path(root: Path, logical: str, solution: Path) -> Path:
     return solution if logical == "FableGameWorkspace.slnx" else root / logical
 
 
+def candidate_path(root: Path, logical: str, solution: Path) -> Path:
+    direct = actual_path(root, logical, solution)
+    if direct.exists():
+        return direct
+    for mirror_prefix in (".claude/skills/",):
+        if logical.startswith(mirror_prefix):
+            return root / ".agents" / "skills" / logical.removeprefix(mirror_prefix)
+    return direct
+
+
+def package_product_manifest(root: Path, current: bytes | None) -> bytes:
+    """Merge package-owned declarations without discarding another producer's rows."""
+    manifest_path = root / ".agents" / "skills" / "skill-manifest.json"
+    reject_symlink_chain(root, manifest_path, "candidate skill manifest")
+    manifest = load_json(manifest_path)
+    rows = manifest.get("skills")
+    if manifest.get("schemaVersion") != 1 or not isinstance(rows, list):
+        fail("candidate skill manifest is invalid")
+    provenance_path = root / ".fsgg" / "scaffold-provenance.json"
+    owned_paths = None
+    if provenance_path.exists():
+        reject_symlink_chain(root, provenance_path, "candidate scaffold provenance")
+        provenance = load_json(provenance_path)
+        produced = provenance.get("producedPaths")
+        if not isinstance(produced, list):
+            fail("candidate scaffold provenance has no produced paths")
+        owned_paths = {
+            checked_relative(row.get("path", ""), "candidate provenance path")
+            for row in produced
+            if isinstance(row, dict) and row.get("owner") == "generatedProduct"
+            and isinstance(row.get("path"), str) and row["path"].startswith(".agents/skills/")
+            and row["path"].endswith("/SKILL.md")
+        }
+        if not owned_paths:
+            fail("candidate scaffold provenance has no generated product skills")
+    package_rows = []
+    materialized = set()
+    package_ids = set()
+    for row in rows:
+        supplied_by = row.get("supplied-by", "") if isinstance(row, dict) else ""
+        if (not isinstance(row, dict) or row.get("scope") != "product"
+                or not isinstance(supplied_by, str)
+                or not supplied_by.startswith("template/product-skills/fable-")):
+            continue
+        logical = checked_relative(row.get("resolvablePath", ""), "candidate skill path")
+        if not logical.startswith(".agents/skills/") or not logical.endswith("/SKILL.md"):
+            fail(f"candidate product skill path is unsupported: {logical}")
+        body = root / logical
+        reject_symlink_chain(root, body, "candidate product skill")
+        skill_id = row.get("id")
+        if not isinstance(skill_id, str) or skill_id in package_ids:
+            fail(f"candidate product skill manifest repeats or omits id: {skill_id}")
+        package_ids.add(skill_id)
+        package_rows.append(row)
+        if body.exists():
+            if not body.is_file() or digest(body.read_bytes()) != row.get("sha256"):
+                fail(f"candidate product skill body does not match its manifest: {logical}")
+            materialized.add(logical)
+    if not package_rows or not materialized:
+        fail("candidate has no package-owned product skill declarations or bodies")
+    if owned_paths is not None and materialized != owned_paths:
+        missing = sorted(owned_paths - materialized)
+        fail(f"candidate generated product skills are absent from the manifest: {missing}")
+
+    preserved = []
+    if current is not None:
+        try:
+            existing = json.loads(current)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            fail(f"workspace skill manifest is invalid: {error}")
+        existing_rows = existing.get("skills")
+        if existing.get("schemaVersion") != 1 or not isinstance(existing_rows, list):
+            fail("workspace skill manifest is invalid")
+        for row in existing_rows:
+            if not isinstance(row, dict) or not isinstance(row.get("id"), str):
+                fail("workspace skill manifest contains an invalid row")
+            if row["id"] not in package_ids and row["id"] != "fable-remoting":
+                preserved.append(row)
+    combined = preserved + package_rows
+    if len({row["id"] for row in combined}) != len(combined):
+        fail("merged product skill manifest contains duplicate ids")
+    combined.sort(key=lambda row: row["id"])
+    return (json.dumps({"schemaVersion": 1, "skills": combined}, indent=2) + "\n").encode()
+
+
+def skill_row_digest(row: dict) -> str:
+    return digest(json.dumps(row, sort_keys=True, separators=(",", ":")).encode())
+
+
+def admitted_workspace_skill_manifest(candidate: Path, current: bytes, adoption_manifest: dict) -> bool:
+    """Authenticate only the package-owned rows; preserve other producer rows exactly."""
+    try:
+        value = json.loads(current)
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return False
+    rows = value.get("skills")
+    if value.get("schemaVersion") != 1 or not isinstance(rows, list):
+        return False
+    admitted = adoption_manifest.get("baselineSkillManifestRowDigests", {})
+    if not isinstance(admitted, dict):
+        return False
+    candidate_value = json.loads(package_product_manifest(candidate, None))
+    candidate_rows = {row["id"]: skill_row_digest(row) for row in candidate_value["skills"]}
+    seen = set()
+    for row in rows:
+        if not isinstance(row, dict) or not isinstance(row.get("id"), str) or row["id"] in seen:
+            return False
+        seen.add(row["id"])
+        package_owned = row["id"] == "fable-remoting" or row["id"] in candidate_rows
+        if package_owned:
+            allowed = admitted.get(row["id"], [])
+            if not isinstance(allowed, list):
+                return False
+            row_sha = skill_row_digest(row)
+            if row_sha != candidate_rows.get(row["id"]) and row_sha not in allowed:
+                return False
+    return True
+
+
+def effective_paths(workspace: Path, managed: list[str], retired: list[str]) -> tuple[list[str], list[str]]:
+    """Use neutral skills always and update only mirror roots already configured."""
+    enabled_mirrors = set()
+    for root in (".claude/skills",):
+        path = workspace / root
+        if path.is_symlink():
+            fail(f"configured skill mirror is a symlink: {root}")
+        if path.exists():
+            if not path.is_dir():
+                fail(f"configured skill mirror is not a directory: {root}")
+            enabled_mirrors.add(root + "/")
+
+    def admitted(logical: str) -> bool:
+        for prefix in (".claude/skills/",):
+            if logical.startswith(prefix):
+                return prefix in enabled_mirrors
+        return True
+
+    return [value for value in managed if admitted(value)], [value for value in retired if admitted(value)]
+
+
 def relevant_files(root: Path) -> list[Path]:
     values = []
     for path in root.rglob("*"):
@@ -163,11 +303,16 @@ def tree_observation(root: Path) -> tuple[str, list[dict]]:
 
 def candidate_bytes(source: Path, logical: str, source_solution: Path,
                     source_product: str, source_namespace: str,
-                    destination_product: str, destination_namespace: str) -> bytes:
-    path = actual_path(source, logical, source_solution)
+                    destination_product: str, destination_namespace: str,
+                    destination: Path | None = None) -> bytes:
+    path = candidate_path(source, logical, source_solution)
     if path.is_symlink() or not path.is_file():
         fail(f"candidate managed file is missing or not regular: {logical}")
-    data = path.read_bytes()
+    if logical in {".agents/skills/skill-manifest.json", ".claude/skills/skill-manifest.json"}:
+        current = destination.read_bytes() if destination is not None and destination.is_file() else None
+        data = package_product_manifest(source, current)
+    else:
+        data = path.read_bytes()
     try:
         text = data.decode("utf-8")
     except UnicodeDecodeError:
@@ -182,7 +327,7 @@ def candidate_bytes(source: Path, logical: str, source_solution: Path,
     return text.encode("utf-8")
 
 
-def manifest_data(path: Path) -> tuple[dict, list[str], dict[str, set[str]]]:
+def manifest_data(path: Path) -> tuple[dict, list[str], list[str], dict[str, set[str]]]:
     manifest = load_json(path)
     if manifest.get("schema") != "fsgg.svg-complete-adoption-manifest/v1":
         fail("unsupported baseline manifest schema")
@@ -190,7 +335,13 @@ def manifest_data(path: Path) -> tuple[dict, list[str], dict[str, set[str]]]:
     if not isinstance(managed, list) or not managed or managed != sorted(set(managed)):
         fail("baseline manifest managed paths must be a nonempty sorted unique list")
     managed = [checked_relative(value, "managed path") for value in managed]
-    allowed: dict[str, set[str]] = {logical: set() for logical in managed}
+    retired = manifest.get("retiredPaths", [])
+    if not isinstance(retired, list) or retired != sorted(set(retired)):
+        fail("baseline manifest retired paths must be a sorted unique list")
+    retired = [checked_relative(value, "retired path") for value in retired]
+    if set(managed) & set(retired):
+        fail("baseline manifest active and retired paths overlap")
+    allowed: dict[str, set[str]] = {logical: set() for logical in managed + retired}
     baselines = manifest.get("baselineDigests")
     if not isinstance(baselines, dict):
         fail("baseline manifest has no public baseline digests")
@@ -202,11 +353,21 @@ def manifest_data(path: Path) -> tuple[dict, list[str], dict[str, set[str]]]:
             if logical not in allowed or not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value):
                 fail(f"baseline digest is invalid for {logical}")
             allowed[logical].add(value)
-    return manifest, managed, allowed
+    row_digests = manifest.get("baselineSkillManifestRowDigests")
+    if not isinstance(row_digests, dict) or not row_digests:
+        fail("baseline manifest has no package skill row digests")
+    for skill_id, values in row_digests.items():
+        if (not isinstance(skill_id, str) or not skill_id.startswith("fable-")
+                or not isinstance(values, list) or not values
+                or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
+                       for value in values)):
+            fail(f"baseline skill row digests are invalid for {skill_id}")
+    return manifest, managed, retired, allowed
 
 
 def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
-    manifest, managed, allowed = manifest_data(manifest_path)
+    manifest, managed, retired, allowed = manifest_data(manifest_path)
+    managed, retired = effective_paths(workspace, managed, retired)
     source_product, source_namespace, source_solution = identity(candidate)
     destination_product, destination_namespace, destination_solution = identity(workspace)
     changes, conflicts, unchanged = [], [], []
@@ -215,12 +376,12 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
     diff_parts = []
     for logical in managed:
         destination = actual_path(workspace, logical, destination_solution)
-        source_path = actual_path(candidate, logical, source_solution)
+        source_path = candidate_path(candidate, logical, source_solution)
         reject_symlink_chain(candidate, source_path, "candidate managed")
         reject_symlink_chain(workspace, destination, "workspace managed")
         managed_actual.add(destination.relative_to(workspace).as_posix())
         staged = candidate_bytes(candidate, logical, source_solution, source_product, source_namespace,
-                                 destination_product, destination_namespace)
+                                 destination_product, destination_namespace, destination)
         candidate_mode = file_mode(source_path)
         candidate_hash_rows.append(f"{candidate_mode:o}\t{digest(staged)}\t{logical}\n")
         if destination.is_symlink():
@@ -242,7 +403,12 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
         current_mode = file_mode(destination)
         current_canonical = canonical_variants(current, destination_product, destination_namespace)
         candidate_canonical = canonical_variants(staged, destination_product, destination_namespace)
-        if current_canonical.isdisjoint(candidate_canonical) and current_canonical.isdisjoint(allowed[logical]):
+        manifest_logical = logical in {".agents/skills/skill-manifest.json",
+                                       ".claude/skills/skill-manifest.json"}
+        admitted_manifest = (manifest_logical
+                             and admitted_workspace_skill_manifest(candidate, current, manifest))
+        if (not admitted_manifest and current_canonical.isdisjoint(candidate_canonical)
+                and current_canonical.isdisjoint(allowed[logical])):
             conflicts.append({"path": logical, "reason": "edited or unsupported managed content",
                               "currentCanonicalSha256": sorted(current_canonical)})
             continue
@@ -260,6 +426,32 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
             diff_parts.extend(difflib.unified_diff(before, after, fromfile=f"a/{logical}", tofile=f"b/{logical}"))
         except UnicodeDecodeError:
             diff_parts.append(f"Binary files differ: {logical}\n")
+    for logical in retired:
+        destination = actual_path(workspace, logical, destination_solution)
+        reject_symlink_chain(workspace, destination, "workspace retired")
+        managed_actual.add(destination.relative_to(workspace).as_posix())
+        candidate_hash_rows.append(f"retire\t{logical}\n")
+        if destination.is_symlink():
+            conflicts.append({"path": logical, "reason": "retired destination is a symlink"})
+        elif not destination.exists():
+            unchanged.append(logical)
+        elif not destination.is_file():
+            conflicts.append({"path": logical, "reason": "retired destination is not a regular file"})
+        else:
+            current = destination.read_bytes()
+            current_canonical = canonical_variants(current, destination_product, destination_namespace)
+            if current_canonical.isdisjoint(allowed[logical]):
+                conflicts.append({"path": logical, "reason": "edited retired product skill",
+                                  "currentCanonicalSha256": sorted(current_canonical)})
+            else:
+                current_mode = file_mode(destination)
+                changes.append({"path": logical, "state": "delete", "currentSha256": digest(current),
+                                "currentMode": current_mode})
+                try:
+                    before = current.decode("utf-8").splitlines(keepends=True)
+                    diff_parts.extend(difflib.unified_diff(before, [], fromfile=f"a/{logical}", tofile="/dev/null"))
+                except UnicodeDecodeError:
+                    diff_parts.append(f"Binary file retired: {logical}\n")
     preserved = []
     for path in relevant_files(workspace):
         rel = path.relative_to(workspace).as_posix()
@@ -346,7 +538,10 @@ def restore(workspace: Path, backup: Path) -> None:
             fail(f"rollback destination is not a regular file: {logical}")
         current = None if not destination.exists() else (digest(destination.read_bytes()), file_mode(destination))
         before = None if row.get("state") == "absent" else (row.get("sha256"), row.get("mode"))
-        after = (row.get("postSha256"), row.get("postMode"))
+        post_state = row.get("postState", "present")
+        if post_state not in {"present", "absent"}:
+            fail(f"invalid rollback post-state: {logical}")
+        after = None if post_state == "absent" else (row.get("postSha256"), row.get("postMode"))
         allowed_current = ({before, after} if status in {"prepared", "applying", "rolling-back"}
                            else ({before} if status == "rolled-back" else {after}))
         if current not in allowed_current:
@@ -401,7 +596,8 @@ def apply(args: list[str]) -> None:
     if not current["ready"]:
         fail("inventory contains managed collisions", 3)
 
-    _, managed, _ = manifest_data(manifest_path)
+    _, managed, retired, _ = manifest_data(manifest_path)
+    managed, retired = effective_paths(workspace, managed, retired)
     source_product, source_namespace, source_solution = identity(candidate)
     destination_product, destination_namespace, destination_solution = identity(workspace)
     backup.mkdir(parents=True)
@@ -415,8 +611,9 @@ def apply(args: list[str]) -> None:
             staged = backup / "staged" / logical
             staged.parent.mkdir(parents=True, exist_ok=True)
             staged.write_bytes(candidate_bytes(candidate, logical, source_solution, source_product,
-                                                source_namespace, destination_product, destination_namespace))
-            source_mode = file_mode(actual_path(candidate, logical, source_solution))
+                                                source_namespace, destination_product, destination_namespace,
+                                                destination))
+            source_mode = file_mode(candidate_path(candidate, logical, source_solution))
             staged.chmod(source_mode)
             if destination.exists():
                 saved = backup / "files" / logical
@@ -424,10 +621,23 @@ def apply(args: list[str]) -> None:
                 shutil.copy2(destination, saved)
                 paths.append({"logical": logical, "destination": destination_rel,
                               "state": "present", "sha256": digest(saved.read_bytes()), "mode": file_mode(saved),
-                              "postSha256": digest(staged.read_bytes()), "postMode": source_mode})
+                              "postState": "present", "postSha256": digest(staged.read_bytes()), "postMode": source_mode})
             else:
                 paths.append({"logical": logical, "destination": destination_rel, "state": "absent",
-                              "postSha256": digest(staged.read_bytes()), "postMode": source_mode})
+                              "postState": "present", "postSha256": digest(staged.read_bytes()), "postMode": source_mode})
+        for logical in retired:
+            destination = actual_path(workspace, logical, destination_solution)
+            destination_rel = destination.relative_to(workspace).as_posix()
+            if destination.exists():
+                saved = backup / "files" / logical
+                saved.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(destination, saved)
+                paths.append({"logical": logical, "destination": destination_rel,
+                              "state": "present", "sha256": digest(saved.read_bytes()), "mode": file_mode(saved),
+                              "postState": "absent"})
+            else:
+                paths.append({"logical": logical, "destination": destination_rel,
+                              "state": "absent", "postState": "absent"})
         journal = {"schema": "fsgg.svg-complete-adoption-journal/v1", "status": "prepared",
                    "workspace": str(workspace.resolve()), "inventorySha256": digest(inventory_path.read_bytes()),
                    "manifestSha256": digest(manifest_path.read_bytes()), "paths": paths}
@@ -439,15 +649,19 @@ def apply(args: list[str]) -> None:
         for row in paths:
             logical = row["logical"]
             destination = workspace / row["destination"]
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            descriptor, temporary_name = tempfile.mkstemp(prefix=destination.name + ".fsgg-adoption-", dir=destination.parent)
-            os.close(descriptor)
-            temporary = Path(temporary_name)
-            try:
-                shutil.copy2(backup / "staged" / logical, temporary)
-                os.replace(temporary, destination)
-            finally:
-                if temporary.exists(): temporary.unlink()
+            if row["postState"] == "absent":
+                if destination.exists():
+                    destination.unlink()
+            else:
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                descriptor, temporary_name = tempfile.mkstemp(prefix=destination.name + ".fsgg-adoption-", dir=destination.parent)
+                os.close(descriptor)
+                temporary = Path(temporary_name)
+                try:
+                    shutil.copy2(backup / "staged" / logical, temporary)
+                    os.replace(temporary, destination)
+                finally:
+                    if temporary.exists(): temporary.unlink()
             applied += 1
             if os.environ.get("FSGG_SVG_COMPLETE_FAIL_AFTER") == str(applied):
                 raise RuntimeError(f"injected interruption after {applied} managed files")
