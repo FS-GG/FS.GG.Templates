@@ -219,6 +219,13 @@ test("Studio carries one blank-authored arena through play, reload, export, and 
   await page.getByRole("button", { name: "Play edited arena step" }).click();
   await expect(page.locator("#generated-scene-status")).toContainText("Play refused before effects: gameplay role arena");
   await expect(studio).toHaveAttribute("data-workspace-mode", "create");
+  let blankExportDownloaded = false;
+  page.once("download", () => { blankExportDownloaded = true; });
+  await page.getByRole("button", { name: "Export playable arena content" }).click();
+  await expect(page.locator("#generated-scene-status")).toContainText("playable export refused before download: gameplay role arena");
+  await page.waitForTimeout(250);
+  expect(blankExportDownloaded).toBe(false);
+  expect((await snapshot()).exportedContentJson).toBe("");
   await page.getByRole("button", { name: "Draw playable vector shapes" }).click();
   await page.getByRole("button", { name: "Assign gameplay roles" }).click();
   expect((await snapshot()).entities).toBe(6);

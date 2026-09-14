@@ -345,25 +345,29 @@ let private translateArenaUnsupported () =
     | Ok arenaId -> commit "Arena translated for validation" [ SvgAuthoringOperation.TransformElements([ arenaId ], SvgAffine.translate 11.0 0.0) ]
 
 let private movePlayableHazard label target =
-    let next = ArenaContent.withHazardCell target authoredContent
-    let dx = next.Hazard.X - authoredContent.Hazard.X
-    let dy = next.Hazard.Y - authoredContent.Hazard.Y
-    match visualIdForRole "hazard" state.Metadata state.Document with
-    | Error issue -> announce ("Validation error: " + issue)
-    | Ok hazardId -> commit label [ SvgAuthoringOperation.TransformElements([ hazardId ], SvgAffine.translate dx dy) ]; refreshPlayableContent ()
+    match compileArenaContent state.Metadata state.Document, visualIdForRole "hazard" state.Metadata state.Document with
+    | Error issue, _ | _, Error issue -> announce ("Validation error: " + issue)
+    | Ok currentContent, Ok hazardId ->
+        let next = ArenaContent.withHazardCell target currentContent
+        let dx = next.Hazard.X - currentContent.Hazard.X
+        let dy = next.Hazard.Y - currentContent.Hazard.Y
+        commit label [ SvgAuthoringOperation.TransformElements([ hazardId ], SvgAffine.translate dx dy) ]
+        refreshPlayableContent ()
 
 let private scaleAndRotatePlayableHazard () =
-    let pivotX = authoredContent.Hazard.X + authoredContent.Hazard.Width / 2.0
-    let pivotY = authoredContent.Hazard.Y + authoredContent.Hazard.Height / 2.0
-    let transform =
-        SvgAffine.compose
-            (SvgAffine.translate pivotX pivotY)
-            (SvgAffine.compose
-                (SvgAffine.rotateDegrees 12.0)
-                (SvgAffine.compose (SvgAffine.scale 1.25 0.8) (SvgAffine.translate -pivotX -pivotY)))
-    match visualIdForRole "hazard" state.Metadata state.Document with
-    | Error issue -> announce ("Validation error: " + issue)
-    | Ok hazardId -> commit "Playable hazard scaled and rotated" [ SvgAuthoringOperation.TransformElements([ hazardId ], transform) ]; refreshPlayableContent ()
+    match compileArenaContent state.Metadata state.Document, visualIdForRole "hazard" state.Metadata state.Document with
+    | Error issue, _ | _, Error issue -> announce ("Validation error: " + issue)
+    | Ok currentContent, Ok hazardId ->
+        let pivotX = currentContent.Hazard.X + currentContent.Hazard.Width / 2.0
+        let pivotY = currentContent.Hazard.Y + currentContent.Hazard.Height / 2.0
+        let transform =
+            SvgAffine.compose
+                (SvgAffine.translate pivotX pivotY)
+                (SvgAffine.compose
+                    (SvgAffine.rotateDegrees 12.0)
+                    (SvgAffine.compose (SvgAffine.scale 1.25 0.8) (SvgAffine.translate -pivotX -pivotY)))
+        commit "Playable hazard scaled and rotated" [ SvgAuthoringOperation.TransformElements([ hazardId ], transform) ]
+        refreshPlayableContent ()
 
 let private playEditedArenaStep () =
     let frozen =
@@ -525,24 +529,29 @@ let private exerciseStorageFailure () =
         { Key = storageKey; SchemaVersion = 1; PayloadHash = hash state.Document; Payload = String.replicate 262145 "x" })
 
 let private exportArenaContent () =
-    let content = authoredContent
-    exportedContentJson <-
-        JS.JSON.stringify(
-            createObj
-                [ "schemaVersion" ==> content.SchemaVersion
-                  "contentId" ==> content.ContentId
-                  "boundaryX" ==> content.Boundary.X; "boundaryY" ==> content.Boundary.Y
-                  "boundaryWidth" ==> content.Boundary.Width; "boundaryHeight" ==> content.Boundary.Height
-                  "spawnCol" ==> content.Spawn.Col; "spawnRow" ==> content.Spawn.Row
-                  "collectibleX" ==> content.CollectibleX; "collectibleY" ==> content.CollectibleY
-                  "hazardX" ==> content.Hazard.X; "hazardY" ==> content.Hazard.Y
-                  "hazardWidth" ==> content.Hazard.Width; "hazardHeight" ==> content.Hazard.Height
-                  "goalX" ==> content.Goal.X; "goalY" ==> content.Goal.Y
-                  "goalWidth" ==> content.Goal.Width; "goalHeight" ==> content.Goal.Height
-                  "thinWallX" ==> content.ThinWall.X; "thinWallY" ==> content.ThinWall.Y
-                  "thinWallWidth" ==> content.ThinWall.Width; "thinWallHeight" ==> content.ThinWall.Height ])
-    downloadArenaContent exportedContentJson
-    announce "Playable arena content exported for authority startup"
+    match compileArenaContent state.Metadata state.Document with
+    | Error issue ->
+        exportedContentJson <- ""
+        announce ("Validation error: playable export refused before download: " + issue)
+    | Ok content ->
+        authoredContent <- content
+        exportedContentJson <-
+            JS.JSON.stringify(
+                createObj
+                    [ "schemaVersion" ==> content.SchemaVersion
+                      "contentId" ==> content.ContentId
+                      "boundaryX" ==> content.Boundary.X; "boundaryY" ==> content.Boundary.Y
+                      "boundaryWidth" ==> content.Boundary.Width; "boundaryHeight" ==> content.Boundary.Height
+                      "spawnCol" ==> content.Spawn.Col; "spawnRow" ==> content.Spawn.Row
+                      "collectibleX" ==> content.CollectibleX; "collectibleY" ==> content.CollectibleY
+                      "hazardX" ==> content.Hazard.X; "hazardY" ==> content.Hazard.Y
+                      "hazardWidth" ==> content.Hazard.Width; "hazardHeight" ==> content.Hazard.Height
+                      "goalX" ==> content.Goal.X; "goalY" ==> content.Goal.Y
+                      "goalWidth" ==> content.Goal.Width; "goalHeight" ==> content.Goal.Height
+                      "thinWallX" ==> content.ThinWall.X; "thinWallY" ==> content.ThinWall.Y
+                      "thinWallWidth" ==> content.ThinWall.Width; "thinWallHeight" ==> content.ThinWall.Height ])
+        downloadArenaContent exportedContentJson
+        announce "Playable arena content exported for authority startup"
 
 handlePersistence <- function
     | BrowserPersistenceEvent.Ready -> persistence.Load storageKey
@@ -560,7 +569,8 @@ handlePersistence <- function
             | Ok content ->
                 authoredContent <- content
                 playState <- ArenaRules.createWith content |> ArenaRules.join "studio-player" ({ Col = content.Spawn.Col; Row = content.Spawn.Row }: Cell)
-            | Error issue -> announce ("Validation error: persisted gameplay refused: " + issue)
+                announce "Persisted scene loaded"
+            | Error issue -> announce ("Persisted scene loaded; gameplay unavailable: " + issue)
         | Ok _ -> announce "Validation error: persisted scene identity mismatch"
         | Error issues -> announce(sprintf "Validation error: persisted scene refused: %A" issues)
     | BrowserPersistenceEvent.Loaded(_, None) -> announce "No persisted scene"
@@ -665,7 +675,7 @@ let private snapshot () =
                 "conflicts" ==> state.Conflicts.Length; "schema" ==> SvgScene.schema
                 "sceneId" ==> state.Metadata.SceneId; "documentId" ==> state.Document.Id
                 "contentHash" ==> hash state.Document; "playSourceHash" ==> playSourceHash; "exportedContentJson" ==> exportedContentJson
-                "gameplayContentId" ==> authoredContent.ContentId; "crossContentRestoreRefused" ==> crossContentRestoreRefused
+                "gameplayContentId" ==> (compileArenaContent state.Metadata state.Document |> Result.map _.ContentId |> Result.defaultValue ""); "crossContentRestoreRefused" ==> crossContentRestoreRefused
                 "viewBox" ==> $"{state.Document.ViewBox.X},{state.Document.ViewBox.Y},{state.Document.ViewBox.Width},{state.Document.ViewBox.Height}"
                 "playHealth" ==> playState.Status.Health; "playCollision" ==> playCollision
                 "playScore" ==> playState.Status.Score; "playCollected" ==> playState.Status.Collected; "playOutcome" ==> playState.Status.Outcome
