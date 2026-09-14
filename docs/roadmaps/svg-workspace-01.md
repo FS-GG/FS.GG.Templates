@@ -214,7 +214,7 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   SHA-256 is `51c9510f42c206e6bfbd3c442684a31bc560e48e48c2e2ccacc4bf3f1367ee3d`.
   Universal ChangeProposal automation remains the explicitly unsupported future SDD #927 seam.
 
-- [ ] **SVG-WORKSPACE-01.3 — Compose the default SVG game and optional workspace bundles — route: routine**
+- [x] **SVG-WORKSPACE-01.3 — Compose the default SVG game and optional workspace bundles — route: routine**
 
   Depends on: .1–.2 producer contracts; candidate source/build qualification can use exact identified candidates
   while publication is pending, but installed adoption requires public bytes.
@@ -230,6 +230,25 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   refuse before writes. Player output has no editor/lab/Quint/Java or accidental Babylon closure. Locked
   restoration fails on missing/drifted locks and succeeds in an empty isolated cache. Existing lifecycle
   tokens, explicit compatibility choices and user-authored paths preserve their documented behavior.
+
+  Candidate evidence (2026-09-14): Templates [#484](https://github.com/FS-GG/FS.GG.Templates/pull/484)
+  prepares 0.14.0 product source `7b6ded774d923747f68e39bc42ccd26583f4debc`. Native no-publish run
+  `34869414889` retained artifact `10358392590`; its package SHA-256 is
+  `f76a302c2811af915d0df70ce7599d308ffd08645bc0659fe7409b4ccbea9a0e`. All 313 archive entries are
+  source-only and byte-equal to the independently packed exact source payload (container metadata gives
+  that local archive SHA-256 `8779109a70da68800587956cc8b18d652bbb41bda7b60d05b313e4931f685cfe`).
+  Exact SDK 10.0.400 local qualification passes the default build, 15 Domain, 19 Protocol and 15 Server
+  tests, .NET/Fable V1/V2 codecs and full shared-state/replay sequence under invariant and `de-DE`
+  cultures, five bundles plus omission, legacy true/false and all contradiction/no-write controls.
+  Two production browsers share movement, visible hazard damage, collection, score, win and restart;
+  Studio compiles edited transformed geometry into the same rules, previews it on the retained root,
+  persists/reloads it, and exports bytes consumed by a configured authority and two new browsers. The
+  retained adopter builds Player, Studio and its independently locked tactical tests without touching the
+  authored Domain; the audible cue reaches `dist` byte-exactly and rollback/interruption restore its prior
+  absence. Missing and drifted Player/Studio locks refuse, while unmodified projects restore from empty
+  isolated caches. The branch checkbox becomes authoritative only when #484's exact-head native source-C,
+  typed/public receiver and composition checks pass, final merged-wizard selection is bound to the retained
+  product payload, and this candidate commit is merged. Templates 0.14.0 publication remains Release D.
 
 - [ ] **SVG-WORKSPACE-01.4 — Demonstrate complete games and publishable documentation from the composition — route: routine**
 
