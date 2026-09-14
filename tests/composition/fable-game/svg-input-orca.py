@@ -95,7 +95,12 @@ def wait_for_speech(*needles, timeout=10):
             text = open(debug, errors="replace").read()
         except FileNotFoundError:
             text = ""
-        if "SPEECH OUTPUT" in text and all(needle in text for needle in needles):
+        speech = "\n".join(
+            line.split("SPEECH OUTPUT:", 1)[1]
+            for line in text.splitlines()
+            if "SPEECH OUTPUT:" in line
+        )
+        if speech and all(needle in speech for needle in needles):
             return True
         time.sleep(.2)
     raise RuntimeError("Orca did not record the expected speech output")
@@ -136,7 +141,8 @@ with open(output, "w") as stream:
         "composition": "generated-svg-studio",
         "process": {"name": "orca", "pid": int(os.environ["ORCA_PID"])},
         "browser": {"pid": int(os.environ["BROWSER_PID"]), "accessibility": "AT-SPI2"},
-        "keyboard": {"events": "xdotool-X11", "navigation": "passed", "activation": "passed", "selection": "passed", "properties": "passed", "validationFeedback": "passed"},
+        "keyboard": {"events": "xdotool-X11", "navigation": "passed", "activation": "passed", "selection": "passed", "palette": "passed", "escape": "passed", "focusRestoration": "passed"},
+        "atspiActions": {"properties": "passed", "twoInstancesRefusal": "passed", "mode": "passed", "helpClose": "passed", "rebind": "passed", "validationFeedback": "passed"},
         "workspace": {"mode": "passed", "palette": "passed", "help": "passed", "rebind": "passed", "focusRestoration": "passed"},
         "screenReader": {"name": "Orca", "speechOutputObserved": True, "audibleHardwareOutput": "not-observed"},
     }, stream, indent=2)

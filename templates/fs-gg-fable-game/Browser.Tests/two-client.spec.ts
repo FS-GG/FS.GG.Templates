@@ -156,9 +156,18 @@ test("two SVG arena clients observe the same authoritative move", async ({ brows
     }
     await expect.poll(async () => Number(await arenaA.getAttribute("data-player-health"))).toBeLessThan(3);
     await expect.poll(async () => Number(await arenaB.getAttribute("data-player-health"))).toBeLessThan(3);
-    while (row > 2) await move("w", "row", --row);
+    // The wall covers the row-4 crossing at column 10. Prove that collision is
+    // authoritative, then return below it and use the open collectible column.
+    while (col < 10) await move("d", "col", ++col);
+    while (col > 10) await move("a", "col", --col);
+    while (row > 5) await move("w", "row", --row);
+    await arenaA.press("w");
+    await expect(arenaA).toHaveAttribute("data-authority-self-row", "5");
+    await expect(arenaB).toHaveAttribute("data-authority-snapshot", new RegExp(`${playerA}:10,5`));
+    while (row < 8) await move("s", "row", ++row);
     while (col < 5) await move("d", "col", ++col);
     while (col > 5) await move("a", "col", --col);
+    while (row > 2) await move("w", "row", --row);
     await arenaA.press("e");
     await expect(arenaA).toHaveAttribute("data-player-score", "100");
     await expect(arenaB).toHaveAttribute("data-player-score", "100");
