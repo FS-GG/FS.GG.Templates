@@ -80,6 +80,12 @@ def tab_to(name, limit=80):
             dom = json.load(open(output + ".browser-dom.json"))
         except Exception:
             pass
+        if os.environ["SVG_ORCA_BROWSER_FAMILY"] == "firefox":
+            if (dom is None or dom.get("schema") != "fsgg.orca-firefox-dom/v1"
+                or not isinstance(dom.get("sampleSequence"), int)
+                or not isinstance(dom.get("sampledAt"), str)
+                or abs(time.time() * 1000 - dom.get("sampledAtUnixMs", 0)) > 2000):
+                raise RuntimeError(f"fresh Firefox DOM focus observation unavailable: {dom}")
         active = ((dom or {}).get("observation") or {}).get("activeElement") or {}
         dom_name = active.get("ariaLabel") or active.get("text")
         current = []

@@ -60,9 +60,16 @@ browser_bin="${PLAYWRIGHT_EXECUTABLE_PATH:-$(command -v chromium || command -v c
 browser_family="${SVG_ORCA_BROWSER_FAMILY:-chromium}"
 if [[ "$browser_family" == firefox ]]; then
   browser_profile="$(mktemp -d)"
+  node_bin="$(command -v node)"
   PLAYWRIGHT_MODULE_ROOT="${PLAYWRIGHT_MODULE_ROOT:?Playwright module root required for Firefox}" \
-    /usr/bin/node "$script_dir/orca-playwright-firefox.cjs" "$address" "$output.browser-dom.json" "$browser_profile" \
+    "$node_bin" "$script_dir/orca-playwright-firefox.cjs" "$address" "$output.browser-dom.json" "$browser_profile" \
     >"$output.browser.log" 2>&1 & browser_launcher_pid=$!
+  for _ in {1..80}; do
+    [[ -s "$output.browser-dom.json" ]] && break
+    kill -0 "$browser_launcher_pid" 2>/dev/null
+    sleep .1
+  done
+  test -s "$output.browser-dom.json"
   browser_class='firefox|Navigator'
 elif [[ "$browser_family" == chromium ]]; then
   "$browser_bin" --no-sandbox --force-renderer-accessibility --user-data-dir="$(mktemp -d)" "$address" >"$output.browser.log" 2>&1 & browser_pid=$!

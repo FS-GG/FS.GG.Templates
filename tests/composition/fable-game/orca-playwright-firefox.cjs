@@ -37,6 +37,7 @@ function write(value) {
   await page.goto(address);
   await page.getByRole("heading", { name: "Generated SVG scene studio" }).waitFor();
   let stopping = false;
+  let sampleSequence = 0;
   const sample = async () => {
     if (stopping) return;
     try {
@@ -45,7 +46,9 @@ function write(value) {
         focus: window.__fsggOrcaDom.focus,
         keys: window.__fsggOrcaDom.keys
       }));
-      write({ schema: "fsgg.orca-firefox-dom/v1", address, observation });
+      sampleSequence += 1;
+      write({ schema: "fsgg.orca-firefox-dom/v1", address, sampleSequence,
+        sampledAt: new Date().toISOString(), sampledAtUnixMs: Date.now(), observation });
     } catch (error) {
       write({ schema: "fsgg.orca-firefox-dom/v1", address, error: String(error) });
     }
