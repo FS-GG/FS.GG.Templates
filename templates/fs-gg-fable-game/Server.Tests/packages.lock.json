@@ -4,9 +4,9 @@
     "net10.0": {
       "FSharp.Core": {
         "type": "Direct",
-        "requested": "[10.1.400, )",
-        "resolved": "10.1.400",
-        "contentHash": "H9wlZ/tWgNp+Q4WQ5aUSi3XOBXrL6z+UkR0PNeyDFyoZR3c3PbtA21B9FqlthrhEwQ6f5AtQV0JLhBBDqjjscw=="
+        "requested": "[10.1.401, )",
+        "resolved": "10.1.401",
+        "contentHash": "/lvOK51KD8IangBYkfDVna3/HrE/r4VUnX3dI01KDspctoYXmind3POeoYkqWKeXHwiKlf6Hc9TxwSnoSCWcjw=="
       },
       "Microsoft.AspNetCore.Mvc.Testing": {
         "type": "Direct",
@@ -66,10 +66,18 @@
       },
       "FS.GG.Game.Core": {
         "type": "Transitive",
-        "resolved": "0.13.0",
-        "contentHash": "h4IVQKlYkhOOLO9bPgrR6JsoPKBH3cozfO+qgk/gr67Tel02dvHPBe4buIs3L4Hq+fDwwDXA/qDFmis8qQiJKA==",
+        "resolved": "0.16.0",
+        "contentHash": "mn66KeVyqj0kphAn8Nm11GbEUbmGcO28uRMFiuX6FdQv87Zvv4kXTV7MqwTVeH3GQtA2Nna56Okd6IaCSHH6Bg==",
         "dependencies": {
           "FSharp.Core": "10.1.302"
+        }
+      },
+      "FS.GG.Net.Core": {
+        "type": "Transitive",
+        "resolved": "0.6.0",
+        "contentHash": "j0l3LhDnWd0G7mkM0ZFTwyFEYl+6ISXJabAykjlLn625AX5xricARs4V/pC6ZEFny8q+Hw4UtEBjeg47zO0YGQ==",
+        "dependencies": {
+          "FSharp.Core": "10.1.301"
         }
       },
       "Microsoft.AspNetCore.Connections.Abstractions": {
@@ -502,14 +510,14 @@
       "domain": {
         "type": "Project",
         "dependencies": {
-          "FS.GG.Game.Core": "[0.13.0, 0.13.0]",
-          "FSharp.Core": "[10.1.400, )"
+          "FS.GG.Game.Core": "[0.16.0, 0.16.0]",
+          "FSharp.Core": "[10.1.401, )"
         }
       },
       "protocol": {
         "type": "Project",
         "dependencies": {
-          "FSharp.Core": "[10.1.400, )",
+          "FSharp.Core": "[10.1.401, )",
           "Thoth.Json.Net": "[12.0.0, 12.0.0]"
         }
       },
@@ -517,7 +525,9 @@
         "type": "Project",
         "dependencies": {
           "Domain": "[1.0.0, )",
-          "FSharp.Core": "[10.1.400, )",
+          "FS.GG.Game.Core": "[0.16.0, 0.16.0]",
+          "FS.GG.Net.Core": "[0.6.0, 0.6.0]",
+          "FSharp.Core": "[10.1.401, )",
           "Protocol": "[1.0.0, )"
         }
       }

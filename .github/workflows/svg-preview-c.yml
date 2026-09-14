@@ -1,0 +1,68 @@
+name: svg-preview-c
+
+on:
+  pull_request:
+    paths:
+      - 'FS.GG.Templates.csproj'
+      - 'providers/**'
+      - 'templates/fs-gg-fable-game/**'
+      - 'scripts/apply-svg-foundation-preview.sh'
+      - 'scripts/svg-foundation-preview-baseline.manifest'
+      - 'tests/composition/fable-game/svg-*-observe.mjs'
+      - 'tests/composition/fable-game/svg-preview-c-public-api.json'
+      - 'tests/composition/fable-game/verify-svg-preview-c-source.sh'
+      - '.github/workflows/svg-preview-c.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'FS.GG.Templates.csproj'
+      - 'providers/**'
+      - 'templates/fs-gg-fable-game/**'
+      - 'scripts/apply-svg-foundation-preview.sh'
+      - 'scripts/svg-foundation-preview-baseline.manifest'
+      - 'tests/composition/fable-game/svg-*-observe.mjs'
+      - 'tests/composition/fable-game/svg-preview-c-public-api.json'
+      - 'tests/composition/fable-game/verify-svg-preview-c-source.sh'
+      - '.github/workflows/svg-preview-c.yml'
+
+jobs:
+  public-source:
+    name: Release C public producer source qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.400'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install browser hosts
+        working-directory: templates/fs-gg-fable-game/Browser.Tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox webkit
+      - name: Qualify source package against public Release C producers
+        run: |
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
+            bash tests/composition/fable-game/verify-svg-preview-c-source.sh "$RUNNER_TEMP/svg-preview-c-source"
+      - name: Upload Release C source evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: svg-preview-c-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/svg-preview-c-source/qualification.json
+            ${{ runner.temp }}/svg-preview-c-source/*-present.json
+            ${{ runner.temp }}/svg-preview-c-source/*-authoring.json
+            ${{ runner.temp }}/svg-preview-c-source/*-input.json
+            ${{ runner.temp }}/svg-preview-c-source/*-replay.json
+            ${{ runner.temp }}/svg-preview-c-source/*-scale.json
+            ${{ runner.temp }}/svg-preview-c-source/*-network.json
+            ${{ runner.temp }}/svg-preview-c-source/*.log
+          if-no-files-found: warn
+          retention-days: 90

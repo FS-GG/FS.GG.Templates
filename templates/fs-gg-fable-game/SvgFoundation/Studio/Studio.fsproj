@@ -4,10 +4,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
     <RestoreLockedMode>false</RestoreLockedMode>
-    <FsGgSvgAuthoringVersion Condition="'$(FsGgSvgAuthoringVersion)' == ''">0.30.0</FsGgSvgAuthoringVersion>
+    <FsGgSvgAuthoringVersion Condition="'$(FsGgSvgAuthoringVersion)' == ''">0.31.0</FsGgSvgAuthoringVersion>
     <FsGgSvgInputCandidate Condition="'$(FsGgSvgInputCandidate)' == ''">true</FsGgSvgInputCandidate>
-    <FsGgGameReplayVersion Condition="'$(FsGgGameReplayVersion)' == ''">0.15.0</FsGgGameReplayVersion>
-    <FsGgSvgReplayCandidate Condition="'$(FsGgSvgReplayCandidate)' == ''">false</FsGgSvgReplayCandidate>
+    <FsGgGameReplayVersion Condition="'$(FsGgGameReplayVersion)' == ''">0.16.0</FsGgGameReplayVersion>
+    <FsGgSvgReplayCandidate Condition="'$(FsGgSvgReplayCandidate)' == ''">true</FsGgSvgReplayCandidate>
     <DefineConstants Condition="'$(FsGgSvgInputCandidate)' == 'true'">$(DefineConstants);SVG_INPUT_CANDIDATE</DefineConstants>
     <DefineConstants Condition="'$(FsGgSvgReplayCandidate)' == 'true'">$(DefineConstants);SVG_REPLAY_CANDIDATE</DefineConstants>
   </PropertyGroup>

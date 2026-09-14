@@ -1,0 +1,73 @@
+{
+  "schema": "fsgg.svg-preview-c.public-api-mirror/v1",
+  "source": "nuget.org",
+  "entries": [
+    {
+      "package": "FS.GG.UI.Scene",
+      "version": "0.31.0",
+      "path": "api-surface/SpatialWorkingSet.fsi",
+      "sha256": "9ad08509ca8cb49570e155d70999abb404e6b2d3b0a3b365f0e8b333f5f3557d"
+    },
+    {
+      "package": "FS.GG.UI.Scene",
+      "version": "0.31.0",
+      "path": "fable/SpatialWorkingSet.fsi",
+      "sha256": "9ad08509ca8cb49570e155d70999abb404e6b2d3b0a3b365f0e8b333f5f3557d"
+    },
+    {
+      "package": "FS.GG.Game.Core",
+      "version": "0.16.0",
+      "path": "api-surface/NetworkSession.fsi",
+      "sha256": "38434796701f889987f55fdbf91012b833bac8240045f574335ca5e0a70f56b8"
+    },
+    {
+      "package": "FS.GG.Game.Core",
+      "version": "0.16.0",
+      "path": "api-surface/Planning.fsi",
+      "sha256": "8f3d786c0a4e33ee7933502f0987de3efa112d6a2fa1664eb31e808320569318"
+    },
+    {
+      "package": "FS.GG.Game.Core",
+      "version": "0.16.0",
+      "path": "api-surface/Replay.fsi",
+      "sha256": "7306d4eddf5b3d2d29be3e1f45bce0e1b702fff1ff9bd59dc03ca8ee90a99e83"
+    },
+    {
+      "package": "FS.GG.Game.Core",
+      "version": "0.16.0",
+      "path": "api-surface/Rules.fsi",
+      "sha256": "7bd7f006d1edb0d03152755c087b341c486e0647b9235ee8e675c67674c0cfc6"
+    },
+    {
+      "package": "FS.GG.Game.Core",
+      "version": "0.16.0",
+      "path": "fable/NetworkSession.fsi",
+      "sha256": "38434796701f889987f55fdbf91012b833bac8240045f574335ca5e0a70f56b8"
+    },
+    {
+      "package": "FS.GG.Game.Core",
+      "version": "0.16.0",
+      "path": "fable/Planning.fsi",
+      "sha256": "8f3d786c0a4e33ee7933502f0987de3efa112d6a2fa1664eb31e808320569318"
+    },
+    {
+      "package": "FS.GG.Game.Core",
+      "version": "0.16.0",
+      "path": "fable/Replay.fsi",
+      "sha256": "7306d4eddf5b3d2d29be3e1f45bce0e1b702fff1ff9bd59dc03ca8ee90a99e83"
+    },
+    {
+      "package": "FS.GG.Game.Core",
+      "version": "0.16.0",
+      "path": "fable/Rules.fsi",
+      "sha256": "7bd7f006d1edb0d03152755c087b341c486e0647b9235ee8e675c67674c0cfc6"
+    },
+    {
+      "package": "FS.GG.Net.Core",
+      "version": "0.6.0",
+      "path": "api-surface/Delivery.fsi",
+      "sha256": "7ecf74e70171db3b6c79eea73d4cfb94cdc0deb9ba9200e32986640dff4e59fa"
+    }
+  ],
+  "candidateOmissions": []
+}

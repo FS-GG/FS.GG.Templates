@@ -82,8 +82,8 @@ It produces:
 
 - **Rendering** — the FS.GG.Rendering `fs-gg-ui` app (Skia/OpenGL, Elmish/MVU, Scene,
   SkiaViewer, Controls), installed live from the published `FS.GG.UI.Template` package
-  pinned by the provider (currently `FS.GG.UI.Template@0.29.0`, behind the
-  immutable tag `fs-gg-ui-template/v0.29.0`). Every provider accepts `none`, `sdd`,
+  pinned by the provider (currently `FS.GG.UI.Template@0.31.0`, behind the
+  immutable tag `fs-gg-ui-template/v0.31.0`). Every provider accepts `none`, `sdd`,
   and `typed-sdd`; omission resolves to `sdd`. Product templates emit only product files —
   lifecycle artifacts always come from FS.GG.SDD, never a second template-owned copy.
 - **SDD** — the lifecycle skeleton: `.fsgg/project.yml`, `.fsgg/sdd.yml`,
@@ -326,6 +326,10 @@ producer side of the org **publish-before-flip** dance — the package is LIVE o
 any downstream registry/pin flip advertises it.
 
 ### Release notes
+
+#### 0.13.0 — installed SVG replay, network and scale preview
+
+The explicitly selected `svgFoundation` profile now composes the public Rendering 0.31.0, Game 0.16.0, Net 0.6.0 and Audio 0.6.0 releases. It includes replay/rules analysis in the optional Studio, authoritative two-client reconnect/review, and bounded large-world scale behavior. The ordinary Player build remains free of Studio and replay-analysis code, and the default generated game remains unchanged.
 
 #### 0.12.0 — installed SVG authoring and local-play preview
 
