@@ -165,6 +165,8 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   `22ff41c29378bfe29704f9c01471c94fb06af6b74bb79417e5cc2c07ec915922`,
   `c2b8f88ddf62c9af39c31a199fd2767c7a00a8284de3e9867a22d63f9fad29ff`, and
   `059ed3ef5f397c7735054b9233b0ddad57232df928812d6622b62397ed1bf558`.
+  Rendering retained the original archive before either push in artifact `10343371687` and the
+  exact two-feed archives in artifact `10342777942`.
   This repository's owner-archive qualification compiles through the existing composition gate and
   verifies every schema-v2 file digest, exact public source/payload identity, all five bundle selections,
   the Player negatives, and Game-first collision selection.
