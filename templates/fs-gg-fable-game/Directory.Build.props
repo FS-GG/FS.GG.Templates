@@ -3,10 +3,10 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <RestoreLockedMode>true</RestoreLockedMode>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <FsGgGameVersion Condition="'$(FsGgGameVersion)' == ''">0.13.0</FsGgGameVersion>
-    <FsGgGameNetworkVersion Condition="'$(FsGgGameNetworkVersion)' == ''">0.15.0</FsGgGameNetworkVersion>
-    <FsGgNetNetworkVersion Condition="'$(FsGgNetNetworkVersion)' == ''">0.5.0</FsGgNetNetworkVersion>
-    <FsGgSvgNetworkCandidate Condition="'$(FsGgSvgNetworkCandidate)' == ''">false</FsGgSvgNetworkCandidate>
+    <FsGgGameVersion Condition="'$(FsGgGameVersion)' == ''">0.16.0</FsGgGameVersion>
+    <FsGgGameNetworkVersion Condition="'$(FsGgGameNetworkVersion)' == ''">0.16.0</FsGgGameNetworkVersion>
+    <FsGgNetNetworkVersion Condition="'$(FsGgNetNetworkVersion)' == ''">0.6.0</FsGgNetNetworkVersion>
+    <FsGgSvgNetworkCandidate Condition="'$(FsGgSvgNetworkCandidate)' == ''">true</FsGgSvgNetworkCandidate>
 
     <!--
       FS.GG.Templates#380. `RestoreLockedMode` above pins each package's identity,

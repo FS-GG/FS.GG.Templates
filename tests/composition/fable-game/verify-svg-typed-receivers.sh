@@ -89,7 +89,7 @@ from pathlib import Path
 import sys
 p = Path(sys.argv[1]); package = Path(sys.argv[2]).resolve()
 text = p.read_text()
-text = text.replace('source: FS.GG.Workspace.Template::0.12.0', f'source: {package}')
+text = text.replace('source: FS.GG.Workspace.Template::0.13.0', f'source: {package}')
 p.write_text(text)
 PY
 }

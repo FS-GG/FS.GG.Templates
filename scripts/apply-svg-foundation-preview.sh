@@ -8,6 +8,7 @@ files=(
   SvgFoundation/PlayerInput.fs
   SvgFoundation/ContinuousPlayer.fs
   SvgFoundation/PresentationPlayer.fs
+  SvgFoundation/ScalePlayer.fs
   SvgFoundation/README.md
   SvgFoundation/THIRD-PARTY-NOTICES.md
   SvgFoundation/fonts/noto-sans-latin-400-normal.woff2
@@ -20,12 +21,15 @@ files=(
   SvgFoundation/build.sh
   SvgFoundation/Studio/SceneSchema.fs
   SvgFoundation/Studio/WorkspaceInput.fs
+  SvgFoundation/Studio/ReplayStudio.fs
   SvgFoundation/Studio/Program.fs
   SvgFoundation/Studio/SvgGeometryWorkerEntry.js
   SvgFoundation/Studio/Studio.fsproj
   SvgFoundation/Studio/index.html
   SvgFoundation/Studio/vite.config.js
   SvgFoundation/Studio/build.sh
+  models/svg-replay/energy-rules.md
+  models/svg-replay/energy-rules.bindings.json
 )
 
 fail() { echo "preview adoption: $*" >&2; exit 2; }
@@ -103,6 +107,20 @@ if [[ ! -e "$source_payload/SvgFoundation/ContinuousPlayer.fs" ]]; then
     [[ "$path" == SvgFoundation/ContinuousPlayer.fs ]] || without_continuous_runtime+=("$path")
   done
   files=("${without_continuous_runtime[@]}")
+fi
+if [[ ! -e "$source_payload/SvgFoundation/ScalePlayer.fs" ]]; then
+  without_scale=()
+  for path in "${files[@]}"; do
+    [[ "$path" == SvgFoundation/ScalePlayer.fs ]] || without_scale+=("$path")
+  done
+  files=("${without_scale[@]}")
+fi
+if [[ ! -e "$source_payload/SvgFoundation/Studio/ReplayStudio.fs" ]]; then
+  without_replay=()
+  for path in "${files[@]}"; do
+    case "$path" in SvgFoundation/Studio/ReplayStudio.fs|models/svg-replay/*) ;; *) without_replay+=("$path") ;; esac
+  done
+  files=("${without_replay[@]}")
 fi
 if [[ ! -e "$source_payload/SvgFoundation/PresentationPlayer.fs" ]]; then
   without_presentation=()

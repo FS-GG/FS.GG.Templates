@@ -38,6 +38,10 @@ on:
   pull_request:
     paths:
       - '.github/workflows/release.yml'
+      - 'FS.GG.Templates.csproj'
+      - 'providers/**'
+      - 'templates/**'
+      - 'tests/composition/**'
 
 permissions:
   contents: read

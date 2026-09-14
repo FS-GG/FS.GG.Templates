@@ -37,8 +37,8 @@
       },
       "FS.GG.Game.Core": {
         "type": "Transitive",
-        "resolved": "0.13.0",
-        "contentHash": "h4IVQKlYkhOOLO9bPgrR6JsoPKBH3cozfO+qgk/gr67Tel02dvHPBe4buIs3L4Hq+fDwwDXA/qDFmis8qQiJKA==",
+        "resolved": "0.16.0",
+        "contentHash": "mn66KeVyqj0kphAn8Nm11GbEUbmGcO28uRMFiuX6FdQv87Zvv4kXTV7MqwTVeH3GQtA2Nna56Okd6IaCSHH6Bg==",
         "dependencies": {
           "FSharp.Core": "10.1.302"
         }
@@ -110,7 +110,7 @@
       "domain": {
         "type": "Project",
         "dependencies": {
-          "FS.GG.Game.Core": "[0.13.0, 0.13.0]",
+          "FS.GG.Game.Core": "[0.16.0, 0.16.0]",
           "FSharp.Core": "[10.1.400, )"
         }
       }

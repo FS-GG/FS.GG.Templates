@@ -2,9 +2,9 @@
 set -euo pipefail
 studio="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workspace="$(cd "$studio/../.." && pwd)"
-version="${FSGG_SVG_AUTHORING_VERSION:-0.30.0}"
+version="${FSGG_SVG_AUTHORING_VERSION:-0.31.0}"
 export FsGgSvgAuthoringVersion="$version"
-game_version="${FSGG_GAME_REPLAY_VERSION:-0.15.0}"
+game_version="${FSGG_GAME_REPLAY_VERSION:-0.16.0}"
 export FsGgGameReplayVersion="$game_version"
 restore_args=(dotnet restore "$studio/Studio.fsproj" -p:FsGgSvgAuthoringVersion="$version" -p:FsGgGameReplayVersion="$game_version")
 if [[ -n "${FSGG_SVG_CANDIDATE_FEED:-}" ]]; then

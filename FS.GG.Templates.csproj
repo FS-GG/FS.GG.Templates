@@ -8,10 +8,10 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Workspace.Template</PackageId>
-    <!-- 0.11.0 → 0.12.0 publishes the opt-in SVG authoring, input, runtime, animation,
-         browser-audio, save, and browser-storage composition against its coherent public producers.
+    <!-- 0.12.0 → 0.13.0 publishes the opt-in SVG replay, authoritative network,
+         reconnect/review, and scale composition against its coherent public producers.
          The package id, five template identities, and default generated product remain stable. -->
-    <Version>0.12.0</Version>
+    <Version>0.13.0</Version>
     <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new workspace templates for FS.GG.SDD: governance, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</Description>

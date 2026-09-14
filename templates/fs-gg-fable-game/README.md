@@ -52,7 +52,7 @@ Build them with `bash SvgFoundation/build.sh` and `bash SvgFoundation/Studio/bui
 build copies its worker, verified font data, notices and npm lock from the restored producer package
 into ignored output. The generated workspace exposes Create, Arrange, Play and Review modes, responsive
 docks, palette/help/rebind flows, and keyboard, pointer, touch and gamepad routes over the same effective
-profile. Templates `0.12.0` uses Rendering `0.30.0`, Game `0.15.0`, and Audio `0.6.0` as one
+profile. Templates `0.13.0` uses Rendering `0.31.0`, Game `0.16.0`, Net `0.6.0`, and Audio `0.6.0` as one
 qualified public set.
 
 The SVG runtime replaces the static continuous fixture with a Game.Core fixed-step session,
