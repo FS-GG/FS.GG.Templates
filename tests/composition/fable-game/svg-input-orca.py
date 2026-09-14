@@ -44,9 +44,10 @@ def activate(name, role="push button"):
     action = node.get_action_iface()
     if not action.do_action(0):
         raise RuntimeError(f"AT-SPI action refused: {name}")
-    # Let Orca consume the accessibility event before this observer traverses
-    # the same tree. Immediate concurrent traversal can block Chromium's AX
-    # cache update and prevent the speech event from reaching Orca.
+    # Keep observer traversal behind the accessibility event. The retained
+    # Chromium/Orca run stalled at its first AX cache update when traversal
+    # followed immediately; this pacing records ordering without claiming the
+    # browser-side cause of that stall.
     time.sleep(.75)
 
 def focused():
@@ -65,8 +66,8 @@ def focused():
 def key(*keys):
     subprocess.run(["xdotool", "key", "--clearmodifiers", *keys], check=True)
     # Keep observation behind the browser/Orca event boundary. This is a real X
-    # keyboard path; the delay avoids racing a second AT-SPI client against the
-    # focus event currently being presented by Orca.
+    # keyboard path; the delay prevents this observer from assuming the focus
+    # event was already presented.
     time.sleep(.75)
 
 def tab_to(name, limit=80):
