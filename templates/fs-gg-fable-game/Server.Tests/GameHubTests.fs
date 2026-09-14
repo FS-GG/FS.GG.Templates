@@ -278,6 +278,9 @@ type GameHubTests() =
     [<Fact>]
     member _.``legacy V1 traversal retains grid behavior across V2 wall and hazard regions``() =
         let response = bootstrap "legacy-cross-arena"
+        Assert.Equal(
+            Error "move.out-of-bounds",
+            RoomAuthority.submitLegacyInput response.PlayerId response.SessionCapability 0 999 999)
         for sequence in 1 .. 40 do
             RoomAuthority.submitLegacyInput response.PlayerId response.SessionCapability sequence 16 8
             |> Result.defaultWith failwith |> ignore

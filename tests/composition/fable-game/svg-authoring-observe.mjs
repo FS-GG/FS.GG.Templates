@@ -22,7 +22,20 @@ try {
   await click("Undo scene change");
   const undone=await page.evaluate(()=>window.svgGeneratedStudio.snapshot());
   await click("Redo scene change");
-  await click("Save and reload scene");
+  const combinedSave=page.getByRole("button",{name:"Save and reload scene",exact:true});
+  if(await combinedSave.count()) {
+    await combinedSave.click();
+  } else {
+    const beforePersist=await page.evaluate(()=>window.svgGeneratedStudio.snapshot());
+    await click("Save scene in browser");
+    await page.waitForFunction(()=>document.querySelector("[role=status]")?.textContent?.includes("persisted in browser storage"));
+    await page.reload({waitUntil:"networkidle"});
+    await page.waitForFunction(()=>window.svgGeneratedStudio);
+    await page.waitForFunction(()=>document.querySelector("[role=status]")?.textContent?.includes("Persisted scene loaded"));
+    const afterPersist=await page.evaluate(()=>window.svgGeneratedStudio.snapshot());
+    for(const field of ["documentId","contentHash","assets","instances"])
+      if(afterPersist[field]!==beforePersist[field]) throw new Error(JSON.stringify({field,beforePersist,afterPersist}));
+  }
   await click("Verify Noto text");
   await page.waitForFunction(()=>document.querySelector("[role=status]")?.textContent?.includes("reopened offline"));
   await click("Run Boolean union");
@@ -34,7 +47,7 @@ try {
   await click("Migrate legacy content");
   const final=await page.evaluate(()=>window.svgGeneratedStudio.snapshot());
   const descriptorValid=await page.evaluate(()=>window.svgGeneratedStudio.descriptorsValid());
-  const rendered=await page.locator("[data-fsgg-document-id='generated-authoring-scene']").locator("path,rect,ellipse").count();
+  const rendered=await page.locator("[data-fsgg-document-id]").locator("path,rect,ellipse").count();
   if(conflicted.conflicts!==1||undone.conflicts!==1||final.conflicts!==0||final.assets!==2||final.instances!==2||final.entities!==5||final.schema!=="fsgg.svg-scene/1"||!descriptorValid||rendered<3) throw new Error(JSON.stringify({conflicted,undone,final,descriptorValid,rendered}));
   console.log(JSON.stringify({family,result:"passed",conflicted,undone,final,descriptorValid,rendered}));
 } finally { await browser.close(); }

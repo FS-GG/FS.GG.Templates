@@ -161,6 +161,11 @@ done
 dotnet test "$out/direct/Server.Tests/Server.Tests.fsproj" -c Release -p:RestoreLockedMode=true >"$out/network-tests.log"
 (cd "$out/direct/Client" && npm ci >/dev/null && npm run build >/dev/null)
 dotnet publish "$out/direct/Server/Server.fsproj" -c Release --no-restore -o "$out/network-publish" >/dev/null
+# This journey exercises the frozen V1 client against the shared server. The
+# selected SVG preview was served above; replace only this private publish's
+# static root with the already-built V1 client so protocol behavior is explicit.
+find "$out/network-publish/wwwroot" -mindepth 1 -delete
+cp -R "$out/direct/Client/dist/." "$out/network-publish/wwwroot/"
 cp "$root/tests/composition/fable-game/svg-network-observe.mjs" "$out/direct/Browser.Tests/"
 network_server=''
 for family in chromium firefox webkit; do

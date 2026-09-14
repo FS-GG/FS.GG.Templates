@@ -226,6 +226,7 @@ module RoomAuthority =
               if sequence < 0 then Error "input sequence must be non-negative"
               else
                 match NetworkAuthority.admit playerId capability (uint64 sequence) action targetCol targetRow with
+                | Error "PayloadRefused \"intent.out-of-bounds\"" when legacy -> Error "move.out-of-bounds"
                 | Error issue -> Error issue
                 | Ok acceptedOrder ->
                     pending.[playerId] <-
