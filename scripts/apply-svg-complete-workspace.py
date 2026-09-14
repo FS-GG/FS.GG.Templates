@@ -362,6 +362,16 @@ def manifest_data(path: Path) -> tuple[dict, list[str], list[str], dict[str, set
                 or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
                        for value in values)):
             fail(f"baseline skill row digests are invalid for {skill_id}")
+    candidates = manifest.get("sourceCandidates")
+    if not isinstance(candidates, list) or not candidates:
+        fail("baseline manifest has no selected candidate custody")
+    for candidate in candidates:
+        if (not isinstance(candidate, dict) or candidate.get("version") != "0.14.0"
+                or not isinstance(candidate.get("sourceHead"), str)
+                or not re.fullmatch(r"[0-9a-f]{40}", candidate["sourceHead"])
+                or not isinstance(candidate.get("nativeArchiveSha256"), str)
+                or not re.fullmatch(r"[0-9a-f]{64}", candidate["nativeArchiveSha256"])):
+            fail("selected candidate custody is invalid")
     return manifest, managed, retired, allowed
 
 
@@ -476,6 +486,7 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
         "preserved": preserved,
         "diff": "".join(diff_parts),
         "publicBaselineArchives": manifest.get("sourceArchives", []),
+        "selectedCandidateBaselines": manifest.get("sourceCandidates", []),
     }
 
 

@@ -20,7 +20,7 @@ scripts/apply-svg-foundation-preview.sh complete-apply \
   /outside/workspace/rollback-journal
 ```
 
-The inventory binds candidate and receiver bytes and executable modes, the public baseline archives, manifest, and complete textual/binary diff. Added files appear against `/dev/null`, and mode changes appear in the review. Apply refuses a stale inventory or changed diff.
+The inventory binds candidate and receiver bytes and executable modes, the public baseline archives, the previously selected 0.14 candidate identity, manifest, and complete textual/binary diff. This lets a retained receiver move from that selected candidate to a repaired candidate without treating previously adopted bytes as authored collisions. Added files appear against `/dev/null`, and mode changes appear in the review. Apply refuses a stale inventory or changed diff.
 
 The manifest owns generated product source, projects, dependency locks, conformance tests, player and Studio files, examples, formal models, product scripts, the product CI workflow, and the package-owned Fable skill set. The candidate must be an actually materialized complete receiver: its scaffold provenance identifies the Fable bodies the package produced, and each materialized body must match its declarative manifest row. The raw template source directory is insufficient. An existing managed file is replaceable only when its normalized bytes match the same logical path from a named public baseline, or already match the candidate. A customized `Domain`, `Protocol`, `Server`, build, scene, model, or package-owned skill path is a collision and refuses the whole transaction before a backup or workspace write. Symlinks in any managed path chain are also refused.
 
