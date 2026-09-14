@@ -1,0 +1,61 @@
+name: svg-preview-c-public
+
+on:
+  pull_request:
+    paths:
+      - 'tests/composition/fable-game/svg-*-observe.mjs'
+      - 'tests/composition/fable-game/svg-scale-measure.mjs'
+      - 'tests/composition/fable-game/verify-svg-preview-c-public.sh'
+      - '.github/workflows/svg-preview-c-public.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/composition/fable-game/svg-*-observe.mjs'
+      - 'tests/composition/fable-game/svg-scale-measure.mjs'
+      - 'tests/composition/fable-game/verify-svg-preview-c-public.sh'
+      - '.github/workflows/svg-preview-c-public.yml'
+  workflow_dispatch:
+
+jobs:
+  installed-public:
+    name: Release C installed public receiver qualification
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.400'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install browser hosts
+        working-directory: templates/fs-gg-fable-game/Browser.Tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox webkit
+      - name: Qualify downloaded public Release C receivers
+        run: |
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
+            bash tests/composition/fable-game/verify-svg-preview-c-public.sh "$RUNNER_TEMP/svg-preview-c-public"
+      - name: Upload Release C public evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: svg-preview-c-public-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/svg-preview-c-public/qualification.json
+            ${{ runner.temp }}/svg-preview-c-public/public-packages.json
+            ${{ runner.temp }}/svg-preview-c-public/*-present.json
+            ${{ runner.temp }}/svg-preview-c-public/*-authoring.json
+            ${{ runner.temp }}/svg-preview-c-public/*-input.json
+            ${{ runner.temp }}/svg-preview-c-public/*-replay.json
+            ${{ runner.temp }}/svg-preview-c-public/*-scale.json
+            ${{ runner.temp }}/svg-preview-c-public/*-measurement.json
+            ${{ runner.temp }}/svg-preview-c-public/*-network.json
+            ${{ runner.temp }}/svg-preview-c-public/*.log
+          if-no-files-found: warn
+          retention-days: 90
