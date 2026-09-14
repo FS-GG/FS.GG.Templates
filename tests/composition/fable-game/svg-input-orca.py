@@ -75,12 +75,13 @@ def tab_to(name, limit=80):
     observed = []
     for _ in range(limit):
         key("Tab")
+        current = []
         for item in walk(Atspi.get_desktop(0)):
             try:
                 if item.get_state_set().contains(Atspi.StateType.FOCUSED):
                     value = item.get_name() or ""
                     if value:
-                        observed.append(value)
+                        current.append({"name": value, "role": item.get_role_name()})
                     # Firefox can retain FOCUSED on an ancestor exposed later in
                     # the tree. Assert the named target's own state rather than
                     # selecting whichever focused object traversal visited last.
@@ -88,7 +89,9 @@ def tab_to(name, limit=80):
                         return item
             except Exception:
                 pass
-    raise RuntimeError(f"keyboard focus did not reach {name}; observed={observed[-20:]}")
+        window = subprocess.run(["xdotool", "getwindowfocus"], capture_output=True, text=True, check=False).stdout.strip()
+        observed.append({"window": window, "focused": current})
+    raise RuntimeError(f"keyboard focus did not reach {name}; observed={observed[-10:]}")
 
 def wait_for_focus(name, role=None, timeout=10):
     end = time.time() + timeout
@@ -151,10 +154,6 @@ activate("Edit scene properties")
 find(None, contains="properties and grid edited")
 activate("Place two instances")
 find(None, contains="save the sample asset first")
-# The browser maps aria-pressed workspace modes to AT-SPI toggle buttons and
-# exposes the descriptive aria-label as their accessible name.
-activate("Arrange mode", role="toggle button")
-find(None, contains="Mode: Arrange")
 # Continue keyboard traversal through the replay panel, its first real action,
 # and the command-palette control. Each target's own FOCUSED state is observed,
 # so a retained focused ancestor cannot substitute for the requested control.
@@ -177,6 +176,11 @@ activate("Rebind command")
 find("dialog", name="Rebind command")
 find(None, contains="Conflict feedback")
 activate("Close workspace overlay")
+# Mode controls are rendered by the workspace host. Exercise their AT-SPI
+# action after the keyboard route because clicking one replaces that control;
+# a removed focused node is not a valid starting point for sequential focus.
+activate("Arrange mode", role="toggle button")
+find(None, contains="Mode: Arrange")
 wait_for_speech("Rectangle", "created and selected")
 
 with open(output, "w") as stream:

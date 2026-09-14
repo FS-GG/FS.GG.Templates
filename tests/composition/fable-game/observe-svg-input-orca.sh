@@ -58,13 +58,6 @@ browser_bin="${PLAYWRIGHT_EXECUTABLE_PATH:-$(command -v chromium || command -v c
 browser_family="${SVG_ORCA_BROWSER_FAMILY:-chromium}"
 if [[ "$browser_family" == firefox ]]; then
   browser_profile="$(mktemp -d)"
-  # Make the named Firefox/Orca route explicit: 7 includes text controls,
-  # buttons/other form controls, and links in sequential keyboard focus. The
-  # runner's fresh profile otherwise cycled between browser chrome and the one
-  # explicitly-tabindexed replay panel while skipping native buttons.
-  cat > "$browser_profile/user.js" <<'EOF'
-user_pref("accessibility.tabfocus", 7);
-EOF
   MOZ_ENABLE_WAYLAND=0 "$browser_bin" --profile "$browser_profile" --new-instance "$address" >"$output.browser.log" 2>&1 & browser_pid=$!
   browser_class='firefox|Navigator'
 elif [[ "$browser_family" == chromium ]]; then
