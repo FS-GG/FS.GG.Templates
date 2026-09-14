@@ -1,10 +1,9 @@
 # SVG-WORKSPACE-01 — Complete generated workspace
 
-Draft, 2026-09-14. Accountable owner: **FS.GG.Templates**; producer owners: Rendering,
-Game, Audio and SDD; `.github` owns the wizard, shared driver/policy and programme projection.
-Durable path: `docs/roadmaps/svg-workspace-01.md`. This plan lands with the Release C `.5`
-qualification source, remains pending Release C closure, and is not yet selected. This draft is not a
-delivered milestone or publication authority record.
+Selected 2026-09-14 by [FS-GG/.github#3471](https://github.com/FS-GG/.github/pull/3471),
+merged as `648b88de6cbf90548ccab06bfa941e12a2f3be59` after Release C closed. Accountable owner:
+**FS.GG.Templates**; producer owners: Rendering, Game, Audio and SDD; `.github` owns the wizard,
+shared driver/policy and programme projection. Durable path: `docs/roadmaps/svg-workspace-01.md`.
 
 Unified part: [SVG game engine and Fable workspace completion, §9.8](https://github.com/FS-GG/.github/blob/main/docs/2026-09-07-154210-fs-gg-unified-development-roadmap.md#98-feature-parts-and-subroadmap-index).
 Scope: C20/M10 and M11 composition, skills, compatibility and installed development proof, preserving
@@ -140,7 +139,7 @@ file was found in the inspected Templates checkout, so resolve the canonical
 Apply ADR-0084's qualification dispositions, exact-head reuse validation, independent coherent run and
 dependent-activation fence unchanged. No planning-only PR or duplicate status registry is required.
 
-- [ ] **SVG-WORKSPACE-01.1 — Publish the complete owner-sourced product guidance — route: routine**
+- [x] **SVG-WORKSPACE-01.1 — Publish the complete owner-sourced product guidance — route: routine**
 
   Depends on: Release C closure for programme execution; read-only inventory is already complete.
   Scope: Rendering/Game/Audio owner content, catalog predicates, examples and closed manifests. Reconcile
@@ -153,6 +152,22 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   auxiliary bytes; selected player/studio/tactical/arcade predicates are evaluable and negative selections
   omit editor guidance. The release receipt/readback binds public owner archives and full payload digests.
   A public skills artifact is still not installed adoption.
+
+  Evidence (2026-09-14): Game [#636](https://github.com/FS-GG/FS.GG.Game/pull/636)
+  published `FS.GG.Game.Skills` 0.9.0 from `e685f33a219830e18f204bb80d08ff16d0cd5727`
+  with successful readback run `34828061816`; Audio
+  [#300](https://github.com/FS-GG/FS.GG.Audio/pull/300) published `FS.GG.Audio.Skills` 0.1.0
+  from `5dc82cf258664bf839d355d13542a17e25b47d16`, with recovery/readback runs
+  `34828620046`/`34829313855`; Rendering [#1324](https://github.com/FS-GG/FS.GG.Rendering/pull/1324)
+  plus custody [#1325](https://github.com/FS-GG/FS.GG.Rendering/pull/1325) published the independent
+  `FS.GG.Rendering.Skills` 0.2.0 axis from `7ed2948b9fcc79f95e7ab2e0207b2540d77df361`
+  in successful run `34833403039`. Public archive SHA-256 values are respectively
+  `22ff41c29378bfe29704f9c01471c94fb06af6b74bb79417e5cc2c07ec915922`,
+  `c2b8f88ddf62c9af39c31a199fd2767c7a00a8284de3e9867a22d63f9fad29ff`, and
+  `059ed3ef5f397c7735054b9233b0ddad57232df928812d6622b62397ed1bf558`.
+  This repository's owner-archive qualification compiles through the existing composition gate and
+  verifies every schema-v2 file digest, exact public source/payload identity, all five bundle selections,
+  the Player negatives, and Game-first collision selection.
 
 - [ ] **SVG-WORKSPACE-01.2 — Publish an SDD receiver that installs the approved workspace profile — route: routine**
 
