@@ -11,6 +11,7 @@ on:
       - 'tests/composition/fable-game/svg-*-observe.mjs'
       - 'tests/composition/fable-game/observe-svg-input-orca.sh'
       - 'tests/composition/fable-game/orca-faulthandler.py'
+      - 'tests/composition/fable-game/speech-dispatcher-preflight.py'
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'tests/composition/fable-game/svg-preview-c-public-api.json'
       - 'tests/composition/fable-game/verify-svg-preview-c-source.sh'
@@ -26,6 +27,7 @@ on:
       - 'tests/composition/fable-game/svg-*-observe.mjs'
       - 'tests/composition/fable-game/observe-svg-input-orca.sh'
       - 'tests/composition/fable-game/orca-faulthandler.py'
+      - 'tests/composition/fable-game/speech-dispatcher-preflight.py'
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'tests/composition/fable-game/svg-preview-c-public-api.json'
       - 'tests/composition/fable-game/verify-svg-preview-c-source.sh'
@@ -52,7 +54,7 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium firefox webkit
           sudo apt-get update
-          sudo apt-get install --yes dbus-x11 gettext gir1.2-atspi-2.0 libatspi2.0-dev orca python3-gi python3-speechd speech-dispatcher-espeak-ng xdotool xvfb
+          sudo apt-get install --yes dbus-x11 espeak-ng gettext gir1.2-atspi-2.0 libatspi2.0-dev orca pulseaudio pulseaudio-utils python3-gi python3-speechd speech-dispatcher-espeak-ng xdotool xvfb
       - name: Acquire exact Quint
         shell: bash
         run: |
@@ -122,6 +124,8 @@ jobs:
             ${{ runner.temp }}/svg-preview-c-source/*-present.json
             ${{ runner.temp }}/svg-preview-c-source/*-authoring.json
             ${{ runner.temp }}/svg-preview-c-source/*-input.json
+            ${{ runner.temp }}/svg-preview-c-source/*.speechd-*.json
+            ${{ runner.temp }}/svg-preview-c-source/*.speechd-logs/**
             ${{ runner.temp }}/svg-preview-c-source/*-replay.json
             ${{ runner.temp }}/svg-preview-c-source/*-scale.json
             ${{ runner.temp }}/svg-preview-c-source/*-network.json
