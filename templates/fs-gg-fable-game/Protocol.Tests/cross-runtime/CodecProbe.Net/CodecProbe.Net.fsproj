@@ -8,5 +8,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../../Protocol/Protocol.fsproj" />
+    <ProjectReference Include="../../../Domain/Domain.fsproj" />
   </ItemGroup>
 </Project>

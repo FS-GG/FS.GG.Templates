@@ -193,17 +193,19 @@ let mutable private refreshAudioObservation: unit -> unit = ignore
 let private onAudioEvent event =
     audioEvents.Add event
     playerInputScope.setAttribute("data-audio-event", string event)
+    if (string event).Contains("EffectDispatched") then
+        playerInputScope.setAttribute("data-audio-effect-dispatched", "true")
     refreshAudioObservation()
 let private audioHost = new WebAudioHost(WebAudioHost.defaultConfig, onAudioEvent)
 let private movementSound = SoundId "generated-movement"
-let private toneUrl = "data:audio/wav;base64,UklGRiUAAABXQVZFZm10IBAAAAABAAEARKwAAESsAAABAAgAZGF0YQEAAACA"
+let private movementCueUrl = "./movement-cue.wav"
 
 let private audioUnlock = document.createElement("button")
 audioUnlock.id <- "foundation-audio-unlock"
 audioUnlock.textContent <- "Enable game audio"
 audioUnlock.addEventListener("click", fun _ ->
     audioHost.UnlockFromGesture()
-    audioHost.LoadSound(movementSound, toneUrl))
+    audioHost.LoadSound(movementSound, movementCueUrl))
 playerInputScope.appendChild(audioUnlock) |> ignore
 refreshAudioObservation <- fun () ->
     let value = audioHost.Observe()
@@ -338,11 +340,19 @@ handlePersistenceEvent <- function
 #endif
 
 let private callbacks =
+#if LEGACY_SVG_PREVIEW
     { AdvanceElapsed = fun elapsed -> updatePlayer (SessionRuntimeObservation.AdvanceElapsed elapsed)
       Pause = fun () -> updatePlayer SessionRuntimeObservation.Pause
       Resume = fun () -> updatePlayer SessionRuntimeObservation.Resume
       StepOnce = fun () -> updatePlayer SessionRuntimeObservation.StepOnce
       Reset = fun () -> updatePlayer SessionRuntimeObservation.Reset
+#else
+    { AdvanceElapsed = ignore
+      Pause = ignore
+      Resume = ignore
+      StepOnce = ignore
+      Reset = ignore
+#endif
       RequestRecovery = fun _ -> window.setTimeout((fun () -> sessionHost |> Option.iter _.Resume()), 0) |> ignore
       RequestProjection = fun generation ->
           presentationRevision <- presentationRevision + 1UL
@@ -361,14 +371,21 @@ describePlayer presentationRevision playerRuntime.Current
 requestCurrentProjection <- fun () -> playerSessionHost.DemandProjection()
 #endif
 
-let private applyAuthority status (players: SvgAuthority.Player list) tick health score collected outcome =
+let private applyAuthority status (players: SvgAuthority.Player list) tick round health score collected outcome contentId contentSchema (content: FableGameWorkspaceNamespace.ArenaContent.ArenaContent) hazardCol hazardRow =
     playerInputScope.setAttribute("data-authority-status", status)
     playerInputScope.setAttribute("data-authority-tick", string tick)
+    playerInputScope.setAttribute("data-authority-round", string round)
+    playerInputScope.setAttribute("data-authority-content-id", contentId)
+    playerInputScope.setAttribute("data-authority-content-schema", string contentSchema)
     playerInputScope.setAttribute("data-authority-player-count", string players.Length)
     playerInputScope.setAttribute("data-player-health", string health)
     playerInputScope.setAttribute("data-player-score", string score)
     playerInputScope.setAttribute("data-player-collected", string collected)
     playerInputScope.setAttribute("data-player-outcome", outcome)
+    playerInputScope.setAttribute("data-authority-hazard-col", string hazardCol)
+    playerInputScope.setAttribute("data-authority-hazard-row", string hazardRow)
+    playerInputScope.setAttribute("data-authority-hazard-x", string content.Hazard.X)
+    playerInputScope.setAttribute("data-authority-hazard-y", string content.Hazard.Y)
     playerInputScope.setAttribute(
         "data-authority-snapshot",
         players |> List.sortBy _.Id |> List.map (fun player -> $"{player.Id}:{player.Col},{player.Row}") |> String.concat ";")
@@ -378,7 +395,7 @@ let private applyAuthority status (players: SvgAuthority.Player list) tick healt
         playerInputScope.setAttribute("data-authority-self-col", string self.Col)
         playerInputScope.setAttribute("data-authority-self-row", string self.Row)
         authorityPeers <- players |> List.filter (fun player -> not player.IsSelf) |> List.map (fun player -> player.Id, player.Col, player.Row)
-        let accepted = ContinuousPlayer.atAuthoritativeSnapshot self.Col self.Row health score collected outcome playerRuntime.Current
+        let accepted = ContinuousPlayer.atAuthoritativeSnapshot self.Col self.Row health score collected outcome hazardCol hazardRow content playerRuntime.Current
         let snapshot: SessionSnapshot<ContinuousPlayer.PlayerState> =
             { SessionId = "generated-player"
               Revision = uint64 tick
@@ -403,12 +420,16 @@ let private dispatchGameCommand command =
     | "game.move-down" -> SvgAuthority.move 0 1
     | "game.move-left" -> SvgAuthority.move -1 0
     | "game.move-right" -> SvgAuthority.move 1 0
+#if LEGACY_SVG_PREVIEW
     | "game.stop" -> submit command ContinuousPlayer.PlayerCommand.Stop
     | "game.pause" ->
         if playerSessionHost.Observe().Status = SvgSessionStatus.Running then playerSessionHost.Pause()
         else playerSessionHost.Resume()
+#endif
     | "game.restart" ->
+#if LEGACY_SVG_PREVIEW
         playerSessionHost.Reset()
+#endif
         SvgAuthority.command "restart"
     | "game.interact" -> SvgAuthority.command "interact"
     | _ -> ()
@@ -429,7 +450,11 @@ let private addControl action label =
 
 for action, label in
     [ "move-up", "Move up"; "move-down", "Move down"; "move-right", "Move right"; "move-left", "Move left"
+#if LEGACY_SVG_PREVIEW
       "pause", "Pause or resume"; "interact", "Interact"; "restart", "Restart" ] do
+#else
+      "interact", "Interact"; "restart", "Restart" ] do
+#endif
     addControl action label
 #if SVG_PRESENT_CANDIDATE
 let private addPresentationControl id label action =

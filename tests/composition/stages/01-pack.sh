@@ -25,8 +25,20 @@ fi
 
 # The required composition route proves the release mechanism can fail and that this exact packed
 # candidate is the declared version consumed by both checksum-bound feed pushes (#432).
+EXPECTED_TEMPLATE_VERSION="$(python3 - "$REPO_ROOT/FS.GG.Templates.csproj" <<'PYVERSION'
+from pathlib import Path
+import sys
+import xml.etree.ElementTree as ET
+
+project = Path(sys.argv[1])
+versions = [node.text for node in ET.parse(project).getroot().iter() if node.tag.endswith('Version') and node.text]
+if len(versions) != 1:
+    raise SystemExit(f'{project}: expected exactly one declared Version, found {versions}')
+print(versions[0])
+PYVERSION
+)"
 if python3 "$COMPOSITION_DIR/lib/release-preflight.py" --self-test --archive "$NUPKG" \
-  --workflow "$REPO_ROOT/.github/workflows/release.yml" --expected-version 0.13.0; then
+  --workflow "$REPO_ROOT/.github/workflows/release.yml" --expected-version "$EXPECTED_TEMPLATE_VERSION"; then
   ok "release preflight and its feed/push mutation controls hold"
 else
   bad "release preflight failed for the exact composition candidate"

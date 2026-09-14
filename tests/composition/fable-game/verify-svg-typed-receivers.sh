@@ -86,10 +86,12 @@ pin_provider() {
   cp "$descriptor" "$destination/.fsgg/providers.yml"
   python3 - "$destination/.fsgg/providers.yml" "$package" <<'PY'
 from pathlib import Path
-import sys
+import re, sys
 p = Path(sys.argv[1]); package = Path(sys.argv[2]).resolve()
 text = p.read_text()
-text = text.replace('source: FS.GG.Workspace.Template::0.13.0', f'source: {package}')
+text,count = re.subn(r'(?m)^(\s*source:\s*)FS\.GG\.Workspace\.Template::[^\s#]+(\s*(?:#.*)?)$', lambda m: f'{m.group(1)}{package}{m.group(2)}', text)
+if count != 1:
+    raise SystemExit(f'{p}: expected exactly one FS.GG.Workspace.Template source, found {count}')
 p.write_text(text)
 PY
 }

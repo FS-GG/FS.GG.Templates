@@ -24,6 +24,9 @@ type PlayerState =
       Score: int
       Collected: int
       Outcome: PlayerOutcome
+      HazardCol: int
+      HazardRow: int
+      Content: ArenaContent
       Revision: uint64 }
 
 let compatibility =
@@ -41,20 +44,24 @@ let private initialState revision =
       Score = 0
       Collected = 0
       Outcome = PlayerOutcome.Playing
+      HazardCol = 7
+      HazardRow = 8
+      Content = contentAt 0UL
       Revision = revision }
 
 let private colliders revision =
+    let content = contentAt revision
     [ { Id = "collectible"
-        Shape = KinematicShape.AxisAlignedBox { X = collectibleX - 5.0; Y = collectibleY - 5.0; Width = 10.0; Height = 10.0 }
+        Shape = KinematicShape.AxisAlignedBox { X = content.CollectibleX - 5.0; Y = content.CollectibleY - 5.0; Width = 10.0; Height = 10.0 }
         Response = KinematicResponse.Trigger }
       { Id = "hazard"
-        Shape = KinematicShape.AxisAlignedBox { X = movingHazardX revision; Y = hazardY; Width = 18.0; Height = 18.0 }
+        Shape = KinematicShape.AxisAlignedBox content.Hazard
         Response = KinematicResponse.Trigger }
       { Id = "goal"
-        Shape = KinematicShape.AxisAlignedBox { X = goalX; Y = goalY; Width = 20.0; Height = 24.0 }
+        Shape = KinematicShape.AxisAlignedBox content.Goal
         Response = KinematicResponse.Trigger }
       { Id = "thin-wall"
-        Shape = KinematicShape.AxisAlignedBox { X = 112.0; Y = 0.0; Width = 2.0; Height = 48.0 }
+        Shape = KinematicShape.AxisAlignedBox content.ThinWall
         Response = KinematicResponse.Slide } ]
 
 let private bound low high value = max low (min high value)
@@ -100,9 +107,10 @@ let private applyCommand command state =
                 Outcome = (if health = 0 then PlayerOutcome.Lost else state.Outcome)
                 Revision = state.Revision + 1UL }
         | PlayerCommand.Collect ->
-            if state.Collected = 0 && near collectibleX collectibleY state.Player then
+            let content = contentAt state.Revision
+            if state.Collected = 0 && near content.CollectibleX content.CollectibleY state.Player then
                 { state with Collected = 1; Score = state.Score + 100; Revision = state.Revision + 1UL }
-            elif state.Collected > 0 && near (goalX + 10.0) (goalY + 12.0) state.Player then
+            elif state.Collected > 0 && near (content.Goal.X + content.Goal.Width / 2.0) (content.Goal.Y + content.Goal.Height / 2.0) state.Player then
                 { state with Outcome = PlayerOutcome.Won; Revision = state.Revision + 1UL }
             else
                 { state with Revision = state.Revision + 1UL }
@@ -125,7 +133,7 @@ let initialize () =
         { SessionId = "generated-player"; Compatibility = compatibility; Configuration = () }
     |> Result.defaultWith (fun error -> failwithf "Generated continuous player could not initialize: %A" error)
 
-let atAuthoritativeSnapshot col row health score collected outcome state =
+let atAuthoritativeSnapshot col row health score collected outcome hazardCol hazardRow content state =
     let acceptedOutcome =
         match outcome with
         | "won" -> PlayerOutcome.Won
@@ -137,7 +145,10 @@ let atAuthoritativeSnapshot col row health score collected outcome state =
         Health = health
         Score = score
         Collected = if collected then 1 else 0
-        Outcome = acceptedOutcome }
+        Outcome = acceptedOutcome
+        HazardCol = hazardCol
+        HazardRow = hazardRow
+        Content = content }
 
 let private color red green blue = { Red = red; Green = green; Blue = blue; Alpha = 255uy }
 
@@ -145,6 +156,7 @@ let private objectValue id label selectable nodes =
     { Id = id; Selectable = selectable; AccessibleLabel = label; Content = { Nodes = nodes } }
 
 let sceneWithPeers revision state peers =
+    let content = state.Content
     let outcome =
         match state.Outcome with
         | PlayerOutcome.Playing -> "playing"
@@ -158,11 +170,11 @@ let sceneWithPeers revision state peers =
             Visible = true
             Objects =
               [ objectValue "arena" "Continuous arena" false [ SceneNode.Rectangle((0.0, 0.0, arenaWidth, arenaHeight), color 241uy 245uy 249uy) ]
-                objectValue "thin-wall" "Thin wall" false [ SceneNode.Rectangle((112.0, 0.0, 2.0, 48.0), color 71uy 85uy 105uy) ]
-                objectValue "collectible" "Collectible" true [ SceneNode.Circle({ X = collectibleX; Y = collectibleY }, 5.0, color 245uy 158uy 11uy) ]
+                objectValue "thin-wall" "Thin wall" false [ SceneNode.Rectangle((content.ThinWall.X, content.ThinWall.Y, content.ThinWall.Width, content.ThinWall.Height), color 71uy 85uy 105uy) ]
+                objectValue "collectible" "Collectible" true [ SceneNode.Circle({ X = content.CollectibleX; Y = content.CollectibleY }, 5.0, color 245uy 158uy 11uy) ]
                 objectValue "hazard" "Moving hazard" true
-                    [ SceneNode.Rectangle((movingHazardX state.Revision, hazardY, 18.0, 18.0), color 220uy 38uy 38uy) ]
-                objectValue "goal" "Goal" true [ SceneNode.Rectangle((goalX, goalY, 20.0, 24.0), color 22uy 163uy 74uy) ]
+                    [ SceneNode.Rectangle((content.Hazard.X, content.Hazard.Y, content.Hazard.Width, content.Hazard.Height), color 220uy 38uy 38uy) ]
+                objectValue "goal" "Goal" true [ SceneNode.Rectangle((content.Goal.X, content.Goal.Y, content.Goal.Width, content.Goal.Height), color 22uy 163uy 74uy) ]
                 objectValue "player" $"Player, {outcome}, health {state.Health}, score {state.Score}" true
                     [ SceneNode.Rectangle((state.Player.X, state.Player.Y, state.Player.Width, state.Player.Height), color 37uy 99uy 235uy) ]
                 for id, col, row in peers do

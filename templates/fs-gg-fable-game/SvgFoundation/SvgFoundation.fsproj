@@ -21,7 +21,7 @@
     <Compile Include="../Protocol/Realtime.fs" Link="Protocol/Realtime.fs" />
     <Compile Include="../Client/SignalR.fs" Link="Network/SignalR.fs" />
     <Compile Include="../Client/Api.fs" Link="Network/Api.fs" />
-    <Compile Include="ArenaContent.fs" />
+    <Compile Include="../Domain/ArenaContent.fs" Link="ArenaContent.fs" />
     <Compile Include="TacticalCompatibility.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
     <Compile Include="PreviewFont.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
     <Compile Include="PreviewDocument.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />

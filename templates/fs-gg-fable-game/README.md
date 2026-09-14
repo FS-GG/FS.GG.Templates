@@ -29,13 +29,16 @@ Fable.Remoting is not used (superseded by ADR-0073; see
 
 ## The sample
 
-`Domain/Room.fs` is a pure, server-only authoritative arena: players occupy cells
-on a fixed grid, and `Pathfinding.astar` -- the `LockstepExact` surface of the
+`Domain/ArenaContent.fs` and `Domain/ArenaRules.fs` define the pure authoritative
+arena shared by the .NET server and the Fable Studio. Players occupy cells on a fixed
+grid, and `Pathfinding.astar` -- the `LockstepExact` surface of the
 published `FS.GG.Game.Core` Fable compatibility profile
 (`fs-gg-game-core-fable-lockstep-v1`) -- resolves movement. Both `Domain` (server)
 and `Client/Movement.fs` (browser, local path preview only) call the *same*
-published package function; the server's `Server/RoomAuthority.fs` is the only
-place a move is actually committed. `Server/RoomAuthority.fs` also enforces the
+published package function. The shared arena transition uses Game.Core kinematics
+for solid geometry, interaction proximity, moving-hazard contact, health, score,
+win, and restart. The server's `Server/RoomAuthority.fs` is the only place a networked
+move is committed. `Server/RoomAuthority.fs` also enforces the
 stale-input guard (a non-increasing input sequence is dropped) and the
 disconnect/reconnect contract: a reconnecting client always gets a bounded, full
 authoritative resync, never a delta log.
@@ -62,15 +65,16 @@ docks, palette/help/rebind flows, and keyboard, pointer, touch and gamepad route
 profile. Templates `0.14.0` uses Rendering `0.31.0`, Game `0.16.0`, Net `0.6.0`, and Audio `0.6.0` as one
 qualified public set.
 
-The SVG runtime replaces the static continuous fixture with a Game.Core fixed-step session,
-the Game-owned kinematic collision adapter, Rendering's disposable browser clock, and monotonic retained
+The SVG runtime renders complete version 2 authority snapshots through monotonic retained
 scene replacement. `W/A/S/D` submits movement to the required server, `E` interacts with nearby game
 content, and `R` requests a restart after a terminal outcome. The server owns position, health, score,
-collectible state, win state, and restart; every connected SVG player renders those snapshots. The
+collectible state, win state, moving-hazard time, and restart; every connected SVG player renders those snapshots. The
+gesture-unlocked Audio host plays the shipped non-silent movement cue for accepted game actions. The
 separately bundled Studio is never linked into the player output. Studio opens the same
-`continuous-arena` document and editable `ArenaContent.fs` values as the player, so Create, Arrange,
-Play, Review, save, and reload retain one scene root and camera while authored hazard and player changes
-remain playable content.
+`continuous-arena` document, compiles its typed gameplay elements into the same `ArenaContent` contract,
+and runs the same pure `ArenaRules` transition in Play. Create, Arrange, Play, Review, browser persistence,
+and reload retain one authored scene root, camera, selection, and history while runtime preview geometry
+stays transient. **Export playable arena content** writes the validated content file consumed by the authority.
 
 The realtime baseline has four deliberately small but production-relevant rules:
 
@@ -87,12 +91,13 @@ The realtime baseline has four deliberately small but production-relevant rules:
 - Inputs are admitted at hub arrival but resolve at the next server tick frontier,
   sorted by player identity and sequence. Transport scheduling therefore cannot decide
   gameplay order; snapshots with an older tick cannot rewind the client view.
-- Realtime DTO version 1 now carries an explicit action and the cooperative arena status. A 0.14
-  client and server are one deployment unit: missing required fields fail codec validation, and unknown
-  actions fail authority admission rather than receiving an inferred legacy meaning. Saved Studio scene
-  envelopes keep the Rendering-owned schema identifier and are round-tripped before acceptance; product
-  gameplay state is deliberately reconstructed by the authority instead of being embedded in that scene
-  envelope.
+- Realtime DTO version 1 remains frozen for the retained legacy grid client. It uses a separate legacy
+  authority path, so new walls, hazards, and terminal rules cannot silently change that client's gameplay.
+  Version 2 carries the complete cooperative arena state and exact content/schema identity. Missing fields,
+  unknown actions, stale input, wrong snapshot compatibility, and content mismatches fail before gameplay
+  changes. Replay digests use the same complete canonical state on .NET and Fable. Saved Studio scene
+  envelopes retain the Rendering-owned schema identifier; the authority consumes only a separately exported,
+  validated arena-content file.
 - Admission is bounded to the arena's 240 cells, with no occupied-cell fallback. A
   bootstrap that would exceed that bound returns HTTP 429. Unbound and disconnected
   capabilities expire after two minutes; the tick loop cleans them up and releases
@@ -105,7 +110,9 @@ The realtime baseline has four deliberately small but production-relevant rules:
 
 For local authority development, run `dotnet run --project Server/Server.fsproj`; the
 browser client proxies `/api` and the `/hub` WebSocket upgrade to
-`http://localhost:5000`. The root build writes the selected static SVG player to
+`http://localhost:5000`. To run the authority with Studio-authored geometry, export
+the content JSON and set `ArenaContentPath` to that file before starting the server;
+invalid schema, identity, or geometry refuses startup. The root build writes the selected static SVG player to
 `artifacts/static-player`, optional Studio to `artifacts/static-studio`, and the required
 independently deployable ASP.NET Core authority to `artifacts/authority-server`. Deploy the
 static artifact and authority together; a static host alone is not a complete multiplayer game.

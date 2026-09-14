@@ -39,14 +39,47 @@ let ``BootstrapV1 rejects a request missing a required field`` () =
 let ``RealtimeV1 message round-trips through JSON for every case`` (caseIndex: int) =
     let value: RealtimeV1.Message =
         match caseIndex with
-        | 0 -> RealtimeV1.InputMessage { Version = 1; Sequence = 7; Action = "move"; TargetCol = 5; TargetRow = 2 }
+        | 0 -> RealtimeV1.InputMessage { Version = 1; Sequence = 7; TargetCol = 5; TargetRow = 2 }
         | 1 -> RealtimeV1.SessionHelloMessage { Version = 1; SessionCapability = "opaque-capability" }
-        | 2 -> RealtimeV1.SnapshotMessage { Version = 1; Tick = 42; Players = [ { PlayerId = "p-1"; Col = 1; Row = 1 }; { PlayerId = "p-2"; Col = 2; Row = 3 } ]; Health = 3; Score = 100; Collected = true; Outcome = "playing" }
+        | 2 -> RealtimeV1.SnapshotMessage { Version = 1; Tick = 42; Players = [ { PlayerId = "p-1"; Col = 1; Row = 1 }; { PlayerId = "p-2"; Col = 2; Row = 3 } ] }
         | 3 -> RealtimeV1.PresenceMessage { Version = 1; PlayerId = "p-1"; Joined = true }
         | 4 -> RealtimeV1.ResyncRequestMessage { Version = 1; LastKnownTick = 10 }
-        | _ -> RealtimeV1.ResyncSnapshotMessage { Version = 1; Tick = 42; Players = []; Health = 3; Score = 0; Collected = false; Outcome = "playing" }
+        | _ -> RealtimeV1.ResyncSnapshotMessage { Version = 1; Tick = 42; Players = [] }
     let decoded = value |> RealtimeV1.encodeMessage |> RealtimeV1.messageFromJson
     Assert.Equal(Ok value, decoded)
+
+[<Theory>]
+[<InlineData(0)>]
+[<InlineData(1)>]
+[<InlineData(2)>]
+[<InlineData(3)>]
+[<InlineData(4)>]
+[<InlineData(5)>]
+let ``RealtimeV2 complete arena message round-trips for every case`` (caseIndex: int) =
+    let snapshot: RealtimeV2.Snapshot =
+        { Version = 2; Tick = 42; Round = 3
+          Players = [ { PlayerId = "p-1"; Col = 1; Row = 1 } ]
+          Health = 3; Score = 100; Collected = true; Outcome = "playing"
+          ContentId = "continuous-arena/default-v2"; ContentSchema = 2
+          CollectibleX = 60.0; CollectibleY = 25.0
+          HazardX = 88.0; HazardY = 80.0; HazardWidth = 11.0; HazardHeight = 10.0
+          GoalX = 176.0; GoalY = 50.0; GoalWidth = 11.0; GoalHeight = 10.0
+          ThinWallX = 112.0; ThinWallY = 0.0; ThinWallWidth = 2.0; ThinWallHeight = 48.0
+          HazardCol = 8; HazardRow = 8 }
+    let value: RealtimeV2.Message =
+        match caseIndex with
+        | 0 -> RealtimeV2.InputMessage { Version = 2; Sequence = 7; Action = "interact"; TargetCol = 5; TargetRow = 2 }
+        | 1 -> RealtimeV2.SessionHelloMessage { Version = 2; SessionCapability = "opaque-capability" }
+        | 2 -> RealtimeV2.SnapshotMessage snapshot
+        | 3 -> RealtimeV2.PresenceMessage { Version = 2; PlayerId = "p-1"; Joined = true }
+        | 4 -> RealtimeV2.ResyncRequestMessage { Version = 2; LastKnownTick = 10 }
+        | _ -> RealtimeV2.ResyncSnapshotMessage snapshot
+    Assert.Equal(Ok value, value |> RealtimeV2.encodeMessage |> RealtimeV2.messageFromJson)
+
+[<Fact>]
+let ``RealtimeV2 refuses a snapshot without complete content identity`` () =
+    let incomplete = """{"kind":"snapshot","payload":{"version":2,"tick":1,"players":[],"health":3,"score":0,"collected":false,"outcome":"playing","hazardCol":7,"hazardRow":8}}"""
+    Assert.True(RealtimeV2.messageFromJson incomplete |> Result.isError)
 
 /// ADR-0073's "not optional" acceptance criterion: an arbitrary-DU boundary case that
 /// is *expected to be rejected*, not merely one that happens to succeed. Two distinct

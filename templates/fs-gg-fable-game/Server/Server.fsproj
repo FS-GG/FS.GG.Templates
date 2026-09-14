@@ -5,11 +5,13 @@
     <DefineConstants Condition="'$(FsGgSvgNetworkCandidate)' == 'true'">$(DefineConstants);SVG_NETWORK_CANDIDATE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="ArenaContentFile.fs" />
     <Compile Include="NetworkAuthority.fs" Condition="'$(FsGgSvgNetworkCandidate)' == 'true'" />
     <Compile Include="RoomAuthority.fs" />
     <Compile Include="GameHub.fs" />
     <Compile Include="Program.fs" />
-    <Content Include="../SvgFoundation/dist/**" Link="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../SvgFoundation/dist/**" Condition="Exists('../SvgFoundation/dist')" Link="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="../Client/dist/**" Condition="!Exists('../SvgFoundation/dist')" Link="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../Domain/Domain.fsproj" />

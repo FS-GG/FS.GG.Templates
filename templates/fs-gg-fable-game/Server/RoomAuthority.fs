@@ -4,6 +4,7 @@ open System
 open System.Collections.Concurrent
 open FS.GG.Game.Core
 open FableGameWorkspaceNamespace.Domain
+open FableGameWorkspaceNamespace.ArenaContent
 
 /// The single authoritative room this minimal template hosts. A generated product
 /// replaces this module with a keyed room registry; its important baseline invariant
@@ -12,11 +13,8 @@ open FableGameWorkspaceNamespace.Domain
 [<RequireQualifiedAccess>]
 module RoomAuthority =
 
-    [<Literal>]
-    let ArenaWidth = 20
-
-    [<Literal>]
-    let ArenaHeight = 12
+    let ArenaWidth = arenaColumns
+    let ArenaHeight = arenaRows
 
     [<Literal>]
     let RoomId = "arena-1"
@@ -45,39 +43,77 @@ module RoomAuthority =
           TargetCol: int
           TargetRow: int }
 
-    let mutable private state = Room.create ArenaWidth ArenaHeight
-    let mutable private health = 3
-    let mutable private score = 0
-    let mutable private collected = false
-    let mutable private outcome = "playing"
+    /// One lock-consistent V2 projection. Consumers must not combine independently
+    /// sampled position, rules, and moving-content reads.
+    type Snapshot =
+        { Tick: int
+          Players: (string * int * int) list
+          Round: int
+          Health: int
+          Score: int
+          Collected: bool
+          Outcome: string
+          ContentId: string
+          ContentSchema: int
+          Content: ArenaContent
+          HazardCol: int
+          HazardRow: int }
+
+    let mutable private definition = contentAt 0UL
+    let mutable private state = FableGameWorkspaceNamespace.ArenaRules.createWith definition
     let private sessions = ConcurrentDictionary<string, Session>()
     let private lastSequence = ConcurrentDictionary<string, int>()
     let private pending = ConcurrentDictionary<string, PendingInput>()
     let private gate = obj ()
 
-    let private snapshotLocked () = state.Tick, Room.toSnapshotPairs state
+    let private snapshotLocked () = state.Room.Tick, Room.toSnapshotPairs state.Room
+
+    let private completeSnapshotLocked () =
+        let content = FableGameWorkspaceNamespace.ArenaRules.currentContent state
+        { Tick = state.Room.Tick
+          Players = Room.toSnapshotPairs state.Room
+          Round = state.Round
+          Health = state.Status.Health
+          Score = state.Status.Score
+          Collected = state.Status.Collected
+          Outcome = state.Status.Outcome
+          ContentId = state.Definition.ContentId
+          ContentSchema = state.Definition.SchemaVersion
+          Content = content
+          HazardCol = int (content.Hazard.X / cellWidth)
+          HazardRow = int (content.Hazard.Y / cellHeight) }
 
     let resetForTests () : unit =
         lock gate (fun () ->
-            state <- Room.create ArenaWidth ArenaHeight
-            health <- 3
-            score <- 0
-            collected <- false
-            outcome <- "playing"
+            definition <- contentAt 0UL
+            state <- FableGameWorkspaceNamespace.ArenaRules.createWith definition
             sessions.Clear()
             lastSequence.Clear()
             pending.Clear()
 #if SVG_NETWORK_CANDIDATE
-            NetworkAuthority.reset (snapshotLocked ())
+            NetworkAuthority.reset state
 #endif
         )
 
+    /// Installs validated authored content before serving requests. Reconfiguration
+    /// after admission is refused so content identity cannot change under a live room.
+    let configureDefinition content : Result<unit, string> =
+        lock gate (fun () ->
+            if not sessions.IsEmpty then Error "arena content cannot change after session admission"
+            else
+                definition <- content
+                state <- FableGameWorkspaceNamespace.ArenaRules.createWith definition
+#if SVG_NETWORK_CANDIDATE
+                NetworkAuthority.reset state
+#endif
+                Ok())
+
     let private retirePlayerLocked (playerId: string) : unit =
-        state <- Room.leave playerId state
+        state <- FableGameWorkspaceNamespace.ArenaRules.leave playerId state
         lastSequence.TryRemove playerId |> ignore
         pending.TryRemove playerId |> ignore
 #if SVG_NETWORK_CANDIDATE
-        NetworkAuthority.unbind playerId (snapshotLocked ())
+        NetworkAuthority.unbind playerId state
 #endif
 
     let private pruneExpiredLocked (now: DateTimeOffset) : unit =
@@ -92,18 +128,18 @@ module RoomAuthority =
             retirePlayerLocked playerId)
 
     let private joinLocked (playerId: string) : Cell option =
-        match state.Players |> Map.tryFind playerId with
+        match state.Room.Players |> Map.tryFind playerId with
         | Some existing -> Some existing.Cell
         | None ->
-            let occupied = state.Players |> Map.toSeq |> Seq.map (fun (_, p) -> p.Cell) |> Set.ofSeq
+            let occupied = state.Room.Players |> Map.toSeq |> Seq.map (fun (_, p) -> p.Cell) |> Set.ofSeq
             seq {
                 for row in 0 .. ArenaHeight - 1 do
                     for col in 0 .. ArenaWidth - 1 do
-                        yield { Col = col; Row = row }
+                        yield ({ Col = col; Row = row }: Cell)
             }
             |> Seq.tryFind (occupied.Contains >> not)
             |> Option.map (fun spawn ->
-                state <- Room.join playerId spawn state
+                state <- FableGameWorkspaceNamespace.ArenaRules.join playerId spawn state
                 lastSequence.[playerId] <- 0
                 spawn)
 
@@ -126,7 +162,7 @@ module RoomAuthority =
                           ConnectionId = None
                           ExpiresAt = Some(now.Add SessionLifetime) }
 #if SVG_NETWORK_CANDIDATE
-                    NetworkAuthority.bind playerId capability (uint64 state.Tick) (snapshotLocked ())
+                    NetworkAuthority.bind playerId capability (uint64 state.Room.Tick) state
 #endif
                     Ok(capability, spawn))
 
@@ -181,15 +217,15 @@ module RoomAuthority =
     /// Queues the highest strictly-increasing input for this player. The accepted
     /// intent is not applied here: every queued player is resolved together at the
     /// next tick frontier in stable player/sequence order.
-    let submitInput (playerId: string) (capability: string) (sequence: int) (action: string) (targetCol: int) (targetRow: int) : Result<uint64, string> =
+    let private submitInputCore legacy (playerId: string) (capability: string) (sequence: int) (action: string) (targetCol: int) (targetRow: int) : Result<uint64, string> =
         lock gate (fun () ->
-            if not (Set.contains action (Set.ofList [ "move"; "interact"; "restart" ])) then
+            if (legacy && action <> "legacy-move") || (not legacy && not (Set.contains action (Set.ofList [ "move"; "interact"; "restart" ]))) then
                 Error "unknown arena action"
             else
 #if SVG_NETWORK_CANDIDATE
               if sequence < 0 then Error "input sequence must be non-negative"
               else
-                match NetworkAuthority.admit playerId capability (uint64 sequence) targetCol targetRow with
+                match NetworkAuthority.admit playerId capability (uint64 sequence) action targetCol targetRow with
                 | Error issue -> Error issue
                 | Ok acceptedOrder ->
                     pending.[playerId] <-
@@ -214,9 +250,19 @@ module RoomAuthority =
 #endif
         )
 
+    let submitInput playerId capability sequence action targetCol targetRow =
+        submitInputCore false playerId capability sequence action targetCol targetRow
+
+    let submitLegacyInput playerId capability sequence targetCol targetRow =
+        submitInputCore true playerId capability sequence "legacy-move" targetCol targetRow
+
     let snapshot () : int * (string * int * int) list = lock gate snapshotLocked
 
-    let gameStatus () = lock gate (fun () -> health, score, collected, outcome)
+    let completeSnapshot () : Snapshot = lock gate completeSnapshotLocked
+
+    let gameStatus () = lock gate (fun () -> state.Status.Health, state.Status.Score, state.Status.Collected, state.Status.Outcome)
+
+    let arenaContent () = lock gate (fun () -> FableGameWorkspaceNamespace.ArenaRules.currentContent state)
 
     /// A cursor is consistent only when it names a frontier this authority has already
     /// reached. This starter keeps no unbounded delta log, so every valid cursor gets
@@ -252,10 +298,23 @@ module RoomAuthority =
         "", "", 0
 #endif
 
+    let verifyReplay () : Result<bool, string> =
+#if SVG_NETWORK_CANDIDATE
+        lock gate (fun () ->
+            match NetworkAuthority.verifyReplay () with
+            | Ok(ReplayRunOutcome.Completed(_, replayed)) -> Ok(replayed = state)
+            | Ok(ReplayRunOutcome.Cancelled(index, _)) -> Error $"replay unexpectedly cancelled at {index}"
+            | Ok(ReplayRunOutcome.Diverged divergence) -> Error $"replay diverged at {divergence.EventIndex}"
+            | Ok(ReplayRunOutcome.ContractRefused(index, issue)) -> Error $"replay contract refused event {index}: {issue}"
+            | Error issues -> Error(sprintf "%A" issues))
+#else
+        Ok true
+#endif
+
     /// Commits the complete input frontier deterministically, then advances time once.
     /// `ConcurrentDictionary` is only the admission buffer; its enumeration order is
     /// deliberately never a game rule.
-    let advanceTick () : int * (string * int * int) list =
+    let advanceTick () : Snapshot =
         lock gate (fun () ->
             pruneExpiredLocked DateTimeOffset.UtcNow
             let frontier =
@@ -264,32 +323,20 @@ module RoomAuthority =
                 |> Seq.toList
             pending.Clear()
             for input in frontier do
-                match input.Action with
-                | "restart" ->
-                    health <- 3; score <- 0; collected <- false; outcome <- "playing"
-                | "interact" ->
-                    match state.Players |> Map.tryFind input.PlayerId with
-                    | Some player when not collected && player.Cell.Col = 5 && player.Cell.Row = 2 ->
-                        collected <- true; score <- score + 100
-                    | Some player when collected && player.Cell.Col = 16 && player.Cell.Row = 5 -> outcome <- "won"
-                    | _ -> ()
-                | "move" when outcome = "playing" ->
-                    match Room.planMove input.PlayerId { Col = input.TargetCol; Row = input.TargetRow } state with
-                    | Some(_ :: next :: _) ->
-                        state <- Room.applyStep input.PlayerId next state
-                        let hazardCol = 7 + (state.Tick % 7)
-                        if next.Row = 8 && next.Col = hazardCol then
-                            health <- max 0 (health - 1)
-                            if health = 0 then outcome <- "lost"
+                let intent =
+                    match input.Action with
+                    | "restart" -> FableGameWorkspaceNamespace.ArenaRules.Intent.Restart
+                    | "interact" -> FableGameWorkspaceNamespace.ArenaRules.Intent.Interact
+                    | "legacy-move" -> FableGameWorkspaceNamespace.ArenaRules.Intent.LegacyMove { Col = input.TargetCol; Row = input.TargetRow }
+                    | _ -> FableGameWorkspaceNamespace.ArenaRules.Intent.Move { Col = input.TargetCol; Row = input.TargetRow }
+                state <- FableGameWorkspaceNamespace.ArenaRules.applyIntent input.PlayerId intent state
 #if SVG_NETWORK_CANDIDATE
-                        NetworkAuthority.recordMove input.PlayerId { Col = input.TargetCol; Row = input.TargetRow } (snapshotLocked ())
+                NetworkAuthority.recordIntent input.PlayerId intent state
 #endif
-                    | _ -> ()
-                | _ -> ()
-            state <- Room.advanceTick state
+            state <- FableGameWorkspaceNamespace.ArenaRules.advance state
             let snapshot = snapshotLocked ()
 #if SVG_NETWORK_CANDIDATE
-            NetworkAuthority.recordAdvance (uint64 state.Tick) snapshot
-            NetworkAuthority.publish (uint64 state.Tick) snapshot
+            NetworkAuthority.recordAdvance (uint64 state.Room.Tick) state
+            NetworkAuthority.publish (uint64 state.Room.Tick) state
 #endif
-            snapshot)
+            completeSnapshotLocked ())

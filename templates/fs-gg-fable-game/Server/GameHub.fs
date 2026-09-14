@@ -3,92 +3,135 @@ namespace FableGameWorkspaceNamespace.Server
 open System.Threading.Tasks
 open Microsoft.AspNetCore.SignalR
 open FableGameWorkspaceNamespace.Protocol.Realtime
+open FableGameWorkspaceNamespace.ArenaContent
 
-/// SignalR transports only explicit `RealtimeV1.Message` JSON. Connections open
-/// unauthenticated; the first accepted message must be the versioned session hello
-/// carrying the opaque capability issued by bootstrap. No player identity or secret is
-/// taken from the hub URL.
+/// One transport hosts the frozen grid V1 contract and the cooperative SVG V2 contract.
+/// A hello binds the connection to exactly one versioned group before any input is accepted.
 type GameHub() =
     inherit Hub()
 
-    let binding (hub: GameHub) : string option =
+    let binding (hub: GameHub) =
         match hub.Context.Items.TryGetValue "playerId" with
         | true, (:? string as value) -> Some value
         | _ -> None
 
-    let capability (hub: GameHub) : string option =
+    let capability (hub: GameHub) =
         match hub.Context.Items.TryGetValue "sessionCapability" with
         | true, (:? string as value) -> Some value
         | _ -> None
 
-    let snapshotMessage (tick, players) =
-        let health, score, collected, outcome = RoomAuthority.gameStatus ()
-        let snapshot: RealtimeV1.Snapshot =
-            { Version = 1
-              Tick = tick
-              Players = players |> List.map (fun (playerId, col, row) -> { PlayerId = playerId; Col = col; Row = row })
-              Health = health; Score = score; Collected = collected; Outcome = outcome }
-        RealtimeV1.encodeMessage (RealtimeV1.ResyncSnapshotMessage snapshot)
+    let version (hub: GameHub) =
+        match hub.Context.Items.TryGetValue "realtimeVersion" with
+        | true, (:? int as value) -> Some value
+        | _ -> None
+
+    let group version = $"{RoomAuthority.RoomId}-v{version}"
+
+    let playersV1 players : RealtimeV1.PlayerSnapshot list = players |> List.map (fun (playerId, col, row) -> { PlayerId = playerId; Col = col; Row = row })
+    let playersV2 players : RealtimeV2.PlayerSnapshot list = players |> List.map (fun (playerId, col, row) -> { PlayerId = playerId; Col = col; Row = row })
+
+    let snapshotV1 kind (tick, players) =
+        let snapshot: RealtimeV1.Snapshot = { Version = 1; Tick = tick; Players = playersV1 players }
+        let message = if kind = "snapshot" then RealtimeV1.SnapshotMessage snapshot else RealtimeV1.ResyncSnapshotMessage snapshot
+        RealtimeV1.encodeMessage message
+
+    let snapshotV2 kind (snapshot: RoomAuthority.Snapshot) =
+        let snapshot: RealtimeV2.Snapshot =
+            { Version = 2; Tick = snapshot.Tick; Round = snapshot.Round; Players = playersV2 snapshot.Players
+              Health = snapshot.Health; Score = snapshot.Score; Collected = snapshot.Collected; Outcome = snapshot.Outcome
+              ContentId = snapshot.ContentId; ContentSchema = snapshot.ContentSchema
+              CollectibleX = snapshot.Content.CollectibleX; CollectibleY = snapshot.Content.CollectibleY
+              HazardX = snapshot.Content.Hazard.X; HazardY = snapshot.Content.Hazard.Y; HazardWidth = snapshot.Content.Hazard.Width; HazardHeight = snapshot.Content.Hazard.Height
+              GoalX = snapshot.Content.Goal.X; GoalY = snapshot.Content.Goal.Y; GoalWidth = snapshot.Content.Goal.Width; GoalHeight = snapshot.Content.Goal.Height
+              ThinWallX = snapshot.Content.ThinWall.X; ThinWallY = snapshot.Content.ThinWall.Y; ThinWallWidth = snapshot.Content.ThinWall.Width; ThinWallHeight = snapshot.Content.ThinWall.Height
+              HazardCol = snapshot.HazardCol; HazardRow = snapshot.HazardRow }
+        let message = if kind = "snapshot" then RealtimeV2.SnapshotMessage snapshot else RealtimeV2.ResyncSnapshotMessage snapshot
+        RealtimeV2.encodeMessage message
+
+    let bindHello (hub: GameHub) wireVersion token =
+        task {
+            match binding hub with
+            | Some _ -> return raise (HubException "a hub connection may bind only one session")
+            | None ->
+                match RoomAuthority.activateSession token hub.Context.ConnectionId with
+                | None -> return raise (HubException "unknown, expired, or already-active game session")
+                | Some(playerId, tick, players) ->
+                    hub.Context.Items["playerId"] <- playerId
+                    hub.Context.Items["sessionCapability"] <- token
+                    hub.Context.Items["realtimeVersion"] <- wireVersion
+                    do! hub.Groups.AddToGroupAsync(hub.Context.ConnectionId, group wireVersion)
+                    let payload = if wireVersion = 1 then snapshotV1 "resync" (tick, players) else snapshotV2 "resync" (RoomAuthority.completeSnapshot ())
+                    do! hub.Clients.Caller.SendAsync("Message", payload)
+                    if wireVersion = 1 then
+                        let presence: RealtimeV1.Presence = { Version = 1; PlayerId = playerId; Joined = true }
+                        do! hub.Clients.OthersInGroup(group 1).SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.PresenceMessage presence))
+                    else
+                        let presence: RealtimeV2.Presence = { Version = 2; PlayerId = playerId; Joined = true }
+                        do! hub.Clients.OthersInGroup(group 2).SendAsync("Message", RealtimeV2.encodeMessage (RealtimeV2.PresenceMessage presence))
+        }
 
     override _.OnConnectedAsync() : Task = Task.CompletedTask
 
     override this.OnDisconnectedAsync(exn: exn) : Task =
         task {
-            match binding this with
-            | None -> ()
-            | Some playerId ->
-                do! this.Groups.RemoveFromGroupAsync(this.Context.ConnectionId, RoomAuthority.RoomId)
+            match binding this, version this with
+            | Some playerId, Some wireVersion ->
+                do! this.Groups.RemoveFromGroupAsync(this.Context.ConnectionId, group wireVersion)
                 RoomAuthority.disconnect playerId this.Context.ConnectionId
-                let presence: RealtimeV1.Presence = { Version = 1; PlayerId = playerId; Joined = false }
-                do! this.Clients.Group(RoomAuthority.RoomId).SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.PresenceMessage presence))
+                if wireVersion = 1 then
+                    let presence: RealtimeV1.Presence = { Version = 1; PlayerId = playerId; Joined = false }
+                    do! this.Clients.Group(group 1).SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.PresenceMessage presence))
+                else
+                    let presence: RealtimeV2.Presence = { Version = 2; PlayerId = playerId; Joined = false }
+                    do! this.Clients.Group(group 2).SendAsync("Message", RealtimeV2.encodeMessage (RealtimeV2.PresenceMessage presence))
+            | _ -> ()
         }
 
     member this.SendMessage(json: string) : Task =
         task {
-            match RealtimeV1.messageFromJson json with
-            | Error message -> raise (HubException(sprintf "rejected realtime message: %s" message))
-            | Ok(RealtimeV1.SessionHelloMessage hello) when hello.Version <> 1 ->
-                raise (HubException "unsupported realtime version")
-            | Ok(RealtimeV1.SessionHelloMessage hello) ->
-                match binding this with
-                | Some _ -> raise (HubException "a hub connection may bind only one session")
-                | None ->
-                    match RoomAuthority.activateSession hello.SessionCapability this.Context.ConnectionId with
-                    | Some(playerId, tick, players) ->
-                        this.Context.Items["playerId"] <- playerId
-                        this.Context.Items["sessionCapability"] <- hello.SessionCapability
-                        do! this.Groups.AddToGroupAsync(this.Context.ConnectionId, RoomAuthority.RoomId)
-                        do! this.Clients.Caller.SendAsync("Message", snapshotMessage (tick, players))
-                        let presence: RealtimeV1.Presence = { Version = 1; PlayerId = playerId; Joined = true }
-                        do! this.Clients.OthersInGroup(RoomAuthority.RoomId).SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.PresenceMessage presence))
-                    | None -> raise (HubException "unknown, expired, or already-active game session")
-            | Ok(RealtimeV1.InputMessage input) when input.Version <> 1 ->
-                raise (HubException "unsupported realtime version")
-            | Ok(RealtimeV1.InputMessage input) ->
-                match binding this with
-                | None -> raise (HubException "session hello is required before input")
-                | Some playerId ->
-                    match capability this with
-                    | None -> raise (HubException "session capability is missing from the live binding")
-                    | Some token ->
+            let wireVersion =
+                try
+                    use document = System.Text.Json.JsonDocument.Parse json
+                    document.RootElement.GetProperty("payload").GetProperty("version").GetInt32()
+                with _ -> -1
+            match wireVersion with
+            | 2 ->
+                match RealtimeV2.messageFromJson json with
+                | Error message -> raise (HubException(sprintf "rejected realtime V2 message: %s" message))
+                | Ok(RealtimeV2.SessionHelloMessage hello) -> do! bindHello this 2 hello.SessionCapability
+                | Ok(RealtimeV2.InputMessage input) ->
+                    match binding this, capability this, version this with
+                    | Some playerId, Some token, Some 2 ->
                         match RoomAuthority.submitInput playerId token input.Sequence input.Action input.TargetCol input.TargetRow with
                         | Ok _ -> ()
                         | Error issue -> raise (HubException(sprintf "input refused: %s" issue))
-                    // Input acknowledgement is the next broadcast tick. Mutating or
-                    // broadcasting here would make hub-arrival order a game rule.
-            | Ok(RealtimeV1.ResyncRequestMessage request) when request.Version <> 1 ->
-                raise (HubException "unsupported realtime version")
-            | Ok(RealtimeV1.ResyncRequestMessage request) ->
-                match binding this with
-                | None -> raise (HubException "session hello is required before resync")
-                | Some _ ->
-                    match RoomAuthority.resyncFrom request.LastKnownTick with
-                    | Error message -> raise (HubException message)
-                    | Ok snapshot ->
-                        // Always one bounded full authoritative resync, never a delta log.
-                        do! this.Clients.Caller.SendAsync("Message", snapshotMessage snapshot)
-            | Ok(RealtimeV1.SnapshotMessage _)
-            | Ok(RealtimeV1.PresenceMessage _)
-            | Ok(RealtimeV1.ResyncSnapshotMessage _) ->
-                raise (HubException "this message kind is server-authoritative and may not be sent by a client")
+                    | _ -> raise (HubException "V2 session hello is required before input")
+                | Ok(RealtimeV2.ResyncRequestMessage request) ->
+                    match binding this, version this with
+                    | Some _, Some 2 ->
+                        match RoomAuthority.resyncFrom request.LastKnownTick with
+                        | Ok _ -> do! this.Clients.Caller.SendAsync("Message", snapshotV2 "resync" (RoomAuthority.completeSnapshot ()))
+                        | Error issue -> raise (HubException issue)
+                    | _ -> raise (HubException "V2 session hello is required before resync")
+                | Ok _ -> raise (HubException "this V2 message kind is server-authoritative")
+            | 1 ->
+                match RealtimeV1.messageFromJson json with
+                | Error message -> raise (HubException(sprintf "rejected realtime V1 message: %s" message))
+                | Ok(RealtimeV1.SessionHelloMessage hello) -> do! bindHello this 1 hello.SessionCapability
+                | Ok(RealtimeV1.InputMessage input) ->
+                    match binding this, capability this, version this with
+                    | Some playerId, Some token, Some 1 ->
+                        match RoomAuthority.submitLegacyInput playerId token input.Sequence input.TargetCol input.TargetRow with
+                        | Ok _ -> ()
+                        | Error issue -> raise (HubException(sprintf "input refused: %s" issue))
+                    | _ -> raise (HubException "V1 session hello is required before input")
+                | Ok(RealtimeV1.ResyncRequestMessage request) ->
+                    match binding this, version this with
+                    | Some _, Some 1 ->
+                        match RoomAuthority.resyncFrom request.LastKnownTick with
+                        | Ok snapshot -> do! this.Clients.Caller.SendAsync("Message", snapshotV1 "resync" snapshot)
+                        | Error issue -> raise (HubException issue)
+                    | _ -> raise (HubException "V1 session hello is required before resync")
+                | Ok _ -> raise (HubException "this V1 message kind is server-authoritative")
+            | _ -> raise (HubException "unsupported realtime version")
         }

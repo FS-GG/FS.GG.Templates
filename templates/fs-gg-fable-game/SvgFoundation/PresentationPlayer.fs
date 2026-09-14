@@ -40,6 +40,9 @@ let decode (payload: string) =
                   Score = parseInt 7
                   Collected = parseInt 8
                   Outcome = outcome
+                  HazardCol = 7
+                  HazardRow = 8
+                  Content = FableGameWorkspaceNamespace.ArenaContent.contentAt 0UL
                   Revision = parseRevision 10 }
             Ok state
         with error -> Error error.Message

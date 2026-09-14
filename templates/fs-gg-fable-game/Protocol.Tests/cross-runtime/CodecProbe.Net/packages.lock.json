@@ -16,6 +16,14 @@
           "FSharp.Core": "4.7.1"
         }
       },
+      "FS.GG.Game.Core": {
+        "type": "Transitive",
+        "resolved": "0.16.0",
+        "contentHash": "mn66KeVyqj0kphAn8Nm11GbEUbmGcO28uRMFiuX6FdQv87Zvv4kXTV7MqwTVeH3GQtA2Nna56Okd6IaCSHH6Bg==",
+        "dependencies": {
+          "FSharp.Core": "10.1.302"
+        }
+      },
       "Newtonsoft.Json": {
         "type": "Transitive",
         "resolved": "13.0.1",
@@ -29,6 +37,13 @@
           "FSharp.Core": "4.7.2",
           "Fable.Core": "3.1.6",
           "Newtonsoft.Json": "13.0.1"
+        }
+      },
+      "domain": {
+        "type": "Project",
+        "dependencies": {
+          "FS.GG.Game.Core": "[0.16.0, 0.16.0]",
+          "FSharp.Core": "[10.1.400, )"
         }
       },
       "protocol": {

@@ -96,7 +96,7 @@ type GameHubTests() =
             let unknown = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 1; SessionCapability = "not-issued" })
             let! unknownError = Assert.ThrowsAsync<HubException>(fun () -> connection.InvokeAsync("SendMessage", unknown))
             Assert.Contains("unknown", unknownError.Message)
-            let badVersion = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 2; SessionCapability = "not-issued" })
+            let badVersion = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 3; SessionCapability = "not-issued" })
             let! versionError = Assert.ThrowsAsync<HubException>(fun () -> connection.InvokeAsync("SendMessage", badVersion))
             Assert.Contains("unsupported realtime version", versionError.Message)
             do! connection.StopAsync()
@@ -175,14 +175,14 @@ type GameHubTests() =
             let! _ = waiting
             let beforeTick, beforePlayers = RoomAuthority.snapshot ()
             let before = beforePlayers |> List.find (fun (id, _, _) -> id = response.PlayerId)
-            let input = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; Action = "move"; TargetCol = 1; TargetRow = 0 })
+            let input = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; TargetCol = 1; TargetRow = 0 })
             do! connection.InvokeAsync("SendMessage", input)
             let immediateTick, immediatePlayers = RoomAuthority.snapshot ()
             Assert.Equal(beforeTick, immediateTick)
             Assert.Equal(before, immediatePlayers |> List.find (fun (id, _, _) -> id = response.PlayerId))
-            let committedTick, committedPlayers = RoomAuthority.advanceTick ()
-            Assert.Equal(beforeTick + 1, committedTick)
-            let _, col, row = committedPlayers |> List.find (fun (id, _, _) -> id = response.PlayerId)
+            let committed = RoomAuthority.advanceTick ()
+            Assert.Equal(beforeTick + 1, committed.Tick)
+            let _, col, row = committed.Players |> List.find (fun (id, _, _) -> id = response.PlayerId)
             Assert.Equal((1, 0), (col, row))
             do! connection.StopAsync()
         }
@@ -192,8 +192,8 @@ type GameHubTests() =
         task {
             let! response, connection, _ = startBound "p-stale"
             use connection = connection
-            let first = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; Action = "move"; TargetCol = 1; TargetRow = 0 })
-            let duplicate = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; Action = "move"; TargetCol = 0; TargetRow = 10 })
+            let first = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; TargetCol = 1; TargetRow = 0 })
+            let duplicate = RealtimeV1.encodeMessage (RealtimeV1.InputMessage { Version = 1; Sequence = 1; TargetCol = 0; TargetRow = 10 })
             do! connection.InvokeAsync("SendMessage", first)
             let! refused = Assert.ThrowsAsync<HubException>(fun () -> connection.InvokeAsync("SendMessage", duplicate))
 #if SVG_NETWORK_CANDIDATE
@@ -248,6 +248,7 @@ type GameHubTests() =
         Assert.Equal((3, 100, true, "won"), RoomAuthority.gameStatus ())
         submit 24 "restart" 16 5
         Assert.Equal((3, 0, false, "playing"), RoomAuthority.gameStatus ())
+        Assert.True(RoomAuthority.verifyReplay () |> Result.defaultWith failwith)
 
     [<Fact>]
     member _.``accepted network input is recorded by the replay authority``() =
@@ -262,6 +263,29 @@ type GameHubTests() =
         Assert.Contains(response.PlayerId, acceptedText)
         Assert.Contains("move", replayText)
         Assert.True(eventCount >= 3)
+
+    [<Fact>]
+    member _.``configured V2 content bytes drive the authority geometry``() =
+        let json = """{"schemaVersion":2,"contentId":"continuous-arena/studio-edit","collectibleX":33,"collectibleY":44,"hazardX":55,"hazardY":66,"hazardWidth":11,"hazardHeight":10,"goalX":77,"goalY":88,"goalWidth":11,"goalHeight":10,"thinWallX":99,"thinWallY":1,"thinWallWidth":2,"thinWallHeight":48}"""
+        let content = ArenaContentFile.decode json |> Result.defaultWith failwith
+        RoomAuthority.configureDefinition content |> Result.defaultWith failwith
+        let snapshot = RoomAuthority.completeSnapshot ()
+        Assert.Equal("continuous-arena/studio-edit", snapshot.ContentId)
+        Assert.Equal((33.0, 44.0), (snapshot.Content.CollectibleX, snapshot.Content.CollectibleY))
+        Assert.Equal((55.0, 66.0), (snapshot.Content.Hazard.X, snapshot.Content.Hazard.Y))
+        RoomAuthority.resetForTests ()
+
+    [<Fact>]
+    member _.``legacy V1 traversal retains grid behavior across V2 wall and hazard regions``() =
+        let response = bootstrap "legacy-cross-arena"
+        for sequence in 1 .. 40 do
+            RoomAuthority.submitLegacyInput response.PlayerId response.SessionCapability sequence 16 8
+            |> Result.defaultWith failwith |> ignore
+            RoomAuthority.advanceTick () |> ignore
+        let _, players = RoomAuthority.snapshot ()
+        let _, col, row = players |> List.find (fun (id, _, _) -> id = response.PlayerId)
+        Assert.Equal((16, 8), (col, row))
+        Assert.Equal((3, 0, false, "playing"), RoomAuthority.gameStatus ())
 #endif
 
     interface IDisposable with

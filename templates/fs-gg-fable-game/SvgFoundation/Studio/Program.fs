@@ -7,7 +7,11 @@ open Fable.Core
 open Fable.Core.JsInterop
 open FS.GG.UI.Scene
 open FS.GG.UI.Scene.SvgBrowser
+open FS.GG.Game.Core
 open FableGameWorkspaceNamespace.SvgFoundation.Studio.SceneSchema
+open FableGameWorkspaceNamespace.Domain
+module ArenaContent = FableGameWorkspaceNamespace.ArenaContent
+module ArenaRules = FableGameWorkspaceNamespace.ArenaRules
 #if SVG_INPUT_CANDIDATE
 open FS.GG.UI.KeyboardInput
 module WorkspaceCommands = FableGameWorkspaceNamespace.SvgFoundation.Studio.WorkspaceInput
@@ -18,6 +22,9 @@ let private notoBase64: string = jsNative
 
 [<Emit("new Worker(new URL('../SvgGeometryWorkerEntry.js', import.meta.url), { type:'module' })")>]
 let private workerFactory () : obj = jsNative
+
+[<Emit("(function(text){const url=URL.createObjectURL(new Blob([text],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='arena-content.v2.json';a.click();URL.revokeObjectURL(url);})($0)")>]
+let private downloadArenaContent (_text: string) : unit = jsNative
 
 let private container: HTMLElement = document.getElementById("svg-authoring-studio")
 let mutable private state = initialState ()
@@ -32,9 +39,16 @@ let private host =
 
 let private status: HTMLElement = document.getElementById("generated-scene-status")
 let private announce text = status.textContent <- text
+let private retainedCamera = SvgAffine.translate 4.0 3.0
+do host.SetSelection [ "hazard" ] |> Result.defaultWith (fun error -> failwithf "%A" error)
+do host.SetCamera retainedCamera |> Result.defaultWith (fun error -> failwithf "%A" error)
 let mutable private playSourceHash = ""
-let mutable private playHealth = 3
+let mutable private authoredContent = compileArenaContent state.Document |> Result.defaultWith failwith
+let mutable private playState = ArenaRules.create () |> ArenaRules.join "studio-player" ({ Col = 0; Row = 0 }: Cell)
 let mutable private playCollision = false
+let mutable private exportedContentJson = ""
+let private playTransactionId = "studio-play-runtime"
+let mutable private playFrozenDocument: SvgDocument option = None
 
 #if SVG_REPLAY_CANDIDATE
 let private replayStudio = ReplayStudio.mount announce
@@ -66,6 +80,10 @@ let private updateWorkspace message =
     renderWorkspace ()
 
 let private setMode mode =
+    if mode <> SvgWorkspaceMode.Play && playFrozenDocument.IsSome then
+        host.CancelGesture playTransactionId |> ignore
+        state <- host.State
+        playFrozenDocument <- None
     updateWorkspace (SvgWorkspaceMessage.SetMode mode)
     announce ("Workspace mode: " + workspaceMode mode)
 
@@ -152,6 +170,10 @@ do
         | null -> ()
         | element ->
             element.addEventListener("click", fun _ ->
+                if host.WorkspaceState.Mode <> SvgWorkspaceMode.Play && playFrozenDocument.IsSome then
+                    host.CancelGesture playTransactionId |> ignore
+                    state <- host.State
+                    playFrozenDocument <- None
                 updateInput (CommandResolverObservation.ContextsChanged (SvgWorkspace.activeContexts host.WorkspaceState))
                 match host.WorkspaceState.Overlay with
                 | Some(SvgWorkspaceOverlay.CommandPalette restore) -> updateInput (CommandResolverObservation.PushModal { Context="workspace.palette"; RestoreFocus=restore })
@@ -161,7 +183,7 @@ do
                 renderWorkspace ())
 #endif
 
-let private hash document = SvgAsset.contentHash document |> Result.defaultWith (fun issues -> failwithf "%A" issues)
+let private hash (document: SvgDocument) = SvgAsset.contentHash document |> Result.defaultWith (fun issues -> failwithf "%A" issues)
 let private transaction id operations = { Schema = SvgAuthoring.transactionSchema; Id = id; Operations = operations }
 let private commit id operations =
     let candidate=transaction id operations
@@ -227,25 +249,133 @@ let private authorGridAndFreeform () =
     |> continuousAdapter
     |> fun metadata -> commit "Grid and freeform adapters authored" [ SvgAuthoringOperation.ReplaceSceneMetadata metadata ]
 
-let private movePlayableHazard () =
-    commit "Playable hazard moved" [ SvgAuthoringOperation.TransformElements([ "hazard" ], SvgAffine.translate 8.0 -4.0) ]
+let private movePlayableHazard label target =
+    let next = ArenaContent.withHazardCell target authoredContent
+    let dx = next.Hazard.X - authoredContent.Hazard.X
+    let dy = next.Hazard.Y - authoredContent.Hazard.Y
+    commit label [ SvgAuthoringOperation.TransformElements([ "hazard" ], SvgAffine.translate dx dy) ]
+    authoredContent <- compileArenaContent state.Document |> Result.defaultWith failwith
+    playState <- ArenaRules.withDefinition authoredContent playState
+
+let private scaleAndRotatePlayableHazard () =
+    let pivotX = authoredContent.Hazard.X + authoredContent.Hazard.Width / 2.0
+    let pivotY = authoredContent.Hazard.Y + authoredContent.Hazard.Height / 2.0
+    let transform =
+        SvgAffine.compose
+            (SvgAffine.translate pivotX pivotY)
+            (SvgAffine.compose
+                (SvgAffine.rotateDegrees 12.0)
+                (SvgAffine.compose (SvgAffine.scale 1.25 0.8) (SvgAffine.translate -pivotX -pivotY)))
+    commit "Playable hazard scaled and rotated" [ SvgAuthoringOperation.TransformElements([ "hazard" ], transform) ]
+    authoredContent <- compileArenaContent state.Document |> Result.defaultWith failwith
+    playState <- ArenaRules.withDefinition authoredContent playState
 
 let private playEditedArenaStep () =
     setMode SvgWorkspaceMode.Play
-    playSourceHash <- hash state.Document
-    playCollision <-
-        state.Document.Children
-        |> List.tryFind (fun element -> element.Id = "hazard")
-        |> Option.exists (fun hazard -> hazard.Transform <> SvgAffine.identity)
-    if playCollision then playHealth <- max 0 (playHealth - 1)
-    commit "Edited arena play step" [ SvgAuthoringOperation.TransformElements([ "player" ], SvgAffine.translate 11.0 0.0) ]
+    let frozenDocument =
+        match playFrozenDocument with
+        | Some document -> document
+        | None ->
+            let frozen = SvgAuthoring.takePlaySnapshot state.Revision state |> Result.defaultWith (fun error -> failwithf "%A" error)
+            let document = SvgDocument.deserialize frozen.PlaySnapshot.Value.SerializedDocument |> Result.defaultWith (fun issues -> failwithf "%A" issues)
+            playFrozenDocument <- Some document
+            document
+    let frozenContent = compileArenaContent frozenDocument |> Result.defaultWith failwith
+    playState <- ArenaRules.withDefinition frozenContent playState
+    playSourceHash <- hash frozenDocument
+    let current = playState.Room.Players.["studio-player"].Cell
+    let target: ArenaContent.ArenaCell = { Col = min (ArenaContent.arenaColumns - 1) (current.Col + 1); Row = current.Row }
+    let beforeHealth = playState.Status.Health
+    playState <- ArenaRules.applyIntent "studio-player" (ArenaRules.Intent.Move target) playState
+    playState <- ArenaRules.advance playState
+    playCollision <- playState.Status.Health < beforeHealth
+    host.CancelGesture playTransactionId |> ignore
+    let current = ArenaRules.currentContent playState
+    let player = playState.Room.Players.["studio-player"].Cell
+    let runtimeDocument =
+        { frozenDocument with
+            Children =
+                frozenDocument.Children
+                |> List.map (fun element ->
+                    match element.Id with
+                    | "player" -> { element with Transform = SvgAffine.translate (ArenaContent.cellX { Col = player.Col; Row = player.Row }) (ArenaContent.cellY { Col = player.Col; Row = player.Row }) }
+                    | "hazard" ->
+                        let delta = SvgAffine.translate (current.Hazard.X - frozenContent.Hazard.X) (current.Hazard.Y - frozenContent.Hazard.Y)
+                        { element with Transform = SvgAffine.compose delta element.Transform }
+                    | _ -> element) }
+    host.Preview { Schema = SvgAuthoring.transactionSchema; Id = playTransactionId; Operations = [ SvgAuthoringOperation.ReplaceDocument runtimeDocument ] }
+    |> Result.defaultWith (fun error -> failwithf "%A" error)
+    announce "Edited arena play step"
 
-let private saveReload () =
+let private validateRoundTrip () =
     let envelope={Schema=SvgScene.schema;Metadata=state.Metadata;Document=state.Document;Catalog=state.Catalog;Instances=state.Instances;Fonts=[]}
     match SvgScene.serialize envelope |> Result.bind SvgScene.deserialize with
-    | Ok restored when restored.Metadata=state.Metadata && restored.Document=state.Document && restored.Catalog=state.Catalog && restored.Instances=state.Instances -> announce "Scene saved and reloaded"
+    | Ok restored when
+        restored.Metadata = state.Metadata && restored.Catalog = state.Catalog && restored.Instances = state.Instances &&
+        hash restored.Document = hash state.Document ->
+        announce "Scene round-trip validated"
     | Ok _ -> announce "Validation error: scene reload changed accepted content"
     | Error issues -> announce(sprintf "Validation error: %A" issues)
+
+let mutable private persistenceOperation = 0UL
+let mutable private handlePersistence: BrowserPersistenceEvent -> unit = ignore
+let private persistence =
+    new BrowserPersistenceHost(
+        { DatabaseName = "FableGameWorkspaceNamespace-svg-studio"
+          MaxPayloadCharacters = 262144
+          MaxArchiveCharacters = 524288 },
+        fun event -> handlePersistence event)
+
+let private storageKey = { Family = BrowserStorageFamily.ProjectDocument; Slot = "continuous-arena" }
+
+let private saveScene () =
+    let envelope={Schema=SvgScene.schema;Metadata=state.Metadata;Document=state.Document;Catalog=state.Catalog;Instances=state.Instances;Fonts=[]}
+    match SvgScene.serialize envelope with
+    | Ok serialized ->
+        persistenceOperation <- persistenceOperation + 1UL
+        persistence.Persist(
+            { Generation = 1UL; Operation = persistenceOperation },
+            { Key = storageKey; SchemaVersion = 1; PayloadHash = hash state.Document; Payload = serialized })
+    | Error issues -> announce(sprintf "Validation error: %A" issues)
+
+let private exportArenaContent () =
+    let content = authoredContent
+    exportedContentJson <-
+        JS.JSON.stringify(
+            createObj
+                [ "schemaVersion" ==> content.SchemaVersion
+                  "contentId" ==> content.ContentId
+                  "collectibleX" ==> content.CollectibleX; "collectibleY" ==> content.CollectibleY
+                  "hazardX" ==> content.Hazard.X; "hazardY" ==> content.Hazard.Y
+                  "hazardWidth" ==> content.Hazard.Width; "hazardHeight" ==> content.Hazard.Height
+                  "goalX" ==> content.Goal.X; "goalY" ==> content.Goal.Y
+                  "goalWidth" ==> content.Goal.Width; "goalHeight" ==> content.Goal.Height
+                  "thinWallX" ==> content.ThinWall.X; "thinWallY" ==> content.ThinWall.Y
+                  "thinWallWidth" ==> content.ThinWall.Width; "thinWallHeight" ==> content.ThinWall.Height ])
+    downloadArenaContent exportedContentJson
+    announce "Playable arena content exported for authority startup"
+
+handlePersistence <- function
+    | BrowserPersistenceEvent.Ready -> persistence.Load storageKey
+    | BrowserPersistenceEvent.Persisted _ -> announce "Scene persisted in browser storage"
+    | BrowserPersistenceEvent.Loaded(_, Some stored) ->
+        match SvgScene.deserialize stored.Payload with
+        | Ok envelope when stored.SchemaVersion = 1 && stored.PayloadHash = hash envelope.Document ->
+            let operations =
+                [ SvgAuthoringOperation.ReplaceDocument envelope.Document
+                  SvgAuthoringOperation.ReplaceSceneMetadata envelope.Metadata
+                  for asset in envelope.Catalog.Assets do SvgAuthoringOperation.UpsertAsset asset
+                  for instance in envelope.Instances do SvgAuthoringOperation.PutInstance instance ]
+            commit "Persisted scene loaded" operations
+            authoredContent <- compileArenaContent state.Document |> Result.defaultWith failwith
+            playState <- ArenaRules.withDefinition authoredContent playState
+        | Ok _ -> announce "Validation error: persisted scene identity mismatch"
+        | Error issues -> announce(sprintf "Validation error: persisted scene refused: %A" issues)
+    | BrowserPersistenceEvent.Loaded(_, None) -> announce "No persisted scene"
+    | BrowserPersistenceEvent.Failed(_, failure) -> announce($"Persistence refused: {failure}")
+    | _ -> ()
+
+do persistence.Load storageKey
 
 let private verifyFont () =
     match SvgResourceInterchange.notoSansLatin400(notoBase64.Trim()) with
@@ -291,11 +421,17 @@ let private addControl name action =
   "Place two instances",placeInstances
   "Edit scene properties",editProperties
   "Author grid and freeform",authorGridAndFreeform
-  "Move playable hazard",movePlayableHazard
+  "Move playable hazard far away",fun () -> movePlayableHazard "Playable hazard moved far away" { Col = 18; Row = 10 }
+  "Scale and rotate playable hazard",scaleAndRotatePlayableHazard
+  "Move playable hazard into next step",fun () ->
+      let current = playState.Room.Players.["studio-player"].Cell
+      movePlayableHazard "Playable hazard moved into next step" { Col = current.Col + 1; Row = current.Row }
   "Play edited arena step",playEditedArenaStep
   "Create asset revision",reviseAsset
   "Resolve asset conflicts",resolveConflicts
-  "Save and reload scene",saveReload
+  "Validate scene round-trip",validateRoundTrip
+  "Save scene in browser",saveScene
+  "Export playable arena content",exportArenaContent
   "Verify Noto text",verifyFont
   "Run Boolean union",booleanGeometry
   "Migrate legacy content",migrateLegacy
@@ -321,9 +457,12 @@ let private snapshot () =
                 "instances" ==> state.Instances.Length; "entities" ==> state.Metadata.Entities.Length
                 "conflicts" ==> state.Conflicts.Length; "schema" ==> SvgScene.schema
                 "sceneId" ==> state.Metadata.SceneId; "documentId" ==> state.Document.Id
-                "contentHash" ==> hash state.Document; "playSourceHash" ==> playSourceHash
+                "contentHash" ==> hash state.Document; "playSourceHash" ==> playSourceHash; "exportedContentJson" ==> exportedContentJson
                 "viewBox" ==> $"{state.Document.ViewBox.X},{state.Document.ViewBox.Y},{state.Document.ViewBox.Width},{state.Document.ViewBox.Height}"
-                "playHealth" ==> playHealth; "playCollision" ==> playCollision
+                "playHealth" ==> playState.Status.Health; "playCollision" ==> playCollision
+                "playCanonicalState" ==> ArenaRules.canonicalState playState
+                "selectionCount" ==> host.Observe().SelectionCount; "activePlayPreview" ==> (host.Observe().ActiveGesture = Some playTransactionId)
+                "camera" ==> $"{retainedCamera.E},{retainedCamera.F}"
 #if SVG_INPUT_CANDIDATE
                 "workspaceMode" ==> workspaceMode host.WorkspaceState.Mode
                 "workspaceOverlay" ==> (host.WorkspaceState.Overlay |> Option.map string |> Option.defaultValue "")
@@ -350,4 +489,5 @@ window.addEventListener("beforeunload",fun _->
 #if SVG_INPUT_CANDIDATE
     inputAdapter |> Option.iter (fun value -> (value :> IDisposable).Dispose())
 #endif
+    (persistence :> IDisposable).Dispose()
     (host:>IDisposable).Dispose())

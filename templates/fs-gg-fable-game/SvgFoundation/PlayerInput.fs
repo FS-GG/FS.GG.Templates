@@ -19,8 +19,10 @@ let catalog =
           command "game.move-down" "Move down" CommandTriggerPolicy.RepeatWhileHeld
           command "game.move-left" "Move left" CommandTriggerPolicy.RepeatWhileHeld
           command "game.move-right" "Move right" CommandTriggerPolicy.RepeatWhileHeld
+#if LEGACY_SVG_PREVIEW
           command "game.stop" "Stop moving" CommandTriggerPolicy.OncePerPress
           command "game.pause" "Pause game" CommandTriggerPolicy.OncePerPress
+#endif
           command "game.interact" "Interact" CommandTriggerPolicy.OncePerPress
           command "game.restart" "Restart game" CommandTriggerPolicy.OncePerPress ]
       ReservedGestures = []
@@ -34,8 +36,10 @@ let profile =
           { Gesture = InputGesture.KeyChord(InputKeyIdentity.LogicalKey "s", CommandInput.noModifiers); Command = "game.move-down"; Context = "game.play" }
           { Gesture = InputGesture.KeyChord(InputKeyIdentity.LogicalKey "a", CommandInput.noModifiers); Command = "game.move-left"; Context = "game.play" }
           { Gesture = InputGesture.KeyChord(InputKeyIdentity.LogicalKey "d", CommandInput.noModifiers); Command = "game.move-right"; Context = "game.play" }
+#if LEGACY_SVG_PREVIEW
           { Gesture = InputGesture.KeyChord(InputKeyIdentity.PhysicalCode "Space", CommandInput.noModifiers); Command = "game.stop"; Context = "game.play" }
           { Gesture = InputGesture.KeyChord(InputKeyIdentity.LogicalKey "p", CommandInput.noModifiers); Command = "game.pause"; Context = "game.play" }
+#endif
           { Gesture = InputGesture.KeyChord(InputKeyIdentity.LogicalKey "e", CommandInput.noModifiers); Command = "game.interact"; Context = "game.play" }
           { Gesture = InputGesture.KeyChord(InputKeyIdentity.LogicalKey "r", CommandInput.noModifiers); Command = "game.restart"; Context = "game.play" }
           { Gesture = InputGesture.Pointer "move-up"; Command = "game.move-up"; Context = "game.play" }
@@ -43,7 +47,9 @@ let profile =
           { Gesture = InputGesture.Pointer "move-right"; Command = "game.move-right"; Context = "game.play" }
           { Gesture = InputGesture.Touch "move-left"; Command = "game.move-left"; Context = "game.play" }
           { Gesture = InputGesture.Gamepad "button-0"; Command = "game.move-up"; Context = "game.play" }
+#if LEGACY_SVG_PREVIEW
           { Gesture = InputGesture.Pointer "pause"; Command = "game.pause"; Context = "game.play" }
+#endif
           { Gesture = InputGesture.Pointer "interact"; Command = "game.interact"; Context = "game.play" }
           { Gesture = InputGesture.Pointer "restart"; Command = "game.restart"; Context = "game.play" } ]
       Overrides = [] }
