@@ -187,11 +187,11 @@ for family in chromium firefox webkit; do
   (cd "$out/direct/Browser.Tests" && node svg-input-observe.mjs "$family" http://127.0.0.1:8143/) >"$out/$family-input.json"
 done
 # Replay/rules and scale use the same installed Studio/Player bytes qualified above.
-cp "$root/tests/composition/fable-game/svg-replay-studio-observe.mjs" "$out/direct/Browser.Tests/"
+cp "$root/tests/composition/fable-game/svg-replay-studio-observe-v013.mjs" "$out/direct/Browser.Tests/"
 cp "$root/tests/composition/fable-game/svg-scale-observe.mjs" "$out/direct/Browser.Tests/"
 cp "$root/tests/composition/fable-game/svg-scale-measure.mjs" "$out/direct/Browser.Tests/"
 for family in chromium firefox webkit; do
-  (cd "$out/direct/Browser.Tests" && node svg-replay-studio-observe.mjs "$family" http://127.0.0.1:8143/) >"$out/$family-replay.json"
+  (cd "$out/direct/Browser.Tests" && node svg-replay-studio-observe-v013.mjs "$family" http://127.0.0.1:8143/) >"$out/$family-replay.json"
   (cd "$out/direct/Browser.Tests" && node svg-scale-observe.mjs "$family" http://127.0.0.1:8142/ http://127.0.0.1:8143/) >"$out/$family-scale.json"
 done
 (cd "$out/direct/Browser.Tests" && node svg-scale-measure.mjs http://127.0.0.1:8142/) >"$out/chromium-scale-measurement.json"
