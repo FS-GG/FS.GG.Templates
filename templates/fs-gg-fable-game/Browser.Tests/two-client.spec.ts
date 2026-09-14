@@ -116,9 +116,13 @@ test("two SVG arena clients observe the same authoritative move", async ({ brows
     await expect(pageA.locator('[data-scene-object-id="player"]')).toBeVisible();
     await expect(pageA.locator(`[data-scene-object-id="peer:${playerB}"]`)).toBeVisible();
     await expect(pageB.locator(`[data-scene-object-id="peer:${playerA}"]`)).toBeVisible();
-    const hazardRect = pageA.locator('[data-scene-object-id="hazard"] rect');
-    await expect(hazardRect).toHaveAttribute("x", await arenaA.getAttribute("data-authority-hazard-x") ?? "");
-    await expect(hazardRect).toHaveAttribute("y", await arenaA.getAttribute("data-authority-hazard-y") ?? "");
+    await expect.poll(() => pageA.evaluate(() => {
+      const host = document.querySelector("#foundation-continuous-host");
+      const hazard = document.querySelector('[data-scene-object-id="hazard"] rect');
+      return host !== null && hazard !== null
+        && hazard.getAttribute("x") === host.getAttribute("data-authority-hazard-x")
+        && hazard.getAttribute("y") === host.getAttribute("data-authority-hazard-y");
+    })).toBe(true);
     const startCol = Number(await arenaA.getAttribute("data-authority-self-col"));
     const startRow = Number(await arenaA.getAttribute("data-authority-self-row"));
     await arenaA.focus();

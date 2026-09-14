@@ -11,7 +11,8 @@ fi
 export NO_AT_BRIDGE=0 GTK_MODULES="${GTK_MODULES:-gail:atk-bridge}"
 gsettings set org.gnome.desktop.interface toolkit-accessibility true
 gsettings set org.gnome.desktop.a11y.applications screen-reader-enabled true
-orca --replace --debug --debug-file="$output.orca-debug.log" >"$output.orca.log" 2>&1 & orca_pid=$!
+/usr/bin/python3 "$script_dir/orca-faulthandler.py" --replace --debug \
+  --debug-file="$output.orca-debug.log" >"$output.orca.log" 2>&1 & orca_pid=$!
 sleep 3
 browser_bin="${PLAYWRIGHT_EXECUTABLE_PATH:-$(command -v chromium || command -v chromium-browser)}"
 browser_family="${SVG_ORCA_BROWSER_FAMILY:-chromium}"
@@ -28,7 +29,7 @@ else
 fi
 cleanup() { kill "$browser_pid" "$orca_pid" 2>/dev/null || true; }
 trap cleanup EXIT
-browser_window="$(xdotool search --sync --onlyvisible --class "$browser_class" | tail -1)"
+browser_window="$(timeout --signal=TERM --kill-after=5s 45s xdotool search --sync --onlyvisible --class "$browser_class" | tail -1)"
 xdotool windowfocus --sync "$browser_window"
 ORCA_PID="$orca_pid" BROWSER_PID="$browser_pid" SVG_ORCA_BROWSER_FAMILY="$browser_family" \
   /usr/bin/python3 "$script_dir/svg-input-orca.py" "$output"
