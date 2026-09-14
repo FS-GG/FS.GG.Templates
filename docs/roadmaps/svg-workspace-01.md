@@ -206,11 +206,12 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   `c6bc7a1625941a809ca93f036a6f7a85aa44db342338a2efb9e9f64ed9167cc5`.
   This repository's `tests/svg-workspace-sdd-receiver/receipt.json` binds public SDD 1.8.0 to exact
   Templates 0.14.0 candidate source `f4d2ee63a6e1200e733d7f36fdcbafa07c7907ef` and archive SHA-256
-  `0989aa2f1f251bf7e8df75a9c70db23fbd94031b17545639e33cbc0e40243041`. The executable readback
+  `6aebc9dc9db10767d9cd57f9cef3b6370cd801f3ba71c9769a524ad1d5ef5d0a`, retained by no-push
+  run `34850052710` as artifact `10350411116`. The executable readback
   verifies all five bundle selections across both configured agent roots, every selected owner file and
   sidecar, all unselected owner negatives, Game-first shared guidance, closed routine files, no-clobber
   repair and explicit legacy `svgFoundation=true/false` behavior without an injected bundle. Its receipt
-  SHA-256 is `b6b7af95664d14239123e2c32bd57a61b8919e9120313292f19f37382a294bd8`.
+  SHA-256 is `51c9510f42c206e6bfbd3c442684a31bc560e48e48c2e2ccacc4bf3f1367ee3d`.
   Universal ChangeProposal automation remains the explicitly unsupported future SDD #927 seam.
 
 - [ ] **SVG-WORKSPACE-01.3 — Compose the default SVG game and optional workspace bundles — route: routine**
