@@ -75,14 +75,19 @@ def tab_to(name, limit=80):
     observed = []
     for _ in range(limit):
         key("Tab")
-        item = focused()
-        if item is None:
-            continue
-        value = item.get_name() or ""
-        if value:
-            observed.append(value)
-        if value == name:
-            return item
+        for item in walk(Atspi.get_desktop(0)):
+            try:
+                if item.get_state_set().contains(Atspi.StateType.FOCUSED):
+                    value = item.get_name() or ""
+                    if value:
+                        observed.append(value)
+                    # Firefox can retain FOCUSED on an ancestor exposed later in
+                    # the tree. Assert the named target's own state rather than
+                    # selecting whichever focused object traversal visited last.
+                    if value == name:
+                        return item
+            except Exception:
+                pass
     raise RuntimeError(f"keyboard focus did not reach {name}; observed={observed[-20:]}")
 
 def wait_for_focus(name, role=None, timeout=10):
@@ -146,10 +151,15 @@ activate("Edit scene properties")
 find(None, contains="properties and grid edited")
 activate("Place two instances")
 find(None, contains="save the sample asset first")
-# Chromium maps aria-pressed workspace modes to AT-SPI toggle buttons and
+# The browser maps aria-pressed workspace modes to AT-SPI toggle buttons and
 # exposes the descriptive aria-label as their accessible name.
 activate("Arrange mode", role="toggle button")
 find(None, contains="Mode: Arrange")
+# Continue keyboard traversal through the replay panel, its first real action,
+# and the command-palette control. Each target's own FOCUSED state is observed,
+# so a retained focused ancestor cannot substitute for the requested control.
+tab_to("Replay timeline")
+tab_to("Replay complete arena recording")
 tab_to("Command palette")
 key("Return")
 find("dialog", name="Command palette")
@@ -159,8 +169,8 @@ wait_until_absent("dialog", "Command palette")
 # is exposed through Chromium AT-SPI as role=application with this exact label;
 # the similarly named document heading is not an acceptable substitute.
 wait_for_focus("Generated SVG scene studio", role="application")
-tab_to("Possible input help")
-key("Return")
+# WorkspaceInput declares help as the g,h sequence.
+key("g", "h")
 find("dialog", name="Possible input help")
 activate("Close workspace overlay")
 activate("Rebind command")

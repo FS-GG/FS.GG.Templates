@@ -219,12 +219,22 @@ test("two SVG arena clients observe the same authoritative move", async ({ brows
     const expectedBeforeReconnect = expectedConsole.length;
     await arenaA.evaluate(element => {
       element.focus();
+      const sockets = (window as unknown as { __fsggAuthoritySockets: WebSocket[] }).__fsggAuthoritySockets;
+      const socket = sockets.at(-1);
+      if (!socket) throw new Error("authority socket unavailable for controlled reconnect");
+      const send = socket.send.bind(socket);
+      let closedAtFirstSend = false;
+      socket.send = data => {
+        send(data);
+        if (!closedAtFirstSend) {
+          closedAtFirstSend = true;
+          socket.close(4000, "controlled reconnect after first queued send");
+        }
+      };
       for (let press = 0; press < 4; press += 1) {
         element.dispatchEvent(new KeyboardEvent("keydown", { key: "s", code: "KeyS", bubbles: true }));
         element.dispatchEvent(new KeyboardEvent("keyup", { key: "s", code: "KeyS", bubbles: true }));
       }
-      const sockets = (window as unknown as { __fsggAuthoritySockets: WebSocket[] }).__fsggAuthoritySockets;
-      sockets.at(-1)?.close(4000, "controlled reconnect");
     });
     await expect.poll(() => pageA.evaluate(() =>
       (window as unknown as { __fsggAuthoritySockets: WebSocket[] }).__fsggAuthoritySockets.length)).toBeGreaterThan(1);
