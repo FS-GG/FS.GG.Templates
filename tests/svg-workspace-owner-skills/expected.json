@@ -1,0 +1,64 @@
+{
+  "packages": [
+    {
+      "id": "FS.GG.Game.Skills",
+      "version": "0.9.0",
+      "sourceCommit": "e685f33a219830e18f204bb80d08ff16d0cd5727",
+      "contentRoot": "game-skills",
+      "publicArchiveSha256": "22ff41c29378bfe29704f9c01471c94fb06af6b74bb79417e5cc2c07ec915922",
+      "payloadEntries": 23,
+      "payloadSha256": "411ab06852dda8184c6fda5ff26bedf40149969c17339c51f6d3ede4e43296d1",
+      "focusedSkills": {
+        "fs-gg-replay": {
+          "sha256": "51a45640aa9ef2331186f526fc30e4a2627920ed27dd687c02266d0146982048",
+          "predicate": "template == fable-game"
+        },
+        "fs-gg-rules": {
+          "sha256": "c656c3b73d946d4ff92d547a92fba22aadcdb72c0edb85b59942aa95f9abf6bf",
+          "predicate": "template == fable-game and bundle in [tactical, complete]"
+        }
+      }
+    },
+    {
+      "id": "FS.GG.Rendering.Skills",
+      "version": "0.2.0",
+      "sourceCommit": "7ed2948b9fcc79f95e7ab2e0207b2540d77df361",
+      "contentRoot": "rendering-skills",
+      "publicArchiveSha256": "059ed3ef5f397c7735054b9233b0ddad57232df928812d6622b62397ed1bf558",
+      "payloadEntries": 32,
+      "payloadSha256": "1459bdcde2ac8ff8d8e1fb74adc5a91d3ac438489f272f47acbb2c0b8146f966",
+      "focusedSkills": {
+        "fs-gg-svg-assets": {
+          "sha256": "adccc361f6633585bf19218d94406bd15b1f001bf0d63d6ef40d821a7c6f4f82",
+          "predicate": "template == fable-game and bundle in [studio, tactical, arcade, complete]"
+        },
+        "fs-gg-svg-performance": {
+          "sha256": "9cd65f7b1b24053717a5ef4e0b3c36b866e559cb3f32e79a383173ba34f06536",
+          "predicate": "template == fable-game"
+        }
+      }
+    },
+    {
+      "id": "FS.GG.Audio.Skills",
+      "version": "0.1.0",
+      "sourceCommit": "5dc82cf258664bf839d355d13542a17e25b47d16",
+      "contentRoot": "audio-skills",
+      "publicArchiveSha256": "c2b8f88ddf62c9af39c31a199fd2767c7a00a8284de3e9867a22d63f9fad29ff",
+      "payloadEntries": 7,
+      "payloadSha256": "0f69b142bb769fc075341db3b92fbe039a9aa5813745306a60fa81e16900d3b9",
+      "focusedSkills": {
+        "fs-gg-browser-audio": {
+          "sha256": "07d9a0277044162611cffb20089577565fcc0ef802ac71f0cbc668cf70c0818c",
+          "predicate": "template == fable-game"
+        }
+      }
+    }
+  ],
+  "fableGameSelections": {
+    "player": ["fs-gg-feedback-report", "fs-gg-game-shell", "fs-gg-keyboard-input", "fs-gg-scene", "fs-gg-svg-performance", "fs-gg-testing", "fs-gg-collision", "fs-gg-game-core", "fs-gg-game-fable", "fs-gg-persistence", "fs-gg-replay", "fs-gg-browser-audio"],
+    "studio": ["fs-gg-feedback-report", "fs-gg-game-shell", "fs-gg-keyboard-input", "fs-gg-layout", "fs-gg-scene", "fs-gg-styling", "fs-gg-svg-assets", "fs-gg-svg-performance", "fs-gg-testing", "fs-gg-ui-widgets", "fs-gg-collision", "fs-gg-game-core", "fs-gg-game-fable", "fs-gg-persistence", "fs-gg-replay", "fs-gg-browser-audio"],
+    "tactical": ["fs-gg-feedback-report", "fs-gg-game-shell", "fs-gg-keyboard-input", "fs-gg-layout", "fs-gg-scene", "fs-gg-styling", "fs-gg-svg-assets", "fs-gg-svg-performance", "fs-gg-testing", "fs-gg-ui-widgets", "fs-gg-collision", "fs-gg-game-core", "fs-gg-game-fable", "fs-gg-persistence", "fs-gg-replay", "fs-gg-rules", "fs-gg-browser-audio"],
+    "arcade": ["fs-gg-feedback-report", "fs-gg-game-shell", "fs-gg-keyboard-input", "fs-gg-layout", "fs-gg-scene", "fs-gg-styling", "fs-gg-svg-assets", "fs-gg-svg-performance", "fs-gg-testing", "fs-gg-ui-widgets", "fs-gg-collision", "fs-gg-game-core", "fs-gg-game-fable", "fs-gg-persistence", "fs-gg-replay", "fs-gg-browser-audio"],
+    "complete": ["fs-gg-feedback-report", "fs-gg-game-shell", "fs-gg-keyboard-input", "fs-gg-layout", "fs-gg-scene", "fs-gg-styling", "fs-gg-svg-assets", "fs-gg-svg-performance", "fs-gg-testing", "fs-gg-ui-widgets", "fs-gg-collision", "fs-gg-game-core", "fs-gg-game-fable", "fs-gg-persistence", "fs-gg-replay", "fs-gg-rules", "fs-gg-browser-audio"]
+  }
+}

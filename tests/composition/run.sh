@@ -156,6 +156,13 @@ else
   bad "lifecycle provider/template contract failed"
 fi
 
+step "SVG workspace — immutable owner skills and bundle predicates (SVG-WORKSPACE-01.1)"
+if python3 "$REPO_ROOT/tests/svg-workspace-owner-skills/verify.py" "$WORKDIR/owner-skills"; then
+  ok "SVG workspace owner skill archives and selections hold"
+else
+  bad "SVG workspace owner skill archive or selection contract failed"
+fi
+
 # ── The template source tree's own build output leaves nothing behind (FS.GG.Templates#386) ───
 # HERE and not in a per-identity lane, for the reason the two neighbours above give: the subject is
 # the REPOSITORY's three content filters — `.gitignore`, the csproj pack `Exclude`, and every
