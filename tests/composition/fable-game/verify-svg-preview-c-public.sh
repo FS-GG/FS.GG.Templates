@@ -108,6 +108,14 @@ dotnet tool install FS.GG.SDD.Cli --version 1.7.0 --tool-path "$out/tools/sdd" -
 sdd="$out/tools/sdd/fsgg-sdd"
 scaffold() {
   local name="$1" lifecycle="$2" destination="$out/$1"; mkdir -p "$destination/.fsgg"; cp "$root/providers/fable-game.providers.yml" "$destination/.fsgg/providers.yml"
+  python3 - "$destination/.fsgg/providers.yml" "$template" <<'PY'
+from pathlib import Path
+import re, sys
+p=Path(sys.argv[1]); package=Path(sys.argv[2]).resolve(); text=p.read_text()
+text,count=re.subn(r'(?m)^(\s*source:\s*)FS\.GG\.Workspace\.Template::[^\s#]+(\s*(?:#.*)?)$',lambda m:f'{m.group(1)}{package}{m.group(2)}',text)
+if count != 1: raise SystemExit(f'{p}: expected exactly one FS.GG.Workspace.Template source, found {count}')
+p.write_text(text)
+PY
   params=(--param productName=PresentReceiver --param rootNamespace=PresentReceiver --param svgFoundation=true)
   [[ "$lifecycle" == omitted ]] || params+=(--param lifecycle="$lifecycle")
   "$sdd" scaffold --root "$destination" --provider fable-game --no-update --json "${params[@]}" >"$out/$name.json"
@@ -120,8 +128,9 @@ scaffold() {
 scaffold sdd-none none; scaffold sdd-default omitted; scaffold sdd-typed typed-sdd
 
 curl -fsSL --retry 3 "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.11.0/fs.gg.workspace.template.0.11.0.nupkg" -o "$out/feed/FS.GG.Workspace.Template.0.11.0.nupkg"
-dotnet new install "$out/feed/FS.GG.Workspace.Template.0.11.0.nupkg" --force >/dev/null
-dotnet new fs-gg-fable-game -n RetainedReceiver -o "$out/retained" --lifecycle none --svgFoundation true >/dev/null
+mkdir -p "$out/retained-0.11.0-home"
+DOTNET_CLI_HOME="$out/retained-0.11.0-home" dotnet new install "$out/feed/FS.GG.Workspace.Template.0.11.0.nupkg" --force >/dev/null
+DOTNET_CLI_HOME="$out/retained-0.11.0-home" dotnet new fs-gg-fable-game -n RetainedReceiver -o "$out/retained" --lifecycle none --svgFoundation true >/dev/null
 tree_sha() { (cd "$1" && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1); }
 authored="$(sha256sum "$out/retained/Domain/Room.fs" "$out/retained/Client/App.fs")"
 cp -a "$out/retained" "$out/collision"; printf '\nauthored collision\n' >>"$out/collision/SvgFoundation/Program.fs"; before="$(tree_sha "$out/collision")"

@@ -3,6 +3,8 @@
   "author": "FS-GG",
   "classifications": [ "FS-GG", "Game", "Fable", "ASP.NET Core", "SignalR" ],
   "identity": "FS.GG.Workspace.Template.FableGame",
+  "groupIdentity": "FS.GG.Workspace.Template.FableGame",
+  "precedence": 100,
   "name": "FS.GG server-authoritative Fable game web workspace",
   "shortName": "fs-gg-fable-game",
   "preferNameDirectory": true,
@@ -18,22 +20,55 @@
         "**/*.filelist",
         "**/*.user",
         "**/node_modules/**",
-        "**/.nuget/**"
+        "**/.nuget/**",
+        "Client/output/**",
+        "Client/dist/**",
+        "Browser.Tests/test-results/**",
+        "Browser.Tests/playwright-report/**",
+        "Protocol.Tests/cross-runtime/CodecProbe.Fable/output/**",
+        "Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js",
+        "SvgFoundation/output/**",
+        "SvgFoundation/dist/**",
+        "SvgFoundation/Studio/output/**",
+        "SvgFoundation/Studio/dist/**",
+        "SvgFoundation/Studio/vendor/**",
+        "SvgFoundation/Studio/.vite/**",
+        "SvgFoundation/Studio/ArenaContent.js",
+        "artifacts/**"
       ],
       "modifiers": [
         {
-          "condition": "(!svgFoundation)",
-          "exclude": [ "SvgFoundation/**" ]
+          "condition": "(bundle == \"player\")",
+          "exclude": [ "SvgFoundation/Studio/**" ]
+        },
+        {
+          "condition": "((bundle != \"tactical\") && (bundle != \"complete\"))",
+          "exclude": [ "SvgFoundation/Examples/Tactical/**", "SvgFoundation/TacticalCompatibility.fs" ]
+        },
+        {
+          "condition": "((bundle != \"arcade\") && (bundle != \"complete\"))",
+          "exclude": [ "SvgFoundation/Examples/Arcade/**" ]
+        },
+        {
+          "condition": "true",
+          "exclude": [ "SvgFoundation/PreviewDocument.fs", "SvgFoundation/PreviewFont.fs" ]
         }
       ]
     }
   ],
   "symbols": {
-    "svgFoundation": {
+    "bundle": {
       "type": "parameter",
-      "datatype": "bool",
-      "defaultValue": "false",
-      "description": "Include the opt-in retained SVG player fixture and separate studio source. Public 0.12.0 includes the coherent Preview-B player and separate Studio against exact stable producer pins."
+      "datatype": "choice",
+      "defaultValue": "player",
+      "description": "Generated SVG workspace composition. Omission creates the production player. Mutually exclusive with svgFoundation.",
+      "choices": [
+        { "choice": "player", "description": "Production cooperative SVG arena only (default)." },
+        { "choice": "studio", "description": "Arena plus Create/Arrange/Play/Review tools." },
+        { "choice": "tactical", "description": "Arena, Studio, and the editable tactical example." },
+        { "choice": "arcade", "description": "Arena, Studio, and the editable arcade example." },
+        { "choice": "complete", "description": "Arena, Studio, and both editable examples." }
+      ]
     },
     "lifecycle": {
       "type": "parameter",

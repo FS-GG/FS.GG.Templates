@@ -84,7 +84,7 @@ if hasFlag "--list" then printfn "skill-manifest\t%s\t" manifestRel; exit 0
 let catalog =
     [ "fable-project",  "template/product-skills/fable-project/SKILL.md",  [ "fs-gg-fable-game"; "fs-gg-fable-bindings" ]
       "fable-interop",  "template/product-skills/fable-interop/SKILL.md",  [ "fs-gg-fable-game"; "fs-gg-fable-bindings" ]
-      "fable-remoting", "template/product-skills/fable-remoting/SKILL.md", [ "fs-gg-fable-game" ]
+      "fable-http-codecs", "template/product-skills/fable-http-codecs/SKILL.md", [ "fs-gg-fable-game" ]
       "fable-signalr",  "template/product-skills/fable-signalr/SKILL.md",  [ "fs-gg-fable-game" ]
       "fable-testing",  "template/product-skills/fable-testing/SKILL.md",  [ "fs-gg-fable-game"; "fs-gg-fable-bindings" ]
       "fable-bindings", "template/product-skills/fable-bindings/SKILL.md", [ "fs-gg-fable-bindings" ] ]

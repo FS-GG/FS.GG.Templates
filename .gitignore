@@ -38,6 +38,18 @@ __pycache__/
 # .nuspec/.sha512/lib payload beside them is what `git status` reported.
 .nuget/
 node_modules/
+/templates/fs-gg-fable-game/SvgFoundation/output/
+/templates/fs-gg-fable-game/SvgFoundation/dist/
+/templates/fs-gg-fable-game/SvgFoundation/Studio/output/
+/templates/fs-gg-fable-game/SvgFoundation/Studio/dist/
+/templates/fs-gg-fable-game/SvgFoundation/Studio/vendor/
+/templates/fs-gg-fable-game/SvgFoundation/Studio/ArenaContent.js
+/templates/fs-gg-fable-game/artifacts/
+/templates/fs-gg-fable-game/Client/output/
+/templates/fs-gg-fable-game/Client/dist/
+/templates/fs-gg-fable-game/Browser.Tests/test-results/
+/templates/fs-gg-fable-game/Browser.Tests/playwright-report/
+/templates/fs-gg-fable-game/SvgFoundation/Studio/.vite/
 /templates/fs-gg-fable-bindings/generated-candidates/xantham/runs/
 
 # Templates-local: packaging + editor cruft.

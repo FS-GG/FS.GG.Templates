@@ -4,9 +4,26 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 out="${1:?empty output directory required}"
 [[ ! -e "$out" ]]
 mkdir -p "$out/feed"
-template="$out/feed/FS.GG.Workspace.Template.0.13.0.nupkg"
 dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/feed" -p:ContinuousIntegrationBuild=true >/dev/null
-[[ -f "$template" ]]
+mapfile -t templates < <(find "$out/feed" -maxdepth 1 -type f -name 'FS.GG.Workspace.Template.*.nupkg' -print)
+[[ "${#templates[@]}" == 1 ]] || { echo "expected exactly one packed Templates candidate, found ${#templates[@]}" >&2; exit 1; }
+template="${templates[0]}"
+template_version="$(python3 - "$template" <<'PYVERSION'
+from pathlib import Path
+from zipfile import ZipFile
+import re, sys
+archive = Path(sys.argv[1])
+with ZipFile(archive) as package:
+    nuspecs = [name for name in package.namelist() if name.endswith('.nuspec')]
+    if len(nuspecs) != 1:
+        raise SystemExit(f'{archive}: expected one nuspec, found {len(nuspecs)}')
+    metadata = package.read(nuspecs[0]).decode('utf-8-sig')
+match = re.search(r'<id>FS\.GG\.Workspace\.Template</id>.*?<version>([^<]+)</version>', metadata, re.S)
+if not match:
+    raise SystemExit(f'{archive}: package identity/version missing')
+print(match.group(1))
+PYVERSION
+)"
 rendering_version=0.31.0
 game_version=0.16.0
 net_version=0.6.0
@@ -59,8 +76,11 @@ scaffold() {
   local name="$1" lifecycle="$2" destination="$out/$1"; mkdir -p "$destination/.fsgg"; cp "$root/providers/fable-game.providers.yml" "$destination/.fsgg/providers.yml"
   python3 - "$destination/.fsgg/providers.yml" "$template" <<'PY'
 from pathlib import Path
-import sys
-p=Path(sys.argv[1]); p.write_text(p.read_text().replace('source: FS.GG.Workspace.Template::0.13.0',f'source: {Path(sys.argv[2]).resolve()}'))
+import re, sys
+p=Path(sys.argv[1]); package=Path(sys.argv[2]).resolve(); text=p.read_text()
+text,count=re.subn(r'(?m)^(\s*source:\s*)FS\.GG\.Workspace\.Template::[^\s#]+(\s*(?:#.*)?)$',lambda m:f'{m.group(1)}{package}{m.group(2)}',text)
+if count != 1: raise SystemExit(f'{p}: expected exactly one FS.GG.Workspace.Template source, found {count}')
+p.write_text(text)
 PY
   params=(--param productName=PresentReceiver --param rootNamespace=PresentReceiver --param svgFoundation=true)
   [[ "$lifecycle" == omitted ]] || params+=(--param lifecycle="$lifecycle")
@@ -71,8 +91,9 @@ PY
 scaffold sdd-none none; scaffold sdd-default omitted; scaffold sdd-typed typed-sdd
 
 curl -fsSL --retry 3 "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.11.0/fs.gg.workspace.template.0.11.0.nupkg" -o "$out/feed/FS.GG.Workspace.Template.0.11.0.nupkg"
-dotnet new install "$out/feed/FS.GG.Workspace.Template.0.11.0.nupkg" --force >/dev/null
-dotnet new fs-gg-fable-game -n RetainedReceiver -o "$out/retained" --lifecycle none --svgFoundation true >/dev/null
+mkdir -p "$out/retained-0.11.0-home"
+DOTNET_CLI_HOME="$out/retained-0.11.0-home" dotnet new install "$out/feed/FS.GG.Workspace.Template.0.11.0.nupkg" --force >/dev/null
+DOTNET_CLI_HOME="$out/retained-0.11.0-home" dotnet new fs-gg-fable-game -n RetainedReceiver -o "$out/retained" --lifecycle none --svgFoundation true >/dev/null
 tree_sha() { (cd "$1" && find . -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | cut -d' ' -f1); }
 authored="$(sha256sum "$out/retained/Domain/Room.fs" "$out/retained/Client/App.fs")"
 cp -a "$out/retained" "$out/collision"; printf '\nauthored collision\n' >>"$out/collision/SvgFoundation/Program.fs"; before="$(tree_sha "$out/collision")"
@@ -140,6 +161,11 @@ done
 dotnet test "$out/direct/Server.Tests/Server.Tests.fsproj" -c Release -p:RestoreLockedMode=true >"$out/network-tests.log"
 (cd "$out/direct/Client" && npm ci >/dev/null && npm run build >/dev/null)
 dotnet publish "$out/direct/Server/Server.fsproj" -c Release --no-restore -o "$out/network-publish" >/dev/null
+# This journey exercises the frozen V1 client against the shared server. The
+# selected SVG preview was served above; replace only this private publish's
+# static root with the already-built V1 client so protocol behavior is explicit.
+find "$out/network-publish/wwwroot" -mindepth 1 -delete
+cp -R "$out/direct/Client/dist/." "$out/network-publish/wwwroot/"
 cp "$root/tests/composition/fable-game/svg-network-observe.mjs" "$out/direct/Browser.Tests/"
 network_server=''
 for family in chromium firefox webkit; do
@@ -149,5 +175,5 @@ for family in chromium firefox webkit; do
   kill "$network_server"; wait "$network_server" 2>/dev/null || true; network_server=''
 done
 browser_evidence_sha="$(cat "$out"/*-present.json "$out"/*-authoring.json "$out"/*-input.json "$out"/*-replay.json "$out"/*-scale.json "$out"/*-network.json | sha256sum | cut -d' ' -f1)"
-jq -n --arg templateSha "$(sha256sum "$template" | cut -d' ' -f1)" --arg browserEvidenceSha "$browser_evidence_sha" --slurpfile c "$out/chromium-present.json" --slurpfile f "$out/firefox-present.json" --slurpfile w "$out/webkit-present.json" '{schema:"fsgg.svg-preview-c.source-qualification/v1",template:{version:"0.13.0",sha256:$templateSha},publicProducers:{rendering:"0.31.0",game:"0.16.0",net:"0.6.0",audio:"0.6.0"},routes:{direct:"passed",sdd17:{none:"passed",default:"passed",typed:"passed"},wizard0111Adopter:"passed",retained010to012:"passed"},browser:{chromium:$c[0],firefox:$f[0],webkit:$w[0],authoringInputEvidenceSha256:$browserEvidenceSha},presentation:{animation:"passed",reducedMotion:"passed",gestureAudio:"passed",liveCueSeekPolicy:"passed",autosaveRecovery:"passed",reload:"passed",archive:"passed"},replay:{equality:"passed",divergence:"passed",rules:"passed",studioOnly:"passed"},network:{authority:"passed",twoBrowser:"passed",reconnect:"passed",review:"passed"},scale:{dense:"passed",worldExtent:"passed",responsive:"passed",accessibility:"passed"},apiMirror:{candidateOmissions:0,status:"passed"},adopter:{collision:"refused-without-write",interruption:"rolled-back",rollback:"byte-identical",authoredFiles:"preserved"},publication:false,producerDistribution:"public-nuget-only"}' >"$out/qualification.json"
+jq -n --arg templateVersion "$template_version" --arg templateSha "$(sha256sum "$template" | cut -d' ' -f1)" --arg browserEvidenceSha "$browser_evidence_sha" --slurpfile c "$out/chromium-present.json" --slurpfile f "$out/firefox-present.json" --slurpfile w "$out/webkit-present.json" '{schema:"fsgg.svg-preview-c.source-qualification/v1",template:{version:$templateVersion,sha256:$templateSha},publicProducers:{rendering:"0.31.0",game:"0.16.0",net:"0.6.0",audio:"0.6.0"},routes:{direct:"passed",sdd17:{none:"passed",default:"passed",typed:"passed"},wizard0111Adopter:"passed",retained010to012:"passed"},browser:{chromium:$c[0],firefox:$f[0],webkit:$w[0],authoringInputEvidenceSha256:$browserEvidenceSha},presentation:{animation:"passed",reducedMotion:"passed",gestureAudio:"passed",liveCueSeekPolicy:"passed",autosaveRecovery:"passed",reload:"passed",archive:"passed"},replay:{equality:"passed",divergence:"passed",rules:"passed",studioOnly:"passed"},network:{authority:"passed",twoBrowser:"passed",reconnect:"passed",review:"passed"},scale:{dense:"passed",worldExtent:"passed",responsive:"passed",accessibility:"passed"},apiMirror:{candidateOmissions:0,status:"passed"},adopter:{collision:"refused-without-write",interruption:"rolled-back",rollback:"byte-identical",authoredFiles:"preserved"},publication:false,producerDistribution:"public-nuget-only"}' >"$out/qualification.json"
 echo "svg-preview-c-source: passed; evidence=$out/qualification.json"

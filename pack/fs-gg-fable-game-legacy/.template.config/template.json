@@ -1,0 +1,181 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "FS-GG",
+  "classifications": [
+    "FS-GG",
+    "Game",
+    "Fable",
+    "ASP.NET Core",
+    "SignalR"
+  ],
+  "identity": "FS.GG.Workspace.Template.FableGame.LegacySvgFoundation",
+  "groupIdentity": "FS.GG.Workspace.Template.FableGame",
+  "precedence": 0,
+  "name": "FS.GG server-authoritative Fable game web workspace (legacy SVG selector)",
+  "shortName": "fs-gg-fable-game",
+  "preferNameDirectory": true,
+  "sources": [
+    {
+      "source": "./",
+      "target": "./",
+      "//": "This `exclude` list is the template engine's own default list MINUS `**/*.lock.json`, and it exists to keep that one pattern off (FS.GG.Templates#380). The default is not inert: it silently stripped every committed `packages.lock.json` out of each generated workspace, so the reviewed lock could never reach a product. Combined with `Directory.Build.props`'s `RestorePackagesWithLockFile=true`, the product's FIRST restore then AUTHORED its own lock from whatever the ambient host happened to resolve, and `RestoreLockedMode=true` enforced that unreviewed lock forever after — surfacing as `NU1403: Package content hash validation failed` the moment the ambient content moved. Declaring `exclude` here REPLACES the engine default wholesale, so every other default pattern below must be restated verbatim; they are copied from the engine's own defaults (dotnet SDK 10.0.302, Microsoft.TemplateEngine.Orchestrator.RunnableProjects). Removing a line here ships build output into products; adding `**/*.lock.json` back re-opens #380. `**/node_modules/**` IS NOT ONE OF THOSE DEFAULTS, and an earlier draft of this comment said it was (FS.GG.Templates#386). The `strings -el` reading that put it among them is a false positive — it sits adjacent to the six real defaults in the binary's string pool, not in the effective list. MEASURED on dotnet SDK 10.0.302 by instantiating a template that declares no `sources` block at all, with one file per claimed pattern seeded at two depths: `bin`, `obj`, `.template.config`, `*.filelist`, `*.user` and `*.lock.json` were filtered at BOTH depths; `node_modules/` was DELIVERED at both. So this line is a NEW guard that never existed — the engine never protected this template, and this is an npm workspace (`Client/`, `Browser.Tests/`) whose `@babylonjs`/Playwright/Vite closure runs to hundreds of megabytes. Measured for this template specifically: a package packed with `Client/node_modules/` present delivered it into the product. `**/.nuget/**` is the ONE pattern in this list that is NOT an engine default, and it is added deliberately (#386): the very `RestorePackagesPath` this template sets (#382) means the regeneration command this template's README documents materializes a workspace-local package folder INSIDE the template source — measured at 118M — and the engine, which knows nothing about that property, delivered it into every generated product. The four templates' lists are identical by intent; `tests/composition/lib/content-exclusions.sh` reds if any of them stops filtering either directory.",
+      "exclude": [
+        "**/[Bb]in/**",
+        "**/[Oo]bj/**",
+        "**/.template.config/**",
+        "**/*.filelist",
+        "**/*.user",
+        "**/node_modules/**",
+        "**/.nuget/**",
+        "Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js",
+        "SvgFoundation/output/**",
+        "SvgFoundation/dist/**",
+        "SvgFoundation/Studio/output/**",
+        "SvgFoundation/Studio/dist/**",
+        "SvgFoundation/Studio/vendor/**",
+        "SvgFoundation/Studio/ArenaContent.js",
+        "artifacts/**"
+      ],
+      "modifiers": [
+        {
+          "condition": "(svgFoundation == false)",
+          "exclude": [
+            "SvgFoundation/**"
+          ]
+        }
+      ]
+    }
+  ],
+  "symbols": {
+    "svgFoundation": {
+      "type": "parameter",
+      "datatype": "choice",
+      "description": "Compatibility flag for pre-0.14 callers. Explicit true selects the retained preview-compatible complete composition; explicit false retains the non-SVG product.",
+      "choices": [
+        {
+          "choice": "true",
+          "description": "Retained preview-compatible complete SVG composition."
+        },
+        {
+          "choice": "false",
+          "description": "Retained pre-0.14 non-SVG product."
+        }
+      ],
+      "isRequired": true
+    },
+    "lifecycle": {
+      "type": "parameter",
+      "datatype": "choice",
+      "defaultValue": "sdd",
+      "description": "Lifecycle lane forwarded by fsgg-sdd; the orchestrator owns lifecycle artifacts.",
+      "choices": [
+        {
+          "choice": "none",
+          "description": "Product files only; no SDD lifecycle tree."
+        },
+        {
+          "choice": "sdd",
+          "description": "Standard SDD lifecycle (default)."
+        },
+        {
+          "choice": "typed-sdd",
+          "description": "Standard SDD plus the Typed Protocol Kernel."
+        },
+        {
+          "choice": "spec-kit",
+          "description": "Legacy Spec Kit lifecycle (retiring; compatibility only)."
+        }
+      ]
+    },
+    "productName": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "",
+      "description": "Raw product name used in paths and display text. When omitted, --name supplies it."
+    },
+    "productNameTrimmed": {
+      "type": "generated",
+      "generator": "regex",
+      "dataType": "string",
+      "parameters": {
+        "source": "productName",
+        "steps": [
+          {
+            "regex": "^\\s+|\\s+$",
+            "replacement": ""
+          }
+        ]
+      }
+    },
+    "effectiveName": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": {
+        "sourceVariableName": "productNameTrimmed",
+        "fallbackVariableName": "name"
+      },
+      "replaces": "FableGameWorkspace",
+      "fileRename": "FableGameWorkspace"
+    },
+    "effectiveNameLower": {
+      "type": "generated",
+      "generator": "casing",
+      "parameters": {
+        "source": "effectiveName",
+        "toLower": true
+      },
+      "replaces": "fablegameworkspace"
+    },
+    "rootNamespace": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "",
+      "description": "Optional valid F# identifier supplied by an SDD provider."
+    },
+    "rootNamespaceTrimmed": {
+      "type": "generated",
+      "generator": "regex",
+      "dataType": "string",
+      "parameters": {
+        "source": "rootNamespace",
+        "steps": [
+          {
+            "regex": "^\\s+|\\s+$",
+            "replacement": ""
+          }
+        ]
+      }
+    },
+    "effectiveIdentifier": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": {
+        "sourceVariableName": "rootNamespaceTrimmed",
+        "fallbackVariableName": "effectiveName"
+      },
+      "replaces": "FableGameWorkspaceNamespace"
+    }
+  },
+  "specialCustomOperations": {
+    "**/*.fs": {
+      "operations": [
+        {
+          "type": "conditional",
+          "configuration": {
+            "if": [],
+            "else": [],
+            "elseif": [],
+            "endif": [],
+            "actionableIf": [],
+            "actionableElse": [],
+            "actionableElseif": [],
+            "actions": [],
+            "trim": false,
+            "wholeLine": false,
+            "evaluator": "C++"
+          }
+        }
+      ]
+    }
+  }
+}

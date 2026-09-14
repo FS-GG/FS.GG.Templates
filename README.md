@@ -235,7 +235,7 @@ a republish — the `FS.GG.UI.*` family already ships as one locked set behind
 
 ### Owner-sourced product skills for the Fable workspaces
 
-The generic Fable product skills — `fable-project`, `fable-interop`, `fable-remoting`,
+The generic Fable product skills — `fable-project`, `fable-interop`, `fable-http-codecs`,
 `fable-signalr`, `fable-testing`, `fable-bindings` — are **authored once**, under
 `template/product-skills/`, and **projected** into each provider template's packed
 `.agents/skills/` payload by package items in `FS.GG.Templates.csproj`. Nothing is copied into
@@ -378,7 +378,7 @@ note below before bumping; `dotnet new update` does **not** cross a package-id r
 | **rendering** *(unchanged)* | `fs-gg-ui` | `providers/rendering.providers.yml` | the Skia/Elmish app, installed live from `FS.GG.UI.Template` (this package ships no copy of it). |
 
 **Owner-sourced product skills.** The Fable identities ship the generic Fable product skills —
-`fable-project`, `fable-interop`, `fable-remoting`, `fable-signalr`, `fable-testing`,
+`fable-project`, `fable-interop`, `fable-http-codecs`, `fable-signalr`, `fable-testing`,
 `fable-bindings` — projected into each template's packed `.agents/skills/` payload with the
 producer manifest that digests them (see *Owner-sourced product skills* above). `fs-gg-fable-game`
 receives five, `fs-gg-fable-bindings` four; each row's `materializes-when` in

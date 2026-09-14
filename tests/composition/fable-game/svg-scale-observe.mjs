@@ -5,7 +5,8 @@ const playerAddress = process.argv[3];
 const studioAddress = process.argv[4];
 const engine = { chromium, firefox, webkit }[family];
 if (!engine || !playerAddress || !studioAddress) throw new Error('usage: node svg-scale-observe.mjs <family> <player-url> <studio-url>');
-const browser = await engine.launch({ headless: true });
+const external = family === 'chromium' ? process.env.PLAYWRIGHT_EXECUTABLE_PATH : family === 'firefox' ? process.env.PLAYWRIGHT_FIREFOX_EXECUTABLE_PATH : process.env.PLAYWRIGHT_WEBKIT_EXECUTABLE_PATH;
+const browser = await engine.launch({ headless: true, executablePath: external || undefined });
 try {
   const desktop = await browser.newContext({ viewport: { width: 1280, height: 720 } });
   const player = await desktop.newPage();

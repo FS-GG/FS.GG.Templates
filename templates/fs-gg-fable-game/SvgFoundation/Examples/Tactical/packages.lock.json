@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "FS.GG.UI.Scene": {
+        "type": "Direct",
+        "requested": "[0.30.0, 0.30.0]",
+        "resolved": "0.30.0",
+        "contentHash": "Hv1XQvvhQKpWOzcHBJvSa8YEo4RGFpvRhUJ/evD3cELFcnpimyRw+Q93sbMaMHjzrD+CTH5ifT3akasKkxrCDw==",
+        "dependencies": {
+          "FSharp.Core": "10.1.302"
+        }
+      },
+      "FSharp.Core": {
+        "type": "Direct",
+        "requested": "[10.1.400, 10.1.400]",
+        "resolved": "10.1.400",
+        "contentHash": "H9wlZ/tWgNp+Q4WQ5aUSi3XOBXrL6z+UkR0PNeyDFyoZR3c3PbtA21B9FqlthrhEwQ6f5AtQV0JLhBBDqjjscw=="
+      }
+    }
+  }
+}

@@ -58,7 +58,8 @@ test -f "$work/scaffold/Browser.Tests/package-lock.json"
 (
   cd "$work/scaffold"
   bash ./build.sh
-  test -f artifacts/publish/wwwroot/index.html
+  test -f artifacts/static-player/index.html
+  test -f artifacts/authority-server/Server.dll
   test -s artifacts/test-results/domain.trx
   test -s artifacts/test-results/protocol.trx
   test -s artifacts/test-results/server.trx

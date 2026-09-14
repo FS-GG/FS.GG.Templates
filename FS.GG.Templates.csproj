@@ -8,10 +8,9 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Workspace.Template</PackageId>
-    <!-- 0.12.0 → 0.13.0 publishes the opt-in SVG replay, authoritative network,
-         reconnect/review, and scale composition against its coherent public producers.
-         The package id, five template identities, and default generated product remain stable. -->
-    <Version>0.13.0</Version>
+    <!-- 0.14.0 composes the qualified SVG player as the fable-game product default and
+         adds explicit player/studio/tactical/arcade/complete bundle selection. -->
+    <Version>0.14.0</Version>
     <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new workspace templates for FS.GG.SDD: governance, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</Description>
@@ -64,7 +63,17 @@
        and reds if any of the three legs stops filtering. -->
   <ItemGroup>
     <Content Include="templates/**/*"
-             Exclude="templates/**/bin/**;templates/**/obj/**;templates/**/.nuget/**;templates/**/node_modules/**;templates/fs-gg-fable-bindings/generated-candidates/xantham/runs/**" />
+             Exclude="templates/**/bin/**;templates/**/obj/**;templates/**/.nuget/**;templates/**/node_modules/**;templates/**/output/**;templates/**/dist/**;templates/fs-gg-fable-game/Client/output/**;templates/fs-gg-fable-game/Client/dist/**;templates/fs-gg-fable-game/Browser.Tests/test-results/**;templates/fs-gg-fable-game/Browser.Tests/playwright-report/**;templates/fs-gg-fable-game/Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js;templates/fs-gg-fable-game/SvgFoundation/output/**;templates/fs-gg-fable-game/SvgFoundation/dist/**;templates/fs-gg-fable-game/SvgFoundation/Studio/output/**;templates/fs-gg-fable-game/SvgFoundation/Studio/dist/**;templates/fs-gg-fable-game/SvgFoundation/Studio/vendor/**;templates/fs-gg-fable-game/SvgFoundation/Studio/.vite/**;templates/fs-gg-fable-game/SvgFoundation/Studio/ArenaContent.js;templates/fs-gg-fable-game/artifacts/**;templates/fs-gg-fable-bindings/generated-candidates/xantham/runs/**" />
+    <!-- The legacy selector is a separate member of the same template group. Each member
+         owns one public composition parameter, so supplying both matches neither template
+         and the CLI refuses before instantiation on argv and response-file surfaces. -->
+    <Content Include="templates/fs-gg-fable-game/**/*"
+             Exclude="templates/fs-gg-fable-game/.template.config/**;templates/**/bin/**;templates/**/obj/**;templates/**/.nuget/**;templates/**/node_modules/**;templates/**/output/**;templates/**/dist/**;templates/fs-gg-fable-game/Client/output/**;templates/fs-gg-fable-game/Client/dist/**;templates/fs-gg-fable-game/Browser.Tests/test-results/**;templates/fs-gg-fable-game/Browser.Tests/playwright-report/**;templates/fs-gg-fable-game/Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js;templates/fs-gg-fable-game/SvgFoundation/output/**;templates/fs-gg-fable-game/SvgFoundation/dist/**;templates/fs-gg-fable-game/SvgFoundation/Studio/output/**;templates/fs-gg-fable-game/SvgFoundation/Studio/dist/**;templates/fs-gg-fable-game/SvgFoundation/Studio/vendor/**;templates/fs-gg-fable-game/SvgFoundation/Studio/.vite/**;templates/fs-gg-fable-game/SvgFoundation/Studio/ArenaContent.js;templates/fs-gg-fable-game/artifacts/**"
+             PackagePath="content/templates/fs-gg-fable-game-legacy/%(RecursiveDir)%(Filename)%(Extension)" />
+    <Content Include="pack/fs-gg-fable-game-legacy/.template.config/template.json"
+             PackagePath="content/templates/fs-gg-fable-game-legacy/.template.config/template.json" />
+    <Content Include="pack/fs-gg-fable-game-legacy/SvgFoundation/LegacyPreview.props"
+             PackagePath="content/templates/fs-gg-fable-game-legacy/SvgFoundation/LegacyPreview.props" />
     <None Include="README.md" Pack="true" PackagePath="\" />
     <Compile Remove="**/*" />
   </ItemGroup>
@@ -108,8 +117,8 @@
           PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-project/;content/templates/fs-gg-fable-bindings/.agents/skills/fable-project/" />
     <None Include="template/product-skills/fable-interop/SKILL.md" Pack="true"
           PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-interop/;content/templates/fs-gg-fable-bindings/.agents/skills/fable-interop/" />
-    <None Include="template/product-skills/fable-remoting/SKILL.md" Pack="true"
-          PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-remoting/" />
+    <None Include="template/product-skills/fable-http-codecs/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-http-codecs/" />
     <None Include="template/product-skills/fable-signalr/SKILL.md" Pack="true"
           PackagePath="content/templates/fs-gg-fable-game/.agents/skills/fable-signalr/" />
     <None Include="template/product-skills/fable-testing/SKILL.md" Pack="true"

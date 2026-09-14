@@ -83,8 +83,32 @@ for case_name in input sessionHello snapshot presence resyncRequest resyncSnapsh
   expect_ok "realtime[$case_name]: net decodes fable's encoding" net decode-realtime "$case_name" "$TMP/rt-fable-$case_name.json"
 done
 
+# The cooperative arena's complete V2 state, including content geometry and round
+# identity, receives the same bidirectional proof without weakening frozen V1.
+for case_name in input sessionHello snapshot presence resyncRequest resyncSnapshot; do
+  expect_ok "realtime-v2[$case_name]: net encode" net encode-realtime-v2 "$case_name" "$TMP/rt2-net-$case_name.json"
+  expect_ok "realtime-v2[$case_name]: fable decodes net's encoding" fbl decode-realtime-v2 "$case_name" "$TMP/rt2-net-$case_name.json"
+  expect_ok "realtime-v2[$case_name]: fable encode" fbl encode-realtime-v2 "$case_name" "$TMP/rt2-fable-$case_name.json"
+  expect_ok "realtime-v2[$case_name]: net decodes fable's encoding" net decode-realtime-v2 "$case_name" "$TMP/rt2-fable-$case_name.json"
+done
+
 # The explicit rejected-arbitrary-DU-case proof, independently on both runtimes.
 expect_ok "rejected cases: net rejects both malformed cases" net decode-rejected-cases
 expect_ok "rejected cases: fable rejects both malformed cases" fbl decode-rejected-cases
 
-echo "cross-runtime: OK - every DTO round-tripped net<->fable in both directions, including the rejected-case proof on both runtimes"
+expect_ok "arena rules/session/replay: net complete sequence" net write-arena-proof "$TMP/arena-net.txt"
+expect_ok "arena rules/session/replay: net complete sequence under de-DE" net write-arena-proof-de "$TMP/arena-net-de.txt"
+expect_ok "arena rules/session/replay: fable complete sequence" fbl write-arena-proof "$TMP/arena-fable.txt"
+cmp "$TMP/arena-net.txt" "$TMP/arena-net-de.txt" || {
+  echo "cross-runtime: FAILED - ArenaRules replay bytes depend on .NET culture" >&2
+  diff -u "$TMP/arena-net.txt" "$TMP/arena-net-de.txt" >&2 || true
+  exit 1
+}
+cmp "$TMP/arena-net.txt" "$TMP/arena-fable.txt" || {
+  echo "cross-runtime: FAILED - ArenaRules/SessionContract replay bytes differ between .NET and Fable" >&2
+  diff -u "$TMP/arena-net.txt" "$TMP/arena-fable.txt" >&2 || true
+  exit 1
+}
+echo "cross-runtime: OK - ArenaRules movement/contact/Interact/win/Restart and complete replay bytes match"
+
+echo "cross-runtime: OK - DTO codecs and complete ArenaRules session/replay agree across .NET and Fable"

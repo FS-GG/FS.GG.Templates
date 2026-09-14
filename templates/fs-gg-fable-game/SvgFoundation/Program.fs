@@ -5,7 +5,9 @@ open Browser.Types
 open Fable.Core.JsInterop
 open FS.GG.UI.Scene
 open FS.GG.UI.Scene.SvgBrowser
+#if LEGACY_SVG_PREVIEW
 open FableGameWorkspaceNamespace.TacticalCompatibility
+#endif
 #if SVG_INPUT_CANDIDATE
 open FS.GG.UI.KeyboardInput
 module GameInput = FableGameWorkspaceNamespace.SvgFoundation.PlayerInput
@@ -13,6 +15,9 @@ module GameInput = FableGameWorkspaceNamespace.SvgFoundation.PlayerInput
 #if SVG_RUNTIME_CANDIDATE
 open FS.GG.Game.Core
 module ContinuousPlayer = FableGameWorkspaceNamespace.SvgFoundation.ContinuousPlayer
+#if !LEGACY_SVG_PREVIEW
+module SvgAuthority = FableGameWorkspaceNamespace.SvgAuthority
+#endif
 #endif
 #if SVG_PRESENT_CANDIDATE
 open FS.GG.Audio.Core
@@ -43,6 +48,22 @@ let private stroke value width =
       ImageFilter = ImageFilter.NoImageFilter
       PathEffect = PathEffect.NoPathEffect }
 
+let private mount id label scene =
+    let container = document.createElement("section")
+    container.id <- id
+    document.body.appendChild(container) |> ignore
+    match SvgBrowser.mount container
+              { Width = 220.0; Height = 140.0; AccessibleLabel = label; WheelZoomFactor = 1.1 }
+              scene ignore with
+    | Ok host -> host
+    | Error error -> failwithf "SVG product failed to mount: %A" error
+
+let private requireTransition name (result: RetainedInteractionResult) =
+    match result.Error with
+    | None -> ()
+    | Some error -> failwithf "SVG product %s transition failed: %A" name error
+
+#if LEGACY_SVG_PREVIEW
 let gridScene =
     { RootId = "foundation-grid"
       Revision = 0
@@ -79,24 +100,20 @@ let tacticalCompatibilityScene = (characterizedProjection 41 "shared-scene:41" |
 
 let _, previewExport, previewState = PreviewDocument.verifyPortable ()
 
-let private mount id label scene =
-    let container = document.createElement("section")
-    container.id <- id
-    document.body.appendChild(container) |> ignore
-    match SvgBrowser.mount container
-              { Width = 220.0; Height = 140.0; AccessibleLabel = label; WheelZoomFactor = 1.1 }
-              scene ignore with
-    | Ok host -> host
-    | Error error -> failwithf "SVG foundation fixture failed to mount: %A" error
-
 let gridHost = mount "foundation-grid-host" "Neutral grid fixture" gridScene
+#endif
 #if SVG_RUNTIME_CANDIDATE
 let private initialPlayerRuntime = ContinuousPlayer.initialize ()
 let continuousHost =
     mount "foundation-continuous-host" "Generated continuous SVG game" (ContinuousPlayer.scene 1 initialPlayerRuntime.Current)
 #else
+#if LEGACY_SVG_PREVIEW
 let continuousHost = mount "foundation-continuous-host" "Neutral continuous-coordinate fixture" continuousScene
+#else
+#error The production SVG player requires FsGgSvgRuntimeCandidate=true.
 #endif
+#endif
+#if LEGACY_SVG_PREVIEW
 let tacticalCompatibilityHost =
     mount "foundation-tactical-compatibility-host" "Disclosed tactical compatibility fixture" tacticalCompatibilityScene
 
@@ -124,21 +141,22 @@ previewExportOutput.setAttribute("hidden", "")
 previewExportOutput.textContent <- previewExport
 document.body.appendChild(previewExportOutput) |> ignore
 
-let private requireTransition name (result: RetainedInteractionResult) =
-    match result.Error with
-    | None -> ()
-    | Some error -> failwithf "SVG foundation %s transition failed: %A" name error
 requireTransition "tactical selection"
     (tacticalCompatibilityHost.Dispatch(RetainedInteractionMessage.Select(41, "unit:7")))
 requireTransition "tactical focus"
     (tacticalCompatibilityHost.Dispatch(RetainedInteractionMessage.FocusNext 41))
+#endif
 
 #if SVG_INPUT_CANDIDATE
 let private playerInputScope: HTMLElement =
 #if SVG_RUNTIME_CANDIDATE
     document.getElementById("foundation-continuous-host")
 #else
+#if LEGACY_SVG_PREVIEW
     document.getElementById("foundation-tactical-compatibility-host")
+#else
+    document.body
+#endif
 #endif
 playerInputScope.setAttribute("tabindex", "-1")
 let private playerInputStatus = document.createElement("output")
@@ -152,6 +170,7 @@ let mutable private playerRuntime = initialPlayerRuntime
 let mutable private playerSequence = 0UL
 let mutable private presentationRevision = 1UL
 let mutable private sessionHost: SvgSessionHost<ContinuousPlayer.PlayerState> option = None
+let mutable private authorityPeers: (string * int * int) list = []
 
 let private updatePlayer observation =
     let next, _ = SessionRuntime.update ContinuousPlayer.contract observation playerRuntime
@@ -176,17 +195,19 @@ let mutable private refreshAudioObservation: unit -> unit = ignore
 let private onAudioEvent event =
     audioEvents.Add event
     playerInputScope.setAttribute("data-audio-event", string event)
+    if (string event).Contains("EffectDispatched") then
+        playerInputScope.setAttribute("data-audio-effect-dispatched", "true")
     refreshAudioObservation()
 let private audioHost = new WebAudioHost(WebAudioHost.defaultConfig, onAudioEvent)
 let private movementSound = SoundId "generated-movement"
-let private toneUrl = "data:audio/wav;base64,UklGRiUAAABXQVZFZm10IBAAAAABAAEARKwAAESsAAABAAgAZGF0YQEAAACA"
+let private movementCueUrl = "./movement-cue.wav"
 
 let private audioUnlock = document.createElement("button")
 audioUnlock.id <- "foundation-audio-unlock"
 audioUnlock.textContent <- "Enable game audio"
 audioUnlock.addEventListener("click", fun _ ->
     audioHost.UnlockFromGesture()
-    audioHost.LoadSound(movementSound, toneUrl))
+    audioHost.LoadSound(movementSound, movementCueUrl))
 playerInputScope.appendChild(audioUnlock) |> ignore
 refreshAudioObservation <- fun () ->
     let value = audioHost.Observe()
@@ -321,17 +342,25 @@ handlePersistenceEvent <- function
 #endif
 
 let private callbacks =
+#if LEGACY_SVG_PREVIEW
     { AdvanceElapsed = fun elapsed -> updatePlayer (SessionRuntimeObservation.AdvanceElapsed elapsed)
       Pause = fun () -> updatePlayer SessionRuntimeObservation.Pause
       Resume = fun () -> updatePlayer SessionRuntimeObservation.Resume
       StepOnce = fun () -> updatePlayer SessionRuntimeObservation.StepOnce
       Reset = fun () -> updatePlayer SessionRuntimeObservation.Reset
+#else
+    { AdvanceElapsed = ignore
+      Pause = ignore
+      Resume = ignore
+      StepOnce = ignore
+      Reset = ignore
+#endif
       RequestRecovery = fun _ -> window.setTimeout((fun () -> sessionHost |> Option.iter _.Resume()), 0) |> ignore
       RequestProjection = fun generation ->
           presentationRevision <- presentationRevision + 1UL
           sessionHost |> Option.iter (fun host -> host.CompleteProjection(generation, presentationRevision, playerRuntime.Current))
       ApplyProjection = fun revision projection ->
-          requireTransition "continuous projection" (continuousHost.Dispatch(RetainedInteractionMessage.ReplaceScene(ContinuousPlayer.scene (int revision) projection)))
+          requireTransition "continuous projection" (continuousHost.Dispatch(RetainedInteractionMessage.ReplaceScene(ContinuousPlayer.sceneWithPeers (int revision) projection authorityPeers)))
           describePlayer revision projection
       CancelGeneration = ignore
       Replace = ignore
@@ -344,6 +373,44 @@ describePlayer presentationRevision playerRuntime.Current
 requestCurrentProjection <- fun () -> playerSessionHost.DemandProjection()
 #endif
 
+#if !LEGACY_SVG_PREVIEW
+let private applyAuthority status (players: SvgAuthority.Player list) tick round health score collected outcome contentId contentSchema (content: FableGameWorkspaceNamespace.ArenaContent.ArenaContent) hazardCol hazardRow =
+    playerInputScope.setAttribute("data-authority-status", status)
+    playerInputScope.setAttribute("data-authority-tick", string tick)
+    playerInputScope.setAttribute("data-authority-round", string round)
+    playerInputScope.setAttribute("data-authority-content-id", contentId)
+    playerInputScope.setAttribute("data-authority-content-schema", string contentSchema)
+    playerInputScope.setAttribute("data-authority-player-count", string players.Length)
+    playerInputScope.setAttribute("data-player-health", string health)
+    playerInputScope.setAttribute("data-player-score", string score)
+    playerInputScope.setAttribute("data-player-collected", string collected)
+    playerInputScope.setAttribute("data-player-outcome", outcome)
+    playerInputScope.setAttribute("data-authority-hazard-col", string hazardCol)
+    playerInputScope.setAttribute("data-authority-hazard-row", string hazardRow)
+    playerInputScope.setAttribute("data-authority-hazard-x", string content.Hazard.X)
+    playerInputScope.setAttribute("data-authority-hazard-y", string content.Hazard.Y)
+    playerInputScope.setAttribute(
+        "data-authority-snapshot",
+        players |> List.sortBy _.Id |> List.map (fun player -> $"{player.Id}:{player.Col},{player.Row}") |> String.concat ";")
+    match players |> List.tryFind _.IsSelf with
+    | Some self ->
+        playerInputScope.setAttribute("data-authority-player-id", self.Id)
+        playerInputScope.setAttribute("data-authority-self-col", string self.Col)
+        playerInputScope.setAttribute("data-authority-self-row", string self.Row)
+        authorityPeers <- players |> List.filter (fun player -> not player.IsSelf) |> List.map (fun player -> player.Id, player.Col, player.Row)
+        let accepted = ContinuousPlayer.atAuthoritativeSnapshot self.Col self.Row health score collected outcome hazardCol hazardRow content playerRuntime.Current
+        let snapshot: SessionSnapshot<ContinuousPlayer.PlayerState> =
+            { SessionId = "generated-player"
+              Revision = uint64 tick
+              Compatibility = ContinuousPlayer.compatibility
+              Value = accepted }
+        updatePlayer (SessionRuntimeObservation.Restore snapshot)
+        playerSessionHost.DemandProjection()
+    | None -> ()
+
+SvgAuthority.start applyAuthority
+#endif
+
 let private submit commandId command =
     playerSequence <- playerSequence + 1UL
     updatePlayer
@@ -351,8 +418,27 @@ let private submit commandId command =
             { SessionId = "generated-player"; InputId = commandId; Sequence = playerSequence; Value = command })
     playerSessionHost.DemandProjection()
 
+#if LEGACY_SVG_PREVIEW
+let private completeLegacyPreview () =
+    let current = playerRuntime.Current
+    let won =
+        { current with
+            Collected = 1
+            Score = current.Score + 100
+            Outcome = ContinuousPlayer.PlayerOutcome.Won
+            Revision = current.Revision + 1UL }
+    let snapshot: SessionSnapshot<ContinuousPlayer.PlayerState> =
+        { SessionId = "generated-player"
+          Revision = won.Revision
+          Compatibility = ContinuousPlayer.compatibility
+          Value = won }
+    updatePlayer (SessionRuntimeObservation.Restore snapshot)
+    playerSessionHost.DemandProjection()
+#endif
+
 let private dispatchGameCommand command =
     match command with
+#if LEGACY_SVG_PREVIEW
     | "game.move-up" -> submit command (ContinuousPlayer.PlayerCommand.Move(0.0, -3.0))
     | "game.move-down" -> submit command (ContinuousPlayer.PlayerCommand.Move(0.0, 3.0))
     | "game.move-left" -> submit command (ContinuousPlayer.PlayerCommand.Move(-3.0, 0.0))
@@ -364,8 +450,16 @@ let private dispatchGameCommand command =
     | "game.step" -> playerSessionHost.StepOnce()
     | "game.reset"
     | "game.restart" -> playerSessionHost.Reset()
-    | "game.win" -> submit command ContinuousPlayer.PlayerCommand.Collect
+    | "game.win" -> completeLegacyPreview ()
     | "game.lose" -> submit command ContinuousPlayer.PlayerCommand.Damage
+#else
+    | "game.move-up" -> SvgAuthority.move 0 -1
+    | "game.move-down" -> SvgAuthority.move 0 1
+    | "game.move-left" -> SvgAuthority.move -1 0
+    | "game.move-right" -> SvgAuthority.move 1 0
+    | "game.restart" -> SvgAuthority.command "restart"
+    | "game.interact" -> SvgAuthority.command "interact"
+#endif
     | _ -> ()
 #if SVG_PRESENT_CANDIDATE
     if command.StartsWith("game.") && command <> "game.pause" && command <> "game.step" then
@@ -383,8 +477,12 @@ let private addControl action label =
     playerInputScope.appendChild(control) |> ignore
 
 for action, label in
-    [ "move-right", "Move right"; "move-left", "Move left"; "pause", "Pause or resume"
-      "step", "Single step"; "reset", "Reset"; "win", "Win"; "lose", "Take damage"; "restart", "Restart" ] do
+    [ "move-up", "Move up"; "move-down", "Move down"; "move-right", "Move right"; "move-left", "Move left"
+#if LEGACY_SVG_PREVIEW
+      "pause", "Pause or resume"; "step", "Single step"; "reset", "Reset"; "win", "Win"; "lose", "Take damage"; "restart", "Restart" ] do
+#else
+      "interact", "Interact"; "restart", "Restart" ] do
+#endif
     addControl action label
 #if SVG_PRESENT_CANDIDATE
 let private addPresentationControl id label action =
@@ -404,9 +502,12 @@ addPresentationControl "foundation-import" "Import archive" (fun () ->
 addPresentationControl "foundation-animation-seek" "Seek animation" (fun () ->
     if not (System.String.IsNullOrEmpty lastAnimationId) then
         animationHost.Seek(lastAnimationId, System.TimeSpan.FromMilliseconds 100.0))
+#if LEGACY_SVG_PREVIEW
 addPresentationControl "foundation-fail-save" "Exercise failed autosave" (fun () -> scheduleAutosave (System.String('x', 4097)))
 #endif
+#endif
 #else
+#if LEGACY_SVG_PREVIEW
 let private dispatchGameCommand command =
     let revision = tacticalCompatibilityHost.State.Scene.Revision
     let result =
@@ -422,6 +523,7 @@ let private dispatchGameCommand command =
         playerInputScope.setAttribute("data-last-game-command", command)
         playerInputStatus.textContent <- "Accepted " + command
     | _ -> ()
+#endif
 #endif
 
 let private playerInputHost =
@@ -449,6 +551,9 @@ window.addEventListener("beforeunload", fun _ ->
     (playerInputHost :> System.IDisposable).Dispose()
 #if SVG_RUNTIME_CANDIDATE
     window.removeEventListener("gamepadconnected", refreshGamepads)
+#if !LEGACY_SVG_PREVIEW
+    SvgAuthority.dispose ()
+#endif
     (playerSessionHost :> System.IDisposable).Dispose()
 #if SVG_PRESENT_CANDIDATE
     (animationHost :> System.IDisposable).Dispose()
@@ -457,7 +562,10 @@ window.addEventListener("beforeunload", fun _ ->
 #endif
 #endif
 #endif
-    (gridHost :> System.IDisposable).Dispose()
     (continuousHost :> System.IDisposable).Dispose()
+#if LEGACY_SVG_PREVIEW
+    (gridHost :> System.IDisposable).Dispose()
     (tacticalCompatibilityHost :> System.IDisposable).Dispose()
-    (previewDocumentHost :> System.IDisposable).Dispose())
+    (previewDocumentHost :> System.IDisposable).Dispose()
+#endif
+    )

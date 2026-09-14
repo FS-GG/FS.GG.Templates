@@ -32,10 +32,24 @@ type TickBroadcaster(hub: IHubContext<GameHub>, configuration: IConfiguration) =
             if enabled then
                 while not stoppingToken.IsCancellationRequested do
                     do! Task.Delay(TimeSpan.FromMilliseconds intervalMilliseconds, stoppingToken)
-                    let tick, players = RoomAuthority.advanceTick ()
-                    let snapshot: RealtimeV1.Snapshot =
-                        { Version = 1; Tick = tick; Players = players |> List.map (fun (pid, col, row) -> { PlayerId = pid; Col = col; Row = row }) }
-                    do! hub.Clients.Group(RoomAuthority.RoomId).SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.SnapshotMessage snapshot))
+                    let snapshot = RoomAuthority.advanceTick ()
+                    let tick, players = snapshot.Tick, snapshot.Players
+                    let v1Players: RealtimeV1.PlayerSnapshot list = players |> List.map (fun (pid, col, row) -> { PlayerId = pid; Col = col; Row = row })
+                    let v1: RealtimeV1.Snapshot = { Version = 1; Tick = tick; Players = v1Players }
+                    do! hub.Clients.Group($"{RoomAuthority.RoomId}-v1").SendAsync("Message", RealtimeV1.encodeMessage (RealtimeV1.SnapshotMessage v1))
+                    let v2Players: RealtimeV2.PlayerSnapshot list = players |> List.map (fun (pid, col, row) -> { PlayerId = pid; Col = col; Row = row })
+                    let v2: RealtimeV2.Snapshot =
+                        { Version = 2; Tick = tick; Round = snapshot.Round; Players = v2Players
+                          Health = snapshot.Health; Score = snapshot.Score; Collected = snapshot.Collected; Outcome = snapshot.Outcome
+                          ContentId = snapshot.ContentId
+                          ContentSchema = snapshot.ContentSchema
+                          CollectibleX = snapshot.Content.CollectibleX; CollectibleY = snapshot.Content.CollectibleY
+                          HazardX = snapshot.Content.Hazard.X; HazardY = snapshot.Content.Hazard.Y; HazardWidth = snapshot.Content.Hazard.Width; HazardHeight = snapshot.Content.Hazard.Height
+                          GoalX = snapshot.Content.Goal.X; GoalY = snapshot.Content.Goal.Y; GoalWidth = snapshot.Content.Goal.Width; GoalHeight = snapshot.Content.Goal.Height
+                          ThinWallX = snapshot.Content.ThinWall.X; ThinWallY = snapshot.Content.ThinWall.Y; ThinWallWidth = snapshot.Content.ThinWall.Width; ThinWallHeight = snapshot.Content.ThinWall.Height
+                          HazardCol = snapshot.HazardCol
+                          HazardRow = snapshot.HazardRow }
+                    do! hub.Clients.Group($"{RoomAuthority.RoomId}-v2").SendAsync("Message", RealtimeV2.encodeMessage (RealtimeV2.SnapshotMessage v2))
         }
 
 /// Marker type for `WebApplicationFactory<Program>` in Server.Tests. An F# `module`
@@ -67,6 +81,12 @@ module Program =
     [<EntryPoint>]
     let main args =
         let builder = WebApplication.CreateBuilder args
+        match builder.Configuration["ArenaContentPath"] with
+        | null | "" -> ()
+        | path ->
+            match ArenaContentFile.load path |> Result.bind RoomAuthority.configureDefinition with
+            | Ok () -> ()
+            | Error issue -> invalidOp $"configured arena content refused before server start: {issue}"
         builder.Services.AddSignalR() |> ignore
         builder.Services.AddHostedService<TickBroadcaster>() |> ignore
         let app = builder.Build()

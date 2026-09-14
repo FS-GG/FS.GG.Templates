@@ -26,6 +26,21 @@
           "FSharp.Core": "10.1.203",
           "Fable.Core": "5.0.0"
         }
+      },
+      "FS.GG.Game.Core": {
+        "type": "Transitive",
+        "resolved": "0.16.0",
+        "contentHash": "mn66KeVyqj0kphAn8Nm11GbEUbmGcO28uRMFiuX6FdQv87Zvv4kXTV7MqwTVeH3GQtA2Nna56Okd6IaCSHH6Bg==",
+        "dependencies": {
+          "FSharp.Core": "10.1.302"
+        }
+      },
+      "domain": {
+        "type": "Project",
+        "dependencies": {
+          "FS.GG.Game.Core": "[0.16.0, 0.16.0]",
+          "FSharp.Core": "[10.1.400, )"
+        }
       }
     }
   }

@@ -1,3 +1,4 @@
+/// Executable characterization for the selectable disclosed tactical example.
 module FableGameWorkspaceNamespace.TacticalCompatibilityTests
 
 open FS.GG.UI.Scene
@@ -51,17 +52,10 @@ let run () =
          |> List.forall (fun value -> value.Id <> undisclosedFact && not (value.AccessibleLabel.Contains undisclosedFact)))
         "undisclosed fact entered the retained scene"
 
-    let serialized, exported, previewState = PreviewDocument.verifyPortable ()
-    require (serialized.Contains SvgDocument.schema) "Preview-A canonical serialization lost its schema"
-    require (previewState.SelectedSemanticId = Some "semantic:fractional-route") "Preview-A semantic selection changed"
-    require (PreviewDocument.document.Definitions.Length = 7) "Preview-A definition surface changed"
-    for token in [ "linearGradient"; "clipPath"; "mask-type:alpha"; "mask-type:luminance"; "symbol"; "font-face" ] do
-        require (exported.Contains token) $"Preview-A export omitted {token}"
-
     baseline
 
 [<EntryPoint>]
 let main _ =
     run () |> ignore
-    printfn "tactical-compatibility: identities=passed layers=passed camera=passed selection-focus=passed disclosure=passed revisions=passed preview-document=passed"
+    printfn "tactical-compatibility: identities=passed layers=passed camera=passed selection-focus=passed disclosure=passed revisions=passed"
     0

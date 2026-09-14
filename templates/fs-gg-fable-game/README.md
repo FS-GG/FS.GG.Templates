@@ -1,8 +1,8 @@
 # FableGameWorkspace
 
-A minimal, server-authoritative multiplayer game workspace: one F# ASP.NET Core
-server and one Fable/Elmish browser client, sharing a product-owned `Domain` and an
-explicit, versioned wire protocol.
+A server-authoritative multiplayer SVG game workspace: one F# ASP.NET Core server,
+one Fable/Elmish browser client, and a package-backed SVG player sharing a
+product-owned `Domain` and an explicit, versioned wire protocol.
 
 ## The transport boundary (ADR-0073)
 
@@ -29,38 +29,52 @@ Fable.Remoting is not used (superseded by ADR-0073; see
 
 ## The sample
 
-`Domain/Room.fs` is a pure, server-only authoritative arena: players occupy cells
-on a fixed grid, and `Pathfinding.astar` -- the `LockstepExact` surface of the
+`Domain/ArenaContent.fs` and `Domain/ArenaRules.fs` define the pure authoritative
+arena shared by the .NET server and the Fable Studio. Players occupy cells on a fixed
+grid, and `Pathfinding.astar` -- the `LockstepExact` surface of the
 published `FS.GG.Game.Core` Fable compatibility profile
 (`fs-gg-game-core-fable-lockstep-v1`) -- resolves movement. Both `Domain` (server)
 and `Client/Movement.fs` (browser, local path preview only) call the *same*
-published package function; the server's `Server/RoomAuthority.fs` is the only
-place a move is actually committed. `Server/RoomAuthority.fs` also enforces the
+published package function. The shared arena transition uses Game.Core kinematics
+for solid geometry, interaction proximity, moving-hazard contact, health, score,
+win, and restart. The server's `Server/RoomAuthority.fs` is the only place a networked
+move is committed. `Server/RoomAuthority.fs` also enforces the
 stale-input guard (a non-increasing input sequence is dropped) and the
 disconnect/reconnect contract: a reconnecting client always gets a bounded, full
 authoritative resync, never a delta log.
 
-An opt-in retained SVG foundation fixture is available only when explicitly selected with
-`--svgFoundation true`. It consumes the coherent public `FS.GG.UI.Scene`, transitive
-`FS.GG.UI.KeyboardInput`, and `FS.GG.UI.Scene.SvgBrowser` `0.30.0` packages. It mounts
-the retained grid/fractional examples and a complete typed Preview-A document. The ordinary
-server-authoritative arena remains the default while the SVG foundation completes its release qualification.
+The SVG player is the default product composition in Templates 0.14. Choose it explicitly
+with `--bundle player`, or select `studio`, `tactical`, `arcade`, or `complete`. Studio adds
+the integrated Create/Arrange/Play/Review tools; tactical and arcade add their editable
+examples plus Studio; complete includes both. The player bundle contains no Studio or example
+source. Rendering's profile remains independent from this product composition choice.
 
-The selected payload also carries separate player and `SvgFoundation/Studio` entries. Preview B binds
+The compatibility flag remains readable for existing scripts: explicit
+`--svgFoundation true` selects the retained preview-compatible complete composition, while
+explicit `--svgFoundation false` retains the pre-0.14 non-SVG product. The old and new selectors
+are mutually exclusive, including redundant combinations; using both is rejected during template
+argument validation, before the destination is written. Bundle selection does not select or
+activate a lifecycle.
+
+The selected tool payload carries separate player and `SvgFoundation/Studio` entries. Preview B binds
 both to exact public producer versions and enables the product-owned command profiles.
 Build them with `bash SvgFoundation/build.sh` and `bash SvgFoundation/Studio/build.sh`. The Studio
 build copies its worker, verified font data, notices and npm lock from the restored producer package
 into ignored output. The generated workspace exposes Create, Arrange, Play and Review modes, responsive
 docks, palette/help/rebind flows, and keyboard, pointer, touch and gamepad routes over the same effective
-profile. Templates `0.13.0` uses Rendering `0.31.0`, Game `0.16.0`, Net `0.6.0`, and Audio `0.6.0` as one
+profile. Templates `0.14.0` uses Rendering `0.31.0`, Game `0.16.0`, Net `0.6.0`, and Audio `0.6.0` as one
 qualified public set.
 
-The SVG runtime replaces the static continuous fixture with a Game.Core fixed-step session,
-the Game-owned kinematic collision adapter, Rendering's disposable browser clock, and monotonic retained
-scene replacement. `W/A/S/D`, the generated pointer and touch controls, and Gamepad button 0 all resolve
-through the same command catalog. Pause/resume, single-step, reset, win, lose, and restart update the
-authority state whose projection is rendered; the separately bundled Studio is never linked into the
-player output.
+The SVG runtime renders complete version 2 authority snapshots through monotonic retained
+scene replacement. `W/A/S/D` submits movement to the required server, `E` interacts with nearby game
+content, and `R` requests a restart after a terminal outcome. The server owns position, health, score,
+collectible state, win state, moving-hazard time, and restart; every connected SVG player renders those snapshots. The
+gesture-unlocked Audio host plays the shipped non-silent movement cue for accepted game actions. The
+separately bundled Studio is never linked into the player output. Studio opens the same
+`continuous-arena` document, compiles its typed gameplay elements into the same `ArenaContent` contract,
+and runs the same pure `ArenaRules` transition in Play. Create, Arrange, Play, Review, browser persistence,
+and reload retain one authored scene root, camera, selection, and history while runtime preview geometry
+stays transient. **Export playable arena content** writes the validated content file consumed by the authority.
 
 The realtime baseline has four deliberately small but production-relevant rules:
 
@@ -77,6 +91,13 @@ The realtime baseline has four deliberately small but production-relevant rules:
 - Inputs are admitted at hub arrival but resolve at the next server tick frontier,
   sorted by player identity and sequence. Transport scheduling therefore cannot decide
   gameplay order; snapshots with an older tick cannot rewind the client view.
+- Realtime DTO version 1 remains frozen for the retained legacy grid client. It uses a separate legacy
+  authority path, so new walls, hazards, and terminal rules cannot silently change that client's gameplay.
+  Version 2 carries the complete cooperative arena state and exact content/schema identity. Missing fields,
+  unknown actions, stale input, wrong snapshot compatibility, and content mismatches fail before gameplay
+  changes. Replay digests use the same complete canonical state on .NET and Fable. Saved Studio scene
+  envelopes retain the Rendering-owned schema identifier; the authority consumes only a separately exported,
+  validated arena-content file.
 - Admission is bounded to the arena's 240 cells, with no occupied-cell fallback. A
   bootstrap that would exceed that bound returns HTTP 429. Unbound and disconnected
   capabilities expire after two minutes; the tick loop cleans them up and releases
@@ -87,16 +108,20 @@ The realtime baseline has four deliberately small but production-relevant rules:
 
 ## Running it
 
-Two terminals for development: `dotnet run --project Server/Server.fsproj` and
-`npm run dev --prefix Client`; Vite proxies `/api` and the `/hub` WebSocket upgrade
-to `http://localhost:5000`. For production, `Client/dist` is published into
-`Server`'s `wwwroot`; run `dotnet artifacts/publish/Server.dll` from the publish
-directory (not the source checkout).
+For local authority development, run `dotnet run --project Server/Server.fsproj`; the
+browser client proxies `/api` and the `/hub` WebSocket upgrade to
+`http://localhost:5000`. To run the authority with Studio-authored geometry, export
+the content JSON and set `ArenaContentPath` to that file before starting the server;
+invalid schema, identity, or geometry refuses startup. The root build writes the selected static SVG player to
+`artifacts/static-player`, optional Studio to `artifacts/static-studio`, and the required
+independently deployable ASP.NET Core authority to `artifacts/authority-server`. Deploy the
+static artifact and authority together; a static host alone is not a complete multiplayer game.
 
-`./build.sh` runs the whole lifecycle: restore/build/test the `.NET` solution
+`./build.sh` runs the whole lifecycle: locked restore/build/test the `.NET` solution
 (`Domain`, `Protocol`, `Server`, and their `.Tests` projects), the cross-runtime
 codec proof, the Fable/Vite client production build, the server publish, and the
-Playwright `Browser.Tests` two-context scenario. It writes TRX/JUnit evidence to
+selected SVG player (plus Studio when present), authority publish, and Playwright
+`Browser.Tests` two-context scenario. It writes TRX/JUnit evidence to
 `artifacts/test-results/`; import those observed reports with
 `fsgg-sdd evidence --from-test-report`. SDD remains the single lifecycle owner.
 
@@ -119,12 +144,14 @@ After changing any `PackageReference`, regenerate and commit the affected locks:
 ```bash
 dotnet restore FableGameWorkspace.slnx --force-evaluate
 dotnet restore Client/Client.fsproj --force-evaluate
+dotnet restore SvgFoundation/SvgFoundation.fsproj --force-evaluate
+dotnet restore SvgFoundation/Studio/Studio.fsproj --force-evaluate
 dotnet restore Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj --force-evaluate
 dotnet restore Protocol.Tests/cross-runtime/CodecProbe.Fable/CodecProbe.Fable.fsproj --force-evaluate
 ```
 
-`Client` and the two `cross-runtime` probes need their own lines because they are
-not members of the solution. Never hand-edit a lock file; a hash typed by a human
+`Client`, the selected SVG projects, and the two `cross-runtime` probes need their
+own lines because they are not members of the solution. Never hand-edit a lock file; a hash typed by a human
 is a hash no restore can reproduce.
 
 Two settings keep those hashes reproducible, and both are load-bearing (see
