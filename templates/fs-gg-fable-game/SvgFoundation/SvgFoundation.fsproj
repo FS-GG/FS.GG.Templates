@@ -15,6 +15,8 @@
     <DefineConstants Condition="'$(FsGgSvgPresentCandidate)' == 'true'">$(DefineConstants);SVG_PRESENT_CANDIDATE</DefineConstants>
     <DefineConstants Condition="'$(FsGgSvgScaleCandidate)' == 'true'">$(DefineConstants);SVG_SCALE_CANDIDATE</DefineConstants>
     <DefineConstants Condition="'$(FsGgLegacyPreview)' == 'true'">$(DefineConstants);LEGACY_SVG_PREVIEW</DefineConstants>
+    <DefineConstants Condition="Exists('Examples/Arcade/scene.json') and '$(FsGgSvgPresentCandidate)' == 'true'">$(DefineConstants);ARCADE_EXAMPLE</DefineConstants>
+    <DefineConstants Condition="Exists('Examples/Tactical/scene.json')">$(DefineConstants);TACTICAL_EXAMPLE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="../Protocol/Http.fs" Link="Protocol/Http.fs" Condition="'$(FsGgLegacyPreview)' != 'true'" />
@@ -22,13 +24,19 @@
     <Compile Include="../Client/SignalR.fs" Link="Network/SignalR.fs" Condition="'$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="../Client/Api.fs" Link="Network/Api.fs" Condition="'$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="../Domain/ArenaContent.fs" Link="ArenaContent.fs" />
+    <Compile Include="../Domain/ArcadeRules.fs" Link="ArcadeRules.fs" Condition="Exists('Examples/Arcade/scene.json') and '$(FsGgSvgPresentCandidate)' == 'true'" />
+    <Compile Include="../Domain/Room.fs" Link="Room.fs" Condition="Exists('Examples/Tactical/scene.json')" />
+    <Compile Include="../Domain/TacticalRules.fs" Link="TacticalRules.fs" Condition="Exists('Examples/Tactical/scene.json')" />
     <Compile Include="TacticalCompatibility.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
+    <Compile Include="../Conformance/GeneratedTacticalRuleModel.fs" Link="GeneratedTacticalRuleModel.fs" Condition="Exists('Examples/Tactical/scene.json')" />
     <Compile Include="PreviewFont.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
     <Compile Include="PreviewDocument.fs" Condition="'$(FsGgLegacyPreview)' == 'true'" />
     <Compile Include="PlayerInput.fs" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
     <Compile Include="ContinuousPlayer.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true'" />
-    <Compile Include="SvgAuthority.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="PresentationPlayer.fs" Condition="'$(FsGgSvgPresentCandidate)' == 'true'" />
+    <Compile Include="ArcadeExample.fs" Condition="Exists('Examples/Arcade/scene.json') and '$(FsGgSvgPresentCandidate)' == 'true'" />
+    <Compile Include="TacticalExample.fs" Condition="Exists('Examples/Tactical/scene.json')" />
+    <Compile Include="SvgAuthority.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="ScalePlayer.fs" Condition="'$(FsGgSvgScaleCandidate)' == 'true'" />
     <Compile Include="Program.fs" />
   </ItemGroup>

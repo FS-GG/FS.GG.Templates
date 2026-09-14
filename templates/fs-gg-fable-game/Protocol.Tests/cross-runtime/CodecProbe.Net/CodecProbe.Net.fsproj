@@ -4,10 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../../../Conformance/SceneSchema.fs" Link="SceneSchema.fs" />
     <Compile Include="../Program.fs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../../Protocol/Protocol.fsproj" />
     <ProjectReference Include="../../../Domain/Domain.fsproj" />
+    <PackageReference Include="FS.GG.UI.Scene" Version="[0.31.0]" />
   </ItemGroup>
 </Project>

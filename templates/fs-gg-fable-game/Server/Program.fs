@@ -50,6 +50,20 @@ type TickBroadcaster(hub: IHubContext<GameHub>, configuration: IConfiguration) =
                           HazardCol = snapshot.HazardCol
                           HazardRow = snapshot.HazardRow }
                     do! hub.Clients.Group($"{RoomAuthority.RoomId}-v2").SendAsync("Message", RealtimeV2.encodeMessage (RealtimeV2.SnapshotMessage v2))
+                    let content = snapshot.Content
+                    let v3Players: RealtimeV3.PlayerSnapshot list = players |> List.map (fun (pid, col, row) -> { PlayerId = pid; Col = col; Row = row })
+                    let v3: RealtimeV3.Snapshot =
+                        { Version = 3; Tick = tick; Round = snapshot.Round; Players = v3Players
+                          Health = snapshot.Health; Score = snapshot.Score; Collected = snapshot.Collected; Outcome = snapshot.Outcome
+                          ContentId = snapshot.ContentId; ContentSchema = snapshot.ContentSchema
+                          BoundaryX = content.Boundary.X; BoundaryY = content.Boundary.Y; BoundaryWidth = content.Boundary.Width; BoundaryHeight = content.Boundary.Height
+                          SpawnCol = content.Spawn.Col; SpawnRow = content.Spawn.Row
+                          CollectibleX = content.CollectibleX; CollectibleY = content.CollectibleY
+                          HazardX = content.Hazard.X; HazardY = content.Hazard.Y; HazardWidth = content.Hazard.Width; HazardHeight = content.Hazard.Height
+                          GoalX = content.Goal.X; GoalY = content.Goal.Y; GoalWidth = content.Goal.Width; GoalHeight = content.Goal.Height
+                          ThinWallX = content.ThinWall.X; ThinWallY = content.ThinWall.Y; ThinWallWidth = content.ThinWall.Width; ThinWallHeight = content.ThinWall.Height
+                          HazardCol = snapshot.HazardCol; HazardRow = snapshot.HazardRow }
+                    do! hub.Clients.Group($"{RoomAuthority.RoomId}-v3").SendAsync("Message", RealtimeV3.encodeMessage (RealtimeV3.SnapshotMessage v3))
         }
 
 /// Marker type for `WebApplicationFactory<Program>` in Server.Tests. An F# `module`

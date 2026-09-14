@@ -169,7 +169,7 @@ let sceneWithPeers revision state peers =
         [ { Id = "arena"
             Visible = true
             Objects =
-              [ objectValue "arena" "Continuous arena" false [ SceneNode.Rectangle((0.0, 0.0, arenaWidth, arenaHeight), color 241uy 245uy 249uy) ]
+              [ objectValue "arena" "Continuous arena" false [ SceneNode.Rectangle((content.Boundary.X, content.Boundary.Y, content.Boundary.Width, content.Boundary.Height), color 241uy 245uy 249uy) ]
                 objectValue "thin-wall" "Thin wall" false [ SceneNode.Rectangle((content.ThinWall.X, content.ThinWall.Y, content.ThinWall.Width, content.ThinWall.Height), color 71uy 85uy 105uy) ]
                 objectValue "collectible" "Collectible" true [ SceneNode.Circle({ X = content.CollectibleX; Y = content.CollectibleY }, 5.0, color 245uy 158uy 11uy) ]
                 objectValue "hazard" "Moving hazard" true

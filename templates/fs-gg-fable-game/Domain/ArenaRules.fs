@@ -60,7 +60,9 @@ let applyIntent playerId intent state =
             |> Map.toList
             |> List.sortBy fst
             |> List.mapi (fun index (id, player) ->
-                let cell: Cell = { Col = index % arenaColumns; Row = index / arenaColumns }
+                let spawnOffset = state.Definition.Spawn.Row * arenaColumns + state.Definition.Spawn.Col
+                let bounded = (spawnOffset + index) % (arenaColumns * arenaRows)
+                let cell: Cell = { Col = bounded % arenaColumns; Row = bounded / arenaColumns }
                 id, { player with Cell = cell })
             |> Map.ofList
         { state with
@@ -114,27 +116,36 @@ let compatibility =
       SchemaId = "fsgg.generated.arena.snapshot"
       SchemaVersion = 2 }
 
+let compatibilityFor (definition: ArenaContent) =
+    if definition.SchemaVersion = 2 then compatibility
+    else
+        { compatibility with
+            EngineVersion = string definition.SchemaVersion
+            SchemaVersion = definition.SchemaVersion }
+
 let canonicalState state =
     let content = state.Definition
     let boolean value = if value then "true" else "false"
     // Encode the exact IEEE-754 payload in network byte order. Decimal formatting
     // differs by locale and runtime, while quantization can merge two bounds that
     // produce different collision or interaction outcomes.
-    let number (value: float) =
-        let hexDigit value = if value < 10 then char (int '0' + value) else char (int 'a' + value - 10)
-        let bytes = BitConverter.GetBytes value
-        let ordered = if BitConverter.IsLittleEndian then Array.rev bytes else bytes
-        ordered
-        |> Array.collect (fun value -> [| hexDigit (int value >>> 4); hexDigit (int value &&& 15) |])
-        |> String
+    let number = canonicalFloat
     let players = Room.toSnapshotPairs state.Room |> List.map (fun (id, col, row) -> $"{id}:{col}:{row}") |> String.concat ";"
     let contacts = state.HazardContacts |> Set.toList |> String.concat ","
     let legacy = state.LegacyPlayers |> Set.toList |> String.concat ","
-    $"v2|{content.SchemaVersion}|{content.ContentId}|{number content.CollectibleX},{number content.CollectibleY}|{number content.Hazard.X},{number content.Hazard.Y},{number content.Hazard.Width},{number content.Hazard.Height}|{number content.Goal.X},{number content.Goal.Y},{number content.Goal.Width},{number content.Goal.Height}|{number content.ThinWall.X},{number content.ThinWall.Y},{number content.ThinWall.Width},{number content.ThinWall.Height}|{state.Room.Tick}|{state.Round}|{players}|{state.Status.Health}|{state.Status.Score}|{boolean state.Status.Collected}|{state.Status.Outcome}|{contacts}|{legacy}"
+    let gameplay =
+        $"{number content.CollectibleX},{number content.CollectibleY}|{number content.Hazard.X},{number content.Hazard.Y},{number content.Hazard.Width},{number content.Hazard.Height}|{number content.Goal.X},{number content.Goal.Y},{number content.Goal.Width},{number content.Goal.Height}|{number content.ThinWall.X},{number content.ThinWall.Y},{number content.ThinWall.Width},{number content.ThinWall.Height}|{state.Room.Tick}|{state.Round}|{players}|{state.Status.Health}|{state.Status.Score}|{boolean state.Status.Collected}|{state.Status.Outcome}|{contacts}|{legacy}"
+    if content.SchemaVersion = 2 then
+        // Frozen .3 identity: schema-2 readers and retained recordings must observe
+        // byte-for-byte the original canonical state shape.
+        $"v2|2|{content.ContentId}|{gameplay}"
+    else
+        $"v3|{content.SchemaVersion}|{content.ContentId}|{number content.Boundary.X},{number content.Boundary.Y},{number content.Boundary.Width},{number content.Boundary.Height}|{content.Spawn.Col},{content.Spawn.Row}|{gameplay}"
 
 /// The same pure contract factory is compiled by the .NET authority and Fable Studio.
 /// Restore is bound to the session's selected authored content identity.
-let contractFor expectedContentId : SessionContract<State, State, Command, State, State> =
+let contractForDefinition (expectedDefinition: ArenaContent) : SessionContract<State, State, Command, State, State> =
+    let expectedCompatibility = compatibilityFor expectedDefinition
     { Initialize = fun initialization -> Ok initialization.Configuration
       AdmitInput = fun input state ->
           match input.Value with
@@ -147,10 +158,14 @@ let contractFor expectedContentId : SessionContract<State, State, Command, State
           Ok next
       Project = fun state -> { SessionId = "arena-1"; Revision = uint64 state.Room.Tick; Value = state }
       Snapshot = fun state ->
-          { SessionId = "arena-1"; Revision = uint64 state.Room.Tick; Compatibility = compatibility; Value = state }
+          { SessionId = "arena-1"; Revision = uint64 state.Room.Tick; Compatibility = expectedCompatibility; Value = state }
       Restore = fun saved ->
-          if saved.Compatibility <> compatibility then Error { Code = "arena.snapshot.compatibility"; Message = "arena snapshot compatibility mismatch" }
-          elif saved.Value.Definition.SchemaVersion <> 2 || saved.Value.Definition.ContentId <> expectedContentId then Error { Code = "arena.snapshot.content"; Message = "arena snapshot content identity mismatch" }
+          if saved.Compatibility <> expectedCompatibility then Error { Code = "arena.snapshot.compatibility"; Message = "arena snapshot compatibility mismatch" }
+          elif saved.Value.Definition.SchemaVersion <> expectedDefinition.SchemaVersion || saved.Value.Definition.ContentId <> expectedDefinition.ContentId then Error { Code = "arena.snapshot.content"; Message = "arena snapshot content identity mismatch" }
           else Ok saved.Value }
 
-let contract = contractFor (contentAt 0UL).ContentId
+let contractFor expectedContentId =
+    let baseline = contentAt 0UL
+    contractForDefinition { baseline with ContentId = expectedContentId }
+
+let contract = contractForDefinition (contentAt 0UL)

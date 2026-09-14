@@ -254,23 +254,46 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
 
 - [ ] **SVG-WORKSPACE-01.4 — Demonstrate complete games and publishable documentation from the composition — route: routine**
 
-  Depends on: .3.
-  Scope: Templates generated examples/tutorials/playground, browser/deployment tests and C-row evidence map;
-  repair producer behavior in its owner if integration exposes a real gap.
-  Acceptance: execute §13 journeys 1–9 from the generated composition, using the coverage mapping below.
-  Blank vector content becomes authored gameplay, win condition, save/reload/export and served production
-  build. The neutral tactical example covers route/overlay/planning channels, simulator handoff, replay
-  seek, rule explanations and causal effects using only the disclosed external fixture. Arcade completes
-  collision/animation/audio/touch/gamepad/pause/lose/restart. Two production browsers perform authoritative
-  gameplay/reconnect/refusal and export an accepted session. Validate a real hosted static build plus its
-  required server deployment with exact identities and served-byte readback; local preview alone is not
-  deployment proof. Reuse matching owner evidence, but exercise changed browser/effect boundaries and
-  preserve named devices, workloads and unavailable measurements. Documentation and skill examples must
-  reproduce the shipped commands without sibling checkouts or hidden candidate feed variables.
+  Depends on: completed .3 and its merged §0 projection. Product integration begins independently of the
+  remote hosting effect; no durable ASP.NET destination/access is currently established.
+
+  Implementation: carry one genuinely blank document through individual vector, role and rule edits into
+  real Play, win/restart, browser save/new-page reload, exported schema-3 content and a configured authority
+  with two browsers. Required roles, supported transformed circle/rectangle geometry, boundary and grid spawn
+  validate before effects; decorative SVG stays independent and no fixed ids/default geometry invent meaning.
+  Tactical consumes only the disclosed Templates fixture and uses public pathfinding, Planning comparison/
+  cancellation/commit, Room simulation, recorded Replay seek and selected-rule causes. Arcade owns a distinct
+  continuous session over public fixed-step/Kinematics, input, animation and audio hosts, including held-source
+  cleanup, gamepad neutral/disconnect, stationary hazard movement, pause, terminal guards, loss and restart.
+  Studio Review replays accepted game actions. Bounded literate rule models name the actual generated digest,
+  bindings, Quint tool identity, witnesses and .NET/Fable correspondence; geometry is not remodeled in Quint.
+  Generated tutorial/playground/runbook content and the root locked build describe the exact public producer
+  pins and import only actual TRX/JUnit evidence. Record player/tool chunks, transfer/startup/resource conditions
+  and the precise browser, accessibility, device and audibility limits.
+
+  Qualification: execute original §13 journeys 1–9 against an installed exact candidate. Cover blank authoring,
+  modes/undo/redo/root/camera/selection/focus, input dispatch/help/rebinding and lost-held recovery; tactical and
+  arcade journeys; two-browser V3 reconnect/resync plus explicit stale/invalid/wrong-schema/content refusal;
+  canonical accepted-session replay and controlled first divergence. Verify an undisclosed authority sentinel
+  never reaches client/export/audio/inspector payloads, malformed/over-complex/missing-reference and storage
+  failures preserve last valid content, and changed scale/performance/accessibility workloads retain honest
+  unavailable dimensions. Physical-device, screen-reader, Firefox/WebKit or audible-output claims require those
+  actual observations.
+
+  Hosted effect: deploy a versioned release directory with hashes for static player, Studio/examples, authority
+  and selected content to a durable ASP.NET-capable destination with tested `/api`, `/hub`, WebSocket/TLS routing
+  and rollback. Read back deployed identity/served bytes and rerun the production journey. Static-only hosting,
+  localhost, tunnels and unrelated hosts do not qualify.
+
+  Completion: .4 closes only after integrated source/installed/native checks and the hosted static+ASP.NET
+  effect pass. A source delivery while hosting is unavailable records “source/journeys delivered; hosted effect
+  pending” and leaves this checkbox unchecked. Public Templates/wizard publication remains Release D.
 
 - [ ] **SVG-WORKSPACE-01.5 — Prove clean and retained installed development and upgrade journeys — route: routine**
 
-  Depends on: .2–.4; use an exact installed Templates candidate artifact and public producer closure.
+  Depends on: completed .2/.3 plus the .4 source/content/model interfaces actually used by receivers. Native
+  receiver preparation does not depend on the independent remote hosting effect; changed interfaces rebind the
+  affected evidence.
   Scope: Templates receiver tests/managed adopter and independent clean/retained qualification; SDD owns
   authority migration and policy capability fixes. Exercise direct template, SDD and native wizard
   entry/materializer families with every bundle's skill selection; representative lifecycle cases cover
@@ -282,13 +305,29 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   bindings and readable semantic diff, then passes formal obligations and .NET/Fable/browser correspondence.
   Do not substitute a scripted “PR passed” JSON fixture for native delivery evidence. Repeat after retained
   upgrade; keep explicit code merge, package/server deployment and activation outcomes separate.
+  Use isolated clean and retained typed/profile-2 receivers and representative direct/SDD/wizard paths. Add a
+  Templates-owned product build/conformance workflow if absent. Extend adoption to an explicit complete-workspace
+  transition with a pre-write managed/authored inventory, atomic collision refusal, interruption recovery and
+  byte-identical managed rollback; authored Domain/content/skills must survive. Public 0.10–0.13, the disclosed
+  tactical fixture, manifest-v1 evidence, Quint profile-1/profile-2, lifecycle tokens and old saves/replays/keymaps
+  retain an exact reader, supported migration or explicit refusal.
+
+  Deliver four actual native PRs: a useful routine repair and a separate visible semantic rule/model change in
+  each clean and retained private receiver. Observe base/head, required product checks, exact-head marker,
+  moved-head refusal/rebinding, same-PR correction, native merge/readback, delayed derived views and unavailable
+  usage. The semantic PRs update their literate model/bindings and .NET/Fable/browser behavior. Do not substitute
+  static adopter output or fabricated passing JSON for delivered receiver work.
+
   The upgrade/authority matrix below passes, including interrupted acceptance, no partial authority set,
   conflict/no-write and rollback witnesses. User-owned content and altered skills are preserved. Data
   identities remain readable by their retained runner or explicitly refuse; no destructive scaffold rerun.
 
+  Completion: .5 may close while .4's host effect is pending only when both native receiver pairs and the full
+  compatibility matrix actually pass; immediately project that closure into root §0.
+
 - [ ] **SVG-WORKSPACE-01.6 — Freeze the qualified composition and hand off Release D — route: routine**
 
-  Depends on: .1–.5 actual completion; no required target compatibility may be relabeled optional.
+  Depends on: .1–.5 actual completion, including .4 hosting; no required target compatibility may be relabeled optional.
   Scope: Templates coherent candidate identity/lock inventory, concise user docs and upgrade/rollback
   guidance, C01–C20/M0–M11/§13 evidence mapping and operation-specific activation matrix. Include exact
   published SDD/skills and candidate Templates/wizard identities, native PR/CI/operation evidence and
@@ -298,14 +337,20 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   Quint-profile readiness and target-default activation eligibility separately. This milestone completes
   the composition feature only when its required compatibility/development outcomes pass; a missing
   mandatory author/inspect/migration/routine capability leaves it incomplete. An unavailable future
-  proposal format does not. Public final Templates/wizard publication, live lifecycle default activation and the complete
-  Release-D claim remain the next feature, not inferred by a checked candidate list.
+  proposal format does not. Freeze the final candidate source, new native archive and lock/generated inventory;
+  map C01–C20, M0–M11 and all eleven §13 journeys to exact owner/source/evidence and distinguish source delivery,
+  candidate installation, hosting, compatibility and pending publication. Record the operation matrix for
+  producer/template/wizard publication, SVG product default, explicit typed/profile-2 use, retained migration and
+  later Typed SDD default activation. OperatingV2 authority remains required only for that later activation.
+  Public final Templates/wizard publication, live lifecycle default activation and the complete Release-D claim
+  remain the next feature. After .6 native readback and §0 projection, request a fresh major-feature plan for
+  SVG-RELEASE-D.
 
-First executable window after Release-C native closure and its §0 projection: **.1–.3**, with .4–.6
-providing bounded acceptance. A missing SDD target-authority seam blocks dependent target claims, not
-independent owner-skills or product composition work. Ordinary test failures/source movement reuse the
-implementation worker; materially absent contracts for mandatory SVG behavior justify extending this same
-feature horizon. The open state of broad SDD #927 is not itself a blocked milestone.
+Current executable window: **.4 source/integration and deployment preparation**, then .5 receiver/native
+development as soon as its used .4 interfaces settle; .6 traceability may be prepared from real results.
+The unresolved .4 input is a durable ASP.NET deployment destination with static/WebSocket routing and rollback.
+Do all independent product and receiver work while it is absent. Source-only checkpoints do not trigger §0;
+each actual milestone closure does. Broad SDD #927 and a future ChangeProposal format are not blanket blockers.
 
 ## Journey coverage and authority/upgrade matrix
 

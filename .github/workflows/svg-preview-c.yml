@@ -45,11 +45,46 @@ jobs:
         run: |
           npm ci
           npx playwright install --with-deps chromium firefox webkit
+      - name: Acquire exact Quint
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://github.com/quint-co/quint/releases/download/v0.32.0/quint-linux-amd64 \
+            --output "$RUNNER_TEMP/quint"
+          echo '939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f  '"$RUNNER_TEMP/quint" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/quint"
       - name: Qualify source package against public Release C producers
         run: |
           browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
           PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
             bash tests/composition/fable-game/verify-svg-preview-c-source.sh "$RUNNER_TEMP/svg-preview-c-source"
+      - name: Qualify installed complete workspace across browser families
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="$(find "$RUNNER_TEMP/svg-preview-c-source/feed" -maxdepth 1 -type f -name 'FS.GG.Workspace.Template.0.14.0.nupkg' -print -quit)"
+          test -f "$package"
+          export DOTNET_CLI_HOME="$RUNNER_TEMP/svg-workspace-complete-home"
+          dotnet new install "$package" --force >/dev/null
+          dotnet new fs-gg-fable-game -n SvgWorkspaceComplete \
+            -o "$RUNNER_TEMP/svg-workspace-complete" --lifecycle none --bundle complete >/dev/null
+          cd "$RUNNER_TEMP/svg-workspace-complete"
+          browser_path="$(node -e "process.stdout.write(require('./Browser.Tests/node_modules/@playwright/test').chromium.executablePath())" 2>/dev/null || true)"
+          if [[ ! -x "$browser_path" ]]; then
+            browser_path="$(node -e "process.stdout.write(require('${{ github.workspace }}/templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          fi
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
+            QUINT_BIN="$RUNNER_TEMP/quint" SVG_RELEASE_VERSION="source-${GITHUB_SHA}" \
+            bash ./build.sh > "$RUNNER_TEMP/svg-preview-c-source/complete-chromium.log" 2>&1
+          cp Browser.Tests/test-results/browser.json "$RUNNER_TEMP/svg-preview-c-source/complete-chromium.browser.json"
+          cp artifacts/test-results/browser.chromium.junit.xml "$RUNNER_TEMP/svg-preview-c-source/complete-chromium.junit.xml"
+          for family in firefox webkit; do
+            PLAYWRIGHT_BROWSER_FAMILY="$family" npm test --prefix Browser.Tests \
+              > "$RUNNER_TEMP/svg-preview-c-source/complete-$family.log" 2>&1
+            cp Browser.Tests/test-results/browser.json "$RUNNER_TEMP/svg-preview-c-source/complete-$family.browser.json"
+            cp "artifacts/test-results/browser.$family.junit.xml" "$RUNNER_TEMP/svg-preview-c-source/complete-$family.junit.xml"
+          done
       - name: Upload Release C source evidence
         if: always()
         uses: actions/upload-artifact@v7
@@ -64,5 +99,7 @@ jobs:
             ${{ runner.temp }}/svg-preview-c-source/*-scale.json
             ${{ runner.temp }}/svg-preview-c-source/*-network.json
             ${{ runner.temp }}/svg-preview-c-source/*.log
+            ${{ runner.temp }}/svg-preview-c-source/complete-*.browser.json
+            ${{ runner.temp }}/svg-preview-c-source/complete-*.junit.xml
           if-no-files-found: warn
           retention-days: 90

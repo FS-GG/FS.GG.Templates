@@ -26,6 +26,12 @@ open FS.GG.Audio.WebBrowser
 #if SVG_SCALE_CANDIDATE
 module ScalePlayer = FableGameWorkspaceNamespace.SvgFoundation.ScalePlayer
 #endif
+#if ARCADE_EXAMPLE
+module ArcadeExample = FableGameWorkspaceNamespace.SvgFoundation.ArcadeExample
+#endif
+#if TACTICAL_EXAMPLE
+module TacticalExample = FableGameWorkspaceNamespace.SvgFoundation.TacticalExample
+#endif
 
 let private color red green blue =
     { Red = red; Green = green; Blue = blue; Alpha = 255uy }
@@ -62,6 +68,13 @@ let private requireTransition name (result: RetainedInteractionResult) =
     match result.Error with
     | None -> ()
     | Some error -> failwithf "SVG product %s transition failed: %A" name error
+
+#if ARCADE_EXAMPLE
+let private arcadeExample = ArcadeExample.mount ()
+#endif
+#if TACTICAL_EXAMPLE
+do TacticalExample.mount ()
+#endif
 
 #if LEGACY_SVG_PREVIEW
 let gridScene =
@@ -195,6 +208,9 @@ let mutable private refreshAudioObservation: unit -> unit = ignore
 let private onAudioEvent event =
     audioEvents.Add event
     playerInputScope.setAttribute("data-audio-event", string event)
+#if !LEGACY_SVG_PREVIEW
+    playerInputScope.setAttribute("data-audio-capability-excluded", string (SvgAuthority.excludesCapability (string event)))
+#endif
     if (string event).Contains("EffectDispatched") then
         playerInputScope.setAttribute("data-audio-effect-dispatched", "true")
     refreshAudioObservation()
@@ -292,6 +308,7 @@ let private animationCallbacks =
       Refused = fun refusal -> playerInputScope.setAttribute("data-animation-refusal", string refusal)
       Dispose = fun () -> () }
 let private animationHost = new SvgAnimationHost(animationCallbacks, SvgAnimationHost.defaultConfig, playerRuntime.Current.Revision)
+do playerInputScope.setAttribute("data-motion-preference", string (animationHost.Observe().MotionPreference))
 
 let private startPresentation outcome =
     animationHost.ReplaceAuthority(playerRuntime.Current.Revision)
@@ -333,6 +350,9 @@ handlePersistenceEvent <- function
     | BrowserPersistenceEvent.Exported archive ->
         lastArchive <- archive
         playerInputScope.setAttribute("data-archive-length", string archive.Length)
+#if !LEGACY_SVG_PREVIEW
+        playerInputScope.setAttribute("data-archive-capability-excluded", string (SvgAuthority.excludesCapability archive))
+#endif
         persistenceOutput.textContent <- "Archive exported"
     | BrowserPersistenceEvent.Imported _ ->
         persistenceHost.Load({ Family = BrowserStorageFamily.GameSave; Slot = "primary" })
@@ -544,6 +564,9 @@ window.addEventListener("gamepadconnected", refreshGamepads)
 
 // Keep the mounted hosts alive for the lifetime of the generated sample.
 window.addEventListener("beforeunload", fun _ ->
+#if ARCADE_EXAMPLE
+    arcadeExample.Dispose()
+#endif
 #if SVG_SCALE_CANDIDATE
     ScalePlayer.dispose ()
 #endif

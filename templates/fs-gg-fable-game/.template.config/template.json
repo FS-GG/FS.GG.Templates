@@ -39,7 +39,12 @@
       "modifiers": [
         {
           "condition": "(bundle == \"player\")",
-          "exclude": [ "SvgFoundation/Studio/**" ]
+          "exclude": [
+            "SvgFoundation/Studio/**",
+            "models/**",
+            "Conformance/GeneratedArenaRuleModel.fs",
+            "Conformance/GeneratedTacticalRuleModel.fs"
+          ]
         },
         {
           "condition": "((bundle != \"tactical\") && (bundle != \"complete\"))",

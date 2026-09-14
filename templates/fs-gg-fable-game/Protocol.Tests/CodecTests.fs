@@ -81,6 +81,48 @@ let ``RealtimeV2 refuses a snapshot without complete content identity`` () =
     let incomplete = """{"kind":"snapshot","payload":{"version":2,"tick":1,"players":[],"health":3,"score":0,"collected":false,"outcome":"playing","hazardCol":7,"hazardRow":8}}"""
     Assert.True(RealtimeV2.messageFromJson incomplete |> Result.isError)
 
+let private authoredV3Snapshot: RealtimeV3.Snapshot =
+    { Version = 3; Tick = 42; Round = 3
+      Players = [ { PlayerId = "p-1"; Col = 4; Row = 3 } ]
+      Health = 2; Score = 100; Collected = true; Outcome = "playing"
+      ContentId = "continuous-arena/authored-v3"; ContentSchema = 3
+      BoundaryX = 0.0; BoundaryY = 0.0; BoundaryWidth = 220.0; BoundaryHeight = 120.0
+      SpawnCol = 4; SpawnRow = 3
+      CollectibleX = 60.5; CollectibleY = 25.25
+      HazardX = 88.0; HazardY = 80.0; HazardWidth = 11.0; HazardHeight = 10.0
+      GoalX = 176.0; GoalY = 50.0; GoalWidth = 11.0; GoalHeight = 10.0
+      ThinWallX = 112.0; ThinWallY = 0.0; ThinWallWidth = 2.0; ThinWallHeight = 48.0
+      HazardCol = 8; HazardRow = 8 }
+
+[<Theory>]
+[<InlineData(0)>]
+[<InlineData(1)>]
+[<InlineData(2)>]
+[<InlineData(3)>]
+[<InlineData(4)>]
+[<InlineData(5)>]
+let ``RealtimeV3 carries immutable authored content for every message case`` (caseIndex: int) =
+    let value: RealtimeV3.Message =
+        match caseIndex with
+        | 0 -> RealtimeV3.InputMessage { Version = 3; Sequence = 7; Action = "interact"; TargetCol = 4; TargetRow = 3 }
+        | 1 -> RealtimeV3.SessionHelloMessage { Version = 3; SessionCapability = "opaque-capability" }
+        | 2 -> RealtimeV3.SnapshotMessage authoredV3Snapshot
+        | 3 -> RealtimeV3.PresenceMessage { Version = 3; PlayerId = "p-1"; Joined = true }
+        | 4 -> RealtimeV3.ResyncRequestMessage { Version = 3; LastKnownTick = 10 }
+        | _ -> RealtimeV3.ResyncSnapshotMessage authoredV3Snapshot
+    Assert.Equal(Ok value, value |> RealtimeV3.encodeMessage |> RealtimeV3.messageFromJson)
+
+[<Fact>]
+let ``RealtimeV3 refuses a V2 snapshot that omits immutable spawn and boundary`` () =
+    let oldWire = RealtimeV2.SnapshotMessage
+                    { Version = 2; Tick = authoredV3Snapshot.Tick; Round = authoredV3Snapshot.Round
+                      Players = []; Health = 3; Score = 0; Collected = false; Outcome = "playing"
+                      ContentId = "continuous-arena/default-v2"; ContentSchema = 2
+                      CollectibleX = 60.; CollectibleY = 25.; HazardX = 88.; HazardY = 80.; HazardWidth = 11.; HazardHeight = 10.
+                      GoalX = 176.; GoalY = 50.; GoalWidth = 11.; GoalHeight = 10.
+                      ThinWallX = 112.; ThinWallY = 0.; ThinWallWidth = 2.; ThinWallHeight = 48.; HazardCol = 8; HazardRow = 8 }
+    Assert.True(oldWire |> RealtimeV2.encodeMessage |> RealtimeV3.messageFromJson |> Result.isError)
+
 /// ADR-0073's "not optional" acceptance criterion: an arbitrary-DU boundary case that
 /// is *expected to be rejected*, not merely one that happens to succeed. Two distinct
 /// rejection shapes are exercised: an unrecognised discriminator, and a well-known

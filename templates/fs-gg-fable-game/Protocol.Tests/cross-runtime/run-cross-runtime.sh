@@ -19,6 +19,8 @@ WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 NET_PROJECT="$SCRIPT_DIR/CodecProbe.Net/CodecProbe.Net.fsproj"
 FABLE_PROJECT="$SCRIPT_DIR/CodecProbe.Fable/CodecProbe.Fable.fsproj"
 FABLE_ENTRY="$SCRIPT_DIR/CodecProbe.Fable/Program.js"
+MODEL_TRACE="$WORKSPACE_ROOT/Conformance/arena-rules.trace"
+TACTICAL_TRACE="$WORKSPACE_ROOT/Conformance/tactical-rules.trace"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -92,6 +94,15 @@ for case_name in input sessionHello snapshot presence resyncRequest resyncSnapsh
   expect_ok "realtime-v2[$case_name]: net decodes fable's encoding" net decode-realtime-v2 "$case_name" "$TMP/rt2-fable-$case_name.json"
 done
 
+# V3 carries the authored immutable boundary and spawn in addition to all V2
+# gameplay fields. Exercise every union case in both runtime directions.
+for case_name in input sessionHello snapshot presence resyncRequest resyncSnapshot; do
+  expect_ok "realtime-v3[$case_name]: net encode" net encode-realtime-v3 "$case_name" "$TMP/rt3-net-$case_name.json"
+  expect_ok "realtime-v3[$case_name]: fable decodes net's encoding" fbl decode-realtime-v3 "$case_name" "$TMP/rt3-net-$case_name.json"
+  expect_ok "realtime-v3[$case_name]: fable encode" fbl encode-realtime-v3 "$case_name" "$TMP/rt3-fable-$case_name.json"
+  expect_ok "realtime-v3[$case_name]: net decodes fable's encoding" net decode-realtime-v3 "$case_name" "$TMP/rt3-fable-$case_name.json"
+done
+
 # The explicit rejected-arbitrary-DU-case proof, independently on both runtimes.
 expect_ok "rejected cases: net rejects both malformed cases" net decode-rejected-cases
 expect_ok "rejected cases: fable rejects both malformed cases" fbl decode-rejected-cases
@@ -99,6 +110,15 @@ expect_ok "rejected cases: fable rejects both malformed cases" fbl decode-reject
 expect_ok "arena rules/session/replay: net complete sequence" net write-arena-proof "$TMP/arena-net.txt"
 expect_ok "arena rules/session/replay: net complete sequence under de-DE" net write-arena-proof-de "$TMP/arena-net-de.txt"
 expect_ok "arena rules/session/replay: fable complete sequence" fbl write-arena-proof "$TMP/arena-fable.txt"
+expect_ok "gameplay metadata identity: net fractional semantics" net write-gameplay-identity-proof "$TMP/identity-net.txt"
+expect_ok "gameplay metadata identity: net de-DE fractional semantics" net write-gameplay-identity-proof-de "$TMP/identity-net-de.txt"
+expect_ok "gameplay metadata identity: fable fractional semantics" fbl write-gameplay-identity-proof "$TMP/identity-fable.txt"
+expect_ok "arena model correspondence: net reducer" net write-arena-model-correspondence "$MODEL_TRACE" "$TMP/model-net.txt"
+expect_ok "arena model correspondence: fable reducer" fbl write-arena-model-correspondence "$MODEL_TRACE" "$TMP/model-fable.txt"
+expect_ok "arcade arena-model correspondence/content refusal: net reducer" net write-arcade-proof "$MODEL_TRACE" "$TMP/arcade-net.txt"
+expect_ok "arcade arena-model correspondence/content refusal: fable reducer" fbl write-arcade-proof "$MODEL_TRACE" "$TMP/arcade-fable.txt"
+expect_ok "tactical model/rules: net reducer" net write-tactical-proof "$TACTICAL_TRACE" "$TMP/tactical-net.txt"
+expect_ok "tactical model/rules: fable reducer" fbl write-tactical-proof "$TACTICAL_TRACE" "$TMP/tactical-fable.txt"
 cmp "$TMP/arena-net.txt" "$TMP/arena-net-de.txt" || {
   echo "cross-runtime: FAILED - ArenaRules replay bytes depend on .NET culture" >&2
   diff -u "$TMP/arena-net.txt" "$TMP/arena-net-de.txt" >&2 || true
@@ -109,6 +129,105 @@ cmp "$TMP/arena-net.txt" "$TMP/arena-fable.txt" || {
   diff -u "$TMP/arena-net.txt" "$TMP/arena-fable.txt" >&2 || true
   exit 1
 }
+cmp "$TMP/identity-net.txt" "$TMP/identity-net-de.txt" || {
+  echo "cross-runtime: FAILED - gameplay metadata identity depends on .NET culture" >&2
+  exit 1
+}
+cmp "$TMP/identity-net.txt" "$TMP/identity-fable.txt" || {
+  echo "cross-runtime: FAILED - gameplay metadata identity differs between .NET and Fable" >&2
+  exit 1
+}
+cmp "$TMP/model-net.txt" "$TMP/model-fable.txt" || {
+  echo "cross-runtime: FAILED - arena model/reducer correspondence differs between .NET and Fable" >&2
+  exit 1
+}
+cmp "$TMP/arcade-net.txt" "$TMP/arcade-fable.txt" || {
+  echo "cross-runtime: FAILED - arcade arena-model/reducer correspondence differs between .NET and Fable" >&2
+  diff -u "$TMP/arcade-net.txt" "$TMP/arcade-fable.txt" >&2 || true
+  exit 1
+}
+cmp "$TMP/tactical-net.txt" "$TMP/tactical-fable.txt" || {
+  echo "cross-runtime: FAILED - tactical model/reducer differs between .NET and Fable" >&2
+  diff -u "$TMP/tactical-net.txt" "$TMP/tactical-fable.txt" >&2 || true
+  exit 1
+}
+
+# Compile isolated copies of the real reducer with three controlled rule faults.
+# The model-derived trace must reject each implementation with a first-divergence
+# diagnostic, so an unrelated build/crash cannot satisfy this negative control.
+MUTATED_ROOT="$TMP/mutated-workspace"
+MUTATION_EVIDENCE_DIR="${MODEL_MUTATION_EVIDENCE_DIR:-$TMP/mutation-evidence}"
+mkdir -p "$MUTATION_EVIDENCE_DIR"
+mkdir -p "$MUTATED_ROOT/Protocol.Tests/cross-runtime/CodecProbe.Net" "$MUTATED_ROOT/Conformance"
+cp "$WORKSPACE_ROOT/Directory.Build.props" "$WORKSPACE_ROOT/NuGet.config" "$WORKSPACE_ROOT/global.json" "$MUTATED_ROOT/"
+cp -a "$WORKSPACE_ROOT/.nuget" "$WORKSPACE_ROOT/Domain" "$WORKSPACE_ROOT/Protocol" "$MUTATED_ROOT/"
+cp "$SCRIPT_DIR/Program.fs" "$MUTATED_ROOT/Protocol.Tests/cross-runtime/Program.fs"
+cp "$NET_PROJECT" "$MUTATED_ROOT/Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj"
+cp "$SCRIPT_DIR/CodecProbe.Net/packages.lock.json" "$MUTATED_ROOT/Protocol.Tests/cross-runtime/CodecProbe.Net/packages.lock.json"
+cp "$WORKSPACE_ROOT/Conformance/SceneSchema.fs" "$MUTATED_ROOT/Conformance/SceneSchema.fs"
+
+run_mutant() {
+  local label="$1"
+  cp "$WORKSPACE_ROOT/Domain/ArenaContent.fs" "$MUTATED_ROOT/Domain/ArenaContent.fs"
+  cp "$WORKSPACE_ROOT/Domain/ArenaRules.fs" "$MUTATED_ROOT/Domain/ArenaRules.fs"
+  case "$label" in
+    faulty-mapping)
+      sed -i 's/status\.Score + 100/status.Score + 99/' "$MUTATED_ROOT/Domain/ArenaContent.fs"
+      grep -F 'status.Score + 99' "$MUTATED_ROOT/Domain/ArenaContent.fs" >/dev/null
+      ;;
+    wrong-precedence)
+      python3 - "$MUTATED_ROOT/Domain/ArenaContent.fs" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+old = '''    elif not status.Collected && overlaps player collectible then
+        { status with Collected = true; Score = status.Score + 100 }
+    elif status.Collected && overlaps player content.Goal then { status with Outcome = "won" }
+'''
+new = '''    elif overlaps player content.Goal then { status with Outcome = "won" }
+    elif not status.Collected && overlaps player collectible then
+        { status with Collected = true; Score = status.Score + 100 }
+'''
+if text.count(old) != 1:
+    raise SystemExit("wrong-precedence mutation target not found exactly once")
+path.write_text(text.replace(old, new))
+PY
+      ;;
+    stale-contact)
+      sed -i 's/let entered = Set\.difference contacts state\.HazardContacts/let entered = contacts/' "$MUTATED_ROOT/Domain/ArenaRules.fs"
+      grep -F 'let entered = contacts' "$MUTATED_ROOT/Domain/ArenaRules.fs" >/dev/null
+      ;;
+    stale-state-acceptance)
+      sed -i 's/elif saved\.Value\.Definition\.SchemaVersion <> expectedDefinition\.SchemaVersion || saved\.Value\.Definition\.ContentId <> expectedDefinition\.ContentId then/elif false then/' "$MUTATED_ROOT/Domain/ArenaRules.fs"
+      grep -F 'elif false then Error { Code = "arena.snapshot.content"' "$MUTATED_ROOT/Domain/ArenaRules.fs" >/dev/null
+      ;;
+  esac
+  dotnet build "$MUTATED_ROOT/Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj" \
+    -t:Rebuild -c Release -o "$TMP/mutated-net-$label" >"$MUTATION_EVIDENCE_DIR/$label-build.log" 2>&1
+  set +e
+  dotnet "$TMP/mutated-net-$label/CodecProbe.Net.dll" check-arena-model-correspondence "$MODEL_TRACE" \
+    >"$MUTATION_EVIDENCE_DIR/$label-run.log" 2>&1
+  local status=$?
+  set -e
+  local expected_failure='Quint/reducer first divergence at state'
+  [[ $label == stale-state-acceptance ]] && expected_failure='stale authored state accepted'
+  if [[ $status -eq 0 ]] || ! grep -F "$expected_failure" "$MUTATION_EVIDENCE_DIR/$label-run.log" >/dev/null; then
+    echo "cross-runtime: FAILED - $label control lacked the expected correspondence divergence" >&2
+    cat "$MUTATION_EVIDENCE_DIR/$label-run.log" >&2
+    exit 1
+  fi
+  echo "cross-runtime: OK - model trace rejects isolated $label mutant"
+}
+
+run_mutant faulty-mapping
+run_mutant wrong-precedence
+run_mutant stale-contact
+run_mutant stale-state-acceptance
 echo "cross-runtime: OK - ArenaRules movement/contact/Interact/win/Restart and complete replay bytes match"
+echo "cross-runtime: OK - gameplay metadata identity preserves fractional semantics across .NET/Fable"
+echo "cross-runtime: OK - executed Quint trace matches both reducers"
+echo "cross-runtime: OK - executed arena-model trace matches Arcade reducers and foreign content/session refusals in both runtimes"
+echo "cross-runtime: OK - tactical Quint trace matches both portable reducers"
 
 echo "cross-runtime: OK - DTO codecs and complete ArenaRules session/replay agree across .NET and Fable"

@@ -34,13 +34,13 @@ let private notify status =
     publish status state.Players state.Tick round health score collected outcome contentId contentSchema content hazardCol hazardRow
 
 let private sendHello capability (connection: SignalR.HubConnection) =
-    let json = RealtimeV2.encodeMessage (RealtimeV2.SessionHelloMessage { Version = 2; SessionCapability = capability })
+    let json = RealtimeV3.encodeMessage (RealtimeV3.SessionHelloMessage { Version = 3; SessionCapability = capability })
     thenBoth (connection.invoke("SendMessage", json)) ignore (fun error -> notify ("authority error: " + string error))
 
 let private accept message =
     match message with
-    | RealtimeV2.SnapshotMessage snapshot
-    | RealtimeV2.ResyncSnapshotMessage snapshot when snapshot.Version = 2 && snapshot.ContentSchema = 2 && snapshot.ContentId.StartsWith("continuous-arena/") && snapshot.Tick >= state.Tick ->
+    | RealtimeV3.SnapshotMessage snapshot
+    | RealtimeV3.ResyncSnapshotMessage snapshot when snapshot.Version = 3 && (snapshot.ContentSchema = 2 || snapshot.ContentSchema = 3) && snapshot.ContentId.StartsWith("continuous-arena/") && snapshot.Tick >= state.Tick ->
         let self = state.PlayerId
         state <-
             { state with
@@ -51,17 +51,19 @@ let private accept message =
         identity <- snapshot.Round, snapshot.ContentId, snapshot.ContentSchema
         content <-
             { SchemaVersion = snapshot.ContentSchema; ContentId = snapshot.ContentId
+              Boundary = { X = snapshot.BoundaryX; Y = snapshot.BoundaryY; Width = snapshot.BoundaryWidth; Height = snapshot.BoundaryHeight }
+              Spawn = { Col = snapshot.SpawnCol; Row = snapshot.SpawnRow }
               CollectibleX = snapshot.CollectibleX; CollectibleY = snapshot.CollectibleY
               Hazard = { X = snapshot.HazardX; Y = snapshot.HazardY; Width = snapshot.HazardWidth; Height = snapshot.HazardHeight }
               Goal = { X = snapshot.GoalX; Y = snapshot.GoalY; Width = snapshot.GoalWidth; Height = snapshot.GoalHeight }
               ThinWall = { X = snapshot.ThinWallX; Y = snapshot.ThinWallY; Width = snapshot.ThinWallWidth; Height = snapshot.ThinWallHeight } }
         notify "synchronized"
-    | RealtimeV2.PresenceMessage _ -> notify "presence changed"
+    | RealtimeV3.PresenceMessage _ -> notify "presence changed"
     | _ -> ()
 
 let private connect capability =
     let connection = SignalR.build "/hub/game"
-    connection.on("Message", fun json -> RealtimeV2.messageFromJson json |> Result.iter accept)
+    connection.on("Message", fun json -> RealtimeV3.messageFromJson json |> Result.iter accept)
     connection.onreconnecting(fun _ -> notify "reconnecting")
     connection.onreconnected(fun _ -> sendHello capability connection)
     connection.onclose(fun _ -> state <- { state with Connection = None }; notify "closed")
@@ -83,9 +85,9 @@ let move deltaCol deltaRow =
     match state.PlayerId, state.Connection, state.Players |> List.tryFind _.IsSelf with
     | Some _, Some connection, Some self ->
         let json =
-            RealtimeV2.encodeMessage (
-                RealtimeV2.InputMessage
-                    { Version = 2
+            RealtimeV3.encodeMessage (
+                RealtimeV3.InputMessage
+                    { Version = 3
                       Sequence = state.Sequence
                       Action = "move"
                       TargetCol = self.Col + deltaCol
@@ -98,12 +100,18 @@ let command action =
     match state.Connection, state.Players |> List.tryFind _.IsSelf with
     | Some connection, Some self ->
         let json =
-            RealtimeV2.encodeMessage (
-                RealtimeV2.InputMessage
-                    { Version = 2; Sequence = state.Sequence; Action = action; TargetCol = self.Col; TargetRow = self.Row })
+            RealtimeV3.encodeMessage (
+                RealtimeV3.InputMessage
+                    { Version = 3; Sequence = state.Sequence; Action = action; TargetCol = self.Col; TargetRow = self.Row })
         state <- { state with Sequence = state.Sequence + 1 }
         thenBoth (connection.invoke("SendMessage", json)) ignore (fun error -> notify ("authority error: " + string error))
     | _ -> notify "authority unavailable"
+
+/// Redacted disclosure assertion used by product adapters when they emit derived
+/// presentation, audio, or persistence bytes. The capability itself stays private.
+let excludesCapability (value: string) =
+    state.Capability
+    |> Option.forall (fun capability -> not (value.Contains(capability, System.StringComparison.Ordinal)))
 
 let dispose () =
     state.Connection |> Option.iter (fun connection -> thenBoth (connection.stop()) ignore ignore)

@@ -1,6 +1,7 @@
 # Retained SVG foundation fixture
 
-This opt-in fixture is emitted only by `dotnet new fs-gg-fable-game --svgFoundation`.
+This is the selected SVG product payload. The default `player` bundle emits the runtime;
+`studio`, `tactical`, `arcade`, and `complete` add separate tools and examples.
 It consumes the coherent public `FS.GG.UI.Scene`, transitive `FS.GG.UI.KeyboardInput`, and
 `FS.GG.UI.Scene.SvgBrowser` packages and mounts two
 neutral retained scenes plus the identified Preview-A document. The document combines integer-grid and
@@ -19,8 +20,8 @@ camera and relevant selection/focus state into the Rendering contract.
 The embedded Noto Sans Latin 400 object is sourced from `@fontsource/noto-sans` 5.3.0 and remains under
 OFL-1.1; its exact identity and license are recorded in `THIRD-PARTY-NOTICES.md`.
 
-Restore this project from NuGet.org using the exact public Rendering `0.30.0`, Game `0.15.0`, and
-Audio `0.6.0` packages. The default template remains the supported arena sample; SVG stays opt-in.
+Restore this project from NuGet.org using the exact public Rendering `0.31.0`, Game `0.16.0`, and
+Audio `0.6.0` packages. The SVG player is the default Templates 0.14.0 composition.
 
 ## Authoring
 
@@ -46,7 +47,7 @@ Package rollback restores managed workspace files only. It never downgrades or d
 
 ## Input
 
-Preview B enables `PlayerInput.fs` and `Studio/WorkspaceInput.fs` inside the selected SVG payload.
+The selected composition enables `PlayerInput.fs` and `Studio/WorkspaceInput.fs` inside the SVG payload.
 `SvgFoundation/build.sh` produces the small player entry; its commands adapt to retained focus
 and activation and its output excludes Studio, workspace and geometry-worker modules. The Studio entry
 uses one effective product profile for mode shortcuts, Ctrl/Command palette access, sequence help,
@@ -70,7 +71,7 @@ sound, while timeline seek and reduced-motion settling remain silent. Four stora
 keys; the sample save uses `save:primary`. The archive control exports the host's complete, hash-bound
 archive and imports it only after all declared paths, contents, and SHA-256 identities validate.
 
-The Preview B journey demonstrates gesture unlock, asset readiness, one-shot dispatch, cue suppression on
+The browser journey demonstrates gesture unlock, asset readiness, one-shot dispatch, cue suppression on
 seek, reduced-motion settling, successful autosave and reload, quota failure with the prior save preserved,
 recovery through a later valid edit, and archive replacement. Closing the page disposes the frame clock,
 audio graph, IndexedDB connection, input host, session host, and retained SVG hosts.

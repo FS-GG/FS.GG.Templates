@@ -133,9 +133,11 @@ module RoomAuthority =
         | None ->
             let occupied = state.Room.Players |> Map.toSeq |> Seq.map (fun (_, p) -> p.Cell) |> Set.ofSeq
             seq {
+                yield ({ Col = definition.Spawn.Col; Row = definition.Spawn.Row }: Cell)
                 for row in 0 .. ArenaHeight - 1 do
                     for col in 0 .. ArenaWidth - 1 do
-                        yield ({ Col = col; Row = row }: Cell)
+                        if col <> definition.Spawn.Col || row <> definition.Spawn.Row then
+                            yield ({ Col = col; Row = row }: Cell)
             }
             |> Seq.tryFind (occupied.Contains >> not)
             |> Option.map (fun spawn ->
