@@ -82,8 +82,8 @@ It produces:
 
 - **Rendering** — the FS.GG.Rendering `fs-gg-ui` app (Skia/OpenGL, Elmish/MVU, Scene,
   SkiaViewer, Controls), installed live from the published `FS.GG.UI.Template` package
-  pinned by the provider (currently `FS.GG.UI.Template@0.29.0`, behind the
-  immutable tag `fs-gg-ui-template/v0.29.0`). Every provider accepts `none`, `sdd`,
+  pinned by the provider (currently `FS.GG.UI.Template@0.31.0`, behind the
+  immutable tag `fs-gg-ui-template/v0.31.0`). Every provider accepts `none`, `sdd`,
   and `typed-sdd`; omission resolves to `sdd`. Product templates emit only product files —
   lifecycle artifacts always come from FS.GG.SDD, never a second template-owned copy.
 - **SDD** — the lifecycle skeleton: `.fsgg/project.yml`, `.fsgg/sdd.yml`,
