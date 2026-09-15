@@ -107,10 +107,24 @@ service, checks boot enablement and repeats the public verification. It writes a
 `artifacts/deployment-evidence/<version>.json` containing the observation time, release-manifest digest and
 certificate identity. A static-only host, localhost or a tunnel is still only development evidence.
 
-Rollback by invoking `deploy/deploy-production.sh` with a retained compatible release version, using a distinct
-`SVG_DEPLOYMENT_EVIDENCE` path for the rollback receipt. The same activation and public verification gates apply;
-then redeploy and verify the intended version. Keep both content-addressed deployments until the rollback exercise
-has passed. Never write session capabilities into evidence.
+Every successful deploy prints its content-addressed deployment id and the evidence records the release-manifest
+SHA-256. Retain both values. Roll back later without reconstructing old bytes on the operator machine:
+
+```bash
+export DEPLOY_TARGET=deploy@203.0.113.10
+export GAME_SITE_ADDRESS=game.example.com
+export GAME_UPSTREAM=authority:8080
+export EXPECTED_RELEASE_MANIFEST_SHA=<64-character digest from the prior receipt>
+export SVG_DEPLOYMENT_EVIDENCE=artifacts/deployment-evidence/rollback-<version>.json
+bash deploy/rollback-production.sh <version>-<archive-sha-prefix> <version> "$EXPECTED_RELEASE_MANIFEST_SHA"
+```
+
+The protected workflow exposes the same operation as `operation=rollback`; supply `retained_deployment_id` and
+`expected_manifest_sha256`, and leave `bootstrap_vps=false`. It verifies the retained directory and every manifest
+entry on the host before switching, then checks trusted TLS, exact served manifest/Player/Studio bytes, two-client
+V3 WebSocket reconnect and a service restart. Failure automatically restores the deployment that was active when
+rollback began. Redeploy the intended version after completing the exercise. Never write session capabilities
+into evidence.
 
 Set `GAME_UPSTREAM=https://authority.example.com` before deployment when the ASP.NET authority later moves to a
 separate game-server provider. Static assets remain unchanged and browser traffic stays same-origin at Caddy.

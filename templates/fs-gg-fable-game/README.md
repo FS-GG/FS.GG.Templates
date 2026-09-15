@@ -132,7 +132,8 @@ Caddy serves the hashed Player, optional Studio and selected content while proxy
 local stack after verification. The public host uses the same base composition with
 `deploy/compose.production.yaml`. `deploy/deploy-production.sh` installs an immutable activation over strict
 host-key-checked SSH, verifies trusted TLS and a forced two-client V3 WebSocket reconnect, restarts the boot-enabled
-systemd service, and repeats the verification. Re-running it with a retained release version is the rollback path.
+systemd service, and repeats the verification. `deploy/rollback-production.sh` reactivates retained VPS bytes by
+content-addressed deployment id and expected manifest digest, without requiring an old local build.
 See `docs/runbooks/build-evidence-and-deploy.md` for the exact VPS bootstrap, DNS and deployment commands.
 
 `bash ./build.sh` runs the product qualification build: locked restore/build/test the `.NET` solution

@@ -153,7 +153,9 @@ for deployment_path in \
   deploy/container-engine.sh \
   deploy/install-vps.sh \
   deploy/activate-vps.sh \
+  deploy/activate-retained-vps.sh \
   deploy/rollback-vps.sh \
+  deploy/rollback-production.sh \
   deploy/finalize-vps.sh \
   deploy/package-production.sh \
   deploy/deploy-production.sh \
@@ -176,13 +178,23 @@ grep -F 'bash "$root/deploy/verify-edge.sh"' "$work/Player/deploy/run-local.sh" 
 grep -F 'StrictHostKeyChecking=yes' "$work/Player/deploy/deploy-production.sh" >/dev/null
 grep -F 'UserKnownHostsFile=$DEPLOY_KNOWN_HOSTS_FILE' "$work/Player/deploy/deploy-production.sh" >/dev/null
 grep -F 'rollback_remote' "$work/Player/deploy/deploy-production.sh" >/dev/null
+grep -F 'EXPECTED_RELEASE_MANIFEST_SHA' "$work/Player/deploy/rollback-production.sh" >/dev/null
+grep -F 'retained deployment manifest does not match the expected digest' "$work/Player/deploy/activate-retained-vps.sh" >/dev/null
+grep -F 'fsgg-fable-game.rollback.service' "$work/Player/deploy/rollback-vps.sh" >/dev/null
 grep -F 'systemctl enable fsgg-fable-game.service' "$work/Player/deploy/activate-vps.sh" >/dev/null
 grep -F 'serviceRestartVerified' "$work/Player/deploy/verify-production.sh" >/dev/null
+grep -F 'deploymentId' "$work/Player/deploy/verify-production.sh" >/dev/null
+grep -F 'operation:' .github/workflows/svg-production-deploy.yml >/dev/null
 grep -F 'HttpTransportType.WebSockets' "$work/Player/deploy/verify-edge.mjs" >/dev/null
 grep -F 'payload: { version: 3, sessionCapability }' "$work/Player/deploy/verify-edge.mjs" >/dev/null
 if DEPLOY_TARGET='root@example.com;false' GAME_SITE_ADDRESS=game.example.com \
     bash "$work/Player/deploy/deploy-production.sh" workspace-v1 >/dev/null 2>&1; then
   echo "bundle composition: production deploy accepted an unsafe SSH target" >&2; exit 1
+fi
+if DEPLOY_TARGET='root@example.com;false' GAME_SITE_ADDRESS=game.example.com \
+    bash "$work/Player/deploy/rollback-production.sh" workspace-v1-aaaaaaaaaaaa workspace-v1 \
+      aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa >/dev/null 2>&1; then
+  echo "bundle composition: production rollback accepted an unsafe SSH target" >&2; exit 1
 fi
 mkdir -p "$work/Player/artifacts/releases/archive-test"
 printf 'archive-test\n' >"$work/Player/artifacts/releases/archive-test/VERSION"
