@@ -44,19 +44,24 @@ Recovery validates every backup object and every current managed path before its
 
 ## Qualification record
 
-The final functional candidate was scaffolded from Templates source
-`7e708efeb5f5e645bcfc49421c8d80a05d712430` with the exact native
+The final candidate was scaffolded from Templates source
+`871489891236c7a79625c56a22ee978da881870f` with the exact native
 `FS.GG.Workspace.Template` 0.14.0 archive
-`be3f5bade3e66e82b99cf6edc8b52329338939b0715eea7e9a10781e76d31965`, wizard 0.11.2 and
+`364b1c500dede32a9117d1e4c90daf8d44975698c0178f305836c7fd85940b2e`, wizard 0.11.2 and
 SDD 1.8.0. The archive installed in the isolated template-engine home was byte-identical to native
 custody. Its complete/typed receiver reported 122 generated product paths and a coherent doctor result. The
-final four-baseline transaction report is `fsgg.svg-complete-adoption-qualification/v1`, digest
-`f819920c2ad22da0d1e416815d672d3508248f281db53c542988d95944be6e74`; every adopted solution
-built with SDK 10.0.400. The later exact-head archive at Templates
-`0f7f022f487f9fbc6d800a6193f8f6bc89f19526` has digest
-`0e2c1b23f18ba53fc708297758cf473e875991fa4250f30684859a1436022fb6`; all template payload
-entries are byte-identical, and only the NuGet repository-commit metadata advanced. ADR-0084 therefore permits
-reuse of the functional matrix while the exact-head native checks bind the final source and archive metadata.
+four-baseline transaction ran against the byte-identical functional payload from source
+`192499c9b3d21f93222468cd71f860812c32765a` and produced
+`fsgg.svg-complete-adoption-qualification/v1`, digest
+`20516747ed4293327868c0dde716ef9f156b4b0188d1460144232608ea320dfc`; every adopted solution built with
+SDK 10.0.400. The final archive differs from that input only in NuGet repository-commit metadata, and its fresh
+materialization differs only in the workspace-initialization timestamp; all product bytes and modes are
+identical. The final readback is `/tmp/svg-workspace-015-final-generic-871.JOBNpwSj/readback.json`, digest
+`90bbeb80d874785f4ca6dc4dcc12eef7090c6239157be86cfda469694fd5e869`; independent archive comparison is
+`/tmp/svg-workspace-015-871-native-root/readback.json`, digest
+`20d456d9ace92fef8c297721f66e933b95cfde867fa1e3ae3823f9e451def2ad`. Together they bind source, native
+artifact, package and wizard hashes, SDD version, generated-path count and four public baselines. Native source
+checks bind the same exact head; no public package was published.
 
 Four native receiver PRs exercised development after creation and after retained adoption:
 
