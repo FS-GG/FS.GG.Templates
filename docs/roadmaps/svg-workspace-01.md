@@ -252,7 +252,7 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   that final identity without requiring this evidence paragraph to contain its own commit SHA. Templates
   0.14.0 publication remains Release D.
 
-- [ ] **SVG-WORKSPACE-01.4 — Demonstrate complete games and publishable documentation from the composition — route: routine**
+- [x] **SVG-WORKSPACE-01.4 — Demonstrate complete games and publishable documentation from the composition — route: routine**
 
   Depends on: completed .3 and its merged §0 projection. Product integration begins independently of the
   remote hosting effect; no durable ASP.NET destination/access is currently established.
@@ -280,25 +280,31 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   unavailable dimensions. Physical-device, screen-reader, Firefox/WebKit or audible-output claims require those
   actual observations.
 
-  Deployment preparation (start without infrastructure): add a digest-pinned, non-root ASP.NET authority image
+  Deployment: add a digest-pinned, non-root ASP.NET authority image
   and a Podman-preferred, Docker-compatible Caddy edge composition over the already versioned release directory. Caddy serves the hashed static
   Player, optional Studio/examples and selected content, exposes only bounded version/hash readback, and proxies
   same-origin `/api`, `/hub` WebSocket and health traffic. A local Compose qualification must read back exact
   served bytes, bootstrap a session and authorize a real SignalR connection through the proxy. Preserve an
   explicit `GAME_UPSTREAM` seam so the authority may later move off the web host; do not add matchmaking,
-  dynamic allocation or a new game-node protocol under `.4`. Local HTTP/certificates and loopback are preparation
-  evidence only, so this work proceeds before VPS credentials or a domain exist and does not close the milestone.
+  dynamic allocation or a new game-node protocol under `.4`.
 
-  Hosted effect (final): deploy the same immutable release and container-edge definition to a selected durable
+  Deferred hosted effect: deploy the same immutable release and container-edge definition to a selected durable
   VPS or equivalent ASP.NET-capable destination, with a stable domain, public DNS, trusted TLS, persistent Caddy
   state and host restart policy. Test `/api`, `/hub`, WebSocket/TLS routing and version-to-version rollback. Read
-  back deployed identity/served bytes and rerun the production journey. Static-only hosting, localhost, tunnels
-  and unrelated hosts do not qualify. A single-node reference deployment is sufficient; high availability and
-  dynamically allocated external game servers are later scaling work rather than hidden `.4` acceptance.
+  back deployed identity/served bytes and rerun the production journey. This stronger operational effect is
+  retained as [SVG-HOSTING-02](https://github.com/FS-GG/FS.GG.Templates/issues/491); high availability and dynamically
+  allocated external game servers remain later scaling work rather than hidden `.4` acceptance.
 
-  Completion: .4 closes only after integrated source/installed/native checks and the hosted static+ASP.NET
-  effect pass. A source delivery while hosting is unavailable records “source/journeys delivered; hosted effect
-  pending” and leaves this checkbox unchecked. Public Templates/wizard publication remains Release D.
+  Completion decision (2026-09-15): the maintainer accepted the containerized local deployment as this milestone's
+  current hosting boundary and explicitly deferred VPS/domain work. Exact-head run
+  [34965730316](https://github.com/FS-GG/FS.GG.Templates/actions/runs/34965730316) built the pinned authority image and
+  Caddy edge, read back the version, manifest, Player and Studio bytes, bootstrapped two V3 sessions through `/api`,
+  forced SignalR WebSockets through `/hub`, and passed disconnect/reconnect/resync. Its retained artifact
+  `10394823827` has server digest `sha256:06979b90f20326786a38b072b53aace1100f5195a4fa6abaf0e0123c389937ce`;
+  `qualification.json` and `container-edge.log` have SHA-256
+  `9a483cbe5ec2baaecb17b9da2fbfd6c0bec7bda0419bee7d3a0335e1fb050ec3` and
+  `d0a8e87c2d7c02ef0adbcfd0c63fc43157322865a1af6f9d86755a980cc4e975`. This proves local HTTP/container behavior,
+  not public DNS, trusted TLS, host reboot or external availability; those claims remain exclusively #491.
 
 - [x] **SVG-WORKSPACE-01.5 — Prove clean and retained installed development and upgrade journeys — route: routine**
 
@@ -338,9 +344,9 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   Completion: .5 may close while .4's host effect is pending only when both native receiver pairs and the full
   compatibility matrix actually pass; immediately project that closure into root §0.
 
-- [ ] **SVG-WORKSPACE-01.6 — Freeze the qualified composition and hand off Release D — route: routine**
+- [x] **SVG-WORKSPACE-01.6 — Freeze the qualified composition and hand off Release D — route: routine**
 
-  Depends on: .1–.5 actual completion, including .4 hosting; no required target compatibility may be relabeled optional.
+  Depends on: .1–.5 actual completion under .4's accepted local-container hosting boundary.
   Scope: Templates coherent candidate identity/lock inventory, concise user docs and upgrade/rollback
   guidance, C01–C20/M0–M11/§13 evidence mapping and operation-specific activation matrix. Include exact
   published SDD/skills and candidate Templates/wizard identities, native PR/CI/operation evidence and
@@ -359,11 +365,20 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   remain the next feature. After .6 native readback and §0 projection, request a fresh major-feature plan for
   SVG-RELEASE-D.
 
-Current executable window: **the local container/Caddy preparation and .5 receiver/native development and upgrade
-qualification are complete; perform .4's durable VPS/domain effect when that infrastructure is selected**.
-`.6` traceability is prepared but cannot close until the hosted static/ASP.NET journey completes
-`.4`. The local edge checkpoint does not trigger §0 or complete `.4`; each actual milestone closure does. Broad
-SDD #927 and a future ChangeProposal format are not blanket blockers.
+  Freeze evidence (2026-09-15): [the final freeze report](../reports/2026-09-15-svg-workspace-freeze.md) binds merged
+  source `2d8802d527e01afe4755ae7015a5627be88e318f`, tree `058b964b75f1b8daa672ee21b4f33155bcff2ed0`,
+  the native 0.14.0 archive and all generated lock identities. Exact-head composition run
+  [34965730947](https://github.com/FS-GG/FS.GG.Templates/actions/runs/34965730947), installed receiver run
+  [34965730400](https://github.com/FS-GG/FS.GG.Templates/actions/runs/34965730400), and browser/container run
+  `34965730316` passed. C01–C20, M0–M11 and journeys 1–11 are mapped in the traceability report. Candidate product,
+  installed explicit typed/profile-2 readiness, compatible publication eligibility and the later lifecycle-default
+  gate remain separate. The composition is handed off to SVG-RELEASE-D; #491 does not block compatible publication.
+
+Current executable window: **SVG-WORKSPACE-01.1–.6 are complete and the exact candidate is frozen for
+SVG-RELEASE-D**. Durable public deployment is explicitly deferred to #491 and must not be inferred from the accepted
+local edge evidence. Public Templates/wizard publication and compatible product activation are next. The later
+lifecycle-default effect still requires its actual common-base and OperatingV2 evidence. Broad SDD #927 and a future
+ChangeProposal format are not blanket blockers.
 
 ## Journey coverage and authority/upgrade matrix
 
