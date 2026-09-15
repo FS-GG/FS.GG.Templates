@@ -3,10 +3,14 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/fs-gg-svg-bundles.XXXXXX")"
 home="$work/home"
-package="$work/feed/FS.GG.Workspace.Template.0.14.0.nupkg"
+package="${1:-$work/feed/FS.GG.Workspace.Template.0.14.0.nupkg}"
 mkdir -p "$work/feed" "$home"
 
-dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$work/feed" >/dev/null
+if [[ $# -eq 0 ]]; then
+  dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$work/feed" >/dev/null
+else
+  [[ -f "$package" ]] || { echo "bundle composition: package not found: $package" >&2; exit 1; }
+fi
 if unzip -Z1 "$package" | rg '/(dist|output|vendor|artifacts)/|/Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js$' >/dev/null; then
   echo "bundle composition: packed archive contains generated product output" >&2; exit 1
 fi

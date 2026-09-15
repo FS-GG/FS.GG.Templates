@@ -1,0 +1,112 @@
+name: svg-release-d-public
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tests/composition/fable-game/verify-svg-release-d-public.sh'
+      - 'tests/composition/fable-game/verify-svg-complete-adoption.sh'
+      - 'tests/composition/fable-game/verify-svg-workspace-bundles.sh'
+      - '.github/workflows/svg-release-d-public.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tests/composition/fable-game/verify-svg-release-d-public.sh'
+      - 'tests/composition/fable-game/verify-svg-complete-adoption.sh'
+      - 'tests/composition/fable-game/verify-svg-workspace-bundles.sh'
+      - '.github/workflows/svg-release-d-public.yml'
+
+jobs:
+  qualify:
+    name: Public packages, browsers, and local Caddy edge
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.400'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install browser and accessibility hosts
+        working-directory: templates/fs-gg-fable-game/Browser.Tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium firefox webkit
+          sudo apt-get update
+          sudo apt-get install --yes dbus-x11 espeak-ng gettext gir1.2-atspi-2.0 libatspi2.0-dev openbox orca pulseaudio pulseaudio-utils python3-gi python3-speechd ripgrep speech-dispatcher-espeak-ng x11-utils xdotool xvfb
+      - name: Acquire exact Quint
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://github.com/quint-co/quint/releases/download/v0.32.0/quint-linux-amd64 \
+            --output "$RUNNER_TEMP/quint"
+          echo '939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f  '"$RUNNER_TEMP/quint" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/quint"
+      - name: Qualify public Release D packages
+        id: public_qualification
+        shell: bash
+        run: bash tests/composition/fable-game/verify-svg-release-d-public.sh "$RUNNER_TEMP/svg-release-d"
+      - name: Qualify installed complete workspace across browser families
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/svg-release-d/complete"
+          browser_path="$(node -e "process.stdout.write(require('./Browser.Tests/node_modules/@playwright/test').chromium.executablePath())" 2>/dev/null || true)"
+          if [[ ! -x "$browser_path" ]]; then
+            browser_path="$(node -e "process.stdout.write(require('${{ github.workspace }}/templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          fi
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" QUINT_BIN="$RUNNER_TEMP/quint" \
+            SVG_RELEASE_VERSION="public-0.14.0" bash ./build.sh \
+            >"$RUNNER_TEMP/svg-release-d/complete-chromium.log" 2>&1
+          cp Browser.Tests/test-results/browser.json "$RUNNER_TEMP/svg-release-d/complete-chromium.browser.json"
+          cp artifacts/test-results/browser.chromium.junit.xml "$RUNNER_TEMP/svg-release-d/complete-chromium.junit.xml"
+          for family in firefox webkit; do
+            PLAYWRIGHT_BROWSER_FAMILY="$family" npm test --prefix Browser.Tests \
+              >"$RUNNER_TEMP/svg-release-d/complete-$family.log" 2>&1
+            cp Browser.Tests/test-results/browser.json "$RUNNER_TEMP/svg-release-d/complete-$family.browser.json"
+            cp "artifacts/test-results/browser.$family.junit.xml" "$RUNNER_TEMP/svg-release-d/complete-$family.junit.xml"
+          done
+      - name: Qualify local Caddy reverse-proxy deployment
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/svg-release-d/complete"
+          CONTAINER_ENGINE=docker SVG_RELEASE_VERSION=public-0.14.0 GAME_HTTP_PORT=18080 \
+            bash deploy/run-local.sh | tee "$RUNNER_TEMP/svg-release-d/container-edge.log"
+      - name: Observe real keyboard focus and Orca speech output
+        if: ${{ !cancelled() && steps.public_qualification.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          orca --version | tee "$RUNNER_TEMP/svg-release-d/orca-version.log"
+          studio="$RUNNER_TEMP/svg-release-d/complete/SvgFoundation/Studio/dist"
+          test -f "$studio/index.html"
+          (cd "$studio" && exec python3 -m http.server 8143 --bind 127.0.0.1 >"$RUNNER_TEMP/svg-release-d/orca-studio-server.log" 2>&1) &
+          server=$!
+          trap 'kill "$server" 2>/dev/null || true' EXIT
+          for _ in {1..80}; do curl -fsS http://127.0.0.1:8143/ >/dev/null && break; sleep .25; done
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
+            PLAYWRIGHT_MODULE_ROOT="${{ github.workspace }}/templates/fs-gg-fable-game/Browser.Tests/node_modules" \
+            SVG_ORCA_BROWSER_FAMILY=chromium \
+            timeout --signal=TERM --kill-after=15s 5m bash tests/composition/fable-game/observe-svg-input-orca.sh \
+              http://127.0.0.1:8143/ "$RUNNER_TEMP/svg-release-d/orca-input.json"
+          jq -e '.result=="passed" and .browser.name=="chromium" and .keyboard.events=="xdotool-X11" and .keyboard.navigation=="passed" and .keyboard.activation=="passed" and .keyboard.palette=="passed" and .keyboard.escape=="passed" and .keyboard.focusRestoration=="passed" and .atspiActions.properties=="passed" and .atspiActions.validationFeedback=="passed" and .screenReader.name=="Orca" and .screenReader.speechOutputObserved==true and .screenReader.audibleHardwareOutput=="not-observed"' \
+            "$RUNNER_TEMP/svg-release-d/orca-input.json" >/dev/null
+      - name: Upload Release D public evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: svg-release-d-public-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/svg-release-d/qualification.json
+            ${{ runner.temp }}/svg-release-d/*.json
+            ${{ runner.temp }}/svg-release-d/*.log
+            ${{ runner.temp }}/svg-release-d/adoption/*.json
+            ${{ runner.temp }}/svg-release-d/adoption/*.diff
+            ${{ runner.temp }}/svg-release-d/adoption/*.log
+          if-no-files-found: warn
+          retention-days: 90

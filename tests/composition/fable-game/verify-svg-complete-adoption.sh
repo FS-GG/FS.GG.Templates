@@ -109,7 +109,14 @@ for version in 0.10.0 0.11.0 0.12.0 0.13.0; do
   test ! -e "$workspace/.claude"
   test ! -e "$workspace/.codex"
   validate_selected_skills "$candidate" "$workspace" "$out/original-$version"
-  test -x "$workspace/build.sh"
+  # NuGet's template archive and `dotnet new` normalize Unix modes. Public
+  # receivers invoke this portable entry point through `bash`; source-tree
+  # qualification additionally proves that its executable bit is preserved.
+  if [[ "${FSGG_COMPLETE_REQUIRE_EXECUTABLE:-true}" == true ]]; then
+    test -x "$workspace/build.sh"
+  else
+    test -f "$workspace/build.sh"
+  fi
   grep -F "Retained${version//./}" "$workspace/Domain/ArenaRules.fs" >/dev/null
   grep -F "Retained${version//./}.slnx" "$workspace/build.sh" >/dev/null
   (cd "$workspace" && dotnet restore "Retained${version//./}.slnx" --locked-mode \
