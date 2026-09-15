@@ -130,8 +130,10 @@ a particular compatible engine.
 Caddy serves the hashed Player, optional Studio and selected content while proxying same-origin `/api` and
 `/hub` traffic—including WebSocket upgrades—to the authority. Set `KEEP_EDGE_RUNNING=true` to retain the
 local stack after verification. The public host uses the same base composition with
-`deploy/compose.production.yaml`; its domain, trusted TLS, external readback and rollback remain deployment
-effects rather than local claims. See `docs/runbooks/build-evidence-and-deploy.md` for the exact commands.
+`deploy/compose.production.yaml`. `deploy/deploy-production.sh` installs an immutable activation over strict
+host-key-checked SSH, verifies trusted TLS and a forced two-client V3 WebSocket reconnect, restarts the boot-enabled
+systemd service, and repeats the verification. Re-running it with a retained release version is the rollback path.
+See `docs/runbooks/build-evidence-and-deploy.md` for the exact VPS bootstrap, DNS and deployment commands.
 
 `bash ./build.sh` runs the product qualification build: locked restore/build/test the `.NET` solution
 (`Domain`, `Protocol`, `Server`, and their `.Tests` projects), the cross-runtime
