@@ -64,13 +64,13 @@ timeout --signal=TERM --kill-after=5s 30s /usr/bin/python3 "$script_dir/speech-d
 /usr/bin/python3 "$script_dir/orca-faulthandler.py" --replace --debug \
   --debug-file="$output.orca-debug.log" >"$output.orca.log" 2>&1 & orca_pid=$!
 sleep 3
-browser_bin="${PLAYWRIGHT_EXECUTABLE_PATH:-$(command -v chromium || command -v chromium-browser)}"
 browser_family="${SVG_ORCA_BROWSER_FAMILY:-chromium}"
-if [[ "$browser_family" == firefox ]]; then
+if [[ "$browser_family" == firefox || "$browser_family" == chromium ]]; then
   browser_profile="$(mktemp -d)"
   node_bin="$(command -v node)"
-  PLAYWRIGHT_MODULE_ROOT="${PLAYWRIGHT_MODULE_ROOT:?Playwright module root required for Firefox}" \
-    "$node_bin" "$script_dir/orca-playwright-firefox.cjs" "$address" "$output.browser-dom.json" "$browser_profile" \
+  PLAYWRIGHT_MODULE_ROOT="${PLAYWRIGHT_MODULE_ROOT:?Playwright module root required}" \
+    SVG_ORCA_BROWSER_FAMILY="$browser_family" \
+    "$node_bin" "$script_dir/orca-playwright-browser.cjs" "$address" "$output.browser-dom.json" "$browser_profile" \
     >"$output.browser.log" 2>&1 & browser_launcher_pid=$!
   for _ in {1..80}; do
     [[ -s "$output.browser-dom.json" ]] && break
@@ -78,10 +78,11 @@ if [[ "$browser_family" == firefox ]]; then
     sleep .1
   done
   test -s "$output.browser-dom.json"
-  browser_class='firefox|Navigator'
-elif [[ "$browser_family" == chromium ]]; then
-  "$browser_bin" --no-sandbox --force-renderer-accessibility --user-data-dir="$(mktemp -d)" "$address" >"$output.browser.log" 2>&1 & browser_pid=$!
-  browser_class='chromium|google-chrome'
+  if [[ "$browser_family" == firefox ]]; then
+    browser_class='firefox|Navigator'
+  else
+    browser_class='chromium|google-chrome'
+  fi
 else
   echo "unsupported Orca browser family: $browser_family" >&2
   exit 2
@@ -97,8 +98,6 @@ xdotool windowfocus --sync "$browser_window"
   printf 'class='; xprop -id "$browser_window" WM_CLASS
   printf 'pid='; xdotool getwindowpid "$browser_window"
 } >>"$output.x11.log"
-if [[ "$browser_family" == firefox ]]; then
-  browser_pid="$(xdotool getwindowpid "$browser_window")"
-fi
+browser_pid="$(xdotool getwindowpid "$browser_window")"
 ORCA_PID="$orca_pid" BROWSER_PID="$browser_pid" SVG_ORCA_BROWSER_FAMILY="$browser_family" \
   /usr/bin/python3 "$script_dir/svg-input-orca.py" "$output"

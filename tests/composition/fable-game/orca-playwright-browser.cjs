@@ -5,7 +5,10 @@ const [address, output, profile] = process.argv.slice(2);
 if (!address || !output || !profile) throw new Error("address, output and profile are required");
 const moduleRoot = process.env.PLAYWRIGHT_MODULE_ROOT;
 if (!moduleRoot) throw new Error("PLAYWRIGHT_MODULE_ROOT is required");
-const { firefox } = require(path.join(moduleRoot, "@playwright/test"));
+const { chromium, firefox } = require(path.join(moduleRoot, "@playwright/test"));
+const browserFamily = process.env.SVG_ORCA_BROWSER_FAMILY;
+const browserType = browserFamily === "chromium" ? chromium : browserFamily === "firefox" ? firefox : null;
+if (!browserType) throw new Error(`unsupported browser family: ${browserFamily}`);
 
 function write(value) {
   const temporary = `${output}.tmp`;
@@ -14,9 +17,10 @@ function write(value) {
 }
 
 (async () => {
-  const context = await firefox.launchPersistentContext(profile, {
+  const context = await browserType.launchPersistentContext(profile, {
     headless: false,
     executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH,
+    args: browserFamily === "chromium" ? ["--force-renderer-accessibility", "--no-sandbox"] : [],
     env: { ...process.env, MOZ_ENABLE_WAYLAND: "0" }
   });
   const page = context.pages()[0] ?? await context.newPage();
@@ -49,10 +53,10 @@ function write(value) {
         keys: window.__fsggOrcaDom.keys
       }));
       sampleSequence += 1;
-      write({ schema: "fsgg.orca-firefox-dom/v1", address, sampleSequence,
+      write({ schema: "fsgg.orca-browser-dom/v1", browserFamily, address, sampleSequence,
         sampledAt: new Date().toISOString(), sampledAtUnixMs: Date.now(), observation });
     } catch (error) {
-      write({ schema: "fsgg.orca-firefox-dom/v1", address, error: String(error) });
+      write({ schema: "fsgg.orca-browser-dom/v1", browserFamily, address, error: String(error) });
     }
   };
   await sample();
@@ -68,6 +72,6 @@ function write(value) {
   process.on("SIGINT", stop);
   await new Promise(() => {});
 })().catch(error => {
-  write({ schema: "fsgg.orca-firefox-dom/v1", address, error: String(error?.stack || error) });
+  write({ schema: "fsgg.orca-browser-dom/v1", browserFamily, address, error: String(error?.stack || error) });
   process.exit(1);
 });

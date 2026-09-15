@@ -71,7 +71,7 @@ def key(*keys):
     # event was already presented.
     time.sleep(.75)
 
-def tab_to(name, limit=80):
+def tab_to(name, limit=120):
     observed = []
     for _ in range(limit):
         key("Tab")
@@ -80,16 +80,15 @@ def tab_to(name, limit=80):
             dom = json.load(open(output + ".browser-dom.json"))
         except Exception:
             pass
-        if os.environ["SVG_ORCA_BROWSER_FAMILY"] == "firefox":
-            if (dom is None or dom.get("schema") != "fsgg.orca-firefox-dom/v1"
+        if os.environ["SVG_ORCA_BROWSER_FAMILY"] in ("firefox", "chromium"):
+            if (dom is None or dom.get("schema") != "fsgg.orca-browser-dom/v1"
+                or dom.get("browserFamily") != os.environ["SVG_ORCA_BROWSER_FAMILY"]
                 or not isinstance(dom.get("sampleSequence"), int)
                 or not isinstance(dom.get("sampledAt"), str)
                 or abs(time.time() * 1000 - dom.get("sampledAtUnixMs", 0)) > 2000):
-                raise RuntimeError(f"fresh Firefox DOM focus observation unavailable: {dom}")
+                raise RuntimeError(f"fresh browser DOM focus observation unavailable: {dom}")
         active = ((dom or {}).get("observation") or {}).get("activeElement") or {}
-        if (os.environ["SVG_ORCA_BROWSER_FAMILY"] == "firefox"
-            and not ((dom or {}).get("observation") or {}).get("documentHasFocus")):
-            raise RuntimeError(f"Firefox document does not hold desktop focus: {dom}")
+        document_has_focus = bool(((dom or {}).get("observation") or {}).get("documentHasFocus"))
         dom_name = active.get("ariaLabel") or active.get("text")
         current = []
         for item in walk(Atspi.get_desktop(0)):
@@ -98,10 +97,10 @@ def tab_to(name, limit=80):
                     value = item.get_name() or ""
                     if value:
                         current.append({"name": value, "role": item.get_role_name()})
-                    # Firefox can retain FOCUSED on an ancestor exposed later in
+                    # A browser can retain FOCUSED on an ancestor exposed later in
                     # the tree. Assert the named target's own state rather than
                     # selecting whichever focused object traversal visited last.
-                    if value == name and (dom is None or dom_name == name):
+                    if value == name and document_has_focus and dom_name == name:
                         return item
             except Exception:
                 pass
@@ -170,9 +169,12 @@ activate("Edit scene properties")
 find(None, contains="properties and grid edited")
 activate("Place two instances")
 find(None, contains="save the sample asset first")
-# Continue keyboard traversal through the replay panel, its first real action,
-# and the command-palette control. Each target's own FOCUSED state is observed,
-# so a retained focused ancestor cannot substitute for the requested control.
+# The AT-SPI actions leave focus on Place two instances, which follows the
+# replay panel in document order. Continue with real Tab keys through the
+# remaining page controls and browser chrome until the document wraps to the
+# replay panel. A temporarily unfocused document is recorded but cannot satisfy
+# the requested page target. Each target's own FOCUSED state is observed, so a
+# retained focused ancestor cannot substitute for the requested control.
 tab_to("Replay timeline")
 tab_to("Replay complete arena recording")
 tab_to("Command palette")
