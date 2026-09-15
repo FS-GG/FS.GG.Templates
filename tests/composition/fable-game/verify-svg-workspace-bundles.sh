@@ -143,6 +143,24 @@ jq -e '.dependencies["net10.0"]["FSharp.Core"].resolved == "10.1.400"' \
   "$work/Studio/SvgFoundation/Studio/packages.lock.json" >/dev/null
 grep -F 'artifacts/static-player' "$work/Player/build.sh" >/dev/null
 grep -F 'artifacts/authority-server' "$work/Player/build.sh" >/dev/null
+for deployment_path in \
+  .dockerignore \
+  deploy/authority.Dockerfile \
+  deploy/Caddyfile \
+  deploy/compose.yaml \
+  deploy/compose.local.yaml \
+  deploy/compose.production.yaml \
+  deploy/container-engine.sh \
+  deploy/run-local.sh \
+  deploy/verify-edge.sh \
+  deploy/verify-edge.mjs
+do
+  assert_path "$work/Player/$deployment_path"
+done
+grep -F 'reverse_proxy {$GAME_UPSTREAM:authority:8080}' "$work/Player/deploy/Caddyfile" >/dev/null
+grep -F 'docker.io/library/caddy:2.10.2-alpine@sha256:' "$work/Player/deploy/compose.yaml" >/dev/null
+grep -F 'dotnet/aspnet:10.0@sha256:' "$work/Player/deploy/authority.Dockerfile" >/dev/null
+grep -F 'USER $APP_UID' "$work/Player/deploy/authority.Dockerfile" >/dev/null
 
 grep -F 'source: FS.GG.Workspace.Template::0.14.0' "$root/providers/fable-game.providers.yml" >/dev/null
 if grep -A3 -- '- key: bundle' "$root/providers/fable-game.providers.yml" | grep -F 'default:' >/dev/null; then

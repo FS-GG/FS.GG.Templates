@@ -98,6 +98,13 @@ jobs:
             cp Browser.Tests/test-results/browser.json "$RUNNER_TEMP/svg-preview-c-source/complete-$family.browser.json"
             cp "artifacts/test-results/browser.$family.junit.xml" "$RUNNER_TEMP/svg-preview-c-source/complete-$family.junit.xml"
           done
+      - name: Qualify the local container edge
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/svg-workspace-complete"
+          CONTAINER_ENGINE=docker SVG_RELEASE_VERSION="source-${GITHUB_SHA}" GAME_HTTP_PORT=18080 \
+            bash deploy/run-local.sh | tee "$RUNNER_TEMP/svg-preview-c-source/container-edge.log"
       - name: Observe real keyboard focus and Orca speech output
         if: ${{ !cancelled() && steps.source_qualification.outcome == 'success' }}
         shell: bash
