@@ -4,14 +4,10 @@
 	# Keep the browser's API and SignalR URLs same-origin while allowing the
 	# authority to move to another host later without rebuilding static assets.
 	handle /api/* {
-		reverse_proxy {$GAME_UPSTREAM:authority:8080} {
-			health_uri /healthz
-		}
+		reverse_proxy {$GAME_UPSTREAM:authority:8080}
 	}
 	handle /hub/* {
-		reverse_proxy {$GAME_UPSTREAM:authority:8080} {
-			health_uri /healthz
-		}
+		reverse_proxy {$GAME_UPSTREAM:authority:8080}
 	}
 	handle /healthz {
 		reverse_proxy {$GAME_UPSTREAM:authority:8080}
