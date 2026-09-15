@@ -94,7 +94,7 @@ xdotool windowfocus --sync "$browser_window"
   printf 'active='; xdotool getactivewindow
   printf 'focus='; xdotool getwindowfocus
   printf 'name='; xdotool getwindowname "$browser_window"
-  printf 'class='; xdotool getwindowclassname "$browser_window"
+  printf 'class='; xprop -id "$browser_window" WM_CLASS
   printf 'pid='; xdotool getwindowpid "$browser_window"
 } >>"$output.x11.log"
 if [[ "$browser_family" == firefox ]]; then
