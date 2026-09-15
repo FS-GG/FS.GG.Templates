@@ -18,7 +18,7 @@ trap cleanup EXIT
 (cd "$root/artifacts/releases/$version" && sha256sum -c --quiet SHA256SUMS)
 "${compose[@]}" config --quiet
 "${compose[@]}" up --detach --build --remove-orphans
-GAME_EDGE_URL="http://localhost:$GAME_HTTP_PORT" "$root/deploy/verify-edge.sh" "$version"
+GAME_EDGE_URL="http://localhost:$GAME_HTTP_PORT" bash "$root/deploy/verify-edge.sh" "$version"
 
 if [[ "${KEEP_EDGE_RUNNING:-false}" == true ]]; then
   echo "local edge remains available at http://localhost:$GAME_HTTP_PORT"

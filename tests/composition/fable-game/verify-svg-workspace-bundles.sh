@@ -164,6 +164,7 @@ grep -F 'USER $APP_UID' "$work/Player/deploy/authority.Dockerfile" >/dev/null
 grep -F 'context: .' "$work/Player/deploy/compose.yaml" >/dev/null
 grep -F './deploy/Caddyfile:/etc/caddy/Caddyfile:ro' "$work/Player/deploy/compose.yaml" >/dev/null
 grep -F './artifacts/releases/${SVG_RELEASE_VERSION:-workspace-v1}:/srv/release:ro' "$work/Player/deploy/compose.yaml" >/dev/null
+grep -F 'bash "$root/deploy/verify-edge.sh"' "$work/Player/deploy/run-local.sh" >/dev/null
 
 grep -F 'source: FS.GG.Workspace.Template::0.14.0' "$root/providers/fable-game.providers.yml" >/dev/null
 if grep -A3 -- '- key: bundle' "$root/providers/fable-game.providers.yml" | grep -F 'default:' >/dev/null; then
