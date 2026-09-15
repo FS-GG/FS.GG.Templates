@@ -5,6 +5,7 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 version="${1:-${SVG_RELEASE_VERSION:-}}"
 base="${GAME_EDGE_URL:-}"
 evidence="${SVG_DEPLOYMENT_EVIDENCE:-$root/artifacts/deployment-evidence/$version.json}"
+expected_manifest_sha="${EXPECTED_RELEASE_MANIFEST_SHA:-}"
 
 [[ "$version" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "invalid production release version" >&2; exit 1; }
 [[ "$base" =~ ^https://([^/:]+)(:[0-9]{1,5})?$ ]] || {
@@ -13,6 +14,9 @@ evidence="${SVG_DEPLOYMENT_EVIDENCE:-$root/artifacts/deployment-evidence/$versio
 host="${BASH_REMATCH[1]}"
 port="${BASH_REMATCH[2]#:}"
 port="${port:-443}"
+if [[ -n "$expected_manifest_sha" && ! "$expected_manifest_sha" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "EXPECTED_RELEASE_MANIFEST_SHA must be one lowercase SHA-256 digest" >&2; exit 1
+fi
 
 ready=false
 for _ in {1..120}; do
@@ -23,7 +27,7 @@ for _ in {1..120}; do
   sleep 1
 done
 [[ "$ready" == true ]] || { echo "public TLS edge did not become healthy within 120 seconds" >&2; exit 1; }
-bash "$root/deploy/verify-edge.sh" "$version"
+EXPECTED_RELEASE_MANIFEST_SHA="$expected_manifest_sha" bash "$root/deploy/verify-edge.sh" "$version"
 
 certificate="$(openssl s_client -connect "$host:$port" -servername "$host" </dev/null 2>/dev/null \
   | openssl x509 -noout -fingerprint -sha256 -issuer -subject -enddate)"
@@ -36,14 +40,17 @@ cert_not_after="$(printf '%s\n' "$certificate" | sed -n 's/^notAfter=//p')"
 mkdir -p "$(dirname "$evidence")"
 VERSION="$version" BASE_URL="$base" EVIDENCE_PATH="$evidence" \
 CERT_FINGERPRINT="$cert_fingerprint" CERT_ISSUER="$cert_issuer" CERT_SUBJECT="$cert_subject" \
-CERT_NOT_AFTER="$cert_not_after" RELEASE_MANIFEST_SHA="$(sha256sum "$root/artifacts/releases/$version/SHA256SUMS" | cut -d' ' -f1)" \
+CERT_NOT_AFTER="$cert_not_after" RELEASE_MANIFEST_SHA="${expected_manifest_sha:-$(sha256sum "$root/artifacts/releases/$version/SHA256SUMS" | cut -d' ' -f1)}" \
 SERVICE_RESTART_VERIFIED="${SERVICE_RESTART_VERIFIED:-false}" \
+DEPLOYMENT_OPERATION="${DEPLOYMENT_OPERATION:-deploy}" \
 node --input-type=module <<'EOF'
 import { writeFileSync } from "node:fs";
 const evidence = {
   schema: "fsgg.svg.deployment-evidence/v1",
   observedAtUtc: new Date().toISOString(),
   result: "passed",
+  operation: process.env.DEPLOYMENT_OPERATION,
+  deploymentId: process.env.DEPLOYMENT_ID,
   releaseVersion: process.env.VERSION,
   baseUrl: process.env.BASE_URL,
   releaseManifestSha256: process.env.RELEASE_MANIFEST_SHA,

@@ -3,6 +3,14 @@ name: svg-production-deploy
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Deploy newly built bytes or reactivate a retained VPS deployment
+        required: true
+        default: deploy
+        type: choice
+        options:
+          - deploy
+          - rollback
       release_version:
         description: Immutable deployment version token
         required: true
@@ -17,6 +25,14 @@ on:
         required: true
         default: authority:8080
         type: string
+      retained_deployment_id:
+        description: Required for rollback; version plus the 12-character archive digest prefix
+        required: false
+        type: string
+      expected_manifest_sha256:
+        description: Required for rollback; SHA-256 of the retained release SHA256SUMS
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -27,7 +43,7 @@ concurrency:
 
 jobs:
   deploy:
-    name: Build and deploy immutable SVG workspace
+    name: Operate immutable SVG workspace production
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 90
@@ -38,6 +54,8 @@ jobs:
       GAME_UPSTREAM: ${{ inputs.game_upstream }}
       BOOTSTRAP_VPS: ${{ inputs.bootstrap_vps }}
       SVG_RELEASE_VERSION: ${{ inputs.release_version }}
+      RETAINED_DEPLOYMENT_ID: ${{ inputs.retained_deployment_id }}
+      EXPECTED_RELEASE_MANIFEST_SHA: ${{ inputs.expected_manifest_sha256 }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -59,12 +77,19 @@ jobs:
           test -n "$DEPLOY_SSH_PRIVATE_KEY"
           test -n "$DEPLOY_SSH_KNOWN_HOSTS"
           [[ "$SVG_RELEASE_VERSION" =~ ^[A-Za-z0-9._-]+$ ]]
+          if [[ "${{ inputs.operation }}" == rollback ]]; then
+            [[ "$RETAINED_DEPLOYMENT_ID" =~ ^[A-Za-z0-9._-]+$ ]]
+            [[ "$EXPECTED_RELEASE_MANIFEST_SHA" =~ ^[0-9a-f]{64}$ ]]
+            [[ "${{ inputs.bootstrap_vps }}" == false ]]
+          fi
       - name: Install Chromium host dependencies
+        if: inputs.operation == 'deploy'
         working-directory: templates/fs-gg-fable-game/Browser.Tests
         run: |
           npm ci
           npx playwright install --with-deps chromium
       - name: Acquire exact Quint
+        if: inputs.operation == 'deploy'
         run: |
           set -euo pipefail
           curl --fail --location --retry 3 \
@@ -73,6 +98,7 @@ jobs:
           echo '939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f  '"$RUNNER_TEMP/quint" | sha256sum --check --strict
           chmod +x "$RUNNER_TEMP/quint"
       - name: Materialize and build the complete candidate
+        if: inputs.operation == 'deploy'
         run: |
           set -euo pipefail
           dotnet pack FS.GG.Templates.csproj -c Release -o "$RUNNER_TEMP/feed" >/dev/null
@@ -96,17 +122,36 @@ jobs:
           install -m 0600 /dev/null "$RUNNER_TEMP/ssh/known_hosts"
           printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" >"$RUNNER_TEMP/ssh/id"
           printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" >"$RUNNER_TEMP/ssh/known_hosts"
+      - name: Install retained-release verification dependencies
+        if: inputs.operation == 'rollback'
+        working-directory: templates/fs-gg-fable-game/Client
+        run: npm ci
       - name: Deploy, restart, and verify through public TLS
+        if: inputs.operation == 'deploy'
         working-directory: ${{ runner.temp }}/workspace
         env:
           DEPLOY_SSH_KEY_FILE: ${{ runner.temp }}/ssh/id
           DEPLOY_KNOWN_HOSTS_FILE: ${{ runner.temp }}/ssh/known_hosts
         run: bash deploy/deploy-production.sh "$SVG_RELEASE_VERSION"
+      - name: Reactivate, restart, and verify a retained VPS deployment
+        if: inputs.operation == 'rollback'
+        working-directory: templates/fs-gg-fable-game
+        env:
+          DEPLOY_SSH_KEY_FILE: ${{ runner.temp }}/ssh/id
+          DEPLOY_KNOWN_HOSTS_FILE: ${{ runner.temp }}/ssh/known_hosts
+          SVG_DEPLOYMENT_EVIDENCE: ${{ runner.temp }}/rollback-evidence/${{ inputs.release_version }}.json
+        run: >-
+          bash deploy/rollback-production.sh
+          "$RETAINED_DEPLOYMENT_ID"
+          "$SVG_RELEASE_VERSION"
+          "$EXPECTED_RELEASE_MANIFEST_SHA"
       - name: Upload capability-free deployment evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: svg-production-${{ inputs.release_version }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/workspace/artifacts/deployment-evidence/*.json
+          name: svg-production-${{ inputs.operation }}-${{ inputs.release_version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/workspace/artifacts/deployment-evidence/*.json
+            ${{ runner.temp }}/rollback-evidence/*.json
           if-no-files-found: warn
           retention-days: 90

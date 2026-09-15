@@ -30,6 +30,12 @@ command -v podman >/dev/null
 podman compose version >/dev/null
 command -v systemctl >/dev/null
 
+if [[ -L "$app_root/rollback-target" || -e "$app_root/rollback-target" || -e "$app_root/rollback-absent" \
+    || -e /etc/fsgg-fable-game.rollback.env || -e /etc/fsgg-fable-game.rollback.service ]]; then
+  echo "a production activation is already pending verification or rollback" >&2
+  exit 1
+fi
+
 observed_archive_sha="$(sha256sum "$archive" | cut -d' ' -f1)"
 [[ "$observed_archive_sha" == "$expected_archive_sha" ]] || {
   echo "activation archive SHA-256 mismatch" >&2; exit 1;
@@ -71,13 +77,48 @@ rollback_env="$(mktemp)"
 previous_target=""
 if [[ -L "$app_root/current" ]]; then previous_target="$(readlink "$app_root/current")"; fi
 if [[ -f /etc/fsgg-fable-game.env ]]; then cp /etc/fsgg-fable-game.env "$rollback_env"; fi
-rm -f "$app_root/rollback-target" "$app_root/rollback-absent" /etc/fsgg-fable-game.rollback.env
-if [[ -n "$previous_target" && -s "$rollback_env" ]]; then
+if [[ -n "$previous_target" || -s "$rollback_env" || -f /etc/systemd/system/fsgg-fable-game.service ]]; then
+  [[ -n "$previous_target" && -s "$rollback_env" && -f /etc/systemd/system/fsgg-fable-game.service ]] || {
+    echo "existing managed deployment state is incomplete; refusing activation" >&2; exit 1;
+  }
+fi
+rm -f "$app_root/rollback-target" "$app_root/rollback-absent" \
+  /etc/fsgg-fable-game.rollback.env /etc/fsgg-fable-game.rollback.service
+if [[ -n "$previous_target" ]]; then
   ln -s "$previous_target" "$app_root/rollback-target"
   install -m 0600 "$rollback_env" /etc/fsgg-fable-game.rollback.env
+  install -m 0644 /etc/systemd/system/fsgg-fable-game.service /etc/fsgg-fable-game.rollback.service
 else
   install -m 0600 /dev/null "$app_root/rollback-absent"
 fi
+
+restore_previous() {
+  trap - ERR
+  systemctl stop fsgg-fable-game.service 2>/dev/null || true
+  if [[ -n "$previous_target" ]]; then
+    local restore_link="$app_root/.rollback.$deployment_id"
+    rm -f "$restore_link"
+    ln -s "$previous_target" "$restore_link"
+    mv -T "$restore_link" "$app_root/current"
+    install -m 0600 /etc/fsgg-fable-game.rollback.env /etc/fsgg-fable-game.env
+    install -m 0644 /etc/fsgg-fable-game.rollback.service /etc/systemd/system/fsgg-fable-game.service
+    systemctl daemon-reload
+    systemctl start fsgg-fable-game.service || true
+  else
+    systemctl disable fsgg-fable-game.service >/dev/null 2>&1 || true
+    rm -f "$app_root/current" /etc/fsgg-fable-game.env /etc/systemd/system/fsgg-fable-game.service
+    systemctl daemon-reload
+  fi
+  rm -f "$app_root/rollback-target" "$app_root/rollback-absent" \
+    /etc/fsgg-fable-game.rollback.env /etc/fsgg-fable-game.rollback.service
+}
+restore_on_error() {
+  local status=$?
+  echo "activation interrupted; restoring the prior deployment" >&2
+  restore_previous
+  exit "$status"
+}
+trap restore_on_error ERR
 
 cat >"$env_staging" <<EOF
 SVG_RELEASE_VERSION=$version
@@ -119,20 +160,11 @@ systemctl enable fsgg-fable-game.service >/dev/null
 
 if ! systemctl start fsgg-fable-game.service; then
   echo "activation failed; restoring the prior deployment" >&2
-  systemctl stop fsgg-fable-game.service 2>/dev/null || true
-  if [[ -n "$previous_target" && -s "$rollback_env" ]]; then
-    link_staging="$app_root/.rollback.$deployment_id"
-    ln -s "$previous_target" "$link_staging"
-    mv -T "$link_staging" "$app_root/current"
-    install -m 0600 "$rollback_env" /etc/fsgg-fable-game.env
-    systemctl start fsgg-fable-game.service || true
-  else
-    rm -f "$app_root/current" /etc/fsgg-fable-game.env
-  fi
-  rm -f "$app_root/rollback-target" "$app_root/rollback-absent" /etc/fsgg-fable-game.rollback.env
+  restore_previous
   exit 1
 fi
 
+trap - ERR
 rm -f "$rollback_env"
 trap - EXIT
 rm -f "$archive"

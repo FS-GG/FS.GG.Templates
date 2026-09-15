@@ -52,6 +52,7 @@ cleanup() {
 trap cleanup EXIT
 bash "$root/deploy/package-production.sh" "$version" "$archive"
 archive_sha="$(sha256sum "$archive" | cut -d' ' -f1)"
+deployment_id="$version-${archive_sha:0:12}"
 remote_archive="/tmp/fsgg-$version-${archive_sha:0:12}.tar.gz"
 
 ssh "${ssh_options[@]}" "$target" "cat >$remote_archive" <"$archive"
@@ -60,7 +61,8 @@ ssh "${ssh_options[@]}" "$target" \
   <"$root/deploy/activate-vps.sh"
 activation_pending=true
 
-if ! GAME_EDGE_URL="https://$site_address" bash "$root/deploy/verify-production.sh" "$version"; then
+if ! GAME_EDGE_URL="https://$site_address" DEPLOYMENT_ID="$deployment_id" \
+    bash "$root/deploy/verify-production.sh" "$version"; then
   exit 1
 fi
 if [[ "${VERIFY_SERVICE_RESTART:-true}" == true ]]; then
@@ -68,7 +70,7 @@ if [[ "${VERIFY_SERVICE_RESTART:-true}" == true ]]; then
       'sudo -n systemctl restart fsgg-fable-game.service && sudo -n systemctl is-enabled --quiet fsgg-fable-game.service'; then
     exit 1
   fi
-  if ! GAME_EDGE_URL="https://$site_address" SERVICE_RESTART_VERIFIED=true \
+  if ! GAME_EDGE_URL="https://$site_address" SERVICE_RESTART_VERIFIED=true DEPLOYMENT_ID="$deployment_id" \
       bash "$root/deploy/verify-production.sh" "$version"; then
     exit 1
   fi
