@@ -152,7 +152,13 @@ let private handleInputEffect effect =
         // overlay can otherwise leave the browser document body focused.
         match document.getElementById target with
         | null -> ()
-        | element -> element.focus()
+        | element ->
+            element.focus()
+            // Real screen-reader keyboard dispatch can move focus to the
+            // document after the synchronous Escape handlers finish. Reapply
+            // the declared target on the next rendered frame, after that
+            // browser processing, rather than accepting the document body.
+            window.requestAnimationFrame(fun _ -> element.focus()) |> ignore
     | _ -> ()
 
 do
