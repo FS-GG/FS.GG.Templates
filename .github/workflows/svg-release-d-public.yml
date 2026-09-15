@@ -35,7 +35,7 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium firefox webkit
           sudo apt-get update
-          sudo apt-get install --yes dbus-x11 espeak-ng gettext gir1.2-atspi-2.0 libatspi2.0-dev openbox orca pulseaudio pulseaudio-utils python3-gi python3-speechd speech-dispatcher-espeak-ng x11-utils xdotool xvfb
+          sudo apt-get install --yes dbus-x11 espeak-ng gettext gir1.2-atspi-2.0 libatspi2.0-dev openbox orca pulseaudio pulseaudio-utils python3-gi python3-speechd ripgrep speech-dispatcher-espeak-ng x11-utils xdotool xvfb
       - name: Acquire exact Quint
         shell: bash
         run: |
