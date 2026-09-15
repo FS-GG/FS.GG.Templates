@@ -14,12 +14,21 @@ accounted losses updates `generated-candidates/xantham/proposal`; it never chang
 locks, mapping decisions or accepted coverage. Process-group RSS and generated output are sampled every
 100 ms and oversize results are rejected; timeout/log capture are bounded by the runner, while the
 8 GiB address-space ceiling is enforced by the operating system.
+Preparation fingerprints the NuGet package and its CLI/generator assemblies. It executes the verified
+CLI assembly through the selected `dotnet` host because the SDK-generated tool launcher is not
+byte-stable across installations and therefore cannot serve as a portable package identity.
 
 `npm run xantham:assess` performs bounded, read-only checks of the NuGet CLI/Wire/support indexes and
 the upstream GitHub source head/diff. It distinguishes published packages from source-only work and
 prints affected contracts plus qualification steps. Add `-- --output
 generated-candidates/xantham/update-assessment.json` to retain the schema-v1 report. A partial or
 unavailable network check stays explicit and never changes pins or executes downloaded code.
+
+Reviewed release results live in `xantham/release-assessments.json`. The 0.1.0 stable generator is useful
+for public subpaths, export layout, documentation and shared declaration catalogs, and its ANSI output
+passes the Fable/Node journey on `net8.0`. Keep the alpha.2 executable baseline for this template until
+`Xantham.Fable.Core.TS` can restore into `netstandard2.1`, or stable generated output stops requiring its
+unused DOM namespace; the assessment command reports that gate and the exact requalification steps.
 
 For an existing workspace, first install the exact Templates package and instantiate a temporary clean
 workspace, then compare its `scripts/`, `xantham/`, package commands and

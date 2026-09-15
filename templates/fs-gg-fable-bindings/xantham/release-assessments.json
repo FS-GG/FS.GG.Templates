@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "releases": [
+    {
+      "package": "xantham",
+      "version": "0.1.0",
+      "assessedAt": "2026-09-15T09:00:32.397Z",
+      "disposition": "retain-qualified-baseline",
+      "compatibility": "blocked",
+      "usefulChanges": [
+        "The schema command now writes a usable configuration schema.",
+        "Public export subpaths, specifier-scoped modules and export collision handling make package layouts more faithful.",
+        "JSDoc rendering and declaration-catalog composition have substantially improved.",
+        "Stable Xantham.Fable.Core and Xantham.Fable.Core.TS packages provide shared generated support types; the separately published Xantham.Fable.Node package is a later Node-target candidate that still needs its own qualification."
+      ],
+      "blockers": [
+        "Xantham 0.1.0 emits `open Fable.Core.TS.Dom` for the qualified ANSI candidate, making Xantham.Fable.Core.TS a compile dependency even though the mapped candidate uses no DOM type.",
+        "Xantham.Fable.Core.TS 0.1.0 contains only a net8.0 asset and cannot restore into the template's required netstandard2.1 candidate project (NU1202)."
+      ],
+      "evidence": [
+        "The exact xantham 0.1.0 package reports source c68c15f1421a43d40a8f0953a8966d0c1d2f46c9, package SHA-512 wwSsJNLfazcf2rcvIB5xTJBox+hOWTPurcM5JJf6MylPvUPS9orriQtbg0UIM9eNqy9eYRn42lVPbjdEusIEjg==, generator assembly SHA-256 93a7da1b00b95ef4c0490bae54ecda9883bba59fc65fbf7e21668b630d70b5eb and retains TypeScript 7.1.0-dev.20260902.1.",
+        "The mapped ansi-regex@6.2.2 candidate generated with zero widened or escaped symbols, compiled on net8.0 with Xantham.Fable.Core.TS 0.1.0, Fable-compiled with Fable 5.13.0 and passed the real Node journey.",
+        "The same generated source failed netstandard2.1 restore because Xantham.Fable.Core.TS 0.1.0 supports net8.0 only."
+      ],
+      "affectedFiles": [
+        "xantham/toolchain-lock.json",
+        "xantham/ansi-regex.xantham.json",
+        "xantham/qualification/Runtime.fsproj",
+        "scripts/prepare-xantham.mjs",
+        "scripts/run-xantham.mjs"
+      ],
+      "qualificationChecks": [
+        "require a netstandard2.1-compatible Xantham.Fable.Core.TS asset or generated output that omits unused compiler-library opens",
+        "prepare and verify exact CLI/compiler/support hashes",
+        "repeat ANSI candidate, manifest and symbol bytes",
+        "compile netstandard2.1",
+        "Fable/Node runtime journey",
+        "conflicting-cache and limit rejection fixtures"
+      ],
+      "integrationSteps": [
+        "Keep xantham 0.1.0-alpha.2 as the executable qualified baseline.",
+        "Recheck Xantham.Fable.Core.TS when it publishes a netstandard2.1 asset, or recheck generated output when Xantham stops emitting an unused DOM open.",
+        "Then update CLI and support pins and fingerprints together and run the full candidate qualification before accepting 0.1.0 or a successor."
+      ]
+    }
+  ]
+}

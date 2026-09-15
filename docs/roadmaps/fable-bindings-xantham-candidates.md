@@ -230,6 +230,28 @@ the inspected source revision unchanged, and no GitHub Release; the recommended 
 `retain`. The generated skill manifest and packed clean-workspace composition prove the helper,
 schemas, configs and updated skill entrypoint reach the product. Package publication remains pending.
 
+### 2026-09-15 stable-release assessment
+
+Xantham 0.1.0 and Xantham.Fable.Core 0.1.0 are now published. The release adds useful public-export
+subpath/module layout, collision handling, JSDoc rendering, declaration-catalog composition and a working
+schema command. Its mapped `ansi-regex@6.2.2` candidate still has zero widened/escaped symbols and passes
+F# compilation, Fable 5.13.0 compilation and the real Node journey when qualified on `net8.0` with
+`Xantham.Fable.Core.TS` 0.1.0.
+
+It does not yet replace the exact alpha.2 baseline. Stable output unconditionally opens
+`Fable.Core.TS.Dom`, while the required `Xantham.Fable.Core.TS` 0.1.0 package contains only a `net8.0`
+asset. The template's required `netstandard2.1` compile gate therefore fails restore with NU1202. The
+live assessment now overlays this reviewed result from `xantham/release-assessments.json`: retain the
+qualified executable pin, watch for a `netstandard2.1` support asset or removal of the unused open, then
+advance CLI/support fingerprints together and rerun the complete ANSI isolation, determinism, compile
+and runtime qualification.
+
+The assessment rerun also found that a `dotnet tool` launcher changes bytes across SDK installations.
+The runner now verifies and executes the package's CLI assembly through the selected `dotnet` host,
+while retaining the exact package, generator assembly, compiler executable and reported source checks.
+The complete existing alpha.2 gate passes under its pinned SDK/Node/npm environment with this portable
+identity boundary.
+
 ## Generated-workspace effect and adoption
 
 Affected family: `fs-gg-fable-bindings` and its Templates-owned product skill, across existing lifecycle

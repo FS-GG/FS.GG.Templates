@@ -27,6 +27,9 @@ await cp(resolve(root, "xantham/compiler/package-lock.json"), resolve(toolDir, "
 await cp(resolve(root, "xantham/pilot/package.json"), resolve(toolDir, "pilot/package.json"));
 await cp(resolve(root, "xantham/pilot/package-lock.json"), resolve(toolDir, "pilot/package-lock.json"));
 
+const packageRoot = resolve(toolDir, "bin/.store/xantham", lock.cli.version, "xantham", lock.cli.version);
+const cliAssembly = resolve(packageRoot, "tools/net10.0/any/xantham.dll");
+
 const isolatedEnv = {
   ...process.env,
   HOME: resolve(toolDir, "home"),
@@ -38,21 +41,19 @@ const isolatedEnv = {
 };
 for (const key of Object.keys(isolatedEnv)) if (key.toLowerCase() === "npm_config_allow_scripts") delete isolatedEnv[key];
 await run("dotnet", ["tool", "install", lock.cli.package, "--version", lock.cli.version, "--tool-path", resolve(toolDir, "bin")], repositoryRoot, isolatedEnv).catch(async error => {
-  const existing = await hashFile(resolve(toolDir, "bin/xantham")).catch(() => null);
-  if (existing !== lock.cli.linuxX64ApphostSha256) throw error;
+  const existing = await hashFile(cliAssembly).catch(() => null);
+  if (existing !== lock.cli.cliAssemblySha256) throw error;
 });
 await run("npm", ["ci", "--ignore-scripts"], resolve(toolDir, "compiler"), isolatedEnv);
 await run("npm", ["ci", "--ignore-scripts"], resolve(toolDir, "pilot"), isolatedEnv);
 
-const cli = resolve(toolDir, "bin/xantham");
 const compiler = resolve(toolDir, "compiler", lock.compiler.linuxX64Executable);
-const packageRoot = resolve(toolDir, "bin/.store/xantham", lock.cli.version, "xantham", lock.cli.version);
 const generatorAssembly = resolve(packageRoot, "tools/net10.0/any/Xantham.Generator.dll");
 const packageHash = (await readFile(resolve(packageRoot, `xantham.${lock.cli.version}.nupkg.sha512`), "utf8")).trim();
-const observed = { cliApphostSha256: await hashFile(cli), cliPackageSha512: packageHash, generatorAssemblySha256: await hashFile(generatorAssembly), compilerSha256: await hashFile(compiler) };
-if (observed.cliApphostSha256 !== lock.cli.linuxX64ApphostSha256) throw new Error(`prepared Xantham apphost hash mismatch: expected ${lock.cli.linuxX64ApphostSha256}, found ${observed.cliApphostSha256}`);
+const observed = { cliAssemblySha256: await hashFile(cliAssembly), cliPackageSha512: packageHash, generatorAssemblySha256: await hashFile(generatorAssembly), compilerSha256: await hashFile(compiler) };
+if (observed.cliAssemblySha256 !== lock.cli.cliAssemblySha256) throw new Error(`prepared Xantham CLI assembly hash mismatch: expected ${lock.cli.cliAssemblySha256}, found ${observed.cliAssemblySha256}`);
 if (observed.cliPackageSha512 !== lock.cli.packageSha512) throw new Error(`prepared Xantham package hash mismatch: expected ${lock.cli.packageSha512}, found ${observed.cliPackageSha512}`);
 if (observed.generatorAssemblySha256 !== lock.cli.generatorAssemblySha256) throw new Error(`prepared Xantham generator assembly hash mismatch: expected ${lock.cli.generatorAssemblySha256}, found ${observed.generatorAssemblySha256}`);
 if (observed.compilerSha256 !== lock.compiler.linuxX64Sha256) throw new Error(`prepared compiler hash mismatch: expected ${lock.compiler.linuxX64Sha256}, found ${observed.compilerSha256}`);
-await writeFile(resolve(toolDir, "prepared.json"), `${JSON.stringify({ schemaVersion: 1, ...observed, cli, compiler }, null, 2)}\n`);
+await writeFile(resolve(toolDir, "prepared.json"), `${JSON.stringify({ schemaVersion: 1, ...observed, cli: cliAssembly, compiler }, null, 2)}\n`);
 console.log(`prepared exact Xantham ${lock.cli.version} and TypeScript ${lock.compiler.version} under ${toolDir}`);
