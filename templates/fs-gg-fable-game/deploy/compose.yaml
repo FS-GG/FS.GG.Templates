@@ -4,7 +4,7 @@ services:
   authority:
     image: "fsgg-fable-game-authority:${SVG_RELEASE_VERSION:-workspace-v1}"
     build:
-      context: ..
+      context: .
       dockerfile: deploy/authority.Dockerfile
       args:
         SVG_RELEASE_VERSION: "${SVG_RELEASE_VERSION:-workspace-v1}"
@@ -23,6 +23,6 @@ services:
       GAME_SITE_ADDRESS: "${GAME_SITE_ADDRESS:-http://localhost:8080}"
       GAME_UPSTREAM: "${GAME_UPSTREAM:-authority:8080}"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - "../artifacts/releases/${SVG_RELEASE_VERSION:-workspace-v1}:/srv/release:ro"
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - "./artifacts/releases/${SVG_RELEASE_VERSION:-workspace-v1}:/srv/release:ro"
     restart: unless-stopped
