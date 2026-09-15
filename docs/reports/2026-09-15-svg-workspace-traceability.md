@@ -4,12 +4,12 @@ This is the Release-D preparation index for `SVG-WORKSPACE-01`. It binds the com
 workspace to the capability, milestone and journey obligations inherited by the roadmap. It records source,
 installed-candidate and receiver-development results separately from effects that have not happened.
 
-The current exact source candidate is Templates `871489891236c7a79625c56a22ee978da881870f`. Its native
-0.14.0 archive has SHA-256
-`364b1c500dede32a9117d1e4c90daf8d44975698c0178f305836c7fd85940b2e`. Its exact materialized
-receiver is bound to the current functional and adoption checks by E3–E5. Templates 0.14.0 and wizard 0.11.2
-remain unpublished Release-D candidates. The durable static and ASP.NET authority host has no established
-destination, so `.4`, `.6`, and the complete Release-D claim remain open.
+The frozen exact source candidate is Templates `2d8802d527e01afe4755ae7015a5627be88e318f`. Its native
+0.14.0 candidate archive has SHA-256
+`340250f942efef30702bf8c3f1f9a9096ca246c1bb4b244a2c5806ac49398380`. Its exact materialized
+receiver is bound to the current functional and adoption checks by E3–E11. Templates 0.14.0 and wizard 0.11.2
+remain unpublished Release-D candidates. The maintainer accepted the qualified local container edge as the
+current hosting boundary; durable public hosting remains explicitly deferred to Templates #491.
 
 ## Evidence keys
 
@@ -25,6 +25,7 @@ destination, so `.4`, `.6`, and the complete Release-D claim remain open.
 | E8 | Bounded Arena correspondence `/tmp/svg-014-model-correspondence-review-b0vbc5xy/review.md`, SHA-256 `d52c66f35522532401d05d8084fb0b28daa69748364a23eedf24f1afba89ef2e`; the current source test paths in E3 execute Arena/Tactical/Arcade model projections and controlled mutants |
 | E9 | Final-generic Arcade observation `/tmp/svg-workspace-015-final-generic-sustained.CeJ3dzdR/readback.json`, SHA-256 `4c0844b2d5d7d65cda2ffe27692b681fc02276b27991399d25786f8536868d06`, binds the `7e708ef` package and assets. The bounded archive/materialization comparisons through E4 show that the observed Arcade/player assets remain byte-identical; this is unchanged-subject reuse, not a new native timing run. Individual raw rows retain the probe's source-snapshot label and headless callback scope. |
 | E10 | Published Templates 0.13 public-C run `34920041596`; its input observer is the exact tagged file SHA-256 `b936a2a15d6891b4d2fc3cf0e52301e2f527f39b4a8b9cb8f591cd900e282bd9`, alongside frozen old authoring/replay observers. That release retains its known pre-fix edit-focus limitation. Keymap package probe `/tmp/svg-workspace-015-keymap-reader/Program.fs` SHA-256 `b520f2ed4ce2f04f6c88448d8bc52b636803571df148b612c3ab1b907afdaff6` |
+| E11 | [Final freeze](2026-09-15-svg-workspace-freeze.md): merged source/tree, native 0.14.0 archive and full lock inventory; exact-head composition `34965730947`, installed receiver `34965730400`, and browser/container `34965730316`. Local Caddy served-byte and forced-WebSocket V3 reconnect passed. Public DNS/TLS/reboot/availability remain unclaimed and deferred to Templates #491. |
 
 ## Capability matrix
 
@@ -49,7 +50,7 @@ destination, so `.4`, `.6`, and the complete Release-D claim remain open.
 | C17 multiplayer and resync | V1/V2/V3 two-browser authored schema-3/reconnect/refusal/recording [E3] | qualified current composition |
 | C18 accessibility and responsive UI | three-browser functional, 320 px/400% reflow, reduced motion, named Chromium/Orca keyboard/AT-SPI/speech route [E3] | qualified; physical audio output remains unobserved |
 | C19 scale and profiling | frozen reference budgets, startup/resource gates and sustained Arcade [E3, E9] | qualified scoped workloads; physical display and unavailable metrics remain disclosed |
-| C20 packaging, skills, samples, docs, deployment and upgrades | seven bundles, archive/provenance, four receiver PRs and complete adopter [E4, E5, E6] | source/package/upgrade ready; durable hosting and public Release-D publication pending |
+| C20 packaging, skills, samples, docs, deployment and upgrades | seven bundles, archive/provenance, four receiver PRs, complete adopter and accepted local Caddy edge [E4, E5, E6, E11] | qualified for the current boundary; public Release-D publication pending, durable hosting deferred to #491 |
 
 ## Milestone matrix
 
@@ -63,9 +64,9 @@ destination, so `.4`, `.6`, and the complete Release-D claim remain open.
 | M5 game runtime | fixed-step Arcade, Tactical and authority tests [E2, E3] | none for current candidate |
 | M6 presentation and saves | animation/audio/persistence failure and reload [E2, E3] | physical audio hardware unobserved by design |
 | M7 replay and analysis | executed Quint ITF projections and real Tactical/Arena/Arcade reducers [E2, E7, E8] | none for bounded current models |
-| M8 networked game | V3 immutable content, two browsers, queue/reconnect/refusal and accepted recording [E3] | durable hosted rerun pending |
+| M8 networked game | V3 immutable content, two browsers, queue/reconnect/refusal, accepted recording and local Caddy WebSocket reconnect [E3, E11] | complete for the accepted local boundary; public hosted rerun deferred to #491 |
 | M9 scalability | reference workloads, asset/startup/resource measurements and sustained Arcade [E3, E9] | unavailable browser/host counters remain explicitly unavailable where absent |
-| M10 product composition | seven bundles, docs/examples, selected owner skills, package and receiver development [E3, E4, E5, E6] | durable static/ASP.NET deployment pending |
+| M10 product composition | seven bundles, docs/examples, selected owner skills, package, receiver development and local static/ASP.NET deployment [E3, E4, E5, E6, E11] | complete; durable public deployment deferred to #491 |
 | M11 publish and adopt | public dependencies, 0.10–0.13 adopter and four protected receiver PRs [E5, E6, E7] | Templates/wizard publication, public installed readback and default activation belong to Release D; later lifecycle-default activation retains its OperatingV2 gate |
 
 ## End-to-end journeys
@@ -80,7 +81,7 @@ destination, so `.4`, `.6`, and the complete Release-D claim remain open.
 | 6 content resilience | real load/import/storage effects preserve last valid content across supported refusals [E3] | passed |
 | 7 replay and disclosure | accepted actions record/seek/cancel/diverge; authority sentinel is absent from excluded client surfaces [E3, E8] | passed with redacted predicates |
 | 8 performance and accessibility | reflow, reduced motion, three-browser function, named Chromium/Orca route, startup/resources and sustained Arcade [E3, E9] | passed within the stated screen-reader, headless-performance, and no-physical-output scopes |
-| 9 delivery | seven installed selections, provenance skills and immutable version staging/rollback [E3, E4] | candidate passed; durable host and publication pending |
+| 9 delivery | seven installed selections, provenance skills, immutable version staging/rollback logic and accepted local Caddy deployment [E3, E4, E11] | candidate passed; publication pending and public hosting deferred to #491 |
 | 10 retained upgrade | public 0.10–0.13 inventory/review/apply/build/rollback with preservation/refusal [E5, E7, E10] | passed complete-adoption v1 |
 | 11 generated development | clean and retained routine repair plus separate Arcade-125 model/rule PRs [E6] | passed four native PRs |
 
@@ -89,6 +90,6 @@ destination, so `.4`, `.6`, and the complete Release-D claim remain open.
 Public producer packages are already published at Rendering 0.31, Game 0.16, Net 0.6, Audio 0.6 and SDD
 1.8. The current Templates 0.14 and wizard 0.11.2 bytes are qualified candidates only. Explicit typed/profile-2
 authoring is qualified in the generated receivers and changes no lifecycle default. The product provider/default,
-Templates and wizard publication, durable deployment, and later Typed-SDD lifecycle default are separate
-operations. The later lifecycle-default operation still requires its actual OperatingV2 evidence; no epoch or
-activation is inferred here.
+Templates and wizard publication, deferred durable deployment, and later Typed-SDD lifecycle default are separate
+operations. The later lifecycle-default operation still requires its actual OperatingV2 evidence; no epoch,
+public-hosting receipt or activation is inferred here.
