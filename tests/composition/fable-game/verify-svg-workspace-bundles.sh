@@ -174,6 +174,7 @@ grep -F './deploy/Caddyfile:/etc/caddy/Caddyfile:ro' "$work/Player/deploy/compos
 grep -F './artifacts/releases/${SVG_RELEASE_VERSION:-workspace-v1}:/srv/release:ro' "$work/Player/deploy/compose.yaml" >/dev/null
 grep -F 'bash "$root/deploy/verify-edge.sh"' "$work/Player/deploy/run-local.sh" >/dev/null
 grep -F 'StrictHostKeyChecking=yes' "$work/Player/deploy/deploy-production.sh" >/dev/null
+grep -F 'UserKnownHostsFile=$DEPLOY_KNOWN_HOSTS_FILE' "$work/Player/deploy/deploy-production.sh" >/dev/null
 grep -F 'rollback_remote' "$work/Player/deploy/deploy-production.sh" >/dev/null
 grep -F 'systemctl enable fsgg-fable-game.service' "$work/Player/deploy/activate-vps.sh" >/dev/null
 grep -F 'serviceRestartVerified' "$work/Player/deploy/verify-production.sh" >/dev/null
