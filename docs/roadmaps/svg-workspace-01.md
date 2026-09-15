@@ -313,7 +313,9 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   retain an exact reader, supported migration or explicit refusal.
 
   Deliver four actual native PRs: a useful routine repair and a separate visible semantic rule/model change in
-  each clean and retained private receiver. Observe base/head, required product checks, exact-head marker,
+  each clean and retained public synthetic receiver generated only from audited public sources and packages.
+  Keep earlier private receivers private as access-negative evidence; do not copy their history or artifacts into
+  the public fixtures. Observe base/head, required product checks, exact-head marker,
   moved-head refusal/rebinding, same-PR correction, native merge/readback, delayed derived views and unavailable
   usage. The semantic PRs update their literate model/bindings and .NET/Fable/browser behavior. Do not substitute
   static adopter output or fabricated passing JSON for delivered receiver work.
