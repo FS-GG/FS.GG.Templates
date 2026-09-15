@@ -1,0 +1,4 @@
+services:
+  edge:
+    ports:
+      - "127.0.0.1:${GAME_HTTP_PORT:-8080}:8080"

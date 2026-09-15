@@ -18,6 +18,17 @@ type BootstrapEndpointTests() =
     let factory = new WebApplicationFactory<Program>()
 
     [<Fact>]
+    member _.``GET healthz is side-effect free and reports the authority identity``() =
+        task {
+            use client = factory.CreateClient()
+            use! response = client.GetAsync("/healthz")
+            let! body = response.Content.ReadAsStringAsync()
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode)
+            Assert.Contains("\"status\":\"ok\"", body)
+            Assert.Contains($"\"roomId\":\"{RoomAuthority.RoomId}\"", body)
+        }
+
+    [<Fact>]
     member _.``POST /api/bootstrap returns a decodable, versioned response assigning a distinct player and the arena's fixed dimensions``() =
         task {
             use client = factory.CreateClient()

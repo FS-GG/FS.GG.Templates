@@ -1,0 +1,28 @@
+name: fsgg-fable-game
+
+services:
+  authority:
+    image: "fsgg-fable-game-authority:${SVG_RELEASE_VERSION:-workspace-v1}"
+    build:
+      context: .
+      dockerfile: deploy/authority.Dockerfile
+      args:
+        SVG_RELEASE_VERSION: "${SVG_RELEASE_VERSION:-workspace-v1}"
+    environment:
+      ASPNETCORE_HTTP_PORTS: "8080"
+      ArenaContentPath: "${ARENA_CONTENT_PATH:-}"
+    expose:
+      - "8080"
+    restart: unless-stopped
+
+  edge:
+    image: "${CADDY_IMAGE:-docker.io/library/caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d}"
+    depends_on:
+      - authority
+    environment:
+      GAME_SITE_ADDRESS: "${GAME_SITE_ADDRESS:-http://localhost:8080}"
+      GAME_UPSTREAM: "${GAME_UPSTREAM:-authority:8080}"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - "./artifacts/releases/${SVG_RELEASE_VERSION:-workspace-v1}:/srv/release:ro"
+    restart: unless-stopped

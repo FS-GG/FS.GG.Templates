@@ -280,10 +280,21 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   unavailable dimensions. Physical-device, screen-reader, Firefox/WebKit or audible-output claims require those
   actual observations.
 
-  Hosted effect: deploy a versioned release directory with hashes for static player, Studio/examples, authority
-  and selected content to a durable ASP.NET-capable destination with tested `/api`, `/hub`, WebSocket/TLS routing
-  and rollback. Read back deployed identity/served bytes and rerun the production journey. Static-only hosting,
-  localhost, tunnels and unrelated hosts do not qualify.
+  Deployment preparation (start without infrastructure): add a digest-pinned, non-root ASP.NET authority image
+  and a Podman-preferred, Docker-compatible Caddy edge composition over the already versioned release directory. Caddy serves the hashed static
+  Player, optional Studio/examples and selected content, exposes only bounded version/hash readback, and proxies
+  same-origin `/api`, `/hub` WebSocket and health traffic. A local Compose qualification must read back exact
+  served bytes, bootstrap a session and authorize a real SignalR connection through the proxy. Preserve an
+  explicit `GAME_UPSTREAM` seam so the authority may later move off the web host; do not add matchmaking,
+  dynamic allocation or a new game-node protocol under `.4`. Local HTTP/certificates and loopback are preparation
+  evidence only, so this work proceeds before VPS credentials or a domain exist and does not close the milestone.
+
+  Hosted effect (final): deploy the same immutable release and container-edge definition to a selected durable
+  VPS or equivalent ASP.NET-capable destination, with a stable domain, public DNS, trusted TLS, persistent Caddy
+  state and host restart policy. Test `/api`, `/hub`, WebSocket/TLS routing and version-to-version rollback. Read
+  back deployed identity/served bytes and rerun the production journey. Static-only hosting, localhost, tunnels
+  and unrelated hosts do not qualify. A single-node reference deployment is sufficient; high availability and
+  dynamically allocated external game servers are later scaling work rather than hidden `.4` acceptance.
 
   Completion: .4 closes only after integrated source/installed/native checks and the hosted static+ASP.NET
   effect pass. A source delivery while hosting is unavailable records “source/journeys delivered; hosted effect
@@ -348,9 +359,10 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   remain the next feature. After .6 native readback and §0 projection, request a fresh major-feature plan for
   SVG-RELEASE-D.
 
-Current executable window: **.4 durable hosting remains pending; .5 receiver/native development and upgrade
-qualification is complete**. `.6` traceability is prepared but cannot close until the hosted static/ASP.NET
-journey completes `.4`. Source-only checkpoints do not trigger §0; each actual milestone closure does. Broad
+Current executable window: **finish .4's local container/Caddy preparation now, then perform its durable VPS/domain
+effect when that infrastructure is selected; .5 receiver/native development and upgrade qualification is
+complete**. `.6` traceability is prepared but cannot close until the hosted static/ASP.NET journey completes
+`.4`. The local edge checkpoint does not trigger §0 or complete `.4`; each actual milestone closure does. Broad
 SDD #927 and a future ChangeProposal format are not blanket blockers.
 
 ## Journey coverage and authority/upgrade matrix

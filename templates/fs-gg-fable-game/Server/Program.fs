@@ -105,6 +105,14 @@ module Program =
         builder.Services.AddHostedService<TickBroadcaster>() |> ignore
         let app = builder.Build()
 
+        // The edge/container health probe deliberately exercises the real ASP.NET
+        // pipeline without allocating a player session or disclosing authority state.
+        app.MapGet(
+            "/healthz",
+            Func<IResult>(fun () -> Results.Json {| status = "ok"; roomId = RoomAuthority.RoomId |})
+        )
+        |> ignore
+
         // The plain-HTTP typed request/response leg (ADR-0073): an ordinary minimal-API
         // handler, an explicit versioned DTO pair, and named codec functions on both
         // sides -- never Decode.Auto, never a generated RPC proxy.

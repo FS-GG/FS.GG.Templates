@@ -17,6 +17,7 @@ SvgFoundation/Studio/NuGet.candidate.generated.config
 Browser.Tests/test-results/
 Browser.Tests/playwright-report/
 Browser.Tests/blob-report/
+deploy/.state/
 
 # Restored dependencies and local tooling
 node_modules/

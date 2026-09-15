@@ -118,6 +118,21 @@ invalid schema, identity, or geometry refuses startup. The root build writes the
 independently deployable ASP.NET Core authority to `artifacts/authority-server`. Deploy the
 static artifact and authority together; a static host alone is not a complete multiplayer game.
 
+After the root build prepares `artifacts/releases/<version>`, exercise the production-shaped local edge:
+
+```bash
+SVG_RELEASE_VERSION=<version> bash deploy/run-local.sh
+```
+
+This prefers `podman compose`, falls back to `docker compose`, builds the non-root ASP.NET authority image,
+and places the digest-pinned Caddy image in front of it. Set `CONTAINER_ENGINE=podman` or `docker` to require
+a particular compatible engine.
+Caddy serves the hashed Player, optional Studio and selected content while proxying same-origin `/api` and
+`/hub` traffic—including WebSocket upgrades—to the authority. Set `KEEP_EDGE_RUNNING=true` to retain the
+local stack after verification. The public host uses the same base composition with
+`deploy/compose.production.yaml`; its domain, trusted TLS, external readback and rollback remain deployment
+effects rather than local claims. See `docs/runbooks/build-evidence-and-deploy.md` for the exact commands.
+
 `bash ./build.sh` runs the product qualification build: locked restore/build/test the `.NET` solution
 (`Domain`, `Protocol`, `Server`, and their `.Tests` projects), the cross-runtime
 V1/V2/V3 codec and replay proof, bounded authored-rule Quint simulation, the Fable/Vite client production build, and the

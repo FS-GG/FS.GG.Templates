@@ -1,0 +1,44 @@
+{$GAME_SITE_ADDRESS:http://localhost:8080} {
+	encode zstd gzip
+
+	# Keep the browser's API and SignalR URLs same-origin while allowing the
+	# authority to move to another host later without rebuilding static assets.
+	handle /api/* {
+		reverse_proxy {$GAME_UPSTREAM:authority:8080}
+	}
+	handle /hub/* {
+		reverse_proxy {$GAME_UPSTREAM:authority:8080}
+	}
+	handle /healthz {
+		reverse_proxy {$GAME_UPSTREAM:authority:8080}
+	}
+
+	# Exact public readback surfaces. Do not expose the authority binaries that
+	# sit beside these files in the immutable release directory.
+	handle /deployment/VERSION {
+		rewrite * /VERSION
+		root * /srv/release
+		file_server
+	}
+	handle /deployment/SHA256SUMS {
+		rewrite * /SHA256SUMS
+		root * /srv/release
+		file_server
+	}
+
+	redir /studio /studio/ 308
+	handle_path /studio/* {
+		root * /srv/release/static-studio
+		try_files {path} /index.html
+		file_server
+	}
+	handle_path /content/* {
+		root * /srv/release/content
+		file_server
+	}
+	handle {
+		root * /srv/release/static-player
+		try_files {path} /index.html
+		file_server
+	}
+}
