@@ -163,12 +163,20 @@ def wait_until_absent(role, name, timeout=10):
         time.sleep(.1)
     raise RuntimeError(f"AT-SPI object remained visible: role={role} name={name}")
 
-def wait_for_speech(*needles, timeout=10):
+def speech_log_offset():
+    try:
+        return os.path.getsize(output + ".orca-debug.log")
+    except OSError:
+        return 0
+
+def wait_for_speech(*needles, timeout=10, after=0):
     debug = output + ".orca-debug.log"
     end = time.time() + timeout
     while time.time() < end:
         try:
-            text = open(debug, errors="replace").read()
+            with open(debug, "rb") as stream:
+                stream.seek(after)
+                text = stream.read().decode(errors="replace")
         except FileNotFoundError:
             text = ""
         speech = "\n".join(
@@ -180,6 +188,19 @@ def wait_for_speech(*needles, timeout=10):
             return True
         time.sleep(.2)
     raise RuntimeError("Orca did not record the expected speech output")
+
+def wait_for_dom_keys(*expected, timeout=10):
+    end = time.time() + timeout
+    while time.time() < end:
+        try:
+            dom = json.load(open(output + ".browser-dom.json"))
+            keys = [entry.get("key") for entry in dom["observation"]["keys"]]
+            if keys[-len(expected):] == list(expected):
+                return
+        except Exception:
+            pass
+        time.sleep(.1)
+    raise RuntimeError(f"browser DOM did not receive expected keys: {expected}")
 
 find("heading", name="Generated SVG scene studio")
 # Traverse and activate the real control with X keyboard events. AT-SPI is used
@@ -213,8 +234,20 @@ wait_for_focus(
     role="embedded",
     dom_id="generated-authoring-studio--scene",
     dom_role="application")
-# WorkspaceInput declares help as the g,h sequence.
+# Orca Browse mode owns unmodified g and h as image/heading navigation. Use its
+# documented OrcaModifier+A keyboard command to enter Focus mode, observe that
+# announcement, then prove the application's declared g,h sequence reached the
+# browser DOM before accepting the resulting help dialog.
+mode_speech_offset = speech_log_offset()
+key("Insert+a")
+wait_for_speech("Focus mode", after=mode_speech_offset)
+wait_for_focus(
+    "Generated SVG scene studio",
+    role="embedded",
+    dom_id="generated-authoring-studio--scene",
+    dom_role="application")
 key("g", "h")
+wait_for_dom_keys("g", "h")
 find("dialog", name="Possible input help")
 activate("Close workspace overlay")
 activate("Rebind command")
@@ -240,9 +273,9 @@ with open(output, "w") as stream:
         "composition": "generated-svg-studio",
         "process": {"name": "orca", "pid": int(os.environ["ORCA_PID"])},
         "browser": {"name": os.environ["SVG_ORCA_BROWSER_FAMILY"], "pid": int(os.environ["BROWSER_PID"]), "accessibility": "AT-SPI2"},
-        "keyboard": {"events": "xdotool-X11", "navigation": "passed", "activation": "passed", "selection": "passed", "palette": "passed", "escape": "passed", "focusRestoration": "passed"},
+        "keyboard": {"events": "xdotool-X11", "navigation": "passed", "activation": "passed", "selection": "passed", "palette": "passed", "escape": "passed", "focusRestoration": "passed", "helpShortcut": "g,h-received-in-focus-mode"},
         "atspiActions": {"properties": "passed", "twoInstancesRefusal": "passed", "mode": "passed", "helpClose": "passed", "rebind": "passed", "validationFeedback": "passed"},
         "workspace": {"mode": "passed", "palette": "passed", "help": "passed", "rebind": "passed", "focusRestoration": "passed"},
-        "screenReader": {"name": "Orca", "speechOutputObserved": True, "audibleHardwareOutput": "not-observed"},
+        "screenReader": {"name": "Orca", "interactionMode": "focus-mode-observed", "speechOutputObserved": True, "audibleHardwareOutput": "not-observed"},
     }, stream, indent=2)
     stream.write("\n")
