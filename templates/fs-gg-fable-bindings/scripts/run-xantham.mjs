@@ -104,17 +104,18 @@ try {
   if (config.schemaVersion !== 1) throw new Error("Xantham config schemaVersion must be 1");
   if (process.platform !== "linux" || process.arch !== "x64") throw new Error(`Xantham execution is qualified only for linux-x64; found ${process.platform}-${process.arch}`);
   processRecord.limits = config.limits;
-  const cli = resolve(toolDir, "bin/xantham"); const compiler = resolve(toolDir, "compiler", toolchain.compiler.linuxX64Executable);
+  const compiler = resolve(toolDir, "compiler", toolchain.compiler.linuxX64Executable);
   const packageRoot = resolve(toolDir, "bin/.store/xantham", toolchain.cli.version, "xantham", toolchain.cli.version);
+  const cliAssembly = resolve(packageRoot, "tools/net10.0/any/xantham.dll");
   const prepared = JSON.parse(await readFile(resolve(toolDir, "prepared.json"), "utf8").catch(() => { throw new Error("Xantham tools are not prepared; run npm run xantham:prepare"); }));
   const packageSha512 = (await readFile(resolve(packageRoot, `xantham.${toolchain.cli.version}.nupkg.sha512`), "utf8")).trim();
-  if (await hashFile(cli) !== toolchain.cli.linuxX64ApphostSha256 || prepared.cliApphostSha256 !== toolchain.cli.linuxX64ApphostSha256) throw new Error("Xantham apphost fingerprint does not match the exact qualified pin");
+  if (await hashFile(cliAssembly) !== toolchain.cli.cliAssemblySha256 || prepared.cliAssemblySha256 !== toolchain.cli.cliAssemblySha256) throw new Error("Xantham CLI assembly fingerprint does not match the exact qualified pin");
   if (packageSha512 !== toolchain.cli.packageSha512 || prepared.cliPackageSha512 !== toolchain.cli.packageSha512) throw new Error("Xantham package fingerprint does not match the exact qualified pin");
   if (await hashFile(resolve(packageRoot, "tools/net10.0/any/Xantham.Generator.dll")) !== toolchain.cli.generatorAssemblySha256 || prepared.generatorAssemblySha256 !== toolchain.cli.generatorAssemblySha256) throw new Error("Xantham generator assembly fingerprint does not match the exact qualified pin");
   if (await hashFile(compiler) !== toolchain.compiler.linuxX64Sha256 || prepared.compilerSha256 !== toolchain.compiler.linuxX64Sha256) throw new Error("TypeScript compiler fingerprint does not match the exact qualified pin");
 
   const probeEnv = { ...process.env, HOME: homeDir, XDG_CACHE_HOME: resolve(homeDir, ".cache"), DOTNET_CLI_HOME: resolve(homeDir, ".dotnet"), NUGET_PACKAGES: resolve(root, ".nuget/packages"), XANTHAM_TSGO_EXE: compiler, DOTNET_NOLOGO: "1", DOTNET_SKIP_FIRST_TIME_EXPERIENCE: "1" };
-  const cliProbe = await boundedProcess(cli, ["--version"], { cwd: root, env: probeEnv, timeoutMs: 10000, logBytes: config.limits.logBytes });
+  const cliProbe = await boundedProcess("dotnet", [cliAssembly, "--version"], { cwd: root, env: probeEnv, timeoutMs: 10000, logBytes: config.limits.logBytes });
   const compilerProbe = await boundedProcess(compiler, ["--version"], { cwd: root, env: probeEnv, timeoutMs: 10000, logBytes: config.limits.logBytes });
   if (cliProbe.code !== 0 || cliProbe.trigger) throw new Error(`Xantham version probe failed: ${cliProbe.trigger ?? cliProbe.stderr.toString("utf8")}`);
   if (compilerProbe.code !== 0 || compilerProbe.trigger) throw new Error(`compiler version probe failed: ${compilerProbe.trigger ?? compilerProbe.stderr.toString("utf8")}`);
@@ -137,7 +138,7 @@ try {
   await import(pathToFileURL(resolve(packageDir, packageJson.exports ?? packageJson.main ?? "index.js"))); verification.imports = "pass";
 
   const generationStarted = Date.now(); const prlimit = "/usr/bin/prlimit";
-  const generatorArgs = [`--as=${config.limits.addressSpaceBytes}`, "--", cli, "generate", packageDir, "-o", rawDir, "--config", rawConfig];
+  const generatorArgs = [`--as=${config.limits.addressSpaceBytes}`, "--", "dotnet", cliAssembly, "generate", packageDir, "-o", rawDir, "--config", rawConfig];
   processRecord.command = [prlimit, ...generatorArgs];
   const generated = await boundedProcess(prlimit, generatorArgs, { cwd: root, env: { ...probeEnv, XANTHAM_TSGO_EXE: isolatedCompiler }, timeoutMs: config.limits.timeoutSeconds * 1000, logBytes: config.limits.logBytes, rssBytes: config.limits.sampledProcessGroupRssBytes, outputDir: rawDir, outputBytes: config.limits.outputBytes });
   phaseDurationsMs.generation = Date.now() - generationStarted; processRecord.exitCode = generated.code; processRecord.signal = generated.signal; processRecord.limitTriggered = generated.trigger;

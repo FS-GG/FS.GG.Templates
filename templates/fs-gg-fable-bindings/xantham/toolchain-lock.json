@@ -5,7 +5,7 @@
     "package": "xantham",
     "version": "0.1.0-alpha.2",
     "sourceRevision": "ce841e91500f8b4a668c6d64def61936eccda50f",
-    "linuxX64ApphostSha256": "c8e5c1ab8153a590cafe2bdc5b654f040f97d3149fc41b5c42b0c732b4a8254c",
+    "cliAssemblySha256": "573484b776555a483e81bbd689343f5dfbfdcfd77744a07a559cedaa10a8a60e",
     "packageSha512": "QFtQDQbqj6mJ++Kf/QblhenO3vkguMxa4S70/NIdWXZ/P2y8Ie/2JVs8UBvkTq71jmFuOXHtJKrEmcOyr4aLFA==",
     "generatorAssemblySha256": "b58dc7626aa3d16cb33b31b63c7587a1aa3e54eed4dee13406436f893d8e005c"
   },

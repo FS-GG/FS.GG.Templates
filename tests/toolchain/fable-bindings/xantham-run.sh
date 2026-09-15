@@ -15,9 +15,10 @@ ambient="$WORK/ambient"; conflicting="$ambient/.cache/xantham/7.1.0-dev.20260902
 mkdir -p "$(dirname "$conflicting")"
 printf '#!/usr/bin/env sh\necho Version 0.0.0-conflict\n' >"$conflicting"
 chmod +x "$conflicting"
-cli="$PRODUCT/.nuget/xantham-tools/bin/xantham"
+cli_version="$(jq -r '.cli.version' "$PRODUCT/xantham/toolchain-lock.json")"
+cli_assembly="$PRODUCT/.nuget/xantham-tools/bin/.store/xantham/$cli_version/xantham/$cli_version/tools/net10.0/any/xantham.dll"
 compiler="$PRODUCT/.nuget/xantham-tools/compiler/node_modules/@typescript/typescript-linux-x64/lib/tsc"
-direct_cache="$(HOME="$ambient" env -u XANTHAM_TSGO_EXE "$cli" tsc version)"
+direct_cache="$(HOME="$ambient" env -u XANTHAM_TSGO_EXE dotnet "$cli_assembly" tsc version)"
 grep -Fq "$conflicting" <<<"$direct_cache"
 (cd "$PRODUCT" && HOME="$ambient" node scripts/generate-candidate.mjs --backend xantham --config xantham/ansi-regex.json >/dev/null)
 first="$(sha256sum "$PRODUCT/generated-candidates/xantham/proposal/AnsiRegex.fs" "$PRODUCT/generated-candidates/xantham/proposal/manifest.json" "$PRODUCT/generated-candidates/xantham/proposal/symbols.jsonl")"
@@ -58,9 +59,9 @@ printf '{"groups":{"typescript/lib":{"map":{"RegExp":"Missing.Type"}}}}\n' >"$PR
 expect_rejected compile 'did not compile'
 
 bad_tools="$PRODUCT/.nuget/xantham-tools-bad"; cp -a "$PRODUCT/.nuget/xantham-tools" "$bad_tools"
-jq '.generatorAssemblySha256 = "bad"' "$bad_tools/prepared.json" >"$bad_tools/prepared.tmp" && mv "$bad_tools/prepared.tmp" "$bad_tools/prepared.json"
+jq '.cliAssemblySha256 = "bad"' "$bad_tools/prepared.json" >"$bad_tools/prepared.tmp" && mv "$bad_tools/prepared.tmp" "$bad_tools/prepared.json"
 if (cd "$PRODUCT" && node scripts/run-xantham.mjs --config xantham/ansi-regex.json --tool-dir .nuget/xantham-tools-bad >/dev/null 2>&1); then echo 'wrong tool fingerprint unexpectedly passed' >&2; exit 1; fi
-jq -e '.status == "rejected" and any(.diagnostics[]; contains("generator assembly fingerprint"))' "$(latest_report)" >/dev/null
+jq -e '.status == "rejected" and any(.diagnostics[]; contains("CLI assembly fingerprint"))' "$(latest_report)" >/dev/null
 
 # Path defense fixture: an existing runs symlink is refused before any tool or fetched code executes.
 mini="$WORK/mini"; mkdir -p "$mini/scripts/lib" "$mini/generated-candidates/xantham" "$WORK/outside"

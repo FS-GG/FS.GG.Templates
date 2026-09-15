@@ -25,6 +25,16 @@ const published = await assessUpdates(baseline, fixture({ versions: { cli: [base
 assert.equal(published.status, "updates-found"); assert.equal(published.compatibility, "unqualified"); assert.equal(published.recommendation.disposition, "qualify-update");
 assert.equal(published.relevantChanges.find(row => row.source === "cli").published, true);
 
+const reviewedStable = await assessUpdates(baseline, fixture({ versions: { cli: [baseline.cli.version, "0.1.0"], support: [baseline.support.version, "0.1.0"] }, release: "0.1.0" }), now, [{
+  package: "xantham", version: "0.1.0", assessedAt: "2026-09-15T09:00:32.397Z", disposition: "retain-qualified-baseline", compatibility: "blocked",
+  usefulChanges: ["public export subpaths"], blockers: ["Core.TS is net8.0-only"], affectedFiles: ["xantham/toolchain-lock.json"],
+  qualificationChecks: ["compile netstandard2.1"], integrationSteps: ["Keep the executable baseline until the support package is compatible."]
+}]);
+assert.equal(reviewedStable.recommendation.disposition, "investigate");
+assert.equal(reviewedStable.recommendation.reviewedRelease.version, "0.1.0");
+assert.match(reviewedStable.knownBlockers.join(" "), /net8\.0-only/);
+assert.match(reviewedStable.recommendation.integrationSteps.join(" "), /Keep the executable baseline/);
+
 const sourceOnly = await assessUpdates(baseline, fixture({ head: "1111111111111111111111111111111111111111", files: [{ filename: "src/Xantham.Generator/Render.fs", blob_url: "https://example.invalid/render" }] }), now);
 assert.equal(sourceOnly.status, "updates-found"); assert.equal(sourceOnly.recommendation.disposition, "investigate");
 assert.match(sourceOnly.recommendation.integrationSteps.join(" "), /source-only/);

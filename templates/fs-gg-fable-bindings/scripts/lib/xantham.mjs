@@ -100,7 +100,7 @@ const contractForPath = path => {
   return null;
 };
 
-export async function assessUpdates(baseline, fetchImpl = fetch, now = () => new Date()) {
+export async function assessUpdates(baseline, fetchImpl = fetch, now = () => new Date(), reviewedUpdates = []) {
   const retrieve = async source => {
     try {
       const response = await fetchImpl(source.url, { headers: { Accept: "application/vnd.github+json", "User-Agent": "FS-GG-Templates-Xantham-assessment" }, signal: AbortSignal.timeout(10000) });
@@ -145,6 +145,9 @@ export async function assessUpdates(baseline, fetchImpl = fetch, now = () => new
   const publishedUpdates = updates.filter(item => item.kind === "published-package");
   const sourceOnlyUpdate = updates.some(item => item.id === "source") && publishedUpdates.length === 0;
   const needsInvestigation = updates.length > 0 || missingPins.length > 0 || status === "partial" || status === "unavailable";
+  const cliUpdate = sources.find(item => item.id === "cli" && item.updateAvailable === true);
+  const reviewedUpdate = reviewedUpdates.find(item => item.package === baseline.cli.package && item.version === cliUpdate?.observed);
+  const reviewedBlockers = reviewedUpdate?.compatibility === "blocked" ? reviewedUpdate.blockers : [];
   return {
     schemaVersion: 1,
     checkedAt: now().toISOString(),
@@ -156,14 +159,16 @@ export async function assessUpdates(baseline, fetchImpl = fetch, now = () => new
     affectedContracts,
     knownBlockers: [
       ...(status === "unavailable" ? ["No primary source could be reached; update availability is unknown."] : status === "partial" ? ["Some primary sources were unavailable; the comparison is incomplete."] : []),
-      ...missingPins.map(item => `The exact qualified ${item.id} pin ${item.baseline} is no longer available from its package index; preparation is blocked.`)
+      ...missingPins.map(item => `The exact qualified ${item.id} pin ${item.baseline} is no longer available from its package index; preparation is blocked.`),
+      ...reviewedBlockers
     ],
     compatibility: status === "current" && missingPins.length === 0 ? "qualified" : "unqualified",
     recommendation: {
-      disposition: publishedUpdates.length > 0 ? "qualify-update" : needsInvestigation ? "investigate" : "retain",
-      affectedFiles: ["xantham/toolchain-lock.json", "xantham/ansi-regex.json", "xantham/ansi-regex.xantham.json", "scripts/run-xantham.mjs"],
-      qualificationChecks: ["prepare and verify exact CLI/compiler hashes", "repeat ANSI candidate bytes", "compile netstandard2.1", "Fable/Node runtime journey", "conflicting-cache and limit rejection fixtures"],
-      integrationSteps: publishedUpdates.length > 0 ? ["Review the linked published packages and source diff by affected contract.", "Change exact pins and hashes in one candidate branch.", "Run the listed qualification checks before accepting the new baseline."] : sourceOnlyUpdate ? ["Review the linked source diff by affected contract.", "Keep installable pins unchanged while the change remains source-only.", "Qualify an exact source build only when the active task requires it, or await a published package before changing package pins."] : ["Keep the exact qualified baseline; repeat the assessment on the next skill load."]
+      disposition: reviewedBlockers.length > 0 ? "investigate" : publishedUpdates.length > 0 ? "qualify-update" : needsInvestigation ? "investigate" : "retain",
+      affectedFiles: reviewedUpdate?.affectedFiles ?? ["xantham/toolchain-lock.json", "xantham/ansi-regex.json", "xantham/ansi-regex.xantham.json", "scripts/run-xantham.mjs"],
+      qualificationChecks: reviewedUpdate?.qualificationChecks ?? ["prepare and verify exact CLI/compiler hashes", "repeat ANSI candidate bytes", "compile netstandard2.1", "Fable/Node runtime journey", "conflicting-cache and limit rejection fixtures"],
+      integrationSteps: reviewedUpdate?.integrationSteps ?? (publishedUpdates.length > 0 ? ["Review the linked published packages and source diff by affected contract.", "Change exact pins and hashes in one candidate branch.", "Run the listed qualification checks before accepting the new baseline."] : sourceOnlyUpdate ? ["Review the linked source diff by affected contract.", "Keep installable pins unchanged while the change remains source-only.", "Qualify an exact source build only when the active task requires it, or await a published package before changing package pins."] : ["Keep the exact qualified baseline; repeat the assessment on the next skill load."]),
+      reviewedRelease: reviewedUpdate ? { version: reviewedUpdate.version, assessedAt: reviewedUpdate.assessedAt, disposition: reviewedUpdate.disposition, usefulChanges: reviewedUpdate.usefulChanges, evidence: reviewedUpdate.evidence } : null
     }
   };
 }
