@@ -133,7 +133,7 @@ module NetworkAuthority =
 
     let verifyReplay () =
         Replay.seek
-            (ArenaRules.contractFor replay.InitialSnapshot.Value.Definition.ContentId)
+            (ArenaRules.contractForDefinition replay.InitialSnapshot.Value.Definition)
             digest
             (fun _ -> false)
             (uint64 replay.Events.Length)

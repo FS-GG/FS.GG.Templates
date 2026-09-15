@@ -1,4 +1,4 @@
-import json, os, sys, time
+import json, os, subprocess, sys, time
 import gi
 
 gi.require_version("Atspi", "2.0")
@@ -28,7 +28,8 @@ def find(role, name=None, contains=None, timeout=30):
                 if contains is not None:
                     try:
                         text = item.get_text_iface()
-                        value += " " + text.get_text(0, text.get_character_count())
+                        count = Atspi.Text.get_character_count(text)
+                        value += " " + Atspi.Text.get_text(text, 0, count)
                     except Exception:
                         pass
                 if (name is None or value == name) and (contains is None or contains in value):
@@ -44,28 +45,226 @@ def activate(name, role="push button"):
     action = node.get_action_iface()
     if not action.do_action(0):
         raise RuntimeError(f"AT-SPI action refused: {name}")
+    # Keep observer traversal behind the accessibility event. The retained
+    # Chromium/Orca run stalled at its first AX cache update when traversal
+    # followed immediately; this pacing records ordering without claiming the
+    # browser-side cause of that stall.
+    time.sleep(.75)
+
+def focused():
+    candidate = None
+    for item in walk(Atspi.get_desktop(0)):
+        try:
+            if item.get_state_set().contains(Atspi.StateType.FOCUSED):
+                # Containers and their focused descendant may both carry the
+                # state. The depth-first traversal leaves the actual control
+                # last, which is the focus value the keyboard user observes.
+                candidate = item
+        except Exception:
+            pass
+    return candidate
+
+def key(*keys):
+    subprocess.run(["xdotool", "key", "--clearmodifiers", *keys], check=True)
+    # Keep observation behind the browser/Orca event boundary. This is a real X
+    # keyboard path; the delay prevents this observer from assuming the focus
+    # event was already presented.
+    time.sleep(.75)
+
+def tab_to(name, limit=120):
+    observed = []
+    for _ in range(limit):
+        key("Tab")
+        dom = None
+        try:
+            dom = json.load(open(output + ".browser-dom.json"))
+        except Exception:
+            pass
+        if os.environ["SVG_ORCA_BROWSER_FAMILY"] in ("firefox", "chromium"):
+            if (dom is None or dom.get("schema") != "fsgg.orca-browser-dom/v1"
+                or dom.get("browserFamily") != os.environ["SVG_ORCA_BROWSER_FAMILY"]
+                or not isinstance(dom.get("sampleSequence"), int)
+                or not isinstance(dom.get("sampledAt"), str)
+                or abs(time.time() * 1000 - dom.get("sampledAtUnixMs", 0)) > 2000):
+                raise RuntimeError(f"fresh browser DOM focus observation unavailable: {dom}")
+        active = ((dom or {}).get("observation") or {}).get("activeElement") or {}
+        document_has_focus = bool(((dom or {}).get("observation") or {}).get("documentHasFocus"))
+        dom_name = active.get("ariaLabel") or active.get("text")
+        current = []
+        for item in walk(Atspi.get_desktop(0)):
+            try:
+                if item.get_state_set().contains(Atspi.StateType.FOCUSED):
+                    value = item.get_name() or ""
+                    if value:
+                        current.append({"name": value, "role": item.get_role_name()})
+                    # A browser can retain FOCUSED on an ancestor exposed later in
+                    # the tree. Assert the named target's own state rather than
+                    # selecting whichever focused object traversal visited last.
+                    if value == name and document_has_focus and dom_name == name:
+                        return item
+            except Exception:
+                pass
+        window = subprocess.run(["xdotool", "getwindowfocus"], capture_output=True, text=True, check=False).stdout.strip()
+        observed.append({"window": window, "focused": current, "dom": dom})
+    raise RuntimeError(f"keyboard focus did not reach {name}; observed={observed[-10:]}")
+
+def wait_for_focus(name, role=None, dom_id=None, dom_role=None, timeout=10):
+    end = time.time() + timeout
+    while time.time() < end:
+        dom = None
+        try:
+            dom = json.load(open(output + ".browser-dom.json"))
+        except Exception:
+            pass
+        observation = (dom or {}).get("observation") or {}
+        active = observation.get("activeElement") or {}
+        fresh_dom_target = (
+            dom is not None
+            and dom.get("schema") == "fsgg.orca-browser-dom/v1"
+            and dom.get("browserFamily") == os.environ["SVG_ORCA_BROWSER_FAMILY"]
+            and isinstance(dom.get("sampleSequence"), int)
+            and isinstance(dom.get("sampledAt"), str)
+            and abs(time.time() * 1000 - dom.get("sampledAtUnixMs", 0)) <= 2000
+            and observation.get("documentHasFocus") is True
+            and active.get("id") == dom_id
+            and active.get("role") == dom_role
+            and active.get("ariaLabel") == name
+        )
+        for item in walk(Atspi.get_desktop(0)):
+            try:
+                if (item.get_state_set().contains(Atspi.StateType.FOCUSED)
+                    and (item.get_name() or "") == name
+                    and (role is None or item.get_role_name() == role)
+                    and fresh_dom_target):
+                    return item
+            except Exception:
+                pass
+        time.sleep(.1)
+    item = focused()
+    actual = None if item is None else {"name": item.get_name(), "role": item.get_role_name()}
+    raise RuntimeError(
+        f"focus was not restored to role={role} name={name}; "
+        f"actual={actual} browserDom={dom}")
+
+def wait_until_absent(role, name, timeout=10):
+    end = time.time() + timeout
+    while time.time() < end:
+        present = False
+        for item in walk(Atspi.get_desktop(0)):
+            try:
+                if item.get_role_name() == role and (item.get_name() or "") == name:
+                    if item.get_state_set().contains(Atspi.StateType.SHOWING):
+                        present = True
+                        break
+            except Exception:
+                pass
+        if not present:
+            return
+        time.sleep(.1)
+    raise RuntimeError(f"AT-SPI object remained visible: role={role} name={name}")
+
+def speech_log_offset():
+    try:
+        return os.path.getsize(output + ".orca-debug.log")
+    except OSError:
+        return 0
+
+def wait_for_speech(*needles, timeout=10, after=0):
+    debug = output + ".orca-debug.log"
+    end = time.time() + timeout
+    while time.time() < end:
+        try:
+            with open(debug, "rb") as stream:
+                stream.seek(after)
+                text = stream.read().decode(errors="replace")
+        except FileNotFoundError:
+            text = ""
+        speech = "\n".join(
+            line.split("SPEECH OUTPUT:", 1)[1]
+            for line in text.splitlines()
+            if "SPEECH OUTPUT:" in line
+        )
+        if speech and all(needle in speech for needle in needles):
+            return True
+        time.sleep(.2)
+    raise RuntimeError("Orca did not record the expected speech output")
+
+def wait_for_dom_keys(*expected, timeout=10):
+    end = time.time() + timeout
+    while time.time() < end:
+        try:
+            dom = json.load(open(output + ".browser-dom.json"))
+            keys = [entry.get("key") for entry in dom["observation"]["keys"]]
+            if keys[-len(expected):] == list(expected):
+                return
+        except Exception:
+            pass
+        time.sleep(.1)
+    raise RuntimeError(f"browser DOM did not receive expected keys: {expected}")
 
 find("heading", name="Generated SVG scene studio")
-activate("Rectangle")
+# Traverse and activate the real control with X keyboard events. AT-SPI is used
+# only to observe where focus arrived and what the application announced.
+tab_to("Rectangle")
+key("Return")
 find(None, contains="created and selected")
 activate("Edit scene properties")
 find(None, contains="properties and grid edited")
 activate("Place two instances")
 find(None, contains="save the sample asset first")
-# Chromium maps aria-pressed workspace modes to AT-SPI toggle buttons and
-# exposes the descriptive aria-label as their accessible name.
-activate("Arrange mode", role="toggle button")
-find(None, contains="Mode: Arrange")
-activate("Command palette")
+# The AT-SPI actions leave focus on Place two instances, which follows the
+# replay panel in document order. Continue with real Tab keys through the
+# remaining page controls and browser chrome until the document wraps to the
+# replay panel. A temporarily unfocused document is recorded but cannot satisfy
+# the requested page target. Each target's own FOCUSED state is observed, so a
+# retained focused ancestor cannot substitute for the requested control.
+tab_to("Replay timeline")
+tab_to("Replay complete arena recording")
+tab_to("Command palette")
+key("Return")
 find("dialog", name="Command palette")
-activate("Close workspace overlay")
-activate("Possible input help")
+key("Escape")
+wait_until_absent("dialog", "Command palette")
+# The application contract records the scene id as RestoreFocus. Chromium maps
+# the SVG's ARIA application role to AT-SPI embedded. Require that named node's
+# own focused state together with a fresh DOM observation of the exact SVG id,
+# role, and name; the similarly named heading or document cannot substitute.
+wait_for_focus(
+    "Generated SVG scene studio",
+    role="embedded",
+    dom_id="generated-authoring-studio--scene",
+    dom_role="application")
+# Orca Browse mode owns unmodified g and h as image/heading navigation. Use its
+# documented OrcaModifier+A keyboard command to enter Focus mode, observe that
+# announcement, then prove the application's declared g,h sequence reached the
+# browser DOM before accepting the resulting help dialog.
+mode_speech_offset = speech_log_offset()
+key("Insert+a")
+wait_for_speech("Focus mode", after=mode_speech_offset)
+wait_for_focus(
+    "Generated SVG scene studio",
+    role="embedded",
+    dom_id="generated-authoring-studio--scene",
+    dom_role="application")
+key("g", "h")
+wait_for_dom_keys("g", "h")
 find("dialog", name="Possible input help")
 activate("Close workspace overlay")
 activate("Rebind command")
 find("dialog", name="Rebind command")
 find(None, contains="Conflict feedback")
 activate("Close workspace overlay")
+# Mode controls are rendered by the workspace host. Exercise the AT-SPI action,
+# then repeat the keyboard route so mode-render focus retention is observed.
+activate("Arrange mode", role="toggle button")
+find(None, contains="Mode: Arrange")
+# Repeat the real Tab route after the dynamic mode render. This preserves the
+# previously disputed focus-retention subject instead of inferring it from the
+# stable Rectangle route above.
+tab_to("Replay timeline")
+tab_to("Replay complete arena recording")
+tab_to("Command palette")
+wait_for_speech("Rectangle", "created and selected")
 
 with open(output, "w") as stream:
     json.dump({
@@ -73,8 +272,10 @@ with open(output, "w") as stream:
         "result": "passed",
         "composition": "generated-svg-studio",
         "process": {"name": "orca", "pid": int(os.environ["ORCA_PID"])},
-        "browser": {"pid": int(os.environ["BROWSER_PID"]), "accessibility": "AT-SPI2"},
-        "keyboard": {"selection": "passed", "properties": "passed", "validationFeedback": "passed"},
+        "browser": {"name": os.environ["SVG_ORCA_BROWSER_FAMILY"], "pid": int(os.environ["BROWSER_PID"]), "accessibility": "AT-SPI2"},
+        "keyboard": {"events": "xdotool-X11", "navigation": "passed", "activation": "passed", "selection": "passed", "palette": "passed", "escape": "passed", "focusRestoration": "passed", "helpShortcut": "g,h-received-in-focus-mode"},
+        "atspiActions": {"properties": "passed", "twoInstancesRefusal": "passed", "mode": "passed", "helpClose": "passed", "rebind": "passed", "validationFeedback": "passed"},
         "workspace": {"mode": "passed", "palette": "passed", "help": "passed", "rebind": "passed", "focusRestoration": "passed"},
+        "screenReader": {"name": "Orca", "interactionMode": "focus-mode-observed", "speechOutputObserved": True, "audibleHardwareOutput": "not-observed"},
     }, stream, indent=2)
     stream.write("\n")

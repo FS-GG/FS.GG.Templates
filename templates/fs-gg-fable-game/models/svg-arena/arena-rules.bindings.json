@@ -1,0 +1,25 @@
+{
+  "schema": "fsgg.quint.general-bindings/v1",
+  "profile": "fsgg-quint-profile/2",
+  "moduleName": "SvgArenaRulesBinding",
+  "exports": [
+    {
+      "id": "EXPORT-InitialState",
+      "module": "SvgArenaRules",
+      "declaration": "initialState",
+      "promoteCatalogueRows": false,
+      "source": { "path": "models/svg-arena/arena-rules.md", "start": { "line": 20, "column": 1 }, "end": { "line": 29, "column": 4 } }
+    }
+  ],
+  "actions": [
+    { "id": "ACT-Init", "module": "SvgArenaRules", "declaration": "init", "source": { "path": "models/svg-arena/arena-rules.md", "start": { "line": 41, "column": 1 }, "end": { "line": 42, "column": 4 } } },
+    { "id": "ACT-Collect", "module": "SvgArenaRules", "declaration": "collect", "source": { "path": "models/svg-arena/arena-rules.md", "start": { "line": 43, "column": 1 }, "end": { "line": 48, "column": 4 } } },
+    { "id": "ACT-ReachGoal", "module": "SvgArenaRules", "declaration": "reachGoal", "source": { "path": "models/svg-arena/arena-rules.md", "start": { "line": 49, "column": 1 }, "end": { "line": 54, "column": 4 } } },
+    { "id": "ACT-HazardContact", "module": "SvgArenaRules", "declaration": "hazardContact", "source": { "path": "models/svg-arena/arena-rules.md", "start": { "line": 55, "column": 1 }, "end": { "line": 61, "column": 4 } } },
+    { "id": "ACT-LethalHazardContact", "module": "SvgArenaRules", "declaration": "lethalHazardContact", "source": { "path": "models/svg-arena/arena-rules.md", "start": { "line": 62, "column": 1 }, "end": { "line": 68, "column": 4 } } },
+    { "id": "ACT-StayInHazard", "module": "SvgArenaRules", "declaration": "stayInHazard", "source": { "path": "models/svg-arena/arena-rules.md", "start": { "line": 69, "column": 1 }, "end": { "line": 74, "column": 4 } } },
+    { "id": "ACT-ExitHazard", "module": "SvgArenaRules", "declaration": "exitHazard", "source": { "path": "models/svg-arena/arena-rules.md", "start": { "line": 75, "column": 1 }, "end": { "line": 80, "column": 4 } } },
+    { "id": "ACT-Restart", "module": "SvgArenaRules", "declaration": "restart", "source": { "path": "models/svg-arena/arena-rules.md", "start": { "line": 81, "column": 1 }, "end": { "line": 82, "column": 4 } } },
+    { "id": "ACT-TerminalGuard", "module": "SvgArenaRules", "declaration": "terminalGuard", "source": { "path": "models/svg-arena/arena-rules.md", "start": { "line": 83, "column": 1 }, "end": { "line": 88, "column": 4 } } }
+  ]
+}

@@ -40,7 +40,10 @@
         {
           "condition": "(svgFoundation == false)",
           "exclude": [
-            "SvgFoundation/**"
+            "SvgFoundation/**",
+            "models/**",
+            "Conformance/GeneratedArenaRuleModel.fs",
+            "Conformance/GeneratedTacticalRuleModel.fs"
           ]
         }
       ]

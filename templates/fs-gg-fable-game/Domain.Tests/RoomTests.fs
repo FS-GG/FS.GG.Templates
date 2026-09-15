@@ -5,6 +5,7 @@ open FS.GG.Game.Core
 open FableGameWorkspaceNamespace.Domain
 module ArenaContent = FableGameWorkspaceNamespace.ArenaContent
 module ArenaRules = FableGameWorkspaceNamespace.ArenaRules
+module ArcadeRules = FableGameWorkspaceNamespace.ArcadeRules
 
 [<Fact>]
 let ``join adds a player at the spawn cell`` () =
@@ -126,6 +127,22 @@ let ``complete collect win and restart sequence is one pure state transition`` (
     Assert.Equal(({ Col = 0; Row = 0 }: Cell), restarted.Room.Players.["p"].Cell)
 
 [<Fact>]
+let ``authored edge spawn restart allocates distinct bounded cells`` () =
+    let definition =
+        { ArenaContent.contentAt 0UL with
+            SchemaVersion = 3
+            ContentId = "continuous-arena/edge-spawn"
+            Spawn = { Col = 19; Row = 11 } }
+    let restarted =
+        ArenaRules.createWith definition
+        |> ArenaRules.join "a" ({ Col = 19; Row = 11 }: Cell)
+        |> ArenaRules.join "b" ({ Col = 0; Row = 0 }: Cell)
+        |> ArenaRules.applyIntent "a" ArenaRules.Intent.Restart
+    let cells = restarted.Room.Players |> Map.toList |> List.map (fun (_, player) -> player.Cell)
+    Assert.Equal<Cell list>([ { Col = 19; Row = 11 }; { Col = 0; Row = 0 } ], cells)
+    Assert.All(cells, fun cell -> Assert.InRange(cell.Col, 0, ArenaContent.arenaColumns - 1); Assert.InRange(cell.Row, 0, ArenaContent.arenaRows - 1))
+
+[<Fact>]
 let ``terminal outcome remains stable through hazard time until restart`` () =
     let state =
         ArenaRules.create ()
@@ -147,3 +164,36 @@ let ``V2 restore refuses wrong contract and content identity before effects`` ()
     let canonical = ArenaRules.canonicalState state
     Assert.Contains(state.Definition.ContentId, canonical)
     Assert.Contains(string state.Definition.SchemaVersion, canonical)
+
+[<Fact>]
+let ``arcade contract refuses foreign session and content snapshots`` () =
+    let content: ArcadeRules.ArcadeContent =
+        { Id = "arcade"; ContentId = "sha256:first"; Width = 220.0; Height = 120.0
+          Spawn = { X = 12.0; Y = 54.0; Width = 10.0; Height = 10.0 }; InitialHealth = 2
+          CollectibleX = 17.0; CollectibleY = 59.0; CollectibleScore = 100
+          Hazard = { X = 80.0; Y = 78.0; Width = 18.0; Height = 12.0 }; HazardVelocity = 1.5; HazardDamage = 1
+          Goal = { X = 175.0; Y = 48.0; Width = 16.0; Height = 18.0 } }
+    let contract = ArcadeRules.contractForDefinition content
+    let snapshot = contract.Snapshot (ArcadeRules.initialState content)
+    Assert.True(contract.Restore { snapshot with SessionId = "foreign" } |> Result.isError)
+    let changed = { content with ContentId = "sha256:changed" }
+    let changedSnapshot = (ArcadeRules.contractForDefinition changed).Snapshot (ArcadeRules.initialState changed)
+    Assert.True(contract.Restore changedSnapshot |> Result.isError)
+
+[<Fact>]
+let ``arcade terminal input is stable and restart restores authored content`` () =
+    let content: ArcadeRules.ArcadeContent =
+        { Id = "arcade"; ContentId = "sha256:terminal"; Width = 220.0; Height = 120.0
+          Spawn = { X = 12.0; Y = 54.0; Width = 10.0; Height = 10.0 }; InitialHealth = 2
+          CollectibleX = 17.0; CollectibleY = 59.0; CollectibleScore = 100
+          Hazard = { X = 80.0; Y = 78.0; Width = 18.0; Height = 12.0 }; HazardVelocity = 1.5; HazardDamage = 1
+          Goal = { X = 12.0; Y = 54.0; Width = 16.0; Height = 18.0 } }
+    let won =
+        ArcadeRules.initialState content
+        |> ArcadeRules.applyCommand ArcadeRules.ArcadeCommand.Interact
+        |> ArcadeRules.applyCommand ArcadeRules.ArcadeCommand.Interact
+    let refused = ArcadeRules.applyCommand (ArcadeRules.ArcadeCommand.SetVelocity { X = 3.0; Y = 0.0 }) won
+    Assert.Equal(ArcadeRules.canonicalState won, ArcadeRules.canonicalState refused)
+    let restarted = ArcadeRules.applyCommand ArcadeRules.ArcadeCommand.Restart refused
+    Assert.Equal(content.ContentId, restarted.Content.ContentId)
+    Assert.Equal(ArcadeRules.ArcadeOutcome.Playing, restarted.Outcome)

@@ -72,6 +72,15 @@ dotnet test Protocol.Tests/Protocol.Tests.fsproj --no-build --logger "trx;LogFil
 # decoded in the Fable/browser runtime, and the reverse, including a rejected case.
 bash Protocol.Tests/cross-runtime/run-cross-runtime.sh
 
+# The Studio's rule evidence names the exact checked-in literate model bytes.
+# Compatibility selections that omit the SVG product also omit these inputs.
+if [[ -f models/svg-arena/arena-rules.md && -f Conformance/GeneratedArenaRuleModel.fs ]]; then
+  bash scripts/check-svg-arena-model.sh
+fi
+if [[ -f models/svg-tactical/tactical-rules.md && -f Conformance/GeneratedTacticalRuleModel.fs ]]; then
+  bash scripts/check-svg-tactical-model.sh
+fi
+
 dotnet test Server.Tests/Server.Tests.fsproj --no-build --logger "trx;LogFileName=server.trx" --results-directory artifacts/test-results
 
 # The Fable/Elmish client: compile, then production-bundle with Vite.
@@ -80,6 +89,9 @@ dotnet test Server.Tests/Server.Tests.fsproj --no-build --logger "trx;LogFileNam
 # Build the selected static SVG product independently from its authority server. The
 # compatibility `svgFoundation=false` product intentionally has no SVG tree.
 if [[ -f SvgFoundation/SvgFoundation.fsproj ]]; then
+  if [[ -f SvgFoundation/Examples/Tactical/scene.json || -f SvgFoundation/Examples/Arcade/scene.json ]]; then
+    bash scripts/check-tactical-seed.sh
+  fi
   bash SvgFoundation/build.sh
   rm -rf artifacts/static-player
   mkdir -p artifacts/static-player
@@ -98,6 +110,7 @@ if [[ -f SvgFoundation/SvgFoundation.fsproj ]]; then
   fi
 fi
 
+rm -rf artifacts/authority-server
 dotnet publish Server/Server.fsproj -c Release --no-restore -o artifacts/authority-server
 
 # CI may supply a disclosed browser executable; otherwise provision Playwright's pinned runtime.
@@ -118,3 +131,6 @@ dotnet publish Server/Server.fsproj -c Release --no-restore -o artifacts/authori
   fi
   npm test
 )
+
+bash scripts/measure-svg-artifacts.sh
+bash scripts/prepare-svg-release.sh

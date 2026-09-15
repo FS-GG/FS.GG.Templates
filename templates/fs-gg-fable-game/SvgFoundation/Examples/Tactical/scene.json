@@ -1,6 +1,12 @@
 {
   "schema": "fsgg.svg-example/v1",
   "id": "tactical-planning",
+  "grid": { "columns": 10, "rows": 6, "cellWidth": 18, "cellHeight": 18 },
+  "units": [
+    { "id": "unit:7", "col": 1, "row": 2 },
+    { "id": "unit:11", "col": 6, "row": 3 }
+  ],
+  "planningTarget": { "col": 5, "row": 2 },
   "layers": [
     { "id": "terrain", "visible": true, "locked": true },
     { "id": "units", "visible": true, "locked": false },

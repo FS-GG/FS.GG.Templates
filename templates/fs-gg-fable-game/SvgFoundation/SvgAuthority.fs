@@ -12,6 +12,15 @@ let private thenBoth (promise: JS.Promise<'T>) (onOk: 'T -> unit) (onError: obj 
 
 type Player = { Id: string; Col: int; Row: int; IsSelf: bool }
 
+type private QueuedIntent =
+    | RelativeMove of deltaCol: int * deltaRow: int
+    | Action of string
+
+type private InFlightIntent =
+    { Sequence: int
+      Intent: QueuedIntent
+      InvocationCompletedAtTick: int option }
+
 type private State =
     { PlayerId: string option
       Capability: string option
@@ -27,6 +36,11 @@ let mutable private publish: string -> Player list -> int -> int -> int -> int -
 let mutable private game = 3, 0, false, "playing", 7, 8
 let mutable private identity = 1, "continuous-arena/default-v2", 2
 let mutable private content = ArenaContent.contentAt 0UL
+let mutable private queuedIntents: QueuedIntent list = []
+let mutable private inFlightIntent: InFlightIntent option = None
+let mutable private dispatchNext: unit -> unit = ignore
+let private maximumQueuedIntents = 32
+let mutable private readyForInput = false
 
 let private notify status =
     let health, score, collected, outcome, hazardCol, hazardRow = game
@@ -34,13 +48,13 @@ let private notify status =
     publish status state.Players state.Tick round health score collected outcome contentId contentSchema content hazardCol hazardRow
 
 let private sendHello capability (connection: SignalR.HubConnection) =
-    let json = RealtimeV2.encodeMessage (RealtimeV2.SessionHelloMessage { Version = 2; SessionCapability = capability })
+    let json = RealtimeV3.encodeMessage (RealtimeV3.SessionHelloMessage { Version = 3; SessionCapability = capability })
     thenBoth (connection.invoke("SendMessage", json)) ignore (fun error -> notify ("authority error: " + string error))
 
 let private accept message =
     match message with
-    | RealtimeV2.SnapshotMessage snapshot
-    | RealtimeV2.ResyncSnapshotMessage snapshot when snapshot.Version = 2 && snapshot.ContentSchema = 2 && snapshot.ContentId.StartsWith("continuous-arena/") && snapshot.Tick >= state.Tick ->
+    | RealtimeV3.SnapshotMessage snapshot
+    | RealtimeV3.ResyncSnapshotMessage snapshot when snapshot.Version = 3 && (snapshot.ContentSchema = 2 || snapshot.ContentSchema = 3) && snapshot.ContentId.StartsWith("continuous-arena/") && snapshot.Tick >= state.Tick ->
         let self = state.PlayerId
         state <-
             { state with
@@ -51,20 +65,45 @@ let private accept message =
         identity <- snapshot.Round, snapshot.ContentId, snapshot.ContentSchema
         content <-
             { SchemaVersion = snapshot.ContentSchema; ContentId = snapshot.ContentId
+              Boundary = { X = snapshot.BoundaryX; Y = snapshot.BoundaryY; Width = snapshot.BoundaryWidth; Height = snapshot.BoundaryHeight }
+              Spawn = { Col = snapshot.SpawnCol; Row = snapshot.SpawnRow }
               CollectibleX = snapshot.CollectibleX; CollectibleY = snapshot.CollectibleY
               Hazard = { X = snapshot.HazardX; Y = snapshot.HazardY; Width = snapshot.HazardWidth; Height = snapshot.HazardHeight }
               Goal = { X = snapshot.GoalX; Y = snapshot.GoalY; Width = snapshot.GoalWidth; Height = snapshot.GoalHeight }
               ThinWall = { X = snapshot.ThinWallX; Y = snapshot.ThinWallY; Width = snapshot.ThinWallWidth; Height = snapshot.ThinWallHeight } }
+        // Invocation completion means the hub has accepted the command, but carries
+        // no sequence/frontier receipt. Conservatively wait for a snapshot observed
+        // after that completion before deriving the next relative target. This
+        // serializes edge-triggered input without guessing through collisions.
+        match inFlightIntent with
+        | Some pending when pending.InvocationCompletedAtTick |> Option.exists (fun tick -> snapshot.Tick > tick) ->
+            inFlightIntent <- None
+            dispatchNext ()
+        | _ -> ()
+        readyForInput <- true
         notify "synchronized"
-    | RealtimeV2.PresenceMessage _ -> notify "presence changed"
+    | RealtimeV3.PresenceMessage _ -> notify "presence changed"
     | _ -> ()
 
 let private connect capability =
     let connection = SignalR.build "/hub/game"
-    connection.on("Message", fun json -> RealtimeV2.messageFromJson json |> Result.iter accept)
-    connection.onreconnecting(fun _ -> notify "reconnecting")
-    connection.onreconnected(fun _ -> sendHello capability connection)
-    connection.onclose(fun _ -> state <- { state with Connection = None }; notify "closed")
+    connection.on("Message", fun json -> RealtimeV3.messageFromJson json |> Result.iter accept)
+    connection.onreconnecting(fun _ ->
+        readyForInput <- false
+        queuedIntents <- []
+        inFlightIntent <- None
+        notify "reconnecting")
+    connection.onreconnected(fun _ ->
+        readyForInput <- false
+        queuedIntents <- []
+        inFlightIntent <- None
+        sendHello capability connection)
+    connection.onclose(fun _ ->
+        readyForInput <- false
+        queuedIntents <- []
+        inFlightIntent <- None
+        state <- { state with Connection = None }
+        notify "closed")
     state <- { state with Connection = Some connection }
     thenBoth (connection.start()) (fun () -> sendHello capability connection) (fun error -> notify ("authority error: " + string error))
 
@@ -79,31 +118,63 @@ let start onSnapshot =
             connect response.SessionCapability
         with error -> notify ("bootstrap failed: " + error.Message) })
 
-let move deltaCol deltaRow =
-    match state.PlayerId, state.Connection, state.Players |> List.tryFind _.IsSelf with
-    | Some _, Some connection, Some self ->
+let private pump () =
+    match inFlightIntent, queuedIntents, state.PlayerId, state.Connection, state.Players |> List.tryFind _.IsSelf with
+    | None, intent :: remaining, Some _, Some connection, Some self ->
+        queuedIntents <- remaining
+        let sequence = state.Sequence
+        let action, targetCol, targetRow =
+            match intent with
+            | RelativeMove(deltaCol, deltaRow) -> "move", self.Col + deltaCol, self.Row + deltaRow
+            | Action action -> action, self.Col, self.Row
         let json =
-            RealtimeV2.encodeMessage (
-                RealtimeV2.InputMessage
-                    { Version = 2
-                      Sequence = state.Sequence
-                      Action = "move"
-                      TargetCol = self.Col + deltaCol
-                      TargetRow = self.Row + deltaRow })
-        state <- { state with Sequence = state.Sequence + 1 }
-        thenBoth (connection.invoke("SendMessage", json)) ignore (fun error -> notify ("authority error: " + string error))
+            RealtimeV3.encodeMessage (
+                RealtimeV3.InputMessage
+                    { Version = 3
+                      Sequence = sequence
+                      Action = action
+                      TargetCol = targetCol
+                      TargetRow = targetRow })
+        state <- { state with Sequence = sequence + 1 }
+        inFlightIntent <- Some { Sequence = sequence; Intent = intent; InvocationCompletedAtTick = None }
+        thenBoth (connection.invoke("SendMessage", json))
+            (fun _ ->
+                match inFlightIntent with
+                | Some pending when pending.Sequence = sequence ->
+                    inFlightIntent <- Some { pending with InvocationCompletedAtTick = Some state.Tick }
+                | _ -> ())
+            (fun error ->
+                match inFlightIntent with
+                | Some pending when pending.Sequence = sequence ->
+                    inFlightIntent <- None
+                    notify ("authority error: " + string error)
+                    dispatchNext ()
+                | _ -> ())
+    | _ -> ()
+
+dispatchNext <- pump
+
+let private enqueue intent =
+    match state.PlayerId, state.Connection, state.Players |> List.tryFind _.IsSelf with
+    | Some _, Some _, Some _ when readyForInput && queuedIntents.Length < maximumQueuedIntents ->
+        queuedIntents <- queuedIntents @ [ intent ]
+        dispatchNext ()
+    | Some _, Some _, Some _ when readyForInput -> notify "input queue full"
     | _ -> notify "authority unavailable"
+
+let move deltaCol deltaRow = enqueue (RelativeMove(deltaCol, deltaRow))
 
 let command action =
-    match state.Connection, state.Players |> List.tryFind _.IsSelf with
-    | Some connection, Some self ->
-        let json =
-            RealtimeV2.encodeMessage (
-                RealtimeV2.InputMessage
-                    { Version = 2; Sequence = state.Sequence; Action = action; TargetCol = self.Col; TargetRow = self.Row })
-        state <- { state with Sequence = state.Sequence + 1 }
-        thenBoth (connection.invoke("SendMessage", json)) ignore (fun error -> notify ("authority error: " + string error))
-    | _ -> notify "authority unavailable"
+    enqueue (Action action)
+
+/// Redacted disclosure assertion used by product adapters when they emit derived
+/// presentation, audio, or persistence bytes. The capability itself stays private.
+let excludesCapability (value: string) =
+    state.Capability
+    |> Option.forall (fun capability -> not (value.Contains(capability, System.StringComparison.Ordinal)))
 
 let dispose () =
+    readyForInput <- false
+    queuedIntents <- []
+    inFlightIntent <- None
     state.Connection |> Option.iter (fun connection -> thenBoth (connection.stop()) ignore ignore)

@@ -1,0 +1,12 @@
+phase:ready|acceptedCol:1|predictedCol:1|committedCol:1|recorded:false
+phase:planned|acceptedCol:1|predictedCol:5|committedCol:1|recorded:false
+phase:compared|acceptedCol:1|predictedCol:5|committedCol:1|recorded:false
+phase:cancelled|acceptedCol:1|predictedCol:1|committedCol:1|recorded:false
+phase:planned|acceptedCol:1|predictedCol:5|committedCol:1|recorded:false
+phase:committed|acceptedCol:5|predictedCol:5|committedCol:5|recorded:true
+phase:reviewed|acceptedCol:5|predictedCol:5|committedCol:5|recorded:true
+phase:ready|acceptedCol:1|predictedCol:1|committedCol:1|recorded:false
+phase:planned|acceptedCol:1|predictedCol:5|committedCol:1|recorded:false
+phase:simulated|acceptedCol:2|predictedCol:5|committedCol:2|recorded:true
+phase:simulated|acceptedCol:3|predictedCol:5|committedCol:3|recorded:true
+phase:reviewed|acceptedCol:3|predictedCol:5|committedCol:3|recorded:true

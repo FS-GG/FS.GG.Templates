@@ -124,7 +124,12 @@ let contract: SessionContract<unit, PlayerState, PlayerCommand, PlayerState, Pla
           Ok current
       Project = fun state -> { SessionId = "generated-player"; Revision = state.Revision; Value = state }
       Snapshot = fun state -> { SessionId = "generated-player"; Revision = state.Revision; Compatibility = compatibility; Value = state }
-      Restore = fun snapshot -> Ok snapshot.Value }
+      Restore = fun snapshot ->
+          if snapshot.SessionId <> "generated-player" then
+              Error { Code = "continuous-player.snapshot.session"; Message = "continuous player snapshot session mismatch" }
+          elif snapshot.Compatibility <> compatibility then
+              Error { Code = "continuous-player.snapshot.compatibility"; Message = "continuous player snapshot compatibility mismatch" }
+          else Ok snapshot.Value }
 
 let initialize () =
     SessionRuntime.initialize
@@ -169,7 +174,7 @@ let sceneWithPeers revision state peers =
         [ { Id = "arena"
             Visible = true
             Objects =
-              [ objectValue "arena" "Continuous arena" false [ SceneNode.Rectangle((0.0, 0.0, arenaWidth, arenaHeight), color 241uy 245uy 249uy) ]
+              [ objectValue "arena" "Continuous arena" false [ SceneNode.Rectangle((content.Boundary.X, content.Boundary.Y, content.Boundary.Width, content.Boundary.Height), color 241uy 245uy 249uy) ]
                 objectValue "thin-wall" "Thin wall" false [ SceneNode.Rectangle((content.ThinWall.X, content.ThinWall.Y, content.ThinWall.Width, content.ThinWall.Height), color 71uy 85uy 105uy) ]
                 objectValue "collectible" "Collectible" true [ SceneNode.Circle({ X = content.CollectibleX; Y = content.CollectibleY }, 5.0, color 245uy 158uy 11uy) ]
                 objectValue "hazard" "Moving hazard" true

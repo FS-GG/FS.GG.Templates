@@ -1,0 +1,12 @@
+health:3|score:0|collected:false|outcome:playing|round:1|hazardContact:false
+health:3|score:100|collected:true|outcome:playing|round:1|hazardContact:false
+health:3|score:100|collected:true|outcome:won|round:1|hazardContact:false
+health:3|score:100|collected:true|outcome:won|round:1|hazardContact:false
+health:3|score:0|collected:false|outcome:playing|round:2|hazardContact:false
+health:2|score:0|collected:false|outcome:playing|round:2|hazardContact:true
+health:2|score:0|collected:false|outcome:playing|round:2|hazardContact:true
+health:2|score:0|collected:false|outcome:playing|round:2|hazardContact:false
+health:1|score:0|collected:false|outcome:playing|round:2|hazardContact:true
+health:1|score:0|collected:false|outcome:playing|round:2|hazardContact:false
+health:0|score:0|collected:false|outcome:lost|round:2|hazardContact:true
+health:3|score:0|collected:false|outcome:playing|round:3|hazardContact:false

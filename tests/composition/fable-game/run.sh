@@ -58,12 +58,18 @@ test -f "$work/scaffold/Browser.Tests/package-lock.json"
 (
   cd "$work/scaffold"
   bash ./build.sh
-  test -f artifacts/static-player/index.html
-  test -f artifacts/authority-server/Server.dll
-  test -s artifacts/test-results/domain.trx
-  test -s artifacts/test-results/protocol.trx
-  test -s artifacts/test-results/server.trx
-  test -s artifacts/test-results/browser.junit.xml
+  require_output() {
+    [[ -s "$1" ]] || {
+      echo "fable-game composition: generated build output is missing or empty: $1" >&2
+      exit 1
+    }
+  }
+  require_output artifacts/static-player/index.html
+  require_output artifacts/authority-server/Server.dll
+  require_output artifacts/test-results/domain.trx
+  require_output artifacts/test-results/protocol.trx
+  require_output artifacts/test-results/server.trx
+  require_output artifacts/test-results/browser.chromium.junit.xml
   # Generated output belongs to the product build, not source control.
   git init -q
   for ignored_path in artifacts Client/dist Client/output Client/node_modules Browser.Tests/node_modules Browser.Tests/test-results; do

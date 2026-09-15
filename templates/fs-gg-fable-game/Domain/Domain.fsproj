@@ -7,6 +7,8 @@
     <Compile Include="Room.fs" />
     <Compile Include="ArenaContent.fs" />
     <Compile Include="ArenaRules.fs" />
+    <Compile Include="ArcadeRules.fs" />
+    <Compile Include="TacticalRules.fs" />
   </ItemGroup>
   <ItemGroup>
     <!-- The published Game.Core Fable source profile (fs-gg-game-core-fable-lockstep-v1).

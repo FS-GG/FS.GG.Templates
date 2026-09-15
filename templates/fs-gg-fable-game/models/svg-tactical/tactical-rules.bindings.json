@@ -1,0 +1,19 @@
+{
+  "schema": "fsgg.quint.general-bindings/v1",
+  "profile": "fsgg-quint-profile/2",
+  "moduleName": "SvgTacticalRulesBinding",
+  "exports": [
+    { "id": "EXPORT-InitialState", "module": "SvgTacticalRules", "declaration": "initialState", "promoteCatalogueRows": false,
+      "source": { "path": "models/svg-tactical/tactical-rules.md", "start": { "line": 17, "column": 1 }, "end": { "line": 18, "column": 4 } } }
+  ],
+  "actions": [
+    { "id": "ACT-Init", "module": "SvgTacticalRules", "declaration": "init", "source": { "path": "models/svg-tactical/tactical-rules.md", "start": { "line": 29, "column": 1 }, "end": { "line": 30, "column": 4 } } },
+    { "id": "ACT-Plan", "module": "SvgTacticalRules", "declaration": "plan", "source": { "path": "models/svg-tactical/tactical-rules.md", "start": { "line": 31, "column": 1 }, "end": { "line": 32, "column": 4 } } },
+    { "id": "ACT-Compare", "module": "SvgTacticalRules", "declaration": "compare", "source": { "path": "models/svg-tactical/tactical-rules.md", "start": { "line": 33, "column": 1 }, "end": { "line": 38, "column": 4 } } },
+    { "id": "ACT-Cancel", "module": "SvgTacticalRules", "declaration": "cancel", "source": { "path": "models/svg-tactical/tactical-rules.md", "start": { "line": 39, "column": 1 }, "end": { "line": 43, "column": 4 } } },
+    { "id": "ACT-Commit", "module": "SvgTacticalRules", "declaration": "commit", "source": { "path": "models/svg-tactical/tactical-rules.md", "start": { "line": 44, "column": 1 }, "end": { "line": 48, "column": 4 } } },
+    { "id": "ACT-Simulate", "module": "SvgTacticalRules", "declaration": "simulate", "source": { "path": "models/svg-tactical/tactical-rules.md", "start": { "line": 49, "column": 1 }, "end": { "line": 54, "column": 4 } } },
+    { "id": "ACT-Review", "module": "SvgTacticalRules", "declaration": "review", "source": { "path": "models/svg-tactical/tactical-rules.md", "start": { "line": 55, "column": 1 }, "end": { "line": 59, "column": 4 } } },
+    { "id": "ACT-Reset", "module": "SvgTacticalRules", "declaration": "reset", "source": { "path": "models/svg-tactical/tactical-rules.md", "start": { "line": 60, "column": 1 }, "end": { "line": 61, "column": 4 } } }
+  ]
+}

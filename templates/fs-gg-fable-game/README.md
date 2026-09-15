@@ -56,7 +56,7 @@ are mutually exclusive, including redundant combinations; using both is rejected
 argument validation, before the destination is written. Bundle selection does not select or
 activate a lifecycle.
 
-The selected tool payload carries separate player and `SvgFoundation/Studio` entries. Preview B binds
+The selected tool payload carries separate player and `SvgFoundation/Studio` entries. The composition binds
 both to exact public producer versions and enables the product-owned command profiles.
 Build them with `bash SvgFoundation/build.sh` and `bash SvgFoundation/Studio/build.sh`. The Studio
 build copies its worker, verified font data, notices and npm lock from the restored producer package
@@ -65,7 +65,7 @@ docks, palette/help/rebind flows, and keyboard, pointer, touch and gamepad route
 profile. Templates `0.14.0` uses Rendering `0.31.0`, Game `0.16.0`, Net `0.6.0`, and Audio `0.6.0` as one
 qualified public set.
 
-The SVG runtime renders complete version 2 authority snapshots through monotonic retained
+The SVG runtime renders complete version 3 authority snapshots through monotonic retained
 scene replacement. `W/A/S/D` submits movement to the required server, `E` interacts with nearby game
 content, and `R` requests a restart after a terminal outcome. The server owns position, health, score,
 collectible state, win state, moving-hazard time, and restart; every connected SVG player renders those snapshots. The
@@ -93,7 +93,8 @@ The realtime baseline has four deliberately small but production-relevant rules:
   gameplay order; snapshots with an older tick cannot rewind the client view.
 - Realtime DTO version 1 remains frozen for the retained legacy grid client. It uses a separate legacy
   authority path, so new walls, hazards, and terminal rules cannot silently change that client's gameplay.
-  Version 2 carries the complete cooperative arena state and exact content/schema identity. Missing fields,
+  Version 2 retains its frozen cooperative arena format. Version 3 adds immutable authored boundary and spawn
+  alongside complete gameplay state and exact content/schema identity. Missing fields,
   unknown actions, stale input, wrong snapshot compatibility, and content mismatches fail before gameplay
   changes. Replay digests use the same complete canonical state on .NET and Fable. Saved Studio scene
   envelopes retain the Rendering-owned schema identifier; the authority consumes only a separately exported,
@@ -117,13 +118,18 @@ invalid schema, identity, or geometry refuses startup. The root build writes the
 independently deployable ASP.NET Core authority to `artifacts/authority-server`. Deploy the
 static artifact and authority together; a static host alone is not a complete multiplayer game.
 
-`./build.sh` runs the whole lifecycle: locked restore/build/test the `.NET` solution
+`bash ./build.sh` runs the product qualification build: locked restore/build/test the `.NET` solution
 (`Domain`, `Protocol`, `Server`, and their `.Tests` projects), the cross-runtime
-codec proof, the Fable/Vite client production build, the server publish, and the
+V1/V2/V3 codec and replay proof, bounded authored-rule Quint simulation, the Fable/Vite client production build, and the
 selected SVG player (plus Studio when present), authority publish, and Playwright
 `Browser.Tests` two-context scenario. It writes TRX/JUnit evidence to
 `artifacts/test-results/`; import those observed reports with
 `fsgg-sdd evidence --from-test-report`. SDD remains the single lifecycle owner.
+Set `QUINT_BIN` to the executable for Quint 0.32.0 before running the build. The
+checked workflow downloads `quint-linux-amd64`, verifies SHA-256
+`939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f`, and exports
+that path only for the build; use the same recipe locally rather than an unpinned
+global or npm executable.
 
 ## Lanes
 

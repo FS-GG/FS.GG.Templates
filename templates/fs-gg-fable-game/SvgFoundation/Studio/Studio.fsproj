@@ -13,8 +13,9 @@
     <Compile Include="../../Domain/Room.fs" Link="Room.fs" />
     <Compile Include="../../Domain/ArenaContent.fs" Link="ArenaContent.fs" />
     <Compile Include="../../Domain/ArenaRules.fs" Link="ArenaRules.fs" />
-    <Compile Include="SceneSchema.fs" />
+    <Compile Include="../../Conformance/SceneSchema.fs" Link="SceneSchema.fs" />
     <Compile Include="WorkspaceInput.fs" Condition="'$(FsGgSvgInputCandidate)' == 'true'" />
+    <Compile Include="../../Conformance/GeneratedArenaRuleModel.fs" Link="GeneratedArenaRuleModel.fs" Condition="'$(FsGgSvgReplayCandidate)' == 'true'" />
     <Compile Include="ReplayStudio.fs" Condition="'$(FsGgSvgReplayCandidate)' == 'true'" />
     <Compile Include="Program.fs" />
   </ItemGroup>

@@ -9,6 +9,27 @@ const browser = await engines[family].launch({ headless: true, executablePath: e
 const diagnostics = [];
 const contextA = await browser.newContext();
 const contextB = await browser.newContext();
+async function sendRawAndObserveStatus(page, message, expected) {
+  await page.evaluate(({ message, expected }) => new Promise((resolve, reject) => {
+    const status = document.querySelector('#status');
+    if (!status) return reject(new Error('authority status element is missing'));
+    let timeout;
+    const finish = () => {
+      observer.disconnect();
+      clearTimeout(timeout);
+      resolve(status.textContent);
+    };
+    const observer = new MutationObserver(() => {
+      if (status.textContent?.includes(expected)) finish();
+    });
+    observer.observe(status, { childList: true, characterData: true, subtree: true });
+    timeout = setTimeout(() => {
+      observer.disconnect();
+      reject(new Error(`authority status did not observe ${expected}; last=${status.textContent}`));
+    }, 30_000);
+    window.svgNetworkCandidate.sendRaw(message);
+  }), { message, expected });
+}
 try {
   const pageA = await contextA.newPage();
   const pageB = await contextB.newPage();
@@ -38,17 +59,14 @@ try {
   await pageB.locator(`[data-occupant="${playerA}"][data-cell="${colA}-${rowA + 1}"]`).waitFor();
 
   await targetA.focus();
-  await pageA.evaluate(async () => await window.svgNetworkCandidate.sendRaw(JSON.stringify({
+  await sendRawAndObserveStatus(pageA, JSON.stringify({
     kind: 'input', payload: { version: 1, sequence: 1, targetCol: 0, targetRow: 0 }
-  })));
-  await pageA.getByRole('status').waitFor();
-  await pageA.waitForFunction(() => document.querySelector('[role="status"]')?.textContent?.includes('DuplicateInputSequence'));
+  }), 'DuplicateInputSequence');
   if (!(await targetA.evaluate(element => element === document.activeElement))) throw new Error('stale-input refusal displaced grid focus');
 
-  await pageA.evaluate(async () => await window.svgNetworkCandidate.sendRaw(JSON.stringify({
+  await sendRawAndObserveStatus(pageA, JSON.stringify({
     kind: 'input', payload: { version: 1, sequence: 2, targetCol: 999, targetRow: 999 }
-  })));
-  await pageA.waitForFunction(() => document.querySelector('[role="status"]')?.textContent?.includes('move.out-of-bounds'));
+  }), 'move.out-of-bounds');
 
   const disconnect = pageA.getByRole('button', { name: 'Disconnect' });
   await disconnect.focus();

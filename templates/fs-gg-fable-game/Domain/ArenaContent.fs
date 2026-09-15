@@ -3,17 +3,19 @@ module FableGameWorkspaceNamespace.ArenaContent
 open System
 open FS.GG.Game.Core
 
+type ArenaCell = { Col: int; Row: int }
+
 /// Product-owned arena content shared by the authority, SVG player, and Studio.
 type ArenaContent =
     { SchemaVersion: int
       ContentId: string
+      Boundary: Rect
+      Spawn: ArenaCell
       CollectibleX: float
       CollectibleY: float
       Hazard: Rect
       Goal: Rect
       ThinWall: Rect }
-
-type ArenaCell = { Col: int; Row: int }
 
 type ArenaStatus =
     { Health: int
@@ -31,6 +33,16 @@ let playerWidth = 10.0
 let playerHeight = 10.0
 let playerStartX = 0.0
 let playerStartY = 0.0
+
+/// Lossless portable IEEE-754 identity used anywhere authored gameplay numbers
+/// cross the .NET/Fable boundary.
+let canonicalFloat (value: float) =
+    let hexDigit value = if value < 10 then char (int '0' + value) else char (int 'a' + value - 10)
+    let bytes = BitConverter.GetBytes value
+    let ordered = if BitConverter.IsLittleEndian then Array.rev bytes else bytes
+    ordered
+    |> Array.collect (fun value -> [| hexDigit (int value >>> 4); hexDigit (int value &&& 15) |])
+    |> String
 let collectibleCell = { Col = 5; Row = 2 }
 let goalCell = { Col = 16; Row = 5 }
 let hazardRow = 8
@@ -44,6 +56,8 @@ let contentAt tick =
     let hazard = hazardCell tick
     { SchemaVersion = 2
       ContentId = "continuous-arena/default-v2"
+      Boundary = { X = 0.0; Y = 0.0; Width = arenaWidth; Height = arenaHeight }
+      Spawn = { Col = 0; Row = 0 }
       CollectibleX = cellX collectibleCell + playerWidth / 2.0
       CollectibleY = cellY collectibleCell + playerHeight / 2.0
       Hazard = { X = cellX hazard; Y = cellY hazard; Width = cellWidth; Height = cellHeight }
@@ -88,12 +102,18 @@ let resolveMove content current target status =
         let motion =
             { Bounds = playerBounds current
               Displacement = { X = cellX target - cellX current; Y = cellY target - cellY current } }
+        let boundary = content.Boundary
+        let boundaryThickness = max arenaWidth arenaHeight
         let colliders =
             [ collider "collectible" KinematicResponse.Trigger
                 { X = content.CollectibleX - 5.0; Y = content.CollectibleY - 5.0; Width = 10.0; Height = 10.0 }
               collider "hazard" KinematicResponse.Trigger content.Hazard
               collider "goal" KinematicResponse.Trigger content.Goal
-              collider "thin-wall" KinematicResponse.Slide content.ThinWall ]
+              collider "thin-wall" KinematicResponse.Slide content.ThinWall
+              collider "boundary-left" KinematicResponse.Slide { X = boundary.X - boundaryThickness; Y = boundary.Y - boundaryThickness; Width = boundaryThickness; Height = boundary.Height + boundaryThickness * 2.0 }
+              collider "boundary-right" KinematicResponse.Slide { X = boundary.X + boundary.Width; Y = boundary.Y - boundaryThickness; Width = boundaryThickness; Height = boundary.Height + boundaryThickness * 2.0 }
+              collider "boundary-top" KinematicResponse.Slide { X = boundary.X; Y = boundary.Y - boundaryThickness; Width = boundary.Width; Height = boundaryThickness }
+              collider "boundary-bottom" KinematicResponse.Slide { X = boundary.X; Y = boundary.Y + boundary.Height; Width = boundary.Width; Height = boundaryThickness } ]
         let result = Kinematics.advance 24.0 motion colliders
         let hits = result.Hits |> List.map _.ColliderId |> Set.ofList
         let requested = playerBounds target

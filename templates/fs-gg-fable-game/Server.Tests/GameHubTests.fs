@@ -53,6 +53,31 @@ type GameHubTests() =
             return! tcs.Task
         }
 
+    let nextMatchingV3 (connection: HubConnection) (predicate: RealtimeV3.Message -> bool) : Task<RealtimeV3.Message> =
+        let tcs = TaskCompletionSource<RealtimeV3.Message>()
+        let subscription =
+            connection.On<string>("Message", fun json ->
+                match RealtimeV3.messageFromJson json with
+                | Ok message when predicate message -> tcs.TrySetResult message |> ignore
+                | Ok _ -> ()
+                | Error error -> tcs.TrySetException(Exception error) |> ignore)
+        task {
+            use _ = subscription
+            use cts = new CancellationTokenSource(5000)
+            use _ = cts.Token.Register(fun () -> tcs.TrySetCanceled() |> ignore)
+            return! tcs.Task
+        }
+
+    let nextRaw (connection: HubConnection) : Task<string> =
+        let tcs = TaskCompletionSource<string>()
+        let subscription = connection.On<string>("Message", fun json -> tcs.TrySetResult json |> ignore)
+        task {
+            use _ = subscription
+            use cts = new CancellationTokenSource(5000)
+            use _ = cts.Token.Register(fun () -> tcs.TrySetCanceled() |> ignore)
+            return! tcs.Task
+        }
+
     let bootstrap name =
         match Program.bootstrap { Version = 1; PlayerName = name } with
         | Ok response -> response
@@ -89,6 +114,26 @@ type GameHubTests() =
         }
 
     [<Fact>]
+    member _.``undisclosed bootstrap input never enters the authoritative V3 wire payload``() =
+        task {
+            let sentinel = "UNDISCLOSED-AUTHORITY-SENTINEL-014"
+            let response = bootstrap sentinel
+            Assert.DoesNotContain(sentinel, BootstrapV1.encodeResponse response)
+            use connection = buildConnection ()
+            let waiting = nextRaw connection
+            do! connection.StartAsync()
+            let hello = RealtimeV3.encodeMessage (RealtimeV3.SessionHelloMessage { Version = 3; SessionCapability = response.SessionCapability })
+            do! connection.InvokeAsync("SendMessage", hello)
+            let! wire = waiting
+            Assert.DoesNotContain(sentinel, wire)
+            Assert.DoesNotContain(response.SessionCapability, wire)
+            match RealtimeV3.messageFromJson wire with
+            | Ok(RealtimeV3.ResyncSnapshotMessage snapshot) -> Assert.Equal(3, snapshot.Version)
+            | other -> Assert.Fail $"expected V3 resync, got {other}"
+            do! connection.StopAsync()
+        }
+
+    [<Fact>]
     member _.``unknown capability and mismatched protocol version are rejected before authority is granted``() =
         task {
             use connection = buildConnection ()
@@ -96,7 +141,7 @@ type GameHubTests() =
             let unknown = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 1; SessionCapability = "not-issued" })
             let! unknownError = Assert.ThrowsAsync<HubException>(fun () -> connection.InvokeAsync("SendMessage", unknown))
             Assert.Contains("unknown", unknownError.Message)
-            let badVersion = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 3; SessionCapability = "not-issued" })
+            let badVersion = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 4; SessionCapability = "not-issued" })
             let! versionError = Assert.ThrowsAsync<HubException>(fun () -> connection.InvokeAsync("SendMessage", badVersion))
             Assert.Contains("unsupported realtime version", versionError.Message)
             do! connection.StopAsync()
@@ -274,6 +319,76 @@ type GameHubTests() =
         Assert.Equal((33.0, 44.0), (snapshot.Content.CollectibleX, snapshot.Content.CollectibleY))
         Assert.Equal((55.0, 66.0), (snapshot.Content.Hazard.X, snapshot.Content.Hazard.Y))
         RoomAuthority.resetForTests ()
+
+    [<Fact>]
+    member _.``configured V3 content preserves explicit boundary and authored spawn``() =
+        let json = """{"schemaVersion":3,"contentId":"continuous-arena/studio-v3","boundaryX":0,"boundaryY":0,"boundaryWidth":220,"boundaryHeight":120,"spawnCol":2,"spawnRow":1,"collectibleX":33,"collectibleY":44,"hazardX":55,"hazardY":66,"hazardWidth":11,"hazardHeight":10,"goalX":77,"goalY":88,"goalWidth":11,"goalHeight":10,"thinWallX":99,"thinWallY":1,"thinWallWidth":2,"thinWallHeight":48}"""
+        let content = ArenaContentFile.decode json |> Result.defaultWith failwith
+        Assert.Equal(3, content.SchemaVersion)
+        Assert.Equal((2, 1), (content.Spawn.Col, content.Spawn.Row))
+        Assert.Equal((220.0, 120.0), (content.Boundary.Width, content.Boundary.Height))
+        RoomAuthority.configureDefinition content |> Result.defaultWith failwith
+        let response = bootstrap "authored-spawn"
+        Assert.Equal((2, 1), (response.SpawnCol, response.SpawnRow))
+        Assert.Equal(3, RoomAuthority.completeSnapshot().ContentSchema)
+        RoomAuthority.resetForTests ()
+
+    [<Fact>]
+    member _.``V3 hello and reconnect preserve authored immutable content and spawn``() =
+        task {
+            let json = """{"schemaVersion":3,"contentId":"continuous-arena/reconnect-v3","boundaryX":0,"boundaryY":0,"boundaryWidth":220,"boundaryHeight":120,"spawnCol":2,"spawnRow":1,"collectibleX":33,"collectibleY":44,"hazardX":55,"hazardY":66,"hazardWidth":11,"hazardHeight":10,"goalX":77,"goalY":88,"goalWidth":11,"goalHeight":10,"thinWallX":99,"thinWallY":1,"thinWallWidth":2,"thinWallHeight":48}"""
+            RoomAuthority.configureDefinition (ArenaContentFile.decode json |> Result.defaultWith failwith)
+            |> Result.defaultWith failwith
+            let response = bootstrap "v3-reconnect"
+            let connectAndRead () =
+                task {
+                    let connection = buildConnection ()
+                    let waiting = nextMatchingV3 connection (function RealtimeV3.ResyncSnapshotMessage _ -> true | _ -> false)
+                    do! connection.StartAsync()
+                    let hello = RealtimeV3.encodeMessage (RealtimeV3.SessionHelloMessage { Version = 3; SessionCapability = response.SessionCapability })
+                    do! connection.InvokeAsync("SendMessage", hello)
+                    let! message = waiting
+                    return connection, message
+                }
+            let! first, firstMessage = connectAndRead ()
+            use first = first
+            let assertSnapshot = function
+                | RealtimeV3.ResyncSnapshotMessage snapshot ->
+                    Assert.Equal((0.0, 0.0, 220.0, 120.0), (snapshot.BoundaryX, snapshot.BoundaryY, snapshot.BoundaryWidth, snapshot.BoundaryHeight))
+                    Assert.Equal((2, 1), (snapshot.SpawnCol, snapshot.SpawnRow))
+                    Assert.Equal((33.0, 44.0), (snapshot.CollectibleX, snapshot.CollectibleY))
+                    Assert.Contains(snapshot.Players, fun player -> player.PlayerId = response.PlayerId && player.Col = 2 && player.Row = 1)
+                | other -> Assert.Fail $"expected V3 resync, got {other}"
+            assertSnapshot firstMessage
+            do! first.StopAsync()
+            let! second, secondMessage = connectAndRead ()
+            use second = second
+            assertSnapshot secondMessage
+            do! second.StopAsync()
+            RoomAuthority.resetForTests ()
+        }
+
+    [<Fact>]
+    member _.``V2 client refuses schema3 before consuming capability while V3 can bind``() =
+        task {
+            let json = """{"schemaVersion":3,"contentId":"continuous-arena/v3-only","boundaryX":0,"boundaryY":0,"boundaryWidth":220,"boundaryHeight":120,"spawnCol":19,"spawnRow":11,"collectibleX":33,"collectibleY":44,"hazardX":55,"hazardY":66,"hazardWidth":11,"hazardHeight":10,"goalX":77,"goalY":88,"goalWidth":11,"goalHeight":10,"thinWallX":99,"thinWallY":1,"thinWallWidth":2,"thinWallHeight":48}"""
+            RoomAuthority.configureDefinition (ArenaContentFile.decode json |> Result.defaultWith failwith)
+            |> Result.defaultWith failwith
+            let response = bootstrap "schema3-version-boundary"
+            use oldClient = buildConnection ()
+            do! oldClient.StartAsync()
+            let oldHello = RealtimeV2.encodeMessage (RealtimeV2.SessionHelloMessage { Version = 2; SessionCapability = response.SessionCapability })
+            let! refused = Assert.ThrowsAsync<HubException>(fun () -> oldClient.InvokeAsync("SendMessage", oldHello))
+            Assert.Contains("reconnect with V3", refused.Message)
+            do! oldClient.StopAsync()
+
+            use currentClient = buildConnection ()
+            do! currentClient.StartAsync()
+            let currentHello = RealtimeV3.encodeMessage (RealtimeV3.SessionHelloMessage { Version = 3; SessionCapability = response.SessionCapability })
+            do! currentClient.InvokeAsync("SendMessage", currentHello)
+            do! currentClient.StopAsync()
+            RoomAuthority.resetForTests ()
+        }
 
     [<Fact>]
     member _.``legacy V1 traversal retains grid behavior across V2 wall and hazard regions``() =
