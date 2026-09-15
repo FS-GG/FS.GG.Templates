@@ -175,7 +175,10 @@ bash "$out/direct/SvgFoundation/Studio/build.sh" >"$out/studio-build.log" 2>&1
 npm ci --prefix "$out/direct/Browser.Tests" >/dev/null
 cp "$root/tests/composition/fable-game/svg-present-player-observe.mjs" "$out/direct/Browser.Tests/"
 cp "$root/tests/composition/fable-game/svg-authoring-observe.mjs" "$out/direct/Browser.Tests/"
-cp "$root/tests/composition/fable-game/svg-input-observe.mjs" "$out/direct/Browser.Tests/"
+# Published 0.13 predates retained scene-host attributes after an authored SVG
+# replacement. Exercise its exact tagged observer; the current-source lane owns
+# the stricter post-edit focus assertion.
+cp "$root/tests/composition/fable-game/svg-input-observe-v013.mjs" "$out/direct/Browser.Tests/svg-input-observe.mjs"
 (cd "$out/direct/SvgFoundation/dist" && python3 -m http.server 8142 --bind 127.0.0.1 >"$out/server.log" 2>&1) & server=$!
 (cd "$out/direct/SvgFoundation/Studio/dist" && python3 -m http.server 8143 --bind 127.0.0.1 >"$out/studio-server.log" 2>&1) & studio_server=$!
 trap 'kill "$server" "$studio_server" 2>/dev/null || true' EXIT

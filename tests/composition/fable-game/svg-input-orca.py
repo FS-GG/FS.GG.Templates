@@ -108,21 +108,43 @@ def tab_to(name, limit=120):
         observed.append({"window": window, "focused": current, "dom": dom})
     raise RuntimeError(f"keyboard focus did not reach {name}; observed={observed[-10:]}")
 
-def wait_for_focus(name, role=None, timeout=10):
+def wait_for_focus(name, role=None, dom_id=None, dom_role=None, timeout=10):
     end = time.time() + timeout
     while time.time() < end:
+        dom = None
+        try:
+            dom = json.load(open(output + ".browser-dom.json"))
+        except Exception:
+            pass
+        observation = (dom or {}).get("observation") or {}
+        active = observation.get("activeElement") or {}
+        fresh_dom_target = (
+            dom is not None
+            and dom.get("schema") == "fsgg.orca-browser-dom/v1"
+            and dom.get("browserFamily") == os.environ["SVG_ORCA_BROWSER_FAMILY"]
+            and isinstance(dom.get("sampleSequence"), int)
+            and isinstance(dom.get("sampledAt"), str)
+            and abs(time.time() * 1000 - dom.get("sampledAtUnixMs", 0)) <= 2000
+            and observation.get("documentHasFocus") is True
+            and active.get("id") == dom_id
+            and active.get("role") == dom_role
+            and active.get("ariaLabel") == name
+        )
         for item in walk(Atspi.get_desktop(0)):
             try:
                 if (item.get_state_set().contains(Atspi.StateType.FOCUSED)
                     and (item.get_name() or "") == name
-                    and (role is None or item.get_role_name() == role)):
+                    and (role is None or item.get_role_name() == role)
+                    and fresh_dom_target):
                     return item
             except Exception:
                 pass
         time.sleep(.1)
     item = focused()
     actual = None if item is None else {"name": item.get_name(), "role": item.get_role_name()}
-    raise RuntimeError(f"focus was not restored to role={role} name={name}; actual={actual}")
+    raise RuntimeError(
+        f"focus was not restored to role={role} name={name}; "
+        f"actual={actual} browserDom={dom}")
 
 def wait_until_absent(role, name, timeout=10):
     end = time.time() + timeout
@@ -182,10 +204,15 @@ key("Return")
 find("dialog", name="Command palette")
 key("Escape")
 wait_until_absent("dialog", "Command palette")
-# The application contract records the scene id as RestoreFocus. Its SVG root
-# is exposed through Chromium AT-SPI as role=application with this exact label;
-# the similarly named document heading is not an acceptable substitute.
-wait_for_focus("Generated SVG scene studio", role="application")
+# The application contract records the scene id as RestoreFocus. Chromium maps
+# the SVG's ARIA application role to AT-SPI embedded. Require that named node's
+# own focused state together with a fresh DOM observation of the exact SVG id,
+# role, and name; the similarly named heading or document cannot substitute.
+wait_for_focus(
+    "Generated SVG scene studio",
+    role="embedded",
+    dom_id="generated-authoring-studio--scene",
+    dom_role="application")
 # WorkspaceInput declares help as the g,h sequence.
 key("g", "h")
 find("dialog", name="Possible input help")

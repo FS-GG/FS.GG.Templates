@@ -356,7 +356,7 @@ test("Studio carries one blank-authored arena through play, reload, export, and 
   await page.getByRole("button", { name: "Scale and rotate playable hazard" }).click();
   const transformed = await snapshot();
   expect(transformed.contentHash).not.toBe(edited.contentHash);
-  const authoredPixels = await page.getByRole("img").screenshot();
+  const authoredPixels = await page.locator("#generated-authoring-studio--scene").screenshot();
   await page.getByRole("button", { name: "Play edited arena step" }).click();
   await expect(studio).toHaveAttribute("data-workspace-mode", "play");
   const farPlayed = await snapshot();
@@ -364,7 +364,7 @@ test("Studio carries one blank-authored arena through play, reload, export, and 
   expect(farPlayed.playSourceHash).toBe(transformed.contentHash);
   expect(farPlayed.playCollision).toBe(false);
   expect(farPlayed.playHealth).toBe(3);
-  const previewPixels = await page.getByRole("img").screenshot();
+  const previewPixels = await page.locator("#generated-authoring-studio--scene").screenshot();
   expect(previewPixels.equals(authoredPixels)).toBe(false);
   await page.locator("#generated-authoring-studio--workspace-mode-1").click();
   expect((await snapshot()).activePlayPreview).toBe(false);
