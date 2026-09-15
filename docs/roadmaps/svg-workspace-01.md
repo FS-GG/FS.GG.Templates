@@ -289,7 +289,7 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   effect pass. A source delivery while hosting is unavailable records “source/journeys delivered; hosted effect
   pending” and leaves this checkbox unchecked. Public Templates/wizard publication remains Release D.
 
-- [ ] **SVG-WORKSPACE-01.5 — Prove clean and retained installed development and upgrade journeys — route: routine**
+- [x] **SVG-WORKSPACE-01.5 — Prove clean and retained installed development and upgrade journeys — route: routine**
 
   Depends on: completed .2/.3 plus the .4 source/content/model interfaces actually used by receivers. Native
   receiver preparation does not depend on the independent remote hosting effect; changed interfaces rebind the
@@ -313,7 +313,9 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   retain an exact reader, supported migration or explicit refusal.
 
   Deliver four actual native PRs: a useful routine repair and a separate visible semantic rule/model change in
-  each clean and retained private receiver. Observe base/head, required product checks, exact-head marker,
+  each clean and retained public synthetic receiver generated only from audited public sources and packages.
+  Keep earlier private receivers private as access-negative evidence; do not copy their history or artifacts into
+  the public fixtures. Observe base/head, required product checks, exact-head marker,
   moved-head refusal/rebinding, same-PR correction, native merge/readback, delayed derived views and unavailable
   usage. The semantic PRs update their literate model/bindings and .NET/Fable/browser behavior. Do not substitute
   static adopter output or fabricated passing JSON for delivered receiver work.
@@ -346,11 +348,10 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   remain the next feature. After .6 native readback and §0 projection, request a fresh major-feature plan for
   SVG-RELEASE-D.
 
-Current executable window: **.4 source/integration and deployment preparation**, then .5 receiver/native
-development as soon as its used .4 interfaces settle; .6 traceability may be prepared from real results.
-The unresolved .4 input is a durable ASP.NET deployment destination with static/WebSocket routing and rollback.
-Do all independent product and receiver work while it is absent. Source-only checkpoints do not trigger §0;
-each actual milestone closure does. Broad SDD #927 and a future ChangeProposal format are not blanket blockers.
+Current executable window: **.4 durable hosting remains pending; .5 receiver/native development and upgrade
+qualification is complete**. `.6` traceability is prepared but cannot close until the hosted static/ASP.NET
+journey completes `.4`. Source-only checkpoints do not trigger §0; each actual milestone closure does. Broad
+SDD #927 and a future ChangeProposal format are not blanket blockers.
 
 ## Journey coverage and authority/upgrade matrix
 

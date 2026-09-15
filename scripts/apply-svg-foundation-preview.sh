@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+case "${1:-}" in
+  complete-inventory|complete-apply|complete-rollback|complete-recover)
+    exec python3 "$script_dir/apply-svg-complete-workspace.py" "$@"
+    ;;
+esac
+
 files=(
   SvgFoundation/Program.fs
   SvgFoundation/PreviewFont.fs
