@@ -154,10 +154,10 @@ let private handleInputEffect effect =
         | null -> ()
         | element ->
             element.focus()
-            // Real screen-reader keyboard dispatch can move focus to the
-            // document after the synchronous Escape handlers finish. Reapply
-            // the declared target on the next rendered frame, after that
-            // browser processing, rather than accepting the document body.
+            // The native screen-reader route observed the document body after
+            // the synchronous Escape handlers. Reapply the declared target on
+            // the next rendered frame, after event processing, and retain the
+            // exact application target as the acceptance condition.
             window.requestAnimationFrame(fun _ -> element.focus()) |> ignore
     | _ -> ()
 
