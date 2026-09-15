@@ -144,9 +144,15 @@ let private handleInputEffect effect =
         | "workspace.gamepad" -> setMode SvgWorkspaceMode.Play
         | _ -> ()
     | CommandResolverEffect.CapturedGesture gesture -> acceptCaptured gesture
-    | CommandResolverEffect.RequestFocus _ ->
+    | CommandResolverEffect.RequestFocus target ->
         if host.WorkspaceState.Overlay.IsSome then updateWorkspace SvgWorkspaceMessage.CloseOverlay
         else updateInput (CommandResolverObservation.ContextsChanged (SvgWorkspace.activeContexts host.WorkspaceState))
+        // Apply focus after the workspace and input contexts settle. SvgInputHost
+        // issues the same request before this callback, but closing the rendered
+        // overlay can otherwise leave the browser document body focused.
+        match document.getElementById target with
+        | null -> ()
+        | element -> element.focus()
     | _ -> ()
 
 do

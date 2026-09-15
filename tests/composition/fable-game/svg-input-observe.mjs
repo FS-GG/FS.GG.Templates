@@ -16,6 +16,10 @@ try {
   await page.waitForFunction(()=>window.svgGeneratedStudio);
   const click=async name=>page.getByRole("button",{name,exact:true}).click();
   const scene=page.locator("#generated-authoring-studio--scene");
+  const expectSceneFocus=async context=>{
+    await page.waitForFunction(()=>document.activeElement?.id==="generated-authoring-studio--scene");
+    if(!(await scene.evaluate(element=>element===document.activeElement))) throw new Error(`${context} did not restore scene focus`);
+  };
 
   await scene.focus();
   await page.keyboard.press("1");
@@ -34,17 +38,17 @@ try {
   await page.keyboard.press("Control+k");
   await page.getByRole("dialog",{name:"Command palette"}).waitFor();
   await page.keyboard.press("Escape");
-  await scene.focus();
+  await expectSceneFocus("Ctrl+K palette");
   await scene.dispatchEvent("keydown",{key:"k",code:"KeyK",metaKey:true,bubbles:true});
   await scene.dispatchEvent("keyup",{key:"k",code:"KeyK",metaKey:true,bubbles:true});
   await page.getByRole("dialog",{name:"Command palette"}).waitFor();
   await page.keyboard.press("Escape");
-  await scene.focus();
+  await expectSceneFocus("Meta+K palette");
   await page.keyboard.press("g");
   await page.keyboard.press("h");
   await page.getByRole("dialog",{name:"Possible input help"}).waitFor();
   await page.keyboard.press("Escape");
-  await scene.focus();
+  await expectSceneFocus("input help");
   await page.keyboard.press("r");
   await page.getByRole("dialog",{name:"Rebind command"}).waitFor();
   await page.keyboard.press("1");
@@ -55,6 +59,7 @@ try {
   await page.keyboard.press("1");
   await page.getByRole("dialog",{name:"Command palette"}).waitFor();
   await page.keyboard.press("Escape");
+  await expectSceneFocus("rebound palette");
   await scene.dispatchEvent("pointerdown",{pointerId:31,pointerType:"mouse",bubbles:true});
   await scene.dispatchEvent("pointerup",{pointerId:31,pointerType:"mouse",bubbles:true});
   await scene.dispatchEvent("pointerdown",{pointerId:32,pointerType:"touch",bubbles:true});
