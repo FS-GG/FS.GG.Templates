@@ -359,9 +359,9 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   remain the next feature. After .6 native readback and §0 projection, request a fresh major-feature plan for
   SVG-RELEASE-D.
 
-Current executable window: **finish .4's local container/Caddy preparation now, then perform its durable VPS/domain
-effect when that infrastructure is selected; .5 receiver/native development and upgrade qualification is
-complete**. `.6` traceability is prepared but cannot close until the hosted static/ASP.NET journey completes
+Current executable window: **the local container/Caddy preparation and .5 receiver/native development and upgrade
+qualification are complete; perform .4's durable VPS/domain effect when that infrastructure is selected**.
+`.6` traceability is prepared but cannot close until the hosted static/ASP.NET journey completes
 `.4`. The local edge checkpoint does not trigger §0 or complete `.4`; each actual milestone closure does. Broad
 SDD #927 and a future ChangeProposal format are not blanket blockers.
 

@@ -80,30 +80,41 @@ speech output, physical devices, and audible output remain unavailable until obs
 on those runtimes; synthesized touch/gamepad input and WebAudio dispatch do not claim
 physical presentation.
 
-For the final hosted effect, copy the complete immutable release and `deploy/` directory to the selected durable
-host, point the domain's DNS at it, and set a real host name before starting the production overlay:
+For the final hosted effect, use a dedicated Ubuntu 24.04 LTS (or Debian 12) VPS with an SSH account that has
+passwordless `sudo`. Put its exact host key in the invoking machine's `known_hosts`; the deployment refuses
+TOFU/changed-host-key shortcuts. Point one public DNS name at the VPS and allow inbound TCP 22, 80 and 443 in
+the provider firewall. Then build the immutable release and deploy it:
 
 ```bash
-export SVG_RELEASE_VERSION=<immutable-version>
+export DEPLOY_TARGET=deploy@203.0.113.10
 export GAME_SITE_ADDRESS=game.example.com
-podman compose --project-directory . \
-  -f deploy/compose.yaml -f deploy/compose.production.yaml up --detach --build
-GAME_EDGE_URL=https://game.example.com bash deploy/verify-edge.sh "$SVG_RELEASE_VERSION"
+export BOOTSTRAP_VPS=true # first deployment only
+bash deploy/deploy-production.sh <immutable-version>
 ```
 
-Caddy obtains and renews the public certificate only when DNS reaches the host and ports 80/443 are open. A
-default rootless Podman installation cannot bind privileged host ports; for the reference VPS, either run this
-bounded production composition rootfully or configure a reviewed host-level low-port forwarding policy. Do not
-silently move public HTTPS to 8443 and claim the normal-domain route passed. Keep
-its `/data` and `/config` volumes persistent. Deploy the static files and authority to a durable destination
-that supports ASP.NET Core, same-origin `/api` and `/hub` WebSocket upgrades, TLS, and application rollback.
-Read back the deployed version and served static hashes, then repeat the two-browser
-reconnect/content journey. A static-only host and localhost are development checks.
+The one-time bootstrap installs Podman/Compose and unattended security upgrades. Activation runs rootful because
+ports 80/443 are privileged, but the ASP.NET process remains the image's non-root `$APP_UID`. Each uploaded
+deployment is content-addressed below `/opt/fsgg-fable-game/deployments`; a changed archive cannot overwrite the
+same retained identity. `/opt/fsgg-fable-game/current` changes atomically. Startup failure restores the prior
+symlink and environment; a failed public TLS/journey/restart verification invokes the same host rollback before
+the activation is finalized. A systemd oneshot owns boot activation while Compose owns container restart, and Caddy's
+named `/data` and `/config` volumes retain certificate state across application versions.
 
-Rollback by setting `SVG_RELEASE_VERSION` to the retained compatible release directory, running the same
-production `podman compose ... up --detach --build` command, and executing `verify-edge.sh` against that prior
-identity and matching content. Confirm health, static hashes, bootstrap, WebSocket reconnect, and full snapshot
-before removing the failed release. Never write session capabilities into evidence.
+Caddy obtains and renews the public certificate only after DNS reaches the host and ports 80/443 are open. The
+deployer waits for public TLS, compares the served version, manifest, Player and optional Studio bytes, forces
+two real V3 SignalR WebSocket sessions through Caddy, disconnects/reconnects one session, restarts the systemd
+service, checks boot enablement and repeats the public verification. It writes a capability-free
+`artifacts/deployment-evidence/<version>.json` containing the observation time, release-manifest digest and
+certificate identity. A static-only host, localhost or a tunnel is still only development evidence.
+
+Rollback by invoking `deploy/deploy-production.sh` with a retained compatible release version, using a distinct
+`SVG_DEPLOYMENT_EVIDENCE` path for the rollback receipt. The same activation and public verification gates apply;
+then redeploy and verify the intended version. Keep both content-addressed deployments until the rollback exercise
+has passed. Never write session capabilities into evidence.
+
+Set `GAME_UPSTREAM=https://authority.example.com` before deployment when the ASP.NET authority later moves to a
+separate game-server provider. Static assets remain unchanged and browser traffic stays same-origin at Caddy.
+That remote endpoint must independently provide trusted TLS; allocation and matchmaking remain a later contract.
 
 Browser qualification names its boundary: Chromium is exercised locally. Firefox,
 WebKit, screen-reader output, physical devices, and audibility remain unqualified until

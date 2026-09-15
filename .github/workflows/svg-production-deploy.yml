@@ -1,0 +1,112 @@
+name: svg-production-deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: Immutable deployment version token
+        required: true
+        type: string
+      bootstrap_vps:
+        description: Install the supported Podman host prerequisites
+        required: true
+        default: false
+        type: boolean
+      game_upstream:
+        description: Authority host[:port] or HTTPS origin (no path)
+        required: true
+        default: authority:8080
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: svg-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Build and deploy immutable SVG workspace
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: svg-production
+    env:
+      DEPLOY_TARGET: ${{ vars.SVG_DEPLOY_TARGET }}
+      GAME_SITE_ADDRESS: ${{ vars.SVG_GAME_SITE_ADDRESS }}
+      GAME_UPSTREAM: ${{ inputs.game_upstream }}
+      BOOTSTRAP_VPS: ${{ inputs.bootstrap_vps }}
+      SVG_RELEASE_VERSION: ${{ inputs.release_version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.400'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Validate protected deployment inputs
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.SVG_DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.SVG_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_TARGET"
+          test -n "$GAME_SITE_ADDRESS"
+          test -n "$DEPLOY_SSH_PRIVATE_KEY"
+          test -n "$DEPLOY_SSH_KNOWN_HOSTS"
+          [[ "$SVG_RELEASE_VERSION" =~ ^[A-Za-z0-9._-]+$ ]]
+      - name: Install Chromium host dependencies
+        working-directory: templates/fs-gg-fable-game/Browser.Tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Acquire exact Quint
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 \
+            https://github.com/quint-co/quint/releases/download/v0.32.0/quint-linux-amd64 \
+            --output "$RUNNER_TEMP/quint"
+          echo '939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f  '"$RUNNER_TEMP/quint" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/quint"
+      - name: Materialize and build the complete candidate
+        run: |
+          set -euo pipefail
+          dotnet pack FS.GG.Templates.csproj -c Release -o "$RUNNER_TEMP/feed" >/dev/null
+          package="$(find "$RUNNER_TEMP/feed" -maxdepth 1 -type f -name 'FS.GG.Workspace.Template.*.nupkg' -print -quit)"
+          test -f "$package"
+          export DOTNET_CLI_HOME="$RUNNER_TEMP/dotnet-home"
+          dotnet new install "$package" --force >/dev/null
+          dotnet new fs-gg-fable-game -n SvgWorkspaceProduction \
+            -o "$RUNNER_TEMP/workspace" --lifecycle none --bundle complete >/dev/null
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          cd "$RUNNER_TEMP/workspace"
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" QUINT_BIN="$RUNNER_TEMP/quint" bash ./build.sh
+      - name: Install ephemeral SSH material
+        env:
+          DEPLOY_SSH_PRIVATE_KEY: ${{ secrets.SVG_DEPLOY_SSH_PRIVATE_KEY }}
+          DEPLOY_SSH_KNOWN_HOSTS: ${{ secrets.SVG_DEPLOY_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -d -m 0700 "$RUNNER_TEMP/ssh"
+          install -m 0600 /dev/null "$RUNNER_TEMP/ssh/id"
+          install -m 0600 /dev/null "$RUNNER_TEMP/ssh/known_hosts"
+          printf '%s\n' "$DEPLOY_SSH_PRIVATE_KEY" >"$RUNNER_TEMP/ssh/id"
+          printf '%s\n' "$DEPLOY_SSH_KNOWN_HOSTS" >"$RUNNER_TEMP/ssh/known_hosts"
+      - name: Deploy, restart, and verify through public TLS
+        working-directory: ${{ runner.temp }}/workspace
+        env:
+          DEPLOY_SSH_KEY_FILE: ${{ runner.temp }}/ssh/id
+          DEPLOY_KNOWN_HOSTS_FILE: ${{ runner.temp }}/ssh/known_hosts
+        run: bash deploy/deploy-production.sh "$SVG_RELEASE_VERSION"
+      - name: Upload capability-free deployment evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: svg-production-${{ inputs.release_version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/workspace/artifacts/deployment-evidence/*.json
+          if-no-files-found: warn
+          retention-days: 90

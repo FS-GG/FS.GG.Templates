@@ -151,9 +151,16 @@ for deployment_path in \
   deploy/compose.local.yaml \
   deploy/compose.production.yaml \
   deploy/container-engine.sh \
+  deploy/install-vps.sh \
+  deploy/activate-vps.sh \
+  deploy/rollback-vps.sh \
+  deploy/finalize-vps.sh \
+  deploy/package-production.sh \
+  deploy/deploy-production.sh \
   deploy/run-local.sh \
   deploy/verify-edge.sh \
-  deploy/verify-edge.mjs
+  deploy/verify-edge.mjs \
+  deploy/verify-production.sh
 do
   assert_path "$work/Player/$deployment_path"
 done
@@ -166,6 +173,27 @@ grep -F 'context: .' "$work/Player/deploy/compose.yaml" >/dev/null
 grep -F './deploy/Caddyfile:/etc/caddy/Caddyfile:ro' "$work/Player/deploy/compose.yaml" >/dev/null
 grep -F './artifacts/releases/${SVG_RELEASE_VERSION:-workspace-v1}:/srv/release:ro' "$work/Player/deploy/compose.yaml" >/dev/null
 grep -F 'bash "$root/deploy/verify-edge.sh"' "$work/Player/deploy/run-local.sh" >/dev/null
+grep -F 'StrictHostKeyChecking=yes' "$work/Player/deploy/deploy-production.sh" >/dev/null
+grep -F 'UserKnownHostsFile=$DEPLOY_KNOWN_HOSTS_FILE' "$work/Player/deploy/deploy-production.sh" >/dev/null
+grep -F 'rollback_remote' "$work/Player/deploy/deploy-production.sh" >/dev/null
+grep -F 'systemctl enable fsgg-fable-game.service' "$work/Player/deploy/activate-vps.sh" >/dev/null
+grep -F 'serviceRestartVerified' "$work/Player/deploy/verify-production.sh" >/dev/null
+grep -F 'HttpTransportType.WebSockets' "$work/Player/deploy/verify-edge.mjs" >/dev/null
+grep -F 'payload: { version: 3, sessionCapability }' "$work/Player/deploy/verify-edge.mjs" >/dev/null
+if DEPLOY_TARGET='root@example.com;false' GAME_SITE_ADDRESS=game.example.com \
+    bash "$work/Player/deploy/deploy-production.sh" workspace-v1 >/dev/null 2>&1; then
+  echo "bundle composition: production deploy accepted an unsafe SSH target" >&2; exit 1
+fi
+mkdir -p "$work/Player/artifacts/releases/archive-test"
+printf 'archive-test\n' >"$work/Player/artifacts/releases/archive-test/VERSION"
+(cd "$work/Player/artifacts/releases/archive-test" && sha256sum VERSION >SHA256SUMS)
+archive_one="$work/archive-one.tar.gz"
+archive_two="$work/archive-two.tar.gz"
+bash "$work/Player/deploy/package-production.sh" archive-test "$archive_one" >/dev/null
+bash "$work/Player/deploy/package-production.sh" archive-test "$archive_two" >/dev/null
+cmp -s "$archive_one" "$archive_two" || {
+  echo "bundle composition: identical production inputs produced different archives" >&2; exit 1
+}
 
 grep -F 'source: FS.GG.Workspace.Template::0.14.0' "$root/providers/fable-game.providers.yml" >/dev/null
 if grep -A3 -- '- key: bundle' "$root/providers/fable-game.providers.yml" | grep -F 'default:' >/dev/null; then
