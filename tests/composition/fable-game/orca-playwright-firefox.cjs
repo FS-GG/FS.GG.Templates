@@ -42,6 +42,8 @@ function write(value) {
     if (stopping) return;
     try {
       const observation = await page.evaluate(() => ({
+        documentHasFocus: document.hasFocus(),
+        visibilityState: document.visibilityState,
         activeElement: window.__fsggOrcaDom.describe(document.activeElement),
         focus: window.__fsggOrcaDom.focus,
         keys: window.__fsggOrcaDom.keys

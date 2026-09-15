@@ -38,15 +38,23 @@ speech-dispatcher -s -C "$speechd_config" -S "$speechd_socket" -P "$speechd_root
 orca_pid=""
 browser_pid=""
 browser_launcher_pid=""
+wm_pid=""
 cleanup() {
   [[ -z "$browser_launcher_pid" ]] || kill "$browser_launcher_pid" 2>/dev/null || true
   [[ -z "$browser_pid" ]] || kill "$browser_pid" 2>/dev/null || true
   [[ -z "$orca_pid" ]] || kill "$orca_pid" 2>/dev/null || true
+  [[ -z "$wm_pid" ]] || kill "$wm_pid" 2>/dev/null || true
   kill "$speechd_pid" 2>/dev/null || true
   pactl unload-module "$null_sink_module" 2>/dev/null || true
   rm -rf "$speechd_root"
 }
 trap cleanup EXIT
+openbox --sm-disable >"$output.openbox.log" 2>&1 & wm_pid=$!
+for _ in {1..40}; do
+  xprop -root _NET_SUPPORTING_WM_CHECK 2>/dev/null | grep -q 'window id' && break
+  sleep .1
+done
+xprop -root _NET_SUPPORTING_WM_CHECK >"$output.x11.log"
 for _ in {1..80}; do [[ -S "$speechd_socket" ]] && break; sleep .1; done
 test -S "$speechd_socket"
 export SPEECHD_ADDRESS="unix_socket:$speechd_socket"
@@ -79,7 +87,16 @@ else
   exit 2
 fi
 browser_window="$(timeout --signal=TERM --kill-after=5s 45s xdotool search --sync --onlyvisible --class "$browser_class" | tail -1)"
+xdotool windowactivate --sync "$browser_window"
 xdotool windowfocus --sync "$browser_window"
+{
+  printf 'selected='; printf '%s\n' "$browser_window"
+  printf 'active='; xdotool getactivewindow
+  printf 'focus='; xdotool getwindowfocus
+  printf 'name='; xdotool getwindowname "$browser_window"
+  printf 'class='; xdotool getwindowclassname "$browser_window"
+  printf 'pid='; xdotool getwindowpid "$browser_window"
+} >>"$output.x11.log"
 if [[ "$browser_family" == firefox ]]; then
   browser_pid="$(xdotool getwindowpid "$browser_window")"
 fi

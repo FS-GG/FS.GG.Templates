@@ -87,6 +87,9 @@ def tab_to(name, limit=80):
                 or abs(time.time() * 1000 - dom.get("sampledAtUnixMs", 0)) > 2000):
                 raise RuntimeError(f"fresh Firefox DOM focus observation unavailable: {dom}")
         active = ((dom or {}).get("observation") or {}).get("activeElement") or {}
+        if (os.environ["SVG_ORCA_BROWSER_FAMILY"] == "firefox"
+            and not ((dom or {}).get("observation") or {}).get("documentHasFocus")):
+            raise RuntimeError(f"Firefox document does not hold desktop focus: {dom}")
         dom_name = active.get("ariaLabel") or active.get("text")
         current = []
         for item in walk(Atspi.get_desktop(0)):
