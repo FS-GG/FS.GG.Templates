@@ -28,14 +28,34 @@ let private downloadArenaContent (_text: string) : unit = jsNative
 
 let private container: HTMLElement = document.getElementById("svg-authoring-studio")
 let mutable private state = initialState ()
+let private sceneFocusId = "generated-authoring-studio--scene"
+
+let private retainSceneHostAttributes () =
+    match container.querySelector("[data-fsgg-document-id]") with
+    | null -> ()
+    | element ->
+        element.setAttribute("id", sceneFocusId)
+        element.setAttribute("tabindex", "0")
+        element.setAttribute("role", "application")
+        element.setAttribute("aria-label", "Generated SVG scene studio")
+#if SVG_INPUT_CANDIDATE
+        element.setAttribute("data-fsgg-input-action", "primary")
+#endif
 
 let private host =
     SvgStudio.mount container
         { MountNamespace = "generated-authoring-studio"
           AccessibleLabel = "Generated SVG scene studio"
           WorkerFactory = Some workerFactory }
-        state (fun accepted -> state <- accepted)
+        state (fun accepted ->
+            state <- accepted
+            // SvgBrowser reconciles the authored SVG root from exported scene
+            // attributes. Reapply the Studio host decorations after each
+            // accepted replacement so focus restoration retains a live target.
+            retainSceneHostAttributes ())
     |> Result.defaultWith (fun error -> failwithf "Generated SVG studio mount refused: %A" error)
+
+do retainSceneHostAttributes ()
 
 let private status: HTMLElement = document.getElementById("generated-scene-status")
 let private announce text = status.textContent <- text
@@ -73,11 +93,23 @@ let private workspaceMode = function
 let private renderWorkspace () =
     container.setAttribute("data-workspace-mode", workspaceMode host.WorkspaceState.Mode)
 
+let private restoreWorkspaceFocus target =
+    match document.getElementById target with
+    | null -> ()
+    | element ->
+        element.focus()
+        // The native screen-reader route observed the document body after
+        // the synchronous Escape handlers. Reapply the declared target on
+        // the next rendered frame, after event processing, and retain the
+        // exact application target as the acceptance condition.
+        window.requestAnimationFrame(fun _ -> element.focus()) |> ignore
+
 let private updateWorkspace message =
     let effects = host.UpdateWorkspace message
     effects
     |> List.iter (function
         | SvgWorkspaceEffect.ActiveContextsChanged contexts -> updateInput (CommandResolverObservation.ContextsChanged contexts)
+        | SvgWorkspaceEffect.RequestFocus target -> restoreWorkspaceFocus target
         | _ -> ())
     renderWorkspace ()
 
@@ -150,20 +182,12 @@ let private handleInputEffect effect =
         // Apply focus after the workspace and input contexts settle. SvgInputHost
         // issues the same request before this callback, but closing the rendered
         // overlay can otherwise leave the browser document body focused.
-        match document.getElementById target with
-        | null -> ()
-        | element ->
-            element.focus()
-            // The native screen-reader route observed the document body after
-            // the synchronous Escape handlers. Reapply the declared target on
-            // the next rendered frame, after event processing, and retain the
-            // exact application target as the acceptance condition.
-            window.requestAnimationFrame(fun _ -> element.focus()) |> ignore
+        restoreWorkspaceFocus target
     | _ -> ()
 
 do
     let effective = WorkspaceCommands.compile inputProfile |> Result.defaultWith (fun issues -> failwithf "%A" issues)
-    document.getElementById("generated-authoring-studio--scene").setAttribute("data-fsgg-input-action", "primary")
+    retainSceneHostAttributes ()
     inputAdapter <-
         Some(new SvgInputHost(
             container,

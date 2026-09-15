@@ -78,6 +78,17 @@ try {
   await click("Save asset");
   await click("Place two instances");
   await click("Edit scene properties");
+  const postEditScene=page.locator("#generated-authoring-studio--scene");
+  if(await postEditScene.count()!==1
+    ||await postEditScene.getAttribute("tabindex")!=="0"
+    ||await postEditScene.getAttribute("role")!=="application"
+    ||await postEditScene.getAttribute("aria-label")!=="Generated SVG scene studio"
+    ||await postEditScene.getAttribute("data-fsgg-input-action")!=="primary")
+    throw new Error("accepted SVG replacement did not retain the scene focus target");
+  await click("Command palette");
+  await page.getByRole("dialog",{name:"Command palette"}).waitFor();
+  await page.keyboard.press("Escape");
+  await expectSceneFocus("post-edit palette");
   await click("Author grid and freeform");
   await click("Create asset revision");
   const conflicted=await page.evaluate(()=>window.svgGeneratedStudio.snapshot());
