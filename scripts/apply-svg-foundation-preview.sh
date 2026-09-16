@@ -21,7 +21,6 @@ files=(
   SvgFoundation/fonts/noto-sans-latin-400-normal.woff2
   SvgFoundation/public/movement-cue.wav
   SvgFoundation/SvgFoundation.fsproj
-  SvgFoundation/packages.lock.json
   SvgFoundation/LegacyPreview.props
   SvgFoundation/AdoptedArenaContent.fs
   SvgFoundation/TacticalCompatibility.fs
@@ -162,16 +161,6 @@ if [[ ! -e "$source_payload/SvgFoundation/Examples/Tactical/packages.lock.json" 
     [[ "$path" == SvgFoundation/TacticalCompatibility.Tests.packages.lock.json ]] || without_tactical_lock+=("$path")
   done
   files=("${without_tactical_lock[@]}")
-fi
-# Existing workspaces retain their reviewed lock. A workspace that did not
-# previously carry SvgFoundation (the wizard adoption path) receives the
-# candidate payload's reviewed lock when that payload actually ships one.
-if [[ ! -e "$source_payload/SvgFoundation/packages.lock.json" || -e "$workspace/SvgFoundation/packages.lock.json" ]]; then
-  with_existing_foundation_lock=()
-  for path in "${files[@]}"; do
-    [[ "$path" == SvgFoundation/packages.lock.json ]] || with_existing_foundation_lock+=("$path")
-  done
-  files=("${with_existing_foundation_lock[@]}")
 fi
 if [[ ! -e "$source_payload/SvgFoundation/ContinuousPlayer.fs" ]]; then
   without_continuous_runtime=()

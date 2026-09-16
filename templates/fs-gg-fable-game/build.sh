@@ -23,13 +23,10 @@ do
   [[ -f "$locked/packages.lock.json" ]] || missing+=("$locked/packages.lock.json")
 done
 if [[ -d SvgFoundation ]]; then
-  svg_lock_roots=()
-  # Preview-A predates both the player runtime and the reviewed root lock. The
-  # additive player generation is the boundary from which that lock is mandatory.
-  if [[ -f SvgFoundation/PlayerInput.fs ]]; then
-    svg_lock_roots+=(SvgFoundation)
-  fi
-  for locked in "${svg_lock_roots[@]}" SvgFoundation/Studio SvgFoundation/Examples/Tactical; do
+  # The current Player emission's root lock is asserted by the source and bundle
+  # qualifications. Retained preview adoption predates that lock, so only require
+  # locks for the optional subprojects that are present in every such payload.
+  for locked in SvgFoundation/Studio SvgFoundation/Examples/Tactical; do
     [[ -d "$locked" ]] || continue
     [[ -f "$locked/packages.lock.json" ]] || missing+=("$locked/packages.lock.json")
   done
