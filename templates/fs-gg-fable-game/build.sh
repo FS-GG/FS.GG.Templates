@@ -23,7 +23,13 @@ do
   [[ -f "$locked/packages.lock.json" ]] || missing+=("$locked/packages.lock.json")
 done
 if [[ -d SvgFoundation ]]; then
-  for locked in SvgFoundation SvgFoundation/Studio SvgFoundation/Examples/Tactical; do
+  svg_lock_roots=()
+  # Preview-A predates both the player runtime and the reviewed root lock. The
+  # additive player generation is the boundary from which that lock is mandatory.
+  if [[ -f SvgFoundation/PlayerInput.fs ]]; then
+    svg_lock_roots+=(SvgFoundation)
+  fi
+  for locked in "${svg_lock_roots[@]}" SvgFoundation/Studio SvgFoundation/Examples/Tactical; do
     [[ -d "$locked" ]] || continue
     [[ -f "$locked/packages.lock.json" ]] || missing+=("$locked/packages.lock.json")
   done

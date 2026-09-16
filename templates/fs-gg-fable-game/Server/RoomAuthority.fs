@@ -27,61 +27,75 @@ module RoomAuthority =
         | SessionLimitReached
         | ArenaFull
 
-    let admissionError = function
+    let admissionError =
+        function
         | SessionLimitReached -> "session capacity reached"
         | ArenaFull -> "arena has no free spawn"
 
     type private Session =
-        { PlayerId: string
-          mutable ConnectionId: string option
-          mutable ExpiresAt: DateTimeOffset option }
+        {
+            PlayerId: string
+            mutable ConnectionId: string option
+            mutable ExpiresAt: DateTimeOffset option
+        }
 
     type private PendingInput =
-        { PlayerId: string
-          AcceptedOrder: uint64
-          Action: string
-          TargetCol: int
-          TargetRow: int }
+        {
+            PlayerId: string
+            AcceptedOrder: uint64
+            Action: string
+            TargetCol: int
+            TargetRow: int
+        }
 
     /// One lock-consistent V2 projection. Consumers must not combine independently
     /// sampled position, rules, and moving-content reads.
     type Snapshot =
-        { Tick: int
-          Players: (string * int * int) list
-          Round: int
-          Health: int
-          Score: int
-          Collected: bool
-          Outcome: string
-          ContentId: string
-          ContentSchema: int
-          Content: ArenaContent
-          HazardCol: int
-          HazardRow: int }
+        {
+            Tick: int
+            Players: (string * int * int) list
+            Round: int
+            Health: int
+            Score: int
+            Collected: bool
+            Outcome: string
+            ContentId: string
+            ContentSchema: int
+            Content: ArenaContent
+            HazardCol: int
+            HazardRow: int
+        }
 
     let mutable private definition = contentAt 0UL
-    let mutable private state = FableGameWorkspaceNamespace.ArenaRules.createWith definition
+
+    let mutable private state =
+        FableGameWorkspaceNamespace.ArenaRules.createWith definition
+
     let private sessions = ConcurrentDictionary<string, Session>()
     let private lastSequence = ConcurrentDictionary<string, int>()
     let private pending = ConcurrentDictionary<string, PendingInput>()
     let private gate = obj ()
 
-    let private snapshotLocked () = state.Room.Tick, Room.toSnapshotPairs state.Room
+    let private snapshotLocked () =
+        state.Room.Tick, Room.toSnapshotPairs state.Room
 
     let private completeSnapshotLocked () =
         let content = FableGameWorkspaceNamespace.ArenaRules.currentContent state
-        { Tick = state.Room.Tick
-          Players = Room.toSnapshotPairs state.Room
-          Round = state.Round
-          Health = state.Status.Health
-          Score = state.Status.Score
-          Collected = state.Status.Collected
-          Outcome = state.Status.Outcome
-          ContentId = state.Definition.ContentId
-          ContentSchema = state.Definition.SchemaVersion
-          Content = content
-          HazardCol = int (content.Hazard.X / cellWidth)
-          HazardRow = int (content.Hazard.Y / cellHeight) }
+
+        {
+            Tick = state.Room.Tick
+            Players = Room.toSnapshotPairs state.Room
+            Round = state.Round
+            Health = state.Status.Health
+            Score = state.Status.Score
+            Collected = state.Status.Collected
+            Outcome = state.Status.Outcome
+            ContentId = state.Definition.ContentId
+            ContentSchema = state.Definition.SchemaVersion
+            Content = content
+            HazardCol = int (content.Hazard.X / cellWidth)
+            HazardRow = int (content.Hazard.Y / cellHeight)
+        }
 
     let resetForTests () : unit =
         lock gate (fun () ->
@@ -99,7 +113,8 @@ module RoomAuthority =
     /// after admission is refused so content identity cannot change under a live room.
     let configureDefinition content : Result<unit, string> =
         lock gate (fun () ->
-            if not sessions.IsEmpty then Error "arena content cannot change after session admission"
+            if not sessions.IsEmpty then
+                Error "arena content cannot change after session admission"
             else
                 definition <- content
                 state <- FableGameWorkspaceNamespace.ArenaRules.createWith definition
@@ -131,9 +146,17 @@ module RoomAuthority =
         match state.Room.Players |> Map.tryFind playerId with
         | Some existing -> Some existing.Cell
         | None ->
-            let occupied = state.Room.Players |> Map.toSeq |> Seq.map (fun (_, p) -> p.Cell) |> Set.ofSeq
+            let occupied =
+                state.Room.Players |> Map.toSeq |> Seq.map (fun (_, p) -> p.Cell) |> Set.ofSeq
+
             seq {
-                yield ({ Col = definition.Spawn.Col; Row = definition.Spawn.Row }: Cell)
+                yield
+                    ({
+                        Col = definition.Spawn.Col
+                        Row = definition.Spawn.Row
+                    }
+                    : Cell)
+
                 for row in 0 .. ArenaHeight - 1 do
                     for col in 0 .. ArenaWidth - 1 do
                         if col <> definition.Spawn.Col || row <> definition.Spawn.Row then
@@ -152,6 +175,7 @@ module RoomAuthority =
     let createSessionAt (now: DateTimeOffset) (playerId: string) : Result<string * Cell, AdmissionError> =
         lock gate (fun () ->
             pruneExpiredLocked now
+
             if sessions.Count >= MaxSessions then
                 Error SessionLimitReached
             else
@@ -159,10 +183,13 @@ module RoomAuthority =
                 | None -> Error ArenaFull
                 | Some spawn ->
                     let capability = Guid.NewGuid().ToString "N"
+
                     sessions.[capability] <-
-                        { PlayerId = playerId
-                          ConnectionId = None
-                          ExpiresAt = Some(now.Add SessionLifetime) }
+                        {
+                            PlayerId = playerId
+                            ConnectionId = None
+                            ExpiresAt = Some(now.Add SessionLifetime)
+                        }
 #if SVG_NETWORK_CANDIDATE
                     NetworkAuthority.bind playerId capability (uint64 state.Room.Tick) state
 #endif
@@ -173,14 +200,19 @@ module RoomAuthority =
 
     /// The tick loop calls this cleanup implicitly; the explicit core boundary keeps
     /// expiry deterministic and directly testable without sleeping for wall-clock time.
-    let expireSessionsAt (now: DateTimeOffset) : unit = lock gate (fun () -> pruneExpiredLocked now)
+    let expireSessionsAt (now: DateTimeOffset) : unit =
+        lock gate (fun () -> pruneExpiredLocked now)
 
     /// Binds a just-opened hub connection to exactly one bootstrap-issued capability.
     /// A capability already owned by another live connection is rejected rather than
     /// letting two tabs silently act as one player.
-    let activateSession (capability: string) (connectionId: string) : (string * int * (string * int * int) list) option =
+    let activateSession
+        (capability: string)
+        (connectionId: string)
+        : (string * int * (string * int * int) list) option =
         lock gate (fun () ->
             pruneExpiredLocked DateTimeOffset.UtcNow
+
             match sessions.TryGetValue capability with
             | true, session when session.ConnectionId |> Option.forall ((=) connectionId) ->
                 match joinLocked session.PlayerId with
@@ -189,7 +221,12 @@ module RoomAuthority =
                     session.ConnectionId <- Some connectionId
                     session.ExpiresAt <- None
 #if SVG_NETWORK_CANDIDATE
-                    match NetworkAuthority.reconnect session.PlayerId capability (uint64 (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())) with
+                    match
+                        NetworkAuthority.reconnect
+                            session.PlayerId
+                            capability
+                            (uint64 (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()))
+                    with
                     | Error _ -> None
                     | Ok _ ->
                         let tick, players = snapshotLocked ()
@@ -219,39 +256,62 @@ module RoomAuthority =
     /// Queues the highest strictly-increasing input for this player. The accepted
     /// intent is not applied here: every queued player is resolved together at the
     /// next tick frontier in stable player/sequence order.
-    let private submitInputCore legacy (playerId: string) (capability: string) (sequence: int) (action: string) (targetCol: int) (targetRow: int) : Result<uint64, string> =
+#if SVG_NETWORK_CANDIDATE
+    let private queueInput legacy playerId capability sequence action targetCol targetRow =
+        if sequence < 0 then
+            Error "input sequence must be non-negative"
+        else
+            match NetworkAuthority.admit playerId capability (uint64 sequence) action targetCol targetRow with
+            | Error "PayloadRefused \"intent.out-of-bounds\"" when legacy -> Error "move.out-of-bounds"
+            | Error issue -> Error issue
+            | Ok acceptedOrder ->
+                pending.[playerId] <-
+                    {
+                        PlayerId = playerId
+                        AcceptedOrder = acceptedOrder
+                        Action = action
+                        TargetCol = targetCol
+                        TargetRow = targetRow
+                    }
+
+                Ok acceptedOrder
+#else
+    let private queueInput _ playerId _ sequence action targetCol targetRow =
+        match lastSequence.TryGetValue playerId with
+        | true, last when sequence > last ->
+            lastSequence.[playerId] <- sequence
+
+            pending.[playerId] <-
+                {
+                    PlayerId = playerId
+                    AcceptedOrder = uint64 sequence
+                    Action = action
+                    TargetCol = targetCol
+                    TargetRow = targetRow
+                }
+
+            Ok(uint64 sequence)
+        | _ -> Error "input sequence is duplicate or stale"
+#endif
+
+    let private submitInputCore
+        legacy
+        (playerId: string)
+        (capability: string)
+        (sequence: int)
+        (action: string)
+        (targetCol: int)
+        (targetRow: int)
+        : Result<uint64, string> =
         lock gate (fun () ->
-            if (legacy && action <> "legacy-move") || (not legacy && not (Set.contains action (Set.ofList [ "move"; "interact"; "restart" ]))) then
+            if
+                (legacy && action <> "legacy-move")
+                || (not legacy
+                    && not (Set.contains action (Set.ofList [ "move"; "interact"; "restart" ])))
+            then
                 Error "unknown arena action"
             else
-#if SVG_NETWORK_CANDIDATE
-              if sequence < 0 then Error "input sequence must be non-negative"
-              else
-                match NetworkAuthority.admit playerId capability (uint64 sequence) action targetCol targetRow with
-                | Error "PayloadRefused \"intent.out-of-bounds\"" when legacy -> Error "move.out-of-bounds"
-                | Error issue -> Error issue
-                | Ok acceptedOrder ->
-                    pending.[playerId] <-
-                        { PlayerId = playerId
-                          AcceptedOrder = acceptedOrder
-                          Action = action
-                          TargetCol = targetCol
-                          TargetRow = targetRow }
-                    Ok acceptedOrder
-#else
-              match lastSequence.TryGetValue playerId with
-              | true, last when sequence > last ->
-                lastSequence.[playerId] <- sequence
-                pending.[playerId] <-
-                    { PlayerId = playerId
-                      AcceptedOrder = uint64 sequence
-                      Action = action
-                      TargetCol = targetCol
-                      TargetRow = targetRow }
-                Ok(uint64 sequence)
-              | _ -> Error "input sequence is duplicate or stale"
-#endif
-        )
+                queueInput legacy playerId capability sequence action targetCol targetRow)
 
     let submitInput playerId capability sequence action targetCol targetRow =
         submitInputCore false playerId capability sequence action targetCol targetRow
@@ -263,9 +323,11 @@ module RoomAuthority =
 
     let completeSnapshot () : Snapshot = lock gate completeSnapshotLocked
 
-    let gameStatus () = lock gate (fun () -> state.Status.Health, state.Status.Score, state.Status.Collected, state.Status.Outcome)
+    let gameStatus () =
+        lock gate (fun () -> state.Status.Health, state.Status.Score, state.Status.Collected, state.Status.Outcome)
 
-    let arenaContent () = lock gate (fun () -> FableGameWorkspaceNamespace.ArenaRules.currentContent state)
+    let arenaContent () =
+        lock gate (fun () -> FableGameWorkspaceNamespace.ArenaRules.currentContent state)
 
     /// A cursor is consistent only when it names a frontier this authority has already
     /// reached. This starter keeps no unbounded delta log, so every valid cursor gets
@@ -275,7 +337,8 @@ module RoomAuthority =
             let tick, players = snapshotLocked ()
 #if SVG_NETWORK_CANDIDATE
             match NetworkAuthority.resync (uint64 (max 0 lastKnownTick)) (uint64 tick) with
-            | NetworkResyncDecision.ClientAhead _ -> Error $"inconsistent resync cursor {lastKnownTick}; authoritative tick is {tick}"
+            | NetworkResyncDecision.ClientAhead _ ->
+                Error $"inconsistent resync cursor {lastKnownTick}; authoritative tick is {tick}"
             | _ -> Ok(tick, players)
 #else
             if lastKnownTick < 0 || lastKnownTick > tick then
@@ -288,8 +351,10 @@ module RoomAuthority =
     let acknowledge (playerId: string) (revision: int) : Result<unit, string> =
 #if SVG_NETWORK_CANDIDATE
         lock gate (fun () ->
-            if revision < 0 then Error "acknowledgement must be non-negative"
-            else NetworkAuthority.acknowledge playerId (uint64 revision))
+            if revision < 0 then
+                Error "acknowledgement must be non-negative"
+            else
+                NetworkAuthority.acknowledge playerId (uint64 revision))
 #else
         Ok()
 #endif
@@ -308,7 +373,8 @@ module RoomAuthority =
             | Ok(ReplayRunOutcome.Completed(_, replayed)) -> Ok(replayed = state)
             | Ok(ReplayRunOutcome.Cancelled(index, _)) -> Error $"replay unexpectedly cancelled at {index}"
             | Ok(ReplayRunOutcome.Diverged divergence) -> Error $"replay diverged at {divergence.EventIndex}"
-            | Ok(ReplayRunOutcome.ContractRefused(index, issue)) -> Error $"replay contract refused event {index}: {issue}"
+            | Ok(ReplayRunOutcome.ContractRefused(index, issue)) ->
+                Error $"replay contract refused event {index}: {issue}"
             | Error issues -> Error(sprintf "%A" issues))
 #else
         Ok true
@@ -320,18 +386,30 @@ module RoomAuthority =
     let advanceTick () : Snapshot =
         lock gate (fun () ->
             pruneExpiredLocked DateTimeOffset.UtcNow
+
             let frontier =
-                pending.Values
-                |> Seq.sortBy (fun input -> input.AcceptedOrder)
-                |> Seq.toList
+                pending.Values |> Seq.sortBy (fun input -> input.AcceptedOrder) |> Seq.toList
+
             pending.Clear()
+
             for input in frontier do
                 let intent =
                     match input.Action with
                     | "restart" -> FableGameWorkspaceNamespace.ArenaRules.Intent.Restart
                     | "interact" -> FableGameWorkspaceNamespace.ArenaRules.Intent.Interact
-                    | "legacy-move" -> FableGameWorkspaceNamespace.ArenaRules.Intent.LegacyMove { Col = input.TargetCol; Row = input.TargetRow }
-                    | _ -> FableGameWorkspaceNamespace.ArenaRules.Intent.Move { Col = input.TargetCol; Row = input.TargetRow }
+                    | "legacy-move" ->
+                        FableGameWorkspaceNamespace.ArenaRules.Intent.LegacyMove
+                            {
+                                Col = input.TargetCol
+                                Row = input.TargetRow
+                            }
+                    | _ ->
+                        FableGameWorkspaceNamespace.ArenaRules.Intent.Move
+                            {
+                                Col = input.TargetCol
+                                Row = input.TargetRow
+                            }
+
                 state <- FableGameWorkspaceNamespace.ArenaRules.applyIntent input.PlayerId intent state
 #if SVG_NETWORK_CANDIDATE
                 NetworkAuthority.recordIntent input.PlayerId intent state

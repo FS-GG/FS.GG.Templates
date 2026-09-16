@@ -33,4 +33,5 @@ module SignalR =
     /// enabled -- the client half of #348's "bounded full authoritative resync"
     /// acceptance: on reconnect, `App.fs` always re-requests a full snapshot rather
     /// than assuming any buffered state survived.
-    let build (url: string) : HubConnection = HubConnectionBuilder().withUrl(url).withAutomaticReconnect().build ()
+    let build (url: string) : HubConnection =
+        HubConnectionBuilder().withUrl(url).withAutomaticReconnect().build()

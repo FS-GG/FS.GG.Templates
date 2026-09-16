@@ -5,12 +5,16 @@ open System.Threading
 open System.Threading.Tasks
 
 type ConsolePorts =
-    { WriteOut: string -> unit
-      WriteError: string -> unit }
+    {
+        WriteOut: string -> unit
+        WriteError: string -> unit
+    }
 
 let private defaultPorts =
-    { WriteOut = Console.Out.WriteLine
-      WriteError = Console.Error.WriteLine }
+    {
+        WriteOut = Console.Out.WriteLine
+        WriteError = Console.Error.WriteLine
+    }
 
 let run (ports: ConsolePorts) (cancellationToken: CancellationToken) (arguments: string array) =
     task {
@@ -28,16 +32,18 @@ let run (ports: ConsolePorts) (cancellationToken: CancellationToken) (arguments:
                 ports.WriteError "cancelled"
                 return 130
         else
-            ports.WriteOut (String.concat " " arguments)
+            ports.WriteOut(String.concat " " arguments)
             return 0
     }
 
 [<EntryPoint>]
 let main arguments =
     use cancellation = new CancellationTokenSource()
+
     Console.CancelKeyPress.Add(fun eventArgs ->
         eventArgs.Cancel <- true
         cancellation.Cancel())
+
     run defaultPorts cancellation.Token arguments
     |> Async.AwaitTask
     |> Async.RunSynchronously

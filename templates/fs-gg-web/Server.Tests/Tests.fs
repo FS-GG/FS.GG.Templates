@@ -5,5 +5,5 @@ open Xunit
 
 type MessageTests() =
     [<Fact>]
-    member _.``message endpoint has the documented payload`` () =
+    member _.``message endpoint has the documented payload``() =
         Assert.Equal("Hello from WebWorkspace", (Program.message ()).message)
