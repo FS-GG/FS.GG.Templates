@@ -19,16 +19,18 @@ module App =
     let private thenBoth (promise: JS.Promise<'T>) (onOk: 'T -> unit) (onError: obj -> unit) : unit = jsNative
 
     type Model =
-        { PlayerId: string option
-          SessionCapability: string option
-          RoomId: string
-          ArenaWidth: int
-          ArenaHeight: int
-          Players: Map<string, Cell>
-          Tick: int
-          NextSequence: int
-          PreviewPath: Cell list
-          Status: string }
+        {
+            PlayerId: string option
+            SessionCapability: string option
+            RoomId: string
+            ArenaWidth: int
+            ArenaHeight: int
+            Players: Map<string, Cell>
+            Tick: int
+            NextSequence: int
+            PreviewPath: Cell list
+            Status: string
+        }
 
     type Msg =
         | Bootstrapped of BootstrapV1.Response
@@ -54,13 +56,22 @@ module App =
     let mutable private connection: SignalR.HubConnection option = None
 
     let private sendHello (capability: string) (dispatch: Msg -> unit) (conn: SignalR.HubConnection) : unit =
-        let hello = RealtimeV1.encodeMessage (RealtimeV1.SessionHelloMessage { Version = 1; SessionCapability = capability })
+        let hello =
+            RealtimeV1.encodeMessage (
+                RealtimeV1.SessionHelloMessage
+                    {
+                        Version = 1
+                        SessionCapability = capability
+                    }
+            )
+
         thenBoth (conn.invoke ("SendMessage", hello)) ignore (fun err -> dispatch (ConnectionFailed(string err)))
 
     let private connectSub (capability: string) (dispatch: Msg -> unit) : unit =
         // The URL contains neither player identity nor capability. The latter is sent
         // only after the transport opens, in a versioned protocol message.
         let conn = SignalR.build "/hub/game"
+
         conn.on (
             "Message",
             fun json ->
@@ -68,31 +79,44 @@ module App =
                 | Ok message -> dispatch (ReceivedRealtime message)
                 | Error err -> dispatch (ConnectionFailed err)
         )
-        conn.onreconnecting(fun _ -> dispatch Reconnecting)
-        conn.onreconnected(fun _ -> dispatch Reconnected)
-        conn.onclose(fun _ -> connection <- None; dispatch ConnectionClosed)
+
+        conn.onreconnecting (fun _ -> dispatch Reconnecting)
+        conn.onreconnected (fun _ -> dispatch Reconnected)
+
+        conn.onclose (fun _ ->
+            connection <- None
+            dispatch ConnectionClosed)
+
         connection <- Some conn
         thenBoth (conn.start ()) (fun () -> dispatch Connected) (fun err -> dispatch (ConnectionFailed(string err)))
 
     let init () : Model * Cmd<Msg> =
         let model =
-            { PlayerId = None
-              SessionCapability = None
-              RoomId = ""
-              ArenaWidth = 0
-              ArenaHeight = 0
-              Players = Map.empty
-              Tick = 0
-              NextSequence = 1
-              PreviewPath = []
-              Status = "bootstrapping" }
+            {
+                PlayerId = None
+                SessionCapability = None
+                RoomId = ""
+                ArenaWidth = 0
+                ArenaHeight = 0
+                Players = Map.empty
+                Tick = 0
+                NextSequence = 1
+                PreviewPath = []
+                Status = "bootstrapping"
+            }
+
         let request: BootstrapV1.Request = { Version = 1; PlayerName = "Rogue" }
         model, Cmd.OfAsync.either Api.bootstrap request Bootstrapped BootstrapFailed
 
     let update (msg: Msg) (model: Model) : Model * Cmd<Msg> =
         match msg with
         | Bootstrapped response ->
-            let self: Cell = { Col = response.SpawnCol; Row = response.SpawnRow }
+            let self: Cell =
+                {
+                    Col = response.SpawnCol
+                    Row = response.SpawnRow
+                }
+
             { model with
                 PlayerId = Some response.PlayerId
                 SessionCapability = Some response.SessionCapability
@@ -100,58 +124,111 @@ module App =
                 ArenaWidth = response.ArenaWidth
                 ArenaHeight = response.ArenaHeight
                 Players = Map.ofList [ response.PlayerId, self ]
-                Status = "connecting" },
+                Status = "connecting"
+            },
             Cmd.ofEffect (connectSub response.SessionCapability)
-        | BootstrapFailed exn -> { model with Status = $"bootstrap failed: {exn.Message}" }, Cmd.none
+        | BootstrapFailed exn ->
+            { model with
+                Status = $"bootstrap failed: {exn.Message}"
+            },
+            Cmd.none
         | Connected ->
             match model.SessionCapability, connection with
             | Some capability, Some conn ->
-                { model with Status = "connected; authorizing session" }, Cmd.ofEffect (fun dispatch -> sendHello capability dispatch conn)
-            | _ -> { model with Status = "connection closed before session authorization" }, Cmd.none
+                { model with
+                    Status = "connected; authorizing session"
+                },
+                Cmd.ofEffect (fun dispatch -> sendHello capability dispatch conn)
+            | _ ->
+                { model with
+                    Status = "connection closed before session authorization"
+                },
+                Cmd.none
         | Reconnecting -> { model with Status = "reconnecting" }, Cmd.none
         | Reconnected ->
             match model.SessionCapability, connection with
             | Some capability, Some conn ->
-                { model with Status = "reconnected; requesting bounded resync" }, Cmd.ofEffect (fun dispatch -> sendHello capability dispatch conn)
-            | _ -> { model with Status = "reconnect closed before session authorization" }, Cmd.none
+                { model with
+                    Status = "reconnected; requesting bounded resync"
+                },
+                Cmd.ofEffect (fun dispatch -> sendHello capability dispatch conn)
+            | _ ->
+                { model with
+                    Status = "reconnect closed before session authorization"
+                },
+                Cmd.none
         | ConnectionClosed -> { model with Status = "closed" }, Cmd.none
-        | ConnectionFailed message -> { model with Status = $"connection failed: {message}" }, Cmd.none
+        | ConnectionFailed message ->
+            { model with
+                Status = $"connection failed: {message}"
+            },
+            Cmd.none
         | DisconnectRequested ->
             match connection with
             | Some conn ->
                 { model with Status = "disconnecting" },
-                Cmd.ofEffect (fun dispatch -> thenBoth (conn.stop ()) ignore (fun error -> dispatch (ConnectionFailed(string error))))
+                Cmd.ofEffect (fun dispatch ->
+                    thenBoth (conn.stop ()) ignore (fun error -> dispatch (ConnectionFailed(string error))))
             | None -> { model with Status = "closed" }, Cmd.none
         | ReconnectRequested ->
             match model.SessionCapability, connection with
-            | Some capability, None ->
-                { model with Status = "reconnecting" }, Cmd.ofEffect (connectSub capability)
-            | _, Some _ -> { model with Status = "already connected" }, Cmd.none
-            | _ -> { model with Status = "reconnect unavailable" }, Cmd.none
+            | Some capability, None -> { model with Status = "reconnecting" }, Cmd.ofEffect (connectSub capability)
+            | _, Some _ ->
+                { model with
+                    Status = "already connected"
+                },
+                Cmd.none
+            | _ ->
+                { model with
+                    Status = "reconnect unavailable"
+                },
+                Cmd.none
 #if SVG_NETWORK_CANDIDATE
         | QualificationRaw json ->
             match connection with
             | Some conn ->
                 model,
                 Cmd.ofEffect (fun dispatch ->
-                    thenBoth (conn.invoke ("SendMessage", json)) ignore (fun error -> dispatch (ConnectionFailed(string error))))
-            | None -> { model with Status = "connection failed: no live transport" }, Cmd.none
+                    thenBoth (conn.invoke ("SendMessage", json)) ignore (fun error ->
+                        dispatch (ConnectionFailed(string error))))
+            | None ->
+                { model with
+                    Status = "connection failed: no live transport"
+                },
+                Cmd.none
 #endif
         | ReceivedRealtime message ->
             match message with
             | RealtimeV1.SnapshotMessage snapshot
             | RealtimeV1.ResyncSnapshotMessage snapshot ->
-                let players = snapshot.Players |> List.map (fun p -> p.PlayerId, ({ Col = p.Col; Row = p.Row }: Cell)) |> Map.ofList
+                let players =
+                    snapshot.Players
+                    |> List.map (fun p -> p.PlayerId, ({ Col = p.Col; Row = p.Row }: Cell))
+                    |> Map.ofList
+
                 if snapshot.Version <> 1 then
-                    { model with Status = $"unsupported realtime version {snapshot.Version}" }, Cmd.none
+                    { model with
+                        Status = $"unsupported realtime version {snapshot.Version}"
+                    },
+                    Cmd.none
                 elif snapshot.Tick < model.Tick then
                     // A delayed hub callback cannot rewind the view after a newer tick.
                     model, Cmd.none
                 else
-                    { model with Players = players; Tick = snapshot.Tick; PreviewPath = []; Status = "synchronized" }, Cmd.none
+                    { model with
+                        Players = players
+                        Tick = snapshot.Tick
+                        PreviewPath = []
+                        Status = "synchronized"
+                    },
+                    Cmd.none
             | RealtimeV1.PresenceMessage presence ->
                 let verb = if presence.Joined then "joined" else "left"
-                { model with Status = $"{presence.PlayerId} {verb}" }, Cmd.none
+
+                { model with
+                    Status = $"{presence.PlayerId} {verb}"
+                },
+                Cmd.none
             | RealtimeV1.InputMessage _
             | RealtimeV1.SessionHelloMessage _
             | RealtimeV1.ResyncRequestMessage _ ->
@@ -172,17 +249,31 @@ module App =
                         |> Seq.filter (fun (id, _) -> id <> playerId)
                         |> Seq.map snd
                         |> Set.ofSeq
+
                     let preview =
                         Movement.previewPath model.ArenaWidth model.ArenaHeight occupied selfCell target
                         |> Option.defaultValue []
+
                     match connection with
                     | Some conn ->
                         let json =
                             RealtimeV1.encodeMessage (
-                                RealtimeV1.InputMessage { Version = 1; Sequence = model.NextSequence; TargetCol = target.Col; TargetRow = target.Row }
+                                RealtimeV1.InputMessage
+                                    {
+                                        Version = 1
+                                        Sequence = model.NextSequence
+                                        TargetCol = target.Col
+                                        TargetRow = target.Row
+                                    }
                             )
+
                         thenBoth (conn.invoke ("SendMessage", json)) ignore ignore
-                        { model with PreviewPath = preview; NextSequence = model.NextSequence + 1 }, Cmd.none
+
+                        { model with
+                            PreviewPath = preview
+                            NextSequence = model.NextSequence + 1
+                        },
+                        Cmd.none
                     | None -> { model with PreviewPath = preview }, Cmd.none
 
     /// The grid's DOM nodes, built exactly once (the arena's dimensions never change
@@ -208,8 +299,14 @@ module App =
             next.tabIndex <- 0
             next.focus ()
 
-    let private handleCellKey (cell: Cell) (el: Browser.Types.HTMLElement) (dispatch: Msg -> unit) (event: Browser.Types.Event) : unit =
+    let private handleCellKey
+        (cell: Cell)
+        (el: Browser.Types.HTMLElement)
+        (dispatch: Msg -> unit)
+        (event: Browser.Types.Event)
+        : unit =
         let keyEvent: Browser.Types.KeyboardEvent = unbox event
+
         let target =
             match keyEvent.key with
             | "ArrowLeft" -> Some { cell with Col = cell.Col - 1 }
@@ -217,6 +314,7 @@ module App =
             | "ArrowUp" -> Some { cell with Row = cell.Row - 1 }
             | "ArrowDown" -> Some { cell with Row = cell.Row + 1 }
             | _ -> None
+
         match target with
         | Some next ->
             keyEvent.preventDefault ()
@@ -238,11 +336,13 @@ module App =
         grid.setAttribute ("aria-colcount", string model.ArenaWidth)
         grid.setAttribute ("style", "display:inline-flex;flex-direction:column")
         let mutable built = Map.empty
+
         for row in 0 .. model.ArenaHeight - 1 do
             let rowElement = Browser.Dom.document.createElement "div"
             rowElement.setAttribute ("role", "row")
             rowElement.setAttribute ("aria-rowindex", string (row + 1))
             rowElement.setAttribute ("style", "display:flex")
+
             for col in 0 .. model.ArenaWidth - 1 do
                 let cell: Cell = { Col = col; Row = row }
                 let el = Browser.Dom.document.createElement "div"
@@ -253,12 +353,19 @@ module App =
                 el.tabIndex <- if row = 0 && col = 0 then 0 else -1
                 el.addEventListener ("click", (fun _ -> dispatch (CellClicked cell)))
                 el.addEventListener ("keydown", handleCellKey cell el dispatch)
-                el.addEventListener ("focus", (fun _ ->
-                    for KeyValue(_, other) in cellElements do
-                        other.tabIndex <- if obj.ReferenceEquals(other, el) then 0 else -1))
+
+                el.addEventListener (
+                    "focus",
+                    (fun _ ->
+                        for KeyValue(_, other) in cellElements do
+                            other.tabIndex <- if obj.ReferenceEquals(other, el) then 0 else -1)
+                )
+
                 rowElement.appendChild el |> ignore
                 built <- built |> Map.add cell el
+
             grid.appendChild rowElement |> ignore
+
         container.appendChild grid |> ignore
         cellElements <- built
 
@@ -272,50 +379,98 @@ module App =
             button.setAttribute ("data-bound", "true")
             button.addEventListener ("click", fun _ -> dispatch DisconnectRequested)
         | _ -> ()
+
         match Browser.Dom.document.getElementById "reconnect" with
         | null -> ()
         | button when button.getAttribute "data-bound" <> "true" ->
             button.setAttribute ("data-bound", "true")
             button.addEventListener ("click", fun _ -> dispatch ReconnectRequested)
         | _ -> ()
+
         match Browser.Dom.document.getElementById "arena" with
         | null -> ()
         | container ->
             if model.ArenaWidth > 0 && model.ArenaHeight > 0 then
                 if Map.isEmpty cellElements then
                     buildGrid container model dispatch
+
                 container.setAttribute ("aria-busy", "false")
+
                 for KeyValue(cell, el) in cellElements do
-                    let occupant = model.Players |> Map.toSeq |> Seq.tryFind (fun (_, c) -> c = cell) |> Option.map fst
+                    let occupant =
+                        model.Players
+                        |> Map.toSeq
+                        |> Seq.tryFind (fun (_, c) -> c = cell)
+                        |> Option.map fst
+
                     let classes =
-                        [ "cell"
-                          if occupant = model.PlayerId && Option.isSome occupant then "self"
-                          elif Option.isSome occupant then "other"
-                          if List.contains cell model.PreviewPath then "preview" ]
+                        [
+                            "cell"
+                            if occupant = model.PlayerId && Option.isSome occupant then
+                                "self"
+                            elif Option.isSome occupant then
+                                "other"
+                            if List.contains cell model.PreviewPath then
+                                "preview"
+                        ]
+
                     el.className <- String.concat " " classes
+
                     match occupant with
                     | Some playerId ->
                         el.setAttribute ("data-occupant", playerId)
-                        let identity = if Some playerId = model.PlayerId then "you" else "another player"
-                        let selection = if List.contains cell model.PreviewPath then ", selected path" else ""
-                        el.setAttribute ("aria-label", $"Column {cell.Col + 1}, row {cell.Row + 1}: {identity}{selection}")
+
+                        let identity =
+                            if Some playerId = model.PlayerId then
+                                "you"
+                            else
+                                "another player"
+
+                        let selection =
+                            if List.contains cell model.PreviewPath then
+                                ", selected path"
+                            else
+                                ""
+
+                        el.setAttribute (
+                            "aria-label",
+                            $"Column {cell.Col + 1}, row {cell.Row + 1}: {identity}{selection}"
+                        )
                     | None ->
                         el.removeAttribute "data-occupant"
-                        let selection = if List.contains cell model.PreviewPath then ", selected path" else ""
+
+                        let selection =
+                            if List.contains cell model.PreviewPath then
+                                ", selected path"
+                            else
+                                ""
+
                         el.setAttribute ("aria-label", $"Column {cell.Col + 1}, row {cell.Row + 1}: empty{selection}")
-                    el.setAttribute ("aria-selected", (string (List.contains cell model.PreviewPath)).ToLowerInvariant())
-                    if occupant = model.PlayerId && Option.isSome occupant then el.setAttribute ("aria-current", "true")
-                    else el.removeAttribute "aria-current"
+
+                    el.setAttribute (
+                        "aria-selected",
+                        (string (List.contains cell model.PreviewPath)).ToLowerInvariant()
+                    )
+
+                    if occupant = model.PlayerId && Option.isSome occupant then
+                        el.setAttribute ("aria-current", "true")
+                    else
+                        el.removeAttribute "aria-current"
+
             match Browser.Dom.document.getElementById "status" with
             | null -> ()
             | status -> status.textContent <- $"room {model.RoomId} - {model.Status}"
+
             match Browser.Dom.document.getElementById "tick" with
             | null -> ()
             | tick -> tick.textContent <- $"Tick {model.Tick}"
+
             match Browser.Dom.document.getElementById "presence" with
             | null -> ()
             | presence ->
-                let others = max 0 (model.Players.Count - (if Option.isSome model.PlayerId then 1 else 0))
+                let others =
+                    max 0 (model.Players.Count - (if Option.isSome model.PlayerId then 1 else 0))
+
                 presence.textContent <- $"Players present: {model.Players.Count}. You plus {others} other player(s)."
             // A minimal, explicit test hook: the assigned player id, otherwise invisible
             // in the DOM. Browser.Tests reads this to know which rendered cell is "this"

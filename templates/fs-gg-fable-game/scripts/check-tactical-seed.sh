@@ -6,7 +6,7 @@ seed="$root/SvgFoundation/Examples/Tactical/scene.json"
 implementation="$root/SvgFoundation/TacticalExample.fs"
 if [[ -f "$seed" ]]; then
   digest="$(sha256sum "$seed" | cut -d ' ' -f 1)"
-  grep -F "let private seedSha256 = \"$digest\"" "$implementation" >/dev/null || {
+  grep -Pzo "let private seedSha256\\s*=\\s*\"$digest\"" "$implementation" >/dev/null || {
     echo "tactical seed refused: source SHA-256 does not match TacticalExample.fs" >&2
     exit 1
   }
@@ -32,7 +32,7 @@ arcade_seed="$root/SvgFoundation/Examples/Arcade/scene.json"
 arcade_implementation="$root/SvgFoundation/ArcadeExample.fs"
 if [[ -f "$arcade_seed" ]]; then
   arcade_digest="$(sha256sum "$arcade_seed" | cut -d ' ' -f 1)"
-  grep -F "let private seedSha256 = \"$arcade_digest\"" "$arcade_implementation" >/dev/null || {
+  grep -Pzo "let private seedSha256\\s*=\\s*\"$arcade_digest\"" "$arcade_implementation" >/dev/null || {
     echo "arcade seed refused: source SHA-256 does not match ArcadeExample.fs" >&2
     exit 1
   }

@@ -23,7 +23,10 @@ do
   [[ -f "$locked/packages.lock.json" ]] || missing+=("$locked/packages.lock.json")
 done
 if [[ -d SvgFoundation ]]; then
-  for locked in SvgFoundation SvgFoundation/Studio SvgFoundation/Examples/Tactical; do
+  # The current Player emission's root lock is asserted by the source and bundle
+  # qualifications. Retained preview adoption predates that lock, so only require
+  # locks for the optional subprojects that are present in every such payload.
+  for locked in SvgFoundation/Studio SvgFoundation/Examples/Tactical; do
     [[ -d "$locked" ]] || continue
     [[ -f "$locked/packages.lock.json" ]] || missing+=("$locked/packages.lock.json")
   done

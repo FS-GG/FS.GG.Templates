@@ -7,7 +7,9 @@ let run (file: string) (arguments: string) =
     startInfo.UseShellExecute <- false
     use child = Process.Start(startInfo)
     child.WaitForExit()
-    if child.ExitCode <> 0 then failwith $"{file} {arguments} exited {child.ExitCode}"
+
+    if child.ExitCode <> 0 then
+        failwith $"{file} {arguments} exited {child.ExitCode}"
 
 /// The lockfiles must have SHIPPED with this workspace (FS.GG.Templates#384).
 ///
@@ -26,8 +28,10 @@ let run (file: string) (arguments: string) =
 /// guarantee — not a restore that succeeds by inventing the thing it was meant to check.
 let requireLockFiles () =
     let expected =
-        [ Path.Combine("src", "ConsoleProduct", "packages.lock.json")
-          Path.Combine("tests", "ConsoleProduct.Tests", "packages.lock.json") ]
+        [
+            Path.Combine("src", "ConsoleProduct", "packages.lock.json")
+            Path.Combine("tests", "ConsoleProduct.Tests", "packages.lock.json")
+        ]
 
     let missing = expected |> List.filter (File.Exists >> not)
 

@@ -37,31 +37,41 @@ let private gltfLoader: obj = jsNative
 let private sceneLoader: obj = jsNative
 
 [<Emit("new $0()")>]
-let createNullEngine (constructor: obj): obj = jsNative
+let createNullEngine (constructor: obj) : obj = jsNative
 
 [<Emit("new $0($1)")>]
-let createScene (constructor: obj) (engine: obj): obj = jsNative
+let createScene (constructor: obj) (engine: obj) : obj = jsNative
 
 [<Emit("new $0($1, $2, $3)")>]
-let createVector3 (constructor: obj) (x: float) (y: float) (z: float): obj = jsNative
+let createVector3 (constructor: obj) (x: float) (y: float) (z: float) : obj = jsNative
 
 [<Emit("new $0($1, $2, $3)")>]
-let createFreeCamera (constructor: obj) (name: string) (position: obj) (scene: obj): obj = jsNative
+let createFreeCamera (constructor: obj) (name: string) (position: obj) (scene: obj) : obj = jsNative
 
 [<Emit("new $0($1, $2, $3)")>]
-let createHemisphericLight (constructor: obj) (name: string) (direction: obj) (scene: obj): obj = jsNative
+let createHemisphericLight (constructor: obj) (name: string) (direction: obj) (scene: obj) : obj = jsNative
 
 [<Emit("$0.CreateBox($1, {}, $2)")>]
-let createBox (meshBuilder: obj) (name: string) (scene: obj): obj = jsNative
+let createBox (meshBuilder: obj) (name: string) (scene: obj) : obj = jsNative
 
 [<Emit("$0.IsPluginForExtensionAvailable('.gltf')")>]
-let private isGltfRegistered (loader: obj): bool = jsNative
+let private isGltfRegistered (loader: obj) : bool = jsNative
 
-let nullEngine () = Engine (createNullEngine nullEngineConstructor)
-let scene (Engine engine) = Scene (createScene sceneConstructor engine)
-let vector3 x y z = Vector3 (createVector3 vector3Constructor x y z)
-let freeCamera name (Vector3 position) (Scene scene) = Camera (createFreeCamera freeCameraConstructor name position scene)
-let hemisphericLight name (Vector3 direction) (Scene scene) = Light (createHemisphericLight hemisphericLightConstructor name direction scene)
-let box name (Scene scene) = Box (createBox meshBuilder name scene)
+let nullEngine () =
+    Engine(createNullEngine nullEngineConstructor)
+
+let scene (Engine engine) =
+    Scene(createScene sceneConstructor engine)
+
+let vector3 x y z =
+    Vector3(createVector3 vector3Constructor x y z)
+
+let freeCamera name (Vector3 position) (Scene scene) =
+    Camera(createFreeCamera freeCameraConstructor name position scene)
+
+let hemisphericLight name (Vector3 direction) (Scene scene) =
+    Light(createHemisphericLight hemisphericLightConstructor name direction scene)
+
+let box name (Scene scene) = Box(createBox meshBuilder name scene)
 let initialiseLoader () = gltfLoader |> ignore
 let loaderRegistered () = isGltfRegistered sceneLoader

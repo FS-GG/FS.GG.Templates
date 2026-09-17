@@ -186,12 +186,20 @@ import sys
 path = Path(sys.argv[1])
 text = path.read_text()
 old = '''    elif not status.Collected && overlaps player collectible then
-        { status with Collected = true; Score = status.Score + 100 }
-    elif status.Collected && overlaps player content.Goal then { status with Outcome = "won" }
+        { status with
+            Collected = true
+            Score = status.Score + 100
+        }
+    elif status.Collected && overlaps player content.Goal then
+        { status with Outcome = "won" }
 '''
-new = '''    elif overlaps player content.Goal then { status with Outcome = "won" }
+new = '''    elif overlaps player content.Goal then
+        { status with Outcome = "won" }
     elif not status.Collected && overlaps player collectible then
-        { status with Collected = true; Score = status.Score + 100 }
+        { status with
+            Collected = true
+            Score = status.Score + 100
+        }
 '''
 if text.count(old) != 1:
     raise SystemExit("wrong-precedence mutation target not found exactly once")
@@ -203,8 +211,21 @@ PY
       grep -F 'let entered = contacts' "$MUTATED_ROOT/Domain/ArenaRules.fs" >/dev/null
       ;;
     stale-state-acceptance)
-      sed -i 's/elif saved\.Value\.Definition\.SchemaVersion <> expectedDefinition\.SchemaVersion || saved\.Value\.Definition\.ContentId <> expectedDefinition\.ContentId then/elif false then/' "$MUTATED_ROOT/Domain/ArenaRules.fs"
-      grep -F 'elif false then Error { Code = "arena.snapshot.content"' "$MUTATED_ROOT/Domain/ArenaRules.fs" >/dev/null
+      python3 - "$MUTATED_ROOT/Domain/ArenaRules.fs" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+old = '''                elif
+                    saved.Value.Definition.SchemaVersion <> expectedDefinition.SchemaVersion
+                    || saved.Value.Definition.ContentId <> expectedDefinition.ContentId
+                then
+'''
+if text.count(old) != 1:
+    raise SystemExit("stale-state-acceptance mutation target not found exactly once")
+path.write_text(text.replace(old, "                elif false then\n"))
+PY
+      grep -F 'elif false then' "$MUTATED_ROOT/Domain/ArenaRules.fs" >/dev/null
       ;;
   esac
   dotnet build "$MUTATED_ROOT/Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj" \

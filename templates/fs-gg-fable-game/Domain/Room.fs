@@ -17,10 +17,12 @@ module Room =
     type PlayerState = { PlayerId: string; Cell: Cell }
 
     type State =
-        { Tick: int
-          Width: int
-          Height: int
-          Players: Map<string, PlayerState> }
+        {
+            Tick: int
+            Width: int
+            Height: int
+            Players: Map<string, PlayerState>
+        }
 
     /// The authoritative walkability predicate: everything inside the arena bounds and
     /// not currently occupied by another player. Deterministic given `state.Players`,
@@ -38,19 +40,31 @@ module Room =
             |> Seq.filter (fun (id, _) -> id <> excludePlayerId)
             |> Seq.map (fun (_, p) -> p.Cell)
             |> Set.ofSeq
+
         fun cell ->
-            cell.Col >= 0 && cell.Col < state.Width
-            && cell.Row >= 0 && cell.Row < state.Height
+            cell.Col >= 0
+            && cell.Col < state.Width
+            && cell.Row >= 0
+            && cell.Row < state.Height
             && not (occupied.Contains cell)
 
     let create (width: int) (height: int) : State =
-        { Tick = 0; Width = width; Height = height; Players = Map.empty }
+        {
+            Tick = 0
+            Width = width
+            Height = height
+            Players = Map.empty
+        }
 
     let join (playerId: string) (spawn: Cell) (state: State) : State =
-        { state with Players = state.Players |> Map.add playerId { PlayerId = playerId; Cell = spawn } }
+        { state with
+            Players = state.Players |> Map.add playerId { PlayerId = playerId; Cell = spawn }
+        }
 
     let leave (playerId: string) (state: State) : State =
-        { state with Players = state.Players |> Map.remove playerId }
+        { state with
+            Players = state.Players |> Map.remove playerId
+        }
 
     /// Authoritative move planning: an A* path from the player's current cell to
     /// `target` over the current occupancy. `None` means "no player" or "no route" --
@@ -65,7 +79,8 @@ module Room =
     let planMove (playerId: string) (target: Cell) (state: State) : Cell list option =
         state.Players
         |> Map.tryFind playerId
-        |> Option.bind (fun player -> Pathfinding.astar Neighbourhood.FourWay maxVisited (walkable playerId state) player.Cell target)
+        |> Option.bind (fun player ->
+            Pathfinding.astar Neighbourhood.FourWay maxVisited (walkable playerId state) player.Cell target)
 
     /// Commits one authoritative step of movement for `playerId`, ignoring unknown
     /// players and steps landing on an already-occupied or out-of-bounds cell (the
@@ -73,10 +88,15 @@ module Room =
     /// the same cell earlier in the same tick).
     let applyStep (playerId: string) (next: Cell) (state: State) : State =
         match state.Players |> Map.tryFind playerId with
-        | Some player when (walkable playerId state) next -> { state with Players = state.Players |> Map.add playerId { player with Cell = next } }
+        | Some player when (walkable playerId state) next ->
+            { state with
+                Players = state.Players |> Map.add playerId { player with Cell = next }
+            }
         | _ -> state
 
     let advanceTick (state: State) : State = { state with Tick = state.Tick + 1 }
 
     let toSnapshotPairs (state: State) : (string * int * int) list =
-        state.Players |> Map.toList |> List.map (fun (id, p) -> id, p.Cell.Col, p.Cell.Row)
+        state.Players
+        |> Map.toList
+        |> List.map (fun (id, p) -> id, p.Cell.Col, p.Cell.Row)

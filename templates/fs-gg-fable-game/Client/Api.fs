@@ -19,11 +19,15 @@ module Api =
         async {
             let options =
                 createObj
-                    [ "method" ==> "POST"
-                      "headers" ==> createObj [ "Content-Type" ==> "application/json" ]
-                      "body" ==> BootstrapV1.encodeRequest request ]
+                    [
+                        "method" ==> "POST"
+                        "headers" ==> createObj [ "Content-Type" ==> "application/json" ]
+                        "body" ==> BootstrapV1.encodeRequest request
+                    ]
+
             let! response = fetch ("/api/bootstrap", options) |> Async.AwaitPromise
             let! text = response?text () |> Async.AwaitPromise
+
             match BootstrapV1.responseFromJson (text: string) with
             | Ok parsed -> return parsed
             | Error message -> return failwith $"bootstrap response did not decode: {message}"

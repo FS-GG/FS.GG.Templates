@@ -18,6 +18,10 @@ module Movement =
 
     let previewPath (width: int) (height: int) (occupied: Set<Cell>) (start: Cell) (target: Cell) : Cell list option =
         let walkable (cell: Cell) =
-            cell.Col >= 0 && cell.Col < width && cell.Row >= 0 && cell.Row < height
+            cell.Col >= 0
+            && cell.Col < width
+            && cell.Row >= 0
+            && cell.Row < height
             && (cell = start || not (occupied.Contains cell))
+
         Pathfinding.astar Neighbourhood.FourWay maxVisited walkable start target

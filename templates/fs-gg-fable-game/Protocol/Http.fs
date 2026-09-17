@@ -27,47 +27,59 @@ module BootstrapV1 =
     /// template generations fail an explicit version check instead of silently
     /// misinterpreting fields a persisted session or reconnecting tab might still send.
     type Response =
-        { Version: int
-          PlayerId: string
-          SessionCapability: string
-          RoomId: string
-          SpawnCol: int
-          SpawnRow: int
-          ArenaWidth: int
-          ArenaHeight: int }
+        {
+            Version: int
+            PlayerId: string
+            SessionCapability: string
+            RoomId: string
+            SpawnCol: int
+            SpawnRow: int
+            ArenaWidth: int
+            ArenaHeight: int
+        }
 
     let encodeRequest (value: Request) : string =
-        Encode.object [ "version", Encode.int value.Version; "playerName", Encode.string value.PlayerName ]
+        Encode.object
+            [
+                "version", Encode.int value.Version
+                "playerName", Encode.string value.PlayerName
+            ]
         |> Encode.toString 0
 
     let decodeRequest: Decoder<Request> =
         Decode.object (fun get ->
-            { Version = get.Required.Field "version" Decode.int
-              PlayerName = get.Required.Field "playerName" Decode.string })
+            {
+                Version = get.Required.Field "version" Decode.int
+                PlayerName = get.Required.Field "playerName" Decode.string
+            })
 
     let requestFromJson (json: string) : Result<Request, string> = Decode.fromString decodeRequest json
 
     let encodeResponse (value: Response) : string =
         Encode.object
-            [ "version", Encode.int value.Version
-              "playerId", Encode.string value.PlayerId
-              "sessionCapability", Encode.string value.SessionCapability
-              "roomId", Encode.string value.RoomId
-              "spawnCol", Encode.int value.SpawnCol
-              "spawnRow", Encode.int value.SpawnRow
-              "arenaWidth", Encode.int value.ArenaWidth
-              "arenaHeight", Encode.int value.ArenaHeight ]
+            [
+                "version", Encode.int value.Version
+                "playerId", Encode.string value.PlayerId
+                "sessionCapability", Encode.string value.SessionCapability
+                "roomId", Encode.string value.RoomId
+                "spawnCol", Encode.int value.SpawnCol
+                "spawnRow", Encode.int value.SpawnRow
+                "arenaWidth", Encode.int value.ArenaWidth
+                "arenaHeight", Encode.int value.ArenaHeight
+            ]
         |> Encode.toString 0
 
     let decodeResponse: Decoder<Response> =
         Decode.object (fun get ->
-            { Version = get.Required.Field "version" Decode.int
-              PlayerId = get.Required.Field "playerId" Decode.string
-              SessionCapability = get.Required.Field "sessionCapability" Decode.string
-              RoomId = get.Required.Field "roomId" Decode.string
-              SpawnCol = get.Required.Field "spawnCol" Decode.int
-              SpawnRow = get.Required.Field "spawnRow" Decode.int
-              ArenaWidth = get.Required.Field "arenaWidth" Decode.int
-              ArenaHeight = get.Required.Field "arenaHeight" Decode.int })
+            {
+                Version = get.Required.Field "version" Decode.int
+                PlayerId = get.Required.Field "playerId" Decode.string
+                SessionCapability = get.Required.Field "sessionCapability" Decode.string
+                RoomId = get.Required.Field "roomId" Decode.string
+                SpawnCol = get.Required.Field "spawnCol" Decode.int
+                SpawnRow = get.Required.Field "spawnRow" Decode.int
+                ArenaWidth = get.Required.Field "arenaWidth" Decode.int
+                ArenaHeight = get.Required.Field "arenaHeight" Decode.int
+            })
 
     let responseFromJson (json: string) : Result<Response, string> = Decode.fromString decodeResponse json

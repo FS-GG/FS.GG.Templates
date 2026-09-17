@@ -60,10 +60,18 @@ open System.Text.Json
 
 let root =
     let rec find (dir: string) =
-        if File.Exists(Path.Combine(dir, "FS.GG.Templates.csproj")) then dir
-        else match Directory.GetParent dir |> Option.ofObj with Some p -> find p.FullName | None -> failwith "FS.GG.Templates root not found"
+        if File.Exists(Path.Combine(dir, "FS.GG.Templates.csproj")) then
+            dir
+        else
+            match Directory.GetParent dir |> Option.ofObj with
+            | Some p -> find p.FullName
+            | None -> failwith "FS.GG.Templates root not found"
+
     find __SOURCE_DIRECTORY__
-let path (rel: string) = Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar))
+
+let path (rel: string) =
+    Path.Combine(root, rel.Replace('/', Path.DirectorySeparatorChar))
+
 let manifestRel = "template/skill-manifest/skill-manifest.json"
 let csprojRel = "FS.GG.Templates.csproj"
 // The producer skill root inside a generated product. The `.claude` twin is materialized downstream
@@ -73,26 +81,46 @@ let skillRoot = ".agents/skills"
 
 let argv = Environment.GetCommandLineArgs()
 let hasFlag f = argv |> Array.contains f
+
 let flagValue f =
     match argv |> Array.tryFindIndex ((=) f) with
     | Some i when i + 1 < argv.Length -> Some argv.[i + 1]
     | _ -> None
 
-if hasFlag "--list" then printfn "skill-manifest\t%s\t" manifestRel; exit 0
+if hasFlag "--list" then
+    printfn "skill-manifest\t%s\t" manifestRel
+    exit 0
 
 /// id, owner source (the ONE authored file), and the templateIds whose packed payload receives it.
 let catalog =
-    [ "fable-project",  "template/product-skills/fable-project/SKILL.md",  [ "fs-gg-fable-game"; "fs-gg-fable-bindings" ]
-      "fable-interop",  "template/product-skills/fable-interop/SKILL.md",  [ "fs-gg-fable-game"; "fs-gg-fable-bindings" ]
-      "fable-http-codecs", "template/product-skills/fable-http-codecs/SKILL.md", [ "fs-gg-fable-game" ]
-      "fable-signalr",  "template/product-skills/fable-signalr/SKILL.md",  [ "fs-gg-fable-game" ]
-      "fable-testing",  "template/product-skills/fable-testing/SKILL.md",  [ "fs-gg-fable-game"; "fs-gg-fable-bindings" ]
-      "fable-bindings", "template/product-skills/fable-bindings/SKILL.md", [ "fs-gg-fable-bindings" ] ]
+    [
+        "fable-project",
+        "template/product-skills/fable-project/SKILL.md",
+        [ "fs-gg-fable-game"; "fs-gg-fable-bindings" ]
+        "fable-interop",
+        "template/product-skills/fable-interop/SKILL.md",
+        [ "fs-gg-fable-game"; "fs-gg-fable-bindings" ]
+        "fable-http-codecs", "template/product-skills/fable-http-codecs/SKILL.md", [ "fs-gg-fable-game" ]
+        "fable-signalr", "template/product-skills/fable-signalr/SKILL.md", [ "fs-gg-fable-game" ]
+        "fable-testing",
+        "template/product-skills/fable-testing/SKILL.md",
+        [ "fs-gg-fable-game"; "fs-gg-fable-bindings" ]
+        "fable-bindings", "template/product-skills/fable-bindings/SKILL.md", [ "fs-gg-fable-bindings" ]
+    ]
 
-let templateIds = catalog |> List.collect (fun (_, _, t) -> t) |> List.distinct |> List.sort
+let templateIds =
+    catalog |> List.collect (fun (_, _, t) -> t) |> List.distinct |> List.sort
+
 let shortName (templateId: string) = templateId.Substring "fs-gg-".Length
-let digest (text: string) = Encoding.UTF8.GetBytes text |> SHA256.HashData |> Array.map (fun b -> b.ToString "x2") |> String.concat ""
-let esc (s: string) = s.Replace("\\", "\\\\").Replace("\"", "\\\"")
+
+let digest (text: string) =
+    Encoding.UTF8.GetBytes text
+    |> SHA256.HashData
+    |> Array.map (fun b -> b.ToString "x2")
+    |> String.concat ""
+
+let esc (s: string) =
+    s.Replace("\\", "\\\\").Replace("\"", "\\\"")
 
 let failures = ResizeArray<string>()
 let bad fmt = Printf.kprintf failures.Add fmt
@@ -102,16 +130,29 @@ let bad fmt = Printf.kprintf failures.Add fmt
 // under exactly these semantics, so a product shipping some other version is refused rather than
 // parsed hopefully (see assertProduct).
 let schemaVersion = 1
+
 let manifestOf (rows: string list) =
     sprintf "{\n  \"schemaVersion\": %d,\n  \"skills\": [\n%s\n  ]\n}\n" schemaVersion (String.concat ",\n" rows)
 
 /// The rows THIS producer supplies, rendered individually so the divergence check and the
 /// self-demonstration can both address them without re-parsing the whole document.
 let renderedRows =
-    catalog |> List.sortBy (fun (id, _, _) -> id) |> List.map (fun (id, source, templates) ->
-        let when_ = sprintf "template in [%s]" (templates |> List.map shortName |> String.concat ", ")
+    catalog
+    |> List.sortBy (fun (id, _, _) -> id)
+    |> List.map (fun (id, source, templates) ->
+        let when_ =
+            sprintf "template in [%s]" (templates |> List.map shortName |> String.concat ", ")
+
         let suppliedBy = source.Substring(0, source.LastIndexOf('/') + 1)
-        sprintf "    {\n      \"id\": \"%s\",\n      \"scope\": \"product\",\n      \"sha256\": \"%s\",\n      \"resolvablePath\": \"%s/%s/SKILL.md\",\n      \"materializes-when\": \"%s\",\n      \"supplied-by\": \"%s\"\n    }" id (digest (File.ReadAllText(path source))) skillRoot id (esc when_) (esc suppliedBy))
+
+        sprintf
+            "    {\n      \"id\": \"%s\",\n      \"scope\": \"product\",\n      \"sha256\": \"%s\",\n      \"resolvablePath\": \"%s/%s/SKILL.md\",\n      \"materializes-when\": \"%s\",\n      \"supplied-by\": \"%s\"\n    }"
+            id
+            (digest (File.ReadAllText(path source)))
+            skillRoot
+            id
+            (esc when_)
+            (esc suppliedBy))
 
 let rendered = manifestOf renderedRows
 
@@ -119,20 +160,34 @@ let rendered = manifestOf renderedRows
 /// fields; a non-string scalar is compared by its raw text so no field is silently ignored.
 let parseRows (text: string) =
     use doc = JsonDocument.Parse text
-    [ for s in doc.RootElement.GetProperty("skills").EnumerateArray() ->
-        let fields =
-            [ for p in s.EnumerateObject() ->
-                p.Name, (if p.Value.ValueKind = JsonValueKind.String then p.Value.GetString() else p.Value.GetRawText()) ]
-            |> Map.ofList
-        (fields.TryFind "id" |> Option.defaultValue "<a row with no id>"), fields ]
+
+    [
+        for s in doc.RootElement.GetProperty("skills").EnumerateArray() ->
+            let fields =
+                [
+                    for p in s.EnumerateObject() ->
+                        p.Name,
+                        (if p.Value.ValueKind = JsonValueKind.String then
+                             p.Value.GetString()
+                         else
+                             p.Value.GetRawText())
+                ]
+                |> Map.ofList
+
+            (fields.TryFind "id" |> Option.defaultValue "<a row with no id>"), fields
+    ]
 
 let schemaVersionOf (text: string) =
     use doc = JsonDocument.Parse text
+
     match doc.RootElement.TryGetProperty "schemaVersion" with
     | true, v -> v.GetRawText()
     | _ -> "<absent>"
 
-type SupplierOwnership = TemplatesOwned | Foreign | Invalid
+type SupplierOwnership =
+    | TemplatesOwned
+    | Foreign
+    | Invalid
 
 let templatesSupplierRoot = "template/product-skills"
 
@@ -140,33 +195,51 @@ let templatesSupplierRoot = "template/product-skills"
 /// an unknown row at or under this producer's `template/product-skills` namespace remains this producer's
 /// claim and must red; only a valid path outside that namespace establishes foreign ownership.
 let classifySupplier (supplier: string) =
-    if String.IsNullOrWhiteSpace supplier
-       || supplier <> supplier.Trim()
-       || supplier.Contains '\\'
-       || supplier.Contains ':'
-       || supplier.Contains "//"
-       || Path.IsPathRooted supplier then Invalid
+    if
+        String.IsNullOrWhiteSpace supplier
+        || supplier <> supplier.Trim()
+        || supplier.Contains '\\'
+        || supplier.Contains ':'
+        || supplier.Contains "//"
+        || Path.IsPathRooted supplier
+    then
+        Invalid
     else
         let normalized = supplier.TrimEnd '/'
         let segments = normalized.Split('/', StringSplitOptions.None)
-        if segments |> Array.exists (fun segment -> String.IsNullOrWhiteSpace segment || segment <> segment.Trim() || segment = "." || segment = "..") then Invalid
-        elif supplier = templatesSupplierRoot
-             || supplier.StartsWith(templatesSupplierRoot + "/", StringComparison.Ordinal) then TemplatesOwned
-        else Foreign
+
+        if
+            segments
+            |> Array.exists (fun segment ->
+                String.IsNullOrWhiteSpace segment
+                || segment <> segment.Trim()
+                || segment = "."
+                || segment = "..")
+        then
+            Invalid
+        elif
+            supplier = templatesSupplierRoot
+            || supplier.StartsWith(templatesSupplierRoot + "/", StringComparison.Ordinal)
+        then
+            TemplatesOwned
+        else
+            Foreign
 
 /// Keep this read separate from `parseRows`: that comparison intentionally preserves raw scalar
 /// text, while ownership must not mistake JSON null/number/bool for supplier attribution.
 let supplierOwnershipById (text: string) =
     use doc = JsonDocument.Parse text
-    [ for row in doc.RootElement.GetProperty("skills").EnumerateArray() do
-        match row.TryGetProperty "id", row.TryGetProperty "supplied-by" with
-        | (true, id), (true, supplier)
-            when id.ValueKind = JsonValueKind.String
-                 && supplier.ValueKind = JsonValueKind.String ->
-            yield id.GetString(), classifySupplier (supplier.GetString())
-        | (true, id), _ when id.ValueKind = JsonValueKind.String ->
-            yield id.GetString(), Invalid
-        | _ -> () ]
+
+    [
+        for row in doc.RootElement.GetProperty("skills").EnumerateArray() do
+            match row.TryGetProperty "id", row.TryGetProperty "supplied-by" with
+            | (true, id), (true, supplier) when
+                id.ValueKind = JsonValueKind.String && supplier.ValueKind = JsonValueKind.String
+                ->
+                yield id.GetString(), classifySupplier (supplier.GetString())
+            | (true, id), _ when id.ValueKind = JsonValueKind.String -> yield id.GetString(), Invalid
+            | _ -> ()
+    ]
     |> Map.ofList
 
 let target = path manifestRel
@@ -186,18 +259,35 @@ let target = path manifestRel
 // expected is a fact about the LANE (which scaffolder ran), not about this catalog.
 let globMatches (pattern: string) (name: string) =
     let rx =
-        "^" + (pattern.Split '*' |> Array.map System.Text.RegularExpressions.Regex.Escape |> String.concat ".*") + "$"
+        "^"
+        + (pattern.Split '*'
+           |> Array.map System.Text.RegularExpressions.Regex.Escape
+           |> String.concat ".*")
+        + "$"
+
     System.Text.RegularExpressions.Regex.IsMatch(name, rx)
 
 let assertProduct (productDir: string) (templateId: string) (coTenants: string list) =
     if not (templateIds |> List.contains templateId) then
-        bad "--template '%s' is not a template this catalog supplies (expected one of: %s)" templateId (String.concat ", " templateIds)
-    let skillsDir = Path.Combine(productDir, skillRoot.Replace('/', Path.DirectorySeparatorChar))
+        bad
+            "--template '%s' is not a template this catalog supplies (expected one of: %s)"
+            templateId
+            (String.concat ", " templateIds)
+
+    let skillsDir =
+        Path.Combine(productDir, skillRoot.Replace('/', Path.DirectorySeparatorChar))
+
     let productManifest = Path.Combine(skillsDir, "skill-manifest.json")
+
     if not (Directory.Exists skillsDir) then
-        bad "the generated product has no %s/ at all (looked in %s) — not one declared product skill reached it" skillRoot skillsDir
+        bad
+            "the generated product has no %s/ at all (looked in %s) — not one declared product skill reached it"
+            skillRoot
+            skillsDir
     elif not (File.Exists productManifest) then
-        bad "the generated product ships no %s/skill-manifest.json — the producer manifest is absent from the packed payload, so whatever skills it does carry are undeclared" skillRoot
+        bad
+            "the generated product ships no %s/skill-manifest.json — the producer manifest is absent from the packed payload, so whatever skills it does carry are undeclared"
+            skillRoot
     else
         let productText = File.ReadAllText productManifest
         // ── DIVERGENCE: THIS CATALOG'S ROWS, NOT THIS CATALOG'S FILE (FS.GG.Templates#385) ───────
@@ -216,25 +306,50 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
         // still graded for DELIVERY below like any other declared row, and they are not required to
         // match anything here.
         if schemaVersionOf productText <> string schemaVersion then
-            bad "the product's %s/skill-manifest.json declares schemaVersion %s, but this assertion reads a manifest under schemaVersion %d semantics — it reds rather than grading a document whose format it may be misreading" skillRoot (schemaVersionOf productText) schemaVersion
+            bad
+                "the product's %s/skill-manifest.json declares schemaVersion %s, but this assertion reads a manifest under schemaVersion %d semantics — it reds rather than grading a document whose format it may be misreading"
+                skillRoot
+                (schemaVersionOf productText)
+                schemaVersion
+
         let canonicalById = parseRows rendered |> Map.ofList
         let productRows = parseRows productText
         let productById = productRows |> Map.ofList
         let supplierOwnership = supplierOwnershipById productText
+
         for (id, n) in productRows |> List.countBy fst |> List.filter (fun (_, n) -> n > 1) do
-            bad "the product's %s/skill-manifest.json declares '%s' %d times — a duplicated id makes every verdict below depend on row order, so this reds rather than grading one of them arbitrarily" skillRoot id n
-        for KeyValue (id, canonFields) in canonicalById do
+            bad
+                "the product's %s/skill-manifest.json declares '%s' %d times — a duplicated id makes every verdict below depend on row order, so this reds rather than grading one of them arbitrarily"
+                skillRoot
+                id
+                n
+
+        for KeyValue(id, canonFields) in canonicalById do
             match productById.TryFind id with
             | None ->
-                bad "the product's %s/skill-manifest.json does not declare '%s', which %s does — the packed manifest and the owner catalog have diverged, so this product's skills are graded against some other catalog" skillRoot id manifestRel
+                bad
+                    "the product's %s/skill-manifest.json does not declare '%s', which %s does — the packed manifest and the owner catalog have diverged, so this product's skills are graded against some other catalog"
+                    skillRoot
+                    id
+                    manifestRel
             | Some prodFields ->
-                for KeyValue (field, canonValue) in canonFields do
+                for KeyValue(field, canonValue) in canonFields do
                     match prodFields.TryFind field with
                     | Some v when v = canonValue -> ()
                     | Some v ->
-                        bad "the product's manifest row for '%s' carries %s '%s' where %s declares '%s' — the packed manifest and the owner catalog have diverged" id field v manifestRel canonValue
+                        bad
+                            "the product's manifest row for '%s' carries %s '%s' where %s declares '%s' — the packed manifest and the owner catalog have diverged"
+                            id
+                            field
+                            v
+                            manifestRel
+                            canonValue
                     | None ->
-                        bad "the product's manifest row for '%s' is missing the field '%s' that %s declares — the packed manifest and the owner catalog have diverged" id field manifestRel
+                        bad
+                            "the product's manifest row for '%s' is missing the field '%s' that %s declares — the packed manifest and the owner catalog have diverged"
+                            id
+                            field
+                            manifestRel
                 // FIELD FOR FIELD MEANS EXACTLY THESE FIELDS, IN BOTH DIRECTIONS. Iterating only the
                 // canonical fields would make the rule "AT LEAST these", which is not what this file's
                 // header and the README claim, and not what byte-equality guaranteed. A field this
@@ -242,19 +357,33 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
                 // `"disabled": true` or an override key would sail through a subset check while the
                 // digests still matched. That is the same shape this whole repair exists to remove:
                 // a form the predicate cannot read, graded as though it were fine.
-                for KeyValue (field, prodValue) in prodFields do
+                for KeyValue(field, prodValue) in prodFields do
                     if not (canonFields.ContainsKey field) then
-                        bad "the product's manifest row for '%s' carries an extra field '%s' ('%s') that %s does not declare — this catalog's own rows are graded field for field, and a field this assertion cannot read could change what the row means" id field prodValue manifestRel
+                        bad
+                            "the product's manifest row for '%s' carries an extra field '%s' ('%s') that %s does not declare — this catalog's own rows are graded field for field, and a field this assertion cannot read could change what the row means"
+                            id
+                            field
+                            prodValue
+                            manifestRel
+
         for (id, fields) in productRows do
-            if fields.TryFind "scope" = Some "product"
-               && not (canonicalById.ContainsKey id) then
+            if fields.TryFind "scope" = Some "product" && not (canonicalById.ContainsKey id) then
                 match supplierOwnership.TryFind id with
                 | Some Foreign -> ()
                 | Some TemplatesOwned ->
-                    bad "the product's %s/skill-manifest.json declares product-scoped skill '%s', but %s declares no such skill and its 'supplied-by' claims this producer's '%s' namespace — an unknown row in this producer's namespace is refused, not laundered as foreign" skillRoot id manifestRel templatesSupplierRoot
+                    bad
+                        "the product's %s/skill-manifest.json declares product-scoped skill '%s', but %s declares no such skill and its 'supplied-by' claims this producer's '%s' namespace — an unknown row in this producer's namespace is refused, not laundered as foreign"
+                        skillRoot
+                        id
+                        manifestRel
+                        templatesSupplierRoot
                 | Some Invalid
                 | None ->
-                    bad "the product's %s/skill-manifest.json declares product-scoped skill '%s', but %s declares no such skill and the row carries no valid foreign 'supplied-by' path — an unattributed or malformed product row cannot be classified as another producer's output" skillRoot id manifestRel
+                    bad
+                        "the product's %s/skill-manifest.json declares product-scoped skill '%s', but %s declares no such skill and the row carries no valid foreign 'supplied-by' path — an unattributed or malformed product row cannot be classified as another producer's output"
+                        skillRoot
+                        id
+                        manifestRel
         // Grade against the manifest the PRODUCT carries, not this repository's copy. A row missing
         // a field this grading needs is refused outright: skipping it would let an unreadable row
         // pass as a delivered one.
@@ -267,13 +396,24 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
         // An explicit NON-product scope is a different thing entirely and stays legitimate: that is
         // ADR-0014 F3's "manifest-declared OR co-tenant" rule working as intended, not a hole.
         let declared =
-            productRows |> List.choose (fun (id, fields) ->
-                let missing = [ "scope"; "sha256"; "materializes-when" ] |> List.filter (fields.ContainsKey >> not)
+            productRows
+            |> List.choose (fun (id, fields) ->
+                let missing =
+                    [ "scope"; "sha256"; "materializes-when" ]
+                    |> List.filter (fields.ContainsKey >> not)
+
                 if not (List.isEmpty missing) then
-                    bad "the product's manifest row for '%s' is missing %s, so this assertion cannot grade it — 'scope' decides whose row it is, 'sha256' whether the shipped bytes are the declared ones, and 'materializes-when' whether it belongs in this template. An absent field is REFUSED, never read as a confident negative" id (String.concat " and " missing)
+                    bad
+                        "the product's manifest row for '%s' is missing %s, so this assertion cannot grade it — 'scope' decides whose row it is, 'sha256' whether the shipped bytes are the declared ones, and 'materializes-when' whether it belongs in this template. An absent field is REFUSED, never read as a confident negative"
+                        id
+                        (String.concat " and " missing)
+
                     None
-                else Some(id, fields.["sha256"], fields.["materializes-when"]))
-        if List.isEmpty declared then bad "the product's shipped manifest declares no skills at all"
+                else
+                    Some(id, fields.["sha256"], fields.["materializes-when"]))
+
+        if List.isEmpty declared then
+            bad "the product's shipped manifest declares no skills at all"
         // ── `materializes-when` IS A GRAMMAR, AND AN UNREADABLE FORM MUST RED ────────────────────
         // Two forms are legitimate in a product's shared manifest:
         //   "always"                                   — its supplier materializes it in every product
@@ -286,59 +426,109 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
         // form now reds on its own; it is never silently graded as "not selected".
         let selects (materializesWhen: string) =
             let w = materializesWhen.Trim()
-            if w = "always" then Ok true
+
+            if w = "always" then
+                Ok true
             else
                 let i = w.IndexOf '['
+
                 if i >= 0 && w.EndsWith "]" then
                     w.Substring(i + 1, w.Length - i - 2).Split ','
                     |> Array.map (fun s -> s.Trim())
                     |> Array.filter (fun s -> s <> "")
                     |> Array.contains (shortName templateId)
                     |> Ok
-                else Error w
+                else
+                    Error w
+
         let mutable present = 0
         let mutable coTenantRows = 0
+
         for (id, sha, when_) in declared do
             let file = Path.Combine(skillsDir, id, "SKILL.md")
             let ownedHere = canonicalById.ContainsKey id
+
             match selects when_ with
             | Error w ->
-                bad "UNREADABLE: '%s' declares materializes-when '%s', which is neither 'always' nor 'template in [...]' — this assertion cannot decide whether it belongs in %s, so it reds rather than grading the row as 'not selected'" id w (shortName templateId)
+                bad
+                    "UNREADABLE: '%s' declares materializes-when '%s', which is neither 'always' nor 'template in [...]' — this assertion cannot decide whether it belongs in %s, so it reds rather than grading the row as 'not selected'"
+                    id
+                    w
+                    (shortName templateId)
             | Ok sel ->
-                if not ownedHere then coTenantRows <- coTenantRows + 1
+                if not ownedHere then
+                    coTenantRows <- coTenantRows + 1
+
                 match sel, File.Exists file with
                 | true, false ->
-                    bad "ABSENT: '%s' is declared to materialize here (%s) but %s/%s/SKILL.md is not in the generated product" id when_ skillRoot id
+                    bad
+                        "ABSENT: '%s' is declared to materialize here (%s) but %s/%s/SKILL.md is not in the generated product"
+                        id
+                        when_
+                        skillRoot
+                        id
                 | false, true ->
-                    bad "UNEXPECTED: '%s' materialized in %s, but its declaration (%s) does not select this template" id (shortName templateId) when_
+                    bad
+                        "UNEXPECTED: '%s' materialized in %s, but its declaration (%s) does not select this template"
+                        id
+                        (shortName templateId)
+                        when_
                 | false, false -> ()
                 | true, true ->
-                    if ownedHere then present <- present + 1
+                    if ownedHere then
+                        present <- present + 1
+
                     let actual = digest (File.ReadAllText file)
+
                     if actual <> sha then
-                        bad "DRIFTED: '%s' materialized with sha256 %s, but its manifest row declares %s — the shipped bytes are not the bytes the producer digested" id actual sha
+                        bad
+                            "DRIFTED: '%s' materialized with sha256 %s, but its manifest row declares %s — the shipped bytes are not the bytes the producer digested"
+                            id
+                            actual
+                            sha
         // Anything in the product's skill root that no manifest row declares and no declared
         // co-tenant glob claims reached a product with no owner, no digest, and no rule.
         let declaredIds = declared |> List.map (fun (id, _, _) -> id) |> Set.ofList
         let mutable coTenantCount = 0
+
         for dir in Directory.GetDirectories skillsDir do
             let name = Path.GetFileName dir
+
             if not (declaredIds.Contains name) then
-                if coTenants |> List.exists (fun g -> globMatches g name) then coTenantCount <- coTenantCount + 1
+                if coTenants |> List.exists (fun g -> globMatches g name) then
+                    coTenantCount <- coTenantCount + 1
                 else
-                    bad "DANGLING: %s/%s/ is materialized in the generated product, but no manifest row declares it and no declared co-tenant (%s) claims it"
-                        skillRoot name (if List.isEmpty coTenants then "none passed" else String.concat " " coTenants)
+                    bad
+                        "DANGLING: %s/%s/ is materialized in the generated product, but no manifest row declares it and no declared co-tenant (%s) claims it"
+                        skillRoot
+                        name
+                        (if List.isEmpty coTenants then
+                             "none passed"
+                         else
+                             String.concat " " coTenants)
+
         if failures.Count = 0 then
             // The denominator is THIS producer's row count, not the shared manifest's total: a count
             // taken over a population it was not about is the shape .github#1506 retired.
             let coTenantNote =
-                if List.isEmpty coTenants then ""
-                else sprintf ", %d co-tenant directory(ies) accepted as '%s'" coTenantCount (String.concat " " coTenants)
+                if List.isEmpty coTenants then
+                    ""
+                else
+                    sprintf ", %d co-tenant directory(ies) accepted as '%s'" coTenantCount (String.concat " " coTenants)
+
             let coTenantRowNote =
-                if coTenantRows = 0 then ""
-                else sprintf ", %d co-tenant manifest row(s) from another producer graded and delivered" coTenantRows
-            printfn "skill-manifest: %s product OK — %d of %d producer-declared skills materialized, every digest matches the shipped manifest, none dangling%s%s"
-                (shortName templateId) present canonicalById.Count coTenantRowNote coTenantNote
+                if coTenantRows = 0 then
+                    ""
+                else
+                    sprintf ", %d co-tenant manifest row(s) from another producer graded and delivered" coTenantRows
+
+            printfn
+                "skill-manifest: %s product OK — %d of %d producer-declared skills materialized, every digest matches the shipped manifest, none dangling%s%s"
+                (shortName templateId)
+                present
+                canonicalById.Count
+                coTenantRowNote
+                coTenantNote
 
 // ── THE ASSERTION'S OWN DEMONSTRATION THAT IT CAN STILL RED (FS.GG.Templates#385) ───────────────
 // #385 RELAXED a check — byte-equality became subset-and-ownership — and a relaxed check is exactly
@@ -354,15 +544,36 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
 // it can neither flake nor cost the job's timeout budget.
 let demonstrateAssertion () =
     let demoTemplate = "fs-gg-fable-game"
-    let sandbox = Path.Combine(Path.GetTempPath(), "fs-gg-skill-manifest-demo-" + Guid.NewGuid().ToString "n")
-    let bodies = catalog |> List.map (fun (id, source, _) -> id, File.ReadAllText(path source)) |> Map.ofList
-    let selected = catalog |> List.filter (fun (_, _, t) -> List.contains demoTemplate t) |> List.map (fun (id, _, _) -> id)
+
+    let sandbox =
+        Path.Combine(Path.GetTempPath(), "fs-gg-skill-manifest-demo-" + Guid.NewGuid().ToString "n")
+
+    let bodies =
+        catalog
+        |> List.map (fun (id, source, _) -> id, File.ReadAllText(path source))
+        |> Map.ofList
+
+    let selected =
+        catalog
+        |> List.filter (fun (_, _, t) -> List.contains demoTemplate t)
+        |> List.map (fun (id, _, _) -> id)
+
     let materialized = selected |> List.map (fun id -> id, bodies.[id])
     let notSelected = catalog |> List.map (fun (id, _, _) -> id) |> List.except selected
-    let driverBody (id: string) = sprintf "# %s\n\nSeeded into the shared skill root by another producer.\n" id
+
+    let driverBody (id: string) =
+        sprintf "# %s\n\nSeeded into the shared skill root by another producer.\n" id
+
     let foreignRow (scope: string) (id: string) (when_: string) =
-        sprintf "    {\n      \"id\": \"%s\",\n      \"scope\": \"%s\",\n      \"sha256\": \"%s\",\n      \"resolvablePath\": \"%s/%s/SKILL.md\",\n      \"materializes-when\": \"%s\"\n    }"
-            id scope (digest (driverBody id)) skillRoot id when_
+        sprintf
+            "    {\n      \"id\": \"%s\",\n      \"scope\": \"%s\",\n      \"sha256\": \"%s\",\n      \"resolvablePath\": \"%s/%s/SKILL.md\",\n      \"materializes-when\": \"%s\"\n    }"
+            id
+            scope
+            (digest (driverBody id))
+            skillRoot
+            id
+            when_
+
     let suppliedForeignRow (scope: string) (id: string) (when_: string) (supplier: string) =
         foreignRow scope id when_
         |> fun row -> row.Replace("\n    }", sprintf ",\n      \"supplied-by\": \"%s\"\n    }" (esc supplier))
@@ -375,112 +586,264 @@ let demonstrateAssertion () =
         let out = Console.Out
         use sink = new StringWriter()
         Console.SetOut sink
-        try assertProduct dir demoTemplate tenants
-        finally Console.SetOut out
+
+        try
+            assertProduct dir demoTemplate tenants
+        finally
+            Console.SetOut out
+
         let got = failures |> Seq.toList
         failures.Clear()
         failures.AddRange saved
         got
+
     let mutable cases = 0
     // expect = None means the case must PASS; Some marker means it must RED with that marker.
-    let case (name: string) (expect: string option) (manifestText: string option) (skills: (string * string) list) (tenants: string list) =
+    let case
+        (name: string)
+        (expect: string option)
+        (manifestText: string option)
+        (skills: (string * string) list)
+        (tenants: string list)
+        =
         cases <- cases + 1
         let dir = Path.Combine(sandbox, sprintf "case-%02d" cases)
-        let skillsDir = Path.Combine(dir, skillRoot.Replace('/', Path.DirectorySeparatorChar))
+
+        let skillsDir =
+            Path.Combine(dir, skillRoot.Replace('/', Path.DirectorySeparatorChar))
+
         Directory.CreateDirectory skillsDir |> ignore
-        manifestText |> Option.iter (fun t -> File.WriteAllText(Path.Combine(skillsDir, "skill-manifest.json"), t))
+
+        manifestText
+        |> Option.iter (fun t -> File.WriteAllText(Path.Combine(skillsDir, "skill-manifest.json"), t))
+
         for (id, body) in skills do
             Directory.CreateDirectory(Path.Combine(skillsDir, id)) |> ignore
             File.WriteAllText(Path.Combine(skillsDir, id, "SKILL.md"), body)
+
         let got = capture dir tenants
-        let reported = if List.isEmpty got then "NOTHING AT ALL — this lane can no longer fire" else String.concat " | " got
+
+        let reported =
+            if List.isEmpty got then
+                "NOTHING AT ALL — this lane can no longer fire"
+            else
+                String.concat " | " got
+
         match expect with
         | None ->
             if not (List.isEmpty got) then
-                bad "the product-skill assertion's self-demonstration BROKE: the '%s' case must PASS, but the assertion red with: %s" name reported
+                bad
+                    "the product-skill assertion's self-demonstration BROKE: the '%s' case must PASS, but the assertion red with: %s"
+                    name
+                    reported
         | Some marker ->
             if not (got |> List.exists (fun f -> f.Contains marker)) then
-                bad "the product-skill assertion's self-demonstration BROKE: the '%s' case must RED with '%s', but the assertion reported: %s. Do NOT delete this demonstration — a negative lane that stopped firing is the defect it exists to catch (FS.GG.Templates#385)" name marker reported
+                bad
+                    "the product-skill assertion's self-demonstration BROKE: the '%s' case must RED with '%s', but the assertion reported: %s. Do NOT delete this demonstration — a negative lane that stopped firing is the defect it exists to catch (FS.GG.Templates#385)"
+                    name
+                    marker
+                    reported
+
     let sddCoTenants = [ "fs-gg-sdd-*"; "padd-item"; "work-board" ]
-    let driverRows = [ foreignRow "driver" "padd-item" "always"; foreignRow "driver" "work-board" "always" ]
-    let driverSkills = [ "padd-item", driverBody "padd-item"; "work-board", driverBody "work-board" ]
-    let renderingRow = suppliedForeignRow "product" "fs-gg-feedback-report" "always" "template/feedback-report/skill/"
+
+    let driverRows =
+        [
+            foreignRow "driver" "padd-item" "always"
+            foreignRow "driver" "work-board" "always"
+        ]
+
+    let driverSkills =
+        [ "padd-item", driverBody "padd-item"; "work-board", driverBody "work-board" ]
+
+    let renderingRow =
+        suppliedForeignRow "product" "fs-gg-feedback-report" "always" "template/feedback-report/skill/"
+
     let renderingSkill = "fs-gg-feedback-report", driverBody "fs-gg-feedback-report"
+
     try
         // ── the two lanes that must PASS ────────────────────────────────────────────────────────
         // (1) the direct `dotnet new` route: the product's manifest IS this catalog's, untouched.
-        case "direct route — the product ships this catalog's manifest verbatim"
-            None (Some rendered) materialized []
+        case "direct route — the product ships this catalog's manifest verbatim" None (Some rendered) materialized []
         // (2) the public SDD 1.2.4 provider route, which is #385 itself: `fsgg-sdd scaffold` has
         //     appended its `always` driver rows and a supplier-attributed Rendering product row to
         //     the product's copy, then seeded those plus its undeclared process skills into the root.
-        case "provider route — shared manifest carrying driver rows and an attributed foreign product row"
-            None (Some(manifestOf (renderedRows @ driverRows @ [ renderingRow ])))
-            (materialized @ driverSkills @ [ renderingSkill; ("fs-gg-sdd-plan", "# fs-gg-sdd-plan\n") ]) sddCoTenants
+        case
+            "provider route — shared manifest carrying driver rows and an attributed foreign product row"
+            None
+            (Some(manifestOf (renderedRows @ driverRows @ [ renderingRow ])))
+            (materialized
+             @ driverSkills
+             @ [ renderingSkill; ("fs-gg-sdd-plan", "# fs-gg-sdd-plan\n") ])
+            sddCoTenants
         // ── every lane this assertion was built to catch, still firing ──────────────────────────
-        case "a selected skill did not materialize"
-            (Some "ABSENT:") (Some rendered) (materialized |> List.filter (fun (id, _) -> id <> List.head selected)) []
-        case "a materialized skill's bytes drifted from its declared digest"
-            (Some "DRIFTED:") (Some rendered)
-            (materialized |> List.map (fun (id, b) -> id, (if id = List.head selected then b + "\ndrifted\n" else b))) []
-        case "a skill directory nobody declares and no co-tenant claims"
-            (Some "DANGLING:") (Some rendered) (materialized @ [ ("nobodys-skill", "# nobodys-skill\n") ]) []
-        case "a skill declared only for another template materialized here"
-            (Some "UNEXPECTED:") (Some rendered)
-            (materialized @ (notSelected |> List.map (fun id -> id, bodies.[id]))) []
+        case
+            "a selected skill did not materialize"
+            (Some "ABSENT:")
+            (Some rendered)
+            (materialized |> List.filter (fun (id, _) -> id <> List.head selected))
+            []
+
+        case
+            "a materialized skill's bytes drifted from its declared digest"
+            (Some "DRIFTED:")
+            (Some rendered)
+            (materialized
+             |> List.map (fun (id, b) -> id, (if id = List.head selected then b + "\ndrifted\n" else b)))
+            []
+
+        case
+            "a skill directory nobody declares and no co-tenant claims"
+            (Some "DANGLING:")
+            (Some rendered)
+            (materialized @ [ ("nobodys-skill", "# nobodys-skill\n") ])
+            []
+
+        case
+            "a skill declared only for another template materialized here"
+            (Some "UNEXPECTED:")
+            (Some rendered)
+            (materialized @ (notSelected |> List.map (fun id -> id, bodies.[id])))
+            []
         // ── the byte-equality replacement: both halves of what it protected ─────────────────────
-        case "a producer row whose digest is not this catalog's"
-            (Some "diverged") (Some(manifestOf (renderedRows |> List.map (fun r -> r.Replace(digest bodies.[List.head selected], String.replicate 64 "a")))))
-            materialized []
-        case "a producer row this catalog renders is missing from the product's manifest"
-            (Some "diverged") (Some(manifestOf (renderedRows |> List.skip 1))) materialized []
-        case "an unattributed product-scoped row this catalog does not own"
-            (Some "carries no valid foreign 'supplied-by' path") (Some(manifestOf (renderedRows @ [ foreignRow "product" "forged-skill" "always" ])))
-            (materialized @ [ ("forged-skill", driverBody "forged-skill") ]) []
-        case "an unknown product row claiming this producer's supplier namespace"
+        case
+            "a producer row whose digest is not this catalog's"
+            (Some "diverged")
+            (Some(
+                manifestOf (
+                    renderedRows
+                    |> List.map (fun r -> r.Replace(digest bodies.[List.head selected], String.replicate 64 "a"))
+                )
+            ))
+            materialized
+            []
+
+        case
+            "a producer row this catalog renders is missing from the product's manifest"
+            (Some "diverged")
+            (Some(manifestOf (renderedRows |> List.skip 1)))
+            materialized
+            []
+
+        case
+            "an unattributed product-scoped row this catalog does not own"
+            (Some "carries no valid foreign 'supplied-by' path")
+            (Some(manifestOf (renderedRows @ [ foreignRow "product" "forged-skill" "always" ])))
+            (materialized @ [ ("forged-skill", driverBody "forged-skill") ])
+            []
+
+        case
+            "an unknown product row claiming this producer's supplier namespace"
             (Some "claims this producer's 'template/product-skills' namespace")
-            (Some(manifestOf (renderedRows @ [ suppliedForeignRow "product" "forged-skill" "always" "template/product-skills/forged-skill/" ])))
-            (materialized @ [ ("forged-skill", driverBody "forged-skill") ]) []
-        case "an unknown product row claiming this producer's exact supplier root"
+            (Some(
+                manifestOf (
+                    renderedRows
+                    @ [
+                        suppliedForeignRow "product" "forged-skill" "always" "template/product-skills/forged-skill/"
+                    ]
+                )
+            ))
+            (materialized @ [ ("forged-skill", driverBody "forged-skill") ])
+            []
+
+        case
+            "an unknown product row claiming this producer's exact supplier root"
             (Some "claims this producer's 'template/product-skills' namespace")
-            (Some(manifestOf (renderedRows @ [ suppliedForeignRow "product" "forged-root-skill" "always" "template/product-skills" ])))
-            (materialized @ [ ("forged-root-skill", driverBody "forged-root-skill") ]) []
+            (Some(
+                manifestOf (
+                    renderedRows
+                    @ [
+                        suppliedForeignRow "product" "forged-root-skill" "always" "template/product-skills"
+                    ]
+                )
+            ))
+            (materialized @ [ ("forged-root-skill", driverBody "forged-root-skill") ])
+            []
         // A row that omits `scope` ALTOGETHER. `scope` is the field the ownership half is decided on,
         // so an absent one used to fall through to "somebody else's row" and pass — the same
         // unreadable-form-graded-as-a-negative shape as the `always` defect, one field over (repair 1).
-        case "a row that declares no scope at all"
+        case
+            "a row that declares no scope at all"
             (Some "is missing scope")
-            (Some(manifestOf (renderedRows @ [ sprintf "    {\n      \"id\": \"scopeless\",\n      \"sha256\": \"%s\",\n      \"resolvablePath\": \"%s/scopeless/SKILL.md\",\n      \"materializes-when\": \"always\"\n    }" (digest (driverBody "scopeless")) skillRoot ])))
-            (materialized @ [ ("scopeless", driverBody "scopeless") ]) []
+            (Some(
+                manifestOf (
+                    renderedRows
+                    @ [
+                        sprintf
+                            "    {\n      \"id\": \"scopeless\",\n      \"sha256\": \"%s\",\n      \"resolvablePath\": \"%s/scopeless/SKILL.md\",\n      \"materializes-when\": \"always\"\n    }"
+                            (digest (driverBody "scopeless"))
+                            skillRoot
+                    ]
+                )
+            ))
+            (materialized @ [ ("scopeless", driverBody "scopeless") ])
+            []
         // An EXTRA field on a row this catalog owns. "Field for field" has to mean both directions,
         // or the documented claim and the executed check disagree (repair 1).
-        case "an extra field on a row this catalog owns"
+        case
+            "an extra field on a row this catalog owns"
             (Some "extra field")
-            (Some(manifestOf (renderedRows |> List.mapi (fun i r ->
-                if i = 0 then r.Replace("\n      \"scope\": \"product\",", "\n      \"scope\": \"product\",\n      \"disabled\": true,") else r))))
-            materialized []
+            (Some(
+                manifestOf (
+                    renderedRows
+                    |> List.mapi (fun i r ->
+                        if i = 0 then
+                            r.Replace(
+                                "\n      \"scope\": \"product\",",
+                                "\n      \"scope\": \"product\",\n      \"disabled\": true,"
+                            )
+                        else
+                            r)
+                )
+            ))
+            materialized
+            []
         // ── AND THE BOUNDARY THE TIGHTENING MUST NOT CROSS ──────────────────────────────────────
         // An explicitly non-product row with NO co-tenant glob is LEGITIMATE — ADR-0014 F3's
         // "manifest-declared OR co-tenant" rule. This case exists to red if a future tightening of
         // the ownership half turns that into a failure.
-        case "an explicitly foreign-scoped row with no co-tenant glob passed"
-            None (Some(manifestOf (renderedRows @ [ foreignRow "driver" "padd-item" "always" ])))
-            (materialized @ [ ("padd-item", driverBody "padd-item") ]) []
+        case
+            "an explicitly foreign-scoped row with no co-tenant glob passed"
+            None
+            (Some(manifestOf (renderedRows @ [ foreignRow "driver" "padd-item" "always" ])))
+            (materialized @ [ ("padd-item", driverBody "padd-item") ])
+            []
         // ── the fail-closed arms ────────────────────────────────────────────────────────────────
-        case "a materializes-when form this predicate cannot read"
-            (Some "UNREADABLE:") (Some(manifestOf (renderedRows @ [ foreignRow "driver" "mystery-skill" "sometimes" ])))
-            (materialized @ [ ("mystery-skill", driverBody "mystery-skill") ]) []
-        case "a row missing a field the grading needs"
+        case
+            "a materializes-when form this predicate cannot read"
+            (Some "UNREADABLE:")
+            (Some(manifestOf (renderedRows @ [ foreignRow "driver" "mystery-skill" "sometimes" ])))
+            (materialized @ [ ("mystery-skill", driverBody "mystery-skill") ])
+            []
+
+        case
+            "a row missing a field the grading needs"
             (Some "is missing sha256")
-            (Some(manifestOf (renderedRows @ [ sprintf "    {\n      \"id\": \"halfrow\",\n      \"scope\": \"driver\",\n      \"materializes-when\": \"always\"\n    }" ])))
-            materialized []
-        case "a manifest at a schemaVersion these semantics were not written for"
-            (Some "schemaVersion") (Some(rendered.Replace("\"schemaVersion\": 1", "\"schemaVersion\": 2"))) materialized []
-        case "the product ships no producer manifest at all"
-            (Some "ships no") None materialized []
+            (Some(
+                manifestOf (
+                    renderedRows
+                    @ [
+                        sprintf
+                            "    {\n      \"id\": \"halfrow\",\n      \"scope\": \"driver\",\n      \"materializes-when\": \"always\"\n    }"
+                    ]
+                )
+            ))
+            materialized
+            []
+
+        case
+            "a manifest at a schemaVersion these semantics were not written for"
+            (Some "schemaVersion")
+            (Some(rendered.Replace("\"schemaVersion\": 1", "\"schemaVersion\": 2")))
+            materialized
+            []
+
+        case "the product ships no producer manifest at all" (Some "ships no") None materialized []
         cases
     finally
-        try Directory.Delete(sandbox, true) with _ -> ()
+        try
+            Directory.Delete(sandbox, true)
+        with _ ->
+            ()
 
 // ── csproj coherence ────────────────────────────────────────────────────────────────────────────
 // The catalog reaches a product ONLY because FS.GG.Templates.csproj projects it into each template's
@@ -488,47 +851,82 @@ let demonstrateAssertion () =
 // unreachable-catalog defect #347 repairs, so this reads the csproj rather than trusting it.
 let checkCsproj () =
     let text = File.ReadAllText(path csprojRel)
+
     for (id, source, templates) in catalog do
         if not (text.Contains source) then
-            bad "FS.GG.Templates.csproj declares no package item for '%s' (%s) — it is authored but packed into nothing, so no generated product can receive it" id source
+            bad
+                "FS.GG.Templates.csproj declares no package item for '%s' (%s) — it is authored but packed into nothing, so no generated product can receive it"
+                id
+                source
+
         for templateId in templateIds do
             let entry = sprintf "content/templates/%s/%s/%s/" templateId skillRoot id
+
             match templates |> List.contains templateId, text.Contains entry with
             | true, false ->
-                bad "FS.GG.Templates.csproj does not pack '%s' into %s (expected the PackagePath entry '%s'), but the catalog says it materializes there" id templateId entry
+                bad
+                    "FS.GG.Templates.csproj does not pack '%s' into %s (expected the PackagePath entry '%s'), but the catalog says it materializes there"
+                    id
+                    templateId
+                    entry
             | false, true ->
-                bad "FS.GG.Templates.csproj packs '%s' into %s, but the catalog does not select that template — the product would carry an undeclared skill" id templateId
+                bad
+                    "FS.GG.Templates.csproj packs '%s' into %s, but the catalog does not select that template — the product would carry an undeclared skill"
+                    id
+                    templateId
             | _ -> ()
+
     if not (text.Contains manifestRel) then
-        bad "FS.GG.Templates.csproj declares no package item for %s — products would ship skills with no producer manifest to grade them against" manifestRel
+        bad
+            "FS.GG.Templates.csproj declares no package item for %s — products would ship skills with no producer manifest to grade them against"
+            manifestRel
+
     for templateId in templateIds do
         let entry = sprintf "content/templates/%s/%s/" templateId skillRoot
+
         if not (text.Contains entry) then
-            bad "FS.GG.Templates.csproj does not pack %s into %s's %s/ — that product would ship skills with no producer manifest" manifestRel templateId skillRoot
+            bad
+                "FS.GG.Templates.csproj does not pack %s into %s's %s/ — that product would ship skills with no producer manifest"
+                manifestRel
+                templateId
+                skillRoot
 
 // ── entry points ────────────────────────────────────────────────────────────────────────────────
 match flagValue "--assert-product" with
 | Some productDir ->
     let coTenants =
         flagValue "--co-tenants"
-        |> Option.map (fun v -> v.Split([| ' '; '\t'; ',' |], StringSplitOptions.RemoveEmptyEntries) |> List.ofArray)
+        |> Option.map (fun v ->
+            v.Split([| ' '; '\t'; ',' |], StringSplitOptions.RemoveEmptyEntries)
+            |> List.ofArray)
         |> Option.defaultValue []
+
     match flagValue "--template" with
     | Some templateId -> assertProduct productDir templateId coTenants
-    | None -> eprintfn "skill-manifest: --assert-product requires --template <templateId>"; exit 2
+    | None ->
+        eprintfn "skill-manifest: --assert-product requires --template <templateId>"
+        exit 2
 | None ->
     if hasFlag "--check" then
         if not (File.Exists target) then
             bad "%s does not exist — run `dotnet fsi scripts/generate-skill-manifest.fsx`" manifestRel
         elif File.ReadAllText target <> rendered then
             bad "%s is STALE against the catalog — run `dotnet fsi scripts/generate-skill-manifest.fsx`" manifestRel
+
         checkCsproj ()
         let demoCases = demonstrateAssertion ()
+
         if failures.Count = 0 then
             // This line stays FIRST on stdout: tests/composition/run.sh reads `sed -n '1p'` of this
             // log into the lane's own ok message.
-            printfn "skill-manifest: up to date (%d skills, packed into %s)" (List.length catalog) (String.concat " + " templateIds)
-            printfn "skill-manifest: the product-side assertion can FIRE — %d cases driven offline, including both delivery routes passing, a legitimate foreign-scoped row still passing, and every red lane (absent, drifted, dangling, wrong-template, catalog divergence, forged ownership, absent scope, extra field, unreadable declaration, schemaVersion) reproducing" demoCases
+            printfn
+                "skill-manifest: up to date (%d skills, packed into %s)"
+                (List.length catalog)
+                (String.concat " + " templateIds)
+
+            printfn
+                "skill-manifest: the product-side assertion can FIRE — %d cases driven offline, including both delivery routes passing, a legitimate foreign-scoped row still passing, and every red lane (absent, drifted, dangling, wrong-template, catalog divergence, forged ownership, absent scope, extra field, unreadable declaration, schemaVersion) reproducing"
+                demoCases
     else
         Directory.CreateDirectory(Path.GetDirectoryName target) |> ignore
         File.WriteAllText(target, rendered)
@@ -536,5 +934,8 @@ match flagValue "--assert-product" with
 
 if failures.Count > 0 then
     eprintfn "skill-manifest: FAILED"
-    for f in failures do eprintfn "  - %s" f
+
+    for f in failures do
+        eprintfn "  - %s" f
+
     exit 1

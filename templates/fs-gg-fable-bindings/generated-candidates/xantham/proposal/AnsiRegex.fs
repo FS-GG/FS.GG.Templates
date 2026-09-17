@@ -16,8 +16,9 @@ type Options =
     /// </summary>
     /// <remarks>@default false</remarks>
     abstract onlyFirst: bool
+
     [<ParamObject; Emit("$0")>]
-    static member Create (onlyFirst: bool) : Options = jsNative
+    static member Create(onlyFirst: bool) : Options = jsNative
 
 /// <summary>The package's value exports, each bound to its import.</summary>
 [<Erase>]
@@ -47,4 +48,4 @@ type Exports =
     /// </code>
     /// </remarks>
     [<Import("default", "ansi-regex")>]
-    static member ansiRegex (?options: Options) : System.Text.RegularExpressions.Regex = jsNative
+    static member ansiRegex(?options: Options) : System.Text.RegularExpressions.Regex = jsNative
