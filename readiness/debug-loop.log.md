@@ -75,3 +75,19 @@
 
 **Narrow re-run result:** pass — exact SDK 10.0.400 reproduction applies the public 0.11.0 Preview-A payload to a wizard 0.11.1 workspace; the root build passes the prior failure point, all .NET and cross-runtime tests pass, the client bundles, and server publication begins without invoking a missing SVG script
 **Full verify result:** deferred
+
+## Iteration 6 — 2026-09-17T16:10:07Z
+
+**Verify command:** `GitHub required checks for FS-GG/FS.GG.Templates#495`
+**Exit code:** 1
+
+**Primary failure:** test-failure
+- Signal: `verify-svg-typed-receivers.sh: wizard browser entry ran current-player assertions against the public Preview-A payload`
+- Hypothesis: The bounded adopter copied Preview-A into a newer wizard workspace but omitted the repository's packaged `LegacyPreview.props` compatibility marker, so the newer browser harness misclassified the retained preview as a current networked player.
+
+**Fix applied:**
+- `scripts/apply-svg-foundation-preview.sh` — source the owned legacy marker from the packaged legacy payload when the adopted source predates `PlayerInput.fs`; preserve source-owned markers when present and leave newer player generations unmarked.
+- `scripts/apply-svg-foundation-preview.sh` — treat an empty residual SVG directory as an absent product by selecting the atomic root migration from the project marker rather than the directory alone.
+
+**Narrow re-run result:** pass — exact SDK 10.0.400 reproduction applies the public 0.11.0 Preview-A bytes, installs the explicit legacy marker, patches the newer wizard root atomically, and passes build, unit, cross-runtime, client bundle, and server publish stages; the browser harness now derives `isLegacySvgPreview=true` and skips only its explicitly legacy-inapplicable current-player cases
+**Full verify result:** deferred

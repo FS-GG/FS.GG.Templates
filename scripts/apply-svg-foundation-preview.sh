@@ -59,6 +59,9 @@ source_for() {
     printf '%s\n' "$workspace/build.sh"
   elif [[ -f "$source_payload/$path" ]]; then
     printf '%s\n' "$source_payload/$path"
+  elif [[ "$path" == SvgFoundation/LegacyPreview.props \
+          && ! -e "$source_payload/SvgFoundation/PlayerInput.fs" ]]; then
+    printf '%s\n' "$script_dir/../pack/fs-gg-fable-game-legacy/SvgFoundation/LegacyPreview.props"
   elif [[ "$path" == SvgFoundation/TacticalCompatibility.Tests.fs || "$path" == SvgFoundation/TacticalCompatibility.Tests.fsproj ]] \
        && [[ -f "$source_payload/SvgFoundation/Examples/Tactical/${path##*/}" ]]; then
     printf '%s\n' "$source_payload/SvgFoundation/Examples/Tactical/${path##*/}"
@@ -130,7 +133,7 @@ esac
 # a workspace that did not have it before, carry the root entry point through
 # this same atomic transaction and teach its presence check about the Preview-A
 # generation boundary. Existing SVG workspaces retain their root entry point.
-if [[ ! -e "$workspace/SvgFoundation" \
+if [[ ! -e "$workspace/SvgFoundation/SvgFoundation.fsproj" \
       && ! -e "$source_payload/SvgFoundation/packages.lock.json" ]] \
    && grep -Fq 'for locked in SvgFoundation SvgFoundation/Studio SvgFoundation/Examples/Tactical; do' "$workspace/build.sh"; then
   [[ -f "$workspace/build.sh" ]] || fail "legacy preview adopter has no root build.sh"
@@ -157,7 +160,8 @@ if [[ ! -e "$source_payload/SvgFoundation/PlayerInput.fs" ]]; then
   done
   files=("${without_player_runtime[@]}")
 fi
-if [[ ! -e "$source_payload/SvgFoundation/LegacyPreview.props" ]]; then
+if [[ ! -e "$source_payload/SvgFoundation/LegacyPreview.props" \
+      && -e "$source_payload/SvgFoundation/PlayerInput.fs" ]]; then
   without_legacy_property=()
   for path in "${files[@]}"; do
     [[ "$path" == SvgFoundation/LegacyPreview.props ]] || without_legacy_property+=("$path")
