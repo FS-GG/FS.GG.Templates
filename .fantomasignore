@@ -1,0 +1,3 @@
+# Immutable projection from the pinned Governance package. Its byte identity is
+# enforced by composition; formatting belongs in the upstream authority release.
+templates/fs-gg-governance/.fsgg/controlled-imports.fsx

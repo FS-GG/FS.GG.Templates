@@ -9,23 +9,19 @@ type ImportKind =
     | DirectoryTree
 
 type ControlledImport =
-    {
-        Kind: ImportKind
-        DestinationPath: string
-        UpstreamRepository: string
-        UpstreamRevision: string
-        UpstreamPath: string
-        License: string
-        ImportMethod: string
-        Sha256: string
-    }
+    { Kind: ImportKind
+      DestinationPath: string
+      UpstreamRepository: string
+      UpstreamRevision: string
+      UpstreamPath: string
+      License: string
+      ImportMethod: string
+      Sha256: string }
 
 type Finding =
-    {
-        Rule: string
-        Path: string
-        Message: string
-    }
+    { Rule: string
+      Path: string
+      Message: string }
 
 let args = fsi.CommandLineArgs |> Array.skip 1 |> Array.toList
 
@@ -43,11 +39,7 @@ let private root =
 let private manifestPath =
     optionValue "--manifest" args
     |> Option.defaultValue ".fsgg/controlled-imports.json"
-    |> fun path ->
-        if Path.IsPathRooted path then
-            path
-        else
-            Path.Combine(root, path)
+    |> fun path -> if Path.IsPathRooted path then path else Path.Combine(root, path)
     |> Path.GetFullPath
 
 let private exemptionProbe = optionValue "--check-exemption" args
@@ -55,26 +47,24 @@ let private findings = ResizeArray<Finding>()
 let private verified = ResizeArray<ControlledImport * string>()
 
 let private displayPath (path: string) =
-    try
-        Path.GetRelativePath(root, path).Replace('\\', '/')
-    with _ ->
-        path
+    try Path.GetRelativePath(root, path).Replace('\\', '/')
+    with _ -> path
 
 let private add (rule: string) (path: string) (message: string) =
     findings.Add
-        {
-            Rule = rule
-            Path = displayPath path
-            Message = message
-        }
+        { Rule = rule
+          Path = displayPath path
+          Message = message }
 
 let private isLowerSha256 (value: string) =
     value.Length = 64
-    && value |> Seq.forall (fun c -> (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))
+    && value
+       |> Seq.forall (fun c -> (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))
 
 let private isPinnedRevision (value: string) =
     (value.Length = 40 || value.Length = 64)
-    && value |> Seq.forall (fun c -> (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))
+    && value
+       |> Seq.forall (fun c -> (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))
 
 let private pathComparison =
     if OperatingSystem.IsWindows() then
@@ -93,10 +83,7 @@ let private tryRepoPath (relativePath: string) =
             Error "must not contain '.' or '..' path segments"
         else
             let full = Path.GetFullPath(Path.Combine(root, relativePath))
-
-            let prefix =
-                root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                + string Path.DirectorySeparatorChar
+            let prefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + string Path.DirectorySeparatorChar
 
             if not (full.StartsWith(prefix, pathComparison)) then
                 Error "resolves outside the repository root"
@@ -124,23 +111,14 @@ let private rejectReparsePoint (path: string) =
 
 let private rejectReparsePath (fullPath: string) =
     let relative = Path.GetRelativePath(root, fullPath)
-
-    let segments =
-        relative.Split(
-            [| Path.DirectorySeparatorChar; Path.AltDirectorySeparatorChar |],
-            StringSplitOptions.RemoveEmptyEntries
-        )
-
+    let segments = relative.Split([| Path.DirectorySeparatorChar; Path.AltDirectorySeparatorChar |], StringSplitOptions.RemoveEmptyEntries)
     let mutable current = root
     let mutable valid = true
 
     for segment in segments do
         current <- Path.Combine(current, segment)
 
-        if
-            (File.Exists current || Directory.Exists current)
-            && not (rejectReparsePoint current)
-        then
+        if (File.Exists current || Directory.Exists current) && not (rejectReparsePoint current) then
             valid <- false
 
     valid
@@ -219,11 +197,9 @@ let private tryTreeDigest (directory: string) =
 let private requiredString (entry: JsonElement) (destinationPath: string) (name: string) =
     let mutable value = Unchecked.defaultof<JsonElement>
 
-    if
-        entry.TryGetProperty(name, &value)
-        && value.ValueKind = JsonValueKind.String
-        && not (String.IsNullOrWhiteSpace(value.GetString()))
-    then
+    if entry.TryGetProperty(name, &value)
+       && value.ValueKind = JsonValueKind.String
+       && not (String.IsNullOrWhiteSpace(value.GetString())) then
         Some(value.GetString())
     else
         add "GOV-IMPORT-MANIFEST" destinationPath $"controlled import requires non-empty '{name}'"
@@ -233,30 +209,22 @@ let private parseEntry (entry: JsonElement) =
     let destinationText =
         let mutable destination = Unchecked.defaultof<JsonElement>
 
-        if
-            entry.TryGetProperty("destinationPath", &destination)
-            && destination.ValueKind = JsonValueKind.String
-        then
+        if entry.TryGetProperty("destinationPath", &destination)
+           && destination.ValueKind = JsonValueKind.String then
             destination.GetString()
         else
             ""
 
     let destinationForFinding =
-        if String.IsNullOrWhiteSpace destinationText then
-            manifestPath
-        else
-            Path.Combine(root, destinationText)
+        if String.IsNullOrWhiteSpace destinationText then manifestPath
+        else Path.Combine(root, destinationText)
 
     let kind =
         match requiredString entry destinationForFinding "kind" with
         | Some "file" -> Some RegularFile
         | Some "directory" -> Some DirectoryTree
         | Some other ->
-            add
-                "GOV-IMPORT-MANIFEST"
-                destinationForFinding
-                $"unknown import kind '{other}'; expected 'file' or 'directory'"
-
+            add "GOV-IMPORT-MANIFEST" destinationForFinding $"unknown import kind '{other}'; expected 'file' or 'directory'"
             None
         | None -> None
 
@@ -282,25 +250,17 @@ let private parseEntry (entry: JsonElement) =
     | _ -> ()
 
     match kind, destination, repository, revision, upstreamPath, license, method', digest with
-    | Some kind,
-      Some destination,
-      Some repository,
-      Some revision,
-      Some upstreamPath,
-      Some license,
-      Some method',
-      Some digest when isLowerSha256 digest && isPinnedRevision revision ->
+    | Some kind, Some destination, Some repository, Some revision, Some upstreamPath, Some license, Some method', Some digest
+        when isLowerSha256 digest && isPinnedRevision revision ->
         Some
-            {
-                Kind = kind
-                DestinationPath = destination.Replace('\\', '/')
-                UpstreamRepository = repository
-                UpstreamRevision = revision
-                UpstreamPath = upstreamPath
-                License = license
-                ImportMethod = method'
-                Sha256 = digest
-            }
+            { Kind = kind
+              DestinationPath = destination.Replace('\\', '/')
+              UpstreamRepository = repository
+              UpstreamRevision = revision
+              UpstreamPath = upstreamPath
+              License = license
+              ImportMethod = method'
+              Sha256 = digest }
     | _ -> None
 
 let private parseManifest () =
@@ -314,21 +274,17 @@ let private parseManifest () =
             let mutable version = Unchecked.defaultof<JsonElement>
             let mutable imports = Unchecked.defaultof<JsonElement>
 
-            if
-                not (
-                    rootElement.TryGetProperty("schemaVersion", &version)
-                    && version.ValueKind = JsonValueKind.Number
-                    && version.GetInt32() = 1
-                )
-            then
+            if not (
+                rootElement.TryGetProperty("schemaVersion", &version)
+                && version.ValueKind = JsonValueKind.Number
+                && version.GetInt32() = 1
+            ) then
                 add "GOV-IMPORT-MANIFEST" manifestPath "'schemaVersion' must be 1"
 
-            if
-                not (
-                    rootElement.TryGetProperty("imports", &imports)
-                    && imports.ValueKind = JsonValueKind.Array
-                )
-            then
+            if not (
+                rootElement.TryGetProperty("imports", &imports)
+                && imports.ValueKind = JsonValueKind.Array
+            ) then
                 add "GOV-IMPORT-MANIFEST" manifestPath "'imports' must be an array"
                 []
             else
@@ -341,8 +297,7 @@ let private attributesLines =
     let path = Path.Combine(root, ".gitattributes")
 
     if File.Exists path then
-        try
-            File.ReadAllLines(path) |> Set.ofArray
+        try File.ReadAllLines(path) |> Set.ofArray
         with ex ->
             add "GOV-IMPORT-READ" path $"cannot read .gitattributes: {ex.Message}"
             Set.empty
@@ -351,7 +306,8 @@ let private attributesLines =
 
 let private verifyImport controlledImport =
     match tryRepoPath controlledImport.DestinationPath with
-    | Error message -> add "GOV-IMPORT-PATH" (Path.Combine(root, controlledImport.DestinationPath)) message
+    | Error message ->
+        add "GOV-IMPORT-PATH" (Path.Combine(root, controlledImport.DestinationPath)) message
     | Ok(normalized, fullPath) ->
         let expectedAttribute =
             match controlledImport.Kind with
@@ -368,10 +324,7 @@ let private verifyImport controlledImport =
             match controlledImport.Kind with
             | RegularFile ->
                 if not (File.Exists fullPath) || Directory.Exists fullPath then
-                    add
-                        "GOV-IMPORT-DIGEST"
-                        fullPath
-                        "controlled regular-file import is missing or is not a regular file"
+                    add "GOV-IMPORT-DIGEST" fullPath "controlled regular-file import is missing or is not a regular file"
                 else
                     try
                         use input = File.OpenRead fullPath
@@ -442,7 +395,10 @@ if findings.Count = 0 then
             if isExempt then
                 printfn "GOV-IMPORT-EXEMPT\t%s" (displayPath fullProbe)
             else
-                add "GOV-IMPORT-EXEMPTION" fullProbe "path is not covered by a successfully verified controlled import"
+                add
+                    "GOV-IMPORT-EXEMPTION"
+                    fullProbe
+                    "path is not covered by a successfully verified controlled import"
 
 if findings.Count > 0 then
     for finding in findings do

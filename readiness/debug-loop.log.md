@@ -91,3 +91,19 @@
 
 **Narrow re-run result:** pass — exact SDK 10.0.400 reproduction applies the public 0.11.0 Preview-A bytes, installs the explicit legacy marker, patches the newer wizard root atomically, and passes build, unit, cross-runtime, client bundle, and server publish stages; the browser harness now derives `isLegacySvgPreview=true` and skips only its explicitly legacy-inapplicable current-player cases
 **Full verify result:** deferred
+
+## Iteration 7 — 2026-09-17T16:29:00Z
+
+**Verify command:** `GitHub required checks for FS-GG/FS.GG.Templates#495`
+**Exit code:** 1
+
+**Primary failure:** test-failure
+- Signal: `composition: overlay drifted from pinned FS.GG.Governance.ReferenceGateSet authority`
+- Hypothesis: The repository-wide formatter pass rewrote the checked-in `controlled-imports.fsx` projection even though composition requires that generated file to remain byte-identical to its immutable pinned Governance authority.
+
+**Fix applied:**
+- `templates/fs-gg-governance/.fsgg/controlled-imports.fsx` — restore the exact pinned authority bytes.
+- `.fantomasignore` — exclude that immutable projection with an ownership comment so Fantomas 8 continues to check authored Templates F# without rewriting an upstream-owned artifact.
+
+**Narrow re-run result:** pass — Fantomas 8 `doctor` resolves the new ignore rule to the immutable projection, `dotnet fantomas --check .` passes, and the restored file's Git object matches `origin/main`
+**Full verify result:** deferred
