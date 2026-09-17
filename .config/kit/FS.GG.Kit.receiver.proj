@@ -112,7 +112,7 @@
 
   <ItemGroup>
     <!-- Version pinned directly (no CPM). Renovate-managed. -->
-    <PackageReference Include="FS.GG.Kit" Version="0.89.0" />
+    <PackageReference Include="FS.GG.Kit" Version="0.90.0" />
   </ItemGroup>
 
   <!--

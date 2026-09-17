@@ -1,0 +1,48 @@
+name: gs2-08-8-bridge-adoption
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.config/dotnet-tools.json'
+      - '.config/kit/FS.GG.Kit.receiver.proj'
+      - '.github/workflows/kit-materialize.yml'
+      - '.github/workflows/lockfile-sync.yml'
+      - '.github/workflows/gs2-08-8-bridge-adoption.yml'
+      - 'docs/reports/gs2-08-8-bridge-adoption.json'
+      - 'tests/bridge-receivers/**'
+  workflow_dispatch:
+    inputs:
+      hub-adoption-ref:
+        description: Full merged FS-GG/.github GS2-08.8 adoption commit
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  receiver:
+    name: Public bridge receiver
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - run: bash tests/bridge-receivers/run.sh
+
+  wizard:
+    name: Explicit hub fresh and retrofit
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - env:
+          HUB_ADOPTION_REF: ${{ inputs.hub-adoption-ref }}
+        run: bash tests/bridge-receivers/wizard.sh "$HUB_ADOPTION_REF"

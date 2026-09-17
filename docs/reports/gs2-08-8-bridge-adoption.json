@@ -1,0 +1,115 @@
+{
+  "schema": "fsgg.gs2-08.8-receiver-adoption/1",
+  "receiver": "FS-GG/FS.GG.Templates",
+  "release": {
+    "version": "0.90.0",
+    "url": "https://github.com/FS-GG/.github/releases/tag/coherent-set/v0.90.0",
+    "manifestUrl": "https://github.com/FS-GG/.github/releases/download/coherent-set%2Fv0.90.0/release-manifest.json",
+    "manifestSha256": "1bbb77f3de10ba3116f9de2ea1df3f5edee38be0de07fa0eaf7c173da3a8456a",
+    "contentId": "sha256:52b2774de277855c16a3c0852bc5113deea13d9076b866e6a7de0acc84f4b9c4",
+    "sourceCommit": "3adada5a9738464291088830c47a30a3a8fc9561",
+    "sourceTree": "0f075e251d90a2d33efe556df1dac38394b0a388"
+  },
+  "packages": [
+    {
+      "id": "FS.GG.Coord.Cli",
+      "version": "0.90.0",
+      "pinPath": ".config/dotnet-tools.json",
+      "feed": "https://api.nuget.org/v3/index.json",
+      "publicArchiveSha256": "69a7100358e01c846216cedb3f5ce17f72e99e8328a23be8e75b077dfd82d3e6",
+      "payloadSha256": "sha256:725b46203eeccbe1f73b42667d95ed07c6581dc2ca0886ac8011145c278ee481"
+    },
+    {
+      "id": "FS.GG.Kit",
+      "version": "0.90.0",
+      "pinPath": ".config/kit/FS.GG.Kit.receiver.proj",
+      "feed": "https://api.nuget.org/v3/index.json",
+      "publicArchiveSha256": "bea35100645f1acb459e385e303d0ef4ff7aa6576fa3f032ef8325cfef38b858",
+      "payloadSha256": "sha256:f2a318f0b900d049c496618bfdd7c2def5f50ffd9e649d8998f5c6585384f1f4"
+    }
+  ],
+  "installedCommand": {
+    "command": "fsgg-coord-engine --help",
+    "version": "0.90.0",
+    "executablePath": "${isolated-tool-path}/.store/fs.gg.coord.cli/0.90.0/fs.gg.coord.cli/0.90.0/tools/net10.0/any/fsgg-coord-engine.dll",
+    "executableSha256": "c37d76fa42483e76b91275d8764bdcb04881cb9f3643c6e9fe9b0df3914d3512",
+    "gitHubAssemblySha256": "a11ef52027b9f4485ffc0f959ebf3592002d7b5338723a90c3aaa1240ea9ff49",
+    "resolution": "Producer-owned verification installs the exact anonymous public package into an empty private tool path and executes its packaged entry point."
+  },
+  "routes": [
+    {
+      "entrypoint": "scripts/fsgg-coord",
+      "sha256": "a0689f0ba8cd0180fd1ca60a63bba55e93513732b36e099c541847336ddb3ccf",
+      "disposition": "bridge-adopted",
+      "behavior": "installed-cli-production-mutations-refused"
+    },
+    {
+      "entrypoint": "scripts/fsgg-coord-report",
+      "sha256": "e1f63cda5b499f4fdd4396626c0bac013c49019daf182336df8c7513d24918ba",
+      "disposition": "read-only-local-only",
+      "behavior": "report rendering has no GitHub mutation effect"
+    },
+    {
+      "entrypoint": ".github/workflows/release.yml",
+      "sha256": "2496178a962cfb812622a11d962c1b80afd71aa181b350809d3a7fb6369b914e",
+      "disposition": "gs2-08.9-sealing",
+      "reason": "Package publication and GitHub Release effects retain their existing protected credential boundary."
+    }
+  ],
+  "callableRoutes": [
+    {
+      "caller": ".github/workflows/coordination-coherence.yml",
+      "callerSha256": "3d0777540cee5ef007d171ab8d19208042264ff7a041d99ce5b652c92de8e6d1",
+      "target": "FS-GG/.github/.github/workflows/coordination-coherence.yml",
+      "ref": "main",
+      "observedRevision": "3adada5a9738464291088830c47a30a3a8fc9561",
+      "workflowSha256": "400e2d5ef2406d872a0fd45f79fa0a01d1b09f12d30eca66310324e9d795e4c2",
+      "disposition": "gs2-08.9-sealing"
+    },
+    {
+      "caller": ".github/workflows/kit-materialize.yml",
+      "callerSha256": "c921417d0651a11b973d5fa6fbe8595fd25187c27ced84148055923631657505",
+      "target": "FS-GG/.github/.github/workflows/kit-materialize.yml",
+      "ref": "3adada5a9738464291088830c47a30a3a8fc9561",
+      "observedRevision": "3adada5a9738464291088830c47a30a3a8fc9561",
+      "workflowSha256": "ebe86011063ced545f37c38c89a939a4e35cb38a9d397959847f67c52746ea37",
+      "disposition": "gs2-08.9-sealing"
+    },
+    {
+      "caller": ".github/workflows/lockfile-sync.yml",
+      "callerSha256": "ff2e321c32a8280b135df9b60a011ef32c20099059d9db62b2cf12aa9abc7dd4",
+      "target": "FS-GG/.github/.github/workflows/lockfile-sync.yml",
+      "ref": "3adada5a9738464291088830c47a30a3a8fc9561",
+      "observedRevision": "3adada5a9738464291088830c47a30a3a8fc9561",
+      "workflowSha256": "f889e54fc8f33c9c37044584a2130a8c73a5740a6d9b3b7229023a0d59a9c4ec",
+      "disposition": "gs2-08.9-sealing"
+    }
+  ],
+  "qualification": {
+    "publicRestore": true,
+    "installedCommand": true,
+    "productionMutation": "refused-unavailable-fence",
+    "network": "loopback-only",
+    "credentials": "fake",
+    "providerRequests": 0,
+    "probe": "The producer-owned installed-package probe sends a REST comment intent through the unavailable production composition and observes zero provider mutations; its packed fence separately passes eligible epochs, frozen refusal, and duplicate-settlement refusal.",
+    "materializer": {
+      "files": 35,
+      "written": 0,
+      "source": "FS.GG.Kit 0.90.0",
+      "skillRoots": {
+        ".claude/skills": 24,
+        ".agents/skills": 24
+      }
+    },
+    "skillViewSelftest": {
+      "visibleKitFiles": 30,
+      "failed": 0
+    },
+    "lockedRestore": true,
+    "lockfilesChanged": 0,
+    "providerPinsChanged": 0,
+    "releaseContractSourceOnly": true
+  },
+  "remainingBoundary": "This source receiver selects the published bridge, immutable materializer/lockfile callees, and demonstrates installed refusal. Default public wizard delivery is unclaimed until an explicit merged hub adoption revision passes the fresh/retrofit fixture; generated workspace delivery is unclaimed until the corresponding SDD release is public and adopted. Existing mutable workflow routes and release effects remain for GS2-08.9 sealing."
+}
