@@ -15,6 +15,21 @@
 **Narrow re-run result:** pass — all three manifests restore Fantomas 8.0.0; `dotnet fantomas --check .` exits 0
 **Full verify result:** deferred
 
+## Iteration 3 — 2026-09-17T15:31:29Z
+
+**Verify command:** `GitHub required checks for FS-GG/FS.GG.Templates#495`
+**Exit code:** 1
+
+**Primary failure:** test-failure
+- Signal: `verify-svg-typed-receivers.sh: wizard still missing SvgFoundation/packages.lock.json after the source-copy repair`
+- Hypothesis: The exact public Preview-A source also predates the root lock, while `FS.GG.NewSddWorkspace` 0.11.1 emits a newer root build entry point that requires it unconditionally.
+
+**Fix applied:**
+- `scripts/apply-svg-foundation-preview.sh` — include the root build entry point in the atomic transaction only for a new legacy SVG retrofit, and gate its root-lock requirement on the newer `PlayerInput.fs` generation marker; retained SVG workspaces and newer payloads are unchanged.
+
+**Narrow re-run result:** pass — exact SDK 10.0.400 reproduction with public template 0.11.0 and wizard 0.11.1 applies the Preview-A retrofit without inventing a lock, patches the expected root guard, and restores the original root script with no managed SVG files left on rollback
+**Full verify result:** deferred
+
 ## Iteration 2 — 2026-09-17T15:23:46Z
 
 **Verify command:** `GitHub required checks for FS-GG/FS.GG.Templates#495`

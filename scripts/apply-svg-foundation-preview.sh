@@ -55,7 +55,9 @@ sha() { sha256sum "$1" | cut -d' ' -f1; }
 # those two files from their package-owned example directory.
 source_for() {
   local path="$1"
-  if [[ -f "$source_payload/$path" ]]; then
+  if [[ "$path" == build.sh ]]; then
+    printf '%s\n' "$workspace/build.sh"
+  elif [[ -f "$source_payload/$path" ]]; then
     printf '%s\n' "$source_payload/$path"
   elif [[ "$path" == SvgFoundation/TacticalCompatibility.Tests.fs || "$path" == SvgFoundation/TacticalCompatibility.Tests.fsproj ]] \
        && [[ -f "$source_payload/SvgFoundation/Examples/Tactical/${path##*/}" ]]; then
@@ -81,7 +83,7 @@ restore_backup() {
   [[ -f "$manifest" ]] || fail "rollback manifest missing: $manifest"
 
   while IFS=$'\t' read -r state digest path; do
-    [[ " ${files[*]} " == *" $path "* ]] || fail "rollback manifest contains unmanaged path: $path"
+    [[ " ${files[*]} " == *" $path "* || "$path" == build.sh ]] || fail "rollback manifest contains unmanaged path: $path"
     if [[ "$state" == PRESENT ]]; then
       [[ -f "$backup/files/$path" ]] || fail "rollback object missing: $path"
       [[ "$(sha "$backup/files/$path")" == "$digest" ]] || fail "rollback object digest mismatch: $path"
@@ -121,6 +123,17 @@ esac
 
 [[ ! -e "$backup" ]] || fail "backup target already exists: $backup"
 [[ -f "$baseline" ]] || fail "baseline manifest missing: $baseline"
+
+# The 0.11.1 wizard emits the current root build entry point even when it
+# installs the older Preview-A payload. That payload has no root SVG lock and
+# explicitly disables lock mode in its SVG project. When SVG is being added to
+# a workspace that did not have it before, carry the root entry point through
+# this same atomic transaction and teach its presence check about the Preview-A
+# generation boundary. Existing SVG workspaces retain their root entry point.
+if [[ ! -e "$workspace/SvgFoundation" && ! -e "$source_payload/SvgFoundation/packages.lock.json" ]]; then
+  [[ -f "$workspace/build.sh" ]] || fail "legacy preview adopter has no root build.sh"
+  files+=(build.sh)
+fi
 
 # Preview-A payloads predate the additive input and Studio surfaces. Keep their
 # established bounded transaction unchanged; each later generation marker makes
@@ -297,6 +310,25 @@ text=text.replace('<TargetFramework>net10.0</TargetFramework>',
 text=text.replace('<Compile Include="../../TacticalCompatibility.fs" />',
                   '<Compile Include="TacticalCompatibility.fs" />')
 open(destination,'w').write(text)
+PY
+  elif [[ "$path" == build.sh ]]; then
+    python3 - "$src" "$backup/staged/$path" <<'PY'
+import sys
+source,destination=sys.argv[1:]
+text=open(source).read()
+old='''if [[ -d SvgFoundation ]]; then
+  for locked in SvgFoundation SvgFoundation/Studio SvgFoundation/Examples/Tactical; do'''
+new='''if [[ -d SvgFoundation ]]; then
+  svg_lock_roots=()
+  # Preview-A predates both the player runtime and the reviewed root lock. The
+  # additive player generation is the boundary from which that lock is mandatory.
+  if [[ -f SvgFoundation/PlayerInput.fs ]]; then
+    svg_lock_roots+=(SvgFoundation)
+  fi
+  for locked in "${svg_lock_roots[@]}" SvgFoundation/Studio SvgFoundation/Examples/Tactical; do'''
+if text.count(old) != 1:
+    raise SystemExit('legacy preview adopter root build lock check is not the expected shape')
+open(destination,'w').write(text.replace(old,new))
 PY
   else
     cp "$src" "$backup/staged/$path"
