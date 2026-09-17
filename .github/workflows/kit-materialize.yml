@@ -49,7 +49,7 @@ permissions:
 
 jobs:
   materialize:
-    uses: FS-GG/.github/.github/workflows/kit-materialize.yml@main
+    uses: FS-GG/.github/.github/workflows/kit-materialize.yml@3adada5a9738464291088830c47a30a3a8fc9561
     secrets:
       app-id:          ${{ secrets.FSGG_DISPATCH_APP_ID }}
       app-private-key: ${{ secrets.FSGG_DISPATCH_APP_PRIVATE_KEY }}

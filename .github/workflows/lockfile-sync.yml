@@ -28,7 +28,7 @@ permissions:
 
 jobs:
   sync:
-    uses: FS-GG/.github/.github/workflows/lockfile-sync.yml@main
+    uses: FS-GG/.github/.github/workflows/lockfile-sync.yml@3adada5a9738464291088830c47a30a3a8fc9561
     with:
       restore-target: FS.GG.Templates.csproj
     secrets:
