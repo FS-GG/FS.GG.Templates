@@ -318,9 +318,9 @@ PY
 import sys
 source,destination=sys.argv[1:]
 text=open(source).read()
-old='''if [[ -d SvgFoundation ]]; then
+old_lock='''if [[ -d SvgFoundation ]]; then
   for locked in SvgFoundation SvgFoundation/Studio SvgFoundation/Examples/Tactical; do'''
-new='''if [[ -d SvgFoundation ]]; then
+new_lock='''if [[ -d SvgFoundation ]]; then
   svg_lock_roots=()
   # Preview-A predates both the player runtime and the reviewed root lock. The
   # additive player generation is the boundary from which that lock is mandatory.
@@ -328,9 +328,14 @@ new='''if [[ -d SvgFoundation ]]; then
     svg_lock_roots+=(SvgFoundation)
   fi
   for locked in "${svg_lock_roots[@]}" SvgFoundation/Studio SvgFoundation/Examples/Tactical; do'''
-if text.count(old) != 1:
+old_build='''if [[ -f SvgFoundation/SvgFoundation.fsproj ]]; then'''
+new_build='''# Preview-A ships the project but predates the standalone player build entry point.
+if [[ -f SvgFoundation/SvgFoundation.fsproj && -f SvgFoundation/build.sh ]]; then'''
+if text.count(old_lock) != 1:
     raise SystemExit('legacy preview adopter root build lock check is not the expected shape')
-open(destination,'w').write(text.replace(old,new))
+if text.count(old_build) != 1:
+    raise SystemExit('legacy preview adopter root SVG build check is not the expected shape')
+open(destination,'w').write(text.replace(old_lock,new_lock).replace(old_build,new_build))
 PY
   else
     cp "$src" "$backup/staged/$path"

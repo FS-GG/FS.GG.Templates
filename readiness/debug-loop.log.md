@@ -60,3 +60,18 @@
 
 **Narrow re-run result:** pass — adoption script syntax and diff checks pass; the guarded copy now covers a source lock plus an absent destination lock while excluding retained destinations
 **Full verify result:** deferred
+
+## Iteration 5 — 2026-09-17T15:50:00Z
+
+**Verify command:** `GitHub required checks for FS-GG/FS.GG.Templates#495`
+**Exit code:** 1
+
+**Primary failure:** test-failure
+- Signal: `verify-svg-typed-receivers.sh: wizard root build/test/browser entry failed: SvgFoundation/build.sh: No such file or directory`
+- Hypothesis: Preview-A ships the SVG project but predates its standalone player build entry point, while the 0.11.1 wizard emits a root entry point that invokes that script whenever the project exists.
+
+**Fix applied:**
+- `scripts/apply-svg-foundation-preview.sh` — in the same narrowly selected atomic root-entry-point migration, require both the SVG project and its standalone build script before invoking the optional static SVG product.
+
+**Narrow re-run result:** pass — exact SDK 10.0.400 reproduction applies the public 0.11.0 Preview-A payload to a wizard 0.11.1 workspace; the root build passes the prior failure point, all .NET and cross-runtime tests pass, the client bundles, and server publication begins without invoking a missing SVG script
+**Full verify result:** deferred
