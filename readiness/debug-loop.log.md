@@ -15,6 +15,21 @@
 **Narrow re-run result:** pass — all three manifests restore Fantomas 8.0.0; `dotnet fantomas --check .` exits 0
 **Full verify result:** deferred
 
+## Iteration 4 — 2026-09-17T15:38:54Z
+
+**Verify command:** `GitHub required checks for FS-GG/FS.GG.Templates#495`
+**Exit code:** 1
+
+**Primary failure:** test-failure
+- Signal: `verify-svg-preview-c-public.sh: legacy preview adopter root build lock check is not the expected shape`
+- Hypothesis: The compatibility transaction selected every no-SVG legacy workspace, including older root entry points that never contained the newer unconditional SVG lock check and therefore need no patch.
+
+**Fix applied:**
+- `scripts/apply-svg-foundation-preview.sh` — include the root entry point only when the exact newer unconditional SVG-lock loop is present; older entry points remain byte-identical.
+
+**Narrow re-run result:** pass — exact SDK reproduction covers both public 0.10.0’s older root entry point (unchanged) and wizard 0.11.1’s newer lock loop (patched and rollback-restored)
+**Full verify result:** deferred
+
 ## Iteration 3 — 2026-09-17T15:31:29Z
 
 **Verify command:** `GitHub required checks for FS-GG/FS.GG.Templates#495`

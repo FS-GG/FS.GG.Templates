@@ -130,7 +130,9 @@ esac
 # a workspace that did not have it before, carry the root entry point through
 # this same atomic transaction and teach its presence check about the Preview-A
 # generation boundary. Existing SVG workspaces retain their root entry point.
-if [[ ! -e "$workspace/SvgFoundation" && ! -e "$source_payload/SvgFoundation/packages.lock.json" ]]; then
+if [[ ! -e "$workspace/SvgFoundation" \
+      && ! -e "$source_payload/SvgFoundation/packages.lock.json" ]] \
+   && grep -Fq 'for locked in SvgFoundation SvgFoundation/Studio SvgFoundation/Examples/Tactical; do' "$workspace/build.sh"; then
   [[ -f "$workspace/build.sh" ]] || fail "legacy preview adopter has no root build.sh"
   files+=(build.sh)
 fi
