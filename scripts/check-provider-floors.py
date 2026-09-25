@@ -104,6 +104,7 @@ SCHEMA_VERSION = re.compile(r"^schemaVersion:\s*1\s*(?:#.*)?$")
 FLOOR_BLOCK = re.compile(r"^    minimumFsggSdd:\s*(?:#.*)?$")
 PARAMETERS_BLOCK = re.compile(r"^    parameters:\s*(.*?)\s*$")
 PARAMETER_KEY = re.compile(r"^      - key:\s*(.*?)\s*$")
+PARAMETER_REQUIRED = re.compile(r"^        required:\s*(.*?)\s*$")
 VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+].*)?$")
 
@@ -196,6 +197,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
     seen_parameters_block = False
     in_parameters = False
     parameter_keys: set[str] = set()
+    current_parameter_key: str | None = None
     roots: set[str] = set()
 
     for number, line in enumerate(read_descriptor(path).splitlines(), 1):
@@ -225,6 +227,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
             seen_parameters_block = False
             in_parameters = False
             parameter_keys.clear()
+            current_parameter_key = None
             continue
 
         if current is None:
@@ -240,12 +243,14 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                 raise FloorError(f"{path}:{number}: provider '{current}' parameters must be a block sequence")
             in_block = False
             in_parameters = True
+            current_parameter_key = None
             continue
 
         if in_parameters:
             indentation = len(line) - len(line.lstrip(" "))
             if indentation <= 4:
                 in_parameters = False
+                current_parameter_key = None
             else:
                 parameter = PARAMETER_KEY.match(line)
                 if parameter:
@@ -253,6 +258,17 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                     if key in parameter_keys:
                         raise FloorError(f"{path}:{number}: provider '{current}' duplicate parameter key '{key}'")
                     parameter_keys.add(key)
+                    current_parameter_key = key
+                    continue
+                required = PARAMETER_REQUIRED.match(line)
+                if required:
+                    if current_parameter_key is None:
+                        raise FloorError(f"{path}:{number}: malformed parameter field before key")
+                    value = scalar(required.group(1), f"{path}:{number}")
+                    if value not in {"true", "false"}:
+                        raise FloorError(
+                            f"{path}:{number}: parameter '{current_parameter_key}' needs required: true|false"
+                        )
                     continue
 
         if FLOOR_BLOCK.match(line):
