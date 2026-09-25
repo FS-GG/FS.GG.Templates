@@ -383,6 +383,24 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "archive member has a file ancestor")
     print("PASS non-template case-aliased file ancestor: NO_VERDICT")
 
+    for label, member_name in (
+            ("compatibility ligature", "docs/\ufb01le.txt"),
+            ("decomposed Unicode", "docs/cafe\u0301.txt")):
+        if (unicodedata.is_normalized("NFC", member_name)
+                and unicodedata.is_normalized("NFKC", member_name)):
+            raise AssertionError(f"{label} fixture is canonical under Python Unicode data")
+        noncanonical_path = work / (label.replace(" ", "-") + ".nupkg")
+        package(noncanonical_path, head=HEAD_A, asset=b"old")
+        with ZipFile(noncanonical_path, "a") as archive:
+            member = ZipInfo(member_name)
+            member.create_system = 3
+            member.external_attr = (stat.S_IFREG | 0o644) << 16
+            archive.writestr(member, b"body")
+        noncanonical_sha = sha256(noncanonical_path.read_bytes()).hexdigest()
+        refused(lambda: snapshot(noncanonical_path, noncanonical_sha, HEAD_A),
+                "archive member path is noncanonical")
+        print(f"PASS non-template {label} path: NO_VERDICT")
+
     corrupt_external_path = work / "corrupt-external.nupkg"
     package(corrupt_external_path, head=HEAD_A, asset=b"old")
     with ZipFile(corrupt_external_path, "a") as archive:

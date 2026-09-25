@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from stat import S_IFMT, S_IFREG
 import subprocess
+import unicodedata
 from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
 import zlib
@@ -74,6 +75,9 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                 raise Refusal("archive member duplicate or case alias")
             if any(not safe_path(name) for name in names):
                 raise Refusal("archive member path is unsafe")
+            if any(not unicodedata.is_normalized("NFC", name)
+                   or not unicodedata.is_normalized("NFKC", name) for name in names):
+                raise Refusal("archive member path is noncanonical")
             for name in names:
                 ancestor = name
                 while "/" in ancestor:
