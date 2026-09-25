@@ -8,6 +8,7 @@ import stat
 import subprocess
 import tempfile
 import unicodedata
+from unittest.mock import patch
 import warnings
 from zipfile import ZipFile, ZipInfo
 import zlib
@@ -306,6 +307,10 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
     selected = snapshot(selected_path, selected_sha, HEAD_A)
     release = snapshot(release_path, release_sha, HEAD_B)
     nuget = snapshot(nuget_path, nuget_sha, HEAD_B, signed=True)
+    with patch.object(unicodedata, "unidata_version", "17.0.0"):
+        refused(lambda: snapshot(selected_path, selected_sha, HEAD_A),
+                "Python Unicode data version differs from selected contract")
+    print("PASS changed Python Unicode version: NO_VERDICT")
     if selected["configs"] != release["configs"]:
         raise AssertionError("config-only comparison did not reproduce the false parity signal")
     print("PASS red-before boundary: identical template configs hide asset drift")

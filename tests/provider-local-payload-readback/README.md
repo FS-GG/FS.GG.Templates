@@ -18,7 +18,8 @@ template comparator; this does not establish the receiver filesystem limit.
 All ZIP member names must be NFC and NFKC under Python's pinned Unicode data,
 including names outside the template payload. This is a name refusal rule,
 not proof of receiver filesystem alias behavior. Names with full case-fold
-expansions are also refused across the archive. Every ZIP member body is
+expansions are also refused across the archive. The physical reader refuses a
+Python Unicode database version other than 16.0.0. Every ZIP member body is
 consumed under per-member and aggregate expansion bounds so a corrupt non-template
 member cannot yield a payload-only match. The pinned local archives also
 require a local-file header at byte zero and a zero-comment ZIP end record at
