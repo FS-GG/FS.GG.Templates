@@ -65,6 +65,60 @@ def safe_member(name: str, mode: int) -> bool:
             and S_IFMT(mode) == S_IFREG)
 
 
+def physically_closed(raw: bytes, members: list) -> bool:
+    """Account for local members, the central directory, and the exact end record."""
+    if (not members or not raw.startswith(b"PK\x03\x04") or len(raw) < 22
+            or raw[-22:-18] != b"PK\x05\x06" or raw[-2:] != b"\x00\x00"):
+        return False
+    end = len(raw) - 22
+    if (raw[end + 4:end + 8] != b"\x00" * 4
+            or int.from_bytes(raw[end + 8:end + 10], "little") != len(members)
+            or int.from_bytes(raw[end + 10:end + 12], "little") != len(members)):
+        return False
+    central_start = int.from_bytes(raw[end + 16:end + 20], "little")
+    central_size = int.from_bytes(raw[end + 12:end + 16], "little")
+    if central_start + central_size != end:
+        return False
+    central_cursor = central_start
+    local_ranges = []
+    for member in members:
+        central = raw[central_cursor:central_cursor + 46]
+        if len(central) != 46 or central[:4] != b"PK\x01\x02":
+            return False
+        central_name = int.from_bytes(central[28:30], "little")
+        central_extra = int.from_bytes(central[30:32], "little")
+        central_comment = int.from_bytes(central[32:34], "little")
+        central_end = central_cursor + 46 + central_name + central_extra + central_comment
+        if (central_end > end or int.from_bytes(central[34:36], "little") != 0
+                or int.from_bytes(central[42:46], "little") != member.header_offset):
+            return False
+        central_name_bytes = raw[central_cursor + 46:central_cursor + 46 + central_name]
+        central_cursor = central_end
+
+        offset = member.header_offset
+        local = raw[offset:offset + 30] if offset >= 0 else b""
+        if (len(local) != 30 or local[:4] != b"PK\x03\x04"
+                or int.from_bytes(local[6:8], "little") != member.flag_bits
+                or member.flag_bits & 0x08):
+            return False  # Descriptor-form members need a separate byte-bound proof.
+        name_length = int.from_bytes(local[26:28], "little")
+        extra_length = int.from_bytes(local[28:30], "little")
+        data_start = offset + 30 + name_length + extra_length
+        local_end = data_start + member.compress_size
+        if (local_end > central_start or name_length != central_name
+                or raw[offset + 30:offset + 30 + name_length] != central_name_bytes):
+            return False
+        local_ranges.append((offset, local_end))
+    if central_cursor != end:
+        return False
+    next_offset = 0
+    for start, stop in sorted(local_ranges):
+        if start != next_offset:
+            return False
+        next_offset = stop
+    return next_offset == central_start
+
+
 def read_descriptors(providers: Path) -> tuple[dict[str, str], list[str]]:
     """Bind a bounded observation to one directory and an overlapping file set."""
     if not all(hasattr(os, flag) for flag in ("O_DIRECTORY", "O_NOFOLLOW")):
@@ -148,6 +202,8 @@ def assess(archive: Path, baseline: dict, providers: Path, *,
                 return "NO_VERDICT", ["archive member count exceeds observation bound"]
             if any(member.orig_filename != member.filename for member in members):
                 return "NO_VERDICT", ["archive member filename was shortened by parser"]
+            if not physically_closed(raw, members):
+                return "NO_VERDICT", ["archive bytes are not physically closed"]
             if len(names) != len(set(names)) or len(names) != len({name.casefold() for name in names}):
                 return "NO_VERDICT", ["archive member duplicate or case alias"]
             if any(not safe_member(member.filename, member.external_attr >> 16) for member in members):

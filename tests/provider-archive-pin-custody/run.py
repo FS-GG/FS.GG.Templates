@@ -149,6 +149,36 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-archive-") as folder:
         raise AssertionError(f"NUL-shortened member was admitted: {status}, {reasons}")
     print("PASS NUL-shortened non-owner ZIP member: NO_VERDICT")
 
+    base_zip = archive.read_bytes()
+    end_record = len(base_zip) - 22
+    central_start = int.from_bytes(base_zip[end_record + 16:end_record + 20], "little")
+    central_size = int.from_bytes(base_zip[end_record + 12:end_record + 16], "little")
+    if (base_zip[:4] != b"PK\x03\x04" or base_zip[end_record:end_record + 4] != b"PK\x05\x06"
+            or base_zip[central_start:central_start + 4] != b"PK\x01\x02"
+            or central_start + central_size != end_record):
+        raise AssertionError("physical-closure fixture lacks contiguous ZIP records")
+    gap = b"UNOWNED_GAP"
+    gapped = bytearray(base_zip[:central_start] + gap + base_zip[central_start:])
+    gapped_end = end_record + len(gap)
+    gapped[gapped_end + 16:gapped_end + 20] = (central_start + len(gap)).to_bytes(4, "little")
+    unexpected_closure = []
+    for label, payload in (("leading overlay", b"UNOWNED_PREFIX" + base_zip),
+                           ("trailing overlay", base_zip + b"UNOWNED_SUFFIX"),
+                           ("local-to-central gap", bytes(gapped))):
+        unowned = work / (label.replace(" ", "-") + ".nupkg")
+        unowned.write_bytes(payload)
+        with ZipFile(unowned) as readable:
+            if len(readable.infolist()) != len(OWNER_FILES) + 1 or not readable.read(
+                    "FS.GG.Workspace.Template.nuspec"):
+                raise AssertionError(f"{label} fixture did not remain ZIP-readable")
+        status, reasons = assess(unowned, package_baseline(unowned), providers)
+        if status != "NO_VERDICT" or reasons != ["archive bytes are not physically closed"]:
+            unexpected_closure.append(f"{label}: {status}, {reasons}")
+        else:
+            print(f"PASS {label}: NO_VERDICT")
+    if unexpected_closure:
+        raise AssertionError("unowned ZIP bytes were admitted: " + "; ".join(unexpected_closure))
+
     executable = work / "executable-config.nupkg"
     executable_baseline = package(executable, console_mode=0o755)
     status, reasons = assess(executable, executable_baseline, providers)

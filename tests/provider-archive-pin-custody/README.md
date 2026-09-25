@@ -21,6 +21,11 @@ python3 tests/provider-archive-pin-custody/check.py \
   --providers providers
 ```
 
+The observer also accounts for contiguous local member spans, central-directory
+records, and the exact end record. It refuses leading/trailing overlays, gaps,
+and data-descriptor form pending separate byte-bound proof. This is a physical
+boundary check, not complete ZIP metadata parity or producer authentication.
+
 `PIN_ROSTER_MATCH_ONLY` means only that those copied source facts agree with
 the selected bytes. The CLI compares baseline bytes with the digest of the
 reviewed, checked-in baseline before using its candidate. It also requires
