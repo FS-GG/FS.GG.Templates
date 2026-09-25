@@ -12,7 +12,10 @@ every ZIP member, including members outside `content/templates/`, and refuses
 non-regular members outside the template payload. The pinned signed file's
 signature metadata is handled explicitly. Every ZIP member body is consumed
 under per-member and aggregate expansion bounds so a corrupt non-template
-member cannot yield a payload-only match. F# requires
+member cannot yield a payload-only match. The pinned local archives also
+require a zero-comment ZIP end record at the end of the file; this refuses
+ordinary trailing overlays without claiming complete ZIP-format closure.
+F# requires
 exact 64-character lowercase hex body digests, one root config, and at least
 one asset for each template root. It
 refuses nested config-shaped members, file/child collisions (including case

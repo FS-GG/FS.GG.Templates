@@ -59,6 +59,8 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
     digest = sha256(raw).hexdigest()
     if digest != expected_sha:
         raise Refusal("local archive SHA differs from pinned identity")
+    if len(raw) < 22 or raw[-22:-18] != b"PK\x05\x06" or raw[-2:] != b"\x00\x00":
+        raise Refusal("archive end record differs from selected contract")
     try:
         with ZipFile(BytesIO(raw)) as package:
             entries = package.infolist()
