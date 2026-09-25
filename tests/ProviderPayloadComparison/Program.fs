@@ -12,6 +12,14 @@ type Snapshot = { Members: Map<string, Member>; Configs: Map<string, Member> }
 let private prefix = "content/templates/"
 let private configSuffix = "/.template.config/template.json"
 let private reservedMemberPunctuation = "<>\"|?*"
+let private reservedDeviceStems =
+    seq {
+        yield! [ "CON"; "PRN"; "AUX"; "NUL" ]
+        for digit in Seq.append [ '1' .. '9' ] [ '¹'; '²'; '³' ] do
+            yield "COM" + string digit
+            yield "LPT" + string digit
+    }
+    |> Set.ofSeq
 let private regular0644 = 0o100644
 let private maxInputBytes = 4 * 1024 * 1024
 let private fail message = raise (InvalidDataException message)
@@ -20,6 +28,11 @@ let private isLowerHexSha256 (digest: string) =
     digest.Length = 64
     && (digest |> Seq.forall (fun character ->
         (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')))
+
+let private isReservedDevicePart (part: string) =
+    let firstDot = part.IndexOf('.')
+    let stem = if firstDot < 0 then part else part.Substring(0, firstDot)
+    reservedDeviceStems.Contains(stem.ToUpperInvariant())
 
 let private uniqueObject (where: string) (allowed: Set<string>) (value: JsonElement) =
     if value.ValueKind <> JsonValueKind.Object then fail $"{where} must be an object"
@@ -55,6 +68,8 @@ let private rootOf (name: string) =
     if parts |> Array.exists (fun part -> part.EndsWith(".", StringComparison.Ordinal)
                                        || part.EndsWith(" ", StringComparison.Ordinal)) then
         fail $"member {name} has a trailing dot or space path segment"
+    if parts |> Array.exists isReservedDevicePart then
+        fail $"member {name} has a reserved device name"
     if parts.Length < 4 then fail $"member {name} has no template payload path"
     parts.[2]
 

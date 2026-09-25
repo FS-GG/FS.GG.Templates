@@ -114,6 +114,24 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
         raise AssertionError("ordinary plus-sign asset was refused")
     print("PASS plus-sign asset: narrow match")
 
+    for label, unsafe_name in (
+            ("reserved device with extension", ASSET.replace("build.sh", "NUL.txt")),
+            ("reserved superscript device", ASSET.replace("build.sh", "com\u00b9.bin"))):
+        unsafe_asset = dict(member_asset, name=unsafe_name)
+        unsafe_snapshot = {"left": [member_config, unsafe_asset],
+                           "right": [member_config, unsafe_asset]}
+        unsafe_result = typed(json.dumps(unsafe_snapshot))
+        if unsafe_result["status"] != "NO_VERDICT" or "reserved device name" not in unsafe_result["reason"]:
+            raise AssertionError(f"{label} yielded a typed payload match: {unsafe_result}")
+        print(f"PASS {label}: NO_VERDICT")
+
+    ordinary_numbered_asset = dict(member_asset, name=ASSET.replace("build.sh", "COM10.txt"))
+    ordinary_numbered = {"left": [member_config, ordinary_numbered_asset],
+                         "right": [member_config, ordinary_numbered_asset]}
+    if typed(json.dumps(ordinary_numbered))["status"] != "TEMPLATE_PAYLOAD_MATCH_ONLY":
+        raise AssertionError("ordinary numbered asset was refused")
+    print("PASS ordinary numbered asset: narrow match")
+
     newline_digest_asset = dict(member_asset, sha256=member_asset["sha256"] + "\n")
     newline_digest = {"left": [member_config, newline_digest_asset],
                       "right": [member_config, newline_digest_asset]}
