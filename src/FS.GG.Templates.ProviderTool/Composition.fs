@@ -71,6 +71,14 @@ let private safeEffectiveField (value: string) =
             character <> '|' && character <> '\u2028' && character <> '\u2029'
             && not (Char.IsControl character)))
 
+let private safeParameterValue (value: string) =
+    not (String.IsNullOrWhiteSpace value)
+    && String.Equals(value, value.Trim(), StringComparison.Ordinal)
+    && (value
+        |> Seq.forall (fun character ->
+            character <> '\u2028' && character <> '\u2029'
+            && not (Char.IsControl character)))
+
 let private validateSet (providers: Provider list) =
     if List.isEmpty providers then Error EmptySelection
     else
@@ -104,7 +112,7 @@ let private validateSet (providers: Provider list) =
                                 provider.Parameters
                                 |> List.tryFind (fun parameter ->
                                     not (parameterPattern.IsMatch parameter.Key)
-                                    || (parameter.Default |> Option.exists String.IsNullOrWhiteSpace))
+                                    || (parameter.Default |> Option.exists (safeParameterValue >> not)))
                                 |> Option.map (fun parameter -> InvalidParameter(provider.Name, parameter.Key)))
                         match invalidParameter with
                         | Some issue -> Error issue
@@ -161,18 +169,21 @@ let resolveParameters (provider: Provider) (requested: (string * string) list)
             match requested |> List.tryFind (fun (key, _) -> not (known.Contains key)) with
             | Some(key, _) -> Error(UnknownParameter(provider.Name, key))
             | None ->
-                let supplied = requested |> Map.ofList
-                match provider.Parameters |> List.tryFind (fun parameter ->
-                    parameter.Required && not (supplied.ContainsKey parameter.Key)
-                    && parameter.Default.IsNone) with
-                | Some parameter -> Error(MissingRequiredParameter(provider.Name, parameter.Key))
+                match requested |> List.tryFind (fun (_, value) -> not (safeParameterValue value)) with
+                | Some(key, _) -> Error(InvalidParameter(provider.Name, key))
                 | None ->
-                    provider.Parameters
-                    |> List.choose (fun parameter ->
-                        match supplied.TryFind parameter.Key |> Option.orElse parameter.Default with
-                        | Some value -> Some(parameter.Key, value)
-                        | None -> None)
-                    |> Ok
+                    let supplied = requested |> Map.ofList
+                    match provider.Parameters |> List.tryFind (fun parameter ->
+                        parameter.Required && not (supplied.ContainsKey parameter.Key)
+                        && parameter.Default.IsNone) with
+                    | Some parameter -> Error(MissingRequiredParameter(provider.Name, parameter.Key))
+                    | None ->
+                        provider.Parameters
+                        |> List.choose (fun parameter ->
+                            match supplied.TryFind parameter.Key |> Option.orElse parameter.Default with
+                            | Some value -> Some(parameter.Key, value)
+                            | None -> None)
+                        |> Ok
 
 /// Bind an owner-authored selection to the org registry floor. Every known provider is
 /// checked, including those omitted from this particular workspace selection.

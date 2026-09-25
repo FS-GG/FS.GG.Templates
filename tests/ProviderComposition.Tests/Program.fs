@@ -113,6 +113,14 @@ let main _ =
     assertEqual "duplicate declared parameter refuses"
         (Error(DuplicateParameter("alpha", "productName")))
         (selectAtRegistryFloor "1.4.0-preview.1" [ { alpha with Parameters = [ productName; productName ] }; beta ] [ beta ])
+    for label, badDefault in
+        [ "line break", "sdd\n# forged"
+          "Unicode line separator", "sdd\u2028forged"
+          "trailing space", "sdd " ] do
+        let invalidDefault = { alpha with Parameters = [ productName; { lifecycle with Default = Some badDefault } ] }
+        assertEqual (sprintf "declared parameter default %s refuses" label)
+            (Error(InvalidParameter("alpha", "lifecycle")))
+            (select [ invalidDefault; beta ] [ invalidDefault ])
     assertEqual "unknown requested parameter refuses"
         (Error(UnknownParameter("alpha", "surprise")))
         (resolveParameters alpha [ "productName", "Demo"; "surprise", "yes" ])
@@ -122,6 +130,17 @@ let main _ =
     assertEqual "missing required parameter refuses"
         (Error(MissingRequiredParameter("alpha", "productName")))
         (resolveParameters alpha [])
+    for label, badValue in
+        [ "line break", "Demo\n--output=elsewhere"
+          "NUL", "Demo\u0000Other"
+          "Unicode paragraph separator", "Demo\u2029Other"
+          "empty", "" ] do
+        assertEqual (sprintf "requested parameter value %s refuses" label)
+            (Error(InvalidParameter("alpha", "productName")))
+            (resolveParameters alpha [ "productName", badValue ])
+    assertEqual "internal space in requested parameter value remains allowed"
+        (Ok [ "productName", "Demo App"; "lifecycle", "sdd" ])
+        (resolveParameters alpha [ "productName", "Demo App" ])
     assertEqual "defaults and declared order resolve deterministically"
         (Ok [ "productName", "Demo"; "lifecycle", "sdd" ])
         (resolveParameters alpha [ "productName", "Demo" ])
