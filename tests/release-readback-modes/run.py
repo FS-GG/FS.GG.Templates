@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute both release.yml readbacks against mode and unsafe ZIP members."""
+"""Execute both release.yml readbacks against modes, unsafe names, and signature shape."""
 
 from pathlib import Path
 import json
@@ -38,7 +38,8 @@ def snippet(step: str) -> str:
 
 
 def make_archive(path: Path, mode: int, *, signed=False, alias=None,
-                 extra_name=None, extra_mode=None, signature_mode=None) -> None:
+                 extra_name=None, extra_mode=None, signature_mode=None,
+                 signature_bytes=b"synthetic signature", signature_name=".signature.p7s") -> None:
     with zipfile.ZipFile(path, "w") as archive, warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         info = zipfile.ZipInfo(MEMBER)
@@ -56,10 +57,10 @@ def make_archive(path: Path, mode: int, *, signed=False, alias=None,
             extra.external_attr = (extra_mode or (stat.S_IFREG | 0o644)) << 16
             archive.writestr(extra, b"synthetic unsafe member")
         if signed:
-            signature = zipfile.ZipInfo(".signature.p7s")
+            signature = zipfile.ZipInfo(signature_name)
             signature.create_system = 3
             signature.external_attr = (signature_mode or (stat.S_IFREG | 0o644)) << 16
-            archive.writestr(signature, b"synthetic signature")
+            archive.writestr(signature, signature_bytes)
             if alias == "signature-duplicate":
                 archive.writestr(signature, b"synthetic signature")
 
@@ -162,7 +163,33 @@ with tempfile.TemporaryDirectory(prefix="fsc05-release-modes-") as folder_name:
                 failures.append(f"{step}: signature symlink wrote a success receipt")
                 (folder / "artifacts" / receipt).unlink()
             print(f"CHECK {step}: signature-symlink={result.returncode}")
+        signature_cases = ["signed-local", "unsigned-remote"] if feed == "nuget.org" else [
+            "signed-local", "signed-remote", "signature-case-alias"]
+        if feed == "nuget.org":
+            signature_cases.append("empty-remote-signature")
+        for case in signature_cases:
+            signature_local = folder / f"{feed}-{case}-local.nupkg"
+            signature_remote = folder / f"{feed}-{case}-remote.nupkg"
+            make_archive(signature_local, 0o644,
+                         signed=case in {"signed-local", "signature-case-alias"},
+                         signature_name=".Signature.p7s" if case == "signature-case-alias"
+                                        else ".signature.p7s")
+            make_archive(signature_remote, 0o644,
+                         signed=case != "unsigned-remote" if feed == "nuget.org"
+                                else case in {"signed-remote", "signature-case-alias"},
+                         signature_bytes=b"" if case == "empty-remote-signature"
+                                               else b"synthetic signature",
+                         signature_name=".Signature.p7s" if case == "signature-case-alias"
+                                        else ".signature.p7s")
+            result = run_block(code, signature_local, signature_remote, feed, folder)
+            if result.returncode == 0 or "signature policy" not in result.stderr:
+                failures.append(f"{step}: {case} admitted or wrong refusal: "
+                                f"exit={result.returncode}, stderr={result.stderr!r}")
+            if (folder / "artifacts" / receipt).exists():
+                failures.append(f"{step}: {case} wrote a success receipt")
+                (folder / "artifacts" / receipt).unlink()
+            print(f"CHECK {step}: {case}={result.returncode}")
         print(f"CHECK {step}: good={accepted.returncode}, mode-drift={rejected.returncode}")
     if failures:
         raise AssertionError("\n".join(failures))
-    print("PASS both release readbacks bind member names, bytes and Unix modes")
+    print("PASS both release readbacks bind names, bytes, modes and signature member shape")
