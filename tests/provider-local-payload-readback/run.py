@@ -485,6 +485,35 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
         raise AssertionError("255-byte non-template segment was refused")
     print("PASS non-template 255-byte segment: ordinary archive member")
 
+    for label, member_name in (
+            ("dotted-I", "docs/\u0130zmir.txt"),
+            ("sharp-s", "docs/Stra\u00dfe.txt")):
+        if not any(len(character.casefold()) > 1 for character in member_name):
+            raise AssertionError(f"{label} fixture lacks a full case-fold expansion")
+        full_fold_path = work / (label + ".nupkg")
+        package(full_fold_path, head=HEAD_A, asset=b"old")
+        with ZipFile(full_fold_path, "a") as archive:
+            member = ZipInfo(member_name)
+            member.create_system = 3
+            member.external_attr = (stat.S_IFREG | 0o644) << 16
+            archive.writestr(member, b"body")
+        full_fold_sha = sha256(full_fold_path.read_bytes()).hexdigest()
+        refused(lambda: snapshot(full_fold_path, full_fold_sha, HEAD_A),
+                "archive member has a full case-fold expansion")
+        print(f"PASS non-template {label} full-fold path: NO_VERDICT")
+
+    ascii_fold_path = work / "ascii-full-fold-spelling.nupkg"
+    package(ascii_fold_path, head=HEAD_A, asset=b"old")
+    with ZipFile(ascii_fold_path, "a") as archive:
+        member = ZipInfo("docs/Strasse.txt")
+        member.create_system = 3
+        member.external_attr = (stat.S_IFREG | 0o644) << 16
+        archive.writestr(member, b"body")
+    ascii_fold_sha = sha256(ascii_fold_path.read_bytes()).hexdigest()
+    if not snapshot(ascii_fold_path, ascii_fold_sha, HEAD_A)["templates"]:
+        raise AssertionError("ASCII spelling of full-fold path was refused")
+    print("PASS non-template ASCII full-fold spelling: ordinary archive member")
+
     corrupt_external_path = work / "corrupt-external.nupkg"
     package(corrupt_external_path, head=HEAD_A, asset=b"old")
     with ZipFile(corrupt_external_path, "a") as archive:

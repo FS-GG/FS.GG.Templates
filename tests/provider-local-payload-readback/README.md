@@ -17,7 +17,8 @@ Every path segment has the same 255 UTF-8-byte observation bound as the typed
 template comparator; this does not establish the receiver filesystem limit.
 All ZIP member names must be NFC and NFKC under Python's pinned Unicode data,
 including names outside the template payload. This is a name refusal rule,
-not proof of receiver filesystem alias behavior. Every ZIP member body is
+not proof of receiver filesystem alias behavior. Names with full case-fold
+expansions are also refused across the archive. Every ZIP member body is
 consumed under per-member and aggregate expansion bounds so a corrupt non-template
 member cannot yield a payload-only match. The pinned local archives also
 require a local-file header at byte zero and a zero-comment ZIP end record at
