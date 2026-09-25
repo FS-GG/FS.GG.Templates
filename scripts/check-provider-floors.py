@@ -198,6 +198,8 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                 raise FloorError(f"{path}:{number}: repeats {root_key} root key")
             if root_key == "schemaVersion" and not SCHEMA_VERSION.fullmatch(line):
                 raise FloorError(f"{path}:{number}: unsupported schemaVersion root")
+            if root_key == "providers" and "schemaVersion" not in roots:
+                raise FloorError(f"{path}:{number}: providers appear before schemaVersion: 1")
             roots.add(root_key)
             continue
 
@@ -233,6 +235,8 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
 
     if current is not None:
         providers.append((current, floor, current_line))
+    if "schemaVersion" not in roots:
+        raise FloorError(f"{path}: missing schemaVersion: 1 root")
     if not providers:
         raise FloorError(f"{path}: declares no providers")
     first_lines: dict[str, int] = {}
@@ -1008,6 +1012,19 @@ def self_test(graded_ok: bool | None = None) -> int:
             _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1", "schemaVersion: 1 garbage", 1)),
             True,
             "unsupported schemaVersion root",
+        ),
+        (
+            "missing-schema-reds",
+            _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1\n", "", 1)),
+            True,
+            "providers appear before schemaVersion: 1",
+        ),
+        (
+            "late-schema-reds",
+            _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1\n", "", 1).rstrip("\n")
+                  + "\nschemaVersion: 1\n"),
+            True,
+            "providers appear before schemaVersion: 1",
         ),
         # THE ROOT-CAUSE CASE. The reader this replaces took the FIRST floor block in a file and
         # asserted it for the whole file. A second provider with no floor of its own must red.
