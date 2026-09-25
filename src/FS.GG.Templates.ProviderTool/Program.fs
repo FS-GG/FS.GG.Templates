@@ -50,6 +50,8 @@ let private scalar where (raw: string) =
             fail $"{where}: implicit YAML null scalar is not a string value"
         if token.[0] = '[' || token.[0] = '{' || token.[0] = ']' || token.[0] = '}' then
             fail $"{where}: YAML flow indicator is not a string value"
+        if token.[0] = '|' || token.[0] = '>' || token.[0] = '*' then
+            fail $"{where}: unsupported YAML block or alias indicator"
         token
 
 let private read path =

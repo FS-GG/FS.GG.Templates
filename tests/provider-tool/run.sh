@@ -331,6 +331,32 @@ sed -i 's/        default: sdd/        default: "[]"/' "$work/flow-providers/web
 expect_pass 'quoted flow-looking default remains a string' \
   grade --providers "$work/flow-providers" --registry "$registry"
 
+mkdir "$work/indicator-providers"
+cp "$root/providers/"*.providers.yml "$work/indicator-providers/"
+sed -i 's/        default: sdd/        default: |/' "$work/indicator-providers/web.providers.yml"
+expect_fail 'bare YAML literal block marker is not a string default' 'unsupported YAML block or alias indicator' \
+  grade --providers "$work/indicator-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/indicator-providers/web.providers.yml"
+sed -i 's/        default: sdd/        default: >-/' "$work/indicator-providers/web.providers.yml"
+expect_fail 'bare YAML folded block marker is not a string default' 'unsupported YAML block or alias indicator' \
+  grade --providers "$work/indicator-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/indicator-providers/web.providers.yml"
+sed -i 's/        default: sdd/        default: *missing/' "$work/indicator-providers/web.providers.yml"
+expect_fail 'unknown YAML alias cannot be graded as literal string' 'unsupported YAML block or alias indicator' \
+  grade --providers "$work/indicator-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/indicator-providers/web.providers.yml"
+sed -i 's/        default: sdd/        default: "|"/' "$work/indicator-providers/web.providers.yml"
+expect_pass 'quoted block marker remains a literal string' \
+  grade --providers "$work/indicator-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/indicator-providers/web.providers.yml"
+sed -i 's/        default: sdd/        default: "*missing"/' "$work/indicator-providers/web.providers.yml"
+expect_pass 'quoted alias-looking value remains a literal string' \
+  grade --providers "$work/indicator-providers" --registry "$registry"
+
 cp "$root/providers/rendering.providers.yml" "$work/stale.providers.yml"
 sed -i 's/# effective\[1\]:/# effective[99]:/' "$work/stale.providers.yml"
 expect_fail 'stale generated summary fails' 'generated summary is stale' \
