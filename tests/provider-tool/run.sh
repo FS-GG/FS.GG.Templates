@@ -136,6 +136,30 @@ expect_fail 'malformed provider field is rejected like Python' 'malformed provid
   grade --providers "$work/providers" --registry "$registry"
 
 cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
+python3 - "$work/providers/web.providers.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+path.write_text(path.read_text().replace('    templateId: fs-gg-web\n',
+    '    templateId: fs-gg-web\n      forged: ignored\n', 1))
+PY
+expect_fail 'nested content under scalar provider field refuses' 'unsupported provider indentation' \
+  grade --providers "$work/providers" --registry "$registry"
+expect_fail 'workspace descriptor nested content refuses' 'unsupported provider indentation' \
+  workspace-check --providers "$root/providers" --workspace "$work/providers/web.providers.yml" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
+python3 - "$work/providers/web.providers.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+path.write_text(path.read_text().replace('providers:\n',
+    'providers:\n    orphan: before-first-provider\n', 1))
+PY
+expect_fail 'orphan mapping before first provider refuses' 'unsupported content before first provider' \
+  grade --providers "$work/providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
 rm "$work/providers/web.providers.yml"
 mkdir "$work/providers/web.providers.yml"
 expect_fail 'directory named as descriptor is not silently skipped' 'not a regular file' \
