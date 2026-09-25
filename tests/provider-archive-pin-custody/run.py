@@ -3,6 +3,7 @@
 
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import re
 import shutil
@@ -78,6 +79,42 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-archive-") as folder:
     if status != "PIN_ROSTER_MATCH_ONLY" or reasons:
         raise AssertionError(f"matching synthetic pin/roster was refused: {status}, {reasons}")
     print("PASS synthetic pin/roster match: source-only label, no installed claim")
+
+    extra = providers / "governance.providers.yml"
+    extra.write_text("schemaVersion: 1\nproviders:\n  - name: governance\n"
+                     "    contractVersion: \"1.1.0\"\n    templateId: fs-gg-governance\n"
+                     "    source: FS.GG.Workspace.Template::0.14.0\n"
+                     "    minimumFsggSdd:\n      version: \"1.4.0-preview.1\"\n",
+                     encoding="utf-8")
+    status, reasons = assess(archive, baseline, providers)
+    if status != "NO_VERDICT" or "provider descriptor inventory differs from observed owner set" not in reasons:
+        raise AssertionError(f"new package owner was silently ignored: {status}, {reasons}")
+    extra.unlink()
+    print("PASS added package owner: NO_VERDICT pending owner review")
+
+    original_console = providers / OWNER_FILES["console"]
+    outside = work / "outside-console.providers.yml"
+    original_console.rename(outside)
+    os.symlink(outside, original_console)
+    status, reasons = assess(archive, baseline, providers)
+    if status != "NO_VERDICT" or not any("symlink" in reason for reason in reasons):
+        raise AssertionError(f"linked owner descriptor was admitted: {status}, {reasons}")
+    original_console.unlink()
+    outside.rename(original_console)
+    print("PASS linked owner descriptor: NO_VERDICT")
+
+    rendering = providers / "rendering.providers.yml"
+    rendering_text = rendering.read_text(encoding="utf-8")
+    altered_rendering, replacements = re.subn(
+        r"(?m)^    source: FS\.GG\.UI\.Template::0\.31\.0(?=\s|$)",
+        "    source: FS.GG.Workspace.Template::0.14.0", rendering_text)
+    assert replacements == 1
+    rendering.write_text(altered_rendering, encoding="utf-8")
+    status, reasons = assess(archive, baseline, providers)
+    if status != "NO_VERDICT" or "non-owner provider source is ambiguous or selects the observed package" not in reasons:
+        raise AssertionError(f"unreviewed package owner was admitted: {status}, {reasons}")
+    rendering.write_text(rendering_text, encoding="utf-8")
+    print("PASS changed non-owner package source: NO_VERDICT")
 
     malformed = providers / OWNER_FILES["console"]
     clean = malformed.read_text(encoding="utf-8")

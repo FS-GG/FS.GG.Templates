@@ -20,6 +20,12 @@ python3 tests/provider-archive-pin-custody/check.py \
 `PIN_ROSTER_MATCH_ONLY` means only that those copied source facts agree with
 the caller-supplied selected bytes. A caller can supply a forged baseline, and
 the descriptor reader is intentionally narrower than the full YAML grammar.
+The observer now requires the reviewed five-descriptor inventory and reads each
+descriptor as a regular file relative to an opened directory with no-follow
+flags. A new descriptor, linked descriptor, or a rendering descriptor that
+selects the workspace package receives `NO_VERDICT` pending owner review.
+This is a bounded read-only observation, not an atomic snapshot of a
+concurrently changing source tree.
 No result authenticates producer custody, served feed bytes, installation,
 template selection constraints, workspace output, transaction rollback, or a
 receiver decision. A duplicate short name, including one that a template host
