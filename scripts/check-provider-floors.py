@@ -99,6 +99,7 @@ DESCRIPTOR_GLOB = "*.providers.yml"
 # these files (the hand-authored PIN HISTORY block alone names this key repeatedly). Comment lines
 # are dropped before any of this matches, so a prose mention can never be read as a declaration.
 PROVIDER = re.compile(r"^  - name:\s*(\S+)\s*(?:#.*)?$")
+ROOT_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9]*):")
 FLOOR_BLOCK = re.compile(r"^    minimumFsggSdd:\s*(?:#.*)?$")
 VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+].*)?$")
@@ -181,9 +182,20 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
     floor: str | None = None
     in_block = False
     seen_floor_block = False
+    roots: set[str] = set()
 
     for number, line in enumerate(read_descriptor(path).splitlines(), 1):
         if is_skippable(line):
+            continue
+
+        if not line[0].isspace():
+            root_match = ROOT_KEY.match(line)
+            if not root_match or root_match.group(1) not in {"schemaVersion", "providers"}:
+                raise FloorError(f"{path}:{number}: unsupported descriptor root key")
+            root_key = root_match.group(1)
+            if root_key in roots:
+                raise FloorError(f"{path}:{number}: repeats {root_key} root key")
+            roots.add(root_key)
             continue
 
         match = PROVIDER.match(line)
@@ -951,6 +963,24 @@ def self_test(graded_ok: bool | None = None) -> int:
             lambda providers: shutil.copy2(providers / "web.providers.yml", providers / "copy.providers.yml"),
             True,
             "provider names must be unique across descriptors",
+        ),
+        (
+            "foreign-descriptor-root-reds",
+            _edit("web.providers.yml", lambda t: t.rstrip("\n") + "\nforeignRoot: yes\n"),
+            True,
+            "unsupported descriptor root key",
+        ),
+        (
+            "duplicate-schema-root-reds",
+            _edit("web.providers.yml", lambda t: t.rstrip("\n") + "\nschemaVersion: 1\n"),
+            True,
+            "repeats schemaVersion root key",
+        ),
+        (
+            "duplicate-providers-root-reds",
+            _edit("web.providers.yml", lambda t: t.rstrip("\n") + "\nproviders: []\n"),
+            True,
+            "repeats providers root key",
         ),
         # THE ROOT-CAUSE CASE. The reader this replaces took the FIRST floor block in a file and
         # asserted it for the whole file. A second provider with no floor of its own must red.
