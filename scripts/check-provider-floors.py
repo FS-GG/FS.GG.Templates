@@ -106,6 +106,11 @@ PARAMETERS_BLOCK = re.compile(r"^    parameters:\s*(.*?)\s*$")
 PARAMETER_KEY = re.compile(r"^      - key:\s*(.*?)\s*$")
 PARAMETER_REQUIRED = re.compile(r"^        required:\s*(.*?)\s*$")
 PARAMETER_DEFAULT = re.compile(r"^        default:\s*(.*?)\s*$")
+PROVIDER_FIELD = re.compile(r"^    ([A-Za-z][A-Za-z0-9-]*):\s*(.*?)\s*$")
+PROVIDER_FIELDS = {
+    "contractVersion", "templateId", "source", "nameParameter", "identifierParameter",
+    "minimumFsggSdd", "parameters",
+}
 VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+].*)?$")
 
@@ -310,6 +315,12 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                 if indentation == 6:
                     raise FloorError(f"{path}:{number}: malformed parameter entry")
                 raise FloorError(f"{path}:{number}: unsupported parameter indentation")
+
+        provider_field = PROVIDER_FIELD.match(line)
+        if provider_field and provider_field.group(1) not in PROVIDER_FIELDS:
+            raise FloorError(
+                f"{path}:{number}: unsupported provider field '{provider_field.group(1)}'"
+            )
 
         if FLOOR_BLOCK.match(line):
             if seen_floor_block:
