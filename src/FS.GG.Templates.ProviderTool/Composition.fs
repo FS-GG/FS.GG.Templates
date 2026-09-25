@@ -63,6 +63,14 @@ let private packageSourcePattern =
         @"\A[A-Za-z0-9][A-Za-z0-9._-]*::[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z",
         RegexOptions.CultureInvariant)
 
+let private safeEffectiveField (value: string) =
+    not (String.IsNullOrWhiteSpace value)
+    && String.Equals(value, value.Trim(), StringComparison.Ordinal)
+    && (value
+        |> Seq.forall (fun character ->
+            character <> '|' && character <> '\u2028' && character <> '\u2029'
+            && not (Char.IsControl character)))
+
 let private validateSet (providers: Provider list) =
     if List.isEmpty providers then Error EmptySelection
     else
@@ -70,8 +78,8 @@ let private validateSet (providers: Provider list) =
             providers
             |> List.tryFind (fun p ->
                 not (namePattern.IsMatch p.Name)
-                || String.IsNullOrWhiteSpace p.ContractVersion
-                || String.IsNullOrWhiteSpace p.TemplateId
+                || not (safeEffectiveField p.ContractVersion)
+                || not (safeEffectiveField p.TemplateId)
                 || String.IsNullOrWhiteSpace p.Source
                 || not (packageSourcePattern.IsMatch p.Source)
                 || (p.NameParameter |> Option.exists (fun value -> not (parameterPattern.IsMatch value)))
