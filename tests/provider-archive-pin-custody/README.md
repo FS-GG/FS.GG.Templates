@@ -7,8 +7,9 @@ descriptors even though three `FS.GG.Workspace.Template` source pins are
 
 `check.py` is an offline, read-only observation over one caller-supplied archive,
 baseline, and provider directory. It compares the selected SHA and package
-identity, refuses ambiguous or unsafe archive members, and compares four
-provider source pins and template short names. Example:
+identity, requires the selected source head to equal the package nuspec's
+single repository commit, refuses ambiguous or unsafe archive members, and
+compares four provider source pins and template short names. Example:
 
 ```sh
 python3 tests/provider-archive-pin-custody/check.py \

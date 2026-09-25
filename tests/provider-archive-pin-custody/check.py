@@ -116,10 +116,13 @@ def assess(archive: Path, baseline: dict, providers: Path, *,
         return "NO_VERDICT", ["selected candidate is not unique"]
     selected = candidates[0]
     version, expected_sha = selected.get("version"), selected.get("nativeArchiveSha256")
+    source_head = selected.get("sourceHead")
     if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+", version):
         return "NO_VERDICT", ["selected version is invalid"]
     if not isinstance(expected_sha, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_sha):
         return "NO_VERDICT", ["selected archive SHA is invalid"]
+    if not isinstance(source_head, str) or not re.fullmatch(r"[0-9a-f]{40}", source_head):
+        return "NO_VERDICT", ["selected source head is invalid"]
     try:
         raw = archive.read_bytes()
     except OSError:
@@ -144,10 +147,24 @@ def assess(archive: Path, baseline: dict, providers: Path, *,
             if b"<!DOCTYPE" in xml.upper() or b"<!ENTITY" in xml.upper():
                 return "NO_VERDICT", ["package identity XML contains declarations"]
             root = ElementTree.fromstring(xml)
-            ids = [element.text for element in root.iter() if element.tag.rsplit("}", 1)[-1] == "id"]
-            versions = [element.text for element in root.iter() if element.tag.rsplit("}", 1)[-1] == "version"]
+            def children(parent: ElementTree.Element, name: str) -> list[ElementTree.Element]:
+                return [element for element in parent if element.tag.rsplit("}", 1)[-1] == name]
+
+            metadata = children(root, "metadata") if root.tag.rsplit("}", 1)[-1] == "package" else []
+            if len(metadata) != 1:
+                return "NO_VERDICT", ["package identity/version differs from selected candidate"]
+            ids = [element.text for element in children(metadata[0], "id")]
+            versions = [element.text for element in children(metadata[0], "version")]
             if ids != ["FS.GG.Workspace.Template"] or versions != [version]:
                 return "NO_VERDICT", ["package identity/version differs from selected candidate"]
+            repositories = children(metadata[0], "repository")
+            if len(repositories) != 1:
+                return "NO_VERDICT", ["package repository metadata is missing or ambiguous"]
+            repository = repositories[0]
+            if repository.get("type") != "git" or repository.get("url") != "https://github.com/FS-GG/FS.GG.Templates":
+                return "NO_VERDICT", ["package repository source differs from selected candidate"]
+            if repository.get("commit") != source_head:
+                return "NO_VERDICT", ["package source commit differs from selected candidate"]
             for name in names:
                 if not name.endswith("/.template.config/template.json"):
                     continue

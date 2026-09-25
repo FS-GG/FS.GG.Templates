@@ -22,18 +22,25 @@ CHECKER = ROOT / "scripts/check-provider-floors.py"
 OBSERVER = Path(__file__).with_name("check.py")
 PIN = "1.4.0-preview.1"
 VERSION = "0.14.0"
+SOURCE_HEAD = "a" * 40
 
 
 def package_baseline(path: Path) -> dict:
     return {"sourceCandidates": [{"version": VERSION,
+                                   "sourceHead": SOURCE_HEAD,
                                    "nativeArchiveSha256": sha256(path.read_bytes()).hexdigest()}]}
 
 
-def package(path: Path, duplicate_game: bool = False) -> dict:
+def package(path: Path, duplicate_game: bool = False, *,
+            commit: str | None = SOURCE_HEAD, duplicate_repository: bool = False) -> dict:
+    repository = (f'<repository type="git" url="https://github.com/FS-GG/FS.GG.Templates" '
+                  f'commit="{commit}" />') if commit is not None else ""
+    if duplicate_repository:
+        repository += repository
     with ZipFile(path, "w", ZIP_DEFLATED) as archive:
         archive.writestr("FS.GG.Workspace.Template.nuspec", "<package><metadata>"
                          "<id>FS.GG.Workspace.Template</id><version>0.14.0</version>"
-                         "</metadata></package>")
+                         f"{repository}</metadata></package>")
         for owner in OWNER_FILES:
             template_id = f"fs-gg-{owner}"
             archive.writestr(f"content/templates/{template_id}/.template.config/template.json",
@@ -87,6 +94,34 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-archive-") as folder:
     if status != "PIN_ROSTER_MATCH_ONLY" or reasons:
         raise AssertionError(f"matching synthetic pin/roster was refused: {status}, {reasons}")
     print("PASS synthetic pin/roster match: source-only label, no installed claim")
+
+    wrong_commit = work / "wrong-source-commit.nupkg"
+    wrong_baseline = package(wrong_commit, commit="b" * 40)
+    status, reasons = assess(wrong_commit, wrong_baseline, providers)
+    if status != "NO_VERDICT" or reasons != ["package source commit differs from selected candidate"]:
+        raise AssertionError(f"wrong package source commit was admitted: {status}, {reasons}")
+    print("PASS wrong package source commit: NO_VERDICT")
+
+    missing_repository = work / "missing-repository.nupkg"
+    missing_baseline = package(missing_repository, commit=None)
+    status, reasons = assess(missing_repository, missing_baseline, providers)
+    if status != "NO_VERDICT" or reasons != ["package repository metadata is missing or ambiguous"]:
+        raise AssertionError(f"missing repository commit was admitted: {status}, {reasons}")
+    print("PASS missing package repository: NO_VERDICT")
+
+    repeated_repository = work / "repeated-repository.nupkg"
+    repeated_baseline = package(repeated_repository, duplicate_repository=True)
+    status, reasons = assess(repeated_repository, repeated_baseline, providers)
+    if status != "NO_VERDICT" or reasons != ["package repository metadata is missing or ambiguous"]:
+        raise AssertionError(f"repeated repository commit was admitted: {status}, {reasons}")
+    print("PASS repeated package repository: NO_VERDICT")
+
+    missing_head = {"sourceCandidates": [{"version": VERSION,
+                                          "nativeArchiveSha256": baseline["sourceCandidates"][0]["nativeArchiveSha256"]}]}
+    status, reasons = assess(archive, missing_head, providers)
+    if status != "NO_VERDICT" or reasons != ["selected source head is invalid"]:
+        raise AssertionError(f"missing selected source head was admitted: {status}, {reasons}")
+    print("PASS missing selected source head: NO_VERDICT")
 
     fixture_digests = {name: sha256((providers / name).read_bytes()).hexdigest()
                        for name in DESCRIPTOR_FILES}
@@ -227,7 +262,7 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-archive-") as folder:
     malformed.write_text(clean, encoding="utf-8")
     print("PASS foreign descriptor source tail: NO_VERDICT")
 
-    altered = {"sourceCandidates": [{"version": VERSION,
+    altered = {"sourceCandidates": [{"version": VERSION, "sourceHead": SOURCE_HEAD,
                                       "nativeArchiveSha256": "0" * 64}]}
     status, reasons = assess(archive, altered, providers)
     if status != "NO_VERDICT" or reasons != ["selected archive SHA mismatch"]:
