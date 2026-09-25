@@ -11,8 +11,10 @@ before typed comparison. The physical reader also refuses unsafe paths in
 every ZIP member, including members outside `content/templates/`, and refuses
 non-regular members and case-aliased file/child collisions outside the template
 payload. The pinned signed file's signature metadata is handled explicitly.
-Every ZIP member body is consumed
-under per-member and aggregate expansion bounds so a corrupt non-template
+All ZIP member names must be NFC and NFKC under Python's pinned Unicode data,
+including names outside the template payload. This is a name refusal rule,
+not proof of receiver filesystem alias behavior. Every ZIP member body is
+consumed under per-member and aggregate expansion bounds so a corrupt non-template
 member cannot yield a payload-only match. The pinned local archives also
 require a local-file header at byte zero and a zero-comment ZIP end record at
 the end of the file; this refuses ordinary leading and trailing overlays
@@ -21,11 +23,10 @@ methods, CRC, and size fields must match their central-directory entries.
 Data-descriptor form is refused because the three pinned archives use fixed
 local fields; support for that form is outside this readback contract. The
 pinned archives also have no local or central ZIP extra fields. Those fields
-are refused because they can carry alternate member-name metadata.
-F# requires
+are refused because they can carry alternate member-name metadata. F# requires
 exact 64-character lowercase hex body digests, one root config, and at least
-one asset for each template root. It
-refuses nested config-shaped members, file/child collisions (including case
+one asset for each template root. It refuses nested config-shaped members,
+file/child collisions (including case
 aliases), and duplicate or foreign JSON fields. A matching template config
 alone is never a payload match. F# requires NFC and NFKC member path spelling,
 so decomposed Unicode and compatibility ligatures cannot yield a payload match
