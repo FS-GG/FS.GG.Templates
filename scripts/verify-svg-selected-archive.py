@@ -25,8 +25,12 @@ PACKAGE_ID = "FS.GG.Workspace.Template"
 VERSION = "0.14.0"
 PREFIX = "content/templates/fs-gg-fable-game/"
 MAX_ARCHIVE_BYTES = 30_000_000
+MAX_BASELINE_BYTES = 1_000_000
 MAX_MEMBER_BYTES = 4_000_000
 MAX_EXPANDED_BYTES = 64_000_000
+# An operational selection must not derive its own authority from --fixture-manifest.
+# A baseline edit requires a separately reviewed update to this pin.
+SELECTED_BASELINE_SHA256 = "4bc5787d52cf867cdffca628a97e8822c6a23878e9870a949520c3c99f1b4335"
 
 
 class Refusal(ValueError):
@@ -48,11 +52,11 @@ def safe_name(name: str) -> bool:
             and all(part not in ("", ".", "..") for part in name.split("/")))
 
 
-def selected_candidate(manifest_path: Path):
+def selected_candidate(manifest_bytes: bytes):
     try:
-        manifest = json.loads(manifest_path.read_bytes(), object_pairs_hook=unique_object,
+        manifest = json.loads(manifest_bytes, object_pairs_hook=unique_object,
                               parse_constant=lambda token: (_ for _ in ()).throw(Refusal(f"invalid JSON constant: {token}")))
-    except (OSError, UnicodeError, json.JSONDecodeError) as error:
+    except (UnicodeError, json.JSONDecodeError) as error:
         raise Refusal(f"baseline unreadable: {error}") from error
     if not isinstance(manifest, dict) or manifest.get("schema") != SCHEMA:
         raise Refusal("unsupported baseline schema")
@@ -74,24 +78,24 @@ def selected_candidate(manifest_path: Path):
     return candidate, managed
 
 
-def read_archive(path: Path) -> bytes:
+def read_regular(path: Path, limit: int, subject: str) -> bytes:
     if not hasattr(os, "O_NOFOLLOW"):
-        raise Refusal("no-follow archive open unsupported")
+        raise Refusal(f"no-follow {subject} open unsupported")
     try:
         descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | getattr(os, "O_CLOEXEC", 0))
     except OSError as error:
-        raise Refusal(f"archive open refused: {error.strerror}") from error
+        raise Refusal(f"{subject} open refused: {error.strerror}") from error
     try:
         metadata = os.fstat(descriptor)
-        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > MAX_ARCHIVE_BYTES:
-            raise Refusal("archive is nonregular or too large")
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > limit:
+            raise Refusal(f"{subject} is nonregular or too large")
         with os.fdopen(descriptor, "rb", closefd=False) as stream:
-            data = stream.read(MAX_ARCHIVE_BYTES + 1)
-        if len(data) > MAX_ARCHIVE_BYTES:
-            raise Refusal("archive too large")
+            data = stream.read(limit + 1)
+        if len(data) > limit:
+            raise Refusal(f"{subject} too large")
         return data
     except OSError as error:
-        raise Refusal(f"archive read refused: {error.strerror}") from error
+        raise Refusal(f"{subject} read refused: {error.strerror}") from error
     finally:
         os.close(descriptor)
 
@@ -103,9 +107,12 @@ def one_child(parent: ET.Element, name: str) -> ET.Element:
     return matches[0]
 
 
-def verify(archive_path: Path, manifest_path: Path) -> tuple[str, str, int, int]:
-    candidate, managed = selected_candidate(manifest_path)
-    archive_bytes = read_archive(archive_path)
+def verify(archive_path: Path, manifest_path: Path, *, fixture: bool = False) -> tuple[str, str, int, int]:
+    manifest_bytes = read_regular(manifest_path, MAX_BASELINE_BYTES, "baseline")
+    if not fixture and hashlib.sha256(manifest_bytes).hexdigest() != SELECTED_BASELINE_SHA256:
+        raise Refusal("selected baseline SHA-256 mismatch")
+    candidate, managed = selected_candidate(manifest_bytes)
+    archive_bytes = read_regular(archive_path, MAX_ARCHIVE_BYTES, "archive")
     actual = hashlib.sha256(archive_bytes).hexdigest()
     if actual != candidate["nativeArchiveSha256"]:
         raise Refusal(f"selected archive SHA-256 mismatch: expected {candidate['nativeArchiveSha256']}, got {actual}")
@@ -159,16 +166,21 @@ def verify(archive_path: Path, manifest_path: Path) -> tuple[str, str, int, int]
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("archive", type=Path)
-    parser.add_argument("--manifest", type=Path,
-                        default=Path(__file__).resolve().with_name("svg-complete-workspace-baselines.json"))
+    parser.add_argument("--fixture-manifest", type=Path,
+                        help="exercise an untrusted fixture; never reports selected verification")
     args = parser.parse_args()
+    fixture = args.fixture_manifest is not None
+    manifest = (args.fixture_manifest if fixture else
+                Path(__file__).resolve().with_name("svg-complete-workspace-baselines.json"))
     try:
-        digest, source, members, managed = verify(args.archive, args.manifest)
+        digest, source, members, managed = verify(args.archive, manifest, fixture=fixture)
     except Refusal as error:
-        print(f"selected archive refused: {error}", file=sys.stderr)
+        label = "fixture archive" if fixture else "selected archive"
+        print(f"{label} refused: {error}", file=sys.stderr)
         return 1
-    print(f"selected archive verified: sha256={digest} sourceHead={source} members={members} managedMembers={managed}")
-    return 0
+    label = "fixture archive verified (non-authorizing)" if fixture else "selected archive verified"
+    print(f"{label}: sha256={digest} sourceHead={source} members={members} managedMembers={managed}")
+    return 2 if fixture else 0
 
 
 if __name__ == "__main__":

@@ -67,10 +67,11 @@ def run(name, *, accepted=False, expected="", archive_options=None, baseline_opt
             alias = folder / "link.nupkg"
             alias.symlink_to(package)
             package = alias
-        result = subprocess.run(["python3", str(GATE), str(package), "--manifest", str(manifest)],
+        result = subprocess.run(["python3", str(GATE), str(package), "--fixture-manifest", str(manifest)],
                                 capture_output=True, text=True)
         output = result.stdout + result.stderr
-        if accepted and (result.returncode != 0 or "selected archive verified" not in output):
+        if accepted and (result.returncode != 2 or "fixture archive verified (non-authorizing)" not in output
+                         or "selected archive verified" in output):
             raise AssertionError(f"{name}: selected package refused: {output}")
         if not accepted and (result.returncode == 0 or expected not in output):
             raise AssertionError(f"{name}: unsafe package admitted or wrong refusal: {output}")
