@@ -6,7 +6,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Composition.fs" />
     <Compile Include="Program.fs" />
+    <ProjectReference Include="../../src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj" />
   </ItemGroup>
 </Project>
