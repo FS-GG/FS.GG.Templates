@@ -431,6 +431,33 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
                 "archive member path is unsafe")
         print(f"PASS non-template {label} path: NO_VERDICT")
 
+    for label, member_name in (
+            ("LPT1 extension", "docs/LPT1.bin"),
+            ("NUL extension", "docs/NUL.txt")):
+        device_external_path = work / (label.replace(" ", "-") + ".nupkg")
+        package(device_external_path, head=HEAD_A, asset=b"old")
+        with ZipFile(device_external_path, "a") as archive:
+            member = ZipInfo(member_name)
+            member.create_system = 3
+            member.external_attr = (stat.S_IFREG | 0o644) << 16
+            archive.writestr(member, b"body")
+        device_external_sha = sha256(device_external_path.read_bytes()).hexdigest()
+        refused(lambda: snapshot(device_external_path, device_external_sha, HEAD_A),
+                "archive member has a reserved device name")
+        print(f"PASS non-template {label} device path: NO_VERDICT")
+
+    ordinary_numbered_path = work / "ordinary-COM10.nupkg"
+    package(ordinary_numbered_path, head=HEAD_A, asset=b"old")
+    with ZipFile(ordinary_numbered_path, "a") as archive:
+        ordinary = ZipInfo("docs/COM10.txt")
+        ordinary.create_system = 3
+        ordinary.external_attr = (stat.S_IFREG | 0o644) << 16
+        archive.writestr(ordinary, b"body")
+    ordinary_numbered_sha = sha256(ordinary_numbered_path.read_bytes()).hexdigest()
+    if not snapshot(ordinary_numbered_path, ordinary_numbered_sha, HEAD_A)["templates"]:
+        raise AssertionError("ordinary numbered non-template path was refused")
+    print("PASS non-template COM10 path: ordinary archive member")
+
     corrupt_external_path = work / "corrupt-external.nupkg"
     package(corrupt_external_path, head=HEAD_A, asset=b"old")
     with ZipFile(corrupt_external_path, "a") as archive:

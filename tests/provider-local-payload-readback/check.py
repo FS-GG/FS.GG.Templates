@@ -26,6 +26,9 @@ MAX_NUSPEC_BYTES = 1024 * 1024
 CONFIG_SUFFIX = "/.template.config/template.json"
 PREFIX = "content/templates/"
 RESERVED_MEMBER_PUNCTUATION = '<>"|?*'
+RESERVED_DEVICE_STEMS = {"CON", "PRN", "AUX", "NUL"} | {
+    prefix + digit for prefix in ("COM", "LPT") for digit in "123456789¹²³"
+}
 PROJECT = Path(__file__).resolve().parents[1] / "ProviderPayloadComparison/ProviderPayloadComparison.fsproj"
 
 
@@ -51,6 +54,10 @@ def safe_path(name: str) -> bool:
                     for character in name)
             and all(part not in ("", ".", "..") and not part.endswith((".", " "))
                     for part in name.split("/")))
+
+
+def reserved_device_part(part: str) -> bool:
+    return part.split(".", 1)[0].upper() in RESERVED_DEVICE_STEMS
 
 
 def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool = False) -> dict:
@@ -82,6 +89,8 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
             if any(not unicodedata.is_normalized("NFC", name)
                    or not unicodedata.is_normalized("NFKC", name) for name in names):
                 raise Refusal("archive member path is noncanonical")
+            if any(reserved_device_part(part) for name in names for part in name.split("/")):
+                raise Refusal("archive member has a reserved device name")
             for name in names:
                 ancestor = name
                 while "/" in ancestor:
