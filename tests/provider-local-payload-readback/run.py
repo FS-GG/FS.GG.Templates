@@ -10,7 +10,7 @@ import tempfile
 import unicodedata
 from unittest.mock import patch
 import warnings
-from zipfile import ZipFile, ZipInfo
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 import zlib
 
 from check import PROJECT, Refusal, compare, github_no_verdict, snapshot
@@ -23,7 +23,8 @@ ASSET = "content/templates/fs-gg-fable-game/build.sh"
 
 def package(path: Path, *, head: str, asset: bytes, extra: bool = False,
             signed: bool = False, duplicate: bool = False, executable: bool = False,
-            oversized_nuspec: bool = False, member_comment: bool = False) -> str:
+            oversized_nuspec: bool = False, member_comment: bool = False,
+            deflated_asset: bool = False) -> str:
     nuspec = ("<package><metadata><id>FS.GG.Workspace.Template</id><version>0.14.0</version>"
               f'<repository commit="{head}" /></metadata></package>').encode()
     if oversized_nuspec:
@@ -43,6 +44,8 @@ def package(path: Path, *, head: str, asset: bytes, extra: bool = False,
             info = ZipInfo(name)
             info.create_system = 3
             info.external_attr = (stat.S_IFREG | permissions) << 16
+            if deflated_asset and name == ASSET:
+                info.compress_type = ZIP_DEFLATED
             if member_comment and name == ASSET:
                 info.comment = b"unreviewed central member comment"
             archive.writestr(info, body)
@@ -569,6 +572,37 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
     refused(lambda: snapshot(corrupt_external_path, sha256(corrupt_external).hexdigest(), HEAD_A),
             "cannot be read exactly")
     print("PASS corrupt non-template member body: NO_VERDICT")
+
+    deflate_tail_path = work / "deflate-stream-trailing-bytes.nupkg"
+    original_sha = package(deflate_tail_path, head=HEAD_A, asset=b"compressed-body" * 20,
+                           deflated_asset=True)
+    if not snapshot(deflate_tail_path, original_sha, HEAD_A)["templates"]:
+        raise AssertionError("ordinary deflated template asset was refused")
+    with ZipFile(deflate_tail_path) as archive:
+        last_member = archive.infolist()[-1]
+    deflate_tail = bytearray(deflate_tail_path.read_bytes())
+    end_record = len(deflate_tail) - 22
+    central_offset = int.from_bytes(deflate_tail[end_record + 16:end_record + 20], "little")
+    local_offset = last_member.header_offset
+    local_name_bytes = int.from_bytes(deflate_tail[local_offset + 26:local_offset + 28], "little")
+    compressed_end = local_offset + 30 + local_name_bytes + last_member.compress_size
+    last_central = deflate_tail.rfind(b"PK\x01\x02", central_offset, end_record)
+    if (last_member.filename != ASSET or last_member.compress_type != ZIP_DEFLATED
+            or compressed_end != central_offset or last_central < central_offset
+            or last_central + 46 + len(ASSET.encode()) != end_record):
+        raise AssertionError("deflate-tail fixture did not locate final member and directory")
+    trailing = b"UNOWNED_DEFLATE_TAIL"
+    deflate_tail[compressed_end:compressed_end] = trailing
+    new_end_record = end_record + len(trailing)
+    new_last_central = last_central + len(trailing)
+    new_compressed_size = last_member.compress_size + len(trailing)
+    deflate_tail[local_offset + 18:local_offset + 22] = new_compressed_size.to_bytes(4, "little")
+    deflate_tail[new_last_central + 20:new_last_central + 24] = new_compressed_size.to_bytes(4, "little")
+    deflate_tail[new_end_record + 16:new_end_record + 20] = (central_offset + len(trailing)).to_bytes(4, "little")
+    deflate_tail_path.write_bytes(deflate_tail)
+    refused(lambda: snapshot(deflate_tail_path, sha256(deflate_tail).hexdigest(), HEAD_A),
+            "ZIP deflate stream has unused bytes")
+    print("PASS trailing bytes inside declared deflate stream: NO_VERDICT")
 
     trailing_overlay_path = work / "trailing-overlay.nupkg"
     package(trailing_overlay_path, head=HEAD_A, asset=b"old")

@@ -11,7 +11,7 @@ from stat import S_IFMT, S_IFREG
 import subprocess
 import unicodedata
 from xml.etree import ElementTree
-from zipfile import BadZipFile, ZipFile
+from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile
 import zlib
 
 SELECTED_SHA = "f301eb3e8264e2b3e9ab33f7b276f3480a7339b1cd5834a1e4876375be5758d4"
@@ -162,6 +162,17 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                         or int.from_bytes(local_header[18:22], "little") != entry.compress_size
                         or int.from_bytes(local_header[22:26], "little") != entry.file_size):
                     raise Refusal("ZIP local fixed fields differ from central directory")
+                if entry.compress_type == ZIP_DEFLATED:
+                    compressed_start = offset + 30 + local_name_bytes
+                    decoder = zlib.decompressobj(-15)
+                    expanded_member = decoder.decompress(
+                        memoryview(raw)[compressed_start:local_end], MAX_MEMBER_BYTES + 1)
+                    if len(expanded_member) > MAX_MEMBER_BYTES:
+                        raise Refusal("ZIP deflate stream exceeds observation bound")
+                    if not decoder.eof:
+                        raise Refusal("ZIP deflate stream lacks an end marker")
+                    if decoder.unused_data or decoder.unconsumed_tail:
+                        raise Refusal("ZIP deflate stream has unused bytes")
                 mode = entry.external_attr >> 16
                 if entry.filename == ".signature.p7s" and entry.create_system == 0 and mode == 0:
                     continue  # The pinned local signed readback has this signature metadata.
