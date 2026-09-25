@@ -5,16 +5,7 @@ open System.IO
 open System.Net.Http
 open System.Text
 open System.Text.RegularExpressions
-
-type Provider = {
-    Name: string
-    ContractVersion: string
-    TemplateId: string
-    Source: string
-    Floor: string option
-    File: string
-    Line: int
-}
+open FsGgTemplates.ProviderComposition
 
 let private fail message = raise (InvalidDataException message)
 let private pattern value = Regex(value, RegexOptions.CultureInvariant)
@@ -224,26 +215,22 @@ let private effective path =
     let ends = indexed endMarker
     if begins.Length <> 1 || ends.Length <> 1 || begins.Head >= ends.Head then
         fail $"{path}: expected exactly one ordered effective-providers marker pair"
+    let parsed = parseDescriptor path
     let rendered =
-        [ "# Effective providers — generated; ordered by unique provider name."
-          "# Review this block for the current selection; the release narrative remains in PIN HISTORY." ]
-        @ (parseDescriptor path
-           |> List.mapi (fun index provider ->
-               $"# effective[{index + 1}]: name={provider.Name} | template={provider.TemplateId} | source={provider.Source} | contract={provider.ContractVersion}"))
+        match select parsed parsed with
+        | Ok selection -> renderEffective selection
+        | Error refusal -> fail $"{path}: {describe refusal}"
     let expected = (lines |> List.take (begins.Head + 1)) @ rendered @ (lines |> List.skip ends.Head)
     let expectedText = String.Join("\n", expected)
     if original <> expectedText then fail $"{path}: generated summary is stale"
     printfn "effective providers: current — %d provider(s)" (parseDescriptor path).Length
 
 let private workspaceCheck directory workspaceDescriptor =
-    let known = descriptors directory |> List.map (fun provider -> provider.Name, provider) |> Map.ofList
+    let known = descriptors directory
     let workspace = parseDescriptor workspaceDescriptor
-    for provider in workspace do
-        match known.TryFind provider.Name with
-        | None -> fail $"{workspaceDescriptor}:{provider.Line}: unknown provider '{provider.Name}'"
-        | Some source ->
-            if provider.ContractVersion <> source.ContractVersion || provider.TemplateId <> source.TemplateId || provider.Source <> source.Source || provider.Floor <> source.Floor then
-                fail $"{workspaceDescriptor}:{provider.Line}: provider '{provider.Name}' differs from source descriptor"
+    match select known workspace with
+    | Ok _ -> ()
+    | Error refusal -> fail $"{workspaceDescriptor}: {describe refusal}"
     printfn "workspace providers: %d known provider(s) match source identity and floor metadata" workspace.Length
 
 let private optionValue name args fallback =

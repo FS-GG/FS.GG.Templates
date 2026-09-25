@@ -22,6 +22,11 @@ organization registry's `fs-gg-ui-template.minimum-fsgg-sdd.version`. With no
 `workspace-check` accepts only known provider names whose identity, package
 source, contract version, and floor match this repository's descriptor set.
 It does not assert byte identity or application of every descriptor parameter.
+The pure selector in `Composition.fs` validates the known and requested provider
+sets before the read-only workspace and summary checks. It rejects unknown or
+duplicate providers, invalid names or floors, and identity drift, and renders
+the summary deterministically. Run its independent controls with
+`dotnet run --project tests/ProviderComposition.Tests -c Release`.
 
 The parser intentionally accepts the current narrow descriptor layout. Before
 any receiver switch, qualify YAML edge cases and workspace parameter semantics,
