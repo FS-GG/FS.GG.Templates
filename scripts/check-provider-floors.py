@@ -299,6 +299,9 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                         raise FloorError(f"{path}:{number}: malformed parameter field")
                     scalar(default.group(1), f"{path}:{number}")
                     continue
+                if indentation == 6:
+                    raise FloorError(f"{path}:{number}: malformed parameter entry")
+                raise FloorError(f"{path}:{number}: unsupported parameter indentation")
 
         if FLOOR_BLOCK.match(line):
             if seen_floor_block:
