@@ -322,6 +322,8 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                 raise FloorError(f"{path}:{number}: unsupported parameter indentation")
 
         provider_field = PROVIDER_FIELD.match(line)
+        if len(line) - len(line.lstrip(" ")) == 4 and not provider_field:
+            raise FloorError(f"{path}:{number}: malformed provider field")
         if provider_field and provider_field.group(1) not in PROVIDER_FIELDS:
             raise FloorError(
                 f"{path}:{number}: unsupported provider field '{provider_field.group(1)}'"
