@@ -218,8 +218,8 @@ def package_product_manifest(root: Path, current: bytes | None) -> bytes:
     preserved = []
     if current is not None:
         try:
-            existing = json.loads(current)
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            existing = json.loads(current, object_pairs_hook=unique_json_pairs)
+        except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as error:
             fail(f"workspace skill manifest is invalid: {error}")
         existing_rows = existing.get("skills")
         if existing.get("schemaVersion") != 1 or not isinstance(existing_rows, list):
@@ -243,8 +243,8 @@ def skill_row_digest(row: dict) -> str:
 def admitted_workspace_skill_manifest(candidate: Path, current: bytes, adoption_manifest: dict) -> bool:
     """Authenticate only the package-owned rows; preserve other producer rows exactly."""
     try:
-        value = json.loads(current)
-    except (UnicodeDecodeError, json.JSONDecodeError):
+        value = json.loads(current, object_pairs_hook=unique_json_pairs)
+    except (UnicodeDecodeError, json.JSONDecodeError, ValueError):
         return False
     rows = value.get("skills")
     if value.get("schemaVersion") != 1 or not isinstance(rows, list):
