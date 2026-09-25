@@ -5,7 +5,6 @@ open System.Collections.Generic
 open System.IO
 open System.Text
 open System.Text.Json
-open System.Text.RegularExpressions
 
 type Member = { Name: string; Digest: string; Mode: int }
 type Snapshot = { Members: Map<string, Member>; Configs: Map<string, Member> }
@@ -15,6 +14,11 @@ let private configSuffix = "/.template.config/template.json"
 let private regular0644 = 0o100644
 let private maxInputBytes = 4 * 1024 * 1024
 let private fail message = raise (InvalidDataException message)
+
+let private isLowerHexSha256 (digest: string) =
+    digest.Length = 64
+    && (digest |> Seq.forall (fun character ->
+        (character >= '0' && character <= '9') || (character >= 'a' && character <= 'f')))
 
 let private uniqueObject (where: string) (allowed: Set<string>) (value: JsonElement) =
     if value.ValueKind <> JsonValueKind.Object then fail $"{where} must be an object"
@@ -66,7 +70,7 @@ let private parseSnapshot (where: string) (value: JsonElement) =
                && name <> prefix + templateRoot + configSuffix then
                 fail $"{where} has a non-root template config {name}"
             if not (aliases.Add name) then fail $"{where} repeats or aliases member {name}"
-            if not (Regex.IsMatch(digest, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant)) then
+            if not (isLowerHexSha256 digest) then
                 fail $"{label}.sha256 is invalid"
             if mode <> regular0644 then fail $"{label}.mode differs from selected contract"
             name, { Name = name; Digest = digest; Mode = mode })

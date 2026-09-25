@@ -79,6 +79,14 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
         raise AssertionError("typed comparator refused a complete matching template")
     print("PASS typed complete template: narrow match")
 
+    newline_digest_asset = dict(member_asset, sha256=member_asset["sha256"] + "\n")
+    newline_digest = {"left": [member_config, newline_digest_asset],
+                      "right": [member_config, newline_digest_asset]}
+    newline_digest_result = typed(json.dumps(newline_digest))
+    if newline_digest_result["status"] != "NO_VERDICT" or "sha256 is invalid" not in newline_digest_result["reason"]:
+        raise AssertionError(f"newline-terminated digest yielded a payload match: {newline_digest_result}")
+    print("PASS newline-terminated typed digest: NO_VERDICT")
+
     nested_config = dict(member_config, name="content/templates/fs-gg-fable-game/scaffold/.template.config/template.json")
     nested = {"left": [member_config, member_asset, nested_config],
               "right": [member_config, member_asset, nested_config]}
