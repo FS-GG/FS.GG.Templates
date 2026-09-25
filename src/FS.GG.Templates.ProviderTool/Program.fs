@@ -93,6 +93,8 @@ let private parseDescriptor path =
         | Some fields ->
             finishParameter ()
             let name = fields.["name"]
+            if seenParameters && parameters.Count = 0 then
+                fail $"{path}:{currentLine}: provider '{name}' parameters must contain an entry"
             let required key =
                 match fields.TryFind key with
                 | Some value -> value
