@@ -180,6 +180,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
     current_line = 0
     floor: str | None = None
     in_block = False
+    seen_floor_block = False
 
     for number, line in enumerate(read_descriptor(path).splitlines(), 1):
         if is_skippable(line):
@@ -190,18 +191,24 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
             if current is not None:
                 providers.append((current, floor, current_line))
             current, current_line, floor, in_block = match.group(1), number, None, False
+            seen_floor_block = False
             continue
 
         if current is None:
             continue
 
         if FLOOR_BLOCK.match(line):
+            if seen_floor_block:
+                raise FloorError(f"{path}:{number}: provider '{current}' repeats minimumFsggSdd block")
+            seen_floor_block = True
             in_block = True
             continue
 
         if in_block:
             match = VERSION.match(line)
-            if match and floor is None:
+            if match:
+                if floor is not None:
+                    raise FloorError(f"{path}:{number}: provider '{current}' repeats minimumFsggSdd.version")
                 floor = scalar(match.group(1), f"{path}:{number}")
                 continue
             # Any line at or left of the block's own indent closes it. `minimumFsggSdd:` sits at four
@@ -892,6 +899,23 @@ def self_test(graded_ok: bool | None = None) -> int:
             _edit("fable-bindings.providers.yml", _set_floor("latest")),
             True,
             "fable-bindings: floor 'latest' is not a version",
+        ),
+        (
+            "duplicate-floor-version-reds",
+            _edit("web.providers.yml", lambda t: t.replace(
+                f'      version: "{SYNTHETIC_PIN}"\n',
+                f'      version: "{SYNTHETIC_PIN}"\n      version: "{SYNTHETIC_BELOW}"\n', 1)),
+            True,
+            "repeats minimumFsggSdd.version",
+        ),
+        (
+            "duplicate-floor-block-reds",
+            _edit("web.providers.yml", lambda t: t.replace(
+                f'    minimumFsggSdd:\n      version: "{SYNTHETIC_PIN}"\n',
+                f'    minimumFsggSdd:\n      version: "{SYNTHETIC_PIN}"\n'
+                f'    minimumFsggSdd:\n      version: "{SYNTHETIC_PIN}"\n', 1)),
+            True,
+            "repeats minimumFsggSdd block",
         ),
         # THE ROOT-CAUSE CASE. The reader this replaces took the FIRST floor block in a file and
         # asserted it for the whole file. A second provider with no floor of its own must red.
