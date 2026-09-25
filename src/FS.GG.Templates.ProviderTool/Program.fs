@@ -237,6 +237,7 @@ let private registryPin (source: string) =
     let mutable inContract = false
     let mutable inFloor = false
     let mutable seenSelectedFloor = false
+    let mutable seenSelectedFloorFields = Set.empty<string>
     let mutable found: string option = None
     let mutable selectedContractLine: int option = None
     let mutable inContracts = false
@@ -265,6 +266,7 @@ let private registryPin (source: string) =
                 inContract <- contractId = "fs-gg-ui-template"
                 inFloor <- false
                 seenSelectedFloor <- false
+                seenSelectedFloorFields <- Set.empty
             elif inContract then
                 if registryFloorLine.IsMatch line then
                     if seenSelectedFloor then
@@ -272,6 +274,14 @@ let private registryPin (source: string) =
                     seenSelectedFloor <- true
                     inFloor <- true
                 elif inFloor then
+                    let floorField = floorFieldLine.Match line
+                    if floorField.Success then
+                        let key = floorField.Groups.[1].Value
+                        if key = "version" && found.IsSome then
+                            fail $"{source}: repeated registry minimum-fsgg-sdd.version"
+                        if seenSelectedFloorFields.Contains key then
+                            fail $"{source}:{index + 1}: duplicate selected registry minimum-fsgg-sdd field '{key}'"
+                        seenSelectedFloorFields <- seenSelectedFloorFields.Add key
                     let versionMatch = versionLine.Match line
                     if versionMatch.Success then
                         if found.IsSome then fail $"{source}: repeated registry minimum-fsgg-sdd.version"

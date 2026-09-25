@@ -58,6 +58,18 @@ Path(sys.argv[2]).write_text(source[:floor] + '    minimum-fsgg-sdd:\n' + source
 PY
 expect_fail 'duplicate selected registry floor block refuses second pin' 'duplicate selected registry minimum-fsgg-sdd block' \
   grade --providers "$root/providers" --registry "$work/duplicate-registry-floor.yml"
+python3 - "$registry" "$work/duplicate-registry-floor-field.yml" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text()
+contract = source.index('  - id: fs-gg-ui-template')
+floor = source.index('    minimum-fsgg-sdd:\n', contract)
+requires = source.index('      requires:', floor)
+source = source[:requires] + '      requires: "forged metadata"\n' + source[requires:]
+Path(sys.argv[2]).write_text(source)
+PY
+expect_fail 'duplicate selected registry floor metadata refuses' 'duplicate selected registry minimum-fsgg-sdd field' \
+  grade --providers "$root/providers" --registry "$work/duplicate-registry-floor-field.yml"
 expect_pass 'checked-in generated summary is current' \
   effective-check --provider "$root/providers/rendering.providers.yml"
 mkdir -p "$work/clean/.fsgg"
