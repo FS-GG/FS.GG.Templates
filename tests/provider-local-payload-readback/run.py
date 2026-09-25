@@ -585,6 +585,26 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
                 "ZIP multi-disk metadata")
         print(f"PASS {label}: NO_VERDICT")
 
+    for label, changed_counts in (
+            ("per-disk count zero", ((8, 0),)),
+            ("total count zero", ((10, 0),)),
+            ("total count too large", ((10, 4),)),
+            ("both counts too large", ((8, 4), (10, 4)))):
+        count_path = work / (label.replace(" ", "-") + ".nupkg")
+        package(count_path, head=HEAD_A, asset=b"old")
+        changed = bytearray(count_path.read_bytes())
+        end_record = len(changed) - 22
+        if (changed[end_record:end_record + 4] != b"PK\x05\x06"
+                or int.from_bytes(changed[end_record + 8:end_record + 10], "little") != 3
+                or int.from_bytes(changed[end_record + 10:end_record + 12], "little") != 3):
+            raise AssertionError("count fixture did not start from three ZIP members")
+        for field_offset, value in changed_counts:
+            changed[end_record + field_offset:end_record + field_offset + 2] = value.to_bytes(2, "little")
+        count_path.write_bytes(changed)
+        refused(lambda: snapshot(count_path, sha256(changed).hexdigest(), HEAD_A),
+                "ZIP end-record entry count")
+        print(f"PASS {label}: NO_VERDICT")
+
     leading_overlay_path = work / "leading-overlay.nupkg"
     package(leading_overlay_path, head=HEAD_A, asset=b"old")
     leading_overlay = b"UNOWNED_PREFIX" + leading_overlay_path.read_bytes()
