@@ -79,6 +79,24 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
         raise AssertionError("typed comparator refused a complete matching template")
     print("PASS typed complete template: narrow match")
 
+    for label, unsafe_name in (
+            ("trailing-dot directory", "content/templates/fs-gg-fable-game/assets./build.sh"),
+            ("trailing-space file", ASSET + " ")):
+        unsafe_asset = dict(member_asset, name=unsafe_name)
+        unsafe_snapshot = {"left": [member_config, unsafe_asset],
+                           "right": [member_config, unsafe_asset]}
+        unsafe_result = typed(json.dumps(unsafe_snapshot))
+        if unsafe_result["status"] != "NO_VERDICT" or "trailing dot or space" not in unsafe_result["reason"]:
+            raise AssertionError(f"{label} yielded a typed payload match: {unsafe_result}")
+        print(f"PASS {label}: NO_VERDICT")
+
+    internal_space_asset = dict(member_asset, name="content/templates/fs-gg-fable-game/build script.sh")
+    internal_space = {"left": [member_config, internal_space_asset],
+                      "right": [member_config, internal_space_asset]}
+    if typed(json.dumps(internal_space))["status"] != "TEMPLATE_PAYLOAD_MATCH_ONLY":
+        raise AssertionError("ordinary internal-space asset was refused")
+    print("PASS internal-space asset: narrow match")
+
     newline_digest_asset = dict(member_asset, sha256=member_asset["sha256"] + "\n")
     newline_digest = {"left": [member_config, newline_digest_asset],
                       "right": [member_config, newline_digest_asset]}

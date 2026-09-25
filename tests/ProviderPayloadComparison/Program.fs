@@ -49,6 +49,9 @@ let private rootOf (name: string) =
     let parts = name.Split('/')
     if parts |> Array.exists (fun part -> part = "" || part = "." || part = "..") then
         fail $"member {name} has an unsafe path"
+    if parts |> Array.exists (fun part -> part.EndsWith(".", StringComparison.Ordinal)
+                                       || part.EndsWith(" ", StringComparison.Ordinal)) then
+        fail $"member {name} has a trailing dot or space path segment"
     if parts.Length < 4 then fail $"member {name} has no template payload path"
     parts.[2]
 
