@@ -7,6 +7,7 @@ from pathlib import Path
 import stat
 import subprocess
 import tempfile
+import unicodedata
 import warnings
 from zipfile import ZipFile, ZipInfo
 
@@ -176,6 +177,33 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
     if typed(json.dumps(ascii_sharp_snapshot))["status"] != "TEMPLATE_PAYLOAD_MATCH_ONLY":
         raise AssertionError("ASCII sharp-s spelling was refused")
     print("PASS ASCII sharp-s spelling: narrow match")
+
+    if unicodedata.unidata_version != "16.0.0":
+        raise AssertionError("review typed full-fold expansion table against the Python Unicode version")
+    dotted_asset = dict(member_asset, name=ASSET.replace("build.sh", "\u0130zmir.sh"))
+    dotted_alias = dict(member_asset, name=ASSET.replace("build.sh", "i\u0307zmir.sh"))
+    if dotted_asset["name"].casefold() != dotted_alias["name"].casefold():
+        raise AssertionError("dotted-I fixture does not reproduce Python's casefold alias")
+    dotted_snapshot = {"left": [member_config, dotted_asset, dotted_alias],
+                       "right": [member_config, dotted_asset, dotted_alias]}
+    dotted_result = typed(json.dumps(dotted_snapshot, ensure_ascii=False))
+    if dotted_result["status"] != "NO_VERDICT" or "full case-fold expansion" not in dotted_result["reason"]:
+        raise AssertionError(f"dotted-I alias yielded a typed payload match: {dotted_result}")
+    print("PASS dotted-I full casefold alias: NO_VERDICT")
+
+    greek_asset = dict(member_asset, name=ASSET.replace("build.sh", "\u1f80.sh"))
+    greek_snapshot = {"left": [member_config, greek_asset], "right": [member_config, greek_asset]}
+    greek_result = typed(json.dumps(greek_snapshot, ensure_ascii=False))
+    if greek_result["status"] != "NO_VERDICT" or "full case-fold expansion" not in greek_result["reason"]:
+        raise AssertionError(f"Greek full-fold expansion yielded a typed payload match: {greek_result}")
+    print("PASS Greek full casefold expansion: NO_VERDICT")
+
+    ascii_dotted_asset = dict(member_asset, name=ASSET.replace("build.sh", "Izmir.sh"))
+    ascii_dotted_snapshot = {"left": [member_config, ascii_dotted_asset],
+                             "right": [member_config, ascii_dotted_asset]}
+    if typed(json.dumps(ascii_dotted_snapshot))["status"] != "TEMPLATE_PAYLOAD_MATCH_ONLY":
+        raise AssertionError("ASCII dotted-I spelling was refused")
+    print("PASS ASCII dotted-I spelling: narrow match")
 
     newline_digest_asset = dict(member_asset, sha256=member_asset["sha256"] + "\n")
     newline_digest = {"left": [member_config, newline_digest_asset],

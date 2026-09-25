@@ -12,9 +12,10 @@ aliases), and duplicate or foreign JSON fields. A matching template config
 alone is never a payload match. F# requires NFC and NFKC member path spelling,
 so decomposed Unicode and compatibility ligatures cannot yield a payload match
 under those aliases, following [Unicode normalization guidance](https://www.unicode.org/reports/tr15/).
-It also refuses `ß` and `ẞ` member spellings, which expand to `ss` under
-Python's case folding. These checks do not implement full Unicode case folding
-or prove that every filesystem path alias is excluded. F# also refuses
+It also refuses the 104 Unicode 16.0 code points whose Python full case fold
+expands to multiple code points, including `ß`, `ẞ`, and `İ`. This is a pinned
+expansion rule, not proof of simple-fold parity or later Unicode versions, and
+does not exclude every filesystem path alias. F# also refuses
 components ending in a period or ASCII space, ASCII codes 0–31, reserved path
 punctuation, and Windows device names, including extension forms. These rules
 follow [Windows file naming guidance](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file).
