@@ -148,6 +148,8 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                     raise Refusal("ZIP local timestamp differs from central directory")
                 if entry.extra or int.from_bytes(local_header[28:30], "little") != 0:
                     raise Refusal("ZIP extra fields differ from selected contract")
+                if entry.orig_filename != entry.filename:
+                    raise Refusal("ZIP member filename was shortened by parser")
                 local_name_bytes = int.from_bytes(local_header[26:28], "little")
                 local_end = offset + 30 + local_name_bytes + entry.compress_size
                 if local_end > central_start:
