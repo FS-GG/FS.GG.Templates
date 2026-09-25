@@ -69,10 +69,17 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
             names = [entry.filename for entry in entries]
             if len(entries) > MAX_MEMBERS:
                 raise Refusal("archive member count exceeds observation bound")
-            if len(names) != len(set(names)) or len(names) != len({name.casefold() for name in names}):
+            aliases = {name.casefold() for name in names}
+            if len(names) != len(set(names)) or len(names) != len(aliases):
                 raise Refusal("archive member duplicate or case alias")
             if any(not safe_path(name) for name in names):
                 raise Refusal("archive member path is unsafe")
+            for name in names:
+                ancestor = name
+                while "/" in ancestor:
+                    ancestor = ancestor.rsplit("/", 1)[0]
+                    if ancestor.casefold() in aliases:
+                        raise Refusal("archive member has a file ancestor")
             for entry in entries:
                 offset = entry.header_offset
                 local_header = raw[offset:offset + 30] if offset >= 0 else b""
