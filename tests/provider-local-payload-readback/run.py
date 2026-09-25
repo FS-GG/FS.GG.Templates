@@ -180,6 +180,16 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
 
     if unicodedata.unidata_version != "16.0.0":
         raise AssertionError("review typed full-fold expansion table against the Python Unicode version")
+    drift_character = "\ua7f1"
+    if unicodedata.name(drift_character, None) is not None or not unicodedata.is_normalized("NFKC", drift_character):
+        raise AssertionError("U+A7F1 is no longer an unassigned NFKC-stable Python 16.0 fixture")
+    drift_asset = dict(member_asset, name=ASSET.replace("build.sh", drift_character + ".sh"))
+    drift_snapshot = {"left": [member_config, drift_asset], "right": [member_config, drift_asset]}
+    drift_result = typed(json.dumps(drift_snapshot, ensure_ascii=False))
+    if drift_result["status"] != "NO_VERDICT" or "Unicode 16.0 normalization drift" not in drift_result["reason"]:
+        raise AssertionError(f"normalization version drift lacked a specific refusal: {drift_result}")
+    print("PASS Unicode 16.0 normalization drift: explicit NO_VERDICT")
+
     dotted_asset = dict(member_asset, name=ASSET.replace("build.sh", "\u0130zmir.sh"))
     dotted_alias = dict(member_asset, name=ASSET.replace("build.sh", "i\u0307zmir.sh"))
     if dotted_asset["name"].casefold() != dotted_alias["name"].casefold():

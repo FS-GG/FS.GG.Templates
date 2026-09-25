@@ -88,6 +88,9 @@ let private rootOf (name: string) =
         fail $"member {name} path segment exceeds byte bound"
     if parts |> Array.exists isReservedDevicePart then
         fail $"member {name} has a reserved device name"
+    // Python's pinned Unicode 16.0 treats U+A7F1 as unassigned; this runtime normalizes it.
+    if name.Contains('\uA7F1') then
+        fail $"member {name} has Unicode 16.0 normalization drift"
     if not (name.IsNormalized(NormalizationForm.FormKC)) then
         fail $"member {name} has a noncanonical compatibility path"
     // Full case folding expands both sharp-s forms to "ss"; ordinal case comparison does not.

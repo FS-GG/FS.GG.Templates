@@ -15,7 +15,9 @@ under those aliases, following [Unicode normalization guidance](https://www.unic
 It also refuses the 104 Unicode 16.0 code points whose Python full case fold
 expands to multiple code points, including `ß`, `ẞ`, and `İ`. This is a pinned
 expansion rule, not proof of simple-fold parity or later Unicode versions, and
-does not exclude every filesystem path alias. F# also refuses
+does not exclude every filesystem path alias. U+A7F1 receives an explicit
+`NO_VERDICT` for the observed Python 16.0 versus .NET NFKC disagreement; no
+acceptance is inferred from either runtime's classification. F# also refuses
 components ending in a period or ASCII space, ASCII codes 0–31, reserved path
 punctuation, and Windows device names, including extension forms. These rules
 follow [Windows file naming guidance](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file).
