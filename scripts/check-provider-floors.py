@@ -106,6 +106,7 @@ VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+].*)?$")
 
 REGISTRY_CONTRACT_ID = re.compile(r"^  - id:\s*(\S+)\s*(?:#.*)?$")
+REGISTRY_ROOT = re.compile(r"^([A-Za-z][A-Za-z0-9-]*):(?:\s.*)?$")
 REGISTRY_FLOOR_BLOCK = re.compile(rf"^    {re.escape(REGISTRY_KEY)}:\s*(?:#.*)?$")
 REGISTRY_VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
 
@@ -262,13 +263,30 @@ def read_registry_pin(text: str, source: str) -> str:
     contract: str | None = None
     in_block = False
     found: str | None = None
+    selected_contract_line: int | None = None
+    in_contracts = False
 
     for number, line in enumerate(text.splitlines(), 1):
         if is_skippable(line):
             continue
+        root = REGISTRY_ROOT.match(line)
+        if root:
+            in_contracts = root.group(1) == "contracts"
+            contract, in_block = None, False
+            continue
+        if not in_contracts:
+            continue
         match = REGISTRY_CONTRACT_ID.match(line)
         if match:
-            contract, in_block = match.group(1), False
+            contract = match.group(1)
+            if contract == REGISTRY_CONTRACT:
+                if selected_contract_line is not None:
+                    raise FloorError(
+                        f"{source}:{number}: duplicate selected registry contract id '{contract}' "
+                        f"(first at line {selected_contract_line})"
+                    )
+                selected_contract_line = number
+            in_block = False
             continue
         if contract != REGISTRY_CONTRACT:
             continue

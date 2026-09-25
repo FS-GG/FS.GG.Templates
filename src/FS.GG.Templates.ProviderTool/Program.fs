@@ -19,6 +19,7 @@ let private versionLine = pattern "^      version:\\s*(.*?)\\s*$"
 let private parameterLine = pattern "^      - key:\\s*(.*?)\\s*$"
 let private parameterFieldLine = pattern "^        (required|default):\\s*(.*?)\\s*$"
 let private contractLine = pattern "^  - id:\\s*(\\S+)\\s*(?:#.*)?$"
+let private registryRootLine = pattern "^([A-Za-z][A-Za-z0-9-]*):(?:\\s.*)?$"
 let private registryFloorLine = pattern "^    minimum-fsgg-sdd:\\s*(?:#.*)?$"
 let private semver = pattern "^\\d+\\.\\d+\\.\\d+(?:[-+].*)?$"
 let private beginMarker = "# BEGIN GENERATED: effective-providers"
@@ -215,12 +216,26 @@ let private registryPin (source: string) =
     let mutable inContract = false
     let mutable inFloor = false
     let mutable found: string option = None
+    let mutable selectedContractLine: int option = None
+    let mutable inContracts = false
     for index in 0 .. lines.Length - 1 do
         let line = lines.[index].TrimEnd('\r')
         if line.Trim() <> "" && not (line.TrimStart().StartsWith("#", StringComparison.Ordinal)) then
+            let rootMatch = registryRootLine.Match line
             let contractMatch = contractLine.Match line
-            if contractMatch.Success then
-                inContract <- contractMatch.Groups.[1].Value = "fs-gg-ui-template"
+            if rootMatch.Success then
+                inContracts <- rootMatch.Groups.[1].Value = "contracts"
+                inContract <- false
+                inFloor <- false
+            elif not inContracts then ()
+            elif contractMatch.Success then
+                let contractId = contractMatch.Groups.[1].Value
+                if contractId = "fs-gg-ui-template" then
+                    match selectedContractLine with
+                    | Some first ->
+                        fail $"{source}:{index + 1}: duplicate selected registry contract id '{contractId}' (first at line {first})"
+                    | None -> selectedContractLine <- Some(index + 1)
+                inContract <- contractId = "fs-gg-ui-template"
                 inFloor <- false
             elif inContract then
                 if registryFloorLine.IsMatch line then inFloor <- true
