@@ -198,7 +198,16 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
     in_parameters = False
     parameter_keys: set[str] = set()
     current_parameter_key: str | None = None
+    current_parameter_line = 0
+    current_parameter_required = False
     roots: set[str] = set()
+
+    def finish_parameter() -> None:
+        if current_parameter_key is not None and not current_parameter_required:
+            raise FloorError(
+                f"{path}:{current_parameter_line}: parameter '{current_parameter_key}' "
+                "needs required: true|false"
+            )
 
     for number, line in enumerate(read_descriptor(path).splitlines(), 1):
         if is_skippable(line):
@@ -221,6 +230,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
         match = PROVIDER.match(line)
         if match:
             if current is not None:
+                finish_parameter()
                 providers.append((current, floor, current_line))
             current, current_line, floor, in_block = match.group(1), number, None, False
             seen_floor_block = False
@@ -228,6 +238,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
             in_parameters = False
             parameter_keys.clear()
             current_parameter_key = None
+            current_parameter_required = False
             continue
 
         if current is None:
@@ -244,21 +255,27 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
             in_block = False
             in_parameters = True
             current_parameter_key = None
+            current_parameter_required = False
             continue
 
         if in_parameters:
             indentation = len(line) - len(line.lstrip(" "))
             if indentation <= 4:
+                finish_parameter()
                 in_parameters = False
                 current_parameter_key = None
+                current_parameter_required = False
             else:
                 parameter = PARAMETER_KEY.match(line)
                 if parameter:
+                    finish_parameter()
                     key = scalar(parameter.group(1), f"{path}:{number}")
                     if key in parameter_keys:
                         raise FloorError(f"{path}:{number}: provider '{current}' duplicate parameter key '{key}'")
                     parameter_keys.add(key)
                     current_parameter_key = key
+                    current_parameter_line = number
+                    current_parameter_required = False
                     continue
                 required = PARAMETER_REQUIRED.match(line)
                 if required:
@@ -269,6 +286,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                         raise FloorError(
                             f"{path}:{number}: parameter '{current_parameter_key}' needs required: true|false"
                         )
+                    current_parameter_required = True
                     continue
 
         if FLOOR_BLOCK.match(line):
@@ -291,6 +309,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                 in_block = False
 
     if current is not None:
+        finish_parameter()
         providers.append((current, floor, current_line))
     if "schemaVersion" not in roots:
         raise FloorError(f"{path}: missing schemaVersion: 1 root")
