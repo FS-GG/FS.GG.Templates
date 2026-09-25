@@ -34,16 +34,18 @@ def package_baseline(path: Path) -> dict:
 
 def package(path: Path, duplicate_game: bool = False, *,
             commit: str | None = SOURCE_HEAD, duplicate_repository: bool = False,
-            corrupt_unobserved: bool = False, fifo_member: bool = False) -> dict:
+            corrupt_unobserved: bool = False, fifo_member: bool = False,
+            console_mode: int = 0o644, console_create_system: int = 3) -> dict:
     repository = (f'<repository type="git" url="https://github.com/FS-GG/FS.GG.Templates" '
                   f'commit="{commit}" />') if commit is not None else ""
     if duplicate_repository:
         repository += repository
     with ZipFile(path, "w", ZIP_DEFLATED) as archive:
-        def regular(name: str, body: str | bytes, compression: int = ZIP_DEFLATED) -> None:
+        def regular(name: str, body: str | bytes, compression: int = ZIP_DEFLATED,
+                    mode: int = 0o644, origin: int = 3) -> None:
             member = ZipInfo(name)
-            member.create_system = 3
-            member.external_attr = (stat.S_IFREG | 0o644) << 16
+            member.create_system = origin
+            member.external_attr = (stat.S_IFREG | mode) << 16
             member.compress_type = compression
             archive.writestr(member, body)
 
@@ -53,7 +55,9 @@ def package(path: Path, duplicate_game: bool = False, *,
         for owner in OWNER_FILES:
             template_id = f"fs-gg-{owner}"
             regular(f"content/templates/{template_id}/.template.config/template.json",
-                    json.dumps({"shortName": template_id}))
+                    json.dumps({"shortName": template_id}),
+                    mode=console_mode if owner == "console" else 0o644,
+                    origin=console_create_system if owner == "console" else 3)
         if duplicate_game:
             regular("content/templates/game-legacy/.template.config/template.json",
                     json.dumps({"shortName": "fs-gg-fable-game"}))
@@ -114,6 +118,20 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-archive-") as folder:
     if status != "PIN_ROSTER_MATCH_ONLY" or reasons:
         raise AssertionError(f"matching synthetic pin/roster was refused: {status}, {reasons}")
     print("PASS synthetic pin/roster match: source-only label, no installed claim")
+
+    executable = work / "executable-config.nupkg"
+    executable_baseline = package(executable, console_mode=0o755)
+    status, reasons = assess(executable, executable_baseline, providers)
+    if status != "NO_VERDICT" or reasons != ["archive member Unix mode differs from selected candidate"]:
+        raise AssertionError(f"mode-changed config was admitted: {status}, {reasons}")
+    print("PASS changed Unix mode on selected config: NO_VERDICT")
+
+    dos_origin = work / "dos-origin-config.nupkg"
+    dos_baseline = package(dos_origin, console_create_system=0)
+    status, reasons = assess(dos_origin, dos_baseline, providers)
+    if status != "NO_VERDICT" or reasons != ["archive member Unix mode differs from selected candidate"]:
+        raise AssertionError(f"ambiguous ZIP origin was admitted: {status}, {reasons}")
+    print("PASS non-Unix mode origin on selected config: NO_VERDICT")
 
     corrupt = work / "corrupt-unobserved.nupkg"
     corrupt_baseline = package(corrupt, corrupt_unobserved=True)
