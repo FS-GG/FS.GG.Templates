@@ -365,6 +365,22 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "archive member is not a Unix regular file")
     print("PASS non-template symlink member: NO_VERDICT")
 
+    for label, dos_attributes in (("DOS directory bit", 0x0010),
+                                  ("DOS read-only bit", 0x0001)):
+        dos_path = work / (label.replace(" ", "-") + ".nupkg")
+        package(dos_path, head=HEAD_A, asset=b"old")
+        dos_archive = bytearray(dos_path.read_bytes())
+        end_record = len(dos_archive) - 22
+        central_offset = int.from_bytes(dos_archive[end_record + 16:end_record + 20], "little")
+        if (dos_archive[central_offset:central_offset + 4] != b"PK\x01\x02"
+                or dos_archive[central_offset + 38:central_offset + 40] != b"\x00\x00"):
+            raise AssertionError("DOS-attribute fixture did not start from zero low attributes")
+        dos_archive[central_offset + 38:central_offset + 40] = dos_attributes.to_bytes(2, "little")
+        dos_path.write_bytes(dos_archive)
+        refused(lambda: snapshot(dos_path, sha256(dos_archive).hexdigest(), HEAD_A),
+                "ZIP DOS attributes differ from selected contract")
+        print(f"PASS {label}: NO_VERDICT")
+
     unicode_extra_path = work / "unicode-path-extra.nupkg"
     package(unicode_extra_path, head=HEAD_A, asset=b"old")
     with ZipFile(unicode_extra_path, "a") as archive:

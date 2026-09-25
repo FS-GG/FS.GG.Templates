@@ -23,7 +23,9 @@ not proof of receiver filesystem alias behavior. Names with full case-fold
 expansions are also refused across the archive. The physical reader refuses a
 Python Unicode database version other than 16.0.0. Every ZIP member body is
 consumed under per-member and aggregate expansion bounds so a corrupt non-template
-member cannot yield a payload-only match. The pinned local archives also
+member cannot yield a payload-only match. DOS external-attribute bits must be
+zero for every member, including members outside the template payload.
+The pinned local archives also
 require a local-file header at byte zero and a zero-comment ZIP end record at
 the end of the file; this refuses ordinary leading and trailing overlays
 and unowned gaps between declared local members or before the central directory.
