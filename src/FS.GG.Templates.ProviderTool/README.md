@@ -25,7 +25,15 @@ source, contract version, and floor match this repository's descriptor set,
 and checks every owner descriptor floor against the registry pin, including
 providers omitted from the requested workspace selection. It reads the live
 registry by default and fails if that authority is unavailable.
-It does not assert byte identity or application of every descriptor parameter.
+The current narrow parameter declarations (`key`, `required`, optional
+`default`) also participate in identity comparison. Duplicate or unsupported
+provider and parameter fields refuse. The pure `resolveParameters` function
+rejects unknown or repeated requests, requires missing mandatory values, and
+applies declared defaults in descriptor order. Its UTF-8 effective-summary
+projection is checked against bytes independently rendered by the Python
+generator.
+It does not assert installed workspace byte identity or application of every
+descriptor parameter by the scaffold receiver.
 The pure selector in `Composition.fs` validates the known and requested provider
 sets before the read-only workspace and summary checks. It rejects unknown or
 duplicate providers, invalid names or floors, and identity drift, and renders
@@ -33,7 +41,7 @@ the summary deterministically. Run its independent controls with
 `dotnet run --project tests/ProviderComposition.Tests -c Release`.
 
 The parser intentionally accepts the current narrow descriptor layout. Before
-any receiver switch, qualify YAML edge cases and workspace parameter semantics,
+any receiver switch, qualify remaining YAML edge cases and installed workspace parameter semantics,
 the producer artifact boundary, CLI output compatibility, installed bytes, and
 the full independent Python fixture corpus. A source-only PR does not make those
 claims or authorize a receiver flip.

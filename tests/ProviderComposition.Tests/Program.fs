@@ -1,4 +1,9 @@
 open FsGgTemplates.ProviderComposition
+open System
+open System.Security.Cryptography
+
+let productName: Parameter = { Key = "productName"; Required = true; Default = None }
+let lifecycle: Parameter = { Key = "lifecycle"; Required = false; Default = Some "sdd" }
 
 let alpha: Provider = {
     Name = "alpha"
@@ -6,6 +11,7 @@ let alpha: Provider = {
     TemplateId = "fs-gg-alpha"
     Source = "Alpha.Template::1.0.0"
     Floor = Some "1.4.0-preview.1"
+    Parameters = [ productName; lifecycle ]
     File = "alpha.providers.yml"
     Line = 3
 }
@@ -46,6 +52,39 @@ let main _ =
     assertEqual "malformed request still refuses with a coherent pin"
         (Error(InvalidProvider "../alpha"))
         (selectAtRegistryFloor "1.4.0-preview.1" known [ { alpha with Name = "../alpha" } ])
+    assertEqual "parameter declaration drift refuses"
+        (Error(DifferentProvider "alpha"))
+        (selectAtRegistryFloor "1.4.0-preview.1" known
+            [ { alpha with Parameters = [ productName ] } ])
+    let staleAlpha = { alpha with Floor = Some "1.4.0-preview.2" }
+    assertEqual "selected owner floor drift refuses"
+        (Error(RegistryFloorMismatch("alpha", "1.4.0-preview.2", "1.4.0-preview.1")))
+        (selectAtRegistryFloor "1.4.0-preview.1" [ staleAlpha; beta ] [ staleAlpha ])
+    assertEqual "malformed declared parameter key refuses"
+        (Error(InvalidParameter("alpha", "../name")))
+        (selectAtRegistryFloor "1.4.0-preview.1"
+            [ { alpha with Parameters = [ { productName with Key = "../name" } ] }; beta ] [ beta ])
+    assertEqual "duplicate declared parameter refuses"
+        (Error(DuplicateParameter("alpha", "productName")))
+        (selectAtRegistryFloor "1.4.0-preview.1" [ { alpha with Parameters = [ productName; productName ] }; beta ] [ beta ])
+    assertEqual "unknown requested parameter refuses"
+        (Error(UnknownParameter("alpha", "surprise")))
+        (resolveParameters alpha [ "productName", "Demo"; "surprise", "yes" ])
+    assertEqual "duplicate requested parameter refuses"
+        (Error(DuplicateParameter("alpha", "productName")))
+        (resolveParameters alpha [ "productName", "Demo"; "productName", "Again" ])
+    assertEqual "missing required parameter refuses"
+        (Error(MissingRequiredParameter("alpha", "productName")))
+        (resolveParameters alpha [])
+    assertEqual "defaults and declared order resolve deterministically"
+        (Ok [ "productName", "Demo"; "lifecycle", "sdd" ])
+        (resolveParameters alpha [ "productName", "Demo" ])
+    assertEqual "exact UTF-8 summary bytes match Python fixture"
+        "02dff0dfdd49d147f2ec933426d6bc9910848d568fda85fc0e730678435f6b7b"
+        (Convert.ToHexString(SHA256.HashData(renderEffectiveBytes true known)).ToLowerInvariant())
+    assertEqual "exact UTF-8 summary without final newline matches Python fixture"
+        "3f2694267343ae48149ab7b082f96727590c73a3b6b5d921566c9f0de8b033b3"
+        (Convert.ToHexString(SHA256.HashData(renderEffectiveBytes false known)).ToLowerInvariant())
     let rendered =
         match selected with
         | Ok value -> renderEffective value

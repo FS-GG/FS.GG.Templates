@@ -205,6 +205,38 @@ YAML
 expect_fail 'unknown workspace provider fails' "unknown provider 'unknown'" \
   workspace-check --providers "$root/providers" --workspace "$work/unknown.providers.yml" --registry "$registry"
 
+cp "$root/providers/web.providers.yml" "$work/parameters.providers.yml"
+python3 - "$work/parameters.providers.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+entry = "      - key: lifecycle\n        required: false\n"
+path.write_text(text.replace(entry, entry + entry, 1))
+PY
+expect_fail 'duplicate parameter key refuses' "duplicate parameter key 'lifecycle'" \
+  workspace-check --providers "$root/providers" --workspace "$work/parameters.providers.yml" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/parameters.providers.yml"
+sed -i '0,/        required: true/s//        required: true\n        required: false/' "$work/parameters.providers.yml"
+expect_fail 'duplicate required key refuses' "repeated parameter field 'required'" \
+  workspace-check --providers "$root/providers" --workspace "$work/parameters.providers.yml" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/parameters.providers.yml"
+sed -i '0,/        required: true/s//        required: true\n        mystery: yes/' "$work/parameters.providers.yml"
+expect_fail 'unknown parameter field refuses' 'malformed parameter field' \
+  workspace-check --providers "$root/providers" --workspace "$work/parameters.providers.yml" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/parameters.providers.yml"
+sed -i 's/    nameParameter: productName/    mystery: yes\n    nameParameter: productName/' "$work/parameters.providers.yml"
+expect_fail 'unknown provider field refuses' "unsupported provider field 'mystery'" \
+  workspace-check --providers "$root/providers" --workspace "$work/parameters.providers.yml" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/parameters.providers.yml"
+sed -i 's/        default: sdd/        default: none/' "$work/parameters.providers.yml"
+expect_fail 'workspace parameter default drift refuses' "provider 'web' differs from source descriptor" \
+  workspace-check --providers "$root/providers" --workspace "$work/parameters.providers.yml" --registry "$registry"
+
 cp "$root/providers/rendering.providers.yml" "$work/stale.providers.yml"
 sed -i 's/# effective\[1\]:/# effective[99]:/' "$work/stale.providers.yml"
 expect_fail 'stale generated summary fails' 'generated summary is stale' \
