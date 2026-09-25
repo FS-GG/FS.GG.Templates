@@ -32,6 +32,20 @@ let main _ =
     assertEqual "missing request floor refuses" (Error(MissingFloor "alpha")) (select known [ { alpha with Floor = None } ])
     assertEqual "invalid floor refuses" (Error(InvalidFloor "alpha")) (select known [ { alpha with Floor = Some "not-a-version" } ])
     assertEqual "source drift refuses" (Error(DifferentProvider "alpha")) (select known [ { alpha with Source = "Alpha.Template::9.9.9" } ])
+    assertEqual "registry pin admits coherent owner and request"
+        (Ok [ beta ]) (selectAtRegistryFloor "1.4.0-preview.1" known [ beta ])
+    assertEqual "unselected owner floor drift refuses"
+        (Error(RegistryFloorMismatch("alpha", "1.4.0-preview.2", "1.4.0-preview.1")))
+        (selectAtRegistryFloor "1.4.0-preview.1" [ { alpha with Floor = Some "1.4.0-preview.2" }; beta ] [ beta ])
+    assertEqual "malformed registry pin refuses"
+        (Error(InvalidRegistryFloor "1.4.0 garbage"))
+        (selectAtRegistryFloor "1.4.0 garbage" known [ beta ])
+    assertEqual "unknown request still refuses with a coherent pin"
+        (Error(UnknownProvider "gamma"))
+        (selectAtRegistryFloor "1.4.0-preview.1" known [ { alpha with Name = "gamma" } ])
+    assertEqual "malformed request still refuses with a coherent pin"
+        (Error(InvalidProvider "../alpha"))
+        (selectAtRegistryFloor "1.4.0-preview.1" known [ { alpha with Name = "../alpha" } ])
     let rendered =
         match selected with
         | Ok value -> renderEffective value
