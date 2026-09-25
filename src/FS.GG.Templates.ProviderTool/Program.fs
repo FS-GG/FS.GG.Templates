@@ -48,6 +48,8 @@ let private scalar where (raw: string) =
         let token = tokens.[0]
         if token = "~" || String.Equals(token, "null", StringComparison.OrdinalIgnoreCase) then
             fail $"{where}: implicit YAML null scalar is not a string value"
+        if token.[0] = '[' || token.[0] = '{' || token.[0] = ']' || token.[0] = '}' then
+            fail $"{where}: YAML flow indicator is not a string value"
         token
 
 let private read path =

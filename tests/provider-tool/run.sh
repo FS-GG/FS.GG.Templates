@@ -310,6 +310,27 @@ sed -i 's/        default: sdd/        default: "null"/' "$work/null-providers/w
 expect_pass 'quoted literal null remains a valid string default' \
   grade --providers "$work/null-providers" --registry "$registry"
 
+mkdir "$work/flow-providers"
+cp "$root/providers/"*.providers.yml "$work/flow-providers/"
+sed -i 's/        default: sdd/        default: []/' "$work/flow-providers/web.providers.yml"
+expect_fail 'unquoted YAML flow sequence is not a string default' 'YAML flow indicator is not a string value' \
+  grade --providers "$work/flow-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/flow-providers/web.providers.yml"
+sed -i 's/        default: sdd/        default: {}/' "$work/flow-providers/web.providers.yml"
+expect_fail 'unquoted YAML flow mapping is not a string default' 'YAML flow indicator is not a string value' \
+  grade --providers "$work/flow-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/flow-providers/web.providers.yml"
+sed -i 's/        default: sdd/        default: [sdd]/' "$work/flow-providers/web.providers.yml"
+expect_fail 'populated YAML flow sequence is not a string default' 'YAML flow indicator is not a string value' \
+  grade --providers "$work/flow-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/flow-providers/web.providers.yml"
+sed -i 's/        default: sdd/        default: "[]"/' "$work/flow-providers/web.providers.yml"
+expect_pass 'quoted flow-looking default remains a string' \
+  grade --providers "$work/flow-providers" --registry "$registry"
+
 cp "$root/providers/rendering.providers.yml" "$work/stale.providers.yml"
 sed -i 's/# effective\[1\]:/# effective[99]:/' "$work/stale.providers.yml"
 expect_fail 'stale generated summary fails' 'generated summary is stale' \
