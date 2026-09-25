@@ -330,6 +330,21 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
     refused(lambda: snapshot(duplicate_path, duplicate_sha, HEAD_A), "duplicate or case alias")
     print("PASS duplicate template member: refused")
 
+    invalid_utf8_path = work / "invalid-utf8-name.nupkg"
+    package(invalid_utf8_path, head=HEAD_A, asset=b"old")
+    invalid_utf8 = bytearray(invalid_utf8_path.read_bytes())
+    asset_name = ASSET.encode("ascii")
+    central_name = invalid_utf8.rfind(asset_name)
+    central_header = invalid_utf8.rfind(b"PK\x01\x02", 0, central_name)
+    if central_name - central_header != 46:
+        raise AssertionError("invalid UTF-8 fixture did not locate the central directory name")
+    invalid_utf8[central_header + 8:central_header + 10] = (0x800).to_bytes(2, "little")
+    invalid_utf8[central_name] = 0xff
+    invalid_utf8_path.write_bytes(invalid_utf8)
+    refused(lambda: snapshot(invalid_utf8_path, sha256(invalid_utf8).hexdigest(), HEAD_A),
+            "cannot be read exactly")
+    print("PASS invalid UTF-8 central directory name: NO_VERDICT")
+
     mode_path = work / "mode.nupkg"
     mode_sha = package(mode_path, head=HEAD_A, asset=b"old", executable=True)
     refused(lambda: snapshot(mode_path, mode_sha, HEAD_A), "Unix mode differs")

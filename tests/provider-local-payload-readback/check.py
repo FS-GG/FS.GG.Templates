@@ -117,7 +117,7 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                     "configs": {name: value for name, value in templates.items() if name.endswith(CONFIG_SUFFIX)},
                     "signed": signed}
     except (BadZipFile, ElementTree.ParseError, KeyError, OSError, RuntimeError,
-            NotImplementedError, zlib.error) as error:
+            NotImplementedError, UnicodeError, zlib.error) as error:
         raise Refusal(f"local archive cannot be read exactly: {type(error).__name__}") from error
 
 

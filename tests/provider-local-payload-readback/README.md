@@ -5,7 +5,9 @@ candidate, a retained 0.14.0 release pack, and a signed NuGet-shaped local
 readback. It compares every `content/templates/` member by exact name, body
 SHA-256, and Unix mode. Python performs the bounded physical ZIP read, then
 passes member records to the nonpackable F# `ProviderPayloadComparison` tool
-for typed, pure comparison. F# requires exact 64-character lowercase hex body
+for typed, pure comparison. A central directory name flagged as UTF-8 but
+containing invalid UTF-8 bytes yields `NO_VERDICT` during physical read,
+before typed comparison. F# requires exact 64-character lowercase hex body
 digests, one root config, and at least one asset for each template root. It
 refuses nested config-shaped members, file/child collisions (including case
 aliases), and duplicate or foreign JSON fields. A matching template config
