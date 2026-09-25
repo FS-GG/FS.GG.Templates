@@ -195,8 +195,9 @@ let private parseDescriptor path =
                     if floorField.Groups.[1].Value = "version" then
                         if floor.IsSome then fail $"{path}:{index + 1}: repeated minimumFsggSdd.version"
                         floor <- Some(scalar $"{path}:{index + 1}" floorField.Groups.[2].Value)
-                elif indent < 6 || indent % 2 <> 0 then
-                    fail $"{path}:{index + 1}: unsupported provider indentation"
+                else fail $"{path}:{index + 1}: unsupported provider indentation"
+            elif inProviders then
+                fail $"{path}:{index + 1}: unsupported content before first provider"
     finish ()
     if not seenSchema then fail $"{path}: missing schemaVersion: 1 root"
     if not seenProviders then fail $"{path}: missing providers block sequence"
