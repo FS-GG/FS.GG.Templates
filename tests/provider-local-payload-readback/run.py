@@ -354,6 +354,22 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "archive member is not a Unix regular file")
     print("PASS non-template symlink member: NO_VERDICT")
 
+    corrupt_external_path = work / "corrupt-external.nupkg"
+    package(corrupt_external_path, head=HEAD_A, asset=b"old")
+    with ZipFile(corrupt_external_path, "a") as archive:
+        external = ZipInfo("README.md")
+        external.create_system = 3
+        external.external_attr = (stat.S_IFREG | 0o644) << 16
+        archive.writestr(external, b"outside-document-body")
+    corrupt_external = corrupt_external_path.read_bytes()
+    if corrupt_external.count(b"outside-document-body") != 1:
+        raise AssertionError("corrupt external fixture did not locate one member body")
+    corrupt_external = corrupt_external.replace(b"outside-document-body", b"outside-document-b0dy")
+    corrupt_external_path.write_bytes(corrupt_external)
+    refused(lambda: snapshot(corrupt_external_path, sha256(corrupt_external).hexdigest(), HEAD_A),
+            "cannot be read exactly")
+    print("PASS corrupt non-template member body: NO_VERDICT")
+
     invalid_utf8_path = work / "invalid-utf8-name.nupkg"
     package(invalid_utf8_path, head=HEAD_A, asset=b"old")
     invalid_utf8 = bytearray(invalid_utf8_path.read_bytes())
