@@ -370,6 +370,14 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "cannot be read exactly")
     print("PASS corrupt non-template member body: NO_VERDICT")
 
+    trailing_overlay_path = work / "trailing-overlay.nupkg"
+    package(trailing_overlay_path, head=HEAD_A, asset=b"old")
+    trailing_overlay = trailing_overlay_path.read_bytes() + b"UNOWNED_TRAILING_BYTES"
+    trailing_overlay_path.write_bytes(trailing_overlay)
+    refused(lambda: snapshot(trailing_overlay_path, sha256(trailing_overlay).hexdigest(), HEAD_A),
+            "archive end record differs from selected contract")
+    print("PASS trailing ZIP overlay: NO_VERDICT")
+
     invalid_utf8_path = work / "invalid-utf8-name.nupkg"
     package(invalid_utf8_path, head=HEAD_A, asset=b"old")
     invalid_utf8 = bytearray(invalid_utf8_path.read_bytes())
