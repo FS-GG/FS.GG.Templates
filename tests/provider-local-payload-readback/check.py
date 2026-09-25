@@ -80,6 +80,8 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                         or int.from_bytes(local_header[6:8], "little") != entry.flag_bits
                         or int.from_bytes(local_header[8:10], "little") != entry.compress_type):
                     raise Refusal("ZIP local header differs from central directory")
+                if entry.extra or int.from_bytes(local_header[28:30], "little") != 0:
+                    raise Refusal("ZIP extra fields differ from selected contract")
                 if entry.flag_bits & 0x08:
                     raise Refusal("ZIP data descriptor differs from selected contract")
                 if (

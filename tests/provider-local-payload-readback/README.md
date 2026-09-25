@@ -18,7 +18,9 @@ the end of the file; this refuses ordinary leading and trailing overlays
 without claiming complete ZIP-format closure. Local-header flags, compression
 methods, CRC, and size fields must match their central-directory entries.
 Data-descriptor form is refused because the three pinned archives use fixed
-local fields; support for that form is outside this readback contract.
+local fields; support for that form is outside this readback contract. The
+pinned archives also have no local or central ZIP extra fields. Those fields
+are refused because they can carry alternate member-name metadata.
 F# requires
 exact 64-character lowercase hex body digests, one root config, and at least
 one asset for each template root. It
