@@ -150,6 +150,11 @@ def assess(archive: Path, baseline: dict, providers: Path, *,
                 return "NO_VERDICT", ["archive member duplicate or case alias"]
             if any(not safe_member(member.filename, member.external_attr >> 16) for member in members):
                 return "NO_VERDICT", ["archive member path or type is unsafe"]
+            # The reviewed native candidate has Unix-created 0644 regular entries.
+            # Other origins make those mode bits ambiguous to downstream hosts.
+            if any(member.create_system != 3 or (member.external_attr >> 16) != (S_IFREG | 0o644)
+                   for member in members):
+                return "NO_VERDICT", ["archive member Unix mode differs from selected candidate"]
             expanded = 0
             try:
                 for member in members:

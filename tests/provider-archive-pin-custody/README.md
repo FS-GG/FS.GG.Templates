@@ -10,6 +10,7 @@ baseline, and provider directory. It compares the selected SHA and package
 identity, requires the selected source head to equal the package nuspec's
 single repository commit, streams every regular ZIP member within explicit
 archive and expansion bounds, refuses ambiguous or unsafe archive members,
+requires the current reviewed candidate's Unix-created `0644` member modes,
 and compares four provider source pins and template short names. Example:
 
 ```sh
