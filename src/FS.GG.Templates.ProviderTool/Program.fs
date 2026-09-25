@@ -35,7 +35,11 @@ let private scalar where (raw: string) =
         let tail = value.Substring(closing + 1).Trim()
         if tail <> "" && not (tail.StartsWith("#", StringComparison.Ordinal)) then
             fail $"{where}: unsupported text after quoted value"
-        value.Substring(1, closing - 1)
+        let quoted = value.Substring(1, closing - 1)
+        // YAML decodes escapes in double quotes; this narrow reader must not grade the raw spelling.
+        if value.[0] = '"' && quoted.Contains('\\') then
+            fail $"{where}: unsupported double-quoted escape"
+        quoted
     else
         let beforeComment = value.Split('#').[0].Trim()
         if beforeComment = "" then fail $"{where}: expected a scalar value"
