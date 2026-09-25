@@ -31,6 +31,13 @@ def digest(data: bytes) -> str:
 
 
 def checked_relative(value: str, label: str) -> str:
+    # PurePosixPath normalizes "." and repeated separators before exposing
+    # parts. Refuse their raw spellings so two manifest rows cannot name one
+    # physical managed target under different strings.
+    if (not isinstance(value, str) or not value or "\x00" in value or "\\" in value
+            or re.match(r"^[A-Za-z]:", value)
+            or any(part in {"", ".", ".."} for part in value.split("/"))):
+        fail(f"{label} is not a safe relative path: {value}")
     path = PurePosixPath(value)
     if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
         fail(f"{label} is not a safe relative path: {value}")
