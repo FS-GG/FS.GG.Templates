@@ -99,6 +99,10 @@ DESCRIPTOR_GLOB = "*.providers.yml"
 # these files (the hand-authored PIN HISTORY block alone names this key repeatedly). Comment lines
 # are dropped before any of this matches, so a prose mention can never be read as a declaration.
 PROVIDER = re.compile(r"^  - name:\s*(\S+)\s*(?:#.*)?$")
+DESCRIPTOR_SCHEMA = re.compile(r"^schemaVersion:\s*1\s*(?:#.*)?$")
+DESCRIPTOR_PROVIDERS = re.compile(r"^providers:\s*(?:#.*)?$")
+PROVIDER_FIELD = re.compile(r"^    ([A-Za-z][A-Za-z0-9-]*):\s*(.*?)\s*$")
+FLOOR_FIELD = re.compile(r"^      ([A-Za-z][A-Za-z0-9-]*):\s*(.*?)\s*$")
 FLOOR_BLOCK = re.compile(r"^    minimumFsggSdd:\s*(?:#.*)?$")
 VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+].*)?$")
@@ -121,11 +125,16 @@ def scalar(raw: str, where: str) -> str:
         closing = raw.find(quote, 1)
         if closing < 0:
             raise FloorError(f"{where}: unterminated quoted version")
+        tail = raw[closing + 1 :].strip()
+        if tail and not tail.startswith("#"):
+            raise FloorError(f"{where}: unsupported text after quoted version")
         return raw[1:closing]
     token = raw.split("#", 1)[0].strip()
     if not token:
         raise FloorError(f"{where}: expected a scalar version")
-    return token.split()[0]
+    if len(token.split()) != 1:
+        raise FloorError(f"{where}: unsupported text after version")
+    return token
 
 
 def is_skippable(line: str) -> bool:
@@ -174,41 +183,86 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
     `minimumFsggSdd:` block in the file and asserted it as though it were the file's only one; a
     second provider in the same file would have inherited the first one's floor silently. That bound
     was written down and never widened, which is half of #383.
+
+    Only the descriptor's supported top-level shape is admitted. Otherwise a floor after an unrelated
+    root key is still attributed to the last provider, even though that provider has no floor in YAML.
+    The narrow reader is not a general YAML parser; unsupported or ambiguous root/field shapes refuse.
     """
     providers: list[tuple[str, str | None, int]] = []
     current: str | None = None
     current_line = 0
     floor: str | None = None
     in_block = False
+    seen_schema = False
+    seen_providers = False
+    provider_fields: set[str] = set()
+    floor_fields: set[str] = set()
 
     for number, line in enumerate(read_descriptor(path).splitlines(), 1):
         if is_skippable(line):
             continue
 
+        if line[: len(line) - len(line.lstrip())].find("\t") >= 0:
+            raise FloorError(f"{path}:{number}: tabs in YAML indentation are unsupported")
+        indent = len(line) - len(line.lstrip(" "))
+        if indent == 0:
+            if DESCRIPTOR_SCHEMA.match(line) and not seen_schema and not seen_providers:
+                seen_schema = True
+            elif DESCRIPTOR_PROVIDERS.match(line) and seen_schema and not seen_providers:
+                seen_providers = True
+            elif line.strip() == "providers: []" and seen_schema and not seen_providers:
+                raise FloorError(f"{path}:{number}: declares no providers")
+            else:
+                raise FloorError(f"{path}:{number}: unsupported or duplicate descriptor root key")
+            continue
+
+        if not seen_providers:
+            raise FloorError(f"{path}:{number}: descriptor content before providers list")
+
         match = PROVIDER.match(line)
-        if match:
+        if indent == 2 and match:
             if current is not None:
                 providers.append((current, floor, current_line))
             current, current_line, floor, in_block = match.group(1), number, None, False
+            provider_fields.clear()
+            floor_fields.clear()
             continue
+        if indent == 2:
+            raise FloorError(f"{path}:{number}: unsupported provider list entry")
 
         if current is None:
-            continue
+            raise FloorError(f"{path}:{number}: provider field before first provider")
 
-        if FLOOR_BLOCK.match(line):
-            in_block = True
+        if indent == 4:
+            field = PROVIDER_FIELD.match(line)
+            if field is None:
+                raise FloorError(f"{path}:{number}: malformed provider field")
+            key = field.group(1)
+            if key in provider_fields:
+                raise FloorError(f"{path}:{number}: provider '{current}' repeats {key}")
+            provider_fields.add(key)
+            in_block = key == "minimumFsggSdd"
+            if in_block and not FLOOR_BLOCK.match(line):
+                raise FloorError(f"{path}:{number}: minimumFsggSdd must be a mapping")
             continue
 
         if in_block:
-            match = VERSION.match(line)
-            if match and floor is None:
-                floor = scalar(match.group(1), f"{path}:{number}")
-                continue
-            # Any line at or left of the block's own indent closes it. `minimumFsggSdd:` sits at four
-            # spaces, so a sibling key ends the block and a nested key (six spaces) does not.
-            if len(line) - len(line.lstrip(" ")) <= 4:
-                in_block = False
+            field = FLOOR_FIELD.match(line)
+            if indent != 6 or field is None:
+                raise FloorError(f"{path}:{number}: malformed minimumFsggSdd field")
+            key = field.group(1)
+            if key in floor_fields:
+                raise FloorError(f"{path}:{number}: provider '{current}' repeats minimumFsggSdd.{key}")
+            floor_fields.add(key)
+            if key == "version":
+                floor = scalar(field.group(2), f"{path}:{number}")
+            continue
 
+        if indent < 6 or indent % 2:
+            raise FloorError(f"{path}:{number}: unsupported provider indentation")
+
+    if not seen_schema or not seen_providers:
+        raise FloorError(f"{path}: missing schemaVersion: 1 or providers: root")
     if current is not None:
         providers.append((current, floor, current_line))
     if not providers:
@@ -337,10 +391,14 @@ def grade(providers_dir: Path, registry_source: str, out: list[str]) -> tuple[in
     out.append(f"descriptors:  {len(descriptors)} matched {display(providers_dir)}/{DESCRIPTOR_GLOB}")
 
     failures = 0
+    seen_providers: set[str] = set()
     for descriptor in descriptors:
         shown = display(descriptor)
         for name, floor, line in parse_descriptor(descriptor):
             where = f"{shown}:{line}"
+            if name in seen_providers:
+                raise FloorError(f"{where}: duplicate provider identity '{name}'")
+            seen_providers.add(name)
             if floor is None:
                 failures += 1
                 message = (
