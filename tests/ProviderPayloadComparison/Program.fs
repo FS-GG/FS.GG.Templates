@@ -11,6 +11,7 @@ type Snapshot = { Members: Map<string, Member>; Configs: Map<string, Member> }
 
 let private prefix = "content/templates/"
 let private configSuffix = "/.template.config/template.json"
+let private reservedMemberPunctuation = "<>\"|?*"
 let private regular0644 = 0o100644
 let private maxInputBytes = 4 * 1024 * 1024
 let private fail message = raise (InvalidDataException message)
@@ -46,6 +47,8 @@ let private rootOf (name: string) =
         fail $"member {name} has a noncanonical Unicode path"
     if name.EndsWith("/", StringComparison.Ordinal) || name.Contains('\\')
        || name.Contains(':') || name.Contains('\000') then fail $"member {name} has an unsafe path"
+    if name |> Seq.exists (fun character -> character < ' ' || reservedMemberPunctuation.Contains character) then
+        fail $"member {name} has a reserved path character"
     let parts = name.Split('/')
     if parts |> Array.exists (fun part -> part = "" || part = "." || part = "..") then
         fail $"member {name} has an unsafe path"

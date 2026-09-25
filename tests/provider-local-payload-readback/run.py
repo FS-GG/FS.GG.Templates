@@ -97,6 +97,23 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
         raise AssertionError("ordinary internal-space asset was refused")
     print("PASS internal-space asset: narrow match")
 
+    for label, unsafe_name in (
+            ("control-character asset", ASSET.replace("build.sh", "build\n.sh")),
+            ("reserved-punctuation asset", ASSET.replace("build.sh", "build?.sh"))):
+        unsafe_asset = dict(member_asset, name=unsafe_name)
+        unsafe_snapshot = {"left": [member_config, unsafe_asset],
+                           "right": [member_config, unsafe_asset]}
+        unsafe_result = typed(json.dumps(unsafe_snapshot))
+        if unsafe_result["status"] != "NO_VERDICT" or "reserved path character" not in unsafe_result["reason"]:
+            raise AssertionError(f"{label} yielded a typed payload match: {unsafe_result}")
+        print(f"PASS {label}: NO_VERDICT")
+
+    plus_asset = dict(member_asset, name=ASSET.replace("build.sh", "build+script.sh"))
+    plus_snapshot = {"left": [member_config, plus_asset], "right": [member_config, plus_asset]}
+    if typed(json.dumps(plus_snapshot))["status"] != "TEMPLATE_PAYLOAD_MATCH_ONLY":
+        raise AssertionError("ordinary plus-sign asset was refused")
+    print("PASS plus-sign asset: narrow match")
+
     newline_digest_asset = dict(member_asset, sha256=member_asset["sha256"] + "\n")
     newline_digest = {"left": [member_config, newline_digest_asset],
                       "right": [member_config, newline_digest_asset]}
