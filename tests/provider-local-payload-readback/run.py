@@ -342,6 +342,18 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "archive member path is unsafe")
     print("PASS non-template traversal member: NO_VERDICT")
 
+    external_symlink_path = work / "external-symlink.nupkg"
+    package(external_symlink_path, head=HEAD_A, asset=b"old")
+    with ZipFile(external_symlink_path, "a") as archive:
+        symlink = ZipInfo("tools/link")
+        symlink.create_system = 3
+        symlink.external_attr = (stat.S_IFLNK | 0o777) << 16
+        archive.writestr(symlink, b"../outside")
+    symlink_sha = sha256(external_symlink_path.read_bytes()).hexdigest()
+    refused(lambda: snapshot(external_symlink_path, symlink_sha, HEAD_A),
+            "archive member is not a Unix regular file")
+    print("PASS non-template symlink member: NO_VERDICT")
+
     invalid_utf8_path = work / "invalid-utf8-name.nupkg"
     package(invalid_utf8_path, head=HEAD_A, asset=b"old")
     invalid_utf8 = bytearray(invalid_utf8_path.read_bytes())
