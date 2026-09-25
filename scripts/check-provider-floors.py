@@ -103,6 +103,7 @@ ROOT_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9]*):")
 SCHEMA_VERSION = re.compile(r"^schemaVersion:\s*1\s*(?:#.*)?$")
 FLOOR_BLOCK = re.compile(r"^    minimumFsggSdd:\s*(?:#.*)?$")
 PARAMETERS_BLOCK = re.compile(r"^    parameters:\s*(.*?)\s*$")
+PARAMETER_KEY = re.compile(r"^      - key:\s*(.*?)\s*$")
 VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+].*)?$")
 
@@ -193,6 +194,8 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
     in_block = False
     seen_floor_block = False
     seen_parameters_block = False
+    in_parameters = False
+    parameter_keys: set[str] = set()
     roots: set[str] = set()
 
     for number, line in enumerate(read_descriptor(path).splitlines(), 1):
@@ -220,6 +223,8 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
             current, current_line, floor, in_block = match.group(1), number, None, False
             seen_floor_block = False
             seen_parameters_block = False
+            in_parameters = False
+            parameter_keys.clear()
             continue
 
         if current is None:
@@ -234,7 +239,21 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
             if inline and not inline.startswith("#"):
                 raise FloorError(f"{path}:{number}: provider '{current}' parameters must be a block sequence")
             in_block = False
+            in_parameters = True
             continue
+
+        if in_parameters:
+            indentation = len(line) - len(line.lstrip(" "))
+            if indentation <= 4:
+                in_parameters = False
+            else:
+                parameter = PARAMETER_KEY.match(line)
+                if parameter:
+                    key = scalar(parameter.group(1), f"{path}:{number}")
+                    if key in parameter_keys:
+                        raise FloorError(f"{path}:{number}: provider '{current}' duplicate parameter key '{key}'")
+                    parameter_keys.add(key)
+                    continue
 
         if FLOOR_BLOCK.match(line):
             if seen_floor_block:
