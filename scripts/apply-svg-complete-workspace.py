@@ -31,6 +31,13 @@ def digest(data: bytes) -> str:
 
 
 def checked_relative(value: str, label: str) -> str:
+    # PurePosixPath normalizes "." and repeated separators before exposing
+    # parts. Refuse their raw spellings so two manifest rows cannot name one
+    # physical managed target under different strings.
+    if (not isinstance(value, str) or not value or "\x00" in value or "\\" in value
+            or re.match(r"^[A-Za-z]:", value)
+            or any(part in {"", ".", ".."} for part in value.split("/"))):
+        fail(f"{label} is not a safe relative path: {value}")
     path = PurePosixPath(value)
     if path.is_absolute() or not path.parts or any(part in {"", ".", ".."} for part in path.parts):
         fail(f"{label} is not a safe relative path: {value}")
@@ -57,10 +64,19 @@ def file_mode(path: Path) -> int:
     return stat.S_IMODE(path.stat(follow_symlinks=False).st_mode)
 
 
+def unique_json_pairs(pairs: list[tuple[str, object]]) -> dict:
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON key: {key}")
+        value[key] = item
+    return value
+
+
 def load_json(path: Path) -> dict:
     try:
-        return json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as error:
+        return json.loads(path.read_text(), object_pairs_hook=unique_json_pairs)
+    except (OSError, json.JSONDecodeError, ValueError) as error:
         fail(f"cannot read {path}: {error}")
 
 
