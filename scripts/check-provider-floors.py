@@ -116,18 +116,25 @@ class FloorError(ValueError):
 
 def scalar(raw: str, where: str) -> str:
     """Read the simple scalar spellings these descriptors use, dropping any trailing comment."""
-    if not raw:
+    value = raw.strip()
+    if not value:
         raise FloorError(f"{where}: version has no value")
-    if raw[0] in "\"'":
-        quote = raw[0]
-        closing = raw.find(quote, 1)
+    if value[0] in "\"'":
+        quote = value[0]
+        closing = value.find(quote, 1)
         if closing < 0:
             raise FloorError(f"{where}: unterminated quoted version")
-        return raw[1:closing]
-    token = raw.split("#", 1)[0].strip()
+        tail = value[closing + 1:].strip()
+        if tail and not tail.startswith("#"):
+            raise FloorError(f"{where}: unsupported text after quoted version")
+        return value[1:closing]
+    token = value.split("#", 1)[0].strip()
     if not token:
         raise FloorError(f"{where}: expected a scalar version")
-    return token.split()[0]
+    parts = token.split()
+    if len(parts) != 1:
+        raise FloorError(f"{where}: unsupported text after scalar version")
+    return parts[0]
 
 
 def is_skippable(line: str) -> bool:
