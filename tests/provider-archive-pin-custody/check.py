@@ -5,9 +5,10 @@ import argparse
 from hashlib import sha256
 from io import BytesIO
 import json
+import os
 from pathlib import Path
 import re
-from stat import S_IFLNK, S_IFMT
+from stat import S_IFLNK, S_IFMT, S_ISLNK, S_ISREG
 from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
 
@@ -17,9 +18,11 @@ OWNER_FILES = {
     "fable-game": "fable-game.providers.yml",
     "web": "web.providers.yml",
 }
+DESCRIPTOR_FILES = set(OWNER_FILES.values()) | {"rendering.providers.yml"}
 NAME = re.compile(r"^  - name:\s*(\S+)\s*(?:#.*)?$", re.MULTILINE)
 SOURCE = re.compile(r"^    source:\s*FS\.GG\.Workspace\.Template::([^\s#]+)\s*(?:#.*)?$", re.MULTILINE)
 TEMPLATE_ID = re.compile(r"^    templateId:\s*(\S+)\s*(?:#.*)?$", re.MULTILINE)
+ANY_SOURCE = re.compile(r"^    source:\s*(\S+)\s*(?:#.*)?$", re.MULTILINE)
 
 
 def strict_json(data: bytes) -> object:
@@ -40,6 +43,39 @@ def safe_member(name: str, mode: int) -> bool:
             and ":" not in name and "\x00" not in name
             and all(part not in ("", ".", "..") for part in parts)
             and S_IFMT(mode) != S_IFLNK)
+
+
+def read_descriptors(providers: Path) -> tuple[dict[str, str], list[str]]:
+    """Bind this source observation to one opened directory and regular files."""
+    if not all(hasattr(os, flag) for flag in ("O_DIRECTORY", "O_NOFOLLOW")):
+        return {}, ["descriptor no-follow traversal is unavailable"]
+    try:
+        directory = os.open(providers, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    except OSError:
+        return {}, ["provider descriptor directory is inaccessible or linked"]
+    try:
+        entries = {name for name in os.listdir(directory) if name.endswith(".providers.yml")}
+        if entries != DESCRIPTOR_FILES:
+            return {}, ["provider descriptor inventory differs from observed owner set"]
+        contents = {}
+        for name in sorted(entries):
+            if S_ISLNK(os.stat(name, dir_fd=directory, follow_symlinks=False).st_mode):
+                return {}, [f"{name} descriptor is a symlink"]
+            handle = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory)
+            with os.fdopen(handle, "r", encoding="utf-8") as reader:
+                if not S_ISREG(os.fstat(reader.fileno()).st_mode):
+                    return {}, [f"{name} descriptor is not regular"]
+                value = reader.read(1_048_577)
+            if len(value) > 1_048_576:
+                return {}, [f"{name} descriptor exceeds observation bound"]
+            contents[name] = value
+        if {name for name in os.listdir(directory) if name.endswith(".providers.yml")} != entries:
+            return {}, ["provider descriptor inventory changed during observation"]
+        return contents, []
+    except (OSError, UnicodeError):
+        return {}, ["provider descriptor inventory could not be read exactly"]
+    finally:
+        os.close(directory)
 
 
 def assess(archive: Path, baseline: dict, providers: Path) -> tuple[str, list[str]]:
@@ -97,13 +133,14 @@ def assess(archive: Path, baseline: dict, providers: Path) -> tuple[str, list[st
     except (BadZipFile, ValueError, ElementTree.ParseError, KeyError, RuntimeError) as error:
         return "NO_VERDICT", [f"archive cannot be read exactly: {type(error).__name__}"]
 
+    contents, inventory_reasons = read_descriptors(providers)
+    if inventory_reasons:
+        return "NO_VERDICT", inventory_reasons
+    other_sources = ANY_SOURCE.findall(contents["rendering.providers.yml"])
+    if len(other_sources) != 1 or other_sources[0].startswith("FS.GG.Workspace.Template::"):
+        reasons.append("non-owner provider source is ambiguous or selects the observed package")
     for owner, filename in OWNER_FILES.items():
-        path = providers / filename
-        try:
-            content = path.read_text(encoding="utf-8")
-        except (OSError, UnicodeError):
-            reasons.append(f"{owner} descriptor is inaccessible")
-            continue
+        content = contents[filename]
         names = NAME.findall(content)
         sources = SOURCE.findall(content)
         template_ids = TEMPLATE_ID.findall(content)
