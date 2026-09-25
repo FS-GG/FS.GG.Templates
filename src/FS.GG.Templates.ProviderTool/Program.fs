@@ -16,6 +16,8 @@ let private fieldLine = pattern "^    ([A-Za-z][A-Za-z0-9-]*):\\s*(.*?)\\s*$"
 let private floorLine = pattern "^    minimumFsggSdd:\\s*(?:#.*)?$"
 let private floorFieldLine = pattern "^      ([A-Za-z][A-Za-z0-9-]*):\\s*(.*?)\\s*$"
 let private versionLine = pattern "^      version:\\s*(.*?)\\s*$"
+let private parameterLine = pattern "^      - key:\\s*(.*?)\\s*$"
+let private parameterFieldLine = pattern "^        (required|default):\\s*(.*?)\\s*$"
 let private contractLine = pattern "^  - id:\\s*(\\S+)\\s*(?:#.*)?$"
 let private registryFloorLine = pattern "^    minimum-fsgg-sdd:\\s*(?:#.*)?$"
 let private semver = pattern "^\\d+\\.\\d+\\.\\d+(?:[-+].*)?$"
@@ -55,10 +57,29 @@ let private parseDescriptor path =
     let mutable seenSchema = false
     let mutable seenProviders = false
     let mutable seenFloor = false
+    let mutable inParameters = false
+    let mutable seenParameters = false
+    let mutable currentParameter: Map<string, string> option = None
+    let parameters = ResizeArray<Parameter>()
+    let finishParameter () =
+        match currentParameter with
+        | None -> ()
+        | Some fields ->
+            let key = fields.["key"]
+            let required =
+                match fields.TryFind "required" with
+                | Some "true" -> true
+                | Some "false" -> false
+                | _ -> fail $"{path}: parameter '{key}' needs required: true|false"
+            if parameters |> Seq.exists (fun parameter -> parameter.Key = key) then
+                fail $"{path}: duplicate parameter key '{key}'"
+            parameters.Add { Key = key; Required = required; Default = fields.TryFind "default" }
+            currentParameter <- None
     let finish () =
         match current with
         | None -> ()
         | Some fields ->
+            finishParameter ()
             let name = fields.["name"]
             let required key =
                 match fields.TryFind key with
@@ -70,6 +91,7 @@ let private parseDescriptor path =
                 TemplateId = required "templateId"
                 Source = required "source"
                 Floor = floor
+                Parameters = parameters |> Seq.toList
                 File = path
                 Line = currentLine
             }
@@ -84,6 +106,7 @@ let private parseDescriptor path =
                 finish ()
                 current <- None
                 inFloor <- false
+                inParameters <- false
                 inProviders <- false
                 match rootMatch.Groups.[1].Value with
                 | "schemaVersion" ->
@@ -110,11 +133,16 @@ let private parseDescriptor path =
                 floor <- None
                 inFloor <- false
                 seenFloor <- false
+                inParameters <- false
+                seenParameters <- false
+                currentParameter <- None
+                parameters.Clear()
             elif inProviders && line.StartsWith("  ", StringComparison.Ordinal) && not (line.StartsWith("    ", StringComparison.Ordinal)) then
                 fail $"{path}:{index + 1}: providers must contain named block entries"
             elif inProviders && current.IsSome then
                 let indent = indentation.Length
                 if indent = 4 then
+                    if inParameters then finishParameter ()
                     let fieldMatch = fieldLine.Match line
                     if not fieldMatch.Success then fail $"{path}:{index + 1}: malformed provider field"
                     let key = fieldMatch.Groups.[1].Value
@@ -125,12 +153,38 @@ let private parseDescriptor path =
                         inFloor <- true
                     else
                         inFloor <- false
-                    if key = "contractVersion" || key = "templateId" || key = "source" then
+                    if key = "parameters" then
+                        if seenParameters then fail $"{path}:{index + 1}: repeated parameters"
+                        let inlineValue = fieldMatch.Groups.[2].Value.Trim()
+                        if inlineValue <> "" && not (inlineValue.StartsWith("#", StringComparison.Ordinal)) then
+                            fail $"{path}:{index + 1}: parameters must be a block sequence"
+                        seenParameters <- true
+                        inParameters <- true
+                    else
+                        inParameters <- false
+                    if key = "contractVersion" || key = "templateId" || key = "source"
+                       || key = "nameParameter" || key = "identifierParameter" then
                         let value = scalar $"{path}:{index + 1}" fieldMatch.Groups.[2].Value
                         let fields = current.Value
                         let name = fields.["name"]
                         if fields.ContainsKey key then fail $"{path}:{index + 1}: provider '{name}' repeats {key}"
                         current <- Some(fields.Add(key, value))
+                    elif key <> "minimumFsggSdd" && key <> "parameters" then
+                        fail $"{path}:{index + 1}: unsupported provider field '{key}'"
+                elif inParameters then
+                    if indent = 6 then
+                        let parameterMatch = parameterLine.Match line
+                        if not parameterMatch.Success then fail $"{path}:{index + 1}: malformed parameter entry"
+                        finishParameter ()
+                        currentParameter <- Some(Map.ofList [ "key", scalar $"{path}:{index + 1}" parameterMatch.Groups.[1].Value ])
+                    elif indent = 8 && currentParameter.IsSome then
+                        let parameterField = parameterFieldLine.Match line
+                        if not parameterField.Success then fail $"{path}:{index + 1}: malformed parameter field"
+                        let key = parameterField.Groups.[1].Value
+                        let fields = currentParameter.Value
+                        if fields.ContainsKey key then fail $"{path}:{index + 1}: repeated parameter field '{key}'"
+                        currentParameter <- Some(fields.Add(key, scalar $"{path}:{index + 1}" parameterField.Groups.[2].Value))
+                    else fail $"{path}:{index + 1}: unsupported parameter indentation"
                 elif inFloor then
                     let floorField = floorFieldLine.Match line
                     if indent <> 6 || not floorField.Success then
