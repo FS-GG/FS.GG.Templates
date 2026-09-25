@@ -562,6 +562,29 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "ZIP bytes outside declared local members")
     print("PASS unowned gap before central directory: NO_VERDICT")
 
+    for label, marker_location in (
+            ("end-record current disk", "end-current"),
+            ("end-record directory disk", "end-directory"),
+            ("central member starting disk", "member-start")):
+        multi_disk_path = work / (marker_location + ".nupkg")
+        package(multi_disk_path, head=HEAD_A, asset=b"old")
+        multi_disk = bytearray(multi_disk_path.read_bytes())
+        end_record = len(multi_disk) - 22
+        central_offset = int.from_bytes(multi_disk[end_record + 16:end_record + 20], "little")
+        if (multi_disk[end_record:end_record + 4] != b"PK\x05\x06"
+                or multi_disk[central_offset:central_offset + 4] != b"PK\x01\x02"):
+            raise AssertionError("multi-disk fixture did not locate ZIP directory records")
+        marker_offset = {"end-current": end_record + 4,
+                         "end-directory": end_record + 6,
+                         "member-start": central_offset + 34}[marker_location]
+        if multi_disk[marker_offset:marker_offset + 2] != b"\x00\x00":
+            raise AssertionError("multi-disk fixture did not start from a single-disk archive")
+        multi_disk[marker_offset:marker_offset + 2] = (1).to_bytes(2, "little")
+        multi_disk_path.write_bytes(multi_disk)
+        refused(lambda: snapshot(multi_disk_path, sha256(multi_disk).hexdigest(), HEAD_A),
+                "ZIP multi-disk metadata")
+        print(f"PASS {label}: NO_VERDICT")
+
     leading_overlay_path = work / "leading-overlay.nupkg"
     package(leading_overlay_path, head=HEAD_A, asset=b"old")
     leading_overlay = b"UNOWNED_PREFIX" + leading_overlay_path.read_bytes()

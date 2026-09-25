@@ -86,6 +86,8 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
             if len(entries) > MAX_MEMBERS:
                 raise Refusal("archive member count exceeds observation bound")
             end_record = len(raw) - 22
+            if raw[end_record + 4:end_record + 8] != b"\x00" * 4:
+                raise Refusal("ZIP multi-disk metadata differs from selected contract")
             central_size = int.from_bytes(raw[end_record + 12:end_record + 16], "little")
             central_start = int.from_bytes(raw[end_record + 16:end_record + 20], "little")
             if (central_start + central_size != end_record
@@ -114,6 +116,8 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                         raise Refusal("archive member has a file ancestor")
             local_ranges = []
             for entry in entries:
+                if entry.volume != 0:
+                    raise Refusal("ZIP multi-disk metadata differs from selected contract")
                 offset = entry.header_offset
                 local_header = raw[offset:offset + 30] if offset >= 0 else b""
                 if (len(local_header) != 30 or local_header[:4] != b"PK\x03\x04"
