@@ -79,6 +79,24 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
         raise AssertionError("typed comparator refused a complete matching template")
     print("PASS typed complete template: narrow match")
 
+    decomposed_root = "fs-gg-cafe\u0301"
+    decomposed_config = dict(member_config, name=f"content/templates/{decomposed_root}/.template.config/template.json")
+    decomposed_asset = dict(member_asset, name=f"content/templates/{decomposed_root}/build.sh")
+    decomposed = {"left": [decomposed_config, decomposed_asset],
+                  "right": [decomposed_config, decomposed_asset]}
+    decomposed_result = typed(json.dumps(decomposed, ensure_ascii=False))
+    if decomposed_result["status"] != "NO_VERDICT" or "noncanonical Unicode path" not in decomposed_result["reason"]:
+        raise AssertionError(f"decomposed typed path was admitted: {decomposed_result}")
+    print("PASS decomposed typed path: NO_VERDICT")
+
+    composed_root = "fs-gg-caf\u00e9"
+    composed_config = dict(member_config, name=f"content/templates/{composed_root}/.template.config/template.json")
+    composed_asset = dict(member_asset, name=f"content/templates/{composed_root}/build.sh")
+    composed = {"left": [composed_config, composed_asset], "right": [composed_config, composed_asset]}
+    if typed(json.dumps(composed, ensure_ascii=False))["status"] != "TEMPLATE_PAYLOAD_MATCH_ONLY":
+        raise AssertionError("canonical composed typed path was refused")
+    print("PASS composed typed path: narrow match")
+
     duplicate_root = typed('{"left":[],"left":[],"right":[]}')
     if duplicate_root["status"] != "NO_VERDICT" or "repeats left" not in duplicate_root["reason"]:
         raise AssertionError(f"duplicate comparison key was admitted: {duplicate_root}")
