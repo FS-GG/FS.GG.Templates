@@ -48,6 +48,16 @@ Path(sys.argv[2]).write_text(source.rstrip('\n') + '\ncontracts:\n  - id: unrela
 PY
 expect_fail 'duplicate registry contracts root refuses stale first pin' 'duplicate registry contracts root' \
   grade --providers "$root/providers" --registry "$work/duplicate-registry-root.yml"
+python3 - "$registry" "$work/duplicate-registry-floor.yml" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text()
+contract = source.index('  - id: fs-gg-ui-template')
+floor = source.index('    minimum-fsgg-sdd:\n', contract)
+Path(sys.argv[2]).write_text(source[:floor] + '    minimum-fsgg-sdd:\n' + source[floor:])
+PY
+expect_fail 'duplicate selected registry floor block refuses second pin' 'duplicate selected registry minimum-fsgg-sdd block' \
+  grade --providers "$root/providers" --registry "$work/duplicate-registry-floor.yml"
 expect_pass 'checked-in generated summary is current' \
   effective-check --provider "$root/providers/rendering.providers.yml"
 mkdir -p "$work/clean/.fsgg"

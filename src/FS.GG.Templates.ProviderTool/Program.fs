@@ -236,6 +236,7 @@ let private registryPin (source: string) =
     let lines = content.Split('\n')
     let mutable inContract = false
     let mutable inFloor = false
+    let mutable seenSelectedFloor = false
     let mutable found: string option = None
     let mutable selectedContractLine: int option = None
     let mutable inContracts = false
@@ -263,8 +264,13 @@ let private registryPin (source: string) =
                     | None -> selectedContractLine <- Some(index + 1)
                 inContract <- contractId = "fs-gg-ui-template"
                 inFloor <- false
+                seenSelectedFloor <- false
             elif inContract then
-                if registryFloorLine.IsMatch line then inFloor <- true
+                if registryFloorLine.IsMatch line then
+                    if seenSelectedFloor then
+                        fail $"{source}:{index + 1}: duplicate selected registry minimum-fsgg-sdd block"
+                    seenSelectedFloor <- true
+                    inFloor <- true
                 elif inFloor then
                     let versionMatch = versionLine.Match line
                     if versionMatch.Success then
