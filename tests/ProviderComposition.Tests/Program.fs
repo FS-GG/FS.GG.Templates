@@ -10,6 +10,8 @@ let alpha: Provider = {
     ContractVersion = "1.1.0"
     TemplateId = "fs-gg-alpha"
     Source = "Alpha.Template::1.0.0"
+    NameParameter = Some "productName"
+    IdentifierParameter = Some "rootNamespace"
     Floor = Some "1.4.0-preview.1"
     Parameters = [ productName; lifecycle ]
     File = "alpha.providers.yml"
@@ -38,6 +40,12 @@ let main _ =
     assertEqual "missing request floor refuses" (Error(MissingFloor "alpha")) (select known [ { alpha with Floor = None } ])
     assertEqual "invalid floor refuses" (Error(InvalidFloor "alpha")) (select known [ { alpha with Floor = Some "not-a-version" } ])
     assertEqual "source drift refuses" (Error(DifferentProvider "alpha")) (select known [ { alpha with Source = "Alpha.Template::9.9.9" } ])
+    assertEqual "name route drift refuses" (Error(DifferentProvider "alpha"))
+        (select known [ { alpha with NameParameter = Some "otherName" } ])
+    assertEqual "identifier route drift refuses" (Error(DifferentProvider "alpha"))
+        (select known [ { alpha with IdentifierParameter = Some "otherNamespace" } ])
+    assertEqual "malformed route refuses" (Error(InvalidProvider "alpha"))
+        (select known [ { alpha with NameParameter = Some "../outside" } ])
     assertEqual "registry pin admits coherent owner and request"
         (Ok [ beta ]) (selectAtRegistryFloor "1.4.0-preview.1" known [ beta ])
     assertEqual "unselected owner floor drift refuses"

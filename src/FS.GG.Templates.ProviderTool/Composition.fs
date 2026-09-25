@@ -15,6 +15,8 @@ type Provider = {
     ContractVersion: string
     TemplateId: string
     Source: string
+    NameParameter: string option
+    IdentifierParameter: string option
     Floor: string option
     Parameters: Parameter list
     File: string
@@ -66,7 +68,9 @@ let private validateSet (providers: Provider list) =
                 not (namePattern.IsMatch p.Name)
                 || String.IsNullOrWhiteSpace p.ContractVersion
                 || String.IsNullOrWhiteSpace p.TemplateId
-                || String.IsNullOrWhiteSpace p.Source)
+                || String.IsNullOrWhiteSpace p.Source
+                || (p.NameParameter |> Option.exists (fun value -> not (parameterPattern.IsMatch value)))
+                || (p.IdentifierParameter |> Option.exists (fun value -> not (parameterPattern.IsMatch value))))
         match invalid with
         | Some p -> Error(InvalidProvider p.Name)
         | None ->
@@ -122,6 +126,8 @@ let select (known: Provider list) (requested: Provider list) : Result<Provider l
                     item.ContractVersion <> original.ContractVersion
                     || item.TemplateId <> original.TemplateId
                     || item.Source <> original.Source
+                    || item.NameParameter <> original.NameParameter
+                    || item.IdentifierParameter <> original.IdentifierParameter
                     || item.Floor <> original.Floor
                     || item.Parameters <> original.Parameters
                     -> Error(DifferentProvider item.Name)

@@ -25,6 +25,11 @@ source, contract version, and floor match this repository's descriptor set,
 and checks every owner descriptor floor against the registry pin, including
 providers omitted from the requested workspace selection. It reads the live
 registry by default and fails if that authority is unavailable.
+The `nameParameter` and `identifierParameter` routing scalars also match the
+owner descriptor exactly; changing either can direct generated identity bytes
+to a different parameter even when the package source and floor stay the same.
+Run `python3 tests/provider-routing-identity/run.py` for disposable route-drift,
+duplicate-key, and malformed-value refusals.
 The current narrow parameter declarations (`key`, `required`, optional
 `default`) also participate in identity comparison. Duplicate or unsupported
 provider and parameter fields refuse. The pure `resolveParameters` function
