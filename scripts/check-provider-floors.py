@@ -261,6 +261,7 @@ def read_registry_pin(text: str, source: str) -> str:
     """Read contracts[id=fs-gg-ui-template].minimum-fsgg-sdd.version out of the org registry."""
     contract: str | None = None
     in_block = False
+    found: str | None = None
 
     for number, line in enumerate(text.splitlines(), 1):
         if is_skippable(line):
@@ -277,15 +278,20 @@ def read_registry_pin(text: str, source: str) -> str:
         if in_block:
             match = REGISTRY_VERSION.match(line)
             if match:
-                return scalar(match.group(1), f"{source}:{number}")
+                if found is not None:
+                    raise FloorError(f"{source}: repeated registry minimum-fsgg-sdd.version")
+                found = scalar(match.group(1), f"{source}:{number}")
+                continue
             if len(line) - len(line.lstrip(" ")) <= 4:
                 in_block = False
 
-    raise FloorError(
-        f"{source}: could not read contracts[id={REGISTRY_CONTRACT}].{REGISTRY_KEY}.version. "
-        "The org-wide floor is the authority this repository's descriptors mirror, so an unreadable "
-        "registry FAILS here rather than silently dropping the assertion (FS.GG.Templates#383)."
-    )
+    if found is None:
+        raise FloorError(
+            f"{source}: could not read contracts[id={REGISTRY_CONTRACT}].{REGISTRY_KEY}.version. "
+            "The org-wide floor is the authority this repository's descriptors mirror, so an unreadable "
+            "registry FAILS here rather than silently dropping the assertion (FS.GG.Templates#383)."
+        )
+    return found
 
 
 def load_registry(source: str) -> tuple[str, str]:
