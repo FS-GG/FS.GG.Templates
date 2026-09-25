@@ -125,6 +125,46 @@ PY
 expect_fail 'odd indentation inside floor is rejected like Python' 'malformed minimumFsggSdd field' \
   grade --providers "$work/providers" --registry "$registry"
 
+mkdir "$work/duplicate-floor-providers"
+cp "$root/providers/"*.providers.yml "$work/duplicate-floor-providers/"
+python3 - "$work/duplicate-floor-providers/web.providers.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+lines = path.read_text().splitlines()
+index = next(i for i, line in enumerate(lines) if line.startswith('      requires:'))
+lines.insert(index + 1, '      requires: "forged metadata"')
+path.write_text('\n'.join(lines) + '\n')
+PY
+expect_fail 'duplicate non-version floor metadata refuses' 'repeated minimumFsggSdd field' \
+  grade --providers "$work/duplicate-floor-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/duplicate-floor-providers/web.providers.yml"
+python3 - "$work/duplicate-floor-providers/web.providers.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+lines = path.read_text().splitlines()
+index = next(i for i, line in enumerate(lines) if line.startswith('      adr:'))
+lines.insert(index + 1, '      adr: "forged ADR"')
+path.write_text('\n'.join(lines) + '\n')
+PY
+expect_fail 'duplicate ADR floor metadata refuses' "repeated minimumFsggSdd field 'adr'" \
+  grade --providers "$work/duplicate-floor-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/duplicate-floor-providers/web.providers.yml"
+python3 - "$work/duplicate-floor-providers/web.providers.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+lines = path.read_text().splitlines()
+index = next(i for i, line in enumerate(lines) if line.startswith('      version:'))
+lines.insert(index + 1, '      version: "1.4.0-preview.1"')
+path.write_text('\n'.join(lines) + '\n')
+PY
+expect_fail 'duplicate floor version keeps its named refusal' 'repeated minimumFsggSdd.version' \
+  grade --providers "$work/duplicate-floor-providers" --registry "$registry"
+
 cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
 python3 - "$work/providers/web.providers.yml" <<'PY'
 from pathlib import Path

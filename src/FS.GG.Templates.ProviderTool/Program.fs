@@ -69,6 +69,7 @@ let private parseDescriptor path =
     let mutable seenSchema = false
     let mutable seenProviders = false
     let mutable seenFloor = false
+    let mutable seenFloorFields = Set.empty<string>
     let mutable inParameters = false
     let mutable seenParameters = false
     let mutable currentParameter: Map<string, string> option = None
@@ -149,6 +150,7 @@ let private parseDescriptor path =
                 floor <- None
                 inFloor <- false
                 seenFloor <- false
+                seenFloorFields <- Set.empty
                 inParameters <- false
                 seenParameters <- false
                 currentParameter <- None
@@ -205,8 +207,13 @@ let private parseDescriptor path =
                     let floorField = floorFieldLine.Match line
                     if indent <> 6 || not floorField.Success then
                         fail $"{path}:{index + 1}: malformed minimumFsggSdd field"
-                    if floorField.Groups.[1].Value = "version" then
-                        if floor.IsSome then fail $"{path}:{index + 1}: repeated minimumFsggSdd.version"
+                    let key = floorField.Groups.[1].Value
+                    if key = "version" && floor.IsSome then
+                        fail $"{path}:{index + 1}: repeated minimumFsggSdd.version"
+                    if seenFloorFields.Contains key then
+                        fail $"{path}:{index + 1}: repeated minimumFsggSdd field '{key}'"
+                    seenFloorFields <- seenFloorFields.Add key
+                    if key = "version" then
                         floor <- Some(scalar $"{path}:{index + 1}" floorField.Groups.[2].Value)
                 else fail $"{path}:{index + 1}: unsupported provider indentation"
             elif inProviders then
