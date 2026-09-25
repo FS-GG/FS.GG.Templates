@@ -357,6 +357,19 @@ sed -i 's/        default: sdd/        default: "*missing"/' "$work/indicator-pr
 expect_pass 'quoted alias-looking value remains a literal string' \
   grade --providers "$work/indicator-providers" --registry "$registry"
 
+mkdir "$work/empty-parameters-providers"
+cp "$root/providers/"*.providers.yml "$work/empty-parameters-providers/"
+python3 - "$work/empty-parameters-providers/web.providers.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+start = text.index('    parameters:\n')
+path.write_text(text[:start] + '    parameters:\n')
+PY
+expect_fail 'present empty parameters block is YAML null, not an empty list' 'parameters must contain an entry' \
+  grade --providers "$work/empty-parameters-providers" --registry "$registry"
+
 cp "$root/providers/rendering.providers.yml" "$work/stale.providers.yml"
 sed -i 's/# effective\[1\]:/# effective[99]:/' "$work/stale.providers.yml"
 expect_fail 'stale generated summary fails' 'generated summary is stale' \
