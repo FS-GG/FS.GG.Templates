@@ -266,6 +266,29 @@ sed -i 's/        default: sdd/        default: "sdd "/' "$work/parameters.provi
 expect_fail 'quoted parameter default with trailing space refuses' "invalid parameter 'lifecycle'" \
   workspace-check --providers "$root/providers" --workspace "$work/parameters.providers.yml" --registry "$registry"
 
+mkdir "$work/escaped-providers"
+cp "$root/providers/"*.providers.yml "$work/escaped-providers/"
+python3 - "$work/escaped-providers/web.providers.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+path.write_text(path.read_text().replace('        default: sdd',
+    '        default: "sdd\\nforged"', 1))
+PY
+expect_fail 'double-quoted YAML newline escape refuses instead of grading literal backslash' 'unsupported double-quoted escape' \
+  grade --providers "$work/escaped-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/escaped-providers/web.providers.yml"
+python3 - "$work/escaped-providers/web.providers.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+path.write_text(path.read_text().replace('    contractVersion: "1.1.0"',
+    '    contractVersion: "1.1.0\\u0020"', 1))
+PY
+expect_fail 'double-quoted YAML Unicode escape cannot change effective output bytes' 'unsupported double-quoted escape' \
+  grade --providers "$work/escaped-providers" --registry "$registry"
+
 cp "$root/providers/rendering.providers.yml" "$work/stale.providers.yml"
 sed -i 's/# effective\[1\]:/# effective[99]:/' "$work/stale.providers.yml"
 expect_fail 'stale generated summary fails' 'generated summary is stale' \
