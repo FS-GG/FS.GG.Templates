@@ -74,6 +74,12 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
             if any(not safe_path(name) for name in names):
                 raise Refusal("archive member path is unsafe")
             for entry in entries:
+                offset = entry.header_offset
+                local_header = raw[offset:offset + 30] if offset >= 0 else b""
+                if (len(local_header) != 30 or local_header[:4] != b"PK\x03\x04"
+                        or int.from_bytes(local_header[6:8], "little") != entry.flag_bits
+                        or int.from_bytes(local_header[8:10], "little") != entry.compress_type):
+                    raise Refusal("ZIP local header differs from central directory")
                 mode = entry.external_attr >> 16
                 if entry.filename == ".signature.p7s" and entry.create_system == 0 and mode == 0:
                     continue  # The pinned local signed readback has this signature metadata.
