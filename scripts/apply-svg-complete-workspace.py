@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import difflib
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -14,6 +15,7 @@ import shutil
 import stat
 import sys
 import tempfile
+import uuid
 
 IGNORED_PARTS = {
     ".git", ".nuget", "artifacts", "bin", "dist", "node_modules", "obj", "output",
@@ -531,6 +533,122 @@ def observed_managed_state(root: Path, destination: Path, label: str) -> tuple[s
     return digest(destination.read_bytes()), file_mode(destination)
 
 
+def require_linux_pinned_writer() -> None:
+    """The mutation boundary requires Linux openat-style directory handles."""
+    if (sys.platform != "linux" or not hasattr(os, "O_NOFOLLOW")
+            or not hasattr(os, "O_DIRECTORY") or os.open not in os.supports_dir_fd
+            or os.rename not in os.supports_dir_fd
+            or os.unlink not in os.supports_dir_fd):
+        fail("handle-bound workspace writes require Linux dir_fd and O_NOFOLLOW")
+
+
+@contextmanager
+def opened_parent(root: Path, relative: str, create: bool = False):
+    """Open every path component without following links, retaining the parent fd."""
+    checked_relative(relative, "pinned managed path")
+    parts = root.absolute().parts[1:] + PurePosixPath(relative).parts[:-1]
+    descriptor = os.open("/", os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+    try:
+        for part in parts:
+            try:
+                next_descriptor = os.open(part, os.O_RDONLY | os.O_DIRECTORY |
+                                          os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=descriptor)
+            except FileNotFoundError:
+                if not create:
+                    raise
+                os.mkdir(part, dir_fd=descriptor)
+                next_descriptor = os.open(part, os.O_RDONLY | os.O_DIRECTORY |
+                                          os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = next_descriptor
+        yield descriptor, PurePosixPath(relative).name
+    finally:
+        os.close(descriptor)
+
+
+def pinned_bytes_at(parent_fd: int, name: str) -> tuple[bytes, int] | None:
+    try:
+        descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK |
+                             os.O_CLOEXEC, dir_fd=parent_fd)
+    except FileNotFoundError:
+        return None
+    except OSError as error:
+        fail(f"cannot open pinned managed object {name}: {error}", 3)
+    try:
+        info = os.fstat(descriptor)
+        if not stat.S_ISREG(info.st_mode):
+            fail(f"pinned managed object is not a regular file: {name}")
+        chunks = []
+        while True:
+            chunk = os.read(descriptor, 1024 * 1024)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        return b"".join(chunks), stat.S_IMODE(info.st_mode)
+    finally:
+        os.close(descriptor)
+
+
+def pinned_source(root: Path, relative: str, expected: tuple[str, int]) -> tuple[bytes, int]:
+    with opened_parent(root, relative) as (parent_fd, name):
+        value = pinned_bytes_at(parent_fd, name)
+    if value is None or (digest(value[0]), value[1]) != expected:
+        fail(f"pinned source changed before write: {relative}", 3)
+    return value
+
+
+def pinned_destination_matches(root: Path, relative: str, parent_fd: int,
+                               name: str, expected: tuple[str, int] | None) -> None:
+    value = pinned_bytes_at(parent_fd, name)
+    actual = None if value is None else (digest(value[0]), value[1])
+    if actual != expected:
+        fail(f"pinned destination ownership changed before write: {relative}", 3)
+    # Reject a parent moved out of the selected workspace while a temporary
+    # object was prepared. Descriptor-relative writes still stay on the old
+    # inode if a rename occurs after this comparison.
+    try:
+        with opened_parent(root, relative) as (current_fd, _):
+            old, current = os.fstat(parent_fd), os.fstat(current_fd)
+            if (old.st_dev, old.st_ino) != (current.st_dev, current.st_ino):
+                fail(f"pinned destination parent moved before write: {relative}", 3)
+    except OSError as error:
+        fail(f"pinned destination parent changed before write: {relative}: {error}", 3)
+
+
+def pinned_write(root: Path, relative: str, source_root: Path, source_relative: str,
+                 expected_before: tuple[str, int] | None, expected_source: tuple[str, int],
+                 marker: str) -> None:
+    require_linux_pinned_writer()
+    data, mode = pinned_source(source_root, source_relative, expected_source)
+    with opened_parent(root, relative, create=True) as (parent_fd, name):
+        temporary = f".{name}.{marker}-{uuid.uuid4().hex}"
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
+                             os.O_NOFOLLOW | os.O_CLOEXEC, 0o600, dir_fd=parent_fd)
+        try:
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(data)
+                stream.flush()
+                os.fchmod(stream.fileno(), mode)
+                os.fsync(stream.fileno())
+            pinned_destination_matches(root, relative, parent_fd, name, expected_before)
+            os.replace(temporary, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+            os.fsync(parent_fd)
+        finally:
+            try:
+                os.unlink(temporary, dir_fd=parent_fd)
+            except FileNotFoundError:
+                pass
+
+
+def pinned_delete(root: Path, relative: str, expected_before: tuple[str, int] | None) -> None:
+    require_linux_pinned_writer()
+    with opened_parent(root, relative) as (parent_fd, name):
+        pinned_destination_matches(root, relative, parent_fd, name, expected_before)
+        if expected_before is not None:
+            os.unlink(name, dir_fd=parent_fd)
+            os.fsync(parent_fd)
+
+
 def verify_apply_prestate(workspace: Path, backup: Path, paths: list[dict]) -> None:
     """Recheck every journaled before-state and staged object before mutation."""
     for row in paths:
@@ -580,6 +698,7 @@ def rollback_plan(workspace: Path, backup: Path, rows: list[dict], status: str) 
 
 
 def restore(workspace: Path, backup: Path) -> None:
+    require_linux_pinned_writer()
     if workspace.is_symlink() or not workspace.is_dir():
         fail(f"rollback workspace is missing, not a directory, or a symlink: {workspace}")
     if backup.is_symlink() or not backup.is_dir():
@@ -610,20 +729,18 @@ def restore(workspace: Path, backup: Path) -> None:
     rollback_plan(workspace, backup, rows, status)
     restored = 0
     for row, destination, source in reversed(plan):
-        reject_symlink_chain(workspace, destination, "rollback destination")
+        destination_rel = row["destination"]
+        before = None if row["state"] == "absent" else (row["sha256"], row["mode"])
+        after = None if row["postState"] == "absent" else (row["postSha256"], row["postMode"])
+        allowed = {before, after}
+        current = observed_managed_state(workspace, destination, "rollback destination")
+        if current not in allowed:
+            fail(f"rollback refused before write: managed path changed: {row['logical']}", 3)
         if row["state"] == "present":
-            reject_symlink_chain(backup, source, "rollback object")
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            descriptor, temporary_name = tempfile.mkstemp(prefix=destination.name + ".fsgg-rollback-", dir=destination.parent)
-            os.close(descriptor)
-            temporary = Path(temporary_name)
-            try:
-                shutil.copy2(source, temporary)
-                os.replace(temporary, destination)
-            finally:
-                if temporary.exists(): temporary.unlink()
-        elif destination.exists():
-            destination.unlink()
+            pinned_write(workspace, destination_rel, backup, "files/" + row["logical"],
+                         current, before, "fsgg-rollback")
+        else:
+            pinned_delete(workspace, destination_rel, current)
         restored += 1
         if os.environ.get("FSGG_SVG_COMPLETE_ROLLBACK_FAIL_AFTER") == str(restored):
             raise RuntimeError(f"injected rollback interruption after {restored} managed files")
@@ -636,6 +753,7 @@ def apply(args: list[str]) -> None:
     if len(args) != 5:
         fail("usage: complete-apply <candidate> <workspace> <baseline-manifest> <inventory.json> <backup>")
     candidate, workspace, manifest_path, inventory_path, backup = map(Path, args)
+    require_linux_pinned_writer()
     if backup.is_absolute() is False:
         backup = backup.absolute()
     reject_symlink_chain(backup.parent, backup, "backup")
@@ -712,19 +830,12 @@ def apply(args: list[str]) -> None:
             logical = row["logical"]
             destination = workspace / row["destination"]
             verify_apply_prestate(workspace, backup, [row])
+            before = None if row["state"] == "absent" else (row["sha256"], row["mode"])
             if row["postState"] == "absent":
-                if destination.exists():
-                    destination.unlink()
+                pinned_delete(workspace, row["destination"], before)
             else:
-                destination.parent.mkdir(parents=True, exist_ok=True)
-                descriptor, temporary_name = tempfile.mkstemp(prefix=destination.name + ".fsgg-adoption-", dir=destination.parent)
-                os.close(descriptor)
-                temporary = Path(temporary_name)
-                try:
-                    shutil.copy2(backup / "staged" / logical, temporary)
-                    os.replace(temporary, destination)
-                finally:
-                    if temporary.exists(): temporary.unlink()
+                pinned_write(workspace, row["destination"], backup, "staged/" + logical,
+                             before, (row["postSha256"], row["postMode"]), "fsgg-adoption")
             applied += 1
             if os.environ.get("FSGG_SVG_COMPLETE_FAIL_AFTER") == str(applied):
                 raise RuntimeError(f"injected interruption after {applied} managed files")

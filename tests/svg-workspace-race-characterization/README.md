@@ -10,13 +10,21 @@ staging and rechecks every journaled before-state and staged/backup object
 after the journal status transition, before the first receiver mutation. The
 six controls now refuse these changes.
 
-Run `python3 tests/svg-workspace-race-characterization/remaining.py` to see
-the remaining gap. The disposable probes swap a parent after the last per-row
-check, just before `mkstemp`, or edit a leaf before `os.replace`. They confirm
-that path-based apply and rollback can still overwrite changed content. This
-is a characterization of an unresolved race, not a safe-write qualification.
+Run `python3 tests/svg-workspace-race-characterization/remaining.py` for five
+additional disposable negatives. The first two swap a receiver parent after
+the writer opens it, immediately before it creates its temporary file. The
+third edits an authored leaf while the temporary file is prepared. The fourth
+replaces that leaf with a symlink. The fifth checks that an unsupported
+platform is refused before creating a backup.
+These now refuse without overwriting outside or authored bytes. The Linux
+writer reads regular source files through no-follow directory handles and
+uses descriptor-relative temporary creation, replacement and deletion. It
+checks expected receiver bytes and mode again after preparing each temporary.
 
 The package candidate and receiver here are synthetic. The served 0.14.0
 archive still differs from the selected native candidate hash; producer
-custody, handle-bound transaction operations, concurrent rollback safety and
-installed parity remain unproved. No real workspace is touched by these tests.
+custody, concurrent compare-to-replace ownership, all preparation and journal
+operations, and installed parity remain unproved. A peer can still edit a leaf
+or swap a parent after the final ownership check and before `os.replace` or
+`os.unlink`; those calls offer no compare-and-swap condition. No real workspace
+is touched by these tests.
