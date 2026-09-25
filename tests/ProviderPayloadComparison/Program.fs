@@ -61,7 +61,10 @@ let private parseSnapshot (where: string) (value: JsonElement) =
             let name = stringField label "name" row
             let digest = stringField label "sha256" row
             let mode = modeField label row
-            rootOf name |> ignore
+            let templateRoot = rootOf name
+            if name.EndsWith(configSuffix, StringComparison.Ordinal)
+               && name <> prefix + templateRoot + configSuffix then
+                fail $"{where} has a non-root template config {name}"
             if not (aliases.Add name) then fail $"{where} repeats or aliases member {name}"
             if not (Regex.IsMatch(digest, "^[0-9a-f]{64}$", RegexOptions.CultureInvariant)) then
                 fail $"{label}.sha256 is invalid"
