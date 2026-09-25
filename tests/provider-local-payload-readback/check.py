@@ -49,7 +49,8 @@ def safe_path(name: str) -> bool:
             and "\\" not in name and ":" not in name and "\x00" not in name
             and all(ord(character) >= 32 and character not in RESERVED_MEMBER_PUNCTUATION
                     for character in name)
-            and all(part not in ("", ".", "..") for part in name.split("/")))
+            and all(part not in ("", ".", "..") and not part.endswith((".", " "))
+                    for part in name.split("/")))
 
 
 def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool = False) -> dict:
