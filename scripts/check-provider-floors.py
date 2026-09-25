@@ -113,6 +113,7 @@ PROVIDER_FIELDS = {
     "minimumFsggSdd", "parameters",
 }
 VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
+FLOOR_FIELD = re.compile(r"^      ([A-Za-z][A-Za-z0-9-]*):\s*(.*?)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+].*)?$")
 
 REGISTRY_CONTRACT_ID = re.compile(r"^  - id:\s*(\S+)\s*(?:#.*)?$")
@@ -337,16 +338,18 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
             continue
 
         if in_block:
+            indentation = len(line) - len(line.lstrip(" "))
+            if indentation <= 4:
+                in_block = False
+                continue
+            if indentation != 6 or not FLOOR_FIELD.match(line):
+                raise FloorError(f"{path}:{number}: malformed minimumFsggSdd field")
             match = VERSION.match(line)
             if match:
                 if floor is not None:
                     raise FloorError(f"{path}:{number}: provider '{current}' repeats minimumFsggSdd.version")
                 floor = scalar(match.group(1), f"{path}:{number}")
-                continue
-            # Any line at or left of the block's own indent closes it. `minimumFsggSdd:` sits at four
-            # spaces, so a sibling key ends the block and a nested key (six spaces) does not.
-            if len(line) - len(line.lstrip(" ")) <= 4:
-                in_block = False
+            continue
 
     if current is not None:
         finish_parameter()
