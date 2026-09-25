@@ -1,6 +1,7 @@
 open FsGgTemplates.ProviderComposition
 open System
 open System.Security.Cryptography
+open System.Text
 
 let productName: Parameter = { Key = "productName"; Required = true; Default = None }
 let lifecycle: Parameter = { Key = "lifecycle"; Required = false; Default = Some "sdd" }
@@ -68,6 +69,23 @@ let main _ =
           "template trailing space", { alpha with TemplateId = "fs-gg-alpha " } ] do
         assertEqual (sprintf "effective output %s refuses" label)
             (Error(InvalidProvider "alpha")) (select [ malformed; beta ] [ malformed ])
+    for label, malformed in
+        [ "unpaired high surrogate", { alpha with TemplateId = "fs-gg-" + string (char 0xD800) }
+          "unpaired low surrogate", { alpha with ContractVersion = "1.1.0" + string (char 0xDC00) } ] do
+        assertEqual (sprintf "effective output %s refuses before UTF-8 projection" label)
+            (Error(InvalidProvider "alpha")) (select [ malformed; beta ] [ malformed ])
+        let rejectsUnvalidatedBytes =
+            try
+                renderEffectiveBytes true [ malformed ] |> ignore
+                false
+            with :? EncoderFallbackException -> true
+        assertEqual (sprintf "effective output %s cannot render lossy UTF-8" label)
+            true rejectsUnvalidatedBytes
+    let supplementary = { alpha with TemplateId = "fs-gg-" + string (char 0xD83D) + string (char 0xDE80) }
+    assertEqual "valid surrogate pair stays selectable"
+        (Ok [ supplementary ]) (select [ supplementary; beta ] [ supplementary ])
+    assertEqual "valid supplementary scalar keeps exact UTF-8 bytes"
+        true (Convert.ToHexString(renderEffectiveBytes true [ supplementary ]).Contains("F09F9A80"))
     assertEqual "name route drift refuses" (Error(DifferentProvider "alpha"))
         (select known [ { alpha with NameParameter = Some "otherName" } ])
     assertEqual "identifier route drift refuses" (Error(DifferentProvider "alpha"))
@@ -116,7 +134,8 @@ let main _ =
     for label, badDefault in
         [ "line break", "sdd\n# forged"
           "Unicode line separator", "sdd\u2028forged"
-          "trailing space", "sdd " ] do
+          "trailing space", "sdd "
+          "unpaired low surrogate", "sdd" + string (char 0xDC00) ] do
         let invalidDefault = { alpha with Parameters = [ productName; { lifecycle with Default = Some badDefault } ] }
         assertEqual (sprintf "declared parameter default %s refuses" label)
             (Error(InvalidParameter("alpha", "lifecycle")))
@@ -134,13 +153,18 @@ let main _ =
         [ "line break", "Demo\n--output=elsewhere"
           "NUL", "Demo\u0000Other"
           "Unicode paragraph separator", "Demo\u2029Other"
-          "empty", "" ] do
+          "empty", ""
+          "unpaired high surrogate", "Demo" + string (char 0xD800) ] do
         assertEqual (sprintf "requested parameter value %s refuses" label)
             (Error(InvalidParameter("alpha", "productName")))
             (resolveParameters alpha [ "productName", badValue ])
     assertEqual "internal space in requested parameter value remains allowed"
         (Ok [ "productName", "Demo App"; "lifecycle", "sdd" ])
         (resolveParameters alpha [ "productName", "Demo App" ])
+    let rocket = string (char 0xD83D) + string (char 0xDE80)
+    assertEqual "valid supplementary scalar in parameter value remains allowed"
+        (Ok [ "productName", "Demo" + rocket; "lifecycle", "sdd" ])
+        (resolveParameters alpha [ "productName", "Demo" + rocket ])
     assertEqual "defaults and declared order resolve deterministically"
         (Ok [ "productName", "Demo"; "lifecycle", "sdd" ])
         (resolveParameters alpha [ "productName", "Demo" ])
