@@ -2,13 +2,15 @@
 """Disposable config-only false green and local template-payload comparison controls."""
 
 from hashlib import sha256
+import json
 from pathlib import Path
 import stat
+import subprocess
 import tempfile
 import warnings
 from zipfile import ZipFile, ZipInfo
 
-from check import Refusal, compare, github_no_verdict, snapshot
+from check import PROJECT, Refusal, compare, github_no_verdict, snapshot
 
 HEAD_A = "a" * 40
 HEAD_B = "b" * 40
@@ -52,8 +54,54 @@ def refused(action, phrase: str) -> None:
         raise AssertionError(f"expected refusal containing {phrase!r}")
 
 
+def typed(raw: str) -> dict:
+    completed = subprocess.run(["dotnet", "run", "--project", str(PROJECT), "-c", "Release",
+                                "--no-launch-profile", "--"], input=raw, capture_output=True,
+                               text=True, check=True)
+    return json.loads(completed.stdout)
+
+
 with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as folder:
     work = Path(folder)
+    no_config = {"templates": {ASSET: (sha256(b"body").hexdigest(), stat.S_IFREG | 0o644)},
+                 "configs": {}}
+    no_config_verdict = compare(no_config, no_config)
+    if no_config_verdict["status"] != "NO_VERDICT":
+        raise AssertionError(f"matching payload without template config was admitted: {no_config_verdict}")
+    print("PASS missing template config in both inputs: NO_VERDICT")
+
+    member_config = {"name": CONFIG, "sha256": sha256(b"config").hexdigest(),
+                     "mode": stat.S_IFREG | 0o644}
+    member_asset = {"name": ASSET, "sha256": sha256(b"asset").hexdigest(),
+                    "mode": stat.S_IFREG | 0o644}
+    valid = {"left": [member_config, member_asset], "right": [member_config, member_asset]}
+    if typed(json.dumps(valid))["status"] != "TEMPLATE_PAYLOAD_MATCH_ONLY":
+        raise AssertionError("typed comparator refused a complete matching template")
+    print("PASS typed complete template: narrow match")
+
+    duplicate_root = typed('{"left":[],"left":[],"right":[]}')
+    if duplicate_root["status"] != "NO_VERDICT" or "repeats left" not in duplicate_root["reason"]:
+        raise AssertionError(f"duplicate comparison key was admitted: {duplicate_root}")
+    print("PASS duplicate comparison key: NO_VERDICT")
+
+    duplicate_member = dict(valid, left=[member_config, member_asset, member_asset])
+    duplicate_result = typed(json.dumps(duplicate_member))
+    if duplicate_result["status"] != "NO_VERDICT" or "repeats or aliases" not in duplicate_result["reason"]:
+        raise AssertionError(f"duplicate member was admitted: {duplicate_result}")
+    print("PASS duplicate typed member: NO_VERDICT")
+
+    alias_asset = dict(member_asset, name=ASSET.replace("build.sh", "BUILD.sh"))
+    alias_result = typed(json.dumps(dict(valid, left=[member_config, member_asset, alias_asset])))
+    if alias_result["status"] != "NO_VERDICT" or "repeats or aliases" not in alias_result["reason"]:
+        raise AssertionError(f"case-aliased member was admitted: {alias_result}")
+    print("PASS case-aliased typed member: NO_VERDICT")
+
+    foreign_member = dict(member_config, foreign=True)
+    foreign_result = typed(json.dumps(dict(valid, left=[foreign_member, member_asset])))
+    if foreign_result["status"] != "NO_VERDICT" or "unsupported field" not in foreign_result["reason"]:
+        raise AssertionError(f"foreign member field was admitted: {foreign_result}")
+    print("PASS foreign typed member field: NO_VERDICT")
+
     selected_path = work / "selected.nupkg"
     release_path = work / "release.nupkg"
     nuget_path = work / "nuget.nupkg"

@@ -7,6 +7,7 @@ from io import BytesIO
 import json
 from pathlib import Path
 from stat import S_IFREG
+import subprocess
 from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
 import zlib
@@ -23,6 +24,7 @@ MAX_MEMBERS = 4096
 MAX_NUSPEC_BYTES = 1024 * 1024
 CONFIG_SUFFIX = "/.template.config/template.json"
 PREFIX = "content/templates/"
+PROJECT = Path(__file__).resolve().parents[1] / "ProviderPayloadComparison/ProviderPayloadComparison.fsproj"
 
 
 class Refusal(ValueError):
@@ -120,14 +122,21 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
 
 
 def compare(left: dict, right: dict) -> dict:
-    before, after = left["templates"], right["templates"]
-    common = before.keys() & after.keys()
-    drift = {"missing": len(before.keys() - after.keys()),
-             "extra": len(after.keys() - before.keys()),
-             "bodyDrift": sum(before[name][0] != after[name][0] for name in common),
-             "modeDrift": sum(before[name][1] != after[name][1] for name in common)}
-    return {"status": "NO_VERDICT" if any(drift.values()) else "TEMPLATE_PAYLOAD_MATCH_ONLY",
-            "configOnlyMatch": left["configs"] == right["configs"], **drift}
+    def rows(snapshot: dict) -> list[dict]:
+        return [{"name": name, "sha256": digest, "mode": mode}
+                for name, (digest, mode) in sorted(snapshot["templates"].items())]
+
+    request = json.dumps({"left": rows(left), "right": rows(right)}, sort_keys=True)
+    try:
+        result = subprocess.run(["dotnet", "run", "--project", str(PROJECT), "-c", "Release",
+                                 "--no-launch-profile", "--"], input=request, capture_output=True,
+                                text=True, check=True)
+        value = json.loads(result.stdout)
+    except (OSError, subprocess.CalledProcessError, json.JSONDecodeError) as error:
+        raise Refusal(f"typed payload comparison is unavailable: {type(error).__name__}") from error
+    if not isinstance(value, dict) or value.get("status") not in {"NO_VERDICT", "TEMPLATE_PAYLOAD_MATCH_ONLY"}:
+        raise Refusal("typed payload comparison returned an invalid verdict")
+    return value
 
 
 def github_no_verdict(reported_http_status: int | None) -> dict:

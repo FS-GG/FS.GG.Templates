@@ -3,9 +3,13 @@
 This read-only comparison pins three *local files*: the selected native 0.14.0
 candidate, a retained 0.14.0 release pack, and a signed NuGet-shaped local
 readback. It compares every `content/templates/` member by exact name, body
-SHA-256, and Unix mode. A matching template config alone is never a payload
-match. The signed file's signature is recognized by member presence; this
-script does not verify its cryptographic signature.
+SHA-256, and Unix mode. Python performs the bounded physical ZIP read, then
+passes member records to the nonpackable F# `ProviderPayloadComparison` tool
+for typed, pure comparison. F# requires one config and at least one asset for
+each template root and refuses duplicate or foreign JSON fields. A matching
+template config alone is never a payload match. The signed file's signature
+is recognized by member presence; this script does not verify its
+cryptographic signature.
 
 ```sh
 python3 tests/provider-local-payload-readback/check.py \
