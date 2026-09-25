@@ -15,7 +15,7 @@ let managed, retired = strings "managed", strings "retired"
 let expectedPaths = strings "journalPaths"
 let expectedStates = strings "journalStates"
 
-match Policy.plan false managed retired with
+match Policy.plan MirrorAbsent managed retired with
 | Error message -> failwithf "Python-admitted archive paths refused by F# policy: %s" message
 | Ok intents ->
     let paths = intents |> List.map (function Put path | Retire path -> path)
