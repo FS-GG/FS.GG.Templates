@@ -330,6 +330,18 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
     refused(lambda: snapshot(duplicate_path, duplicate_sha, HEAD_A), "duplicate or case alias")
     print("PASS duplicate template member: refused")
 
+    external_traversal_path = work / "external-traversal.nupkg"
+    package(external_traversal_path, head=HEAD_A, asset=b"old")
+    with ZipFile(external_traversal_path, "a") as archive:
+        traversal = ZipInfo("../outside.txt")
+        traversal.create_system = 3
+        traversal.external_attr = (stat.S_IFREG | 0o644) << 16
+        archive.writestr(traversal, b"outside")
+    traversal_sha = sha256(external_traversal_path.read_bytes()).hexdigest()
+    refused(lambda: snapshot(external_traversal_path, traversal_sha, HEAD_A),
+            "archive member path is unsafe")
+    print("PASS non-template traversal member: NO_VERDICT")
+
     invalid_utf8_path = work / "invalid-utf8-name.nupkg"
     package(invalid_utf8_path, head=HEAD_A, asset=b"old")
     invalid_utf8 = bytearray(invalid_utf8_path.read_bytes())
