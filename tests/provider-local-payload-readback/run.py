@@ -365,6 +365,34 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "archive member is not a Unix regular file")
     print("PASS non-template symlink member: NO_VERDICT")
 
+    for label, target in (("template NUL-suffixed asset", ASSET),
+                          ("non-template NUL-suffixed member", "docs/readme.txt")):
+        nul_path = work / (label.replace(" ", "-") + ".nupkg")
+        package(nul_path, head=HEAD_A, asset=b"old")
+        if target != ASSET:
+            with ZipFile(nul_path, "a") as archive:
+                external = ZipInfo(target)
+                external.create_system = 3
+                external.external_attr = (stat.S_IFREG | 0o644) << 16
+                archive.writestr(external, b"documentation")
+        raw = nul_path.read_bytes()
+        plain_name = target.encode("ascii")
+        dot = plain_name.rfind(b".")
+        nul_name = plain_name[:dot] + b"\x00" + plain_name[dot + 1:]
+        if dot < 0 or len(nul_name) != len(plain_name) or raw.count(plain_name) != 2:
+            raise AssertionError("NUL-name fixture did not isolate local and central names")
+        nul_archive = raw.replace(plain_name, nul_name)
+        nul_path.write_bytes(nul_archive)
+        with ZipFile(nul_path) as archive:
+            member = archive.infolist()[-1]
+            if (member.orig_filename != nul_name.decode("ascii")
+                    or member.filename != target[:target.rfind(".")]
+                    or not archive.read(member)):
+                raise AssertionError("NUL-name fixture did not reproduce parser truncation")
+        refused(lambda: snapshot(nul_path, sha256(nul_archive).hexdigest(), HEAD_A),
+                "ZIP member filename was shortened")
+        print(f"PASS {label}: NO_VERDICT")
+
     for label, permissions in (("executable nuspec", 0o755),
                                ("private nuspec", 0o600)):
         non_template_mode_path = work / (label.replace(" ", "-") + ".nupkg")

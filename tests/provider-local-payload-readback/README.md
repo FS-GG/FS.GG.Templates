@@ -10,8 +10,10 @@ containing invalid UTF-8 bytes yields `NO_VERDICT` during physical read,
 before typed comparison. The physical reader also refuses unsafe paths in
 every ZIP member, including ASCII controls and reserved punctuation outside
 `content/templates/`, as well as trailing dot or space path segments. It
-refuses reserved device stems in any path segment, non-regular members, and
-case-aliased file/child collisions outside the template payload. The pinned
+rejects names shortened by Python's ZIP parser at an embedded NUL, including
+names outside the template payload. It refuses reserved device stems in any
+path segment, non-regular members, and case-aliased file/child collisions
+outside the template payload. The pinned
 signed file's signature metadata is handled explicitly.
 Non-template regular members require Unix mode `0644`; the pinned signature
 member retains its explicit metadata exception.
