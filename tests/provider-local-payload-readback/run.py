@@ -543,6 +543,25 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "archive end record differs from selected contract")
     print("PASS trailing ZIP overlay: NO_VERDICT")
 
+    central_gap_path = work / "central-directory-gap.nupkg"
+    package(central_gap_path, head=HEAD_A, asset=b"old")
+    central_gap = bytearray(central_gap_path.read_bytes())
+    end_record = len(central_gap) - 22
+    central_offset = int.from_bytes(central_gap[end_record + 16:end_record + 20], "little")
+    central_size = int.from_bytes(central_gap[end_record + 12:end_record + 16], "little")
+    if (central_gap[end_record:end_record + 4] != b"PK\x05\x06"
+            or central_gap[central_offset:central_offset + 4] != b"PK\x01\x02"
+            or central_offset + central_size != end_record):
+        raise AssertionError("central-gap fixture did not find a contiguous ZIP directory")
+    gap = b"UNOWNED_GAP_BEFORE_CENTRAL_DIRECTORY"
+    central_gap[central_offset:central_offset] = gap
+    new_end_record = end_record + len(gap)
+    central_gap[new_end_record + 16:new_end_record + 20] = (central_offset + len(gap)).to_bytes(4, "little")
+    central_gap_path.write_bytes(central_gap)
+    refused(lambda: snapshot(central_gap_path, sha256(central_gap).hexdigest(), HEAD_A),
+            "ZIP bytes outside declared local members")
+    print("PASS unowned gap before central directory: NO_VERDICT")
+
     leading_overlay_path = work / "leading-overlay.nupkg"
     package(leading_overlay_path, head=HEAD_A, asset=b"old")
     leading_overlay = b"UNOWNED_PREFIX" + leading_overlay_path.read_bytes()
