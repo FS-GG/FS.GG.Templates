@@ -514,7 +514,8 @@ jobs:
 
           def payload(path):
               with ZipFile(path) as archive:
-                  return {name: sha256(archive.read(name)).hexdigest()
+                  return {name: (sha256(archive.read(name)).hexdigest(),
+                                 archive.getinfo(name).external_attr >> 16)
                           for name in archive.namelist() if name != '.signature.p7s'}
 
           local, remote, feed = map(Path, sys.argv[1:])
@@ -522,12 +523,15 @@ jobs:
           if observed != expected:
               missing = sorted(expected.keys() - observed.keys())
               extra = sorted(observed.keys() - expected.keys())
-              changed = sorted(name for name in expected.keys() & observed.keys()
-                               if expected[name] != observed[name])
-              raise SystemExit(f'{feed}: payload mismatch missing={missing} extra={extra} changed={changed}')
+              changed_bytes = sorted(name for name in expected.keys() & observed.keys()
+                                     if expected[name][0] != observed[name][0])
+              changed_modes = sorted(name for name in expected.keys() & observed.keys()
+                                     if expected[name][1] != observed[name][1])
+              raise SystemExit(f'{feed}: payload mismatch missing={missing} extra={extra} '
+                               f'changedBytes={changed_bytes} changedModes={changed_modes}')
           Path('artifacts/github-packages-readback.json').write_text(json.dumps({
               'feed': str(feed), 'archiveSha256': sha256(remote.read_bytes()).hexdigest(),
-              'payloadEntries': len(observed), 'payloadExact': True
+              'payloadEntries': len(observed), 'payloadExact': True, 'payloadModeExact': True
           }, sort_keys=True) + '\n')
           print(f'{feed}: {len(observed)} payload entries exact')
           PY
@@ -561,7 +565,8 @@ jobs:
 
           def payload(path):
               with ZipFile(path) as archive:
-                  return {name: sha256(archive.read(name)).hexdigest()
+                  return {name: (sha256(archive.read(name)).hexdigest(),
+                                 archive.getinfo(name).external_attr >> 16)
                           for name in archive.namelist() if name != '.signature.p7s'}
 
           local, remote, feed = map(Path, sys.argv[1:])
@@ -569,12 +574,15 @@ jobs:
           if observed != expected:
               missing = sorted(expected.keys() - observed.keys())
               extra = sorted(observed.keys() - expected.keys())
-              changed = sorted(name for name in expected.keys() & observed.keys()
-                               if expected[name] != observed[name])
-              raise SystemExit(f'{feed}: payload mismatch missing={missing} extra={extra} changed={changed}')
+              changed_bytes = sorted(name for name in expected.keys() & observed.keys()
+                                     if expected[name][0] != observed[name][0])
+              changed_modes = sorted(name for name in expected.keys() & observed.keys()
+                                     if expected[name][1] != observed[name][1])
+              raise SystemExit(f'{feed}: payload mismatch missing={missing} extra={extra} '
+                               f'changedBytes={changed_bytes} changedModes={changed_modes}')
           Path('artifacts/nuget-org-readback.json').write_text(json.dumps({
               'feed': str(feed), 'archiveSha256': sha256(remote.read_bytes()).hexdigest(),
-              'payloadEntries': len(observed), 'payloadExact': True
+              'payloadEntries': len(observed), 'payloadExact': True, 'payloadModeExact': True
           }, sort_keys=True) + '\n')
           print(f'{feed}: {len(observed)} payload entries exact')
           PY
