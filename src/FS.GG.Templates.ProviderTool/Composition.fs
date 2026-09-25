@@ -55,9 +55,9 @@ let describe = function
     | RegistryFloorMismatch(name, floor, pin) -> $"provider '{name}' floor {floor} != registry pin {pin}"
     | DifferentProvider name -> $"provider '{name}' differs from source descriptor"
 
-let private namePattern = Regex("^[a-z][a-z0-9-]*$", RegexOptions.CultureInvariant)
-let private parameterPattern = Regex("^[A-Za-z][A-Za-z0-9]*$", RegexOptions.CultureInvariant)
-let private versionPattern = Regex("^\\d+\\.\\d+\\.\\d+(?:[-+].*)?$", RegexOptions.CultureInvariant)
+let private namePattern = Regex(@"\A[a-z][a-z0-9-]*\z", RegexOptions.CultureInvariant)
+let private parameterPattern = Regex(@"\A[A-Za-z][A-Za-z0-9]*\z", RegexOptions.CultureInvariant)
+let private versionPattern = Regex(@"\A\d+\.\d+\.\d+(?:[-+].*)?\z", RegexOptions.CultureInvariant)
 
 let private validateSet (providers: Provider list) =
     if List.isEmpty providers then Error EmptySelection
