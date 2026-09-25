@@ -201,6 +201,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
     current_parameter_key: str | None = None
     current_parameter_line = 0
     current_parameter_required = False
+    current_parameter_default = False
     roots: set[str] = set()
 
     def finish_parameter() -> None:
@@ -240,6 +241,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
             parameter_keys.clear()
             current_parameter_key = None
             current_parameter_required = False
+            current_parameter_default = False
             continue
 
         if current is None:
@@ -257,6 +259,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
             in_parameters = True
             current_parameter_key = None
             current_parameter_required = False
+            current_parameter_default = False
             continue
 
         if in_parameters:
@@ -266,6 +269,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                 in_parameters = False
                 current_parameter_key = None
                 current_parameter_required = False
+                current_parameter_default = False
             else:
                 parameter = PARAMETER_KEY.match(line)
                 if parameter:
@@ -277,6 +281,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                     current_parameter_key = key
                     current_parameter_line = number
                     current_parameter_required = False
+                    current_parameter_default = False
                     continue
                 required = PARAMETER_REQUIRED.match(line)
                 if required:
@@ -297,7 +302,10 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                     default = PARAMETER_DEFAULT.match(line)
                     if not default:
                         raise FloorError(f"{path}:{number}: malformed parameter field")
+                    if current_parameter_default:
+                        raise FloorError(f"{path}:{number}: repeated parameter field 'default'")
                     scalar(default.group(1), f"{path}:{number}")
+                    current_parameter_default = True
                     continue
                 if indentation == 6:
                     raise FloorError(f"{path}:{number}: malformed parameter entry")
