@@ -522,6 +522,63 @@ def inventory(args: list[str]) -> None:
         raise SystemExit(3)
 
 
+def observed_managed_state(root: Path, destination: Path, label: str) -> tuple[str, int] | None:
+    reject_symlink_chain(root, destination, label)
+    if not destination.exists():
+        return None
+    if not destination.is_file():
+        fail(f"{label} is not a regular file: {destination}")
+    return digest(destination.read_bytes()), file_mode(destination)
+
+
+def verify_apply_prestate(workspace: Path, backup: Path, paths: list[dict]) -> None:
+    """Recheck every journaled before-state and staged object before mutation."""
+    for row in paths:
+        logical = row["logical"]
+        destination = workspace / row["destination"]
+        observed = observed_managed_state(workspace, destination, "apply destination")
+        before = None if row["state"] == "absent" else (row["sha256"], row["mode"])
+        if observed != before:
+            fail(f"apply precondition changed before writes: {logical}", 3)
+        if row["postState"] == "present":
+            staged = backup / "staged" / logical
+            staged_state = observed_managed_state(backup, staged, "apply staged object")
+            if staged_state != (row["postSha256"], row["postMode"]):
+                fail(f"apply staged object changed before writes: {logical}", 3)
+
+
+def rollback_plan(workspace: Path, backup: Path, rows: list[dict], status: str) -> list[tuple]:
+    """Check all backup objects and allowed receiver states before any write."""
+    seen = set()
+    plan = []
+    for row in rows:
+        logical = checked_relative(row.get("logical", ""), "journal logical path")
+        destination_rel = checked_relative(row.get("destination", ""), "journal destination path")
+        if logical in seen:
+            fail(f"rollback journal repeats managed path: {logical}")
+        seen.add(logical)
+        destination = workspace / destination_rel
+        current = observed_managed_state(workspace, destination, "rollback destination")
+        source = backup / "files" / logical
+        if row.get("state") == "present":
+            source_state = observed_managed_state(backup, source, "rollback object")
+            if source_state != (row.get("sha256"), row.get("mode")):
+                fail(f"rollback object missing or changed: {logical}")
+        elif row.get("state") != "absent":
+            fail(f"invalid rollback state: {logical}")
+        before = None if row.get("state") == "absent" else (row.get("sha256"), row.get("mode"))
+        post_state = row.get("postState", "present")
+        if post_state not in {"present", "absent"}:
+            fail(f"invalid rollback post-state: {logical}")
+        after = None if post_state == "absent" else (row.get("postSha256"), row.get("postMode"))
+        allowed_current = ({before, after} if status in {"prepared", "applying", "rolling-back"}
+                           else ({before} if status == "rolled-back" else {after}))
+        if current not in allowed_current:
+            fail(f"rollback refused before writes: managed path changed after adoption: {logical}", 3)
+        plan.append((row, destination, source))
+    return plan
+
+
 def restore(workspace: Path, backup: Path) -> None:
     if workspace.is_symlink() or not workspace.is_dir():
         fail(f"rollback workspace is missing, not a directory, or a symlink: {workspace}")
@@ -541,47 +598,21 @@ def restore(workspace: Path, backup: Path) -> None:
     rows = journal.get("paths")
     if not isinstance(rows, list) or not rows:
         fail("rollback journal has no managed paths")
-    seen = set()
-    plan = []
     # Validate every object, destination and current post-state before the first
     # mutation. A corrupt late object or newer managed edit cannot cause a partial
     # rollback or be silently overwritten.
-    for row in rows:
-        logical = checked_relative(row.get("logical", ""), "journal logical path")
-        destination_rel = checked_relative(row.get("destination", ""), "journal destination path")
-        if logical in seen:
-            fail(f"rollback journal repeats managed path: {logical}")
-        seen.add(logical)
-        destination = workspace / destination_rel
-        reject_symlink_chain(workspace, destination, "rollback destination")
-        source = backup / "files" / logical
-        if row.get("state") == "present":
-            reject_symlink_chain(backup, source, "rollback object")
-            if not source.is_file() or digest(source.read_bytes()) != row.get("sha256") or file_mode(source) != row.get("mode"):
-                fail(f"rollback object missing or changed: {logical}")
-        elif row.get("state") != "absent":
-            fail(f"invalid rollback state: {logical}")
-        if destination.exists() and not destination.is_file():
-            fail(f"rollback destination is not a regular file: {logical}")
-        current = None if not destination.exists() else (digest(destination.read_bytes()), file_mode(destination))
-        before = None if row.get("state") == "absent" else (row.get("sha256"), row.get("mode"))
-        post_state = row.get("postState", "present")
-        if post_state not in {"present", "absent"}:
-            fail(f"invalid rollback post-state: {logical}")
-        after = None if post_state == "absent" else (row.get("postSha256"), row.get("postMode"))
-        allowed_current = ({before, after} if status in {"prepared", "applying", "rolling-back"}
-                           else ({before} if status == "rolled-back" else {after}))
-        if current not in allowed_current:
-            fail(f"rollback refused before writes: managed path changed after adoption: {logical}", 3)
-        plan.append((row, destination, source))
+    plan = rollback_plan(workspace, backup, rows, status)
     if status == "rolled-back":
         print("complete workspace adoption: rollback already byte-identical")
         return
     journal["status"] = "rolling-back"
     write_json_durable(journal_path, journal)
+    rollback_plan(workspace, backup, rows, status)
     restored = 0
     for row, destination, source in reversed(plan):
+        reject_symlink_chain(workspace, destination, "rollback destination")
         if row["state"] == "present":
+            reject_symlink_chain(backup, source, "rollback object")
             destination.parent.mkdir(parents=True, exist_ok=True)
             descriptor, temporary_name = tempfile.mkstemp(prefix=destination.name + ".fsgg-rollback-", dir=destination.parent)
             os.close(descriptor)
@@ -627,6 +658,9 @@ def apply(args: list[str]) -> None:
     managed, retired = effective_paths(workspace, managed, retired)
     source_product, source_namespace, source_solution = identity(candidate)
     destination_product, destination_namespace, destination_solution = identity(workspace)
+    fresh_tree_sha, _ = tree_observation(workspace)
+    if fresh_tree_sha != current["workspaceTreeSha256"]:
+        fail("workspace changed after inventory recheck", 3)
     backup.mkdir(parents=True)
     (backup / "files").mkdir()
     (backup / "staged").mkdir()
@@ -673,9 +707,11 @@ def apply(args: list[str]) -> None:
         applied = 0
         journal["status"] = "applying"
         write_json_durable(journal_path, journal)
+        verify_apply_prestate(workspace, backup, paths)
         for row in paths:
             logical = row["logical"]
             destination = workspace / row["destination"]
+            verify_apply_prestate(workspace, backup, [row])
             if row["postState"] == "absent":
                 if destination.exists():
                     destination.unlink()
