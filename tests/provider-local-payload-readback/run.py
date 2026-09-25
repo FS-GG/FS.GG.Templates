@@ -401,6 +401,21 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
                 "archive member path is noncanonical")
         print(f"PASS non-template {label} path: NO_VERDICT")
 
+    for label, member_name in (
+            ("ASCII control", "docs/readme\n.txt"),
+            ("reserved punctuation", "docs/readme?.txt")):
+        unsafe_external_path = work / (label.replace(" ", "-") + ".nupkg")
+        package(unsafe_external_path, head=HEAD_A, asset=b"old")
+        with ZipFile(unsafe_external_path, "a") as archive:
+            member = ZipInfo(member_name)
+            member.create_system = 3
+            member.external_attr = (stat.S_IFREG | 0o644) << 16
+            archive.writestr(member, b"body")
+        unsafe_external_sha = sha256(unsafe_external_path.read_bytes()).hexdigest()
+        refused(lambda: snapshot(unsafe_external_path, unsafe_external_sha, HEAD_A),
+                "archive member path is unsafe")
+        print(f"PASS non-template {label} path: NO_VERDICT")
+
     corrupt_external_path = work / "corrupt-external.nupkg"
     package(corrupt_external_path, head=HEAD_A, asset=b"old")
     with ZipFile(corrupt_external_path, "a") as archive:
