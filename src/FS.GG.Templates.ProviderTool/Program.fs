@@ -20,6 +20,7 @@ let private fail message = raise (InvalidDataException message)
 let private pattern value = Regex(value, RegexOptions.CultureInvariant)
 let private providerLine = pattern "^  - name:\\s*(\\S+)\\s*(?:#.*)?$"
 let private rootLine = pattern "^([A-Za-z][A-Za-z0-9]*):(?:\\s*(.*))?$"
+let private schemaLine = pattern "^schemaVersion:\\s*1\\s*(?:#.*)?$"
 let private fieldLine = pattern "^    (contractVersion|templateId|source):\\s*(.*?)\\s*$"
 let private floorLine = pattern "^    minimumFsggSdd:\\s*(?:#.*)?$"
 let private versionLine = pattern "^      version:\\s*(.*?)\\s*$"
@@ -43,7 +44,9 @@ let private scalar where (raw: string) =
     else
         let beforeComment = value.Split('#').[0].Trim()
         if beforeComment = "" then fail $"{where}: expected a scalar value"
-        beforeComment.Split([| ' '; '\t' |], StringSplitOptions.RemoveEmptyEntries).[0]
+        let tokens = beforeComment.Split([| ' '; '\t' |], StringSplitOptions.RemoveEmptyEntries)
+        if tokens.Length <> 1 then fail $"{where}: unsupported text after scalar value"
+        tokens.[0]
 
 let private read path =
     try File.ReadAllText(path, UTF8Encoding(false, true))
@@ -57,6 +60,7 @@ let private parseDescriptor path =
     let mutable floor: string option = None
     let mutable inFloor = false
     let mutable inProviders = false
+    let mutable seenSchema = false
     let mutable seenProviders = false
     let mutable seenFloor = false
     let finish () =
@@ -80,6 +84,8 @@ let private parseDescriptor path =
     for index in 0 .. lines.Length - 1 do
         let line = lines.[index].TrimEnd('\r')
         if line.Trim() <> "" && not (line.TrimStart().StartsWith("#", StringComparison.Ordinal)) then
+            let indentation = line.Substring(0, line.Length - line.TrimStart(' ', '\t').Length)
+            if indentation.Contains('\t') then fail $"{path}:{index + 1}: tabs in YAML indentation are unsupported"
             let rootMatch = rootLine.Match line
             let providerMatch = providerLine.Match line
             if rootMatch.Success then
@@ -87,13 +93,24 @@ let private parseDescriptor path =
                 current <- None
                 inFloor <- false
                 inProviders <- false
-                if rootMatch.Groups.[1].Value = "providers" then
+                match rootMatch.Groups.[1].Value with
+                | "schemaVersion" ->
+                    if seenSchema || seenProviders || not (schemaLine.IsMatch line) then
+                        fail $"{path}:{index + 1}: unsupported schemaVersion root"
+                    seenSchema <- true
+                | "providers" ->
+                    if not seenSchema then fail $"{path}:{index + 1}: providers appear before schemaVersion: 1"
                     if seenProviders then fail $"{path}:{index + 1}: repeats providers"
                     seenProviders <- true
                     let inlineValue = rootMatch.Groups.[2].Value.Trim()
                     if inlineValue <> "" && not (inlineValue.StartsWith("#", StringComparison.Ordinal)) then
                         fail $"{path}:{index + 1}: providers must be a block sequence"
                     inProviders <- true
+                | _ -> fail $"{path}:{index + 1}: unsupported or duplicate descriptor root key"
+            elif indentation = "" then
+                fail $"{path}:{index + 1}: unsupported or duplicate descriptor root key"
+            elif not seenProviders then
+                fail $"{path}:{index + 1}: descriptor content before providers list"
             elif inProviders && providerMatch.Success then
                 finish ()
                 current <- Some(Map.ofList [ "name", scalar $"{path}:{index + 1}" providerMatch.Groups.[1].Value ])
@@ -124,6 +141,7 @@ let private parseDescriptor path =
                             floor <- Some(scalar $"{path}:{index + 1}" versionMatch.Groups.[1].Value)
                         elif line.Length - line.TrimStart(' ').Length <= 4 then inFloor <- false
     finish ()
+    if not seenSchema then fail $"{path}: missing schemaVersion: 1 root"
     if not seenProviders then fail $"{path}: missing providers block sequence"
     if providers.Count = 0 then fail $"{path}: declares no providers"
     let names = providers |> Seq.map _.Name |> Seq.toList

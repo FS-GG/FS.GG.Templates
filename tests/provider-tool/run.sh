@@ -49,6 +49,20 @@ expect_pass 'clean generated workspace descriptor is known' \
 
 mkdir "$work/providers"
 cp "$root/providers/"*.providers.yml "$work/providers/"
+sed -i 's/^schemaVersion: 1$/schemaVersion: 2/' "$work/providers/rendering.providers.yml"
+expect_fail 'unsupported descriptor schema is rejected' 'unsupported schemaVersion root' \
+  grade --providers "$work/providers" --registry "$registry"
+cp "$root/providers/rendering.providers.yml" "$work/providers/rendering.providers.yml"
+sed -i '/^schemaVersion: 1$/d' "$work/providers/rendering.providers.yml"
+expect_fail 'descriptor without schema is rejected' 'providers appear before schemaVersion: 1' \
+  grade --providers "$work/providers" --registry "$registry"
+cp "$root/providers/rendering.providers.yml" "$work/providers/rendering.providers.yml"
+cat >>"$work/providers/rendering.providers.yml" <<'YAML'
+schemaVersion: 1
+YAML
+expect_fail 'duplicate schema root is rejected' 'unsupported schemaVersion root' \
+  grade --providers "$work/providers" --registry "$registry"
+cp "$root/providers/rendering.providers.yml" "$work/providers/rendering.providers.yml"
 python3 - "$work/providers/web.providers.yml" <<'PY'
 from pathlib import Path
 import sys
@@ -66,7 +80,7 @@ extra:
     minimumFsggSdd:
       version: "1.4.0-preview.1"
 YAML
-expect_fail 'a root sibling cannot lend its floor to a provider' 'web: missing minimumFsggSdd.version' \
+expect_fail 'a root sibling cannot lend its floor to a provider' 'unsupported or duplicate descriptor root key' \
   grade --providers "$work/providers" --registry "$registry"
 
 cat >"$work/providers/web.providers.yml" <<'YAML'
@@ -90,6 +104,21 @@ expect_fail 'duplicate root providers key is rejected' 'repeats providers' \
   grade --providers "$work/providers" --registry "$registry"
 
 cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
+sed -i 's/version: "1.4.0-preview.1"/version: 1.4.0-preview.1 garbage/' "$work/providers/web.providers.yml"
+expect_fail 'unquoted floor with trailing YAML tokens is rejected' 'unsupported text after scalar value' \
+  grade --providers "$work/providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
+sed -i 's/source: FS.GG.Workspace.Template::0.13.0/source: FS.GG.Workspace.Template::0.13.0 garbage/' "$work/providers/web.providers.yml"
+expect_fail 'unquoted provider source with trailing YAML tokens is rejected' 'unsupported text after scalar value' \
+  grade --providers "$work/providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
+cp "$root/providers/web.providers.yml" "$work/providers/duplicate.providers.yml"
+expect_fail 'duplicate provider identity across descriptors is rejected' 'provider names must be unique across descriptors' \
+  grade --providers "$work/providers" --registry "$registry"
+rm "$work/providers/duplicate.providers.yml"
+
 python3 - "$registry" "$root/providers/web.providers.yml" "$work/drift.yml" <<'PY'
 from pathlib import Path
 import re
