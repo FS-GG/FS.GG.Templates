@@ -11,11 +11,13 @@ refuses nested config-shaped members, file/child collisions (including case
 aliases), and duplicate or foreign JSON fields. A matching template config
 alone is never a payload match. F# requires NFC and NFKC member path spelling,
 so decomposed Unicode and compatibility ligatures cannot yield a payload match
-under those aliases. This follows [Unicode normalization guidance](https://www.unicode.org/reports/tr15/)
-and does not implement full Unicode case folding or prove that every filesystem
-path alias is excluded. F# also refuses components ending in a
-period or ASCII space, ASCII codes 0–31, reserved path punctuation, and Windows
-device names, including extension forms. These rules follow [Windows file naming guidance](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file).
+under those aliases, following [Unicode normalization guidance](https://www.unicode.org/reports/tr15/).
+It also refuses `ß` and `ẞ` member spellings, which expand to `ss` under
+Python's case folding. These checks do not implement full Unicode case folding
+or prove that every filesystem path alias is excluded. F# also refuses
+components ending in a period or ASCII space, ASCII codes 0–31, reserved path
+punctuation, and Windows device names, including extension forms. These rules
+follow [Windows file naming guidance](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file).
 Each member component also has an explicit 255 UTF-8-byte portability bound;
 this does not establish the actual receiver filesystem limit.
 The signed file's signature is recognized by member presence; this script
