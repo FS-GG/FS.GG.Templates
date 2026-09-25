@@ -23,6 +23,7 @@ MAX_MEMBER_BYTES = 16 * 1024 * 1024
 MAX_EXPANDED_BYTES = 128 * 1024 * 1024
 MAX_MEMBERS = 4096
 MAX_NUSPEC_BYTES = 1024 * 1024
+MAX_MEMBER_SEGMENT_BYTES = 255
 CONFIG_SUFFIX = "/.template.config/template.json"
 PREFIX = "content/templates/"
 RESERVED_MEMBER_PUNCTUATION = '<>"|?*'
@@ -89,6 +90,9 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
             if any(not unicodedata.is_normalized("NFC", name)
                    or not unicodedata.is_normalized("NFKC", name) for name in names):
                 raise Refusal("archive member path is noncanonical")
+            if any(len(part.encode("utf-8")) > MAX_MEMBER_SEGMENT_BYTES
+                   for name in names for part in name.split("/")):
+                raise Refusal("archive member path segment exceeds byte bound")
             if any(reserved_device_part(part) for name in names for part in name.split("/")):
                 raise Refusal("archive member has a reserved device name")
             for name in names:

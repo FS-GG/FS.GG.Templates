@@ -458,6 +458,33 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
         raise AssertionError("ordinary numbered non-template path was refused")
     print("PASS non-template COM10 path: ordinary archive member")
 
+    for label, segment in (
+            ("256-byte NFC", "\u00e9" * 128),
+            ("256-byte ASCII", "a" * 256)):
+        long_external_path = work / (label.replace(" ", "-") + ".nupkg")
+        package(long_external_path, head=HEAD_A, asset=b"old")
+        with ZipFile(long_external_path, "a") as archive:
+            member = ZipInfo("docs/" + segment)
+            member.create_system = 3
+            member.external_attr = (stat.S_IFREG | 0o644) << 16
+            archive.writestr(member, b"body")
+        long_external_sha = sha256(long_external_path.read_bytes()).hexdigest()
+        refused(lambda: snapshot(long_external_path, long_external_sha, HEAD_A),
+                "archive member path segment exceeds byte bound")
+        print(f"PASS non-template {label} segment: NO_VERDICT")
+
+    max_external_path = work / "255-byte-segment.nupkg"
+    package(max_external_path, head=HEAD_A, asset=b"old")
+    with ZipFile(max_external_path, "a") as archive:
+        member = ZipInfo("docs/" + "a" * 255)
+        member.create_system = 3
+        member.external_attr = (stat.S_IFREG | 0o644) << 16
+        archive.writestr(member, b"body")
+    max_external_sha = sha256(max_external_path.read_bytes()).hexdigest()
+    if not snapshot(max_external_path, max_external_sha, HEAD_A)["templates"]:
+        raise AssertionError("255-byte non-template segment was refused")
+    print("PASS non-template 255-byte segment: ordinary archive member")
+
     corrupt_external_path = work / "corrupt-external.nupkg"
     package(corrupt_external_path, head=HEAD_A, asset=b"old")
     with ZipFile(corrupt_external_path, "a") as archive:
