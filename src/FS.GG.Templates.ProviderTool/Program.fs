@@ -276,6 +276,13 @@ let private grade directory registry =
             | Some floor when floor <> pin -> Some $"{provider.File}:{provider.Line} {provider.Name}: floor {floor} != registry pin {pin}"
             | Some _ -> None)
     if not problems.IsEmpty then problems |> List.iter (eprintfn "%s"); fail $"{problems.Length} provider floor(s) disagree with registry"
+    // Grade the same provider metadata that workspace selection will later consume.
+    // Sorting here preserves each descriptor's already-checked internal order while
+    // avoiding an incidental cross-file filename order requirement.
+    let ordered = providers |> List.sortBy _.Name
+    match select ordered ordered with
+    | Ok _ -> ()
+    | Error refusal -> fail (describe refusal)
     printfn "provider floors: %d provider(s) equal registry pin %s" providers.Length pin
 
 let private effective path =
