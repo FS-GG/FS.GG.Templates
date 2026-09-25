@@ -45,7 +45,10 @@ let private scalar where (raw: string) =
         if beforeComment = "" then fail $"{where}: expected a scalar value"
         let tokens = beforeComment.Split([| ' '; '\t' |], StringSplitOptions.RemoveEmptyEntries)
         if tokens.Length <> 1 then fail $"{where}: unsupported text after scalar value"
-        tokens.[0]
+        let token = tokens.[0]
+        if token = "~" || String.Equals(token, "null", StringComparison.OrdinalIgnoreCase) then
+            fail $"{where}: implicit YAML null scalar is not a string value"
+        token
 
 let private read path =
     try File.ReadAllText(path, UTF8Encoding(false, true))
