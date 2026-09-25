@@ -63,9 +63,19 @@ let private packageSourcePattern =
         @"\A[A-Za-z0-9][A-Za-z0-9._-]*::[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z",
         RegexOptions.CultureInvariant)
 
+// The default UTF-8 encoder replaces unpaired surrogates, silently changing selected bytes.
+let private strictUtf8 = UTF8Encoding(false, true)
+
+let private validUtf16 (value: string) =
+    try
+        strictUtf8.GetByteCount(value) |> ignore
+        true
+    with :? EncoderFallbackException -> false
+
 let private safeEffectiveField (value: string) =
     not (String.IsNullOrWhiteSpace value)
     && String.Equals(value, value.Trim(), StringComparison.Ordinal)
+    && validUtf16 value
     && (value
         |> Seq.forall (fun character ->
             character <> '|' && character <> '\u2028' && character <> '\u2029'
@@ -74,6 +84,7 @@ let private safeEffectiveField (value: string) =
 let private safeParameterValue (value: string) =
     not (String.IsNullOrWhiteSpace value)
     && String.Equals(value, value.Trim(), StringComparison.Ordinal)
+    && validUtf16 value
     && (value
         |> Seq.forall (fun character ->
             character <> '\u2028' && character <> '\u2029'
@@ -209,4 +220,4 @@ let renderEffective (selection: Provider list) =
 /// Exact UTF-8 projection of the Python effective-provider renderer's lines.
 let renderEffectiveBytes (trailingNewline: bool) (selection: Provider list) : byte[] =
     let value = selection |> renderEffective |> String.concat "\n"
-    Encoding.UTF8.GetBytes(value + (if trailingNewline then "\n" else ""))
+    strictUtf8.GetBytes(value + (if trailingNewline then "\n" else ""))
