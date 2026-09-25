@@ -19,6 +19,10 @@ OWNER_FILES = {
     "web": "web.providers.yml",
 }
 DESCRIPTOR_FILES = set(OWNER_FILES.values()) | {"rendering.providers.yml"}
+# SHA-256 of the checked-in scripts/svg-complete-workspace-baselines.json at
+# this reviewed source head. It binds the CLI's selected candidate to reviewed
+# source bytes; it does not authenticate the producer or a served package.
+REVIEWED_BASELINE_SHA256 = "4bc5787d52cf867cdffca628a97e8822c6a23878e9870a949520c3c99f1b4335"
 NAME = re.compile(r"^  - name:\s*(\S+)\s*(?:#.*)?$", re.MULTILINE)
 SOURCE = re.compile(r"^    source:\s*FS\.GG\.Workspace\.Template::([^\s#]+)\s*(?:#.*)?$", re.MULTILINE)
 TEMPLATE_ID = re.compile(r"^    templateId:\s*(\S+)\s*(?:#.*)?$", re.MULTILINE)
@@ -161,11 +165,16 @@ if __name__ == "__main__":
     parser.add_argument("--providers", type=Path, required=True)
     args = parser.parse_args()
     try:
-        selected_baseline = strict_json(args.baseline.read_bytes())
+        baseline_bytes = args.baseline.read_bytes()
+        if sha256(baseline_bytes).hexdigest() != REVIEWED_BASELINE_SHA256:
+            raise ValueError("baseline bytes differ from reviewed source")
+        selected_baseline = strict_json(baseline_bytes)
         if not isinstance(selected_baseline, dict):
             raise ValueError("selected baseline is not an object")
         result, observations = assess(args.archive, selected_baseline, args.providers)
-    except (OSError, UnicodeError, ValueError) as error:
+    except ValueError as error:
+        result, observations = "NO_VERDICT", [str(error)]
+    except (OSError, UnicodeError) as error:
         result, observations = "NO_VERDICT", [f"baseline cannot be read exactly: {type(error).__name__}"]
     print(json.dumps({"status": result, "reasons": observations,
                       "scope": "source-only observation; no installed or release authorization"},
