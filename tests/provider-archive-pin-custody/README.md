@@ -24,12 +24,14 @@ still accepts a caller-supplied baseline for disposable controls; its result
 cannot authenticate a production selection. A change to the checked-in
 baseline needs an explicit review of the digest constant. The descriptor
 reader is intentionally narrower than the full YAML grammar.
-The observer now requires the reviewed five-descriptor inventory and reads each
+The observer requires the reviewed five-descriptor inventory and reads each
 descriptor as a regular file relative to an opened directory with no-follow
-flags. A new descriptor, linked descriptor, or a rendering descriptor that
-selects the workspace package receives `NO_VERDICT` pending owner review.
-This is a bounded read-only observation, not an atomic snapshot of a
-concurrently changing source tree.
+flags. It holds all five descriptors open through bounded reads, then checks
+their file identities and change metadata against both open handles and paths.
+A new descriptor, linked descriptor, changed descriptor, or rendering descriptor
+that selects the workspace package receives `NO_VERDICT` pending owner review.
+This detects the tested in-place and rename-and-replace swaps; it is not a
+race-free snapshot against every concurrent or privileged mutation.
 No result authenticates producer custody, served feed bytes, installation,
 template selection constraints, workspace output, transaction rollback, or a
 receiver decision. A duplicate short name, including one that a template host

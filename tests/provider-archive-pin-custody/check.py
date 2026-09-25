@@ -2,6 +2,7 @@
 """Offline package pin/roster observation. It never establishes installed parity."""
 
 import argparse
+from contextlib import ExitStack
 from hashlib import sha256
 from io import BytesIO
 import json
@@ -50,7 +51,7 @@ def safe_member(name: str, mode: int) -> bool:
 
 
 def read_descriptors(providers: Path) -> tuple[dict[str, str], list[str]]:
-    """Bind this source observation to one opened directory and regular files."""
+    """Bind a bounded observation to one directory and an overlapping file set."""
     if not all(hasattr(os, flag) for flag in ("O_DIRECTORY", "O_NOFOLLOW")):
         return {}, ["descriptor no-follow traversal is unavailable"]
     try:
@@ -61,21 +62,36 @@ def read_descriptors(providers: Path) -> tuple[dict[str, str], list[str]]:
         entries = {name for name in os.listdir(directory) if name.endswith(".providers.yml")}
         if entries != DESCRIPTOR_FILES:
             return {}, ["provider descriptor inventory differs from observed owner set"]
-        contents = {}
-        for name in sorted(entries):
-            if S_ISLNK(os.stat(name, dir_fd=directory, follow_symlinks=False).st_mode):
-                return {}, [f"{name} descriptor is a symlink"]
-            handle = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory)
-            with os.fdopen(handle, "r", encoding="utf-8") as reader:
-                if not S_ISREG(os.fstat(reader.fileno()).st_mode):
+        def stamp(info: os.stat_result) -> tuple[int, int, int, int, int, int]:
+            return (info.st_dev, info.st_ino, info.st_mode, info.st_size,
+                    info.st_mtime_ns, info.st_ctime_ns)
+
+        with ExitStack() as opened:
+            readers = {}
+            initial = {}
+            for name in sorted(entries):
+                if S_ISLNK(os.stat(name, dir_fd=directory, follow_symlinks=False).st_mode):
+                    return {}, [f"{name} descriptor is a symlink"]
+                handle = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory)
+                reader = opened.enter_context(os.fdopen(handle, "r", encoding="utf-8"))
+                info = os.fstat(reader.fileno())
+                if not S_ISREG(info.st_mode):
                     return {}, [f"{name} descriptor is not regular"]
+                readers[name] = reader
+                initial[name] = stamp(info)
+            contents = {}
+            for name, reader in readers.items():
                 value = reader.read(1_048_577)
-            if len(value) > 1_048_576:
-                return {}, [f"{name} descriptor exceeds observation bound"]
-            contents[name] = value
-        if {name for name in os.listdir(directory) if name.endswith(".providers.yml")} != entries:
-            return {}, ["provider descriptor inventory changed during observation"]
-        return contents, []
+                if len(value) > 1_048_576:
+                    return {}, [f"{name} descriptor exceeds observation bound"]
+                contents[name] = value
+            for name, reader in readers.items():
+                if (stamp(os.fstat(reader.fileno())) != initial[name]
+                        or stamp(os.stat(name, dir_fd=directory, follow_symlinks=False)) != initial[name]):
+                    return {}, ["provider descriptor changed during observation"]
+            if {name for name in os.listdir(directory) if name.endswith(".providers.yml")} != entries:
+                return {}, ["provider descriptor inventory changed during observation"]
+            return contents, []
     except (OSError, UnicodeError):
         return {}, ["provider descriptor inventory could not be read exactly"]
     finally:

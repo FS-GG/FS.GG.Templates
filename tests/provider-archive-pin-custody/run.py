@@ -11,7 +11,9 @@ import subprocess
 import tempfile
 from zipfile import ZIP_DEFLATED, ZipFile
 from zipfile import ZipInfo
+from unittest.mock import patch
 
+import check
 from check import OWNER_FILES, assess, strict_json
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -99,6 +101,53 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-archive-") as folder:
     if reviewed_verdict["status"] != "NO_VERDICT" or reviewed_verdict["reasons"] != ["selected archive SHA mismatch"]:
         raise AssertionError(f"reviewed baseline was not accepted for assessment: {reviewed_verdict}")
     print("PASS reviewed baseline: synthetic archive SHA mismatch, no verdict")
+
+    console_path = providers / OWNER_FILES["console"]
+    bindings_path = providers / OWNER_FILES["fable-bindings"]
+    clean_console = console_path.read_text(encoding="utf-8")
+    clean_bindings = bindings_path.read_text(encoding="utf-8")
+    bindings_path.write_text(clean_bindings.replace("source: FS.GG.Workspace.Template::0.14.0",
+                                                   "source: FS.GG.Workspace.Template::0.13.0"),
+                             encoding="utf-8")
+    original_open = os.open
+    swapped = [False]
+
+    def swap_between_reads(name, flags, *args, **kwargs):
+        if name == OWNER_FILES["fable-bindings"] and not swapped[0]:
+            swapped[0] = True
+            console_path.write_text(clean_console.replace("source: FS.GG.Workspace.Template::0.14.0",
+                                                          "source: FS.GG.Workspace.Template::0.13.0"),
+                                    encoding="utf-8")
+            bindings_path.write_text(clean_bindings, encoding="utf-8")
+        return original_open(name, flags, *args, **kwargs)
+
+    with patch.object(check.os, "open", side_effect=swap_between_reads):
+        status, reasons = assess(archive, baseline, providers)
+    if not swapped[0] or status != "NO_VERDICT" or "provider descriptor changed during observation" not in reasons:
+        raise AssertionError(f"cross-file source swap was admitted: {status}, {reasons}")
+    console_path.write_text(clean_console, encoding="utf-8")
+    bindings_path.write_text(clean_bindings, encoding="utf-8")
+    print("PASS cross-file source swap: NO_VERDICT")
+
+    displaced = work / "displaced-console.providers.yml"
+    replaced = [False]
+
+    def replace_between_reads(name, flags, *args, **kwargs):
+        if name == OWNER_FILES["fable-bindings"] and not replaced[0]:
+            replaced[0] = True
+            console_path.rename(displaced)
+            console_path.write_text(clean_console.replace("source: FS.GG.Workspace.Template::0.14.0",
+                                                          "source: FS.GG.Workspace.Template::0.13.0"),
+                                    encoding="utf-8")
+        return original_open(name, flags, *args, **kwargs)
+
+    with patch.object(check.os, "open", side_effect=replace_between_reads):
+        status, reasons = assess(archive, baseline, providers)
+    if not replaced[0] or status != "NO_VERDICT" or "provider descriptor changed during observation" not in reasons:
+        raise AssertionError(f"renamed owner path was admitted: {status}, {reasons}")
+    console_path.unlink()
+    displaced.rename(console_path)
+    print("PASS replaced owner path: NO_VERDICT")
 
     extra = providers / "governance.providers.yml"
     extra.write_text("schemaVersion: 1\nproviders:\n  - name: governance\n"
