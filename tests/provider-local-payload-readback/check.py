@@ -67,6 +67,8 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                 raise Refusal("archive member count exceeds observation bound")
             if len(names) != len(set(names)) or len(names) != len({name.casefold() for name in names}):
                 raise Refusal("archive member duplicate or case alias")
+            if any(not safe_path(name) for name in names):
+                raise Refusal("archive member path is unsafe")
             if (".signature.p7s" in names) != signed:
                 raise Refusal("local archive signature presence differs from pinned role")
             identity_member = package.getinfo("FS.GG.Workspace.Template.nuspec")
@@ -92,8 +94,6 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                 name = entry.filename
                 if not name.startswith(PREFIX):
                     continue
-                if not safe_path(name):
-                    raise Refusal("template member path is unsafe")
                 mode = entry.external_attr >> 16
                 if entry.create_system != 3 or mode != (S_IFREG | 0o644):
                     raise Refusal("template member Unix mode differs from selected contract")
