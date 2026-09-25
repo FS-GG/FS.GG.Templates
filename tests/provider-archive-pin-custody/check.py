@@ -9,9 +9,10 @@ import json
 import os
 from pathlib import Path
 import re
-from stat import S_IFLNK, S_IFMT, S_ISLNK, S_ISREG
+from stat import S_IFMT, S_IFREG, S_ISLNK, S_ISREG
 from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
+import zlib
 
 OWNER_FILES = {
     "console": "console.providers.yml",
@@ -34,6 +35,10 @@ REVIEWED_DESCRIPTOR_SHA256 = {
 # this reviewed source head. It binds the CLI's selected candidate to reviewed
 # source bytes; it does not authenticate the producer or a served package.
 REVIEWED_BASELINE_SHA256 = "4bc5787d52cf867cdffca628a97e8822c6a23878e9870a949520c3c99f1b4335"
+MAX_ARCHIVE_BYTES = 32 * 1024 * 1024
+MAX_MEMBERS = 4096
+MAX_MEMBER_BYTES = 16 * 1024 * 1024
+MAX_EXPANDED_BYTES = 128 * 1024 * 1024
 NAME = re.compile(r"^  - name:\s*(\S+)\s*(?:#.*)?$", re.MULTILINE)
 SOURCE = re.compile(r"^    source:\s*FS\.GG\.Workspace\.Template::([^\s#]+)\s*(?:#.*)?$", re.MULTILINE)
 TEMPLATE_ID = re.compile(r"^    templateId:\s*(\S+)\s*(?:#.*)?$", re.MULTILINE)
@@ -57,7 +62,7 @@ def safe_member(name: str, mode: int) -> bool:
     return (bool(name) and not name.startswith("/") and "\\" not in name
             and ":" not in name and "\x00" not in name
             and all(part not in ("", ".", "..") for part in parts)
-            and S_IFMT(mode) != S_IFLNK)
+            and S_IFMT(mode) == S_IFREG)
 
 
 def read_descriptors(providers: Path) -> tuple[dict[str, str], list[str]]:
@@ -124,9 +129,12 @@ def assess(archive: Path, baseline: dict, providers: Path, *,
     if not isinstance(source_head, str) or not re.fullmatch(r"[0-9a-f]{40}", source_head):
         return "NO_VERDICT", ["selected source head is invalid"]
     try:
-        raw = archive.read_bytes()
+        with archive.open("rb") as source:
+            raw = source.read(MAX_ARCHIVE_BYTES + 1)
     except OSError:
         return "NO_VERDICT", ["selected archive is inaccessible"]
+    if len(raw) > MAX_ARCHIVE_BYTES:
+        return "NO_VERDICT", ["selected archive exceeds observation bound"]
     if sha256(raw).hexdigest() != expected_sha:
         return "NO_VERDICT", ["selected archive SHA mismatch"]
 
@@ -136,10 +144,28 @@ def assess(archive: Path, baseline: dict, providers: Path, *,
         with ZipFile(BytesIO(raw)) as package:
             members = package.infolist()
             names = [member.filename for member in members]
+            if len(members) > MAX_MEMBERS:
+                return "NO_VERDICT", ["archive member count exceeds observation bound"]
             if len(names) != len(set(names)) or len(names) != len({name.casefold() for name in names}):
                 return "NO_VERDICT", ["archive member duplicate or case alias"]
             if any(not safe_member(member.filename, member.external_attr >> 16) for member in members):
                 return "NO_VERDICT", ["archive member path or type is unsafe"]
+            expanded = 0
+            try:
+                for member in members:
+                    if member.file_size > MAX_MEMBER_BYTES:
+                        return "NO_VERDICT", ["archive member exceeds observation bound"]
+                    size = 0
+                    with package.open(member) as stream:
+                        while chunk := stream.read(8192):
+                            size += len(chunk)
+                            expanded += len(chunk)
+                            if size > MAX_MEMBER_BYTES or expanded > MAX_EXPANDED_BYTES:
+                                return "NO_VERDICT", ["archive expansion exceeds observation bound"]
+                    if size != member.file_size:
+                        return "NO_VERDICT", ["archive member size differs from directory"]
+            except (BadZipFile, OSError, RuntimeError, EOFError, NotImplementedError, zlib.error) as error:
+                return "NO_VERDICT", [f"archive member cannot be read exactly: {type(error).__name__}"]
             nuspec = [name for name in names if name == "FS.GG.Workspace.Template.nuspec"]
             if len(nuspec) != 1:
                 return "NO_VERDICT", ["package identity member is missing or ambiguous"]

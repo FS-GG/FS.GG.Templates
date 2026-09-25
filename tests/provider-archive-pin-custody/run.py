@@ -7,9 +7,10 @@ import os
 from pathlib import Path
 import re
 import shutil
+import stat
 import subprocess
 import tempfile
-from zipfile import ZIP_DEFLATED, ZipFile
+from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 from zipfile import ZipInfo
 from unittest.mock import patch
 
@@ -32,22 +33,41 @@ def package_baseline(path: Path) -> dict:
 
 
 def package(path: Path, duplicate_game: bool = False, *,
-            commit: str | None = SOURCE_HEAD, duplicate_repository: bool = False) -> dict:
+            commit: str | None = SOURCE_HEAD, duplicate_repository: bool = False,
+            corrupt_unobserved: bool = False, fifo_member: bool = False) -> dict:
     repository = (f'<repository type="git" url="https://github.com/FS-GG/FS.GG.Templates" '
                   f'commit="{commit}" />') if commit is not None else ""
     if duplicate_repository:
         repository += repository
     with ZipFile(path, "w", ZIP_DEFLATED) as archive:
-        archive.writestr("FS.GG.Workspace.Template.nuspec", "<package><metadata>"
-                         "<id>FS.GG.Workspace.Template</id><version>0.14.0</version>"
-                         f"{repository}</metadata></package>")
+        def regular(name: str, body: str | bytes, compression: int = ZIP_DEFLATED) -> None:
+            member = ZipInfo(name)
+            member.create_system = 3
+            member.external_attr = (stat.S_IFREG | 0o644) << 16
+            member.compress_type = compression
+            archive.writestr(member, body)
+
+        regular("FS.GG.Workspace.Template.nuspec", "<package><metadata>"
+                "<id>FS.GG.Workspace.Template</id><version>0.14.0</version>"
+                f"{repository}</metadata></package>")
         for owner in OWNER_FILES:
             template_id = f"fs-gg-{owner}"
-            archive.writestr(f"content/templates/{template_id}/.template.config/template.json",
-                             json.dumps({"shortName": template_id}))
+            regular(f"content/templates/{template_id}/.template.config/template.json",
+                    json.dumps({"shortName": template_id}))
         if duplicate_game:
-            archive.writestr("content/templates/game-legacy/.template.config/template.json",
-                             json.dumps({"shortName": "fs-gg-fable-game"}))
+            regular("content/templates/game-legacy/.template.config/template.json",
+                    json.dumps({"shortName": "fs-gg-fable-game"}))
+        if corrupt_unobserved:
+            regular("content/unobserved.txt", b"unobserved-body-v1", ZIP_STORED)
+        if fifo_member:
+            special = ZipInfo("content/special.pipe")
+            special.create_system = 3
+            special.external_attr = (stat.S_IFIFO | 0o644) << 16
+            archive.writestr(special, b"not-a-regular-file")
+    if corrupt_unobserved:
+        raw = path.read_bytes()
+        assert raw.count(b"unobserved-body-v1") == 1
+        path.write_bytes(raw.replace(b"unobserved-body-v1", b"Unobserved-body-v1", 1))
     return package_baseline(path)
 
 
@@ -94,6 +114,20 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-archive-") as folder:
     if status != "PIN_ROSTER_MATCH_ONLY" or reasons:
         raise AssertionError(f"matching synthetic pin/roster was refused: {status}, {reasons}")
     print("PASS synthetic pin/roster match: source-only label, no installed claim")
+
+    corrupt = work / "corrupt-unobserved.nupkg"
+    corrupt_baseline = package(corrupt, corrupt_unobserved=True)
+    status, reasons = assess(corrupt, corrupt_baseline, providers)
+    if status != "NO_VERDICT" or reasons != ["archive member cannot be read exactly: BadZipFile"]:
+        raise AssertionError(f"corrupt unobserved payload was admitted: {status}, {reasons}")
+    print("PASS corrupt unobserved ZIP member: NO_VERDICT")
+
+    special = work / "special-member.nupkg"
+    special_baseline = package(special, fifo_member=True)
+    status, reasons = assess(special, special_baseline, providers)
+    if status != "NO_VERDICT" or reasons != ["archive member path or type is unsafe"]:
+        raise AssertionError(f"FIFO archive member was admitted: {status}, {reasons}")
+    print("PASS FIFO ZIP member: NO_VERDICT")
 
     wrong_commit = work / "wrong-source-commit.nupkg"
     wrong_baseline = package(wrong_commit, commit="b" * 40)
