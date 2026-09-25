@@ -71,6 +71,12 @@ let private parseSnapshot (where: string) (value: JsonElement) =
             if mode <> regular0644 then fail $"{label}.mode differs from selected contract"
             name, { Name = name; Digest = digest; Mode = mode })
         |> Map.ofSeq
+    for name in members |> Map.toSeq |> Seq.map fst do
+        let mutable separator = name.IndexOf('/')
+        while separator >= 0 do
+            let ancestor = name.Substring(0, separator)
+            if aliases.Contains ancestor then fail $"{where} member {name} has file ancestor {ancestor}"
+            separator <- name.IndexOf('/', separator + 1)
     let roots = members |> Map.toSeq |> Seq.map (fst >> rootOf) |> Set.ofSeq
     for root in roots do
         let config = prefix + root + configSuffix

@@ -94,6 +94,22 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
         raise AssertionError("ordinary nested template asset was refused")
     print("PASS ordinary nested template asset: narrow match")
 
+    config_child = dict(member_asset, name=CONFIG + "/child")
+    config_collision = {"left": [member_config, member_asset, config_child],
+                        "right": [member_config, member_asset, config_child]}
+    config_collision_result = typed(json.dumps(config_collision))
+    if config_collision_result["status"] != "NO_VERDICT" or "file ancestor" not in config_collision_result["reason"]:
+        raise AssertionError(f"config file and child yielded a payload match: {config_collision_result}")
+    print("PASS config file and child path collision: NO_VERDICT")
+
+    case_child = dict(member_asset, name=ASSET.replace("build.sh", "BUILD.SH/child"))
+    case_collision = {"left": [member_config, member_asset, case_child],
+                      "right": [member_config, member_asset, case_child]}
+    case_collision_result = typed(json.dumps(case_collision))
+    if case_collision_result["status"] != "NO_VERDICT" or "file ancestor" not in case_collision_result["reason"]:
+        raise AssertionError(f"case-aliased file and child yielded a payload match: {case_collision_result}")
+    print("PASS case-aliased file and child path collision: NO_VERDICT")
+
     decomposed_root = "fs-gg-cafe\u0301"
     decomposed_config = dict(member_config, name=f"content/templates/{decomposed_root}/.template.config/template.json")
     decomposed_asset = dict(member_asset, name=f"content/templates/{decomposed_root}/build.sh")
