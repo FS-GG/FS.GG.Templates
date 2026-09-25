@@ -14,6 +14,16 @@ ROOT = Path(__file__).resolve().parents[2]
 WORKFLOW = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
 MEMBER = "content/templates/fs-gg-fable-game/build.sh"
 
+if "\n  gate:\n" not in WORKFLOW or "\n  publish:\n" not in WORKFLOW:
+    raise AssertionError("release gate or publish job missing")
+gate_job = WORKFLOW.split("\n  gate:\n", 1)[1].split("\n  publish:\n", 1)[0]
+preflight = "      - name: Preflight feed readback member modes\n        run: python3 tests/release-readback-modes/run.py"
+setup = "      - uses: actions/setup-dotnet@v6"
+if gate_job.count(preflight) != 1 or setup not in gate_job or gate_job.index(preflight) > gate_job.index(setup):
+    raise AssertionError("readback preflight must run once before costly release-gate setup")
+if "needs: [route, pack, gate]" not in WORKFLOW.split("\n  publish:\n", 1)[1]:
+    raise AssertionError("publish must still depend on the release gate")
+
 
 def snippet(step: str) -> str:
     marker = f"      - name: Read back {step} payload\n"
