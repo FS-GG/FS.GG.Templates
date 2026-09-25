@@ -152,21 +152,6 @@ module Observer =
         | :? DecoderFallbackException -> Error "archive-identity-utf8-invalid"
         | :? ArgumentException -> Error "archive-argument-invalid"
 
-    let private isLink (path: string) =
-        let info = FileInfo path
-        not (isNull info.LinkTarget)
-        || ((File.Exists path || Directory.Exists path) && File.GetAttributes(path).HasFlag FileAttributes.ReparsePoint)
-
-    let private checkTargetChain (root: string) (relative: string) =
-        if isLink root || not (Directory.Exists root) then fail "workspace-root-unsafe"
-        let mutable current = root
-        let parts = relative.Split '/'
-        for index in 0 .. parts.Length - 1 do
-            current <- Path.Combine(current, parts[index])
-            if isLink current then fail $"output-symlink:{relative}"
-            if index < parts.Length - 1 && File.Exists current then fail $"output-parent-nondirectory:{relative}"
-        current
-
     let private transformed (sourceProduct: string) (sourceNamespace: string)
                             (destinationProduct: string) (destinationNamespace: string) (raw: byte[]) =
         try
@@ -181,24 +166,27 @@ module Observer =
             utf8.GetBytes text
         with :? DecoderFallbackException -> Array.copy raw
 
-    /// Read receiver identity and touched paths only. Existing bytes must equal
-    /// proposed bytes or an explicitly supplied allowed digest; merged skill
-    /// manifests remain deferred because their owner rows need separate proof.
-    let inspectOutputs (observation: ArchiveObservation) workspaceRoot
+    /// Test seam runs after parent handles are pinned and before the final
+    /// no-follow open. Production calls use a no-op probe.
+    let internal inspectOutputsWithProbe (observation: ArchiveObservation) workspaceRoot
                        expectedProduct expectedNamespace (allowedExisting: Map<string, Set<string>>)
-                       : Result<OutputObservation list, string> =
+                       (beforeFinalOpen: string -> unit) : Result<OutputObservation list, string> =
         try
             let root = Path.GetFullPath workspaceRoot
-            if isLink root || not (Directory.Exists root) then fail "workspace-root-unsafe"
-            let solutions = Directory.GetFiles(root, "*.slnx", SearchOption.TopDirectoryOnly)
+            use rootFd = LinuxPinnedReceiver.openRoot root
+            let solutions = LinuxPinnedReceiver.solutionNames rootFd
             let solution =
                 match solutions with
-                | [| only |] when not (isLink only) -> only
+                | [| only |] -> only
                 | _ -> fail "workspace-solution-not-unique"
             let destinationProduct = Path.GetFileNameWithoutExtension solution
-            let room = checkTargetChain root "Domain/Room.fs"
-            if not (File.Exists room) then fail "workspace-room-missing"
-            let destinationNamespace = namespaceFrom (File.ReadAllBytes room)
+            match LinuxPinnedReceiver.capture rootFd solution beforeFinalOpen ignore with
+            | None -> fail "workspace-solution-disappeared"
+            | Some _ -> ()
+            let destinationNamespace =
+                match LinuxPinnedReceiver.capture rootFd "Domain/Room.fs" beforeFinalOpen ignore with
+                | None -> fail "workspace-room-missing"
+                | Some room -> namespaceFrom room.Bytes
             if destinationProduct <> expectedProduct || destinationNamespace <> expectedNamespace then
                 fail "destination-identity-mismatch"
             let puts = observation.Puts |> List.map (fun row -> row.LogicalPath, row) |> Map.ofList
@@ -206,15 +194,12 @@ module Observer =
             [ for intent in observation.Intents do
                 let logical = match intent with Put value | Retire value -> value
                 let destination =
-                    if logical = observation.SourceProduct + ".slnx" then Path.GetFileName solution
+                    if logical = observation.SourceProduct + ".slnx" then solution
                     else logical
                 if not (actual.Add destination) then fail $"output-path-alias:{destination}"
-                let path = checkTargetChain root destination
-                if (Directory.Exists path && not (File.Exists path)) then fail $"output-nonregular:{logical}"
-                let current = if File.Exists path then Some(File.ReadAllBytes path) else None
-                let currentMode =
-                    if File.Exists path && OperatingSystem.IsLinux() then Some(int (File.GetUnixFileMode path))
-                    else None
+                let pinned = LinuxPinnedReceiver.capture rootFd destination beforeFinalOpen ignore
+                let current = pinned |> Option.map _.Bytes
+                let currentMode = pinned |> Option.map _.Mode
                 match intent with
                 | Put _ ->
                     let source = puts[logical]
@@ -252,3 +237,11 @@ module Observer =
         | :? UnauthorizedAccessException -> Error "workspace-access-denied"
         | :? DecoderFallbackException -> Error "workspace-identity-utf8-invalid"
         | :? ArgumentException -> Error "workspace-argument-invalid"
+
+    /// Read-only, handle-pinned Linux receiver observation. Existing bytes
+    /// must equal proposed bytes or an explicitly supplied allowed digest.
+    /// Merged skill manifests remain deferred pending separate owner proof.
+    let inspectOutputs (observation: ArchiveObservation) workspaceRoot
+                       expectedProduct expectedNamespace (allowedExisting: Map<string, Set<string>>)
+                       : Result<OutputObservation list, string> =
+        inspectOutputsWithProbe observation workspaceRoot expectedProduct expectedNamespace allowedExisting ignore

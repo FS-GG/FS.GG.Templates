@@ -4,6 +4,7 @@ open System.IO.Compression
 open System.Security.Cryptography
 open System.Text
 open System.Text.Json
+open System.Runtime.InteropServices
 open FS.GG.Templates.SvgWorkspacePolicy
 open FS.GG.Templates.SvgWorkspaceArchive
 
@@ -39,6 +40,10 @@ let createArchive path entries =
 let archiveSha path = File.ReadAllBytes path |> sha
 let inspect path expectedSha mirror =
     Observer.inspectArchive path expectedSha "FableGameWorkspace" "FableGameWorkspaceNamespace" mirror managed retired
+
+module Native =
+    [<DllImport("libc", EntryPoint = "mkfifo", SetLastError = true)>]
+    extern int mkfifo(string path, uint32 mode)
 
 let root = Path.Combine(Path.GetTempPath(), "fsc05-archive-" + Guid.NewGuid().ToString("N"))
 Directory.CreateDirectory root |> ignore
@@ -103,6 +108,15 @@ try
     let allowed = Map.ofList [ "Asset.txt", Set.singleton (sha oldAsset)
                                "FableGameWorkspace.slnx", Set.singleton (sha (bytes "old"))
                                "Retired.txt", Set.singleton (sha oldRetired) ]
+    let linkedRoot = Path.Combine(root, "receiver-root-link")
+    Directory.CreateSymbolicLink(linkedRoot, workspace) |> ignore
+    assertError "workspace-root-unsafe" (Observer.inspectOutputs observed linkedRoot "Receiver" "Receiver" allowed)
+    Directory.Delete linkedRoot
+    let linkedAncestor = Path.Combine(root, "linked-ancestor")
+    Directory.CreateSymbolicLink(linkedAncestor, root) |> ignore
+    assertError "workspace-root-unsafe"
+        (Observer.inspectOutputs observed (Path.Combine(linkedAncestor, "receiver")) "Receiver" "Receiver" allowed)
+    Directory.Delete linkedAncestor
     let outputs =
         match Observer.inspectOutputs observed workspace "Receiver" "Receiver" allowed with
         | Ok value -> value
@@ -112,6 +126,10 @@ try
     assertEqual (Some (bytes "HELLO Receiver Receiver receiver\r\n" |> sha)) assetOutput.ProposedSha256
     assertEqual "Receiver.slnx" (outputs |> List.find (fun row -> row.LogicalPath = "FableGameWorkspace.slnx")).DestinationPath
     assertEqual "retire" (outputs |> List.find (fun row -> row.LogicalPath = "Retired.txt")).State
+    let fifo = Path.Combine(workspace, "Asset.bin")
+    assertEqual 0 (Native.mkfifo(fifo, 0o600u))
+    assertError "output-nonregular:Asset.bin" (Observer.inspectOutputs observed workspace "Receiver" "Receiver" allowed)
+    File.Delete fifo
     let alias =
         Observer.inspectArchive archivePath digest "FableGameWorkspace" "FableGameWorkspaceNamespace"
             MirrorDirectory managed [ "Receiver.slnx" ]
@@ -120,16 +138,89 @@ try
     | Ok observation ->
         assertError "output-path-alias:Receiver.slnx"
             (Observer.inspectOutputs observation workspace "Receiver" "Receiver" allowed)
+    let parkedWorkspace = Path.Combine(root, "parked-receiver")
+    let outsideRoot = Path.Combine(root, "outside-root")
+    Directory.CreateDirectory(outsideRoot) |> ignore
+    let mutable swappedRoot = false
+    let rootSwap relative =
+        if relative = "Domain/Room.fs" && not swappedRoot then
+            Directory.Move(workspace, parkedWorkspace)
+            Directory.CreateSymbolicLink(workspace, outsideRoot) |> ignore
+            swappedRoot <- true
+    match Observer.inspectOutputsWithProbe observed workspace "Receiver" "Receiver" allowed rootSwap with
+    | Error reason -> failwithf "pinned root swap failed: %s" reason
+    | Ok value ->
+        assertEqual true swappedRoot
+        assertEqual "replace" (value |> List.find (fun row -> row.LogicalPath = "Asset.txt")).State
+    Directory.Delete workspace
+    Directory.Move(parkedWorkspace, workspace)
+    // A check-then-read of the old path reads the swapped authored target.
+    let assetPath = Path.Combine(workspace, "Asset.txt")
+    let parkedAsset = Path.Combine(workspace, "parked-asset.txt")
+    assertEqual null (FileInfo(assetPath).LinkTarget)
+    File.Move(assetPath, parkedAsset)
+    File.CreateSymbolicLink(assetPath, authored) |> ignore
+    assertEqual (bytes "authored sentinel") (File.ReadAllBytes assetPath)
+    File.Delete assetPath
+    File.Move(parkedAsset, assetPath)
+    let mutable swappedLeaf = false
+    let leafSwap relative =
+        if relative = "Asset.txt" && not swappedLeaf then
+            File.Move(assetPath, parkedAsset)
+            File.CreateSymbolicLink(assetPath, authored) |> ignore
+            swappedLeaf <- true
+    assertError "output-symlink-or-parent-unsafe:Asset.txt"
+        (Observer.inspectOutputsWithProbe observed workspace "Receiver" "Receiver" allowed leafSwap)
+    assertEqual true swappedLeaf
+    File.Delete assetPath
+    File.Move(parkedAsset, assetPath)
+    use pinnedRoot = LinuxPinnedReceiver.openRoot workspace
+    let mutable swappedAfterOpen = false
+    let afterOpen relative =
+        if relative = "Asset.txt" then
+            File.Move(assetPath, parkedAsset)
+            File.CreateSymbolicLink(assetPath, authored) |> ignore
+            swappedAfterOpen <- true
+    let pinnedAsset = LinuxPinnedReceiver.capture pinnedRoot "Asset.txt" ignore afterOpen
+    assertEqual true swappedAfterOpen
+    assertEqual (Some oldAsset) (pinnedAsset |> Option.map _.Bytes)
+    File.Delete assetPath
+    File.Move(parkedAsset, assetPath)
+
+    let skillPath = Path.Combine(workspace, ".agents", "skills", "example", "SKILL.md")
+    Directory.CreateDirectory(Path.GetDirectoryName skillPath) |> ignore
+    File.WriteAllBytes(skillPath, bytes "# Receiver\n")
+    let parkedAgents = Path.Combine(workspace, "parked-agents")
+    let outside = Path.Combine(root, "outside")
+    let outsideSkill = Path.Combine(outside, "skills", "example", "SKILL.md")
+    Directory.CreateDirectory(Path.GetDirectoryName outsideSkill) |> ignore
+    File.WriteAllText(outsideSkill, "outside sentinel", utf8)
+    let mutable swappedParent = false
+    let parentSwap relative =
+        if relative = ".agents/skills/example/SKILL.md" && not swappedParent then
+            Directory.Move(Path.Combine(workspace, ".agents"), parkedAgents)
+            Directory.CreateSymbolicLink(Path.Combine(workspace, ".agents"), outside) |> ignore
+            swappedParent <- true
+    match Observer.inspectOutputsWithProbe observed workspace "Receiver" "Receiver" allowed parentSwap with
+    | Error reason -> failwithf "pinned parent swap failed: %s" reason
+    | Ok value ->
+        assertEqual true swappedParent
+        let skill = value |> List.find (fun row -> row.LogicalPath = ".agents/skills/example/SKILL.md")
+        assertEqual (Some (sha (bytes "# Receiver\n"))) skill.ProposedSha256
+    Directory.Delete(Path.Combine(workspace, ".agents"))
+    Directory.Move(parkedAgents, Path.Combine(workspace, ".agents"))
+    assertEqual "outside sentinel" (File.ReadAllText outsideSkill)
     File.WriteAllText(Path.Combine(workspace, "Asset.txt"), "authored", utf8)
     assertError "output-owner-mismatch:Asset.txt" (Observer.inspectOutputs observed workspace "Receiver" "Receiver" allowed)
     File.Delete(Path.Combine(workspace, "Asset.txt"))
     File.CreateSymbolicLink(Path.Combine(workspace, "Asset.txt"), authored) |> ignore
-    assertError "output-symlink:Asset.txt" (Observer.inspectOutputs observed workspace "Receiver" "Receiver" allowed)
+    assertError "output-symlink-or-parent-unsafe:Asset.txt" (Observer.inspectOutputs observed workspace "Receiver" "Receiver" allowed)
     File.Delete(Path.Combine(workspace, "Asset.txt"))
     File.WriteAllBytes(Path.Combine(workspace, "Asset.txt"), oldAsset)
     let skillDirectory = Path.Combine(workspace, ".agents")
+    Directory.Delete(skillDirectory, true)
     Directory.CreateSymbolicLink(skillDirectory, Path.Combine(workspace, "Domain")) |> ignore
-    assertError "output-symlink:.agents/skills/example/SKILL.md"
+    assertError "output-symlink-or-parent-unsafe:.agents/skills/example/SKILL.md"
         (Observer.inspectOutputs observed workspace "Receiver" "Receiver" allowed)
     Directory.Delete(skillDirectory)
     File.WriteAllText(Path.Combine(workspace, "Domain/Room.fs"), "namespace Wrong.Domain\n", utf8)
