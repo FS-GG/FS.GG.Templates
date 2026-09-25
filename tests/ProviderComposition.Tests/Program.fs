@@ -35,10 +35,16 @@ let main _ =
     assertEqual "duplicate owner source refuses" (Error(DuplicateProvider "alpha")) (select [ alpha; alpha ] [ alpha ])
     assertEqual "unordered request refuses" (Error UnorderedProviders) (select known [ beta; alpha ])
     assertEqual "invalid name refuses" (Error(InvalidProvider "../alpha")) (select known [ { alpha with Name = "../alpha" } ])
+    let newlineName = { alpha with Name = "alpha\n" }
+    assertEqual "terminal newline owner name refuses before selection"
+        (Error(InvalidProvider "alpha\n")) (select [ newlineName; beta ] [ newlineName ])
     assertEqual "empty package source refuses" (Error(InvalidProvider "alpha")) (select known [ { alpha with Source = "" } ])
     assertEqual "missing owner floor refuses" (Error(MissingFloor "alpha")) (select [ { alpha with Floor = None }; beta ] [ alpha ])
     assertEqual "missing request floor refuses" (Error(MissingFloor "alpha")) (select known [ { alpha with Floor = None } ])
     assertEqual "invalid floor refuses" (Error(InvalidFloor "alpha")) (select known [ { alpha with Floor = Some "not-a-version" } ])
+    let newlineFloor = { alpha with Floor = Some "1.4.0-preview.1\n" }
+    assertEqual "terminal newline owner floor refuses before selection"
+        (Error(InvalidFloor "alpha")) (select [ newlineFloor; beta ] [ newlineFloor ])
     assertEqual "source drift refuses" (Error(DifferentProvider "alpha")) (select known [ { alpha with Source = "Alpha.Template::9.9.9" } ])
     assertEqual "name route drift refuses" (Error(DifferentProvider "alpha"))
         (select known [ { alpha with NameParameter = Some "otherName" } ])
@@ -54,6 +60,9 @@ let main _ =
     assertEqual "malformed registry pin refuses"
         (Error(InvalidRegistryFloor "1.4.0 garbage"))
         (selectAtRegistryFloor "1.4.0 garbage" known [ beta ])
+    assertEqual "terminal newline registry pin refuses"
+        (Error(InvalidRegistryFloor "1.4.0-preview.1\n"))
+        (selectAtRegistryFloor "1.4.0-preview.1\n" known [ beta ])
     assertEqual "unknown request still refuses with a coherent pin"
         (Error(UnknownProvider "gamma"))
         (selectAtRegistryFloor "1.4.0-preview.1" known [ { alpha with Name = "gamma" } ])
@@ -72,6 +81,13 @@ let main _ =
         (Error(InvalidParameter("alpha", "../name")))
         (selectAtRegistryFloor "1.4.0-preview.1"
             [ { alpha with Parameters = [ { productName with Key = "../name" } ] }; beta ] [ beta ])
+    let newlineParameter = { alpha with Parameters = [ { productName with Key = "productName\n" } ] }
+    assertEqual "terminal newline declared parameter key refuses"
+        (Error(InvalidParameter("alpha", "productName\n")))
+        (select [ newlineParameter; beta ] [ newlineParameter ])
+    let newlineRoute = { alpha with NameParameter = Some "productName\n" }
+    assertEqual "terminal newline parameter route refuses"
+        (Error(InvalidProvider "alpha")) (select [ newlineRoute; beta ] [ newlineRoute ])
     assertEqual "duplicate declared parameter refuses"
         (Error(DuplicateParameter("alpha", "productName")))
         (selectAtRegistryFloor "1.4.0-preview.1" [ { alpha with Parameters = [ productName; productName ] }; beta ] [ beta ])
