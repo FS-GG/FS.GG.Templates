@@ -365,6 +365,24 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "archive member is not a Unix regular file")
     print("PASS non-template symlink member: NO_VERDICT")
 
+    for label, permissions in (("executable nuspec", 0o755),
+                               ("private nuspec", 0o600)):
+        non_template_mode_path = work / (label.replace(" ", "-") + ".nupkg")
+        package(non_template_mode_path, head=HEAD_A, asset=b"old")
+        non_template_mode = bytearray(non_template_mode_path.read_bytes())
+        end_record = len(non_template_mode) - 22
+        central_offset = int.from_bytes(non_template_mode[end_record + 16:end_record + 20], "little")
+        expected_mode = (stat.S_IFREG | 0o644).to_bytes(2, "little")
+        if (non_template_mode[central_offset:central_offset + 4] != b"PK\x01\x02"
+                or non_template_mode[central_offset + 40:central_offset + 42] != expected_mode):
+            raise AssertionError("non-template mode fixture did not find 0644 nuspec metadata")
+        non_template_mode[central_offset + 40:central_offset + 42] = (
+            stat.S_IFREG | permissions).to_bytes(2, "little")
+        non_template_mode_path.write_bytes(non_template_mode)
+        refused(lambda: snapshot(non_template_mode_path, sha256(non_template_mode).hexdigest(), HEAD_A),
+                "non-template member Unix mode differs")
+        print(f"PASS {label}: NO_VERDICT")
+
     for label, dos_attributes in (("DOS directory bit", 0x0010),
                                   ("DOS read-only bit", 0x0001)):
         dos_path = work / (label.replace(" ", "-") + ".nupkg")
