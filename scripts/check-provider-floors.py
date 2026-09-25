@@ -104,6 +104,7 @@ SCHEMA_VERSION = re.compile(r"^schemaVersion:\s*1\s*(?:#.*)?$")
 FLOOR_BLOCK = re.compile(r"^    minimumFsggSdd:\s*(?:#.*)?$")
 PARAMETERS_BLOCK = re.compile(r"^    parameters:\s*(.*?)\s*$")
 PARAMETER_KEY = re.compile(r"^      - key:\s*(.*?)\s*$")
+PARAMETER_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
 PARAMETER_REQUIRED = re.compile(r"^        required:\s*(.*?)\s*$")
 PARAMETER_DEFAULT = re.compile(r"^        default:\s*(.*?)\s*$")
 PROVIDER_FIELD = re.compile(r"^    ([A-Za-z][A-Za-z0-9-]*):\s*(.*?)\s*$")
@@ -280,6 +281,10 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                 if parameter:
                     finish_parameter()
                     key = scalar(parameter.group(1), f"{path}:{number}")
+                    if not PARAMETER_NAME.fullmatch(key):
+                        raise FloorError(
+                            f"{path}:{number}: provider '{current}' has an invalid parameter '{key}'"
+                        )
                     if key in parameter_keys:
                         raise FloorError(f"{path}:{number}: provider '{current}' duplicate parameter key '{key}'")
                     parameter_keys.add(key)
