@@ -132,6 +132,22 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
         raise AssertionError("ordinary numbered asset was refused")
     print("PASS ordinary numbered asset: narrow match")
 
+    for label, segment in (
+            ("256-byte ASCII segment", "a" * 256),
+            ("256-byte NFC segment", "\u00e9" * 128)):
+        long_asset = dict(member_asset, name="content/templates/fs-gg-fable-game/" + segment)
+        long_snapshot = {"left": [member_config, long_asset], "right": [member_config, long_asset]}
+        long_result = typed(json.dumps(long_snapshot, ensure_ascii=False))
+        if long_result["status"] != "NO_VERDICT" or "segment exceeds byte bound" not in long_result["reason"]:
+            raise AssertionError(f"{label} yielded a typed payload match: {long_result}")
+        print(f"PASS {label}: NO_VERDICT")
+
+    max_asset = dict(member_asset, name="content/templates/fs-gg-fable-game/" + "a" * 255)
+    max_snapshot = {"left": [member_config, max_asset], "right": [member_config, max_asset]}
+    if typed(json.dumps(max_snapshot))["status"] != "TEMPLATE_PAYLOAD_MATCH_ONLY":
+        raise AssertionError("255-byte path segment was refused")
+    print("PASS 255-byte path segment: narrow match")
+
     newline_digest_asset = dict(member_asset, sha256=member_asset["sha256"] + "\n")
     newline_digest = {"left": [member_config, newline_digest_asset],
                       "right": [member_config, newline_digest_asset]}
