@@ -102,6 +102,7 @@ PROVIDER = re.compile(r"^  - name:\s*(\S+)\s*(?:#.*)?$")
 ROOT_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9]*):")
 SCHEMA_VERSION = re.compile(r"^schemaVersion:\s*1\s*(?:#.*)?$")
 FLOOR_BLOCK = re.compile(r"^    minimumFsggSdd:\s*(?:#.*)?$")
+PARAMETERS_BLOCK = re.compile(r"^    parameters:\s*(.*?)\s*$")
 VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+].*)?$")
 
@@ -191,6 +192,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
     floor: str | None = None
     in_block = False
     seen_floor_block = False
+    seen_parameters_block = False
     roots: set[str] = set()
 
     for number, line in enumerate(read_descriptor(path).splitlines(), 1):
@@ -217,9 +219,21 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                 providers.append((current, floor, current_line))
             current, current_line, floor, in_block = match.group(1), number, None, False
             seen_floor_block = False
+            seen_parameters_block = False
             continue
 
         if current is None:
+            continue
+
+        parameter_block = PARAMETERS_BLOCK.match(line)
+        if parameter_block:
+            if seen_parameters_block:
+                raise FloorError(f"{path}:{number}: provider '{current}' repeated parameters")
+            seen_parameters_block = True
+            inline = parameter_block.group(1).strip()
+            if inline and not inline.startswith("#"):
+                raise FloorError(f"{path}:{number}: provider '{current}' parameters must be a block sequence")
+            in_block = False
             continue
 
         if FLOOR_BLOCK.match(line):
