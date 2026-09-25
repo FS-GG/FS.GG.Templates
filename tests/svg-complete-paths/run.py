@@ -27,6 +27,22 @@ with tempfile.TemporaryDirectory() as folder:
     path.write_text(json.dumps(BASE))
     _, managed, _, _ = adopter.manifest_data(path)
     assert managed == ["a/b"]
+    for label, raw in [
+        ("duplicate managedPaths", json.dumps(BASE).replace(
+            '"managedPaths": ["a/b"]',
+            '"managedPaths": ["a/b"], "managedPaths": ["other"]', 1)),
+        ("nested duplicate baseline path", json.dumps({
+            **BASE, "baselineDigests": {"v1": {"a/b": "a" * 64}}
+        }).replace('"a/b": "' + "a" * 64 + '"',
+                   '"a/b": "' + "a" * 64 + '", "a/b": "' + "b" * 64 + '"', 1)),
+    ]:
+        path.write_text(raw)
+        try:
+            adopter.manifest_data(path)
+        except SystemExit as error:
+            assert error.code == 2, (label, error.code)
+        else:
+            raise AssertionError(f"{label}: duplicate JSON key passed")
     for label, paths in [
         ("dot segment alias", ["a/./b", "a/b"]),
         ("repeated separator", ["a//b"]),
@@ -80,4 +96,4 @@ with tempfile.TemporaryDirectory() as folder:
     else:
         raise AssertionError("edited managed target was accepted for overwrite")
     assert (workspace / "Asset.txt").read_bytes() == b"AUTHORED Receiver\n"
-print("svg complete workspace controls: 11 passed")
+print("svg complete workspace controls: 13 passed")

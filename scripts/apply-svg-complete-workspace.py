@@ -64,10 +64,19 @@ def file_mode(path: Path) -> int:
     return stat.S_IMODE(path.stat(follow_symlinks=False).st_mode)
 
 
+def unique_json_pairs(pairs: list[tuple[str, object]]) -> dict:
+    value = {}
+    for key, item in pairs:
+        if key in value:
+            raise ValueError(f"duplicate JSON key: {key}")
+        value[key] = item
+    return value
+
+
 def load_json(path: Path) -> dict:
     try:
-        return json.loads(path.read_text())
-    except (OSError, json.JSONDecodeError) as error:
+        return json.loads(path.read_text(), object_pairs_hook=unique_json_pairs)
+    except (OSError, json.JSONDecodeError, ValueError) as error:
         fail(f"cannot read {path}: {error}")
 
 
