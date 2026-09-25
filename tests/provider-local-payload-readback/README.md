@@ -5,11 +5,12 @@ candidate, a retained 0.14.0 release pack, and a signed NuGet-shaped local
 readback. It compares every `content/templates/` member by exact name, body
 SHA-256, and Unix mode. Python performs the bounded physical ZIP read, then
 passes member records to the nonpackable F# `ProviderPayloadComparison` tool
-for typed, pure comparison. F# requires one config and at least one asset for
-each template root and refuses duplicate or foreign JSON fields. A matching
-template config alone is never a payload match. F# also requires NFC member
-path spelling, so decomposed Unicode cannot yield a payload match on a
-filesystem that may alias it to a composed name. This is a member-name policy,
+for typed, pure comparison. F# requires one root config and at least one asset
+for each template root, refuses nested config-shaped members, and refuses
+duplicate or foreign JSON fields. A matching template config alone is never a
+payload match. F# also requires NFC member path spelling, so decomposed Unicode
+cannot yield a payload match on a filesystem that may alias it to a composed
+name. This is a member-name policy,
 not a proof that every filesystem path alias is excluded. The signed file's
 signature is recognized by member presence; this script does not verify its
 cryptographic signature.

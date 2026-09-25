@@ -79,6 +79,21 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
         raise AssertionError("typed comparator refused a complete matching template")
     print("PASS typed complete template: narrow match")
 
+    nested_config = dict(member_config, name="content/templates/fs-gg-fable-game/scaffold/.template.config/template.json")
+    nested = {"left": [member_config, member_asset, nested_config],
+              "right": [member_config, member_asset, nested_config]}
+    nested_result = typed(json.dumps(nested))
+    if nested_result["status"] != "NO_VERDICT" or "non-root template config" not in nested_result["reason"]:
+        raise AssertionError(f"nested config yielded a typed payload match: {nested_result}")
+    print("PASS nested template config: NO_VERDICT")
+
+    nested_asset = dict(member_asset, name="content/templates/fs-gg-fable-game/scaffold/template.json")
+    nested_asset_snapshot = {"left": [member_config, member_asset, nested_asset],
+                             "right": [member_config, member_asset, nested_asset]}
+    if typed(json.dumps(nested_asset_snapshot))["status"] != "TEMPLATE_PAYLOAD_MATCH_ONLY":
+        raise AssertionError("ordinary nested template asset was refused")
+    print("PASS ordinary nested template asset: narrow match")
+
     decomposed_root = "fs-gg-cafe\u0301"
     decomposed_config = dict(member_config, name=f"content/templates/{decomposed_root}/.template.config/template.json")
     decomposed_asset = dict(member_asset, name=f"content/templates/{decomposed_root}/build.sh")
