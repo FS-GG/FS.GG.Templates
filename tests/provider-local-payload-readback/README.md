@@ -8,7 +8,9 @@ passes member records to the nonpackable F# `ProviderPayloadComparison` tool
 for typed, pure comparison. A central directory name flagged as UTF-8 but
 containing invalid UTF-8 bytes yields `NO_VERDICT` during physical read,
 before typed comparison. The physical reader also refuses unsafe paths in
-every ZIP member, including members outside `content/templates/`. F# requires
+every ZIP member, including members outside `content/templates/`, and refuses
+non-regular members outside the template payload. The pinned signed file's
+signature metadata is handled explicitly. F# requires
 exact 64-character lowercase hex body digests, one root config, and at least
 one asset for each template root. It
 refuses nested config-shaped members, file/child collisions (including case

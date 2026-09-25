@@ -6,7 +6,7 @@ from hashlib import sha256
 from io import BytesIO
 import json
 from pathlib import Path
-from stat import S_IFREG
+from stat import S_IFMT, S_IFREG
 import subprocess
 from xml.etree import ElementTree
 from zipfile import BadZipFile, ZipFile
@@ -69,6 +69,12 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                 raise Refusal("archive member duplicate or case alias")
             if any(not safe_path(name) for name in names):
                 raise Refusal("archive member path is unsafe")
+            for entry in entries:
+                mode = entry.external_attr >> 16
+                if entry.filename == ".signature.p7s" and entry.create_system == 0 and mode == 0:
+                    continue  # The pinned local signed readback has this signature metadata.
+                if entry.create_system != 3 or S_IFMT(mode) != S_IFREG:
+                    raise Refusal("archive member is not a Unix regular file")
             if (".signature.p7s" in names) != signed:
                 raise Refusal("local archive signature presence differs from pinned role")
             identity_member = package.getinfo("FS.GG.Workspace.Template.nuspec")
