@@ -52,6 +52,8 @@ cp "$root/providers/"*.providers.yml "$work/providers/"
 sed -i 's/^schemaVersion: 1$/schemaVersion: 2/' "$work/providers/rendering.providers.yml"
 expect_fail 'unsupported descriptor schema is rejected' 'unsupported schemaVersion root' \
   grade --providers "$work/providers" --registry "$registry"
+expect_fail 'workspace selection refuses an unsupported source schema' 'unsupported schemaVersion root' \
+  workspace-check --providers "$work/providers" --workspace "$root/providers/rendering.providers.yml"
 cp "$root/providers/rendering.providers.yml" "$work/providers/rendering.providers.yml"
 sed -i '/^schemaVersion: 1$/d' "$work/providers/rendering.providers.yml"
 expect_fail 'descriptor without schema is rejected' 'providers appear before schemaVersion: 1' \
