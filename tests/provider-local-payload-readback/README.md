@@ -30,6 +30,8 @@ records. Both end-record entry counts must equal the number of parsed members.
 Central member comments are refused; the three pinned local files have none.
 Central creator and extraction versions must both be 20, with zero reserved
 version byte and internal attributes; local extraction version must be 20.
+General-purpose flags must be zero in both local and central headers. The
+selected archives do not use the UTF-8 flag, compression options, or descriptor form.
 This does not establish complete ZIP-format closure. Local-header
 flags, compression methods, CRC, and size fields must match their
 central-directory entries.
