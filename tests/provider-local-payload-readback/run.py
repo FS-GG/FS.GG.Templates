@@ -408,6 +408,22 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "ZIP local fixed fields differ from central directory")
     print("PASS local ZIP CRC mismatch: NO_VERDICT")
 
+    descriptor_flag_path = work / "descriptor-flag-bypass.nupkg"
+    package(descriptor_flag_path, head=HEAD_A, asset=b"old")
+    descriptor_flag = bytearray(descriptor_flag_path.read_bytes())
+    central_header = descriptor_flag.find(b"PK\x01\x02")
+    if (descriptor_flag[:4] != b"PK\x03\x04" or central_header < 0
+            or descriptor_flag[6:8] != b"\x00\x00"
+            or descriptor_flag[central_header + 8:central_header + 10] != b"\x00\x00"):
+        raise AssertionError("descriptor-flag fixture did not find fixed ZIP headers")
+    descriptor_flag[6:8] = (8).to_bytes(2, "little")
+    descriptor_flag[central_header + 8:central_header + 10] = (8).to_bytes(2, "little")
+    descriptor_flag[14:18] = b"\x00" * 4
+    descriptor_flag_path.write_bytes(descriptor_flag)
+    refused(lambda: snapshot(descriptor_flag_path, sha256(descriptor_flag).hexdigest(), HEAD_A),
+            "ZIP data descriptor differs from selected contract")
+    print("PASS descriptor flag bypass: NO_VERDICT")
+
     invalid_utf8_path = work / "invalid-utf8-name.nupkg"
     package(invalid_utf8_path, head=HEAD_A, asset=b"old")
     invalid_utf8 = bytearray(invalid_utf8_path.read_bytes())
