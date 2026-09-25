@@ -220,6 +220,14 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
         providers.append((current, floor, current_line))
     if not providers:
         raise FloorError(f"{path}: declares no providers")
+    first_lines: dict[str, int] = {}
+    for name, _, line in providers:
+        if name in first_lines:
+            raise FloorError(
+                f"{path}:{line}: provider names must be unique; duplicate '{name}' "
+                f"was first declared at line {first_lines[name]}"
+            )
+        first_lines[name] = line
     return providers
 
 
@@ -344,9 +352,17 @@ def grade(providers_dir: Path, registry_source: str, out: list[str]) -> tuple[in
     out.append(f"descriptors:  {len(descriptors)} matched {display(providers_dir)}/{DESCRIPTOR_GLOB}")
 
     failures = 0
+    first_providers: dict[str, tuple[str, int]] = {}
     for descriptor in descriptors:
         shown = display(descriptor)
         for name, floor, line in parse_descriptor(descriptor):
+            if name in first_providers:
+                first_file, first_line = first_providers[name]
+                raise FloorError(
+                    f"{shown}:{line}: provider names must be unique across descriptors; "
+                    f"duplicate '{name}' was first declared at {first_file}:{first_line}"
+                )
+            first_providers[name] = shown, line
             where = f"{shown}:{line}"
             if floor is None:
                 failures += 1
@@ -514,6 +530,13 @@ def _delete_floor_block(text: str) -> str:
             dropping = False
         kept.append(line)
     return "".join(kept)
+
+
+def _duplicate_console_provider(text: str) -> str:
+    entry = "  - name: console"
+    if text.count(entry) != 1:
+        raise FloorError("console fixture has no unique provider entry to duplicate")
+    return text.rstrip("\n") + "\n" + entry + text.split(entry, 1)[1]
 
 
 def _normalize_floors(path: Path, pin: str, shown: str | None = None) -> None:
@@ -916,6 +939,18 @@ def self_test(graded_ok: bool | None = None) -> int:
                 f'    minimumFsggSdd:\n      version: "{SYNTHETIC_PIN}"\n', 1)),
             True,
             "repeats minimumFsggSdd block",
+        ),
+        (
+            "duplicate-provider-in-one-file-reds",
+            _edit("console.providers.yml", _duplicate_console_provider),
+            True,
+            "provider names must be unique",
+        ),
+        (
+            "duplicate-provider-across-files-reds",
+            lambda providers: shutil.copy2(providers / "web.providers.yml", providers / "copy.providers.yml"),
+            True,
+            "provider names must be unique across descriptors",
         ),
         # THE ROOT-CAUSE CASE. The reader this replaces took the FIRST floor block in a file and
         # asserted it for the whole file. A second provider with no floor of its own must red.
