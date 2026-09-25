@@ -515,7 +515,7 @@ jobs:
           import sys
           from zipfile import ZipFile
 
-          def payload(path):
+          def payload(path, expect_signature):
               with ZipFile(path) as archive:
                   entries = archive.infolist()
                   seen = {}
@@ -528,15 +528,22 @@ jobs:
                           (S_IFMT(mode) != S_IFREG and not (name == '.signature.p7s' and mode == 0))):
                           raise SystemExit(f'unsafe ZIP member: {entry.orig_filename!r} mode={mode:o}')
                       alias = entry.filename.casefold()
+                      if alias == '.signature.p7s' and entry.filename != '.signature.p7s':
+                          raise SystemExit(f'signature policy: noncanonical signature member {entry.filename!r}')
                       if alias in seen:
                           raise SystemExit(f'duplicate or case-alias ZIP member: {entry.filename} aliases {seen[alias]}')
                       seen[alias] = entry.filename
+                  signatures = [entry for entry in entries if entry.filename == '.signature.p7s']
+                  if len(signatures) != int(expect_signature):
+                      raise SystemExit(f'signature policy: expected {int(expect_signature)} exact signature member, found {len(signatures)}')
+                  if signatures and not archive.read(signatures[0]):
+                      raise SystemExit('signature policy: empty signature member')
                   return {entry.filename: (sha256(archive.read(entry)).hexdigest(),
                                            entry.external_attr >> 16)
                           for entry in entries if entry.filename != '.signature.p7s'}
 
           local, remote, feed = map(Path, sys.argv[1:])
-          expected, observed = payload(local), payload(remote)
+          expected, observed = payload(local, False), payload(remote, False)
           if observed != expected:
               missing = sorted(expected.keys() - observed.keys())
               extra = sorted(observed.keys() - expected.keys())
@@ -581,7 +588,7 @@ jobs:
           import sys
           from zipfile import ZipFile
 
-          def payload(path):
+          def payload(path, expect_signature):
               with ZipFile(path) as archive:
                   entries = archive.infolist()
                   seen = {}
@@ -594,15 +601,22 @@ jobs:
                           (S_IFMT(mode) != S_IFREG and not (name == '.signature.p7s' and mode == 0))):
                           raise SystemExit(f'unsafe ZIP member: {entry.orig_filename!r} mode={mode:o}')
                       alias = entry.filename.casefold()
+                      if alias == '.signature.p7s' and entry.filename != '.signature.p7s':
+                          raise SystemExit(f'signature policy: noncanonical signature member {entry.filename!r}')
                       if alias in seen:
                           raise SystemExit(f'duplicate or case-alias ZIP member: {entry.filename} aliases {seen[alias]}')
                       seen[alias] = entry.filename
+                  signatures = [entry for entry in entries if entry.filename == '.signature.p7s']
+                  if len(signatures) != int(expect_signature):
+                      raise SystemExit(f'signature policy: expected {int(expect_signature)} exact signature member, found {len(signatures)}')
+                  if signatures and not archive.read(signatures[0]):
+                      raise SystemExit('signature policy: empty signature member')
                   return {entry.filename: (sha256(archive.read(entry)).hexdigest(),
                                            entry.external_attr >> 16)
                           for entry in entries if entry.filename != '.signature.p7s'}
 
           local, remote, feed = map(Path, sys.argv[1:])
-          expected, observed = payload(local), payload(remote)
+          expected, observed = payload(local, False), payload(remote, True)
           if observed != expected:
               missing = sorted(expected.keys() - observed.keys())
               extra = sorted(observed.keys() - expected.keys())
