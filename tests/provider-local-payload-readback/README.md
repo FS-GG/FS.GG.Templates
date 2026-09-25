@@ -15,6 +15,8 @@ case-aliased file/child collisions outside the template payload. The pinned
 signed file's signature metadata is handled explicitly.
 Every path segment has the same 255 UTF-8-byte observation bound as the typed
 template comparator; this does not establish the receiver filesystem limit.
+Deflated members must consume exactly their declared compressed bytes through
+the raw deflate end marker; trailing bytes inside that range are refused.
 All ZIP member names must be NFC and NFKC under Python's pinned Unicode data,
 including names outside the template payload. This is a name refusal rule,
 not proof of receiver filesystem alias behavior. Names with full case-fold
