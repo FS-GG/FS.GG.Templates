@@ -159,6 +159,24 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
         raise AssertionError(f"compatibility alias yielded a typed payload match: {compatibility_result}")
     print("PASS compatibility-form casefold alias: NO_VERDICT")
 
+    ascii_sharp_alias = dict(member_asset, name=ASSET.replace("build.sh", "Strasse.sh"))
+    for glyph in ("\u00df", "\u1e9e"):
+        sharp_asset = dict(member_asset, name=ASSET.replace("build.sh", f"Stra{glyph}e.sh"))
+        if sharp_asset["name"].casefold() != ascii_sharp_alias["name"].casefold():
+            raise AssertionError("sharp-s fixture does not reproduce Python's casefold alias")
+        sharp_snapshot = {"left": [member_config, sharp_asset, ascii_sharp_alias],
+                          "right": [member_config, sharp_asset, ascii_sharp_alias]}
+        sharp_result = typed(json.dumps(sharp_snapshot, ensure_ascii=False))
+        if sharp_result["status"] != "NO_VERDICT" or "sharp-s case-fold expansion" not in sharp_result["reason"]:
+            raise AssertionError(f"sharp-s alias yielded a typed payload match: {sharp_result}")
+        print(f"PASS sharp-s U+{ord(glyph):04X} casefold alias: NO_VERDICT")
+
+    ascii_sharp_snapshot = {"left": [member_config, ascii_sharp_alias],
+                            "right": [member_config, ascii_sharp_alias]}
+    if typed(json.dumps(ascii_sharp_snapshot))["status"] != "TEMPLATE_PAYLOAD_MATCH_ONLY":
+        raise AssertionError("ASCII sharp-s spelling was refused")
+    print("PASS ASCII sharp-s spelling: narrow match")
+
     newline_digest_asset = dict(member_asset, sha256=member_asset["sha256"] + "\n")
     newline_digest = {"left": [member_config, newline_digest_asset],
                       "right": [member_config, newline_digest_asset]}

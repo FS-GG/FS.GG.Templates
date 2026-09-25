@@ -75,6 +75,9 @@ let private rootOf (name: string) =
         fail $"member {name} has a reserved device name"
     if not (name.IsNormalized(NormalizationForm.FormKC)) then
         fail $"member {name} has a noncanonical compatibility path"
+    // Full case folding expands both sharp-s forms to "ss"; ordinal case comparison does not.
+    if name.Contains('ß') || name.Contains('ẞ') then
+        fail $"member {name} has a sharp-s case-fold expansion"
     if parts.Length < 4 then fail $"member {name} has no template payload path"
     parts.[2]
 
