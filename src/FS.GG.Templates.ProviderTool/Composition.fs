@@ -64,7 +64,9 @@ let private validateSet (providers: Provider list) =
 /// Check a requested descriptor against the owner-authored source set. The caller has already
 /// parsed the descriptors; this pure step neither reads a registry nor writes a workspace.
 let select (known: Provider list) (requested: Provider list) : Result<Provider list, Refusal> =
-    match validateSet known, validateSet requested with
+    // Descriptor files are enumerated by filename, which need not match provider-name order.
+    // Only the authored provider sequence inside a requested descriptor has an order contract.
+    match validateSet (known |> List.sortBy _.Name), validateSet requested with
     | Error issue, _ -> Error issue
     | _, Error issue -> Error issue
     | Ok source, Ok selection ->

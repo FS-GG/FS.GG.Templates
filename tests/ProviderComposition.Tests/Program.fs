@@ -20,6 +20,7 @@ let main _ =
     let selected = select known known
     assertEqual "two known providers compose" (Ok known) selected
     assertEqual "subset keeps requested identity" (Ok [ beta ]) (select known [ beta ])
+    assertEqual "owner files may enumerate in filename order" (Ok known) (select [ beta; alpha ] known)
     assertEqual "empty request refuses" (Error EmptySelection) (select known [])
     assertEqual "unknown provider refuses" (Error(UnknownProvider "gamma")) (select known [ { alpha with Name = "gamma" } ])
     assertEqual "duplicate request refuses" (Error(DuplicateProvider "alpha")) (select known [ alpha; alpha ])
