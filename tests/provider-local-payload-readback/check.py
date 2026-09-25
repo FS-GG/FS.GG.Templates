@@ -25,6 +25,7 @@ MAX_MEMBERS = 4096
 MAX_NUSPEC_BYTES = 1024 * 1024
 CONFIG_SUFFIX = "/.template.config/template.json"
 PREFIX = "content/templates/"
+RESERVED_MEMBER_PUNCTUATION = '<>"|?*'
 PROJECT = Path(__file__).resolve().parents[1] / "ProviderPayloadComparison/ProviderPayloadComparison.fsproj"
 
 
@@ -46,6 +47,8 @@ def one(parent: ElementTree.Element, name: str) -> ElementTree.Element:
 def safe_path(name: str) -> bool:
     return (bool(name) and not name.startswith("/") and not name.endswith("/")
             and "\\" not in name and ":" not in name and "\x00" not in name
+            and all(ord(character) >= 32 and character not in RESERVED_MEMBER_PUNCTUATION
+                    for character in name)
             and all(part not in ("", ".", "..") for part in name.split("/")))
 
 
