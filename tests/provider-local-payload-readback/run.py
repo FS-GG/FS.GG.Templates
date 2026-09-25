@@ -10,6 +10,7 @@ import tempfile
 import unicodedata
 import warnings
 from zipfile import ZipFile, ZipInfo
+import zlib
 
 from check import PROJECT, Refusal, compare, github_no_verdict, snapshot
 
@@ -353,6 +354,21 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
     refused(lambda: snapshot(external_symlink_path, symlink_sha, HEAD_A),
             "archive member is not a Unix regular file")
     print("PASS non-template symlink member: NO_VERDICT")
+
+    unicode_extra_path = work / "unicode-path-extra.nupkg"
+    package(unicode_extra_path, head=HEAD_A, asset=b"old")
+    with ZipFile(unicode_extra_path, "a") as archive:
+        alternate = ZipInfo("docs/readme.txt")
+        alternate.create_system = 3
+        alternate.external_attr = (stat.S_IFREG | 0o644) << 16
+        unicode_path = (b"\x01" + zlib.crc32(alternate.filename.encode()).to_bytes(4, "little")
+                        + b"docs/alternate.txt")
+        alternate.extra = b"\x75\x70" + len(unicode_path).to_bytes(2, "little") + unicode_path
+        archive.writestr(alternate, b"documentation")
+    unicode_extra_sha = sha256(unicode_extra_path.read_bytes()).hexdigest()
+    refused(lambda: snapshot(unicode_extra_path, unicode_extra_sha, HEAD_A),
+            "ZIP extra fields differ from selected contract")
+    print("PASS Unicode-path ZIP extra field: NO_VERDICT")
 
     corrupt_external_path = work / "corrupt-external.nupkg"
     package(corrupt_external_path, head=HEAD_A, asset=b"old")
