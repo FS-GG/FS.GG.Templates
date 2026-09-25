@@ -124,12 +124,17 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                     raise Refusal("ZIP multi-disk metadata differs from selected contract")
                 if entry.comment:
                     raise Refusal("ZIP central member comment differs from selected contract")
+                if (entry.create_version != 20 or entry.extract_version != 20
+                        or entry.reserved != 0 or entry.internal_attr != 0):
+                    raise Refusal("ZIP header metadata differs from selected contract")
                 offset = entry.header_offset
                 local_header = raw[offset:offset + 30] if offset >= 0 else b""
                 if (len(local_header) != 30 or local_header[:4] != b"PK\x03\x04"
                         or int.from_bytes(local_header[6:8], "little") != entry.flag_bits
                         or int.from_bytes(local_header[8:10], "little") != entry.compress_type):
                     raise Refusal("ZIP local header differs from central directory")
+                if local_header[4:6] != b"\x14\x00":
+                    raise Refusal("ZIP header metadata differs from selected contract")
                 if entry.extra or int.from_bytes(local_header[28:30], "little") != 0:
                     raise Refusal("ZIP extra fields differ from selected contract")
                 local_name_bytes = int.from_bytes(local_header[26:28], "little")

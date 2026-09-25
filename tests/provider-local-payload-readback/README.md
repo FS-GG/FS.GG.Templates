@@ -28,6 +28,8 @@ and unowned gaps between declared local members or before the central directory.
 The readback refuses nonzero disk markers in the end record or central member
 records. Both end-record entry counts must equal the number of parsed members.
 Central member comments are refused; the three pinned local files have none.
+Central creator and extraction versions must both be 20, with zero reserved
+version byte and internal attributes; local extraction version must be 20.
 This does not establish complete ZIP-format closure. Local-header
 flags, compression methods, CRC, and size fields must match their
 central-directory entries.
