@@ -88,6 +88,10 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
             end_record = len(raw) - 22
             if raw[end_record + 4:end_record + 8] != b"\x00" * 4:
                 raise Refusal("ZIP multi-disk metadata differs from selected contract")
+            disk_count = int.from_bytes(raw[end_record + 8:end_record + 10], "little")
+            total_count = int.from_bytes(raw[end_record + 10:end_record + 12], "little")
+            if disk_count != len(entries) or total_count != len(entries):
+                raise Refusal("ZIP end-record entry count differs from parsed members")
             central_size = int.from_bytes(raw[end_record + 12:end_record + 16], "little")
             central_start = int.from_bytes(raw[end_record + 16:end_record + 20], "little")
             if (central_start + central_size != end_record
