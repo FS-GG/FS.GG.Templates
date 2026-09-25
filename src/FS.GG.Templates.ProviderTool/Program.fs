@@ -19,6 +19,7 @@ type Provider = {
 let private fail message = raise (InvalidDataException message)
 let private pattern value = Regex(value, RegexOptions.CultureInvariant)
 let private providerLine = pattern "^  - name:\\s*(\\S+)\\s*(?:#.*)?$"
+let private rootLine = pattern "^([A-Za-z][A-Za-z0-9]*):(?:\\s*(.*))?$"
 let private fieldLine = pattern "^    (contractVersion|templateId|source):\\s*(.*?)\\s*$"
 let private floorLine = pattern "^    minimumFsggSdd:\\s*(?:#.*)?$"
 let private versionLine = pattern "^      version:\\s*(.*?)\\s*$"
@@ -55,6 +56,9 @@ let private parseDescriptor path =
     let mutable currentLine = 0
     let mutable floor: string option = None
     let mutable inFloor = false
+    let mutable inProviders = false
+    let mutable seenProviders = false
+    let mutable seenFloor = false
     let finish () =
         match current with
         | None -> ()
@@ -76,15 +80,34 @@ let private parseDescriptor path =
     for index in 0 .. lines.Length - 1 do
         let line = lines.[index].TrimEnd('\r')
         if line.Trim() <> "" && not (line.TrimStart().StartsWith("#", StringComparison.Ordinal)) then
+            let rootMatch = rootLine.Match line
             let providerMatch = providerLine.Match line
-            if providerMatch.Success then
+            if rootMatch.Success then
+                finish ()
+                current <- None
+                inFloor <- false
+                inProviders <- false
+                if rootMatch.Groups.[1].Value = "providers" then
+                    if seenProviders then fail $"{path}:{index + 1}: repeats providers"
+                    seenProviders <- true
+                    let inlineValue = rootMatch.Groups.[2].Value.Trim()
+                    if inlineValue <> "" && not (inlineValue.StartsWith("#", StringComparison.Ordinal)) then
+                        fail $"{path}:{index + 1}: providers must be a block sequence"
+                    inProviders <- true
+            elif inProviders && providerMatch.Success then
                 finish ()
                 current <- Some(Map.ofList [ "name", scalar $"{path}:{index + 1}" providerMatch.Groups.[1].Value ])
                 currentLine <- index + 1
                 floor <- None
                 inFloor <- false
-            elif current.IsSome then
-                if floorLine.IsMatch line then inFloor <- true
+                seenFloor <- false
+            elif inProviders && line.StartsWith("  ", StringComparison.Ordinal) && not (line.StartsWith("    ", StringComparison.Ordinal)) then
+                fail $"{path}:{index + 1}: providers must contain named block entries"
+            elif inProviders && current.IsSome then
+                if floorLine.IsMatch line then
+                    if seenFloor then fail $"{path}:{index + 1}: repeated minimumFsggSdd"
+                    seenFloor <- true
+                    inFloor <- true
                 else
                     let fieldMatch = fieldLine.Match line
                     if fieldMatch.Success then
@@ -101,6 +124,7 @@ let private parseDescriptor path =
                             floor <- Some(scalar $"{path}:{index + 1}" versionMatch.Groups.[1].Value)
                         elif line.Length - line.TrimStart(' ').Length <= 4 then inFloor <- false
     finish ()
+    if not seenProviders then fail $"{path}: missing providers block sequence"
     if providers.Count = 0 then fail $"{path}: declares no providers"
     let names = providers |> Seq.map _.Name |> Seq.toList
     if names <> List.sort names then fail $"{path}: providers must be ordered by name"

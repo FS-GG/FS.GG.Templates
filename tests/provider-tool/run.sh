@@ -61,6 +61,34 @@ PY
 expect_fail 'missing floor fails for the named provider' 'web: missing minimumFsggSdd.version' \
   grade --providers "$work/providers" --registry "$registry"
 
+cat >>"$work/providers/web.providers.yml" <<'YAML'
+extra:
+    minimumFsggSdd:
+      version: "1.4.0-preview.1"
+YAML
+expect_fail 'a root sibling cannot lend its floor to a provider' 'web: missing minimumFsggSdd.version' \
+  grade --providers "$work/providers" --registry "$registry"
+
+cat >"$work/providers/web.providers.yml" <<'YAML'
+schemaVersion: 1
+providers: [
+  - name: web
+    contractVersion: "1.1.0"
+    templateId: fs-gg-web
+    source: FS.GG.Workspace.Template::0.13.0
+    minimumFsggSdd:
+      version: "1.4.0-preview.1"
+YAML
+expect_fail 'malformed provider collection is rejected' 'providers must be a block sequence' \
+  grade --providers "$work/providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
+cat >>"$work/providers/web.providers.yml" <<'YAML'
+providers: []
+YAML
+expect_fail 'duplicate root providers key is rejected' 'repeats providers' \
+  grade --providers "$work/providers" --registry "$registry"
+
 cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
 python3 - "$registry" "$root/providers/web.providers.yml" "$work/drift.yml" <<'PY'
 from pathlib import Path
