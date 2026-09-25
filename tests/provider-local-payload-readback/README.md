@@ -16,7 +16,8 @@ member cannot yield a payload-only match. The pinned local archives also
 require a local-file header at byte zero and a zero-comment ZIP end record at
 the end of the file; this refuses ordinary leading and trailing overlays
 without claiming complete ZIP-format closure. Local-header flags and
-compression methods must match their central-directory entries.
+compression methods must match their central-directory entries. When no ZIP
+data descriptor is flagged, local CRC and size fields must match as well.
 F# requires
 exact 64-character lowercase hex body digests, one root config, and at least
 one asset for each template root. It

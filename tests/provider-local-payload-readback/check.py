@@ -80,6 +80,11 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                         or int.from_bytes(local_header[6:8], "little") != entry.flag_bits
                         or int.from_bytes(local_header[8:10], "little") != entry.compress_type):
                     raise Refusal("ZIP local header differs from central directory")
+                if not (entry.flag_bits & 0x08) and (
+                        int.from_bytes(local_header[14:18], "little") != entry.CRC
+                        or int.from_bytes(local_header[18:22], "little") != entry.compress_size
+                        or int.from_bytes(local_header[22:26], "little") != entry.file_size):
+                    raise Refusal("ZIP local fixed fields differ from central directory")
                 mode = entry.external_attr >> 16
                 if entry.filename == ".signature.p7s" and entry.create_system == 0 and mode == 0:
                     continue  # The pinned local signed readback has this signature metadata.

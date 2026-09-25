@@ -397,6 +397,17 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "ZIP local header differs from central directory")
     print("PASS local ZIP method mismatch: NO_VERDICT")
 
+    local_crc_path = work / "local-crc-mismatch.nupkg"
+    package(local_crc_path, head=HEAD_A, asset=b"old")
+    local_crc = bytearray(local_crc_path.read_bytes())
+    if local_crc[:4] != b"PK\x03\x04" or local_crc[14:18] == b"\x00" * 4:
+        raise AssertionError("local CRC fixture did not find a fixed nonzero CRC")
+    local_crc[14:18] = b"\x00" * 4
+    local_crc_path.write_bytes(local_crc)
+    refused(lambda: snapshot(local_crc_path, sha256(local_crc).hexdigest(), HEAD_A),
+            "ZIP local fixed fields differ from central directory")
+    print("PASS local ZIP CRC mismatch: NO_VERDICT")
+
     invalid_utf8_path = work / "invalid-utf8-name.nupkg"
     package(invalid_utf8_path, head=HEAD_A, asset=b"old")
     invalid_utf8 = bytearray(invalid_utf8_path.read_bytes())
