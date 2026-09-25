@@ -3,6 +3,7 @@ module FsGgTemplates.ProviderPayloadComparison
 open System
 open System.Collections.Generic
 open System.IO
+open System.Text
 open System.Text.Json
 open System.Text.RegularExpressions
 
@@ -37,6 +38,8 @@ let private modeField (where: string) (value: JsonElement) =
 
 let private rootOf (name: string) =
     if not (name.StartsWith(prefix, StringComparison.Ordinal)) then fail $"member {name} is outside templates"
+    if not (name.IsNormalized(NormalizationForm.FormC)) then
+        fail $"member {name} has a noncanonical Unicode path"
     if name.EndsWith("/", StringComparison.Ordinal) || name.Contains('\\')
        || name.Contains(':') || name.Contains('\000') then fail $"member {name} has an unsafe path"
     let parts = name.Split('/')
