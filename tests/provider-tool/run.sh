@@ -40,6 +40,14 @@ expect_fail() {
 
 expect_pass 'all checked-in descriptors mirror the current registry' \
   grade --providers "$root/providers" --registry "$registry"
+python3 - "$registry" "$work/duplicate-registry-root.yml" <<'PY'
+from pathlib import Path
+import sys
+source = Path(sys.argv[1]).read_text()
+Path(sys.argv[2]).write_text(source.rstrip('\n') + '\ncontracts:\n  - id: unrelated\n')
+PY
+expect_fail 'duplicate registry contracts root refuses stale first pin' 'duplicate registry contracts root' \
+  grade --providers "$root/providers" --registry "$work/duplicate-registry-root.yml"
 expect_pass 'checked-in generated summary is current' \
   effective-check --provider "$root/providers/rendering.providers.yml"
 mkdir -p "$work/clean/.fsgg"
