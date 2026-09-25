@@ -21,10 +21,20 @@ writer reads regular source files through no-follow directory handles and
 uses descriptor-relative temporary creation, replacement and deletion. It
 checks expected receiver bytes and mode again after preparing each temporary.
 
+Run `python3 tests/svg-workspace-race-characterization/final-window.py` for
+the gap after that last check. A red-before disposable control showed that an
+authored file created at the final add boundary was overwritten. Adds now use
+Linux descriptor-relative `linkat` semantics, which refuse an existing name;
+the authored file or symlink and its target survive. The same fixture still
+reproduces late authored edits overwritten by replacement, late edits removed
+by deletion, and a parent moved after the check receiving a hidden write.
+
 The package candidate and receiver here are synthetic. The served 0.14.0
 archive still differs from the selected native candidate hash; producer
 custody, concurrent compare-to-replace ownership, all preparation and journal
 operations, and installed parity remain unproved. A peer can still edit a leaf
 or swap a parent after the final ownership check and before `os.replace` or
-`os.unlink`; those calls offer no compare-and-swap condition. No real workspace
+`os.unlink`; those calls offer no compare-and-swap condition. The add operation
+also cannot guarantee the visible workspace path remains under its opened
+parent after the last check. No real workspace
 is touched by these tests.
