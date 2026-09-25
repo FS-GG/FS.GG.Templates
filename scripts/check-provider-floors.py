@@ -281,6 +281,8 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                 if required:
                     if current_parameter_key is None:
                         raise FloorError(f"{path}:{number}: malformed parameter field before key")
+                    if current_parameter_required:
+                        raise FloorError(f"{path}:{number}: repeated parameter field 'required'")
                     value = scalar(required.group(1), f"{path}:{number}")
                     if value not in {"true", "false"}:
                         raise FloorError(
