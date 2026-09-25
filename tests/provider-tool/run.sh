@@ -1,0 +1,113 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+project="$root/src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj"
+registry="${FSC05_REGISTRY:-$root/../.github/registry/dependencies.yml}"
+work="$(mktemp -d)"
+trap 'rm -rf "$work"' EXIT
+
+dotnet build "$project" -c Release --nologo >/dev/null
+tool=(dotnet run --no-build -c Release --project "$project" --)
+pass=0
+
+expect_pass() {
+  local label="$1"; shift
+  if "${tool[@]}" "$@" >"$work/out" 2>"$work/err"; then
+    printf 'PASS %s\n' "$label"
+    pass=$((pass + 1))
+  else
+    cat "$work/err" >&2
+    printf 'FAIL %s\n' "$label" >&2
+    exit 1
+  fi
+}
+
+expect_fail() {
+  local label="$1" pattern="$2"; shift 2
+  if "${tool[@]}" "$@" >"$work/out" 2>"$work/err"; then
+    printf 'FAIL %s: unexpectedly green\n' "$label" >&2
+    exit 1
+  elif grep -Fq "$pattern" "$work/err"; then
+    printf 'PASS %s\n' "$label"
+    pass=$((pass + 1))
+  else
+    cat "$work/err" >&2
+    printf 'FAIL %s: diagnostic missing\n' "$label" >&2
+    exit 1
+  fi
+}
+
+expect_pass 'all checked-in descriptors mirror the current registry' \
+  grade --providers "$root/providers" --registry "$registry"
+expect_pass 'checked-in generated summary is current' \
+  effective-check --provider "$root/providers/rendering.providers.yml"
+mkdir -p "$work/clean/.fsgg"
+cp "$root/providers/console.providers.yml" "$work/clean/.fsgg/providers.yml"
+expect_pass 'clean generated workspace descriptor is known' \
+  workspace-check --providers "$root/providers" --workspace "$work/clean/.fsgg/providers.yml"
+
+mkdir "$work/providers"
+cp "$root/providers/"*.providers.yml "$work/providers/"
+python3 - "$work/providers/web.providers.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+text = path.read_text()
+start = text.index('    minimumFsggSdd:\n')
+end = text.index('    parameters:\n', start)
+path.write_text(text[:start] + text[end:])
+PY
+expect_fail 'missing floor fails for the named provider' 'web: missing minimumFsggSdd.version' \
+  grade --providers "$work/providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
+python3 - "$registry" "$root/providers/web.providers.yml" "$work/drift.yml" <<'PY'
+from pathlib import Path
+import re
+import sys
+source = Path(sys.argv[1]).read_text()
+provider = Path(sys.argv[2]).read_text()
+floor = re.search(r'minimumFsggSdd:\s*\n\s+version: "([^"]+)"', provider)
+if floor is None:
+    raise SystemExit('fixture provider floor shape changed')
+needle = f'minimum-fsgg-sdd:\n      version: "{floor.group(1)}"'
+if needle not in source:
+    raise SystemExit('fixture registry shape changed')
+Path(sys.argv[3]).write_text(source.replace(needle, 'minimum-fsgg-sdd:\n      version: "9.9.9"', 1))
+PY
+expect_fail 'live-registry drift fails mirrored descriptors' 'registry pin 9.9.9' \
+  grade --providers "$work/providers" --registry "$work/drift.yml"
+
+cat >"$work/providers/sixth.providers.yml" <<'YAML'
+schemaVersion: 1
+providers:
+  - name: sixth
+    contractVersion: "1.1.0"
+    templateId: fs-gg-sixth
+    source: Sixth.Template::1.0.0
+    minimumFsggSdd:
+      version: "9.9.9"
+YAML
+expect_fail 'a new sixth descriptor is enumerated' 'sixth: floor 9.9.9 != registry pin' \
+  grade --providers "$work/providers" --registry "$registry"
+
+cat >"$work/unknown.providers.yml" <<'YAML'
+schemaVersion: 1
+providers:
+  - name: unknown
+    contractVersion: "1.1.0"
+    templateId: fs-gg-unknown
+    source: Unknown.Template::1.0.0
+    minimumFsggSdd:
+      version: "1.4.0-preview.1"
+YAML
+expect_fail 'unknown workspace provider fails' "unknown provider 'unknown'" \
+  workspace-check --providers "$root/providers" --workspace "$work/unknown.providers.yml"
+
+cp "$root/providers/rendering.providers.yml" "$work/stale.providers.yml"
+sed -i 's/# effective\[1\]:/# effective[99]:/' "$work/stale.providers.yml"
+expect_fail 'stale generated summary fails' 'generated summary is stale' \
+  effective-check --provider "$work/stale.providers.yml"
+
+echo "provider-tool fixture: $pass passed"

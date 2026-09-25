@@ -1,0 +1,220 @@
+module FsGgTemplates.ProviderTool
+
+open System
+open System.IO
+open System.Net.Http
+open System.Text
+open System.Text.RegularExpressions
+
+type Provider = {
+    Name: string
+    ContractVersion: string
+    TemplateId: string
+    Source: string
+    Floor: string option
+    File: string
+    Line: int
+}
+
+let private fail message = raise (InvalidDataException message)
+let private pattern value = Regex(value, RegexOptions.CultureInvariant)
+let private providerLine = pattern "^  - name:\\s*(\\S+)\\s*(?:#.*)?$"
+let private fieldLine = pattern "^    (contractVersion|templateId|source):\\s*(.*?)\\s*$"
+let private floorLine = pattern "^    minimumFsggSdd:\\s*(?:#.*)?$"
+let private versionLine = pattern "^      version:\\s*(.*?)\\s*$"
+let private contractLine = pattern "^  - id:\\s*(\\S+)\\s*(?:#.*)?$"
+let private registryFloorLine = pattern "^    minimum-fsgg-sdd:\\s*(?:#.*)?$"
+let private semver = pattern "^\\d+\\.\\d+\\.\\d+(?:[-+].*)?$"
+let private beginMarker = "# BEGIN GENERATED: effective-providers"
+let private endMarker = "# END GENERATED: effective-providers"
+let private registryUrl = "https://raw.githubusercontent.com/FS-GG/.github/main/registry/dependencies.yml"
+
+let private scalar where (raw: string) =
+    let value = raw.Trim()
+    if value = "" then fail $"{where}: expected a scalar value"
+    elif value.[0] = '\'' || value.[0] = '"' then
+        let closing = value.IndexOf(value.[0], 1)
+        if closing < 0 then fail $"{where}: unterminated quoted value"
+        let tail = value.Substring(closing + 1).Trim()
+        if tail <> "" && not (tail.StartsWith("#", StringComparison.Ordinal)) then
+            fail $"{where}: unsupported text after quoted value"
+        value.Substring(1, closing - 1)
+    else
+        let beforeComment = value.Split('#').[0].Trim()
+        if beforeComment = "" then fail $"{where}: expected a scalar value"
+        beforeComment.Split([| ' '; '\t' |], StringSplitOptions.RemoveEmptyEntries).[0]
+
+let private read path =
+    try File.ReadAllText(path, UTF8Encoding(false, true))
+    with :? DecoderFallbackException as ex -> fail $"{path}: is not valid UTF-8 ({ex.Message})"
+
+let private parseDescriptor path =
+    let lines = (read path).Split('\n')
+    let providers = ResizeArray<Provider>()
+    let mutable current: Map<string, string> option = None
+    let mutable currentLine = 0
+    let mutable floor: string option = None
+    let mutable inFloor = false
+    let finish () =
+        match current with
+        | None -> ()
+        | Some fields ->
+            let name = fields.["name"]
+            let required key =
+                match fields.TryFind key with
+                | Some value -> value
+                | None -> fail $"{path}:{currentLine}: provider '{name}' is missing {key}"
+            providers.Add {
+                Name = name
+                ContractVersion = required "contractVersion"
+                TemplateId = required "templateId"
+                Source = required "source"
+                Floor = floor
+                File = path
+                Line = currentLine
+            }
+    for index in 0 .. lines.Length - 1 do
+        let line = lines.[index].TrimEnd('\r')
+        if line.Trim() <> "" && not (line.TrimStart().StartsWith("#", StringComparison.Ordinal)) then
+            let providerMatch = providerLine.Match line
+            if providerMatch.Success then
+                finish ()
+                current <- Some(Map.ofList [ "name", scalar $"{path}:{index + 1}" providerMatch.Groups.[1].Value ])
+                currentLine <- index + 1
+                floor <- None
+                inFloor <- false
+            elif current.IsSome then
+                if floorLine.IsMatch line then inFloor <- true
+                else
+                    let fieldMatch = fieldLine.Match line
+                    if fieldMatch.Success then
+                        let key = fieldMatch.Groups.[1].Value
+                        let value = scalar $"{path}:{index + 1}" fieldMatch.Groups.[2].Value
+                        let fields = current.Value
+                        let name = fields.["name"]
+                        if fields.ContainsKey key then fail $"{path}:{index + 1}: provider '{name}' repeats {key}"
+                        current <- Some(fields.Add(key, value))
+                    if inFloor then
+                        let versionMatch = versionLine.Match line
+                        if versionMatch.Success then
+                            if floor.IsSome then fail $"{path}:{index + 1}: repeated minimumFsggSdd.version"
+                            floor <- Some(scalar $"{path}:{index + 1}" versionMatch.Groups.[1].Value)
+                        elif line.Length - line.TrimStart(' ').Length <= 4 then inFloor <- false
+    finish ()
+    if providers.Count = 0 then fail $"{path}: declares no providers"
+    let names = providers |> Seq.map _.Name |> Seq.toList
+    if names <> List.sort names then fail $"{path}: providers must be ordered by name"
+    if (names |> Set.ofList).Count <> names.Length then fail $"{path}: provider names must be unique"
+    providers |> Seq.toList
+
+let private registryPin (source: string) =
+    let content =
+        if source.StartsWith("https://", StringComparison.Ordinal) then
+            use client = new HttpClient(Timeout = TimeSpan.FromSeconds 30.0)
+            client.GetStringAsync(source).GetAwaiter().GetResult()
+        else read source
+    let lines = content.Split('\n')
+    let mutable inContract = false
+    let mutable inFloor = false
+    let mutable found: string option = None
+    for index in 0 .. lines.Length - 1 do
+        let line = lines.[index].TrimEnd('\r')
+        if line.Trim() <> "" && not (line.TrimStart().StartsWith("#", StringComparison.Ordinal)) then
+            let contractMatch = contractLine.Match line
+            if contractMatch.Success then
+                inContract <- contractMatch.Groups.[1].Value = "fs-gg-ui-template"
+                inFloor <- false
+            elif inContract then
+                if registryFloorLine.IsMatch line then inFloor <- true
+                elif inFloor then
+                    let versionMatch = versionLine.Match line
+                    if versionMatch.Success then
+                        if found.IsSome then fail $"{source}: repeated registry minimum-fsgg-sdd.version"
+                        found <- Some(scalar $"{source}:{index + 1}" versionMatch.Groups.[1].Value)
+                    elif line.Length - line.TrimStart(' ').Length <= 4 then inFloor <- false
+    match found with
+    | Some pin when semver.IsMatch pin -> pin
+    | Some pin -> fail $"{source}: registry floor '{pin}' is not a version"
+    | None -> fail $"{source}: missing fs-gg-ui-template.minimum-fsgg-sdd.version"
+
+let private descriptors directory =
+    let files = Directory.GetFiles(directory, "*.providers.yml") |> Array.sort
+    if files.Length = 0 then fail $"{directory}: no provider descriptors"
+    let found = files |> Array.toList |> List.collect parseDescriptor
+    let names = found |> List.map _.Name
+    if (names |> Set.ofList).Count <> names.Length then
+        fail $"{directory}: provider names must be unique across descriptors"
+    found
+
+let private grade directory registry =
+    let pin = registryPin registry
+    let providers = descriptors directory
+    let problems =
+        providers
+        |> List.choose (fun provider ->
+            match provider.Floor with
+            | None -> Some $"{provider.File}:{provider.Line} {provider.Name}: missing minimumFsggSdd.version (registry {pin})"
+            | Some floor when not (semver.IsMatch floor) -> Some $"{provider.File}:{provider.Line} {provider.Name}: invalid floor '{floor}' (registry {pin})"
+            | Some floor when floor <> pin -> Some $"{provider.File}:{provider.Line} {provider.Name}: floor {floor} != registry pin {pin}"
+            | Some _ -> None)
+    if not problems.IsEmpty then problems |> List.iter (eprintfn "%s"); fail $"{problems.Length} provider floor(s) disagree with registry"
+    printfn "provider floors: %d provider(s) equal registry pin %s" providers.Length pin
+
+let private effective path =
+    let original = read path
+    let lines = original.Split('\n') |> Array.toList
+    let indexed marker = lines |> List.indexed |> List.choose (fun (index, line) -> if line = marker then Some index else None)
+    let begins = indexed beginMarker
+    let ends = indexed endMarker
+    if begins.Length <> 1 || ends.Length <> 1 || begins.Head >= ends.Head then
+        fail $"{path}: expected exactly one ordered effective-providers marker pair"
+    let rendered =
+        [ "# Effective providers — generated; ordered by unique provider name."
+          "# Review this block for the current selection; the release narrative remains in PIN HISTORY." ]
+        @ (parseDescriptor path
+           |> List.mapi (fun index provider ->
+               $"# effective[{index + 1}]: name={provider.Name} | template={provider.TemplateId} | source={provider.Source} | contract={provider.ContractVersion}"))
+    let expected = (lines |> List.take (begins.Head + 1)) @ rendered @ (lines |> List.skip ends.Head)
+    let expectedText = String.Join("\n", expected)
+    if original <> expectedText then fail $"{path}: generated summary is stale"
+    printfn "effective providers: current — %d provider(s)" (parseDescriptor path).Length
+
+let private workspaceCheck directory workspaceDescriptor =
+    let known = descriptors directory |> List.map (fun provider -> provider.Name, provider) |> Map.ofList
+    let workspace = parseDescriptor workspaceDescriptor
+    for provider in workspace do
+        match known.TryFind provider.Name with
+        | None -> fail $"{workspaceDescriptor}:{provider.Line}: unknown provider '{provider.Name}'"
+        | Some source ->
+            if provider.ContractVersion <> source.ContractVersion || provider.TemplateId <> source.TemplateId || provider.Source <> source.Source || provider.Floor <> source.Floor then
+                fail $"{workspaceDescriptor}:{provider.Line}: provider '{provider.Name}' differs from source descriptor"
+    printfn "workspace providers: %d known provider(s) match source identity and floor metadata" workspace.Length
+
+let private optionValue name args fallback =
+    match args |> List.tryFindIndex ((=) name) with
+    | Some index when index + 1 < args.Length -> args.[index + 1]
+    | Some _ -> fail $"{name} needs a value"
+    | None -> fallback
+
+[<EntryPoint>]
+let main argv =
+    try
+        let args = argv |> Array.toList
+        let root = Directory.GetCurrentDirectory()
+        let providers = optionValue "--providers" args (Path.Combine(root, "providers"))
+        match args with
+        | "grade" :: _ ->
+            grade providers (optionValue "--registry" args registryUrl)
+            0
+        | "effective-check" :: _ ->
+            effective (optionValue "--provider" args (Path.Combine(providers, "rendering.providers.yml")))
+            0
+        | "workspace-check" :: _ ->
+            workspaceCheck providers (optionValue "--workspace" args "")
+            0
+        | _ ->
+            eprintfn "usage: ProviderTool grade [--providers DIR] [--registry PATH|URL] | effective-check [--provider FILE] | workspace-check --workspace FILE [--providers DIR]"
+            2
+    with ex ->
+        eprintfn "provider-tool: %s" ex.Message
+        1
