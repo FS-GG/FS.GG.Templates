@@ -45,7 +45,7 @@ expect_pass 'checked-in generated summary is current' \
 mkdir -p "$work/clean/.fsgg"
 cp "$root/providers/console.providers.yml" "$work/clean/.fsgg/providers.yml"
 expect_pass 'clean generated workspace descriptor is known' \
-  workspace-check --providers "$root/providers" --workspace "$work/clean/.fsgg/providers.yml"
+  workspace-check --providers "$root/providers" --workspace "$work/clean/.fsgg/providers.yml" --registry "$registry"
 
 mkdir "$work/providers"
 cp "$root/providers/"*.providers.yml "$work/providers/"
@@ -53,7 +53,7 @@ sed -i 's/^schemaVersion: 1$/schemaVersion: 2/' "$work/providers/rendering.provi
 expect_fail 'unsupported descriptor schema is rejected' 'unsupported schemaVersion root' \
   grade --providers "$work/providers" --registry "$registry"
 expect_fail 'workspace selection refuses an unsupported source schema' 'unsupported schemaVersion root' \
-  workspace-check --providers "$work/providers" --workspace "$root/providers/rendering.providers.yml"
+  workspace-check --providers "$work/providers" --workspace "$root/providers/rendering.providers.yml" --registry "$registry"
 cp "$root/providers/rendering.providers.yml" "$work/providers/rendering.providers.yml"
 sed -i '/^schemaVersion: 1$/d' "$work/providers/rendering.providers.yml"
 expect_fail 'descriptor without schema is rejected' 'providers appear before schemaVersion: 1' \
@@ -152,7 +152,7 @@ cat >"$work/unsupported.json" <<'JSON'
 {"schemaVersion":1,"providers":[{"name":"web"}]}
 JSON
 expect_fail 'JSON is not silently treated as a provider descriptor' 'unsupported or duplicate descriptor root key' \
-  workspace-check --providers "$root/providers" --workspace "$work/unsupported.json"
+  workspace-check --providers "$root/providers" --workspace "$work/unsupported.json" --registry "$registry"
 
 cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
 cp "$root/providers/web.providers.yml" "$work/providers/duplicate.providers.yml"
@@ -176,6 +176,8 @@ Path(sys.argv[3]).write_text(source.replace(needle, 'minimum-fsgg-sdd:\n      ve
 PY
 expect_fail 'live-registry drift fails mirrored descriptors' 'registry pin 9.9.9' \
   grade --providers "$work/providers" --registry "$work/drift.yml"
+expect_fail 'workspace selection refuses even unselected owner floor drift' 'registry pin 9.9.9' \
+  workspace-check --providers "$root/providers" --workspace "$work/clean/.fsgg/providers.yml" --registry "$work/drift.yml"
 
 cat >"$work/providers/sixth.providers.yml" <<'YAML'
 schemaVersion: 1
@@ -201,7 +203,7 @@ providers:
       version: "1.4.0-preview.1"
 YAML
 expect_fail 'unknown workspace provider fails' "unknown provider 'unknown'" \
-  workspace-check --providers "$root/providers" --workspace "$work/unknown.providers.yml"
+  workspace-check --providers "$root/providers" --workspace "$work/unknown.providers.yml" --registry "$registry"
 
 cp "$root/providers/rendering.providers.yml" "$work/stale.providers.yml"
 sed -i 's/# effective\[1\]:/# effective[99]:/' "$work/stale.providers.yml"

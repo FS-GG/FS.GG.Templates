@@ -11,7 +11,8 @@ dotnet run --project src/FS.GG.Templates.ProviderTool -- grade \
 dotnet run --project src/FS.GG.Templates.ProviderTool -- effective-check \
   --provider providers/rendering.providers.yml
 dotnet run --project src/FS.GG.Templates.ProviderTool -- workspace-check \
-  --providers providers --workspace generated/.fsgg/providers.yml
+  --providers providers --workspace generated/.fsgg/providers.yml \
+  --registry ../.github/registry/dependencies.yml
 bash tests/provider-tool/run.sh
 ```
 
@@ -20,7 +21,10 @@ organization registry's `fs-gg-ui-template.minimum-fsgg-sdd.version`. With no
 `--registry`, it reads the registry at `main`; an unreachable registry fails.
 `effective-check` validates an existing generated summary without writing it.
 `workspace-check` accepts only known provider names whose identity, package
-source, contract version, and floor match this repository's descriptor set.
+source, contract version, and floor match this repository's descriptor set,
+and checks every owner descriptor floor against the registry pin, including
+providers omitted from the requested workspace selection. It reads the live
+registry by default and fails if that authority is unavailable.
 It does not assert byte identity or application of every descriptor parameter.
 The pure selector in `Composition.fs` validates the known and requested provider
 sets before the read-only workspace and summary checks. It rejects unknown or

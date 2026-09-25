@@ -21,6 +21,8 @@ type Refusal =
     | UnknownProvider of string
     | MissingFloor of string
     | InvalidFloor of string
+    | InvalidRegistryFloor of string
+    | RegistryFloorMismatch of string * string * string
     | DifferentProvider of string
 
 let describe = function
@@ -31,6 +33,8 @@ let describe = function
     | UnknownProvider name -> $"unknown provider '{name}'"
     | MissingFloor name -> $"provider '{name}' has no minimumFsggSdd.version"
     | InvalidFloor name -> $"provider '{name}' has an invalid minimumFsggSdd.version"
+    | InvalidRegistryFloor pin -> $"registry floor '{pin}' is not a version"
+    | RegistryFloorMismatch(name, floor, pin) -> $"provider '{name}' floor {floor} != registry pin {pin}"
     | DifferentProvider name -> $"provider '{name}' differs from source descriptor"
 
 let private namePattern = Regex("^[a-z][a-z0-9-]*$", RegexOptions.CultureInvariant)
@@ -84,6 +88,19 @@ let select (known: Provider list) (requested: Provider list) : Result<Provider l
                     -> Error(DifferentProvider item.Name)
                 | Some _ -> compare rest
         compare selection
+
+/// Bind an owner-authored selection to the org registry floor. Every known provider is
+/// checked, including those omitted from this particular workspace selection.
+let selectAtRegistryFloor (pin: string) (known: Provider list) (requested: Provider list)
+    : Result<Provider list, Refusal> =
+    if String.IsNullOrWhiteSpace pin || not (versionPattern.IsMatch pin) then Error(InvalidRegistryFloor pin)
+    else
+        match select known requested with
+        | Error issue -> Error issue
+        | Ok selection ->
+            match known |> List.tryFind (fun provider -> provider.Floor.Value <> pin) with
+            | Some provider -> Error(RegistryFloorMismatch(provider.Name, provider.Floor.Value, pin))
+            | None -> Ok selection
 
 /// The effective-provider block is an exact text projection of an already validated selection.
 let renderEffective (selection: Provider list) =

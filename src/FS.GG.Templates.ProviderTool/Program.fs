@@ -225,13 +225,14 @@ let private effective path =
     if original <> expectedText then fail $"{path}: generated summary is stale"
     printfn "effective providers: current — %d provider(s)" (parseDescriptor path).Length
 
-let private workspaceCheck directory workspaceDescriptor =
+let private workspaceCheck directory workspaceDescriptor registry =
+    let pin = registryPin registry
     let known = descriptors directory
     let workspace = parseDescriptor workspaceDescriptor
-    match select known workspace with
+    match selectAtRegistryFloor pin known workspace with
     | Ok _ -> ()
     | Error refusal -> fail $"{workspaceDescriptor}: {describe refusal}"
-    printfn "workspace providers: %d known provider(s) match source identity and floor metadata" workspace.Length
+    printfn "workspace providers: %d known provider(s) match source identity and registry floor %s" workspace.Length pin
 
 let private optionValue name args fallback =
     match args |> List.tryFindIndex ((=) name) with
@@ -253,7 +254,7 @@ let main argv =
             effective (optionValue "--provider" args (Path.Combine(providers, "rendering.providers.yml")))
             0
         | "workspace-check" :: _ ->
-            workspaceCheck providers (optionValue "--workspace" args "")
+            workspaceCheck providers (optionValue "--workspace" args "") (optionValue "--registry" args registryUrl)
             0
         | _ ->
             eprintfn "usage: ProviderTool grade [--providers DIR] [--registry PATH|URL] | effective-check [--provider FILE] | workspace-check --workspace FILE [--providers DIR]"
