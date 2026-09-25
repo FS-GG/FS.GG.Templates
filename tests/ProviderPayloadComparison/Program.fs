@@ -21,6 +21,7 @@ let private reservedDeviceStems =
     }
     |> Set.ofSeq
 let private regular0644 = 0o100644
+let private maxMemberSegmentBytes = 255
 let private maxInputBytes = 4 * 1024 * 1024
 let private fail message = raise (InvalidDataException message)
 
@@ -68,6 +69,8 @@ let private rootOf (name: string) =
     if parts |> Array.exists (fun part -> part.EndsWith(".", StringComparison.Ordinal)
                                        || part.EndsWith(" ", StringComparison.Ordinal)) then
         fail $"member {name} has a trailing dot or space path segment"
+    if parts |> Array.exists (fun part -> Encoding.UTF8.GetByteCount(part) > maxMemberSegmentBytes) then
+        fail $"member {name} path segment exceeds byte bound"
     if parts |> Array.exists isReservedDevicePart then
         fail $"member {name} has a reserved device name"
     if parts.Length < 4 then fail $"member {name} has no template payload path"
