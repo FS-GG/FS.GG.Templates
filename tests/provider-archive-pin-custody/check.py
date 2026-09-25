@@ -146,6 +146,8 @@ def assess(archive: Path, baseline: dict, providers: Path, *,
             names = [member.filename for member in members]
             if len(members) > MAX_MEMBERS:
                 return "NO_VERDICT", ["archive member count exceeds observation bound"]
+            if any(member.orig_filename != member.filename for member in members):
+                return "NO_VERDICT", ["archive member filename was shortened by parser"]
             if len(names) != len(set(names)) or len(names) != len({name.casefold() for name in names}):
                 return "NO_VERDICT", ["archive member duplicate or case alias"]
             if any(not safe_member(member.filename, member.external_attr >> 16) for member in members):

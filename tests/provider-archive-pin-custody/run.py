@@ -119,6 +119,36 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-archive-") as folder:
         raise AssertionError(f"matching synthetic pin/roster was refused: {status}, {reasons}")
     print("PASS synthetic pin/roster match: source-only label, no installed claim")
 
+    ordinary_docs = work / "ordinary-docs.nupkg"
+    package(ordinary_docs)
+    with ZipFile(ordinary_docs, "a") as changed:
+        member = ZipInfo("docs/readme.txt")
+        member.create_system = 3
+        member.external_attr = (stat.S_IFREG | 0o644) << 16
+        changed.writestr(member, b"documentation")
+    status, reasons = assess(ordinary_docs, package_baseline(ordinary_docs), providers)
+    if status != "PIN_ROSTER_MATCH_ONLY" or reasons:
+        raise AssertionError(f"ordinary non-owner member was refused: {status}, {reasons}")
+    print("PASS ordinary non-owner ZIP member: narrow pin/roster match")
+
+    nul_name = work / "nul-name.nupkg"
+    raw = ordinary_docs.read_bytes()
+    plain = b"docs/readme.txt"
+    shortened = b"docs/readme\x00txt"
+    if len(plain) != len(shortened) or raw.count(plain) != 2:
+        raise AssertionError("NUL-name fixture did not isolate local and central names")
+    nul_name.write_bytes(raw.replace(plain, shortened))
+    with ZipFile(nul_name) as changed:
+        member = changed.infolist()[-1]
+        if (member.orig_filename != shortened.decode("ascii")
+                or member.filename != "docs/readme"
+                or changed.read(member) != b"documentation"):
+            raise AssertionError("NUL-name fixture did not reproduce parser shortening")
+    status, reasons = assess(nul_name, package_baseline(nul_name), providers)
+    if status != "NO_VERDICT" or reasons != ["archive member filename was shortened by parser"]:
+        raise AssertionError(f"NUL-shortened member was admitted: {status}, {reasons}")
+    print("PASS NUL-shortened non-owner ZIP member: NO_VERDICT")
+
     executable = work / "executable-config.nupkg"
     executable_baseline = package(executable, console_mode=0o755)
     status, reasons = assess(executable, executable_baseline, providers)
