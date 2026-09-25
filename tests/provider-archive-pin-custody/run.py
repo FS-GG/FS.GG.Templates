@@ -17,6 +17,7 @@ from check import OWNER_FILES, assess, strict_json
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT / "src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj"
 CHECKER = ROOT / "scripts/check-provider-floors.py"
+OBSERVER = Path(__file__).with_name("check.py")
 PIN = "1.4.0-preview.1"
 VERSION = "0.14.0"
 
@@ -79,6 +80,25 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-archive-") as folder:
     if status != "PIN_ROSTER_MATCH_ONLY" or reasons:
         raise AssertionError(f"matching synthetic pin/roster was refused: {status}, {reasons}")
     print("PASS synthetic pin/roster match: source-only label, no installed claim")
+
+    forged_baseline = work / "forged-baseline.json"
+    forged_baseline.write_text(json.dumps(baseline), encoding="utf-8")
+    observed = subprocess.run(["python3", str(OBSERVER), "--archive", str(archive),
+                               "--baseline", str(forged_baseline), "--providers", str(providers)],
+                              check=True, capture_output=True, text=True)
+    forged_verdict = json.loads(observed.stdout)
+    if forged_verdict["status"] != "NO_VERDICT" or forged_verdict["reasons"] != ["baseline bytes differ from reviewed source"]:
+        raise AssertionError(f"caller-forged baseline admitted by CLI: {forged_verdict}")
+    print("PASS caller-forged baseline: CLI NO_VERDICT")
+
+    reviewed = subprocess.run(["python3", str(OBSERVER), "--archive", str(archive),
+                               "--baseline", str(ROOT / "scripts/svg-complete-workspace-baselines.json"),
+                               "--providers", str(providers)],
+                              check=True, capture_output=True, text=True)
+    reviewed_verdict = json.loads(reviewed.stdout)
+    if reviewed_verdict["status"] != "NO_VERDICT" or reviewed_verdict["reasons"] != ["selected archive SHA mismatch"]:
+        raise AssertionError(f"reviewed baseline was not accepted for assessment: {reviewed_verdict}")
+    print("PASS reviewed baseline: synthetic archive SHA mismatch, no verdict")
 
     extra = providers / "governance.providers.yml"
     extra.write_text("schemaVersion: 1\nproviders:\n  - name: governance\n"

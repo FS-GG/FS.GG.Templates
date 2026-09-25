@@ -18,8 +18,12 @@ python3 tests/provider-archive-pin-custody/check.py \
 ```
 
 `PIN_ROSTER_MATCH_ONLY` means only that those copied source facts agree with
-the caller-supplied selected bytes. A caller can supply a forged baseline, and
-the descriptor reader is intentionally narrower than the full YAML grammar.
+the selected bytes. The CLI compares baseline bytes with the digest of the
+reviewed, checked-in baseline before using its candidate. The `assess` function
+still accepts a caller-supplied baseline for disposable controls; its result
+cannot authenticate a production selection. A change to the checked-in
+baseline needs an explicit review of the digest constant. The descriptor
+reader is intentionally narrower than the full YAML grammar.
 The observer now requires the reviewed five-descriptor inventory and reads each
 descriptor as a regular file relative to an opened directory with no-follow
 flags. A new descriptor, linked descriptor, or a rendering descriptor that
