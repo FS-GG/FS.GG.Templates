@@ -686,6 +686,26 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "ZIP data descriptor differs from selected contract")
     print("PASS descriptor flag bypass: NO_VERDICT")
 
+    for label, flag in (("UTF-8 name flag", 0x0800),
+                        ("compression option flag", 0x0002),
+                        ("enhanced deflation flag", 0x0004)):
+        flagged_path = work / (label.replace(" ", "-") + ".nupkg")
+        package(flagged_path, head=HEAD_A, asset=b"old")
+        flagged = bytearray(flagged_path.read_bytes())
+        end_record = len(flagged) - 22
+        central_offset = int.from_bytes(flagged[end_record + 16:end_record + 20], "little")
+        if (flagged[:4] != b"PK\x03\x04"
+                or flagged[central_offset:central_offset + 4] != b"PK\x01\x02"
+                or flagged[6:8] != b"\x00\x00"
+                or flagged[central_offset + 8:central_offset + 10] != b"\x00\x00"):
+            raise AssertionError("flag fixture did not start from matching zero ZIP flags")
+        flagged[6:8] = flag.to_bytes(2, "little")
+        flagged[central_offset + 8:central_offset + 10] = flag.to_bytes(2, "little")
+        flagged_path.write_bytes(flagged)
+        refused(lambda: snapshot(flagged_path, sha256(flagged).hexdigest(), HEAD_A),
+                "ZIP unsupported flag bits")
+        print(f"PASS {label}: NO_VERDICT")
+
     invalid_utf8_path = work / "invalid-utf8-name.nupkg"
     package(invalid_utf8_path, head=HEAD_A, asset=b"old")
     invalid_utf8 = bytearray(invalid_utf8_path.read_bytes())

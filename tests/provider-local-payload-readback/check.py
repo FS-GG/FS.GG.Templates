@@ -144,6 +144,8 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                 local_ranges.append((offset, local_end))
                 if entry.flag_bits & 0x08:
                     raise Refusal("ZIP data descriptor differs from selected contract")
+                if entry.flag_bits != 0:
+                    raise Refusal("ZIP unsupported flag bits differ from selected contract")
                 if (
                         int.from_bytes(local_header[14:18], "little") != entry.CRC
                         or int.from_bytes(local_header[18:22], "little") != entry.compress_size
