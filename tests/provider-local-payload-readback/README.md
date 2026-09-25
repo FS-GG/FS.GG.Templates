@@ -9,8 +9,9 @@ for typed, pure comparison. A central directory name flagged as UTF-8 but
 containing invalid UTF-8 bytes yields `NO_VERDICT` during physical read,
 before typed comparison. The physical reader also refuses unsafe paths in
 every ZIP member, including members outside `content/templates/`, and refuses
-non-regular members outside the template payload. The pinned signed file's
-signature metadata is handled explicitly. Every ZIP member body is consumed
+non-regular members and case-aliased file/child collisions outside the template
+payload. The pinned signed file's signature metadata is handled explicitly.
+Every ZIP member body is consumed
 under per-member and aggregate expansion bounds so a corrupt non-template
 member cannot yield a payload-only match. The pinned local archives also
 require a local-file header at byte zero and a zero-comment ZIP end record at

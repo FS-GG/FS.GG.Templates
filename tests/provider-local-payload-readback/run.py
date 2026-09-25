@@ -370,6 +370,19 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "ZIP extra fields differ from selected contract")
     print("PASS Unicode-path ZIP extra field: NO_VERDICT")
 
+    ancestor_alias_path = work / "external-ancestor-alias.nupkg"
+    package(ancestor_alias_path, head=HEAD_A, asset=b"old")
+    with ZipFile(ancestor_alias_path, "a") as archive:
+        for name in ("docs/readme.txt", "docs/README.TXT/child"):
+            member = ZipInfo(name)
+            member.create_system = 3
+            member.external_attr = (stat.S_IFREG | 0o644) << 16
+            archive.writestr(member, b"body")
+    ancestor_alias_sha = sha256(ancestor_alias_path.read_bytes()).hexdigest()
+    refused(lambda: snapshot(ancestor_alias_path, ancestor_alias_sha, HEAD_A),
+            "archive member has a file ancestor")
+    print("PASS non-template case-aliased file ancestor: NO_VERDICT")
+
     corrupt_external_path = work / "corrupt-external.nupkg"
     package(corrupt_external_path, head=HEAD_A, asset=b"old")
     with ZipFile(corrupt_external_path, "a") as archive:
