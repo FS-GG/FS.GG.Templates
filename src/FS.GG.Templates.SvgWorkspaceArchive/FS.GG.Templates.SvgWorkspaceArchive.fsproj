@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../FS.GG.Templates.SvgWorkspacePolicy/FS.GG.Templates.SvgWorkspacePolicy.fsproj" />
+    <Compile Include="AssemblyInfo.fs" />
+    <Compile Include="LinuxPinnedReceiver.fs" />
+    <Compile Include="Observer.fs" />
+  </ItemGroup>
+</Project>
