@@ -14,7 +14,7 @@ from zipfile import ZipInfo
 from unittest.mock import patch
 
 import check
-from check import OWNER_FILES, assess, strict_json
+from check import DESCRIPTOR_FILES, OWNER_FILES, assess, strict_json
 
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT / "src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj"
@@ -46,6 +46,11 @@ def package(path: Path, duplicate_game: bool = False) -> dict:
 
 with tempfile.TemporaryDirectory(prefix="fsc05-provider-archive-") as folder:
     work = Path(folder)
+    for filename, expected in check.REVIEWED_DESCRIPTOR_SHA256.items():
+        actual = sha256((ROOT / "providers" / filename).read_bytes()).hexdigest()
+        if actual != expected:
+            raise AssertionError(f"reviewed source digest drifted: {filename}")
+    print("PASS reviewed descriptor digests match checked-in source bytes")
     providers = work / "providers"
     shutil.copytree(ROOT / "providers", providers)
     registry = work / "registry.yml"
@@ -82,6 +87,32 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-archive-") as folder:
     if status != "PIN_ROSTER_MATCH_ONLY" or reasons:
         raise AssertionError(f"matching synthetic pin/roster was refused: {status}, {reasons}")
     print("PASS synthetic pin/roster match: source-only label, no installed claim")
+
+    fixture_digests = {name: sha256((providers / name).read_bytes()).hexdigest()
+                       for name in DESCRIPTOR_FILES}
+    console_changed = providers / OWNER_FILES["console"]
+    console_original = console_changed.read_text(encoding="utf-8")
+    console_mutation = console_original.replace("default: sdd", "default: foreign")
+    assert console_mutation != console_original
+    console_changed.write_text(console_mutation, encoding="utf-8")
+    status, reasons = assess(archive, baseline, providers)
+    if status != "PIN_ROSTER_MATCH_ONLY" or reasons:
+        raise AssertionError(f"parameter-only source mutation did not reproduce old narrow match: {status}, {reasons}")
+    print("PASS red-before boundary: parameter-only owner mutation retained narrow pin match")
+    status, reasons = assess(archive, baseline, providers, expected_descriptors=fixture_digests)
+    if status != "NO_VERDICT" or reasons != ["console.providers.yml bytes differ from reviewed source snapshot"]:
+        raise AssertionError(f"parameter-only owner mutation was admitted by snapshot: {status}, {reasons}")
+    console_changed.write_text(console_original, encoding="utf-8")
+    status, reasons = assess(archive, baseline, providers, expected_descriptors=fixture_digests)
+    if status != "PIN_ROSTER_MATCH_ONLY" or reasons:
+        raise AssertionError(f"unchanged fixture snapshot was refused: {status}, {reasons}")
+    print("PASS exact owner source snapshot: mutated refused, unchanged accepted")
+
+    status, reasons = assess(archive, baseline, providers,
+                             expected_descriptors={OWNER_FILES["console"]: fixture_digests[OWNER_FILES["console"]]})
+    if status != "NO_VERDICT" or reasons != ["reviewed descriptor snapshot is incomplete"]:
+        raise AssertionError(f"partial owner digest map was admitted: {status}, {reasons}")
+    print("PASS partial owner digest map: NO_VERDICT")
 
     forged_baseline = work / "forged-baseline.json"
     forged_baseline.write_text(json.dumps(baseline), encoding="utf-8")

@@ -19,11 +19,15 @@ python3 tests/provider-archive-pin-custody/check.py \
 
 `PIN_ROSTER_MATCH_ONLY` means only that those copied source facts agree with
 the selected bytes. The CLI compares baseline bytes with the digest of the
-reviewed, checked-in baseline before using its candidate. The `assess` function
-still accepts a caller-supplied baseline for disposable controls; its result
-cannot authenticate a production selection. A change to the checked-in
-baseline needs an explicit review of the digest constant. The descriptor
-reader is intentionally narrower than the full YAML grammar.
+reviewed, checked-in baseline before using its candidate. It also requires
+the exact whole-file digests of the five reviewed provider descriptors, so a
+parameter-only source edit is visible even though pin/roster fields are the
+only fields compared with the archive. The `assess` function still accepts a
+caller-supplied baseline and source digest map for disposable controls; an
+unqualified fixture result cannot authenticate a production selection. A
+change to the checked-in baseline or descriptor set needs an explicit review
+of the corresponding digest constant. The descriptor reader is intentionally
+narrower than the full YAML grammar.
 The observer requires the reviewed five-descriptor inventory and reads each
 descriptor as a regular file relative to an opened directory with no-follow
 flags. It holds all five descriptors open through bounded reads, then checks

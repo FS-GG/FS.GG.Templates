@@ -20,6 +20,16 @@ OWNER_FILES = {
     "web": "web.providers.yml",
 }
 DESCRIPTOR_FILES = set(OWNER_FILES.values()) | {"rendering.providers.yml"}
+# Whole-file SHA-256 values for the five checked-in descriptors at this source
+# head. The CLI requires these exact owner bytes; fixture callers may provide a
+# disposable digest map. These hashes do not prove installed or served bytes.
+REVIEWED_DESCRIPTOR_SHA256 = {
+    "console.providers.yml": "b6ee8c9a3c79c60cbc9f99df970a9bf7beaf8ab6869ee492dee66697800a3cf8",
+    "fable-bindings.providers.yml": "1853288af3a066d9aa1a152722e8c2be34b183e8fac60272dd5792bacbf3e8ca",
+    "fable-game.providers.yml": "29b4c726ffacbd270e1e2f700243657ff10dcfb9ecaa4c2bd91421d9a0bb0ec7",
+    "rendering.providers.yml": "ec460bd51426ffe697d97b159387e98dc04fd5cbb813e1789e2b4d74d9b2e761",
+    "web.providers.yml": "30ce4273fbebfc449ee208dc713128b3cb6eb0cb9692f25d4ec31b6b9b549fef",
+}
 # SHA-256 of the checked-in scripts/svg-complete-workspace-baselines.json at
 # this reviewed source head. It binds the CLI's selected candidate to reviewed
 # source bytes; it does not authenticate the producer or a served package.
@@ -73,7 +83,7 @@ def read_descriptors(providers: Path) -> tuple[dict[str, str], list[str]]:
                 if S_ISLNK(os.stat(name, dir_fd=directory, follow_symlinks=False).st_mode):
                     return {}, [f"{name} descriptor is a symlink"]
                 handle = os.open(name, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory)
-                reader = opened.enter_context(os.fdopen(handle, "r", encoding="utf-8"))
+                reader = opened.enter_context(os.fdopen(handle, "r", encoding="utf-8", newline=""))
                 info = os.fstat(reader.fileno())
                 if not S_ISREG(info.st_mode):
                     return {}, [f"{name} descriptor is not regular"]
@@ -98,7 +108,8 @@ def read_descriptors(providers: Path) -> tuple[dict[str, str], list[str]]:
         os.close(directory)
 
 
-def assess(archive: Path, baseline: dict, providers: Path) -> tuple[str, list[str]]:
+def assess(archive: Path, baseline: dict, providers: Path, *,
+           expected_descriptors: dict[str, str] | None = None) -> tuple[str, list[str]]:
     """Return a bounded source/archive observation, never an installed verdict."""
     candidates = baseline.get("sourceCandidates")
     if not isinstance(candidates, list) or len(candidates) != 1 or not isinstance(candidates[0], dict):
@@ -156,6 +167,12 @@ def assess(archive: Path, baseline: dict, providers: Path) -> tuple[str, list[st
     contents, inventory_reasons = read_descriptors(providers)
     if inventory_reasons:
         return "NO_VERDICT", inventory_reasons
+    if expected_descriptors is not None:
+        if set(expected_descriptors) != DESCRIPTOR_FILES:
+            return "NO_VERDICT", ["reviewed descriptor snapshot is incomplete"]
+        for filename in sorted(DESCRIPTOR_FILES):
+            if sha256(contents[filename].encode("utf-8")).hexdigest() != expected_descriptors[filename]:
+                return "NO_VERDICT", [f"{filename} bytes differ from reviewed source snapshot"]
     other_sources = ANY_SOURCE.findall(contents["rendering.providers.yml"])
     if len(other_sources) != 1 or other_sources[0].startswith("FS.GG.Workspace.Template::"):
         reasons.append("non-owner provider source is ambiguous or selects the observed package")
@@ -187,7 +204,8 @@ if __name__ == "__main__":
         selected_baseline = strict_json(baseline_bytes)
         if not isinstance(selected_baseline, dict):
             raise ValueError("selected baseline is not an object")
-        result, observations = assess(args.archive, selected_baseline, args.providers)
+        result, observations = assess(args.archive, selected_baseline, args.providers,
+                                      expected_descriptors=REVIEWED_DESCRIPTOR_SHA256)
     except ValueError as error:
         result, observations = "NO_VERDICT", [str(error)]
     except (OSError, UnicodeError) as error:
