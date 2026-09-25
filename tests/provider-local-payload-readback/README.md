@@ -27,6 +27,7 @@ the end of the file; this refuses ordinary leading and trailing overlays
 and unowned gaps between declared local members or before the central directory.
 The readback refuses nonzero disk markers in the end record or central member
 records. Both end-record entry counts must equal the number of parsed members.
+Central member comments are refused; the three pinned local files have none.
 This does not establish complete ZIP-format closure. Local-header
 flags, compression methods, CRC, and size fields must match their
 central-directory entries.
