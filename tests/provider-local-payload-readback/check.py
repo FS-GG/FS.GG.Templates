@@ -174,6 +174,8 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                     if decoder.unused_data or decoder.unconsumed_tail:
                         raise Refusal("ZIP deflate stream has unused bytes")
                 mode = entry.external_attr >> 16
+                if entry.external_attr & 0xFFFF:
+                    raise Refusal("ZIP DOS attributes differ from selected contract")
                 if entry.filename == ".signature.p7s" and entry.create_system == 0 and mode == 0:
                     continue  # The pinned local signed readback has this signature metadata.
                 if entry.create_system != 3 or S_IFMT(mode) != S_IFREG:
