@@ -670,6 +670,22 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "ZIP local fixed fields differ from central directory")
     print("PASS local ZIP CRC mismatch: NO_VERDICT")
 
+    for label, field_offset in (("local DOS time", 10), ("local DOS date", 12)):
+        local_stamp_path = work / (label.replace(" ", "-") + ".nupkg")
+        package(local_stamp_path, head=HEAD_A, asset=b"old")
+        local_stamp = bytearray(local_stamp_path.read_bytes())
+        end_record = len(local_stamp) - 22
+        central_offset = int.from_bytes(local_stamp[end_record + 16:end_record + 20], "little")
+        if (local_stamp[:4] != b"PK\x03\x04"
+                or local_stamp[central_offset:central_offset + 4] != b"PK\x01\x02"
+                or local_stamp[10:14] != local_stamp[central_offset + 12:central_offset + 16]):
+            raise AssertionError("local timestamp fixture did not start with matching ZIP fields")
+        local_stamp[field_offset] += 1
+        local_stamp_path.write_bytes(local_stamp)
+        refused(lambda: snapshot(local_stamp_path, sha256(local_stamp).hexdigest(), HEAD_A),
+                "ZIP local timestamp differs from central directory")
+        print(f"PASS {label} mismatch: NO_VERDICT")
+
     descriptor_flag_path = work / "descriptor-flag-bypass.nupkg"
     package(descriptor_flag_path, head=HEAD_A, asset=b"old")
     descriptor_flag = bytearray(descriptor_flag_path.read_bytes())

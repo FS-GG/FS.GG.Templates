@@ -135,6 +135,12 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                     raise Refusal("ZIP local header differs from central directory")
                 if local_header[4:6] != b"\x14\x00":
                     raise Refusal("ZIP header metadata differs from selected contract")
+                year, month, day, hour, minute, second = entry.date_time
+                central_time = (hour << 11) | (minute << 5) | (second // 2)
+                central_date = ((year - 1980) << 9) | (month << 5) | day
+                if (int.from_bytes(local_header[10:12], "little") != central_time
+                        or int.from_bytes(local_header[12:14], "little") != central_date):
+                    raise Refusal("ZIP local timestamp differs from central directory")
                 if entry.extra or int.from_bytes(local_header[28:30], "little") != 0:
                     raise Refusal("ZIP extra fields differ from selected contract")
                 local_name_bytes = int.from_bytes(local_header[26:28], "little")

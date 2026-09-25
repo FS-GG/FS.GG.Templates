@@ -32,6 +32,7 @@ Central creator and extraction versions must both be 20, with zero reserved
 version byte and internal attributes; local extraction version must be 20.
 General-purpose flags must be zero in both local and central headers. The
 selected archives do not use the UTF-8 flag, compression options, or descriptor form.
+Local DOS time and date fields must match the parsed central-directory values.
 This does not establish complete ZIP-format closure. Local-header
 flags, compression methods, CRC, and size fields must match their
 central-directory entries.
