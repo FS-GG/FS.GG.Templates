@@ -21,8 +21,9 @@ let private pattern value = Regex(value, RegexOptions.CultureInvariant)
 let private providerLine = pattern "^  - name:\\s*(\\S+)\\s*(?:#.*)?$"
 let private rootLine = pattern "^([A-Za-z][A-Za-z0-9]*):(?:\\s*(.*))?$"
 let private schemaLine = pattern "^schemaVersion:\\s*1\\s*(?:#.*)?$"
-let private fieldLine = pattern "^    (contractVersion|templateId|source):\\s*(.*?)\\s*$"
+let private fieldLine = pattern "^    ([A-Za-z][A-Za-z0-9-]*):\\s*(.*?)\\s*$"
 let private floorLine = pattern "^    minimumFsggSdd:\\s*(?:#.*)?$"
+let private floorFieldLine = pattern "^      ([A-Za-z][A-Za-z0-9-]*):\\s*(.*?)\\s*$"
 let private versionLine = pattern "^      version:\\s*(.*?)\\s*$"
 let private contractLine = pattern "^  - id:\\s*(\\S+)\\s*(?:#.*)?$"
 let private registryFloorLine = pattern "^    minimum-fsgg-sdd:\\s*(?:#.*)?$"
@@ -121,25 +122,33 @@ let private parseDescriptor path =
             elif inProviders && line.StartsWith("  ", StringComparison.Ordinal) && not (line.StartsWith("    ", StringComparison.Ordinal)) then
                 fail $"{path}:{index + 1}: providers must contain named block entries"
             elif inProviders && current.IsSome then
-                if floorLine.IsMatch line then
-                    if seenFloor then fail $"{path}:{index + 1}: repeated minimumFsggSdd"
-                    seenFloor <- true
-                    inFloor <- true
-                else
+                let indent = indentation.Length
+                if indent = 4 then
                     let fieldMatch = fieldLine.Match line
-                    if fieldMatch.Success then
-                        let key = fieldMatch.Groups.[1].Value
+                    if not fieldMatch.Success then fail $"{path}:{index + 1}: malformed provider field"
+                    let key = fieldMatch.Groups.[1].Value
+                    if key = "minimumFsggSdd" then
+                        if seenFloor then fail $"{path}:{index + 1}: repeated minimumFsggSdd"
+                        if not (floorLine.IsMatch line) then fail $"{path}:{index + 1}: minimumFsggSdd must be a mapping"
+                        seenFloor <- true
+                        inFloor <- true
+                    else
+                        inFloor <- false
+                    if key = "contractVersion" || key = "templateId" || key = "source" then
                         let value = scalar $"{path}:{index + 1}" fieldMatch.Groups.[2].Value
                         let fields = current.Value
                         let name = fields.["name"]
                         if fields.ContainsKey key then fail $"{path}:{index + 1}: provider '{name}' repeats {key}"
                         current <- Some(fields.Add(key, value))
-                    if inFloor then
-                        let versionMatch = versionLine.Match line
-                        if versionMatch.Success then
-                            if floor.IsSome then fail $"{path}:{index + 1}: repeated minimumFsggSdd.version"
-                            floor <- Some(scalar $"{path}:{index + 1}" versionMatch.Groups.[1].Value)
-                        elif line.Length - line.TrimStart(' ').Length <= 4 then inFloor <- false
+                elif inFloor then
+                    let floorField = floorFieldLine.Match line
+                    if indent <> 6 || not floorField.Success then
+                        fail $"{path}:{index + 1}: malformed minimumFsggSdd field"
+                    if floorField.Groups.[1].Value = "version" then
+                        if floor.IsSome then fail $"{path}:{index + 1}: repeated minimumFsggSdd.version"
+                        floor <- Some(scalar $"{path}:{index + 1}" floorField.Groups.[2].Value)
+                elif indent < 6 || indent % 2 <> 0 then
+                    fail $"{path}:{index + 1}: unsupported provider indentation"
     finish ()
     if not seenSchema then fail $"{path}: missing schemaVersion: 1 root"
     if not seenProviders then fail $"{path}: missing providers block sequence"
@@ -180,8 +189,13 @@ let private registryPin (source: string) =
     | None -> fail $"{source}: missing fs-gg-ui-template.minimum-fsgg-sdd.version"
 
 let private descriptors directory =
-    let files = Directory.GetFiles(directory, "*.providers.yml") |> Array.sort
+    // The live Python glob includes matching directories and then refuses their
+    // read. GetFiles silently omitted them, which could shrink the graded set.
+    let files = Directory.GetFileSystemEntries(directory, "*.providers.yml") |> Array.sort
     if files.Length = 0 then fail $"{directory}: no provider descriptors"
+    for file in files do
+        if not (File.Exists file) || Directory.Exists file then
+            fail $"{file}: provider descriptor is not a regular file"
     let found = files |> Array.toList |> List.collect parseDescriptor
     let names = found |> List.map _.Name
     if (names |> Set.ofList).Count <> names.Length then

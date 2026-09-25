@@ -114,6 +114,45 @@ expect_fail 'unquoted provider source with trailing YAML tokens is rejected' 'un
   grade --providers "$work/providers" --registry "$registry"
 
 cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
+python3 - "$work/providers/web.providers.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+path.write_text(path.read_text().replace('      version:', '     malformed: value\n      version:', 1))
+PY
+expect_fail 'odd indentation inside floor is rejected like Python' 'malformed minimumFsggSdd field' \
+  grade --providers "$work/providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
+python3 - "$work/providers/web.providers.yml" <<'PY'
+from pathlib import Path
+import sys
+path = Path(sys.argv[1])
+path.write_text(path.read_text().replace('    templateId:', '    not-a-field\n    templateId:', 1))
+PY
+expect_fail 'malformed provider field is rejected like Python' 'malformed provider field' \
+  grade --providers "$work/providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
+rm "$work/providers/web.providers.yml"
+mkdir "$work/providers/web.providers.yml"
+expect_fail 'directory named as descriptor is not silently skipped' 'not a regular file' \
+  grade --providers "$work/providers" --registry "$registry"
+rmdir "$work/providers/web.providers.yml"
+cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
+
+ln -s "$work/no-such-provider" "$work/providers/dangling.providers.yml"
+expect_fail 'dangling descriptor path is refused' 'dangling.providers.yml' \
+  grade --providers "$work/providers" --registry "$registry"
+rm "$work/providers/dangling.providers.yml"
+
+cat >"$work/unsupported.json" <<'JSON'
+{"schemaVersion":1,"providers":[{"name":"web"}]}
+JSON
+expect_fail 'JSON is not silently treated as a provider descriptor' 'unsupported or duplicate descriptor root key' \
+  workspace-check --providers "$root/providers" --workspace "$work/unsupported.json"
+
+cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
 cp "$root/providers/web.providers.yml" "$work/providers/duplicate.providers.yml"
 expect_fail 'duplicate provider identity across descriptors is rejected' 'provider names must be unique across descriptors' \
   grade --providers "$work/providers" --registry "$registry"

@@ -28,3 +28,9 @@ any receiver switch, qualify YAML edge cases and workspace parameter semantics,
 the producer artifact boundary, CLI output compatibility, installed bytes, and
 the full independent Python fixture corpus. A source-only PR does not make those
 claims or authorize a receiver flip.
+
+The focused source controls refuse malformed provider/floor indentation, JSON
+where a provider YAML descriptor is required, and a directory or dangling link
+named `*.providers.yml`. A symlink to a readable descriptor file is still
+accepted by both this candidate and the live Python floor checker; any future
+physical-source closure rule must be introduced and requalified at both owners.
