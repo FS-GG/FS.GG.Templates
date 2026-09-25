@@ -85,6 +85,12 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
             names = [entry.filename for entry in entries]
             if len(entries) > MAX_MEMBERS:
                 raise Refusal("archive member count exceeds observation bound")
+            end_record = len(raw) - 22
+            central_size = int.from_bytes(raw[end_record + 12:end_record + 16], "little")
+            central_start = int.from_bytes(raw[end_record + 16:end_record + 20], "little")
+            if (central_start + central_size != end_record
+                    or raw[central_start:central_start + 4] != b"PK\x01\x02"):
+                raise Refusal("ZIP central directory boundary differs from selected contract")
             aliases = {name.casefold() for name in names}
             if len(names) != len(set(names)) or len(names) != len(aliases):
                 raise Refusal("archive member duplicate or case alias")
@@ -106,6 +112,7 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                     ancestor = ancestor.rsplit("/", 1)[0]
                     if ancestor.casefold() in aliases:
                         raise Refusal("archive member has a file ancestor")
+            local_ranges = []
             for entry in entries:
                 offset = entry.header_offset
                 local_header = raw[offset:offset + 30] if offset >= 0 else b""
@@ -115,6 +122,11 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                     raise Refusal("ZIP local header differs from central directory")
                 if entry.extra or int.from_bytes(local_header[28:30], "little") != 0:
                     raise Refusal("ZIP extra fields differ from selected contract")
+                local_name_bytes = int.from_bytes(local_header[26:28], "little")
+                local_end = offset + 30 + local_name_bytes + entry.compress_size
+                if local_end > central_start:
+                    raise Refusal("ZIP local member crosses central directory")
+                local_ranges.append((offset, local_end))
                 if entry.flag_bits & 0x08:
                     raise Refusal("ZIP data descriptor differs from selected contract")
                 if (
@@ -127,6 +139,13 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                     continue  # The pinned local signed readback has this signature metadata.
                 if entry.create_system != 3 or S_IFMT(mode) != S_IFREG:
                     raise Refusal("archive member is not a Unix regular file")
+            next_offset = 0
+            for start, end in sorted(local_ranges):
+                if start != next_offset:
+                    raise Refusal("ZIP bytes outside declared local members")
+                next_offset = end
+            if next_offset != central_start:
+                raise Refusal("ZIP bytes outside declared local members")
             if (".signature.p7s" in names) != signed:
                 raise Refusal("local archive signature presence differs from pinned role")
             identity_member = package.getinfo("FS.GG.Workspace.Template.nuspec")
