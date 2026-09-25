@@ -58,6 +58,10 @@ let describe = function
 let private namePattern = Regex(@"\A[a-z][a-z0-9-]*\z", RegexOptions.CultureInvariant)
 let private parameterPattern = Regex(@"\A[A-Za-z][A-Za-z0-9]*\z", RegexOptions.CultureInvariant)
 let private versionPattern = Regex(@"\A\d+\.\d+\.\d+(?:[-+].*)?\z", RegexOptions.CultureInvariant)
+let private packageSourcePattern =
+    Regex(
+        @"\A[A-Za-z0-9][A-Za-z0-9._-]*::[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?\z",
+        RegexOptions.CultureInvariant)
 
 let private validateSet (providers: Provider list) =
     if List.isEmpty providers then Error EmptySelection
@@ -69,6 +73,7 @@ let private validateSet (providers: Provider list) =
                 || String.IsNullOrWhiteSpace p.ContractVersion
                 || String.IsNullOrWhiteSpace p.TemplateId
                 || String.IsNullOrWhiteSpace p.Source
+                || not (packageSourcePattern.IsMatch p.Source)
                 || (p.NameParameter |> Option.exists (fun value -> not (parameterPattern.IsMatch value)))
                 || (p.IdentifierParameter |> Option.exists (fun value -> not (parameterPattern.IsMatch value))))
         match invalid with

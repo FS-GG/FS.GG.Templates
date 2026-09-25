@@ -46,6 +46,19 @@ let main _ =
     assertEqual "terminal newline owner floor refuses before selection"
         (Error(InvalidFloor "alpha")) (select [ newlineFloor; beta ] [ newlineFloor ])
     assertEqual "source drift refuses" (Error(DifferentProvider "alpha")) (select known [ { alpha with Source = "Alpha.Template::9.9.9" } ])
+    for unpinned in
+        [ "Alpha.Template"
+          "Alpha.Template::"
+          "Alpha.Template::latest"
+          "Alpha.Template::1.0.0 extra"
+          "Alpha.Template::1.0.0\n"
+          "../Alpha.Template::1.0.0" ] do
+        let malformed = { alpha with Source = unpinned }
+        assertEqual (sprintf "owner source pin refuses %A" unpinned)
+            (Error(InvalidProvider "alpha")) (select [ malformed; beta ] [ malformed ])
+    let prereleaseSource = { alpha with Source = "Alpha.Template::1.0.0-preview.1" }
+    assertEqual "exact prerelease package source remains selectable"
+        (Ok [ prereleaseSource ]) (select [ prereleaseSource; beta ] [ prereleaseSource ])
     assertEqual "name route drift refuses" (Error(DifferentProvider "alpha"))
         (select known [ { alpha with NameParameter = Some "otherName" } ])
     assertEqual "identifier route drift refuses" (Error(DifferentProvider "alpha"))
