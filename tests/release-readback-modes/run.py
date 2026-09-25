@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute both release.yml readbacks against mode and ZIP-name aliases."""
+"""Execute both release.yml readbacks against mode and unsafe ZIP members."""
 
 from pathlib import Path
 import json
@@ -37,7 +37,8 @@ def snippet(step: str) -> str:
     return textwrap.dedent(matched.group(1))
 
 
-def make_archive(path: Path, mode: int, *, signed=False, alias=None) -> None:
+def make_archive(path: Path, mode: int, *, signed=False, alias=None,
+                 extra_name=None, extra_mode=None, signature_mode=None) -> None:
     with zipfile.ZipFile(path, "w") as archive, warnings.catch_warnings():
         warnings.simplefilter("ignore", UserWarning)
         info = zipfile.ZipInfo(MEMBER)
@@ -49,13 +50,28 @@ def make_archive(path: Path, mode: int, *, signed=False, alias=None) -> None:
             extra.create_system = 3
             extra.external_attr = (stat.S_IFREG | mode) << 16
             archive.writestr(extra, b"#!/bin/sh\n")
+        if extra_name is not None:
+            extra = zipfile.ZipInfo(extra_name)
+            extra.create_system = 3
+            extra.external_attr = (extra_mode or (stat.S_IFREG | 0o644)) << 16
+            archive.writestr(extra, b"synthetic unsafe member")
         if signed:
             signature = zipfile.ZipInfo(".signature.p7s")
             signature.create_system = 3
-            signature.external_attr = (stat.S_IFREG | 0o644) << 16
+            signature.external_attr = (signature_mode or (stat.S_IFREG | 0o644)) << 16
             archive.writestr(signature, b"synthetic signature")
             if alias == "signature-duplicate":
                 archive.writestr(signature, b"synthetic signature")
+
+    if extra_name == "nul_marker_filename.txt":
+        # zipfile's writer sanitizes NUL names. Patch both raw ZIP headers at
+        # fixed width so the reader sees a real embedded NUL in the name.
+        original = b"nul_marker_filename.txt"
+        changed = b"nul\x00marker_filename.txt"
+        data = path.read_bytes()
+        if len(original) != len(changed) or data.count(original) != 2:
+            raise AssertionError("raw NUL fixture did not find both ZIP names")
+        path.write_bytes(data.replace(original, changed))
 
 
 def run_block(code: str, local: Path, remote: Path, feed: str, folder: Path):
@@ -111,6 +127,41 @@ with tempfile.TemporaryDirectory(prefix="fsc05-release-modes-") as folder_name:
                 failures.append(f"{step}: {alias} wrote a success receipt")
                 (folder / "artifacts" / receipt).unlink()
             print(f"CHECK {step}: {alias}={alias_result.returncode}")
+        unsafe_cases = {
+            "parent": ("../escape.txt", None),
+            "absolute": ("/escape.txt", None),
+            "dot": ("content/./escape.txt", None),
+            "backslash": (r"content\escape.txt", None),
+            "colon": ("C:escape.txt", None),
+            "nul": ("nul_marker_filename.txt", None),
+            "symlink": ("content/link.txt", stat.S_IFLNK | 0o777),
+        }
+        for case, (name, member_mode) in unsafe_cases.items():
+            unsafe_local = folder / f"{feed}-{case}-local.nupkg"
+            unsafe_remote = folder / f"{feed}-{case}-remote.nupkg"
+            make_archive(unsafe_local, 0o644, extra_name=name, extra_mode=member_mode)
+            make_archive(unsafe_remote, 0o644, signed=feed == "nuget.org",
+                         extra_name=name, extra_mode=member_mode)
+            result = run_block(code, unsafe_local, unsafe_remote, feed, folder)
+            if result.returncode == 0 or "unsafe ZIP member" not in result.stderr:
+                failures.append(f"{step}: {case} admitted or wrong refusal: "
+                                f"exit={result.returncode}, stderr={result.stderr!r}")
+            if (folder / "artifacts" / receipt).exists():
+                failures.append(f"{step}: {case} wrote a success receipt")
+                (folder / "artifacts" / receipt).unlink()
+            print(f"CHECK {step}: {case}={result.returncode}")
+        if feed == "nuget.org":
+            signature_link = folder / "nuget-signature-link.nupkg"
+            make_archive(signature_link, 0o644, signed=True,
+                         signature_mode=stat.S_IFLNK | 0o777)
+            result = run_block(code, local, signature_link, feed, folder)
+            if result.returncode == 0 or "unsafe ZIP member" not in result.stderr:
+                failures.append(f"{step}: signature symlink admitted or wrong refusal: "
+                                f"exit={result.returncode}, stderr={result.stderr!r}")
+            if (folder / "artifacts" / receipt).exists():
+                failures.append(f"{step}: signature symlink wrote a success receipt")
+                (folder / "artifacts" / receipt).unlink()
+            print(f"CHECK {step}: signature-symlink={result.returncode}")
         print(f"CHECK {step}: good={accepted.returncode}, mode-drift={rejected.returncode}")
     if failures:
         raise AssertionError("\n".join(failures))

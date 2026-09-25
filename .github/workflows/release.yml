@@ -511,6 +511,7 @@ jobs:
           from hashlib import sha256
           import json
           from pathlib import Path
+          from stat import S_IFMT, S_IFREG
           import sys
           from zipfile import ZipFile
 
@@ -519,6 +520,13 @@ jobs:
                   entries = archive.infolist()
                   seen = {}
                   for entry in entries:
+                      name = entry.filename
+                      mode = entry.external_attr >> 16
+                      if (entry.orig_filename != name or not name or
+                          name.startswith('/') or '\\' in name or ':' in name or
+                          any(part in ('', '.', '..') for part in name.split('/')) or
+                          (S_IFMT(mode) != S_IFREG and not (name == '.signature.p7s' and mode == 0))):
+                          raise SystemExit(f'unsafe ZIP member: {entry.orig_filename!r} mode={mode:o}')
                       alias = entry.filename.casefold()
                       if alias in seen:
                           raise SystemExit(f'duplicate or case-alias ZIP member: {entry.filename} aliases {seen[alias]}')
@@ -569,6 +577,7 @@ jobs:
           from hashlib import sha256
           import json
           from pathlib import Path
+          from stat import S_IFMT, S_IFREG
           import sys
           from zipfile import ZipFile
 
@@ -577,6 +586,13 @@ jobs:
                   entries = archive.infolist()
                   seen = {}
                   for entry in entries:
+                      name = entry.filename
+                      mode = entry.external_attr >> 16
+                      if (entry.orig_filename != name or not name or
+                          name.startswith('/') or '\\' in name or ':' in name or
+                          any(part in ('', '.', '..') for part in name.split('/')) or
+                          (S_IFMT(mode) != S_IFREG and not (name == '.signature.p7s' and mode == 0))):
+                          raise SystemExit(f'unsafe ZIP member: {entry.orig_filename!r} mode={mode:o}')
                       alias = entry.filename.casefold()
                       if alias in seen:
                           raise SystemExit(f'duplicate or case-alias ZIP member: {entry.filename} aliases {seen[alias]}')
