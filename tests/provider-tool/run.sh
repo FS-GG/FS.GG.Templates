@@ -237,6 +237,11 @@ sed -i 's/        default: sdd/        default: none/' "$work/parameters.provide
 expect_fail 'workspace parameter default drift refuses' "provider 'web' differs from source descriptor" \
   workspace-check --providers "$root/providers" --workspace "$work/parameters.providers.yml" --registry "$registry"
 
+cp "$root/providers/web.providers.yml" "$work/parameters.providers.yml"
+sed -i 's/        default: sdd/        default: "sdd "/' "$work/parameters.providers.yml"
+expect_fail 'quoted parameter default with trailing space refuses' "invalid parameter 'lifecycle'" \
+  workspace-check --providers "$root/providers" --workspace "$work/parameters.providers.yml" --registry "$registry"
+
 cp "$root/providers/rendering.providers.yml" "$work/stale.providers.yml"
 sed -i 's/# effective\[1\]:/# effective[99]:/' "$work/stale.providers.yml"
 expect_fail 'stale generated summary fails' 'generated summary is stale' \
