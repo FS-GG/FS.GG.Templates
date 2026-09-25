@@ -387,6 +387,29 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "ZIP central member comment")
     print("PASS central member comment: NO_VERDICT")
 
+    for label, header, field_offset, original, changed_value in (
+            ("central creator version", "central", 4, 20, 45),
+            ("central extraction version", "central", 6, 20, 45),
+            ("central reserved version byte", "central", 7, 0, 1),
+            ("central internal attributes", "central", 36, 0, 1),
+            ("local extraction version", "local", 4, 20, 45)):
+        metadata_path = work / (label.replace(" ", "-") + ".nupkg")
+        package(metadata_path, head=HEAD_A, asset=b"old")
+        metadata = bytearray(metadata_path.read_bytes())
+        end_record = len(metadata) - 22
+        central_offset = int.from_bytes(metadata[end_record + 16:end_record + 20], "little")
+        if (metadata[:4] != b"PK\x03\x04"
+                or metadata[central_offset:central_offset + 4] != b"PK\x01\x02"):
+            raise AssertionError("header metadata fixture did not locate ZIP records")
+        offset = (central_offset if header == "central" else 0) + field_offset
+        if metadata[offset] != original:
+            raise AssertionError(f"{label} fixture did not start from selected ZIP metadata")
+        metadata[offset] = changed_value
+        metadata_path.write_bytes(metadata)
+        refused(lambda: snapshot(metadata_path, sha256(metadata).hexdigest(), HEAD_A),
+                "ZIP header metadata")
+        print(f"PASS {label}: NO_VERDICT")
+
     ancestor_alias_path = work / "external-ancestor-alias.nupkg"
     package(ancestor_alias_path, head=HEAD_A, asset=b"old")
     with ZipFile(ancestor_alias_path, "a") as archive:
