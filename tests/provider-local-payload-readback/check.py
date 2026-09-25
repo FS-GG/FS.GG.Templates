@@ -59,6 +59,8 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
     digest = sha256(raw).hexdigest()
     if digest != expected_sha:
         raise Refusal("local archive SHA differs from pinned identity")
+    if not raw.startswith(b"PK\x03\x04"):
+        raise Refusal("archive start differs from selected contract")
     if len(raw) < 22 or raw[-22:-18] != b"PK\x05\x06" or raw[-2:] != b"\x00\x00":
         raise Refusal("archive end record differs from selected contract")
     try:
