@@ -24,6 +24,7 @@ MAX_EXPANDED_BYTES = 128 * 1024 * 1024
 MAX_MEMBERS = 4096
 MAX_NUSPEC_BYTES = 1024 * 1024
 MAX_MEMBER_SEGMENT_BYTES = 255
+PINNED_UNICODE_VERSION = "16.0.0"
 CONFIG_SUFFIX = "/.template.config/template.json"
 PREFIX = "content/templates/"
 RESERVED_MEMBER_PUNCTUATION = '<>"|?*'
@@ -62,6 +63,8 @@ def reserved_device_part(part: str) -> bool:
 
 
 def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool = False) -> dict:
+    if unicodedata.unidata_version != PINNED_UNICODE_VERSION:
+        raise Refusal("Python Unicode data version differs from selected contract")
     try:
         with path.open("rb") as source:
             raw = source.read(MAX_ARCHIVE_BYTES + 1)
