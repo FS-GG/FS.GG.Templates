@@ -378,6 +378,14 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "archive end record differs from selected contract")
     print("PASS trailing ZIP overlay: NO_VERDICT")
 
+    leading_overlay_path = work / "leading-overlay.nupkg"
+    package(leading_overlay_path, head=HEAD_A, asset=b"old")
+    leading_overlay = b"UNOWNED_PREFIX" + leading_overlay_path.read_bytes()
+    leading_overlay_path.write_bytes(leading_overlay)
+    refused(lambda: snapshot(leading_overlay_path, sha256(leading_overlay).hexdigest(), HEAD_A),
+            "archive start differs from selected contract")
+    print("PASS leading ZIP overlay: NO_VERDICT")
+
     invalid_utf8_path = work / "invalid-utf8-name.nupkg"
     package(invalid_utf8_path, head=HEAD_A, asset=b"old")
     invalid_utf8 = bytearray(invalid_utf8_path.read_bytes())
