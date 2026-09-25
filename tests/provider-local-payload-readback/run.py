@@ -386,6 +386,17 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "archive start differs from selected contract")
     print("PASS leading ZIP overlay: NO_VERDICT")
 
+    local_method_path = work / "local-method-mismatch.nupkg"
+    package(local_method_path, head=HEAD_A, asset=b"old")
+    local_method = bytearray(local_method_path.read_bytes())
+    if local_method[:4] != b"PK\x03\x04" or local_method[8:10] != b"\x00\x00":
+        raise AssertionError("local method fixture did not find a stored first member")
+    local_method[8:10] = (8).to_bytes(2, "little")
+    local_method_path.write_bytes(local_method)
+    refused(lambda: snapshot(local_method_path, sha256(local_method).hexdigest(), HEAD_A),
+            "ZIP local header differs from central directory")
+    print("PASS local ZIP method mismatch: NO_VERDICT")
+
     invalid_utf8_path = work / "invalid-utf8-name.nupkg"
     package(invalid_utf8_path, head=HEAD_A, asset=b"old")
     invalid_utf8 = bytearray(invalid_utf8_path.read_bytes())
