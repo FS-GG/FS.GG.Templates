@@ -20,6 +20,21 @@ let private reservedDeviceStems =
             yield "LPT" + string digit
     }
     |> Set.ofSeq
+// Python's Unicode 16.0 full case-fold mappings with multi-code-point results.
+let private fullFoldExpansionCharacters =
+    let ranges =
+        [ 0x00DF, 0x00DF; 0x0130, 0x0130; 0x0149, 0x0149; 0x01F0, 0x01F0
+          0x0390, 0x0390; 0x03B0, 0x03B0; 0x0587, 0x0587; 0x1E96, 0x1E9A
+          0x1E9E, 0x1E9E; 0x1F50, 0x1F50; 0x1F52, 0x1F52; 0x1F54, 0x1F54
+          0x1F56, 0x1F56; 0x1F80, 0x1FAF; 0x1FB2, 0x1FB4; 0x1FB6, 0x1FB7
+          0x1FBC, 0x1FBC; 0x1FC2, 0x1FC4; 0x1FC6, 0x1FC7; 0x1FCC, 0x1FCC
+          0x1FD2, 0x1FD3; 0x1FD6, 0x1FD7; 0x1FE2, 0x1FE4; 0x1FE6, 0x1FE7
+          0x1FF2, 0x1FF4; 0x1FF6, 0x1FF7; 0x1FFC, 0x1FFC; 0xFB00, 0xFB06
+          0xFB13, 0xFB17 ]
+    HashSet<char>(seq {
+        for (first, last) in ranges do
+            for codepoint in first .. last do yield char codepoint
+    })
 let private regular0644 = 0o100644
 let private maxMemberSegmentBytes = 255
 let private maxInputBytes = 4 * 1024 * 1024
@@ -78,6 +93,8 @@ let private rootOf (name: string) =
     // Full case folding expands both sharp-s forms to "ss"; ordinal case comparison does not.
     if name.Contains('ß') || name.Contains('ẞ') then
         fail $"member {name} has a sharp-s case-fold expansion"
+    if name |> Seq.exists (fun character -> fullFoldExpansionCharacters.Contains character) then
+        fail $"member {name} has a full case-fold expansion"
     if parts.Length < 4 then fail $"member {name} has no template payload path"
     parts.[2]
 
