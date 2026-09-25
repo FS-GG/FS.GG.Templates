@@ -538,6 +538,7 @@ def require_linux_pinned_writer() -> None:
     if (sys.platform != "linux" or not hasattr(os, "O_NOFOLLOW")
             or not hasattr(os, "O_DIRECTORY") or os.open not in os.supports_dir_fd
             or os.rename not in os.supports_dir_fd
+            or os.link not in os.supports_dir_fd
             or os.unlink not in os.supports_dir_fd):
         fail("handle-bound workspace writes require Linux dir_fd and O_NOFOLLOW")
 
@@ -631,7 +632,18 @@ def pinned_write(root: Path, relative: str, source_root: Path, source_relative: 
                 os.fchmod(stream.fileno(), mode)
                 os.fsync(stream.fileno())
             pinned_destination_matches(root, relative, parent_fd, name, expected_before)
-            os.replace(temporary, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
+            if expected_before is None:
+                # linkat creates this name only if it is still absent. A late
+                # authored add must survive the final comparison-to-write gap.
+                try:
+                    os.link(temporary, name, src_dir_fd=parent_fd,
+                            dst_dir_fd=parent_fd, follow_symlinks=False)
+                except FileExistsError:
+                    fail(f"pinned destination appeared before add: {relative}", 3)
+                except OSError as error:
+                    fail(f"atomic pinned add failed: {relative}: {error}", 3)
+            else:
+                os.replace(temporary, name, src_dir_fd=parent_fd, dst_dir_fd=parent_fd)
             os.fsync(parent_fd)
         finally:
             try:
