@@ -239,13 +239,18 @@ let private registryPin (source: string) =
     let mutable found: string option = None
     let mutable selectedContractLine: int option = None
     let mutable inContracts = false
+    let mutable seenContractsRoot = false
     for index in 0 .. lines.Length - 1 do
         let line = lines.[index].TrimEnd('\r')
         if line.Trim() <> "" && not (line.TrimStart().StartsWith("#", StringComparison.Ordinal)) then
             let rootMatch = registryRootLine.Match line
             let contractMatch = contractLine.Match line
             if rootMatch.Success then
-                inContracts <- rootMatch.Groups.[1].Value = "contracts"
+                let isContracts = rootMatch.Groups.[1].Value = "contracts"
+                if isContracts && seenContractsRoot then
+                    fail $"{source}:{index + 1}: duplicate registry contracts root"
+                if isContracts then seenContractsRoot <- true
+                inContracts <- isContracts
                 inContract <- false
                 inFloor <- false
             elif not inContracts then ()
