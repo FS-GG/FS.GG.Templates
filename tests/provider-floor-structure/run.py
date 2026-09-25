@@ -27,6 +27,9 @@ CASES = [
     ("duplicate floor mapping", PROVIDER + FLOOR + FLOOR, False),
     ("duplicate floor version", PROVIDER + FLOOR + f"      version: \"{PIN}\"\n", False),
     ("duplicate provider field", PROVIDER + "    source: Another.Template::1.0.0\n" + FLOOR, False),
+    ("quoted floor with trailing YAML garbage", PROVIDER + FLOOR.replace(f'"{PIN}"', f'"{PIN}" garbage'), False),
+    ("plain floor with trailing YAML tokens", PROVIDER + FLOOR.replace(f'"{PIN}"', f'{PIN} garbage'), False),
+    ("duplicate provider identity", PROVIDER + FLOOR + PROVIDER.split("providers:\n", 1)[1] + FLOOR, False),
 ]
 
 with tempfile.TemporaryDirectory() as folder:
@@ -46,6 +49,29 @@ with tempfile.TemporaryDirectory() as folder:
             print(f"FAIL {label}: exit={result.returncode}, expected {'green' if should_pass else 'red'}")
         else:
             print(f"PASS {label}")
+    (temporary / "providers/web.providers.yml").write_text(PROVIDER + FLOOR)
+    (temporary / "providers/duplicate.providers.yml").write_text(PROVIDER + FLOOR)
+    result = subprocess.run(
+        ["python3", str(SCRIPT), "--providers", str(temporary / "providers"),
+         "--registry", str(registry)], capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode == 0:
+        failures.append("duplicate provider identity across descriptors")
+        print("FAIL duplicate provider identity across descriptors: exit=0, expected red")
+    else:
+        print("PASS duplicate provider identity across descriptors")
+    for descriptor in (temporary / "providers").glob("*.providers.yml"):
+        descriptor.unlink()
+    result = subprocess.run(
+        ["python3", str(SCRIPT), "--providers", str(temporary / "providers"),
+         "--registry", str(registry)], capture_output=True, text=True, timeout=30,
+    )
+    if result.returncode == 0:
+        failures.append("empty readable descriptor corpus")
+        print("FAIL empty readable descriptor corpus: exit=0, expected red")
+    else:
+        print("PASS empty readable descriptor corpus")
+total = len(CASES) + 2
 if failures:
-    raise SystemExit(f"provider-floor-structure: {len(CASES) - len(failures)} passed, {len(failures)} false greens")
-print(f"provider-floor-structure: {len(CASES)} passed")
+    raise SystemExit(f"provider-floor-structure: {total - len(failures)} passed, {len(failures)} false greens")
+print(f"provider-floor-structure: {total} passed")

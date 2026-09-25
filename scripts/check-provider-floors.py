@@ -125,11 +125,16 @@ def scalar(raw: str, where: str) -> str:
         closing = raw.find(quote, 1)
         if closing < 0:
             raise FloorError(f"{where}: unterminated quoted version")
+        tail = raw[closing + 1 :].strip()
+        if tail and not tail.startswith("#"):
+            raise FloorError(f"{where}: unsupported text after quoted version")
         return raw[1:closing]
     token = raw.split("#", 1)[0].strip()
     if not token:
         raise FloorError(f"{where}: expected a scalar version")
-    return token.split()[0]
+    if len(token.split()) != 1:
+        raise FloorError(f"{where}: unsupported text after version")
+    return token
 
 
 def is_skippable(line: str) -> bool:
@@ -386,10 +391,14 @@ def grade(providers_dir: Path, registry_source: str, out: list[str]) -> tuple[in
     out.append(f"descriptors:  {len(descriptors)} matched {display(providers_dir)}/{DESCRIPTOR_GLOB}")
 
     failures = 0
+    seen_providers: set[str] = set()
     for descriptor in descriptors:
         shown = display(descriptor)
         for name, floor, line in parse_descriptor(descriptor):
             where = f"{shown}:{line}"
+            if name in seen_providers:
+                raise FloorError(f"{where}: duplicate provider identity '{name}'")
+            seen_providers.add(name)
             if floor is None:
                 failures += 1
                 message = (
