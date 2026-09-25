@@ -180,6 +180,8 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                     continue  # The pinned local signed readback has this signature metadata.
                 if entry.create_system != 3 or S_IFMT(mode) != S_IFREG:
                     raise Refusal("archive member is not a Unix regular file")
+                if not entry.filename.startswith(PREFIX) and mode != (S_IFREG | 0o644):
+                    raise Refusal("non-template member Unix mode differs from selected contract")
             next_offset = 0
             for start, end in sorted(local_ranges):
                 if start != next_offset:

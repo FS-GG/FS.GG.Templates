@@ -13,6 +13,8 @@ every ZIP member, including ASCII controls and reserved punctuation outside
 refuses reserved device stems in any path segment, non-regular members, and
 case-aliased file/child collisions outside the template payload. The pinned
 signed file's signature metadata is handled explicitly.
+Non-template regular members require Unix mode `0644`; the pinned signature
+member retains its explicit metadata exception.
 Every path segment has the same 255 UTF-8-byte observation bound as the typed
 template comparator; this does not establish the receiver filesystem limit.
 Deflated members must consume exactly their declared compressed bytes through
