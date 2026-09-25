@@ -98,13 +98,12 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
             expanded = 0
             for entry in entries:
                 name = entry.filename
-                if not name.startswith(PREFIX):
-                    continue
+                is_template = name.startswith(PREFIX)
                 mode = entry.external_attr >> 16
-                if entry.create_system != 3 or mode != (S_IFREG | 0o644):
+                if is_template and (entry.create_system != 3 or mode != (S_IFREG | 0o644)):
                     raise Refusal("template member Unix mode differs from selected contract")
                 if entry.file_size > MAX_MEMBER_BYTES:
-                    raise Refusal("template member exceeds observation bound")
+                    raise Refusal("archive member exceeds observation bound")
                 body_hash = sha256()
                 size = 0
                 with package.open(entry) as stream:
@@ -112,11 +111,13 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                         size += len(chunk)
                         expanded += len(chunk)
                         if size > MAX_MEMBER_BYTES or expanded > MAX_EXPANDED_BYTES:
-                            raise Refusal("template expansion exceeds observation bound")
-                        body_hash.update(chunk)
+                            raise Refusal("archive expansion exceeds observation bound")
+                        if is_template:
+                            body_hash.update(chunk)
                 if size != entry.file_size:
-                    raise Refusal("template member size differs from directory")
-                templates[name] = (body_hash.hexdigest(), mode)
+                    raise Refusal("archive member size differs from directory")
+                if is_template:
+                    templates[name] = (body_hash.hexdigest(), mode)
             if not templates:
                 raise Refusal("archive has no template payload")
             return {"sha256": digest, "sourceHead": expected_head, "templates": templates,
