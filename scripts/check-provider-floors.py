@@ -100,6 +100,7 @@ DESCRIPTOR_GLOB = "*.providers.yml"
 # are dropped before any of this matches, so a prose mention can never be read as a declaration.
 PROVIDER = re.compile(r"^  - name:\s*(\S+)\s*(?:#.*)?$")
 ROOT_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9]*):")
+SCHEMA_VERSION = re.compile(r"^schemaVersion:\s*1\s*(?:#.*)?$")
 FLOOR_BLOCK = re.compile(r"^    minimumFsggSdd:\s*(?:#.*)?$")
 VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+].*)?$")
@@ -195,6 +196,8 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
             root_key = root_match.group(1)
             if root_key in roots:
                 raise FloorError(f"{path}:{number}: repeats {root_key} root key")
+            if root_key == "schemaVersion" and not SCHEMA_VERSION.fullmatch(line):
+                raise FloorError(f"{path}:{number}: unsupported schemaVersion root")
             roots.add(root_key)
             continue
 
@@ -981,6 +984,30 @@ def self_test(graded_ok: bool | None = None) -> int:
             _edit("web.providers.yml", lambda t: t.rstrip("\n") + "\nproviders: []\n"),
             True,
             "repeats providers root key",
+        ),
+        (
+            "selected-schema-with-comment-is-green",
+            _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1", "schemaVersion: 1 # selected", 1)),
+            False,
+            f"floor {SYNTHETIC_PIN} == registry pin {SYNTHETIC_PIN}",
+        ),
+        (
+            "unsupported-schema-version-reds",
+            _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1", "schemaVersion: 2", 1)),
+            True,
+            "unsupported schemaVersion root",
+        ),
+        (
+            "quoted-schema-version-reds",
+            _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1", 'schemaVersion: "1"', 1)),
+            True,
+            "unsupported schemaVersion root",
+        ),
+        (
+            "trailing-schema-tokens-reds",
+            _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1", "schemaVersion: 1 garbage", 1)),
+            True,
+            "unsupported schemaVersion root",
         ),
         # THE ROOT-CAUSE CASE. The reader this replaces took the FIRST floor block in a file and
         # asserted it for the whole file. A second provider with no floor of its own must red.
