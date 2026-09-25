@@ -148,6 +148,17 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
         raise AssertionError("255-byte path segment was refused")
     print("PASS 255-byte path segment: narrow match")
 
+    ligature_asset = dict(member_asset, name=ASSET.replace("build.sh", "\ufb01le.sh"))
+    ascii_alias_asset = dict(member_asset, name=ASSET.replace("build.sh", "file.sh"))
+    if ligature_asset["name"].casefold() != ascii_alias_asset["name"].casefold():
+        raise AssertionError("fixture does not reproduce Python's casefold alias")
+    compatibility_alias = {"left": [member_config, ligature_asset, ascii_alias_asset],
+                           "right": [member_config, ligature_asset, ascii_alias_asset]}
+    compatibility_result = typed(json.dumps(compatibility_alias, ensure_ascii=False))
+    if compatibility_result["status"] != "NO_VERDICT" or "noncanonical compatibility path" not in compatibility_result["reason"]:
+        raise AssertionError(f"compatibility alias yielded a typed payload match: {compatibility_result}")
+    print("PASS compatibility-form casefold alias: NO_VERDICT")
+
     newline_digest_asset = dict(member_asset, sha256=member_asset["sha256"] + "\n")
     newline_digest = {"left": [member_config, newline_digest_asset],
                       "right": [member_config, newline_digest_asset]}

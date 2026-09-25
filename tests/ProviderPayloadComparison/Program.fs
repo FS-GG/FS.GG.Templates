@@ -73,6 +73,8 @@ let private rootOf (name: string) =
         fail $"member {name} path segment exceeds byte bound"
     if parts |> Array.exists isReservedDevicePart then
         fail $"member {name} has a reserved device name"
+    if not (name.IsNormalized(NormalizationForm.FormKC)) then
+        fail $"member {name} has a noncanonical compatibility path"
     if parts.Length < 4 then fail $"member {name} has no template payload path"
     parts.[2]
 
