@@ -122,6 +122,8 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
             for entry in entries:
                 if entry.volume != 0:
                     raise Refusal("ZIP multi-disk metadata differs from selected contract")
+                if entry.comment:
+                    raise Refusal("ZIP central member comment differs from selected contract")
                 offset = entry.header_offset
                 local_header = raw[offset:offset + 30] if offset >= 0 else b""
                 if (len(local_header) != 30 or local_header[:4] != b"PK\x03\x04"

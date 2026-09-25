@@ -23,7 +23,7 @@ ASSET = "content/templates/fs-gg-fable-game/build.sh"
 
 def package(path: Path, *, head: str, asset: bytes, extra: bool = False,
             signed: bool = False, duplicate: bool = False, executable: bool = False,
-            oversized_nuspec: bool = False) -> str:
+            oversized_nuspec: bool = False, member_comment: bool = False) -> str:
     nuspec = ("<package><metadata><id>FS.GG.Workspace.Template</id><version>0.14.0</version>"
               f'<repository commit="{head}" /></metadata></package>').encode()
     if oversized_nuspec:
@@ -43,6 +43,8 @@ def package(path: Path, *, head: str, asset: bytes, extra: bool = False,
             info = ZipInfo(name)
             info.create_system = 3
             info.external_attr = (stat.S_IFREG | permissions) << 16
+            if member_comment and name == ASSET:
+                info.comment = b"unreviewed central member comment"
             archive.writestr(info, body)
     return sha256(path.read_bytes()).hexdigest()
 
@@ -374,6 +376,16 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
     refused(lambda: snapshot(unicode_extra_path, unicode_extra_sha, HEAD_A),
             "ZIP extra fields differ from selected contract")
     print("PASS Unicode-path ZIP extra field: NO_VERDICT")
+
+    commented_path = work / "central-member-comment.nupkg"
+    commented_sha = package(commented_path, head=HEAD_A, asset=b"old", member_comment=True)
+    with ZipFile(commented_path) as archive:
+        if (archive.getinfo(ASSET).comment != b"unreviewed central member comment"
+                or archive.getinfo(ASSET).extra):
+            raise AssertionError("central-comment fixture did not isolate the member comment field")
+    refused(lambda: snapshot(commented_path, commented_sha, HEAD_A),
+            "ZIP central member comment")
+    print("PASS central member comment: NO_VERDICT")
 
     ancestor_alias_path = work / "external-ancestor-alias.nupkg"
     package(ancestor_alias_path, head=HEAD_A, asset=b"old")
