@@ -307,7 +307,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.route.outputs.source-ref }}
-      - name: Preflight feed readback member modes
+      - name: Preflight feed readback members
         run: python3 tests/release-readback-modes/run.py
       - uses: actions/setup-dotnet@v6
         with:
@@ -516,9 +516,16 @@ jobs:
 
           def payload(path):
               with ZipFile(path) as archive:
-                  return {name: (sha256(archive.read(name)).hexdigest(),
-                                 archive.getinfo(name).external_attr >> 16)
-                          for name in archive.namelist() if name != '.signature.p7s'}
+                  entries = archive.infolist()
+                  seen = {}
+                  for entry in entries:
+                      alias = entry.filename.casefold()
+                      if alias in seen:
+                          raise SystemExit(f'duplicate or case-alias ZIP member: {entry.filename} aliases {seen[alias]}')
+                      seen[alias] = entry.filename
+                  return {entry.filename: (sha256(archive.read(entry)).hexdigest(),
+                                           entry.external_attr >> 16)
+                          for entry in entries if entry.filename != '.signature.p7s'}
 
           local, remote, feed = map(Path, sys.argv[1:])
           expected, observed = payload(local), payload(remote)
@@ -567,9 +574,16 @@ jobs:
 
           def payload(path):
               with ZipFile(path) as archive:
-                  return {name: (sha256(archive.read(name)).hexdigest(),
-                                 archive.getinfo(name).external_attr >> 16)
-                          for name in archive.namelist() if name != '.signature.p7s'}
+                  entries = archive.infolist()
+                  seen = {}
+                  for entry in entries:
+                      alias = entry.filename.casefold()
+                      if alias in seen:
+                          raise SystemExit(f'duplicate or case-alias ZIP member: {entry.filename} aliases {seen[alias]}')
+                      seen[alias] = entry.filename
+                  return {entry.filename: (sha256(archive.read(entry)).hexdigest(),
+                                           entry.external_attr >> 16)
+                          for entry in entries if entry.filename != '.signature.p7s'}
 
           local, remote, feed = map(Path, sys.argv[1:])
           expected, observed = payload(local), payload(remote)
