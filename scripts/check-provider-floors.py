@@ -105,6 +105,7 @@ FLOOR_BLOCK = re.compile(r"^    minimumFsggSdd:\s*(?:#.*)?$")
 PARAMETERS_BLOCK = re.compile(r"^    parameters:\s*(.*?)\s*$")
 PARAMETER_KEY = re.compile(r"^      - key:\s*(.*?)\s*$")
 PARAMETER_REQUIRED = re.compile(r"^        required:\s*(.*?)\s*$")
+PARAMETER_DEFAULT = re.compile(r"^        default:\s*(.*?)\s*$")
 VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+].*)?$")
 
@@ -289,6 +290,14 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                             f"{path}:{number}: parameter '{current_parameter_key}' needs required: true|false"
                         )
                     current_parameter_required = True
+                    continue
+                if indentation == 8:
+                    if current_parameter_key is None:
+                        raise FloorError(f"{path}:{number}: malformed parameter field before key")
+                    default = PARAMETER_DEFAULT.match(line)
+                    if not default:
+                        raise FloorError(f"{path}:{number}: malformed parameter field")
+                    scalar(default.group(1), f"{path}:{number}")
                     continue
 
         if FLOOR_BLOCK.match(line):
