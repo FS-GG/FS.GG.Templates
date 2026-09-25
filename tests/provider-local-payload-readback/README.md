@@ -13,7 +13,8 @@ alone is never a payload match. F# also requires NFC member path spelling, so
 decomposed Unicode cannot yield a payload match on a filesystem that may alias
 it to a composed name. This is a member-name policy, not a proof that every
 filesystem path alias is excluded. F# also refuses components ending in a
-period or ASCII space, ASCII codes 0–31, and reserved path punctuation,
+period or ASCII space, ASCII codes 0–31, reserved path punctuation, and Windows
+device names (including names followed by an extension),
 following [Windows file naming guidance](https://learn.microsoft.com/en-us/windows/win32/fileio/naming-a-file).
 The signed file's signature is recognized by member presence; this script
 does not verify its cryptographic signature.
