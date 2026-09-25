@@ -2,6 +2,7 @@
 """Offline template payload comparison of pinned local 0.14.0 archives only."""
 
 import argparse
+from datetime import datetime
 from hashlib import sha256
 from io import BytesIO
 import json
@@ -136,6 +137,10 @@ def snapshot(path: Path, expected_sha: str, expected_head: str, *, signed: bool 
                 if local_header[4:6] != b"\x14\x00":
                     raise Refusal("ZIP header metadata differs from selected contract")
                 year, month, day, hour, minute, second = entry.date_time
+                try:
+                    datetime(year, month, day, hour, minute, second)
+                except ValueError as error:
+                    raise Refusal("ZIP timestamp is invalid") from error
                 central_time = (hour << 11) | (minute << 5) | (second // 2)
                 central_date = ((year - 1980) << 9) | (month << 5) | day
                 if (int.from_bytes(local_header[10:12], "little") != central_time

@@ -670,6 +670,36 @@ with tempfile.TemporaryDirectory(prefix="fsc05-provider-local-payload-") as fold
             "ZIP local fixed fields differ from central directory")
     print("PASS local ZIP CRC mismatch: NO_VERDICT")
 
+    for label, field_offset, value, invalid in (
+            ("zero DOS month", 12, 0x0001, True),
+            ("zero DOS day", 12, 0x0020, True),
+            ("impossible February 30", 12, (2 << 5) | 30, True),
+            ("valid leap February 29", 12, (2 << 5) | 29, False),
+            ("DOS hour 31", 10, 31 << 11, True),
+            ("DOS minute 63", 10, 63 << 5, True),
+            ("DOS second 62", 10, 31, True)):
+        stamp_path = work / (label.replace(" ", "-") + ".nupkg")
+        package(stamp_path, head=HEAD_A, asset=b"old")
+        stamp = bytearray(stamp_path.read_bytes())
+        end_record = len(stamp) - 22
+        central_offset = int.from_bytes(stamp[end_record + 16:end_record + 20], "little")
+        central_field = central_offset + field_offset + 2
+        if (stamp[:4] != b"PK\x03\x04"
+                or stamp[central_offset:central_offset + 4] != b"PK\x01\x02"
+                or stamp[field_offset:field_offset + 2] != stamp[central_field:central_field + 2]):
+            raise AssertionError("DOS timestamp fixture did not start from matching ZIP fields")
+        stamp[field_offset:field_offset + 2] = value.to_bytes(2, "little")
+        stamp[central_field:central_field + 2] = value.to_bytes(2, "little")
+        stamp_path.write_bytes(stamp)
+        digest = sha256(stamp).hexdigest()
+        if invalid:
+            refused(lambda: snapshot(stamp_path, digest, HEAD_A), "ZIP timestamp is invalid")
+            print(f"PASS {label}: NO_VERDICT")
+        else:
+            if not snapshot(stamp_path, digest, HEAD_A)["templates"]:
+                raise AssertionError("valid leap-day ZIP archive lost its template payload")
+            print(f"PASS {label}: ordinary archive timestamp")
+
     for label, field_offset in (("local DOS time", 10), ("local DOS date", 12)):
         local_stamp_path = work / (label.replace(" ", "-") + ".nupkg")
         package(local_stamp_path, head=HEAD_A, asset=b"old")
