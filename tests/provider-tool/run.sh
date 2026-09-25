@@ -289,6 +289,27 @@ PY
 expect_fail 'double-quoted YAML Unicode escape cannot change effective output bytes' 'unsupported double-quoted escape' \
   grade --providers "$work/escaped-providers" --registry "$registry"
 
+mkdir "$work/null-providers"
+cp "$root/providers/"*.providers.yml "$work/null-providers/"
+sed -i 's/        default: sdd/        default: null/' "$work/null-providers/web.providers.yml"
+expect_fail 'unquoted null default refuses absent YAML value' 'implicit YAML null scalar' \
+  grade --providers "$work/null-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/null-providers/web.providers.yml"
+sed -i 's/        default: sdd/        default: ~/' "$work/null-providers/web.providers.yml"
+expect_fail 'unquoted tilde default refuses absent YAML value' 'implicit YAML null scalar' \
+  grade --providers "$work/null-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/null-providers/web.providers.yml"
+sed -i 's/        default: sdd/        default: NULL/' "$work/null-providers/web.providers.yml"
+expect_fail 'uppercase unquoted null default refuses absent YAML value' 'implicit YAML null scalar' \
+  grade --providers "$work/null-providers" --registry "$registry"
+
+cp "$root/providers/web.providers.yml" "$work/null-providers/web.providers.yml"
+sed -i 's/        default: sdd/        default: "null"/' "$work/null-providers/web.providers.yml"
+expect_pass 'quoted literal null remains a valid string default' \
+  grade --providers "$work/null-providers" --registry "$registry"
+
 cp "$root/providers/rendering.providers.yml" "$work/stale.providers.yml"
 sed -i 's/# effective\[1\]:/# effective[99]:/' "$work/stale.providers.yml"
 expect_fail 'stale generated summary fails' 'generated summary is stale' \
