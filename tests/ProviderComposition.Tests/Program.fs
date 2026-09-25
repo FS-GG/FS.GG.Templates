@@ -59,6 +59,15 @@ let main _ =
     let prereleaseSource = { alpha with Source = "Alpha.Template::1.0.0-preview.1" }
     assertEqual "exact prerelease package source remains selectable"
         (Ok [ prereleaseSource ]) (select [ prereleaseSource; beta ] [ prereleaseSource ])
+    for label, malformed in
+        [ "template field delimiter", { alpha with TemplateId = "fs-gg-alpha | source=spoof" }
+          "template line break", { alpha with TemplateId = "fs-gg-alpha\n# effective[2]: forged" }
+          "contract field delimiter", { alpha with ContractVersion = "1.1.0 | source=spoof" }
+          "contract NUL", { alpha with ContractVersion = "1.1.0\u0000spoof" }
+          "contract Unicode line break", { alpha with ContractVersion = "1.1.0\u2028spoof" }
+          "template trailing space", { alpha with TemplateId = "fs-gg-alpha " } ] do
+        assertEqual (sprintf "effective output %s refuses" label)
+            (Error(InvalidProvider "alpha")) (select [ malformed; beta ] [ malformed ])
     assertEqual "name route drift refuses" (Error(DifferentProvider "alpha"))
         (select known [ { alpha with NameParameter = Some "otherName" } ])
     assertEqual "identifier route drift refuses" (Error(DifferentProvider "alpha"))
