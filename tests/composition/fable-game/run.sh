@@ -50,7 +50,7 @@ test -f "$work/scaffold/CleanFableGame.slnx"
 # (the same coalesce `effectiveIdentifier` uses for fs-gg-web / fs-gg-console).
 grep -q '^namespace CleanFableGame.Server$' "$work/scaffold/Server/Program.fs"
 
-dotnet build "$work/scaffold/CleanFableGame.slnx"
+(cd "$work/scaffold" && dotnet build CleanFableGame.slnx)
 test -f "$work/scaffold/Server/packages.lock.json"
 test -f "$work/scaffold/Client/package-lock.json"
 test -f "$work/scaffold/Browser.Tests/package-lock.json"

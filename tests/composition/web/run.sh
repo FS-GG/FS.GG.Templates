@@ -28,7 +28,7 @@ test -f "$work/scaffold/Server/CleanWeb.Server.fsproj"
 test -f "$work/scaffold/Web/package.json"
 test -f "$work/scaffold/Web.Tests/message.test.ts"
 test -f "$work/scaffold/Browser.Tests/home.spec.ts"
-dotnet build "$work/scaffold/CleanWeb.slnx"
+(cd "$work/scaffold" && dotnet build CleanWeb.slnx)
 test -f "$work/scaffold/Web/package-lock.json"
 test -f "$work/scaffold/Browser.Tests/package-lock.json"
 (
