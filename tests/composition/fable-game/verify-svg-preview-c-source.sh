@@ -8,6 +8,8 @@ dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/feed" -p:Continuo
 mapfile -t templates < <(find "$out/feed" -maxdepth 1 -type f -name 'FS.GG.Workspace.Template.*.nupkg' -print)
 [[ "${#templates[@]}" == 1 ]] || { echo "expected exactly one packed Templates candidate, found ${#templates[@]}" >&2; exit 1; }
 template="${templates[0]}"
+bash "$root/tests/composition/fable-game/verify-svg-workspace-bundles.sh" "$template" source \
+  >"$out/bundle-matrix.log"
 template_version="$(python3 - "$template" <<'PYVERSION'
 from pathlib import Path
 from zipfile import ZipFile

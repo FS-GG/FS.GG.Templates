@@ -4,6 +4,30 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/fs-gg-svg-bundles.XXXXXX")"
 home="$work/home"
 package="${1:-$work/feed/FS.GG.Workspace.Template.0.14.0.nupkg}"
+expectations="${2:-}"
+if [[ $# -gt 2 ]]; then
+  echo "usage: $0 [package [source|published]]" >&2
+  exit 2
+fi
+if [[ -z "$expectations" ]]; then
+  if [[ $# -eq 0 ]]; then expectations=source; else expectations=published; fi
+fi
+case "$expectations" in
+  source)
+    expected_fsharp_core=10.1.401
+    expected_caddy='docker.io/library/caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b'
+    expected_dockerfile_syntax='# syntax=docker/dockerfile:1.27'
+    ;;
+  published)
+    expected_fsharp_core=10.1.400
+    expected_caddy='docker.io/library/caddy:2.10.2-alpine@sha256:4c6e91c6ed0e2fa03efd5b44747b625fec79bc9cd06ac5235a779726618e530d'
+    expected_dockerfile_syntax='# syntax=docker/dockerfile:1.7'
+    ;;
+  *)
+    echo "bundle composition: expectations must be source or published" >&2
+    exit 2
+    ;;
+esac
 mkdir -p "$work/feed" "$home"
 
 if [[ $# -eq 0 ]]; then
@@ -142,7 +166,8 @@ fi
   echo "bundle composition: mixed response-file contradiction wrote into $destination" >&2; exit 1;
 }
 
-jq -e '.dependencies["net10.0"]["FSharp.Core"].resolved == "10.1.400"' \
+jq -e --arg expected "$expected_fsharp_core" \
+  '.dependencies["net10.0"]["FSharp.Core"].resolved == $expected' \
   "$work/Player/SvgFoundation/packages.lock.json" \
   "$work/Studio/SvgFoundation/Studio/packages.lock.json" >/dev/null
 grep -F 'artifacts/static-player' "$work/Player/build.sh" >/dev/null
@@ -172,7 +197,8 @@ do
 done
 grep -F 'reverse_proxy {$GAME_UPSTREAM:authority:8080}' "$work/Player/deploy/Caddyfile" >/dev/null
 ! grep -F 'health_uri' "$work/Player/deploy/Caddyfile" >/dev/null
-grep -F 'docker.io/library/caddy:2.10.2-alpine@sha256:' "$work/Player/deploy/compose.yaml" >/dev/null
+grep -F "$expected_caddy" "$work/Player/deploy/compose.yaml" >/dev/null
+grep -F "$expected_dockerfile_syntax" "$work/Player/deploy/authority.Dockerfile" >/dev/null
 grep -F 'dotnet/aspnet:10.0@sha256:' "$work/Player/deploy/authority.Dockerfile" >/dev/null
 grep -F 'USER $APP_UID' "$work/Player/deploy/authority.Dockerfile" >/dev/null
 grep -F 'context: .' "$work/Player/deploy/compose.yaml" >/dev/null
@@ -216,4 +242,4 @@ if grep -A3 -- '- key: bundle' "$root/providers/fable-game.providers.yml" | grep
   echo "bundle composition: provider must preserve bundle omission for legacy callers" >&2; exit 1
 fi
 
-echo "svg-workspace-bundles: default=player matrix=passed legacy=true/false contradiction=no-write lifecycle=preserved"
+echo "svg-workspace-bundles: expectations=$expectations default=player matrix=passed legacy=true/false contradiction=no-write lifecycle=preserved"
