@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import pathlib
+import re
 import sys
 import xml.etree.ElementTree as ET
 import zipfile
@@ -23,6 +24,17 @@ ARCHIVES = {
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise SystemExit(f"bridge-receivers: {message}")
+
+
+def check_current_pins(tool_version: object, kit_version: object) -> None:
+    """Current receiver pins may advance, but must retain the adopted bridge floor."""
+    require(isinstance(tool_version, str) and isinstance(kit_version, str),
+            "current CLI and Kit pins must be strings")
+    require(tool_version == kit_version, "current CLI and Kit pins are not coherent")
+    require(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", tool_version) is not None,
+            "current CLI and Kit pins must be stable three-part versions")
+    require(tuple(map(int, tool_version.split("."))) >= tuple(map(int, VERSION.split("."))),
+            f"current CLI and Kit pins are below adopted bridge {VERSION}")
 
 
 def sha256(path: pathlib.Path) -> str:
@@ -50,12 +62,14 @@ def main() -> None:
 
     manifest = json.loads((ROOT / ".config/dotnet-tools.json").read_text())
     tool = manifest["tools"].get("fs.gg.coord.cli", {})
-    require(tool.get("version") == VERSION, "repository CLI pin is not exact 0.90.0")
     require(tool.get("commands") == ["fsgg-coord-engine"], "repository CLI command changed")
 
-    receiver = (ROOT / ".config/kit/FS.GG.Kit.receiver.proj").read_text()
-    require(f'PackageReference Include="FS.GG.Kit" Version="{VERSION}"' in receiver,
-            "Kit receiver pin is not exact 0.90.0")
+    receiver = ET.parse(ROOT / ".config/kit/FS.GG.Kit.receiver.proj").getroot()
+    kit_refs = [node for node in receiver.iter()
+                if node.tag.rsplit("}", 1)[-1] == "PackageReference"
+                and node.attrib.get("Include") == "FS.GG.Kit"]
+    require(len(kit_refs) == 1, "receiver must have exactly one Kit reference")
+    check_current_pins(tool.get("version", ""), kit_refs[0].attrib.get("Version", ""))
     for name in ("kit-materialize", "lockfile-sync"):
         workflow = (ROOT / f".github/workflows/{name}.yml").read_text()
         require(WORKFLOW.format(name=name) in workflow, f"{name} does not pin the immutable bridge source")
@@ -84,7 +98,7 @@ def main() -> None:
     for caller in (".github/workflows/kit-materialize.yml", ".github/workflows/lockfile-sync.yml"):
         require(callables.get(caller) == "gs2-08.9-sealing",
                 f"{caller} must remain in GS2-08.9 sealing until it has common admission")
-    print("bridge-receivers: pins, workflow refs, public packages, and dependency boundary PASS")
+    print("bridge-receivers: coherent current pins, sealed bridge artifacts, workflow refs, and dependency boundary PASS")
 
 
 if __name__ == "__main__":
