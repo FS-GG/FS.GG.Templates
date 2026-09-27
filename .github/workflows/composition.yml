@@ -152,10 +152,20 @@ jobs:
       - uses: actions/setup-dotnet@v6
         if: steps.scope.outputs.run == 'true'
         with:
-          # Generated workspaces lock the SDK-carried FSharp.Core 10.1.400 identity.
-          # Installing a floating feature band moved this gate to 10.0.401 while every
-          # generated global.json still selects 10.0.400, making all locked restores fail.
+          # Generated workspaces lock the SDK-carried FSharp.Core 10.1.401 identity.
           dotnet-version: '10.0.401'
+      - uses: actions/setup-node@v6
+        if: steps.scope.outputs.run == 'true'
+        with:
+          node-version: '26.10.0'
+      - name: Install exact npm toolchain
+        if: steps.scope.outputs.run == 'true'
+        run: npm install --global npm@12.1.0
+      - name: Assert exact Node and npm toolchain
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          test "$(node --version)" = 'v26.10.0'
+          test "$(npm --version)" = '12.1.0'
       # ── EVERY provider floor, graded against the live org registry (FS.GG.Templates#383) ──────
       #
       # This step used to live INSIDE the CLI install below, and it read exactly one descriptor:
