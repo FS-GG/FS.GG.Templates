@@ -99,11 +99,26 @@ DESCRIPTOR_GLOB = "*.providers.yml"
 # these files (the hand-authored PIN HISTORY block alone names this key repeatedly). Comment lines
 # are dropped before any of this matches, so a prose mention can never be read as a declaration.
 PROVIDER = re.compile(r"^  - name:\s*(\S+)\s*(?:#.*)?$")
+ROOT_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9]*):")
+SCHEMA_VERSION = re.compile(r"^schemaVersion:\s*1\s*(?:#.*)?$")
+PROVIDERS_ROOT = re.compile(r"^providers:\s*(?:#.*)?$")
 FLOOR_BLOCK = re.compile(r"^    minimumFsggSdd:\s*(?:#.*)?$")
+PARAMETERS_BLOCK = re.compile(r"^    parameters:\s*(.*?)\s*$")
+PARAMETER_KEY = re.compile(r"^      - key:\s*(.*?)\s*$")
+PARAMETER_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9]*$")
+PARAMETER_REQUIRED = re.compile(r"^        required:\s*(.*?)\s*$")
+PARAMETER_DEFAULT = re.compile(r"^        default:\s*(.*?)\s*$")
+PROVIDER_FIELD = re.compile(r"^    ([A-Za-z][A-Za-z0-9-]*):\s*(.*?)\s*$")
+PROVIDER_FIELDS = {
+    "contractVersion", "templateId", "source", "nameParameter", "identifierParameter",
+    "minimumFsggSdd", "parameters",
+}
 VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
+FLOOR_FIELD = re.compile(r"^      ([A-Za-z][A-Za-z0-9-]*):\s*(.*?)\s*$")
 SEMVER = re.compile(r"^\d+\.\d+\.\d+(?:[-+].*)?$")
 
 REGISTRY_CONTRACT_ID = re.compile(r"^  - id:\s*(\S+)\s*(?:#.*)?$")
+REGISTRY_ROOT = re.compile(r"^([A-Za-z][A-Za-z0-9-]*):(?:\s.*)?$")
 REGISTRY_FLOOR_BLOCK = re.compile(rf"^    {re.escape(REGISTRY_KEY)}:\s*(?:#.*)?$")
 REGISTRY_VERSION = re.compile(r"^      version:\s*(.*?)\s*$")
 
@@ -114,18 +129,25 @@ class FloorError(ValueError):
 
 def scalar(raw: str, where: str) -> str:
     """Read the simple scalar spellings these descriptors use, dropping any trailing comment."""
-    if not raw:
+    value = raw.strip()
+    if not value:
         raise FloorError(f"{where}: version has no value")
-    if raw[0] in "\"'":
-        quote = raw[0]
-        closing = raw.find(quote, 1)
+    if value[0] in "\"'":
+        quote = value[0]
+        closing = value.find(quote, 1)
         if closing < 0:
             raise FloorError(f"{where}: unterminated quoted version")
-        return raw[1:closing]
-    token = raw.split("#", 1)[0].strip()
+        tail = value[closing + 1:].strip()
+        if tail and not tail.startswith("#"):
+            raise FloorError(f"{where}: unsupported text after quoted version")
+        return value[1:closing]
+    token = value.split("#", 1)[0].strip()
     if not token:
         raise FloorError(f"{where}: expected a scalar version")
-    return token.split()[0]
+    parts = token.split()
+    if len(parts) != 1:
+        raise FloorError(f"{where}: unsupported text after scalar version")
+    return parts[0]
 
 
 def is_skippable(line: str) -> bool:
@@ -180,39 +202,196 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
     current_line = 0
     floor: str | None = None
     in_block = False
+    seen_floor_block = False
+    seen_parameters_block = False
+    in_parameters = False
+    parameter_keys: set[str] = set()
+    current_parameter_key: str | None = None
+    current_parameter_line = 0
+    current_parameter_required = False
+    current_parameter_default = False
+    roots: set[str] = set()
+    provider_fields: set[str] = set()
+
+    def finish_parameter() -> None:
+        if current_parameter_key is not None and not current_parameter_required:
+            raise FloorError(
+                f"{path}:{current_parameter_line}: parameter '{current_parameter_key}' "
+                "needs required: true|false"
+            )
 
     for number, line in enumerate(read_descriptor(path).splitlines(), 1):
         if is_skippable(line):
             continue
 
+        indentation = len(line) - len(line.lstrip(" "))
+        if "\t" in line[: len(line) - len(line.lstrip())]:
+            raise FloorError(f"{path}:{number}: tabs in YAML indentation are unsupported")
+
+        if not line[0].isspace():
+            root_match = ROOT_KEY.match(line)
+            if not root_match or root_match.group(1) not in {"schemaVersion", "providers"}:
+                raise FloorError(f"{path}:{number}: unsupported descriptor root key")
+            root_key = root_match.group(1)
+            if root_key in roots:
+                raise FloorError(f"{path}:{number}: repeats {root_key} root key")
+            if root_key == "schemaVersion" and not SCHEMA_VERSION.fullmatch(line):
+                raise FloorError(f"{path}:{number}: unsupported schemaVersion root")
+            if root_key == "providers" and "schemaVersion" not in roots:
+                raise FloorError(f"{path}:{number}: providers appear before schemaVersion: 1")
+            if root_key == "providers" and not (
+                PROVIDERS_ROOT.fullmatch(line) or line.strip() == "providers: []"
+            ):
+                raise FloorError(f"{path}:{number}: providers must be a block sequence")
+            roots.add(root_key)
+            continue
+
+        if "providers" not in roots:
+            raise FloorError(f"{path}:{number}: descriptor content before providers list")
+
         match = PROVIDER.match(line)
-        if match:
+        if indentation == 2 and match:
             if current is not None:
+                finish_parameter()
                 providers.append((current, floor, current_line))
             current, current_line, floor, in_block = match.group(1), number, None, False
+            seen_floor_block = False
+            seen_parameters_block = False
+            in_parameters = False
+            parameter_keys.clear()
+            current_parameter_key = None
+            current_parameter_required = False
+            current_parameter_default = False
+            provider_fields.clear()
             continue
+
+        if indentation == 2:
+            raise FloorError(f"{path}:{number}: unsupported provider list entry")
 
         if current is None:
+            raise FloorError(f"{path}:{number}: provider field before first provider")
+
+        provider_field = PROVIDER_FIELD.match(line) if indentation == 4 else None
+        if provider_field:
+            key = provider_field.group(1)
+            if key in provider_fields and key not in {"minimumFsggSdd", "parameters"}:
+                raise FloorError(f"{path}:{number}: provider '{current}' repeats {key}")
+            provider_fields.add(key)
+
+        parameter_block = PARAMETERS_BLOCK.match(line)
+        if parameter_block:
+            if seen_parameters_block:
+                raise FloorError(f"{path}:{number}: provider '{current}' repeated parameters")
+            seen_parameters_block = True
+            inline = parameter_block.group(1).strip()
+            if inline and not inline.startswith("#"):
+                raise FloorError(f"{path}:{number}: provider '{current}' parameters must be a block sequence")
+            in_block = False
+            in_parameters = True
+            current_parameter_key = None
+            current_parameter_required = False
+            current_parameter_default = False
             continue
 
+        if in_parameters:
+            indentation = len(line) - len(line.lstrip(" "))
+            if indentation <= 4:
+                finish_parameter()
+                in_parameters = False
+                current_parameter_key = None
+                current_parameter_required = False
+                current_parameter_default = False
+            else:
+                parameter = PARAMETER_KEY.match(line)
+                if parameter:
+                    finish_parameter()
+                    key = scalar(parameter.group(1), f"{path}:{number}")
+                    if not PARAMETER_NAME.fullmatch(key):
+                        raise FloorError(
+                            f"{path}:{number}: provider '{current}' has an invalid parameter '{key}'"
+                        )
+                    if key in parameter_keys:
+                        raise FloorError(f"{path}:{number}: provider '{current}' duplicate parameter key '{key}'")
+                    parameter_keys.add(key)
+                    current_parameter_key = key
+                    current_parameter_line = number
+                    current_parameter_required = False
+                    current_parameter_default = False
+                    continue
+                required = PARAMETER_REQUIRED.match(line)
+                if required:
+                    if current_parameter_key is None:
+                        raise FloorError(f"{path}:{number}: malformed parameter field before key")
+                    if current_parameter_required:
+                        raise FloorError(f"{path}:{number}: repeated parameter field 'required'")
+                    value = scalar(required.group(1), f"{path}:{number}")
+                    if value not in {"true", "false"}:
+                        raise FloorError(
+                            f"{path}:{number}: parameter '{current_parameter_key}' needs required: true|false"
+                        )
+                    current_parameter_required = True
+                    continue
+                if indentation == 8:
+                    if current_parameter_key is None:
+                        raise FloorError(f"{path}:{number}: malformed parameter field before key")
+                    default = PARAMETER_DEFAULT.match(line)
+                    if not default:
+                        raise FloorError(f"{path}:{number}: malformed parameter field")
+                    if current_parameter_default:
+                        raise FloorError(f"{path}:{number}: repeated parameter field 'default'")
+                    scalar(default.group(1), f"{path}:{number}")
+                    current_parameter_default = True
+                    continue
+                if indentation == 6:
+                    raise FloorError(f"{path}:{number}: malformed parameter entry")
+                raise FloorError(f"{path}:{number}: unsupported parameter indentation")
+
+        if indentation == 4 and not provider_field:
+            raise FloorError(f"{path}:{number}: malformed provider field")
+        if provider_field and provider_field.group(1) not in PROVIDER_FIELDS:
+            raise FloorError(
+                f"{path}:{number}: unsupported provider field '{provider_field.group(1)}'"
+            )
+
         if FLOOR_BLOCK.match(line):
+            if seen_floor_block:
+                raise FloorError(f"{path}:{number}: provider '{current}' repeats minimumFsggSdd block")
+            seen_floor_block = True
             in_block = True
             continue
 
         if in_block:
-            match = VERSION.match(line)
-            if match and floor is None:
-                floor = scalar(match.group(1), f"{path}:{number}")
-                continue
-            # Any line at or left of the block's own indent closes it. `minimumFsggSdd:` sits at four
-            # spaces, so a sibling key ends the block and a nested key (six spaces) does not.
-            if len(line) - len(line.lstrip(" ")) <= 4:
+            if indentation <= 4:
                 in_block = False
+            else:
+                if indentation != 6 or not FLOOR_FIELD.match(line):
+                    raise FloorError(f"{path}:{number}: malformed minimumFsggSdd field")
+                match = VERSION.match(line)
+                if match:
+                    if floor is not None:
+                        raise FloorError(f"{path}:{number}: provider '{current}' repeats minimumFsggSdd.version")
+                    floor = scalar(match.group(1), f"{path}:{number}")
+                continue
+
+        if indentation == 4 and provider_field:
+            continue
+        raise FloorError(f"{path}:{number}: unsupported provider indentation")
 
     if current is not None:
+        finish_parameter()
         providers.append((current, floor, current_line))
+    if "schemaVersion" not in roots:
+        raise FloorError(f"{path}: missing schemaVersion: 1 root")
     if not providers:
         raise FloorError(f"{path}: declares no providers")
+    first_lines: dict[str, int] = {}
+    for name, _, line in providers:
+        if name in first_lines:
+            raise FloorError(
+                f"{path}:{line}: provider names must be unique; duplicate '{name}' "
+                f"was first declared at line {first_lines[name]}"
+            )
+        first_lines[name] = line
     return providers
 
 
@@ -220,13 +399,31 @@ def read_registry_pin(text: str, source: str) -> str:
     """Read contracts[id=fs-gg-ui-template].minimum-fsgg-sdd.version out of the org registry."""
     contract: str | None = None
     in_block = False
+    found: str | None = None
+    selected_contract_line: int | None = None
+    in_contracts = False
 
     for number, line in enumerate(text.splitlines(), 1):
         if is_skippable(line):
             continue
+        root = REGISTRY_ROOT.match(line)
+        if root:
+            in_contracts = root.group(1) == "contracts"
+            contract, in_block = None, False
+            continue
+        if not in_contracts:
+            continue
         match = REGISTRY_CONTRACT_ID.match(line)
         if match:
-            contract, in_block = match.group(1), False
+            contract = match.group(1)
+            if contract == REGISTRY_CONTRACT:
+                if selected_contract_line is not None:
+                    raise FloorError(
+                        f"{source}:{number}: duplicate selected registry contract id '{contract}' "
+                        f"(first at line {selected_contract_line})"
+                    )
+                selected_contract_line = number
+            in_block = False
             continue
         if contract != REGISTRY_CONTRACT:
             continue
@@ -236,15 +433,20 @@ def read_registry_pin(text: str, source: str) -> str:
         if in_block:
             match = REGISTRY_VERSION.match(line)
             if match:
-                return scalar(match.group(1), f"{source}:{number}")
+                if found is not None:
+                    raise FloorError(f"{source}: repeated registry minimum-fsgg-sdd.version")
+                found = scalar(match.group(1), f"{source}:{number}")
+                continue
             if len(line) - len(line.lstrip(" ")) <= 4:
                 in_block = False
 
-    raise FloorError(
-        f"{source}: could not read contracts[id={REGISTRY_CONTRACT}].{REGISTRY_KEY}.version. "
-        "The org-wide floor is the authority this repository's descriptors mirror, so an unreadable "
-        "registry FAILS here rather than silently dropping the assertion (FS.GG.Templates#383)."
-    )
+    if found is None:
+        raise FloorError(
+            f"{source}: could not read contracts[id={REGISTRY_CONTRACT}].{REGISTRY_KEY}.version. "
+            "The org-wide floor is the authority this repository's descriptors mirror, so an unreadable "
+            "registry FAILS here rather than silently dropping the assertion (FS.GG.Templates#383)."
+        )
+    return found
 
 
 def load_registry(source: str) -> tuple[str, str]:
@@ -337,9 +539,17 @@ def grade(providers_dir: Path, registry_source: str, out: list[str]) -> tuple[in
     out.append(f"descriptors:  {len(descriptors)} matched {display(providers_dir)}/{DESCRIPTOR_GLOB}")
 
     failures = 0
+    first_providers: dict[str, tuple[str, int]] = {}
     for descriptor in descriptors:
         shown = display(descriptor)
         for name, floor, line in parse_descriptor(descriptor):
+            if name in first_providers:
+                first_file, first_line = first_providers[name]
+                raise FloorError(
+                    f"{shown}:{line}: provider names must be unique across descriptors; "
+                    f"duplicate '{name}' was first declared at {first_file}:{first_line}"
+                )
+            first_providers[name] = shown, line
             where = f"{shown}:{line}"
             if floor is None:
                 failures += 1
@@ -507,6 +717,13 @@ def _delete_floor_block(text: str) -> str:
             dropping = False
         kept.append(line)
     return "".join(kept)
+
+
+def _duplicate_console_provider(text: str) -> str:
+    entry = "  - name: console"
+    if text.count(entry) != 1:
+        raise FloorError("console fixture has no unique provider entry to duplicate")
+    return text.rstrip("\n") + "\n" + entry + text.split(entry, 1)[1]
 
 
 def _normalize_floors(path: Path, pin: str, shown: str | None = None) -> None:
@@ -892,6 +1109,90 @@ def self_test(graded_ok: bool | None = None) -> int:
             _edit("fable-bindings.providers.yml", _set_floor("latest")),
             True,
             "fable-bindings: floor 'latest' is not a version",
+        ),
+        (
+            "duplicate-floor-version-reds",
+            _edit("web.providers.yml", lambda t: t.replace(
+                f'      version: "{SYNTHETIC_PIN}"\n',
+                f'      version: "{SYNTHETIC_PIN}"\n      version: "{SYNTHETIC_BELOW}"\n', 1)),
+            True,
+            "repeats minimumFsggSdd.version",
+        ),
+        (
+            "duplicate-floor-block-reds",
+            _edit("web.providers.yml", lambda t: t.replace(
+                f'    minimumFsggSdd:\n      version: "{SYNTHETIC_PIN}"\n',
+                f'    minimumFsggSdd:\n      version: "{SYNTHETIC_PIN}"\n'
+                f'    minimumFsggSdd:\n      version: "{SYNTHETIC_PIN}"\n', 1)),
+            True,
+            "repeats minimumFsggSdd block",
+        ),
+        (
+            "duplicate-provider-in-one-file-reds",
+            _edit("console.providers.yml", _duplicate_console_provider),
+            True,
+            "provider names must be unique",
+        ),
+        (
+            "duplicate-provider-across-files-reds",
+            lambda providers: shutil.copy2(providers / "web.providers.yml", providers / "copy.providers.yml"),
+            True,
+            "provider names must be unique across descriptors",
+        ),
+        (
+            "foreign-descriptor-root-reds",
+            _edit("web.providers.yml", lambda t: t.rstrip("\n") + "\nforeignRoot: yes\n"),
+            True,
+            "unsupported descriptor root key",
+        ),
+        (
+            "duplicate-schema-root-reds",
+            _edit("web.providers.yml", lambda t: t.rstrip("\n") + "\nschemaVersion: 1\n"),
+            True,
+            "repeats schemaVersion root key",
+        ),
+        (
+            "duplicate-providers-root-reds",
+            _edit("web.providers.yml", lambda t: t.rstrip("\n") + "\nproviders: []\n"),
+            True,
+            "repeats providers root key",
+        ),
+        (
+            "selected-schema-with-comment-is-green",
+            _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1", "schemaVersion: 1 # selected", 1)),
+            False,
+            f"floor {SYNTHETIC_PIN} == registry pin {SYNTHETIC_PIN}",
+        ),
+        (
+            "unsupported-schema-version-reds",
+            _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1", "schemaVersion: 2", 1)),
+            True,
+            "unsupported schemaVersion root",
+        ),
+        (
+            "quoted-schema-version-reds",
+            _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1", 'schemaVersion: "1"', 1)),
+            True,
+            "unsupported schemaVersion root",
+        ),
+        (
+            "trailing-schema-tokens-reds",
+            _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1", "schemaVersion: 1 garbage", 1)),
+            True,
+            "unsupported schemaVersion root",
+        ),
+        (
+            "missing-schema-reds",
+            _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1\n", "", 1)),
+            True,
+            "providers appear before schemaVersion: 1",
+        ),
+        (
+            "late-schema-reds",
+            _edit("web.providers.yml", lambda t: t.replace("schemaVersion: 1\n", "", 1).rstrip("\n")
+                  + "\nschemaVersion: 1\n"),
+            True,
+            "providers appear before schemaVersion: 1",
         ),
         # THE ROOT-CAUSE CASE. The reader this replaces took the FIRST floor block in a file and
         # asserted it for the whole file. A second provider with no floor of its own must red.
