@@ -5,6 +5,8 @@ ensure_typed_sdd_cache() {
   local report_root="$1"
   local quint_sha=939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f
   local lmt_sha=37e0b0365c2641edce40b48605471f61fa12e97c3e2376152f0e849abdc31f10
+  local lmt_source_sha=88bc47acae2c26919ab96a5cafa80b12fac762092c57840a2baad1afcc7feda3
+  local go_archive_sha=cb2396bae64183cdccf81a9a6df0aea3bce9511fc21469fb89a0c00470088073
   local cache="${FSGG_TYPED_SDD_CACHE:-$DOTNET_CLI_HOME/typed-sdd-cache}"
   local tools="${FSGG_TYPED_SDD_TOOLS:-$DOTNET_CLI_HOME/typed-sdd-tools}"
   local quint="${FSGG_TYPED_SDD_QUINT_BIN:-${QUINT_BIN:-}}"
@@ -31,23 +33,66 @@ ensure_typed_sdd_cache() {
 
   if [[ -z "$lmt" ]]; then
     command -v curl >/dev/null || {
-      echo "lifecycle matrix: curl is required to acquire the qualified lmt source" >&2
+      echo "lifecycle matrix: curl is required to acquire the qualified lmt build inputs" >&2
       return 1
     }
-    command -v go >/dev/null || {
-      echo "lifecycle matrix: go is required to build the qualified lmt object" >&2
+    command -v tar >/dev/null || {
+      echo "lifecycle matrix: tar is required to extract the qualified Go toolchain" >&2
       return 1
     }
+
+    local build_inputs="$cache/build-inputs"
+    local go_archive="$build_inputs/$go_archive_sha"
+    local go_root go
+    mkdir -p "$build_inputs"
+
+    if [[ -f "$go_archive" ]]; then
+      if ! printf '%s  %s\n' "$go_archive_sha" "$go_archive" | sha256sum --check --strict --status; then
+        echo "lifecycle matrix: selected cache contains a conflicting Go 1.24.1 archive object" >&2
+        return 1
+      fi
+    else
+      local downloaded_go
+      downloaded_go="$(mktemp "$build_inputs/.go1.24.1.linux-amd64.XXXXXX")"
+      curl --fail --location --retry 3 --retry-all-errors --silent --show-error \
+        https://go.dev/dl/go1.24.1.linux-amd64.tar.gz --output "$downloaded_go"
+      if ! printf '%s  %s\n' "$go_archive_sha" "$downloaded_go" | sha256sum --check --strict --status; then
+        echo "lifecycle matrix: downloaded Go 1.24.1 archive failed checksum verification" >&2
+        rm -f "$downloaded_go"
+        return 1
+      fi
+      mv "$downloaded_go" "$go_archive"
+    fi
+    if ! printf '%s  %s\n' "$go_archive_sha" "$go_archive" | sha256sum --check --strict --status; then
+      echo "lifecycle matrix: cached Go 1.24.1 archive failed checksum verification" >&2
+      return 1
+    fi
+
+    # Extract anew from the verified content-addressed archive. Reusing an extracted tree
+    # would trust mutable cached files that are not covered by the archive checksum.
+    go_root="$(mktemp -d "$tools/go1.24.1-linux-amd64.XXXXXX")"
+    tar -xzf "$go_archive" -C "$go_root"
+    go="$go_root/go/bin/go"
+    if [[ "$(GOTOOLCHAIN=local "$go" version)" != 'go version go1.24.1 linux/amd64' ]]; then
+      echo "lifecycle matrix: selected cache Go toolchain is not exact go1.24.1 linux/amd64" >&2
+      return 1
+    fi
+
     curl --fail --location --retry 3 \
       https://raw.githubusercontent.com/driusan/lmt/62fe18f2f6a6e11c158ff2b2209e1082a4fcd59c/main.go \
       --output "$tools/lmt-main.go"
-    (
-      cd "$tools"
-      GO111MODULE=off CGO_ENABLED=1 go build -trimpath \
-        -ldflags '-buildid=IvXAt1kJ-3iINki1alCT/Ut12KGabgkWIkwVpw-xO/c4zkZMLAubfWHvjZOY8o/8-oR_8tNNndNgfMVoD8F -B 0x03d1703027f57ed4dd2ba90b7cdfc8cdea2815da' \
-        -o lmt lmt-main.go
-    )
+    if ! printf '%s  %s\n' "$lmt_source_sha" "$tools/lmt-main.go" | sha256sum --check --strict --status; then
+      echo "lifecycle matrix: downloaded lmt source failed checksum verification" >&2
+      return 1
+    fi
+    GOTOOLCHAIN=local GO111MODULE=off CGO_ENABLED=1 "$go" build -trimpath \
+      -ldflags '-buildid=IvXAt1kJ-3iINki1alCT/Ut12KGabgkWIkwVpw-xO/c4zkZMLAubfWHvjZOY8o/8-oR_8tNNndNgfMVoD8F -B 0x03d1703027f57ed4dd2ba90b7cdfc8cdea2815da' \
+      -o "$tools/lmt" "$tools/lmt-main.go"
     lmt="$tools/lmt"
+    if ! printf '%s  %s\n' "$lmt_sha" "$lmt" | sha256sum --check --strict --status; then
+      echo "lifecycle matrix: exact Go 1.24.1 lmt build produced unqualified bytes" >&2
+      return 1
+    fi
   fi
 
   if ! fsgg-sdd typed-sdd provision --cache "$cache" --quint "$quint" --lmt "$lmt" \
