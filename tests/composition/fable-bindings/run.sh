@@ -66,6 +66,10 @@ command -v fsgg-sdd >/dev/null
 command -v fsgg-governance >/dev/null
 dotnet new fs-gg-governance -o "$WORK/product" --appName AcmeBindings --defaultProfile strict --force >/dev/null
 (cd "$WORK/product" && node scripts/lifecycle-evidence.mjs --expect clean --junit reports/bindings.junit.xml --handoff readiness/002-bindings-upstream-review/governance-handoff.json)
+# SDD 2.x accepts a passing local report only when it belongs to the exact Git candidate it
+# supports. Record the generated clean observation and its narrow upstream handoff before the
+# lifecycle imports it; later drift rewrites stay review-visible as changes to these tracked paths.
+(cd "$WORK/product" && git add reports/bindings.junit.xml readiness/002-bindings-upstream-review/governance-handoff.json && git commit -qm 'test: record clean binding evidence')
 (cd "$WORK/product" && npm run test:lifecycle >/dev/null)
 # The governance overlay is applied with --force over the SAME directory, so this re-assertion is
 # not a repeat: it proves the overlay does not clobber, truncate, or shadow the producer's skill

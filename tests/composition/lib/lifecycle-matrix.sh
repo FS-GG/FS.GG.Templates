@@ -1,6 +1,67 @@
 # shellcheck shell=bash
 # Installed-package lifecycle matrix shared by every provider lane (#432).
 
+ensure_typed_sdd_cache() {
+  local report_root="$1"
+  local quint_sha=939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f
+  local lmt_sha=37e0b0365c2641edce40b48605471f61fa12e97c3e2376152f0e849abdc31f10
+  local cache="${FSGG_TYPED_SDD_CACHE:-$DOTNET_CLI_HOME/typed-sdd-cache}"
+  local tools="${FSGG_TYPED_SDD_TOOLS:-$DOTNET_CLI_HOME/typed-sdd-tools}"
+  local quint="${FSGG_TYPED_SDD_QUINT_BIN:-${QUINT_BIN:-}}"
+  local lmt="${FSGG_TYPED_SDD_LMT_BIN:-${LMT_BIN:-}}"
+
+  mkdir -p "$cache" "$tools"
+  if [[ -z "$quint" && -f "$cache/objects/$quint_sha" ]]; then
+    quint="$cache/objects/$quint_sha"
+  fi
+  if [[ -z "$lmt" && -f "$cache/objects/$lmt_sha" ]]; then
+    lmt="$cache/objects/$lmt_sha"
+  fi
+
+  if [[ -z "$quint" ]]; then
+    command -v curl >/dev/null || {
+      echo "lifecycle matrix: curl is required to acquire the qualified Quint object" >&2
+      return 1
+    }
+    quint="$tools/quint-linux-amd64"
+    curl --fail --location --retry 3 \
+      https://github.com/quint-co/quint/releases/download/v0.32.0/quint-linux-amd64 \
+      --output "$quint"
+  fi
+
+  if [[ -z "$lmt" ]]; then
+    command -v curl >/dev/null || {
+      echo "lifecycle matrix: curl is required to acquire the qualified lmt source" >&2
+      return 1
+    }
+    command -v go >/dev/null || {
+      echo "lifecycle matrix: go is required to build the qualified lmt object" >&2
+      return 1
+    }
+    curl --fail --location --retry 3 \
+      https://raw.githubusercontent.com/driusan/lmt/62fe18f2f6a6e11c158ff2b2209e1082a4fcd59c/main.go \
+      --output "$tools/lmt-main.go"
+    (
+      cd "$tools"
+      GO111MODULE=off CGO_ENABLED=1 go build -trimpath \
+        -ldflags '-buildid=IvXAt1kJ-3iINki1alCT/Ut12KGabgkWIkwVpw-xO/c4zkZMLAubfWHvjZOY8o/8-oR_8tNNndNgfMVoD8F -B 0x03d1703027f57ed4dd2ba90b7cdfc8cdea2815da' \
+        -o lmt lmt-main.go
+    )
+    lmt="$tools/lmt"
+  fi
+
+  if ! fsgg-sdd typed-sdd provision --cache "$cache" --quint "$quint" --lmt "$lmt" \
+    >"$report_root/typed-sdd-provision.json"; then
+    echo "lifecycle matrix: exact typed SDD cache provisioning failed" >&2
+    jq -r '.diagnostics[]? | "  \(.id): \(.message)"' "$report_root/typed-sdd-provision.json" >&2 || true
+    return 1
+  fi
+  jq -e --arg cache "$(cd "$cache" && pwd)" \
+    '.outcome == "succeeded" and .profile == "fsgg-quint-profile/2" and .cacheRoot == $cache and (.objects | length) == 2' \
+    "$report_root/typed-sdd-provision.json" >/dev/null
+  TYPED_SDD_CACHE="$cache"
+}
+
 lifecycle_tree_manifest() {
   local root="$1" relative digest
 
@@ -106,9 +167,22 @@ assert_generated_lifecycle_completion() {
   mkdir -p "$root/work" "$root/readiness"
   cp -a "$fixture/work/$work_id" "$root/work/"
   cp -a "$fixture/readiness/$work_id" "$root/readiness/"
+  # SDD 2.x requires a passing local report to belong to the exact Git candidate it supports.
+  # The generated matrix workspace is disposable and starts without a repository, so record the
+  # transplanted terminal fixture before replaying it. Later lifecycle writes remain visible as
+  # candidate changes; this commit only establishes honest provenance for the copied report bytes.
+  git -C "$root" init -q
+  git -C "$root" add "work/$work_id" "readiness/$work_id"
+  git -C "$root" -c user.name=composition -c user.email=composition@example.invalid \
+    commit -qm 'test: seed lifecycle completion fixture'
   if [[ "$lane" == typed-sdd ]]; then
+    # The terminal fixture is a manifest-v1 F# authority. Keep its migration on that explicit
+    # backend; the clean matrix-spec authoring above exercises the installed Quint default with
+    # the caller-selected cache. Letting a CLI default change reinterpret this historical fixture
+    # as a v2 Quint migration would test a different semantic payload.
     fsgg-sdd typed-sdd migrate --root "$root" --work "$work_id" \
-      --source "work/$work_id/spec.md" --accept >"$report_root/$lane.completion-migrate.json"
+      --source "work/$work_id/spec.md" --backend fsharp-specification-v1 \
+      --accept >"$report_root/$lane.completion-migrate.json"
     jq -e '.outcome == "succeeded" and .classification == "Migrated"' "$report_root/$lane.completion-migrate.json" >/dev/null
     fsgg-sdd plan --root "$root" --work "$work_id" --accept-upstream --json >"$report_root/$lane.completion-plan.json"
     jq -e '.outcome == "succeeded" or .outcome == "succeededWithWarnings"' "$report_root/$lane.completion-plan.json" >/dev/null
@@ -140,6 +214,7 @@ assert_provider_lifecycle_matrix() {
   local explicit_sdd_parameters=""
 
   mkdir -p "$matrix_root"
+  ensure_typed_sdd_cache "$matrix_root"
   for lane in none sdd typed-sdd spec-kit omitted; do
     root="$matrix_root/$lane"
     mkdir -p "$root/.fsgg"
@@ -203,7 +278,8 @@ assert_provider_lifecycle_matrix() {
     elif [[ "$lane" == typed-sdd ]]; then
       local provenance_before
       provenance_before="$(jq -cS '.effectiveParameters' "$root/.fsgg/scaffold-provenance.json")"
-      if ! fsgg-sdd typed-sdd author --root "$root" --work matrix-spec --title "${provider} typed matrix" --agent composition --session "$provider" >"$matrix_root/$lane.author.json"; then
+      if ! fsgg-sdd typed-sdd author --root "$root" --work matrix-spec --title "${provider} typed matrix" \
+        --agent composition --session "$provider" --backend fsharp-specification-v1 >"$matrix_root/$lane.author.json"; then
         echo "lifecycle matrix: $provider typed authoring failed" >&2
         return 1
       fi
@@ -221,6 +297,20 @@ assert_provider_lifecycle_matrix() {
       [[ "$(jq -cS '.effectiveParameters' "$root/.fsgg/scaffold-provenance.json")" == "$provenance_before" ]]
       fsgg-sdd typed-sdd inspect --root "$root" --work matrix-spec >"$matrix_root/$lane.post-upgrade-inspect.json"
       jq -e '.outcome == "succeeded"' "$matrix_root/$lane.post-upgrade-inspect.json" >/dev/null
+      # Installed SDD 2.x defaults new typed authority to Quint and requires an explicit cache.
+      # Exercise that boundary separately from the historical manifest-v1 completion fixture so
+      # its backend does not change merely because the installed CLI's default did.
+      if ! fsgg-sdd typed-sdd author --root "$root" --work matrix-quint-cache \
+        --title "${provider} Quint cache matrix" --agent composition --session "$provider-quint" \
+        --cache "$TYPED_SDD_CACHE" >"$matrix_root/$lane.quint-author.json"; then
+        echo "lifecycle matrix: $provider cached Quint authoring failed" >&2
+        return 1
+      fi
+      fsgg-sdd typed-sdd inspect --root "$root" --work matrix-quint-cache >"$matrix_root/$lane.quint-inspect.json"
+      jq -e '.outcome == "succeeded" and .classification == "quint-specification-v1"' \
+        "$matrix_root/$lane.quint-inspect.json" >/dev/null
+      jq -e '.schemaVersion == 2 and .backend == "quint-specification-v1" and .profileIdentity == "fsgg-quint-profile/1"' \
+        "$root/readiness/matrix-quint-cache/typed-authority.json" >/dev/null
     fi
 
   done
