@@ -553,9 +553,35 @@ test("Studio carries one blank-authored arena through play, reload, export, and 
 
 test("Studio starter remains an independent playable regression", async ({ page }) => {
   test.skip(!hasStudio, "selected composition has no Studio");
+  await page.addInitScript(() => {
+    const open = indexedDB.open.bind(indexedDB);
+    indexedDB.open = ((name: string, version?: number) => {
+      const request = version === undefined ? open(name) : open(name, version);
+      if (name !== "FableGameWorkspaceNamespace-svg-studio") return request;
+      const delayed = new Proxy(request, {
+        get(target, property) { return Reflect.get(target, property, target); },
+        set(target, property, value) {
+          if (property === "onsuccess") {
+            target.onsuccess = event => {
+              (window as any).releaseStudioDatabase = () => value.call(delayed, event);
+            };
+            return true;
+          }
+          return Reflect.set(target, property, value, target);
+        }
+      });
+      return delayed;
+    }) as typeof indexedDB.open;
+  });
   await page.goto("http://127.0.0.1:5200/");
   const studio = page.locator("#svg-authoring-studio");
-  await page.getByRole("button", { name: "Open starter game" }).click();
+  const starter = page.getByRole("button", { name: "Open starter game" });
+  await expect.poll(() => page.evaluate(() => typeof (window as any).releaseStudioDatabase)).toBe("function");
+  await expect(starter).toBeDisabled();
+  await page.evaluate(() => (window as any).releaseStudioDatabase());
+  await expect(page.locator("#generated-scene-status")).toContainText("No persisted scene");
+  await expect(starter).toBeEnabled();
+  await starter.click();
   await expect(page.locator("#generated-scene-status")).toContainText("Starter playable game opened");
   expect((await page.evaluate(() => (window as any).svgGeneratedStudio.snapshot())).selectionCount).toBe(1);
   await page.getByRole("button", { name: "Play edited arena step" }).click();
@@ -567,6 +593,37 @@ test("Studio starter remains an independent playable regression", async ({ page 
   expect(retained.selectionCount).toBe(1);
   expect(retained.camera).toBe("4,3");
 });
+
+for (const failure of ["open", "load"] as const) {
+  test(`Studio remains playable when startup persistence ${failure} fails`, async ({ page }) => {
+    test.skip(!hasStudio, "selected composition has no Studio");
+    await page.addInitScript(kind => {
+      if (kind === "open") {
+        const open = indexedDB.open.bind(indexedDB);
+        indexedDB.open = ((name: string, version?: number) => {
+          if (name === "FableGameWorkspaceNamespace-svg-studio") {
+            throw new DOMException("injected open failure", "SecurityError");
+          }
+          return version === undefined ? open(name) : open(name, version);
+        }) as typeof indexedDB.open;
+      } else {
+        const get = IDBObjectStore.prototype.get;
+        IDBObjectStore.prototype.get = function (key) {
+          if (key === "project:continuous-arena") {
+            throw new DOMException("injected read failure", "UnknownError");
+          }
+          return get.call(this, key);
+        };
+      }
+    }, failure);
+    await page.goto("http://127.0.0.1:5200/");
+    await expect(page.locator("#generated-scene-status")).toContainText("Persistence refused: DatabaseError");
+    const starter = page.getByRole("button", { name: "Open starter game" });
+    await expect(starter).toBeEnabled();
+    await starter.click();
+    await expect(page.locator("#generated-scene-status")).toContainText("Starter playable game opened");
+  });
+}
 
 test("selected tactical and arcade examples load and execute their engine paths", async ({ page }, testInfo: TestInfo) => {
   test.skip(!hasTacticalExample && !hasArcadeExample, "selected composition has no examples");

@@ -983,7 +983,17 @@ let private invalidImportPayload kind =
     | other -> invalidArg (nameof kind) $"unknown import failure fixture: {other}"
 
 let mutable private persistenceOperation = 0UL
-let mutable private handlePersistence: BrowserPersistenceEvent -> unit = ignore
+let private earlyPersistenceEvents = ResizeArray<BrowserPersistenceEvent>()
+let mutable private handlePersistence: BrowserPersistenceEvent -> unit = earlyPersistenceEvents.Add
+let mutable private startupLoadComplete = false
+let private startupActions = ResizeArray<HTMLElement>()
+
+let private finishStartupLoad () =
+    if not startupLoadComplete then
+        startupLoadComplete <- true
+
+        for button in startupActions do
+            button.removeAttribute "disabled"
 
 let private persistence =
     new BrowserPersistenceHost(
@@ -1093,6 +1103,7 @@ handlePersistence <-
     | BrowserPersistenceEvent.Ready -> persistence.Load storageKey
     | BrowserPersistenceEvent.Persisted _ -> announce "Scene persisted in browser storage"
     | BrowserPersistenceEvent.Loaded(_, Some stored) ->
+        finishStartupLoad ()
         match SvgScene.deserialize stored.Payload with
         | Ok envelope when stored.SchemaVersion = 1 && stored.PayloadHash = hash envelope.Document ->
             let operations =
@@ -1125,11 +1136,20 @@ handlePersistence <-
             | Error issue -> announce ("Persisted scene loaded; gameplay unavailable: " + issue)
         | Ok _ -> announce "Validation error: persisted scene identity mismatch"
         | Error issues -> announce (sprintf "Validation error: persisted scene refused: %A" issues)
-    | BrowserPersistenceEvent.Loaded(_, None) -> announce "No persisted scene"
-    | BrowserPersistenceEvent.Failed(_, failure) -> announce ($"Persistence refused: {failure}")
+    | BrowserPersistenceEvent.Loaded(_, None) ->
+        announce "No persisted scene"
+        finishStartupLoad ()
+    | BrowserPersistenceEvent.Failed(_, failure) ->
+        announce ($"Persistence refused: {failure}")
+        finishStartupLoad ()
     | _ -> ()
 
-do persistence.Load storageKey
+do
+    let early = earlyPersistenceEvents.ToArray()
+    earlyPersistenceEvents.Clear()
+
+    for event in early do
+        handlePersistence event
 
 let private verifyFont () =
     match SvgResourceInterchange.notoSansLatin400 (notoBase64.Trim()) with
@@ -1286,6 +1306,9 @@ let private addControl name action =
     button.setAttribute ("type", "button")
     button.setAttribute ("aria-label", name)
     button.textContent <- name
+    if not startupLoadComplete then
+        button.setAttribute ("disabled", "")
+        startupActions.Add button
     button.addEventListener ("click", fun _ -> action ())
     document.getElementById("generated-scene-actions").appendChild(button) |> ignore
 
