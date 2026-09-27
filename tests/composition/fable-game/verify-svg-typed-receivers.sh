@@ -14,7 +14,7 @@ older_template_version=0.10.0
 template_public_sha=41fa91ba1674a4c1140c4054d4e76cff00cd514462dcdb3d9b3e3cdfa22ba4d9
 older_template_public_sha=69cbed30447e6bd4d221e0ce78060c8245d2744fc3993b4c27368aeeb48d11c8
 quint_sha=939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f
-lmt_sha=37e0b0365c2641edce40b48605471f61fa12e97c3e2376152f0e849abdc31f10
+lmt_sha=287d7cd061edbb09f85b6025580c80156a24ea4bec5f5d68659673b7da6d5219
 : "${QUINT_BIN:?set QUINT_BIN to qualified Quint 0.32.0}"
 : "${LMT_BIN:?set LMT_BIN to qualified lmt}"
 
