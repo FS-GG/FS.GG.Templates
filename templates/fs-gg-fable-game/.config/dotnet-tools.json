@@ -3,11 +3,11 @@
   "isRoot": true,
   "tools": {
     "fable": {
-      "version": "5.13.0",
+      "version": "5.18.0",
       "commands": [ "fable" ]
     },
     "fantomas": {
-      "version": "8.0.0",
+      "version": "8.0.5",
       "commands": [ "fantomas" ],
       "rollForward": false
     }
