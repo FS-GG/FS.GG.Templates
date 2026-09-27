@@ -19,7 +19,7 @@ PACKAGE="$(lane_package_path "$WORK")"
 echo "fable-bindings composition: installing $PACKAGE"
 dotnet new install "$PACKAGE" >/dev/null
 assert_provider_lifecycle_matrix fable-bindings "$PACKAGE" "$WORK/lifecycle-matrix" productName=MatrixBindings rootNamespace=MatrixBindings
-dotnet new fs-gg-fable-bindings -o "$WORK/product" --name AcmeBindings --productName AcmeBindings --rootNamespace AcmeBindings --npmPackage=@babylonjs/core --npmVersion 9.19.0 --bindingTarget browser >/dev/null
+dotnet new fs-gg-fable-bindings -o "$WORK/product" --name AcmeBindings --productName AcmeBindings --rootNamespace AcmeBindings --npmPackage=@babylonjs/core --npmVersion 9.28.0 --bindingTarget browser >/dev/null
 if dotnet new fs-gg-fable-bindings -o "$WORK/rejected" --name Rejected --npmPackage other --npmVersion 1.0.0 --bindingTarget node >/dev/null 2>&1; then echo "unqualified corpus unexpectedly accepted" >&2; exit 1; fi
 
 for f in declaration-lock.json binding-plan.json coverage-and-drift.json generated-candidates/declaration-analysis.json package.json .config/dotnet-tools.json src/AcmeBindings/AcmeBindings.fsproj tests/AcmeBindings.CompileTests/AcmeBindings.CompileTests.fsproj samples/Consumer/README.md; do test -f "$WORK/product/$f"; done
@@ -33,7 +33,7 @@ for f in declaration-lock.json binding-plan.json coverage-and-drift.json generat
 # and reds on an absent selected skill, a skill the manifest does not select for this template, an
 # undeclared (dangling) skill directory, a drifted digest, or a missing/non-canonical manifest.
 dotnet fsi "$ROOT/scripts/generate-skill-manifest.fsx" --assert-product "$WORK/product" --template fs-gg-fable-bindings
-grep -Fq '"@babylonjs/core": "9.19.0"' "$WORK/product/package.json"
+grep -Fq '"@babylonjs/core": "9.28.0"' "$WORK/product/package.json"
 grep -Fq '@babylonjs/core/Engines/nullEngine.d.ts' "$WORK/product/declaration-lock.json"
 grep -Fq 'ImportAll("@babylonjs/loaders/glTF/index.js")' "$WORK/product/src/AcmeBindings/Bindings.fs"
 grep -Fq 'GENERATED CANDIDATE — NOT COMPILED' "$WORK/product/generated-candidates/BabylonBindings.generated.fs"
@@ -51,10 +51,10 @@ dotnet pack "$WORK/product/src/AcmeBindings/AcmeBindings.fsproj" -c Release --no
 printf '%s\n' '<configuration><packageSources><clear /><add key="local" value="'"$consumer"'/feed" /><add key="nuget.org" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>' > "$consumer/app/NuGet.Config"
 printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup><ItemGroup><Compile Include="Program.fs" /><PackageReference Include="AcmeBindings" Version="0.1.0" /><PackageReference Include="Fable.Core" Version="5.2.0" /></ItemGroup></Project>' > "$consumer/app/Consumer.fsproj"
 printf '%s\n' 'open Qualification.Babylon' 'let engine = nullEngine ()' 'let scene = scene engine' 'let _ = box "consumer-box" scene' 'initialiseLoader ()' 'printfn "consumer passed"' > "$consumer/app/Program.fs"
-printf '%s\n' '{"private":true,"type":"module","dependencies":{"@babylonjs/core":"9.19.0","@babylonjs/loaders":"9.19.0"}}' > "$consumer/app/package.json"
+printf '%s\n' '{"private":true,"type":"module","dependencies":{"@babylonjs/core":"9.28.0","@babylonjs/loaders":"9.19.0"}}' > "$consumer/app/package.json"
 dotnet restore "$consumer/app/Consumer.fsproj" --configfile "$consumer/app/NuGet.Config" >/dev/null
 (cd "$consumer/app" && npm install --ignore-scripts >/dev/null)
-grep -Fq 'sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeGpS/bQ3NzwtApB84GScm9v8w==' "$consumer/app/package-lock.json"
+grep -Fq 'sha512-CrmxXdCQlXK6cq3ccL9yNcrasFVmU1lkT9mDsoaFcEJXGHxfxMfVmBjObr4OS0JdWP5sbH6oTymMsw89z4bjpQ==' "$consumer/app/package-lock.json"
 dotnet tool install Fable --tool-path "$consumer/fable" --version 5.13.0 >/dev/null
 "$consumer/fable/fable" "$consumer/app/Consumer.fsproj" --outDir "$consumer/app/dist" --noCache >/dev/null
 node "$consumer/app/dist/Program.js" | grep -Fq 'consumer passed'
