@@ -203,9 +203,9 @@ done
 (cd "$out/direct/Browser.Tests" && node svg-scale-measure.mjs http://127.0.0.1:8142/) >"$out/chromium-scale-measurement.json"
 
 # Exercise the public Game/Net authority, two-client reconnect and review path.
-dotnet test "$out/direct/Server.Tests/Server.Tests.fsproj" -c Release -p:RestoreLockedMode=true >"$out/network-tests.log"
+(cd "$out/direct" && dotnet test Server.Tests/Server.Tests.fsproj -c Release -p:RestoreLockedMode=true) >"$out/network-tests.log"
 (cd "$out/direct/Client" && npm ci >/dev/null && npm run build >/dev/null)
-dotnet publish "$out/direct/Server/Server.fsproj" -c Release --no-restore -o "$out/network-publish" >/dev/null
+(cd "$out/direct" && dotnet publish Server/Server.fsproj -c Release --no-restore -o "$out/network-publish") >/dev/null
 cp "$root/tests/composition/fable-game/svg-network-observe.mjs" "$out/direct/Browser.Tests/"
 network_server=''
 for family in chromium firefox webkit; do
