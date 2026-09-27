@@ -35,10 +35,10 @@ if [[ $# -eq 0 ]]; then
 else
   [[ -f "$package" ]] || { echo "bundle composition: package not found: $package" >&2; exit 1; }
 fi
-if unzip -Z1 "$package" | rg '/(dist|output|vendor|artifacts)/|/Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js$' >/dev/null; then
+if unzip -Z1 "$package" | grep -E '/(dist|output|vendor|artifacts)/|/Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js$' >/dev/null; then
   echo "bundle composition: packed archive contains generated product output" >&2; exit 1
 fi
-[[ "$(unzip -Z1 "$package" | rg -c 'fs-gg-fable-game(-legacy)?/\.template\.config/template\.json$')" == 2 ]] || {
+[[ "$(unzip -Z1 "$package" | grep -Ec 'fs-gg-fable-game(-legacy)?/\.template\.config/template\.json$')" == 2 ]] || {
   echo "bundle composition: grouped new/legacy template definitions missing from archive" >&2; exit 1;
 }
 DOTNET_CLI_HOME="$home" dotnet new install "$package" >/dev/null
@@ -72,8 +72,9 @@ for product in Omitted Player; do
   if find "$work/$product" -type f \( -iname '*.qnt' -o -iname '*.java' \) -print -quit | grep -q .; then
     echo "bundle composition: player contains Quint or Java source" >&2; exit 1
   fi
-  if rg -l -i 'babylon|fable\.react|feliz' "$work/$product" \
-       -g '!README.md' -g '!packages.lock.json' -g '!package-lock.json' | grep -q .; then
+  if grep -RIlE --exclude='.*' --exclude-dir='.*' \
+       --exclude=README.md --exclude=packages.lock.json --exclude=package-lock.json \
+       'babylon|fable\.react|feliz' "$work/$product" >/dev/null; then
     echo "bundle composition: player contains an accidental Babylon/React/Feliz closure" >&2; exit 1
   fi
 done
