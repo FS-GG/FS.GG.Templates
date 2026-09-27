@@ -101,6 +101,7 @@ DESCRIPTOR_GLOB = "*.providers.yml"
 PROVIDER = re.compile(r"^  - name:\s*(\S+)\s*(?:#.*)?$")
 ROOT_KEY = re.compile(r"^([A-Za-z][A-Za-z0-9]*):")
 SCHEMA_VERSION = re.compile(r"^schemaVersion:\s*1\s*(?:#.*)?$")
+PROVIDERS_ROOT = re.compile(r"^providers:\s*(?:#.*)?$")
 FLOOR_BLOCK = re.compile(r"^    minimumFsggSdd:\s*(?:#.*)?$")
 PARAMETERS_BLOCK = re.compile(r"^    parameters:\s*(.*?)\s*$")
 PARAMETER_KEY = re.compile(r"^      - key:\s*(.*?)\s*$")
@@ -210,6 +211,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
     current_parameter_required = False
     current_parameter_default = False
     roots: set[str] = set()
+    provider_fields: set[str] = set()
 
     def finish_parameter() -> None:
         if current_parameter_key is not None and not current_parameter_required:
@@ -222,6 +224,10 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
         if is_skippable(line):
             continue
 
+        indentation = len(line) - len(line.lstrip(" "))
+        if "\t" in line[: len(line) - len(line.lstrip())]:
+            raise FloorError(f"{path}:{number}: tabs in YAML indentation are unsupported")
+
         if not line[0].isspace():
             root_match = ROOT_KEY.match(line)
             if not root_match or root_match.group(1) not in {"schemaVersion", "providers"}:
@@ -233,11 +239,18 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                 raise FloorError(f"{path}:{number}: unsupported schemaVersion root")
             if root_key == "providers" and "schemaVersion" not in roots:
                 raise FloorError(f"{path}:{number}: providers appear before schemaVersion: 1")
+            if root_key == "providers" and not (
+                PROVIDERS_ROOT.fullmatch(line) or line.strip() == "providers: []"
+            ):
+                raise FloorError(f"{path}:{number}: providers must be a block sequence")
             roots.add(root_key)
             continue
 
+        if "providers" not in roots:
+            raise FloorError(f"{path}:{number}: descriptor content before providers list")
+
         match = PROVIDER.match(line)
-        if match:
+        if indentation == 2 and match:
             if current is not None:
                 finish_parameter()
                 providers.append((current, floor, current_line))
@@ -249,10 +262,21 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
             current_parameter_key = None
             current_parameter_required = False
             current_parameter_default = False
+            provider_fields.clear()
             continue
 
+        if indentation == 2:
+            raise FloorError(f"{path}:{number}: unsupported provider list entry")
+
         if current is None:
-            continue
+            raise FloorError(f"{path}:{number}: provider field before first provider")
+
+        provider_field = PROVIDER_FIELD.match(line) if indentation == 4 else None
+        if provider_field:
+            key = provider_field.group(1)
+            if key in provider_fields and key not in {"minimumFsggSdd", "parameters"}:
+                raise FloorError(f"{path}:{number}: provider '{current}' repeats {key}")
+            provider_fields.add(key)
 
         parameter_block = PARAMETERS_BLOCK.match(line)
         if parameter_block:
@@ -322,8 +346,7 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
                     raise FloorError(f"{path}:{number}: malformed parameter entry")
                 raise FloorError(f"{path}:{number}: unsupported parameter indentation")
 
-        provider_field = PROVIDER_FIELD.match(line)
-        if len(line) - len(line.lstrip(" ")) == 4 and not provider_field:
+        if indentation == 4 and not provider_field:
             raise FloorError(f"{path}:{number}: malformed provider field")
         if provider_field and provider_field.group(1) not in PROVIDER_FIELDS:
             raise FloorError(
@@ -338,18 +361,21 @@ def parse_descriptor(path: Path) -> list[tuple[str, str | None, int]]:
             continue
 
         if in_block:
-            indentation = len(line) - len(line.lstrip(" "))
             if indentation <= 4:
                 in_block = False
+            else:
+                if indentation != 6 or not FLOOR_FIELD.match(line):
+                    raise FloorError(f"{path}:{number}: malformed minimumFsggSdd field")
+                match = VERSION.match(line)
+                if match:
+                    if floor is not None:
+                        raise FloorError(f"{path}:{number}: provider '{current}' repeats minimumFsggSdd.version")
+                    floor = scalar(match.group(1), f"{path}:{number}")
                 continue
-            if indentation != 6 or not FLOOR_FIELD.match(line):
-                raise FloorError(f"{path}:{number}: malformed minimumFsggSdd field")
-            match = VERSION.match(line)
-            if match:
-                if floor is not None:
-                    raise FloorError(f"{path}:{number}: provider '{current}' repeats minimumFsggSdd.version")
-                floor = scalar(match.group(1), f"{path}:{number}")
+
+        if indentation == 4 and provider_field:
             continue
+        raise FloorError(f"{path}:{number}: unsupported provider indentation")
 
     if current is not None:
         finish_parameter()
