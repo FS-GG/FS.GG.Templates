@@ -594,6 +594,37 @@ test("Studio starter remains an independent playable regression", async ({ page 
   expect(retained.camera).toBe("4,3");
 });
 
+for (const failure of ["open", "load"] as const) {
+  test(`Studio remains playable when startup persistence ${failure} fails`, async ({ page }) => {
+    test.skip(!hasStudio, "selected composition has no Studio");
+    await page.addInitScript(kind => {
+      if (kind === "open") {
+        const open = indexedDB.open.bind(indexedDB);
+        indexedDB.open = ((name: string, version?: number) => {
+          if (name === "FableGameWorkspaceNamespace-svg-studio") {
+            throw new DOMException("injected open failure", "SecurityError");
+          }
+          return version === undefined ? open(name) : open(name, version);
+        }) as typeof indexedDB.open;
+      } else {
+        const get = IDBObjectStore.prototype.get;
+        IDBObjectStore.prototype.get = function (key) {
+          if (key === "project:continuous-arena") {
+            throw new DOMException("injected read failure", "UnknownError");
+          }
+          return get.call(this, key);
+        };
+      }
+    }, failure);
+    await page.goto("http://127.0.0.1:5200/");
+    await expect(page.locator("#generated-scene-status")).toContainText("Persistence refused: DatabaseError");
+    const starter = page.getByRole("button", { name: "Open starter game" });
+    await expect(starter).toBeEnabled();
+    await starter.click();
+    await expect(page.locator("#generated-scene-status")).toContainText("Starter playable game opened");
+  });
+}
+
 test("selected tactical and arcade examples load and execute their engine paths", async ({ page }, testInfo: TestInfo) => {
   test.skip(!hasTacticalExample && !hasArcadeExample, "selected composition has no examples");
   await page.addInitScript(() => {

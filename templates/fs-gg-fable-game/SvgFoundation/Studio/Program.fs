@@ -983,7 +983,8 @@ let private invalidImportPayload kind =
     | other -> invalidArg (nameof kind) $"unknown import failure fixture: {other}"
 
 let mutable private persistenceOperation = 0UL
-let mutable private handlePersistence: BrowserPersistenceEvent -> unit = ignore
+let private earlyPersistenceEvents = ResizeArray<BrowserPersistenceEvent>()
+let mutable private handlePersistence: BrowserPersistenceEvent -> unit = earlyPersistenceEvents.Add
 let mutable private startupLoadComplete = false
 let private startupActions = ResizeArray<HTMLElement>()
 
@@ -1142,6 +1143,13 @@ handlePersistence <-
         announce ($"Persistence refused: {failure}")
         finishStartupLoad ()
     | _ -> ()
+
+do
+    let early = earlyPersistenceEvents.ToArray()
+    earlyPersistenceEvents.Clear()
+
+    for event in early do
+        handlePersistence event
 
 let private verifyFont () =
     match SvgResourceInterchange.notoSansLatin400 (notoBase64.Trim()) with
