@@ -14,7 +14,13 @@ import zipfile
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 VERSION = "0.90.0"
 SOURCE = "3adada5a9738464291088830c47a30a3a8fc9561"
-WORKFLOW = f"FS-GG/.github/.github/workflows/{{name}}.yml@{SOURCE}"
+# The sealed 0.90.0 bridge keeps its original source. The current Kit bump
+# workflow must understand coherent-set tags used by the 0.91.x publisher.
+CURRENT_KIT_WORKFLOW_SOURCE = "941a82c0e06c9afe9db4c88fc29997d7627a5895"
+WORKFLOW_SOURCES = {
+    "kit-materialize": CURRENT_KIT_WORKFLOW_SOURCE,
+    "lockfile-sync": SOURCE,
+}
 ARCHIVES = {
     "FS.GG.Coord.Cli": "69a7100358e01c846216cedb3f5ce17f72e99e8328a23be8e75b077dfd82d3e6",
     "FS.GG.Kit": "bea35100645f1acb459e385e303d0ef4ff7aa6576fa3f032ef8325cfef38b858",
@@ -70,9 +76,10 @@ def main() -> None:
                 and node.attrib.get("Include") == "FS.GG.Kit"]
     require(len(kit_refs) == 1, "receiver must have exactly one Kit reference")
     check_current_pins(tool.get("version", ""), kit_refs[0].attrib.get("Version", ""))
-    for name in ("kit-materialize", "lockfile-sync"):
+    for name, source in WORKFLOW_SOURCES.items():
         workflow = (ROOT / f".github/workflows/{name}.yml").read_text()
-        require(WORKFLOW.format(name=name) in workflow, f"{name} does not pin the immutable bridge source")
+        expected = f"FS-GG/.github/.github/workflows/{name}.yml@{source}"
+        require(expected in workflow, f"{name} does not pin its qualified immutable source")
         require("@main" not in workflow, f"{name} retains a mutable hub ref")
 
     for package_id, digest in ARCHIVES.items():
