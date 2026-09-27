@@ -4,6 +4,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "ansi-regex": "6.2.2"
+    "ansi-regex": "6.4.0"
   }
 }
