@@ -51,6 +51,11 @@ jobs:
         id: public_qualification
         shell: bash
         run: bash tests/composition/fable-game/verify-svg-release-d-public.sh "$RUNNER_TEMP/svg-release-d"
+      - name: Install browsers pinned by the public receiver
+        working-directory: ${{ runner.temp }}/svg-release-d/complete/Browser.Tests
+        run: |
+          npm ci
+          npx playwright install chromium firefox webkit
       - name: Qualify installed complete workspace across browser families
         shell: bash
         run: |

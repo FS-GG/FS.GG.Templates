@@ -173,6 +173,9 @@ bash "$out/direct/SvgFoundation/build.sh" >"$out/player-build.log" 2>&1
 ! grep -RIE 'SvgStudio|SvgGeometryWorker|polygon-clipping|OpenAL|Silk.NET.OpenAL' "$out/direct/SvgFoundation/dist"
 bash "$out/direct/SvgFoundation/Studio/build.sh" >"$out/studio-build.log" 2>&1
 npm ci --prefix "$out/direct/Browser.Tests" >/dev/null
+# The public 0.13 template can pin a different Playwright revision than this
+# checkout. Install the browsers selected by the downloaded receiver itself.
+(cd "$out/direct/Browser.Tests" && npx playwright install chromium firefox webkit >/dev/null)
 cp "$root/tests/composition/fable-game/svg-present-player-observe.mjs" "$out/direct/Browser.Tests/"
 cp "$root/tests/composition/fable-game/svg-authoring-observe.mjs" "$out/direct/Browser.Tests/"
 # Published 0.13 predates retained scene-host attributes after an authored SVG
