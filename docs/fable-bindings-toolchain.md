@@ -13,9 +13,9 @@ findings are now enforced by the generated workspace and composition gate.
 
 | Input | Pin |
 | --- | --- |
-| .NET SDK | 10.0.302 |
-| Node / npm | 26.5.0 / 12.0.1 |
-| Fable tool / Fable.Core | 5.13.0 / 5.2.0 |
+| .NET SDK | 10.0.401 |
+| Node / npm | 26.10.0 / 12.1.0 |
+| Fable tool / Fable.Core | 5.18.0 / 5.3.0 |
 | Glutinum template | `Glutinum.Template@1.1.1` |
 | npm corpus | `@babylonjs/core@9.19.0`, `@babylonjs/loaders@9.19.0` |
 | core artifact integrity | `sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeGpS/bQ3NzwtApB84GScm9v8w==` |
