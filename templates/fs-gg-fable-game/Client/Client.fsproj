@@ -19,7 +19,7 @@
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="Fable.Core" Version="[5.2.0]" />
+    <PackageReference Include="Fable.Core" Version="[5.3.0]" />
     <PackageReference Include="Fable.Elmish" Version="[5.0.2]" />
     <PackageReference Include="Fable.Browser.Dom" Version="[2.20.0]" />
     <PackageReference Include="Thoth.Json" Version="[10.5.1]" />
