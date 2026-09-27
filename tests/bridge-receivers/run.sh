@@ -9,6 +9,8 @@ scratch="$(mktemp -d "${TMPDIR:-/tmp}/templates-bridge-receiver.XXXXXX")"
 trap '[[ "${KEEP_WORKDIR:-0}" == 1 ]] || rm -rf -- "$scratch"' EXIT
 mkdir -p "$scratch/packages" "$scratch/hub"
 
+python3 -m unittest discover -s "$root/tests/bridge-receivers" -p 'test_*.py'
+
 for package in fs.gg.coord.cli fs.gg.kit; do
   curl --fail --location --retry 3 --silent --show-error \
     "https://api.nuget.org/v3-flatcontainer/$package/0.90.0/$package.0.90.0.nupkg" \
