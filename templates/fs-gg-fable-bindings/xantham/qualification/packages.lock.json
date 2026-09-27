@@ -1,7 +1,7 @@
 {
   "version": 2,
   "dependencies": {
-    ".NETStandard,Version=v2.1": {
+    "net8.0": {
       "Fable.Core": {
         "type": "Direct",
         "requested": "[5.2.0, )",
@@ -15,19 +15,6 @@
         "type": "Transitive",
         "resolved": "4.7.2",
         "contentHash": "w3XFVTnyZUbC8e2QT6a85ern6y7eQPPk+MYemz1FP0iBfgZcembL+wmo5cIZ1kxB8jfoXC8Q9KVkOMsGpkBKbA=="
-      },
-      "bindingsproduct": {
-        "type": "Project",
-        "dependencies": {
-          "Fable.Core": "[5.2.0, )",
-          "Fable.Package.SDK": "[1.4.0, )"
-        }
-      },
-      "Fable.Package.SDK": {
-        "type": "CentralTransitive",
-        "requested": "[1.4.0, )",
-        "resolved": "1.4.0",
-        "contentHash": "Bj7mRtJXQQyQueOKNfQ4M5Vdg7BWbCpB5IVzIUYbKAicGlTgw1OvH8q0pv0S+DSvm1JwgEEFDXYklJc6GT3i3A=="
       }
     }
   }
