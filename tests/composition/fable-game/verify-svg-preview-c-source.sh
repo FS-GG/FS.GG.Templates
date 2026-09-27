@@ -158,9 +158,12 @@ for family in chromium firefox webkit; do
 done
 
 # Exercise the public Game/Net authority, two-client reconnect and review path.
-dotnet test "$out/direct/Server.Tests/Server.Tests.fsproj" -c Release -p:RestoreLockedMode=true >"$out/network-tests.log"
+# Resolve the installed workspace's pinned SDK from its own root. Running these
+# commands from the Templates checkout can silently select a newer implicit FSharp.Core
+# and violate the installed workspace's committed 10.1.400 locks.
+(cd "$out/direct" && dotnet test Server.Tests/Server.Tests.fsproj -c Release -p:RestoreLockedMode=true >"$out/network-tests.log")
 (cd "$out/direct/Client" && npm ci >/dev/null && npm run build >/dev/null)
-dotnet publish "$out/direct/Server/Server.fsproj" -c Release --no-restore -o "$out/network-publish" >/dev/null
+(cd "$out/direct" && dotnet publish Server/Server.fsproj -c Release --no-restore -o "$out/network-publish" >/dev/null)
 # This journey exercises the frozen V1 client against the shared server. The
 # selected SVG preview was served above; replace only this private publish's
 # static root with the already-built V1 client so protocol behavior is explicit.

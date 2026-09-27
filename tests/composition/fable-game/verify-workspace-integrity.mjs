@@ -84,7 +84,7 @@ const validate = (input) => {
   const coherentLock = (name, manifest, lock) => lock.lockfileVersion === 3 && lock.packages?.[""]?.name === manifest.name && JSON.stringify(lock.packages[""]?.dependencies ?? {}) === JSON.stringify(manifest.dependencies ?? {}) && JSON.stringify(lock.packages[""]?.devDependencies ?? {}) === JSON.stringify(manifest.devDependencies ?? {});
   if (!coherentLock("Client", clientPackage, clientLock)) fail("Client package manifest and lockfile are incoherent");
   if (!coherentLock("Browser.Tests", browserPackage, browserLock)) fail("Browser.Tests package manifest and lockfile are incoherent");
-  if (clientPackage.dependencies?.["@microsoft/signalr"] !== "10.0.0" || clientPackage.devDependencies?.vite !== "7.1.3" || browserPackage.devDependencies?.["@playwright/test"] !== "1.55.0") fail("npm toolchain pins are not exact and coherent");
+  if (clientPackage.dependencies?.["@microsoft/signalr"] !== "10.0.0" || clientPackage.devDependencies?.vite !== "7.3.6" || browserPackage.devDependencies?.["@playwright/test"] !== "1.63.0") fail("npm toolchain pins are not exact and coherent");
 };
 
 const input = { read, required };
