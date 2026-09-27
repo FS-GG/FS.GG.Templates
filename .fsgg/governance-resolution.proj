@@ -36,7 +36,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FS.GG.Governance.ReferenceGateSet" Version="1.6.0" />
+    <PackageReference Include="FS.GG.Governance.ReferenceGateSet" Version="1.7.0" />
   </ItemGroup>
 
 </Project>
