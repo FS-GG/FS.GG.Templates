@@ -1,6 +1,6 @@
 {
   "schema": 2,
-  "package": "@babylonjs/core@9.19.0",
+  "package": "@babylonjs/core@9.28.0",
   "companionPackage": "@babylonjs/loaders@9.19.0",
   "entryPoints": [
     "@babylonjs/core/Engines/nullEngine.d.ts",
@@ -114,7 +114,7 @@
     },
     {
       "path": "@babylonjs/core/Animations/animationGroup.pure.d.ts",
-      "sha256": "4de17e00bf8d75b72ddd35f09dffdaf43eee404dd67bd1a37dbd6eb4344b0ae9"
+      "sha256": "c00af0a7d5911b317de4cc50d254f90522d4a5a1b0c8ea6626175f5f709d472d"
     },
     {
       "path": "@babylonjs/core/Animations/animationGroup.types.d.ts",
@@ -146,15 +146,19 @@
     },
     {
       "path": "@babylonjs/core/Animations/index.d.ts",
-      "sha256": "6638df2e3304a2c8f7239d71dc40b950443f1d3590e54ef05bc76319906dd761"
+      "sha256": "65b083e9b7fa42016fa6610fd77cf8fc55096405687df24a842c5be13d4fffd4"
     },
     {
       "path": "@babylonjs/core/Animations/pathCursor.d.ts",
       "sha256": "c184c6110caf8188b19f327da0b6f4bb89dafa51f9f8b58e3261bb07b864ac46"
     },
     {
+      "path": "@babylonjs/core/Animations/rootMotion.d.ts",
+      "sha256": "0c81c2382f8fafc41267f98ce0703642f0d54628ce78653ca7b5e8608ccf9d3a"
+    },
+    {
       "path": "@babylonjs/core/Animations/runtimeAnimation.d.ts",
-      "sha256": "00b3c2c34daa68330f6b6b54c2857a0adea20f4a3550c6cdcee35ced43a2bba1"
+      "sha256": "ad84cf64814aadec9d4df609de9225b74c6ceffa8262e1d6d43f43601636a772"
     },
     {
       "path": "@babylonjs/core/Audio/Interfaces/IAudioEngine.d.ts",
@@ -350,7 +354,7 @@
     },
     {
       "path": "@babylonjs/core/AudioV2/webAudio/webAudioEngine.d.ts",
-      "sha256": "8e9fc1a24c139f0e0c8c66c3fe82ad73b8e60e51301b6c1904d9af8903a59977"
+      "sha256": "66d1936db4988a5e9c781b3adf18e3bda4ecfa024e5f206c9a4516a40cf604d0"
     },
     {
       "path": "@babylonjs/core/AudioV2/webAudio/webAudioMainBus.d.ts",
@@ -586,7 +590,7 @@
     },
     {
       "path": "@babylonjs/core/Cameras/Inputs/followCameraPointersInput.d.ts",
-      "sha256": "d91e9bcdc02a32028f2b858f33f4c144fcffac280b5cfb0326e3ca9bcbfd719d"
+      "sha256": "09e27d6da44f485c6dd902347dcbb7c8754a08e4327dbbd2b403d3d478d453ae"
     },
     {
       "path": "@babylonjs/core/Cameras/Inputs/freeCameraDeviceOrientationInput.d.ts",
@@ -954,7 +958,7 @@
     },
     {
       "path": "@babylonjs/core/Collisions/gpuPicker.d.ts",
-      "sha256": "759bf22473b5fe3847e6832becfd764eaad9f9d7558ab920b36064445f06cbc1"
+      "sha256": "32d5680c0d77b53e89ee4f56c01714cf0768c550abb5bf7388f7686af5c5ee29"
     },
     {
       "path": "@babylonjs/core/Collisions/index.d.ts",
@@ -1242,7 +1246,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/AbstractEngine/abstractEngine.query.types.d.ts",
-      "sha256": "c180523307a1943b20a4d602e3eb9d9b49561658d9f0110f35858e92e6decedc"
+      "sha256": "48da5aa66534a081231658b9be24468bc04ef9e5a8c44fc72c37dc3976239ebe"
     },
     {
       "path": "@babylonjs/core/Engines/AbstractEngine/abstractEngine.renderPass.d.ts",
@@ -1298,7 +1302,11 @@
     },
     {
       "path": "@babylonjs/core/Engines/AbstractEngine/abstractEngine.textureLoaders.d.ts",
-      "sha256": "8e609bb71c20b858c77f0e9f90bb1319db8477b13f9f965f1a1e18524bf50881"
+      "sha256": "880b1fda792e685c8f93265b0fa16cd6849fb144fac2ec61a99ad0051cca86e1"
+    },
+    {
+      "path": "@babylonjs/core/Engines/AbstractEngine/abstractEngine.textureLoaders.pure.d.ts",
+      "sha256": "e9e0c7ab7b34df61ebe214a878e7aeaa2c1f6ca51b567723bb316275b9df6408"
     },
     {
       "path": "@babylonjs/core/Engines/AbstractEngine/abstractEngine.textureSelector.d.ts",
@@ -1434,7 +1442,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/Extensions/engine.multiRender.types.d.ts",
-      "sha256": "8edf6c0ce0bb3dc758777700c4acda11e29a84db13f21a689c6c0d5a4be9e9b8"
+      "sha256": "9df108aad12b9339e3e7b887efb1dd258c440b08ac1c9134889b1537b3cc9566"
     },
     {
       "path": "@babylonjs/core/Engines/Extensions/engine.multiview.d.ts",
@@ -1458,7 +1466,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/Extensions/engine.prefilteredCubeTexture.types.d.ts",
-      "sha256": "7e2f3a4c60995feb8a15d4744a450746073f021761abb8e6b6ed3e2d09ceca37"
+      "sha256": "87a9c4317b87960be3923f2eff6b4ddf2a3906e94858cdbb2b8da4c82e8460bc"
     },
     {
       "path": "@babylonjs/core/Engines/Extensions/engine.query.d.ts",
@@ -1590,7 +1598,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/Extensions/index.d.ts",
-      "sha256": "b48847889a916a039b3dd5f0a568a4cc3d569216a5da3a45ea9e80c8fc0821e6"
+      "sha256": "d961d8610d8986c4dcde2a3d8bc41410ffb5f5b4c23c596c17178b879687a3db"
     },
     {
       "path": "@babylonjs/core/Engines/ICanvas.d.ts",
@@ -1598,7 +1606,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/IDrawContext.d.ts",
-      "sha256": "a31d1e031aa4f7176c7b21dc5e48e4a941455a0bc9eca9763169558dbef04c7e"
+      "sha256": "38e3bc5990f65bff3de0e847c1cfdd83fe36fe1dc05e979812f1ad8037dc17f1"
     },
     {
       "path": "@babylonjs/core/Engines/IMaterialContext.d.ts",
@@ -1618,7 +1626,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/Native/Extensions/nativeEngine.cubeTexture.types.d.ts",
-      "sha256": "863548cd4348147582c7bd69c468bbddb7bbdd48643c47612ae19ef013fffc6d"
+      "sha256": "588214f900849b1785d17277e114c4a2d211af7fc9eb2ef22bb35d1f7dc94fd3"
     },
     {
       "path": "@babylonjs/core/Engines/Native/index.d.ts",
@@ -1630,7 +1638,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/Native/nativeInterfaces.d.ts",
-      "sha256": "768fda1a1910dc16e7de209dd4779943e064fe45df8963e7cff00130137ca38f"
+      "sha256": "3a22e74721d36c13d6719ec4450854e673a20bf411cd13822f4f6098ab6ba5fc"
     },
     {
       "path": "@babylonjs/core/Engines/Native/nativeRenderTargetWrapper.d.ts",
@@ -1746,7 +1754,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/Extensions/engine.multiRender.types.d.ts",
-      "sha256": "1cbd9db7e3a2272d4d8a4526c9b0146ad2b7f24da3351f5300842cc668509614"
+      "sha256": "e8920e2a57d3735b40841906147b15c6cefabf51611c3e4f40099b78e2d97e4b"
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/Extensions/engine.query.d.ts",
@@ -1838,7 +1846,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/Extensions/index.d.ts",
-      "sha256": "ffbf3c823911d44481ff9f677faebf5f44dc5831bd7265f5ca46f36e521ab30a"
+      "sha256": "c939528bf9dcf53d0ef90c36aae05305df6439914ac15200481b50f80f2b5dec"
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/webgpuBufferManager.d.ts",
@@ -1846,7 +1854,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/webgpuBundleList.d.ts",
-      "sha256": "6a38eaef8a4352325e7ad17c4e29a08ea1d372a4d03d14cbc726b2184ae9eda4"
+      "sha256": "1db0da2487867b28795c99ea8fa7bfee367a8eeaf872c6290e07a9b9cf3b832b"
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/webgpuCacheBindGroups.d.ts",
@@ -1854,7 +1862,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/webgpuCacheRenderPipeline.d.ts",
-      "sha256": "0fc76f6927fd358eac9085705ab9baa5d14852007c749601d62306e29ab1c788"
+      "sha256": "b1d28e7d79f5833cc2a560d0116a15820c89d5a6b92c5c39ac7b8b3ea8b79953"
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/webgpuCacheRenderPipelineTree.d.ts",
@@ -1870,7 +1878,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/webgpuDrawContext.d.ts",
-      "sha256": "2c97412f29f885ce90294bafb046377bae7fa4121bd3ff7ad806db74b0b94612"
+      "sha256": "77da987fd4eaa06f71880b5ae12e9ebce3b662c9512a10e5c4804dec94630d9b"
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/webgpuHardwareTexture.d.ts",
@@ -1894,7 +1902,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/webgpuRenderTargetWrapper.d.ts",
-      "sha256": "01bf9ffca4e425bdb259264ee17d84221750569fbefe37f3c23711b6beacb927"
+      "sha256": "54f412fe9b7e737de65d1061f2baa185b9601d27c9fdbff904f48f9b4fe35e3d"
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/webgpuShaderProcessingContext.d.ts",
@@ -1914,11 +1922,11 @@
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/webgpuSnapshotRendering.d.ts",
-      "sha256": "a6ac02943f62cf04028cd465b39843b9eabff4ebf072b5dc4b54543fbbb0bc9b"
+      "sha256": "e388ce2cd62115a4630ddbdaf9e819914f5b187b08f1a98f3da63741e405c751"
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/webgpuTextureManager.d.ts",
-      "sha256": "0999a5fcaafdc16f2b1fa7f46aa4a50c3d19ad0d13321ef3db80f6c5d91f271d"
+      "sha256": "e29ea724203bc0fff40c1e7016f79b20c51f9ca0dbb137f2f019af4e79a1b536"
     },
     {
       "path": "@babylonjs/core/Engines/WebGPU/webgpuTimestampQuery.d.ts",
@@ -1938,11 +1946,11 @@
     },
     {
       "path": "@babylonjs/core/Engines/abstractEngine.pure.d.ts",
-      "sha256": "1622dcdb762e165551100330a1c325b5dc65b773f665f4ad085485d1dd210dc1"
+      "sha256": "649083c212f17b60cab18aab992811c78bc17c81a734301436e5bb9730afd055"
     },
     {
       "path": "@babylonjs/core/Engines/constants.d.ts",
-      "sha256": "53e905b442bda34de039591be619e3fd1d3846c7dedc88e3459e0f0b0831f397"
+      "sha256": "bcb00b179ecdf85de8ef1a90b606d51852b6c733a6b8fc2a5a43bb0d7890704c"
     },
     {
       "path": "@babylonjs/core/Engines/engine.common.d.ts",
@@ -1950,7 +1958,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/engine.d.ts",
-      "sha256": "5b5e87af82c3f5b55a8570b6991742aea9a8c33febc6830eb0191c783cff6635"
+      "sha256": "aa87161ba94a0f5f1c8038d785438ec71bb75a63d40a197c7a4c2e24a7adab09"
     },
     {
       "path": "@babylonjs/core/Engines/engine.pure.d.ts",
@@ -1958,7 +1966,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/engineCapabilities.d.ts",
-      "sha256": "70967f6e23ab5b9f8389b8c4bf46e715f2362e5b56a7f61a4a015fb97d9b0a06"
+      "sha256": "840e7f4d63b152a418ce11d6c0548d4c9ff3b41ffa70274c27f851aabcde9089"
     },
     {
       "path": "@babylonjs/core/Engines/engineFactory.d.ts",
@@ -2018,7 +2026,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/thinEngine.pure.d.ts",
-      "sha256": "1f6e1675df4b083006312e071c4abca25500ed7fe9335ccf8e6d44dd96be8bfc"
+      "sha256": "ac13bd9198b87db9d89c5f0da6b3ed9fe7bbb087b376678302c37c45562fcdd0"
     },
     {
       "path": "@babylonjs/core/Engines/thinEngine.scissor.d.ts",
@@ -2034,7 +2042,7 @@
     },
     {
       "path": "@babylonjs/core/Engines/thinNativeEngine.pure.d.ts",
-      "sha256": "a7adf7e2d3647ca9004d92da962443d19be14521163ca300ad871a21931ee28a"
+      "sha256": "3abe4bcb7a23728fc7a78ac6e829c16e2e1e8a61f989fb95c3c42886d65db3aa"
     },
     {
       "path": "@babylonjs/core/Engines/thinNativeEngine.types.d.ts",
@@ -2042,15 +2050,15 @@
     },
     {
       "path": "@babylonjs/core/Engines/thinWebGPUEngine.d.ts",
-      "sha256": "c8d9f7566e90bb61eba80a2f34b8b1f39ba9efcfa0289476579e544d5a311ecc"
+      "sha256": "36f11c8917c904b2cd32bc63b1999e5d3bd8c13fa3e5c736adcc30ec304a4042"
     },
     {
       "path": "@babylonjs/core/Engines/webgpuEngine.d.ts",
-      "sha256": "051fdd7fc3661fab2022f75b2ba5849c10a12c1e20ec1cf84bd2d7ed7cd69290"
+      "sha256": "9475fce935b0017681301a7380a31331822cc1d253eb97168496bff00de8306f"
     },
     {
       "path": "@babylonjs/core/Engines/webgpuEngine.pure.d.ts",
-      "sha256": "c4ad6eda6f4f6da1dc5d8c2f22f87ccc298f6c8b3f0246ed943607e4ea07716a"
+      "sha256": "a8368471d7a3e7b1367b2e0f789147f7e5e5f73bb5571fa55e3a419790fda7dc"
     },
     {
       "path": "@babylonjs/core/Events/clipboardEvents.d.ts",
@@ -2098,7 +2106,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/Math/flowGraphMathBlocks.pure.d.ts",
-      "sha256": "ebc7ee17718b34e536d7162691d666b27108ab3e6662bb14d628e93620e6ff77"
+      "sha256": "27d8e80d9a541f769e967c7b8704084058151635969f334e013b0536275e93ea"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/Math/flowGraphMathCombineExtractBlocks.d.ts",
@@ -2106,7 +2114,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/Math/flowGraphMathCombineExtractBlocks.pure.d.ts",
-      "sha256": "b7e30afdcbd98fc243f047b40001dc818115eb19b09097d9e70fe4e5a6936f10"
+      "sha256": "8060044223f7451877e49ad9277003375c03b53a605aef8b1da713e407d25b12"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/Math/flowGraphMatrixMathBlocks.d.ts",
@@ -2114,7 +2122,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/Math/flowGraphMatrixMathBlocks.pure.d.ts",
-      "sha256": "99ec56f5e87c00a390e17a5e6ff08678f350e1d5f3f5aeb9a87f9d1a5b6fdc6d"
+      "sha256": "c53474a74d52e05897e26b68d8c4c3838a4673cd4a47c38950857195c9d4c993"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/Math/flowGraphVectorMathBlocks.d.ts",
@@ -2122,7 +2130,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/Math/flowGraphVectorMathBlocks.pure.d.ts",
-      "sha256": "ceb09bd84b679770990f537686321ece0aed3e85d12ce55c96da530a95a93651"
+      "sha256": "88d12ca51aa15819244310e52ea60116688dc32626381afe3852eddb2a6e0b2f"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/Math/index.d.ts",
@@ -2182,7 +2190,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/Utils/flowGraphArrayIndexBlock.pure.d.ts",
-      "sha256": "45da2e0a5b08394dd3d7a027622208a1093f944b5bd8ede28c777a8286865295"
+      "sha256": "73718a1aecb052b93dd9997b71951de10d4d1cbe2da79071d9307c3f81ec46bc"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/Utils/flowGraphCodeExecutionBlock.d.ts",
@@ -2222,7 +2230,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/flowGraphCachedOperationBlock.d.ts",
-      "sha256": "8dc460ca0894f10fce71b8e3200ff6095b5eee21e03467b3157607c25d8ed17c"
+      "sha256": "c24b33dca676b3f4f41f78e7a4c7afa08c2e37adde11b1b8169cff55e54d7aea"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/flowGraphConditionalDataBlock.d.ts",
@@ -2278,7 +2286,11 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/flowGraphIsKeyPressedBlock.d.ts",
-      "sha256": "f97c0a346807b4923602552c8e121447cb64f1a5f9baa6568cc2b9a71cd60aa6"
+      "sha256": "2b9b4bd71adca34ff16e8254a6cd57c523f7d4b101bab7b870c4198002043728"
+    },
+    {
+      "path": "@babylonjs/core/FlowGraph/Blocks/Data/flowGraphIsKeyPressedBlock.pure.d.ts",
+      "sha256": "5b44047148bece4b10eea7ef71708acd0e5fd58c2e4e7a608d0d450f0798daad"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Data/flowGraphTernaryOperationBlock.d.ts",
@@ -2302,11 +2314,19 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphKeyDownEventBlock.d.ts",
-      "sha256": "376e668b20cbe82cb85bd5d9313fb30d276d10dd32b6ec0b753db33e19543555"
+      "sha256": "398db95dfb18ca4e92bfa612172a0de9b662c22e8d6694f46a2e1852a1ab919f"
+    },
+    {
+      "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphKeyDownEventBlock.pure.d.ts",
+      "sha256": "fea31690571941a455ca01a42551b65ee4e5ec89e1d2e687856abd506ea06773"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphKeyUpEventBlock.d.ts",
-      "sha256": "cd42d919af2f2b657cd57a66c648a4df89fac302793e3e45a1c73e4fb17756eb"
+      "sha256": "0b20049cb97ca3ae62990eb786561114dac08920c7dad75ca8cdba91df5fa7f2"
+    },
+    {
+      "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphKeyUpEventBlock.pure.d.ts",
+      "sha256": "b3d59da58c159ef9cd72ca7192169105607f5e3936fe52caacb52e44dc7a8810"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphKeyboardEventBlock.d.ts",
@@ -2318,7 +2338,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphMeshPickEventBlock.pure.d.ts",
-      "sha256": "d764983eeee567abba401f06f49af3bfd4a0783ff036a66f8e2cb01b15616a69"
+      "sha256": "9b62bc65b0b1c7fdec6288da635f6b7d7fc58e95c37e78b354fdf210e664326f"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphPhysicsCollisionEventBlock.d.ts",
@@ -2334,7 +2354,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphPointerOutEventBlock.pure.d.ts",
-      "sha256": "559f1e976c8414e8fbf0f7775fa6abdd088b9f6e41aa4f2910de255a30d87b89"
+      "sha256": "3ef689d8fe201331f56b8773f2fdc2e017fec9bfb7fc0e71a591805137a58f23"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphPointerOverEventBlock.d.ts",
@@ -2342,7 +2362,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphPointerOverEventBlock.pure.d.ts",
-      "sha256": "5557962cfac4ac78f8bbf969e5f87d468493a3e75c017309848ef26048bee8d0"
+      "sha256": "10e16c3ea22b36883b60afc75b000331d7d8a1a2e79c4edde5a473325644bb18"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphReceiveCustomEventBlock.d.ts",
@@ -2350,7 +2370,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphReceiveCustomEventBlock.pure.d.ts",
-      "sha256": "2c126663d8c8328e1d3100ff6df031f1d14949fc2edc2a55c063607563dc1477"
+      "sha256": "f3505522b1784c08313c3ee650454589ee1c7e7a0eafcb82ad667fa698c95920"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphSceneReadyEventBlock.d.ts",
@@ -2358,7 +2378,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphSceneReadyEventBlock.pure.d.ts",
-      "sha256": "4eba91a6ccd9b7e67df8315d2e31a43658290debc0ddc8b0cf3f15554a14bdcd"
+      "sha256": "3ee1779ae308a7b071dd27851d73fe15b1084f5d64392b005a659577596b0f9b"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphSceneTickEventBlock.d.ts",
@@ -2366,7 +2386,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphSceneTickEventBlock.pure.d.ts",
-      "sha256": "f477870bd921727966443e516dd54794ecf9b6adda822fe5a0389bee9ef5e732"
+      "sha256": "ec1817ebb486b1024f42614e32813accf6a7fc043c47b8edfd7f8c3f14dc3b8d"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphSendCustomEventBlock.d.ts",
@@ -2385,8 +2405,16 @@
       "sha256": "1ca31b56cc0c1f63ced2a5b691b73094367ba152890ae4bb5f1612d39eb8667a"
     },
     {
+      "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphStopEventPropagationBlock.d.ts",
+      "sha256": "5db25f62f4d260f7b868347b3210bd8ef8ededd7415c80869a4c350da6c9d6be"
+    },
+    {
+      "path": "@babylonjs/core/FlowGraph/Blocks/Event/flowGraphStopEventPropagationBlock.pure.d.ts",
+      "sha256": "44eac08dba6ba18fbf234ac60bfc7431fd1292eab0a8861517a010f0c07ecffe"
+    },
+    {
       "path": "@babylonjs/core/FlowGraph/Blocks/Event/index.d.ts",
-      "sha256": "f9b0da6874a442c3308106fa3b332738e5915cdef1c0939841a19e86f64aabba"
+      "sha256": "807329a0d9d1ed7f4d4c1f351b3504c9d308a1b72d80c286397661f4917c7569"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Execution/Animation/flowGraphBezierCurveEasingBlock.d.ts",
@@ -2394,7 +2422,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Execution/Animation/flowGraphBezierCurveEasingBlock.pure.d.ts",
-      "sha256": "301f10ad3c365c17c0b3a7c5acfae9e01a920569a149f446e4d963e259ab5687"
+      "sha256": "233baaf18af43f1736add4e5e7daed831bee1afe29c8e11dce0faf73f5614f47"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Execution/Animation/flowGraphEasingBlock.d.ts",
@@ -2426,7 +2454,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Execution/Animation/flowGraphPlayAnimationBlock.pure.d.ts",
-      "sha256": "8db64deaf2231c6a2564a8fddecbe6e2a3d2411e6f0c33e5554fcf0e7b651b2d"
+      "sha256": "c6083724fcfad86e5e653fb45dced5ca459975ecd74d2ca3bba47f619c7768ba"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Execution/Animation/flowGraphStopAnimationBlock.d.ts",
@@ -2434,7 +2462,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Execution/Animation/flowGraphStopAnimationBlock.pure.d.ts",
-      "sha256": "fdf591f63e3fbbf8d6cc6f9e4c87d012cef383f69413acd55090f57844ea99a7"
+      "sha256": "c60188847461cbfd964f4f587f0c2a53b7cdd8fb01fc35d729dc2053adcff671"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Execution/Animation/index.d.ts",
@@ -2530,7 +2558,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Execution/ControlFlow/flowGraphForLoopBlock.pure.d.ts",
-      "sha256": "a9be6abfe480d87d11e01d049845cb2085925de9e7bb13cb1317088636b72742"
+      "sha256": "6814ae7cdf3682130e0fa9ca757247c24eed5d89ca32decd54c16003581c8440"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/Execution/ControlFlow/flowGraphMultiGateBlock.d.ts",
@@ -2666,11 +2694,11 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/flowGraphBlockFactory.d.ts",
-      "sha256": "ee44628dd59ecdc2482fc1a60e8a7f05337f6eb33130ca782724fda14f089bf7"
+      "sha256": "dd9dbd001ec12e280149c4a6a2616f0cd65fd6a4ed5c87a70e744c1e1f449105"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/flowGraphBlockNames.d.ts",
-      "sha256": "35f72c60bd20f9895a168ae398b7827500500688f9b3893eab0fbc2dccb57e34"
+      "sha256": "eba0ad2902cf29ce063da1054ac992eb454737ddc27ba607fcc3121e4ecb8041"
     },
     {
       "path": "@babylonjs/core/FlowGraph/Blocks/index.d.ts",
@@ -2686,7 +2714,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/CustomTypes/flowGraphMatrix.d.ts",
-      "sha256": "d93ada6909e9b9047cb9d824d73f0654133c7b0855ac6a764d7e6b7646727731"
+      "sha256": "541ee2af4c6371a4d1d0e7dce1eeb776996876df073221be117bc53d7ea5a23d"
     },
     {
       "path": "@babylonjs/core/FlowGraph/CustomTypes/index.d.ts",
@@ -2694,7 +2722,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/flowGraph.d.ts",
-      "sha256": "6e138bb48a661113fac5e0db3846ad68b525baa6943aaa0a954d3924632c1eb1"
+      "sha256": "d9ec2c2ee36b04ab5f0b540bebaff20983dd0020a086e3902ddbd84821ad1344"
     },
     {
       "path": "@babylonjs/core/FlowGraph/flowGraphAssetsContext.d.ts",
@@ -2710,15 +2738,15 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/flowGraphConnection.d.ts",
-      "sha256": "3f0c8015a93fe32a300428a1cb69083325fcdab5ff8aca5b4f83953e594405a9"
+      "sha256": "09dcce5478fa9c651aff04bcbaa8a374fac11127d0c4c0969e9d3a5e20f3e4c7"
     },
     {
       "path": "@babylonjs/core/FlowGraph/flowGraphContext.d.ts",
-      "sha256": "69ced010be8a9c567af467e1e864296323f1346c85038744e68283efdf45fd98"
+      "sha256": "2a83dc9f1870d0d7b8539cc8a8045eb986debdc01aa120d368e2c73e753419f7"
     },
     {
       "path": "@babylonjs/core/FlowGraph/flowGraphCoordinator.d.ts",
-      "sha256": "c63461f25937f40e2542e9558b4011e93e38ea0ce241121ceeeedaaffd1b5d7f"
+      "sha256": "a10a3a18503711e08ae9b91db4d714227b0c240875043759a47decbe0a50f0d4"
     },
     {
       "path": "@babylonjs/core/FlowGraph/flowGraphDataConnection.d.ts",
@@ -2729,8 +2757,12 @@
       "sha256": "5c4f75ae1361f06fff647d45b2ce59a163f534b07f747912b7c187551dbc067c"
     },
     {
+      "path": "@babylonjs/core/FlowGraph/flowGraphDelayRegistry.d.ts",
+      "sha256": "5fb448abdbf9a953fcf4ab70f8baee7ceb98cebb67f081b2de7ff04b82c082b0"
+    },
+    {
       "path": "@babylonjs/core/FlowGraph/flowGraphEventBlock.d.ts",
-      "sha256": "40af64c22778da9a1e0ea96f6d6fb1cd43d588d1762390b497c69e51d7a0a3af"
+      "sha256": "3b4dd48863202994f79954a35d116d6e7895b99010e2e3341dc8f7040d397028"
     },
     {
       "path": "@babylonjs/core/FlowGraph/flowGraphEventType.d.ts",
@@ -2743,6 +2775,10 @@
     {
       "path": "@babylonjs/core/FlowGraph/flowGraphExecutionBlockWithOutSignal.d.ts",
       "sha256": "0ecceac15f40968861ff5cab600f963fdf638f0bf8249400462385275e45e9b6"
+    },
+    {
+      "path": "@babylonjs/core/FlowGraph/flowGraphHostResolver.d.ts",
+      "sha256": "5fde6ffc24f1918d9e27a43455a5009be1f8e174aedab21df9d63287f56b51cc"
     },
     {
       "path": "@babylonjs/core/FlowGraph/flowGraphLogger.d.ts",
@@ -2758,7 +2794,7 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/flowGraphPathConverterComponent.d.ts",
-      "sha256": "c13cc04ced626d00971f805c928e290777661d0a40d770d4e4c7a3d698d43004"
+      "sha256": "70542316d8417fb01cb6514fc6f3a368e6dbb2f302d4c42ca0a9d18888a97dbf"
     },
     {
       "path": "@babylonjs/core/FlowGraph/flowGraphRichTypes.d.ts",
@@ -2786,11 +2822,11 @@
     },
     {
       "path": "@babylonjs/core/FlowGraph/index.d.ts",
-      "sha256": "f8e7310cb8196c59eba4e2525713c9e0a05c198eb6291c5d5362cfef7b0d0854"
+      "sha256": "7e2a5b620d4dbda0f33f0c07b94bc385f0c4e2cd5e11582e06847239122efbe9"
     },
     {
       "path": "@babylonjs/core/FlowGraph/typeDefinitions.d.ts",
-      "sha256": "d1f10c670fbaef17b8fa5de106ca3535a123984b367deb6e2704a47e9b304e8d"
+      "sha256": "39d84dbbf80c0de4ee794cefd3643d68d414781335ff8e207d251e66d71dfcc7"
     },
     {
       "path": "@babylonjs/core/FlowGraph/utils.d.ts",
@@ -2941,6 +2977,14 @@
       "sha256": "54d4c283eaf4e116636e2deb3544a53fd3579d51813f6a9ab1a4cf6e693f0da9"
     },
     {
+      "path": "@babylonjs/core/FrameGraph/Node/Blocks/PostProcesses/meshBlendingPostProcessBlock.d.ts",
+      "sha256": "c8eee6ec05217f05edc6ff34f7dbfde0e4829883d477e90817a01cdd5397524e"
+    },
+    {
+      "path": "@babylonjs/core/FrameGraph/Node/Blocks/PostProcesses/meshBlendingPostProcessBlock.pure.d.ts",
+      "sha256": "8b3baf5cd8015458a003d839467f6b0ba77a02a1df98080b22d7b76fb53b0848"
+    },
+    {
       "path": "@babylonjs/core/FrameGraph/Node/Blocks/PostProcesses/motionBlurPostProcessBlock.d.ts",
       "sha256": "8240e06dd5702cd70f37165c72bddfcad829f540c7c90cc02c2d85ce9e0b1720"
     },
@@ -3034,7 +3078,7 @@
     },
     {
       "path": "@babylonjs/core/FrameGraph/Node/Blocks/Rendering/geometryRendererBlock.pure.d.ts",
-      "sha256": "c654c216d0a8b57895d91cfd984350da82824ac508228fe16106ced0d3c6dcb1"
+      "sha256": "84297119bcea76791922a3f091c7568c78aea9d87916597702ab6879b1275e57"
     },
     {
       "path": "@babylonjs/core/FrameGraph/Node/Blocks/Rendering/iblShadowsRendererBlock.d.ts",
@@ -3142,7 +3186,7 @@
     },
     {
       "path": "@babylonjs/core/FrameGraph/Node/Blocks/index.d.ts",
-      "sha256": "6bbb7fd57bcfb57525e469708064c9532fc2d91bd7430634c66286c61b71aa00"
+      "sha256": "eafa21b46ec04ab5482d7e65d57cf7b6795b1ffd564a817ebe1592e18b6977a7"
     },
     {
       "path": "@babylonjs/core/FrameGraph/Node/Blocks/inputBlock.d.ts",
@@ -3178,7 +3222,7 @@
     },
     {
       "path": "@babylonjs/core/FrameGraph/Node/Types/nodeRenderGraphTypes.d.ts",
-      "sha256": "7bec54407f3488d124820b66f23332929363ce356a92920abd4dfacc77c21b09"
+      "sha256": "2881e8b1b8eb608dc7a3630d342da6d32fb195148cffee55f91027ee6773f3fc"
     },
     {
       "path": "@babylonjs/core/FrameGraph/Node/nodeRenderGraph.d.ts",
@@ -3301,6 +3345,10 @@
       "sha256": "fd302f6196fa9876bc44b69a2d8b04b73655a8046188be5ca4c089521ab87ae7"
     },
     {
+      "path": "@babylonjs/core/FrameGraph/Tasks/PostProcesses/meshBlendingTask.d.ts",
+      "sha256": "5c01429e522c9de5f0d3ce74211c500f0704fa3f8ff32f3ca3f95e54f708d358"
+    },
+    {
       "path": "@babylonjs/core/FrameGraph/Tasks/PostProcesses/motionBlurTask.d.ts",
       "sha256": "2b564c9cb7ddb059ed2fca9d62ff802e5a7e37f23e9e92331b51d142ce0220d9"
     },
@@ -3346,7 +3394,7 @@
     },
     {
       "path": "@babylonjs/core/FrameGraph/Tasks/Rendering/geometryRendererTask.d.ts",
-      "sha256": "1b8bad2f0e265f68b1e52f154db9e8ff930b27ee6d1f7ada10099a8f4ba16c88"
+      "sha256": "c96c25ba835c8b8128826b6a3821a990bd774e6cc7b8fbc8559d78f1f3d8cb97"
     },
     {
       "path": "@babylonjs/core/FrameGraph/Tasks/Rendering/iblShadowsRendererTask.d.ts",
@@ -3394,11 +3442,11 @@
     },
     {
       "path": "@babylonjs/core/FrameGraph/frameGraphObjectList.d.ts",
-      "sha256": "7a71752e27b229db7f13569f1f17aba991b9f2ae156090bc17729403f9fcb3a4"
+      "sha256": "a2acd9b30b1c6363cd635273a3152c5854180e362c32fdb98622a78b95bf6a99"
     },
     {
       "path": "@babylonjs/core/FrameGraph/frameGraphRenderContext.d.ts",
-      "sha256": "2f37e03bfea408e172228ceb9ee26aa5ec36bdb7c4fc940a9094a3344285217e"
+      "sha256": "ce8ffe865200a56f20d9f8655718aacd2572f3655470aba8c11ec40f23524121"
     },
     {
       "path": "@babylonjs/core/FrameGraph/frameGraphRenderTarget.d.ts",
@@ -3426,7 +3474,7 @@
     },
     {
       "path": "@babylonjs/core/FrameGraph/index.d.ts",
-      "sha256": "11ae9166fd638274a6a2f04e4675f9c454bab4187e520e81e9387e927cdcfb29"
+      "sha256": "d5923491c5e2caa2881eb72d41ce12d9c30ab5400967edd60d312ed39217be85"
     },
     {
       "path": "@babylonjs/core/Gamepads/dualShockGamepad.d.ts",
@@ -3438,7 +3486,7 @@
     },
     {
       "path": "@babylonjs/core/Gamepads/gamepadManager.d.ts",
-      "sha256": "b14201778f8cf8448e5887ae3cb8f2c83778cb268153eebec1fe990a194c7599"
+      "sha256": "82477dd4092088b387e55a90df40fcbef0a67cf93a75997f9c15a151c0c0f54f"
     },
     {
       "path": "@babylonjs/core/Gamepads/gamepadSceneComponent.d.ts",
@@ -3566,7 +3614,7 @@
     },
     {
       "path": "@babylonjs/core/Inputs/scene.inputManager.d.ts",
-      "sha256": "b0ecb31260c18da3a5027028ae1562ad12d87191008f80fb6e24e0a1c0da0c2f"
+      "sha256": "62be3528a455383a1950c9440f987ab613194a8bd47cacc1b1f1b4483880b214"
     },
     {
       "path": "@babylonjs/core/Instrumentation/engineInstrumentation.d.ts",
@@ -3854,7 +3902,7 @@
     },
     {
       "path": "@babylonjs/core/Materials/Background/backgroundMaterial.pure.d.ts",
-      "sha256": "24c386a63acd14890a8c90bc7874cce389831ccbe4b2fb8332d9056b1354e52c"
+      "sha256": "3f13eba381b7ee8b37e5a60e6348ff4990451f45847d71581566edb81127eefd"
     },
     {
       "path": "@babylonjs/core/Materials/Background/index.d.ts",
@@ -3882,7 +3930,7 @@
     },
     {
       "path": "@babylonjs/core/Materials/GaussianSplatting/gaussianSplattingMaterial.pure.d.ts",
-      "sha256": "bd031e9bfa129fa6da1fddb838444edd2f4c9eecf83113e39aa8d6d5b019dbbc"
+      "sha256": "d1d1ec35ae737fbbfaddeaa3bd5a9ae3b64939cb994cca0ca258cdae8758584e"
     },
     {
       "path": "@babylonjs/core/Materials/GaussianSplatting/gaussianSplattingSolidColorMaterialPlugin.d.ts",
@@ -4058,7 +4106,7 @@
     },
     {
       "path": "@babylonjs/core/Materials/Node/Blocks/Fragment/fragmentOutputBlock.pure.d.ts",
-      "sha256": "b43e04d7678c4c7d61fa9a8339e6034df31b7c549fbd23fac466922d210a76f4"
+      "sha256": "186d03e85e3d341c746c28b4bc5e2342516866f04f4a999f2a80f32141706aaa"
     },
     {
       "path": "@babylonjs/core/Materials/Node/Blocks/Fragment/frontFacingBlock.d.ts",
@@ -4910,7 +4958,7 @@
     },
     {
       "path": "@babylonjs/core/Materials/Node/nodeMaterial.pure.d.ts",
-      "sha256": "677219cea0d22c528e2d7a2229ed8e6b59c6f48b47a8b6bff62aaa5675a75af8"
+      "sha256": "9098afecbafde4e9ca5d28d62222e31af2ad0ec527081c4c05b2426747e8645c"
     },
     {
       "path": "@babylonjs/core/Materials/Node/nodeMaterial.types.d.ts",
@@ -4926,7 +4974,7 @@
     },
     {
       "path": "@babylonjs/core/Materials/Node/nodeMaterialBuildState.d.ts",
-      "sha256": "d2b56cea479d37eb18c7d7a475a2df12b635ea12a926bd9fa652d39445fd47c0"
+      "sha256": "1743ac0fb1062dbbb4601f347b4590f6af47103b067027fa4a9d7fe87c89e4cc"
     },
     {
       "path": "@babylonjs/core/Materials/Node/nodeMaterialBuildStateSharedData.d.ts",
@@ -4962,7 +5010,7 @@
     },
     {
       "path": "@babylonjs/core/Materials/PBR/openpbrMaterial.pure.d.ts",
-      "sha256": "236bfc745c3b9cfca86fd5d1295b111d59ef8235170b58f07bd833846f31f0eb"
+      "sha256": "8c8d490e795248b15119206fdfff788ba36ce9a38efd697b93275702b5d3d2a7"
     },
     {
       "path": "@babylonjs/core/Materials/PBR/pbrAnisotropicConfiguration.d.ts",
@@ -4978,7 +5026,7 @@
     },
     {
       "path": "@babylonjs/core/Materials/PBR/pbrBaseMaterial.pure.d.ts",
-      "sha256": "c95e6c76f1332fa21fc5860be8ffc4a57010705222e912da69d28a825044fb50"
+      "sha256": "2d64a02db78f98a573018e42b7adc02553d276e814979fc8d196cf5e25a3899d"
     },
     {
       "path": "@babylonjs/core/Materials/PBR/pbrBaseSimpleMaterial.d.ts",
@@ -5174,7 +5222,7 @@
     },
     {
       "path": "@babylonjs/core/Materials/Textures/Procedurals/proceduralTexture.pure.d.ts",
-      "sha256": "94c7008d021a927adc9a1788ded86a34095f9f32c6461cc02ddc48c57d47cffa"
+      "sha256": "fbcbf10cc49a4d2a5ac9707795d817af1d2bcc921ed1039780c9a3069b3a030b"
     },
     {
       "path": "@babylonjs/core/Materials/Textures/Procedurals/proceduralTextureSceneComponent.d.ts",
@@ -5282,7 +5330,7 @@
     },
     {
       "path": "@babylonjs/core/Materials/Textures/index.d.ts",
-      "sha256": "498a1ea7d747447a9a4990fa9b0b476c5d4807924855e4b0c081478156172ffc"
+      "sha256": "e05052696155e493840d14d52ed5879ee73858067aa6efa6c16e79d058aa58c7"
     },
     {
       "path": "@babylonjs/core/Materials/Textures/internalTexture.d.ts",
@@ -5326,7 +5374,7 @@
     },
     {
       "path": "@babylonjs/core/Materials/Textures/rawTexture2DArray.functions.d.ts",
-      "sha256": "a8e4991321b135bae18f3d8ecc501dfcf047078f44e055eca508c201425e18ad"
+      "sha256": "c9d6b9feca557b78217b3a9625e09b15a75007db62b15554adfbd3285e2bb43e"
     },
     {
       "path": "@babylonjs/core/Materials/Textures/rawTexture3D.d.ts",
@@ -5366,7 +5414,7 @@
     },
     {
       "path": "@babylonjs/core/Materials/Textures/textureProcessor.d.ts",
-      "sha256": "5e8623ee1e7b037acf2541b0715b7b58cff91515d48fecd054d47fe4d138416d"
+      "sha256": "9cfd50efc034ac883af393082ba1a0a37ea9bca192a7297da12bec1af39f2e1a"
     },
     {
       "path": "@babylonjs/core/Materials/Textures/textureSampler.d.ts",
@@ -5403,6 +5451,10 @@
     {
       "path": "@babylonjs/core/Materials/colorCurves.types.d.ts",
       "sha256": "8c0033879996daa0380bba99b39210c45e67af571a949868856f6733fd2171fb"
+    },
+    {
+      "path": "@babylonjs/core/Materials/ditheredTileFadeMaterialPlugin.d.ts",
+      "sha256": "0e06bf281a5777f2450a6c3ec9fd3946979bb4b841c391838564674eea840a2c"
     },
     {
       "path": "@babylonjs/core/Materials/drawWrapper.d.ts",
@@ -5466,11 +5518,11 @@
     },
     {
       "path": "@babylonjs/core/Materials/imageProcessingConfiguration.defines.d.ts",
-      "sha256": "4bc9d7bf1b697ef341e94c3bdc28a122cfb05a6ecad117b675d422a4119b69df"
+      "sha256": "55bd7093de5f2056890ed4e1d68d16994bebe297ef7c72e718316c39363edbfb"
     },
     {
       "path": "@babylonjs/core/Materials/imageProcessingConfiguration.pure.d.ts",
-      "sha256": "83a97302fc57f92af5f3cfe3fa506f59fad26a3eca76c6be529c2689de3ad5bc"
+      "sha256": "8f543870f5beba2021dfa3e83ba26d056f39da1db444f467febea525a1e4924a"
     },
     {
       "path": "@babylonjs/core/Materials/imageProcessingConfiguration.types.d.ts",
@@ -5478,7 +5530,7 @@
     },
     {
       "path": "@babylonjs/core/Materials/index.d.ts",
-      "sha256": "fa2bc0a175c7259338cd9d46ce66802b5ecf5a6eb68ff32c532e9e0acd4e12ad"
+      "sha256": "103d3f19cbaee74c71f0de3a63ffcd680554a3631308db1d3d2b19b647ebb0a9"
     },
     {
       "path": "@babylonjs/core/Materials/material.d.ts",
@@ -5518,11 +5570,11 @@
     },
     {
       "path": "@babylonjs/core/Materials/materialHelper.functions.d.ts",
-      "sha256": "17e54b9dde5dbb6d8ecccefd1ad8249eadf98e575a4b7ebc42083870deb6a0a9"
+      "sha256": "8fe7893ed34c949ae7c8dd7632310b2a2d271df91cbb7dbe463ddb81026e3b9d"
     },
     {
       "path": "@babylonjs/core/Materials/materialHelper.geometryrendering.d.ts",
-      "sha256": "7fb75ea3cd7bfc2005bf80f06f6bfc4bf7323f0149724b56eb13acd2b4397e32"
+      "sha256": "a44ec7c871e646be0d1a87843ab55b51fedff56c77b78d41b64eaaeaa988ddb2"
     },
     {
       "path": "@babylonjs/core/Materials/materialPluginBase.d.ts",
@@ -5622,11 +5674,11 @@
     },
     {
       "path": "@babylonjs/core/Materials/standardMaterial.pure.d.ts",
-      "sha256": "88518ec57337da8b281ad285648b8463af03b9b78606910e7f94f7e408b9bd29"
+      "sha256": "b66c99836ce578195fb9cdadbbae14299f6c156a81d71b17d49d39f8211ac027"
     },
     {
       "path": "@babylonjs/core/Materials/uniformBuffer.d.ts",
-      "sha256": "ef466680288fbbdb8c8986666d8f811985d2997b19e909b0366bf27a1a285bd8"
+      "sha256": "19eb5f558b71bec9ebcaf6473a0c5f7f3bcbeb5222725d632d5b85ced2d9a57a"
     },
     {
       "path": "@babylonjs/core/Materials/uniformBufferEffectCommonAccessor.d.ts",
@@ -5651,6 +5703,10 @@
     {
       "path": "@babylonjs/core/Maths/ThinMaths/thinMath.matrix.functions.d.ts",
       "sha256": "7795868bc3a05ce5c2b05c1da3faa4eb80d29a7c74d6639c1036ffbf8cc97ac5"
+    },
+    {
+      "path": "@babylonjs/core/Maths/colorTemperature.functions.d.ts",
+      "sha256": "e7f551be348bf1323f8c7374b8e2fe2721cfec520ff7529280b16f72c1cb57f5"
     },
     {
       "path": "@babylonjs/core/Maths/halton2DSequence.d.ts",
@@ -5734,7 +5790,7 @@
     },
     {
       "path": "@babylonjs/core/Maths/math.vector.pure.d.ts",
-      "sha256": "beab51c57ea850c49d8f9f96e40f24c13c297a1f2e91bded64dd9ff9e6a4af81"
+      "sha256": "14f5b9f1774ec202f053e572e0454abb0986808a8b3edb70f0c4dca1a038cab8"
     },
     {
       "path": "@babylonjs/core/Maths/math.vertexFormat.d.ts",
@@ -5746,7 +5802,7 @@
     },
     {
       "path": "@babylonjs/core/Maths/pure.d.ts",
-      "sha256": "6e95559fe2e0befb923b4c3f4d29e9dcd3ec541a0c545cb7997eec393a616067"
+      "sha256": "578e037f167be0d8d3a6828aa3fd5d2c0da46eac74110dc2ed87a15d0aee72aa"
     },
     {
       "path": "@babylonjs/core/Maths/sphericalPolynomial.d.ts",
@@ -5981,6 +6037,10 @@
       "sha256": "c356e6adef02b3d0e2c223c3cdf6f680a33dd0ae4935c81e37c9c4d1bd616cbc"
     },
     {
+      "path": "@babylonjs/core/Meshes/GaussianSplatting/gaussianSplatting.functions.d.ts",
+      "sha256": "6886a60d0026325f0ee7a2a6beea7d905a628d71f6c0cffaa9ae3432556097c1"
+    },
+    {
       "path": "@babylonjs/core/Meshes/GaussianSplatting/gaussianSplattingCompoundMesh.d.ts",
       "sha256": "933de9fb8c4a4451957f350bde2fe7710b9b5321eaa39d7a5e667899fc97895b"
     },
@@ -6002,7 +6062,7 @@
     },
     {
       "path": "@babylonjs/core/Meshes/GaussianSplatting/gaussianSplattingMesh.pure.d.ts",
-      "sha256": "9f3206323649a3a153457307bb0fb34e2ed401d740ed5b5bf2db420325367374"
+      "sha256": "3a1dbd70227279cb98bec488782bd210af79d9f95d9da5e64d83bf0a4d79e19f"
     },
     {
       "path": "@babylonjs/core/Meshes/GaussianSplatting/gaussianSplattingMeshBase.d.ts",
@@ -6010,7 +6070,7 @@
     },
     {
       "path": "@babylonjs/core/Meshes/GaussianSplatting/gaussianSplattingMeshBase.pure.d.ts",
-      "sha256": "073459551e29a4933c193587a3ae1887414d9afb496e2efd3598617ba2c0f0df"
+      "sha256": "c205154ee171ab6584c36a4fc2f779b7fb6de23c2af83fffd68b855626586057"
     },
     {
       "path": "@babylonjs/core/Meshes/GaussianSplatting/gaussianSplattingPartProxyMesh.d.ts",
@@ -6018,7 +6078,7 @@
     },
     {
       "path": "@babylonjs/core/Meshes/GaussianSplatting/gaussianSplattingPartProxyMesh.pure.d.ts",
-      "sha256": "bdeac5ba9a83a787e90dc1197917e334e016bcc9605362a056d317aafe07a4ed"
+      "sha256": "fce1dffd79fca72975224bbd18f4307a79a398dbe456eb6654d75a4e868cf94f"
     },
     {
       "path": "@babylonjs/core/Meshes/GreasedLine/greasedLineBaseMesh.d.ts",
@@ -6766,7 +6826,7 @@
     },
     {
       "path": "@babylonjs/core/Meshes/abstractMesh.pure.d.ts",
-      "sha256": "0a1460ef60fcddb521c04bd9887c42051dd4bbcd511d63cf829fb6a2bcdd7382"
+      "sha256": "a1cdb463c9a1e4361b53ebfc650e1080e0842f702fb9b5ad24903f6d59db8ebe"
     },
     {
       "path": "@babylonjs/core/Meshes/buffer.d.ts",
@@ -6806,7 +6866,7 @@
     },
     {
       "path": "@babylonjs/core/Meshes/index.d.ts",
-      "sha256": "ab3fd2cb96ce3017391a54fee7642b9ff3594756fed9e5209eec8d769e886334"
+      "sha256": "da34d9fd30e863b25056ebe30cb7b14060be6ae39ce773b726f53fa052786804"
     },
     {
       "path": "@babylonjs/core/Meshes/instancedMesh.d.ts",
@@ -6814,7 +6874,7 @@
     },
     {
       "path": "@babylonjs/core/Meshes/instancedMesh.pure.d.ts",
-      "sha256": "b6c783124b964b101ede7d0522b0c51590a127b7a8a431e89853db783670b641"
+      "sha256": "28eef78cb89eca2e49ec88dbcbc3d681bb8a85845bfd46bb542af34f1fae8e23"
     },
     {
       "path": "@babylonjs/core/Meshes/instancedMesh.types.d.ts",
@@ -6855,6 +6915,10 @@
     {
       "path": "@babylonjs/core/Meshes/mesh.vertexData.subdivide.d.ts",
       "sha256": "a36b74a1e7b6e00e9fdcdf22941df2a0fd5ca1cf88e870011f96004942f6771f"
+    },
+    {
+      "path": "@babylonjs/core/Meshes/meshBlendingTag.d.ts",
+      "sha256": "b7291416f40efa4d14e7f92b011b8d49d7ee9519650b60ae28bd1b4d1081f2ad"
     },
     {
       "path": "@babylonjs/core/Meshes/meshBuilder.d.ts",
@@ -7134,7 +7198,7 @@
     },
     {
       "path": "@babylonjs/core/Misc/filesInput.d.ts",
-      "sha256": "d3218ecd47aca3fbb5ed6d172f6f85eb19b878e3ceb7f346a1c2579bbf1b2f79"
+      "sha256": "df4ddcd32990145821841ee6af61bc676176ad9367d7662a5f6ad1d4b8ac460d"
     },
     {
       "path": "@babylonjs/core/Misc/filesInputStore.d.ts",
@@ -7162,7 +7226,7 @@
     },
     {
       "path": "@babylonjs/core/Misc/index.d.ts",
-      "sha256": "33c0ecacfe150e5e2a7e908c8940254b7ce0761931aa3bfe9fa11be762afdac2"
+      "sha256": "97dcf435f33739679cc29de819015d447ee055b0410a861372052ad3376f7cfc"
     },
     {
       "path": "@babylonjs/core/Misc/interfaces/iClipPlanesHolder.d.ts",
@@ -7295,6 +7359,10 @@
     {
       "path": "@babylonjs/core/Misc/screenshotTools.pure.d.ts",
       "sha256": "cc2e4a2fefbb0dca5965d93552401fc1f120176a779232c02b98b55a76c99f22"
+    },
+    {
+      "path": "@babylonjs/core/Misc/shaderImportLoader.d.ts",
+      "sha256": "18ba3e52320048ac603be4f745c181c35b23bdb681a3cdbb3aa31608e73407a1"
     },
     {
       "path": "@babylonjs/core/Misc/smartArray.d.ts",
@@ -7722,7 +7790,7 @@
     },
     {
       "path": "@babylonjs/core/Particles/Node/Blocks/particleClampBlock.pure.d.ts",
-      "sha256": "f246f7c22792fb09a8b52402bac0475178a87d5586c5b3b31d3110aba68ff0fb"
+      "sha256": "e4b923bffce84934be22ee8e71a607e357a0c2df097b2859d593da48c5cff5eb"
     },
     {
       "path": "@babylonjs/core/Particles/Node/Blocks/particleConverterBlock.d.ts",
@@ -7958,7 +8026,7 @@
     },
     {
       "path": "@babylonjs/core/Particles/gpuParticleSystem.pure.d.ts",
-      "sha256": "103b589e5cea25c9646b399d5ac2a78d0eda9e9ed029c63de6959e786c4780f4"
+      "sha256": "59170fd37af5ef09904d162b062253d9c71eb90e3dca8d32712d0568268a3282"
     },
     {
       "path": "@babylonjs/core/Particles/index.d.ts",
@@ -8018,7 +8086,7 @@
     },
     {
       "path": "@babylonjs/core/Particles/thinParticleSystem.pure.d.ts",
-      "sha256": "84500a3cf14f22c62d978d9b45fee8accf4576d7242e723a7323c1f82fd1b43f"
+      "sha256": "46f3ce6c0b0371c47780314b3a5f19903bf7ebccbbfd4367a5ee48135abaf258"
     },
     {
       "path": "@babylonjs/core/Particles/webgl2ParticleSystem.d.ts",
@@ -8026,7 +8094,7 @@
     },
     {
       "path": "@babylonjs/core/Particles/webgl2ParticleSystem.pure.d.ts",
-      "sha256": "32a6cff7dcfbf3b005e03a98c49f867da6864423632509854b1034ffff44bc6a"
+      "sha256": "ed7384db78562d48ebd3d6f515accb4360b9e346016832fe57b61935170baa83"
     },
     {
       "path": "@babylonjs/core/Physics/IPhysicsEngine.d.ts",
@@ -8146,7 +8214,7 @@
     },
     {
       "path": "@babylonjs/core/Physics/v2/Plugins/havokPlugin.d.ts",
-      "sha256": "7d9286769f3944ae8326787f43ac03cf47d92042895a86ce185c58fc4b549c94"
+      "sha256": "7452be3b2a9f23cc88870a986122c15f77ed1543a3567dd0274183ab8b3ef498"
     },
     {
       "path": "@babylonjs/core/Physics/v2/Plugins/index.d.ts",
@@ -8213,8 +8281,12 @@
       "sha256": "486915a8b4b7f7e85aa238a57263c10e9c04882ccf51c21ee0d650e348297d8f"
     },
     {
+      "path": "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/fsr1RenderingPipeline.d.ts",
+      "sha256": "b7eff93a6fe2e62793c479d96d16a077c032785827c0d7da95fd25453060b461"
+    },
+    {
       "path": "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/index.d.ts",
-      "sha256": "b27819d5714264801a2badce8656f5c5850a78e2889778b9bf322da970367cb0"
+      "sha256": "86a858ba8475ce76cd02b54315442c1a1deb927e7f8d0fb1582e8fb4cc985aa4"
     },
     {
       "path": "@babylonjs/core/PostProcesses/RenderPipeline/Pipelines/lensRenderingPipeline.d.ts",
@@ -8446,11 +8518,15 @@
     },
     {
       "path": "@babylonjs/core/PostProcesses/imageProcessingPostProcess.d.ts",
-      "sha256": "86bd39acf15a37b88133983c10f920ff69f74aa56b862fed3bf0d79e7867d2aa"
+      "sha256": "41a5daa29bea7f8516ca2942ea6e69c4a928b63395403676c297b217de2f3d17"
     },
     {
       "path": "@babylonjs/core/PostProcesses/index.d.ts",
-      "sha256": "d8463efd861a39e89f0a1148258b8a4ababdf06c15e1c2e9f02a2fe605db3782"
+      "sha256": "caccc5c5f8192382d1405a96ba5ac2cc478afe991df9d8de5a23314f74100ee7"
+    },
+    {
+      "path": "@babylonjs/core/PostProcesses/meshBlendingPostProcess.d.ts",
+      "sha256": "91c3e46ee69159e92f569ae8fb32495ed7c1f4bbbecabdd9f669ff1523f1a052"
     },
     {
       "path": "@babylonjs/core/PostProcesses/motionBlurPostProcess.d.ts",
@@ -8598,7 +8674,11 @@
     },
     {
       "path": "@babylonjs/core/PostProcesses/thinImageProcessingPostProcess.d.ts",
-      "sha256": "f2777732406092d0df851970d16b2b1fd7985e8b4e0fa27d21afb74493838d3f"
+      "sha256": "22f5303e3380e45fa9edb1b977f0600c2d14f3095cf7c155689af22bde475977"
+    },
+    {
+      "path": "@babylonjs/core/PostProcesses/thinMeshBlendingPostProcess.d.ts",
+      "sha256": "213fc648fdae44f3ffaa934e8652303ab10c3b1aa4360fa74b8394d067da5c9a"
     },
     {
       "path": "@babylonjs/core/PostProcesses/thinMotionBlurPostProcess.d.ts",
@@ -8714,7 +8794,7 @@
     },
     {
       "path": "@babylonjs/core/Rendering/IBLShadows/iblShadowsRenderPipeline.pure.d.ts",
-      "sha256": "fa0ec7fa61a973388c0571299a4ee37a3f3dbb1f957cadf53e7e2b1a7b8ed4d8"
+      "sha256": "d95f47c0e3419cee3554af4caf8d8dfdb2970af0fda30439e674482497acb947"
     },
     {
       "path": "@babylonjs/core/Rendering/boundingBoxRenderer.d.ts",
@@ -8770,7 +8850,7 @@
     },
     {
       "path": "@babylonjs/core/Rendering/edgesRenderer.pure.d.ts",
-      "sha256": "36c70057822c383e7bb2631e86e588f9ae0db52d918836e2ac0321166d5c5e60"
+      "sha256": "eb9b35434ed3cf1c1fa47a193b0d57824aab948fe6b3d3a7138408de6d16d28f"
     },
     {
       "path": "@babylonjs/core/Rendering/edgesRenderer.types.d.ts",
@@ -8790,15 +8870,15 @@
     },
     {
       "path": "@babylonjs/core/Rendering/fluidRenderer/fluidRenderingObject.d.ts",
-      "sha256": "2e7fb213adde8128fb4da03c98a065fe1bf368b748ee8a99a289f97aec17f3a8"
+      "sha256": "23c5de415cf4fd8748857b10e93b6dc4f0c7b083f9090822ff869c73af3a802f"
     },
     {
       "path": "@babylonjs/core/Rendering/fluidRenderer/fluidRenderingObjectCustomParticles.d.ts",
-      "sha256": "af028458abf7a7014bb36424f9337a6cfb8f89eba89dc7cf55f099eaf9f0cc30"
+      "sha256": "7c6ce006e29433550d572e8e002395b0df756eb9c796acf4cfc370717a4806ca"
     },
     {
       "path": "@babylonjs/core/Rendering/fluidRenderer/fluidRenderingObjectParticleSystem.d.ts",
-      "sha256": "9a07d5f1af073df7c039137e80bd24c2c8c9221cf3893fabeb9755448b95a97e"
+      "sha256": "a405306f8172f854719b5fb3ac16167c0a349e47d62c973dd426570098c45d23"
     },
     {
       "path": "@babylonjs/core/Rendering/fluidRenderer/fluidRenderingTargetRenderer.d.ts",
@@ -8818,7 +8898,7 @@
     },
     {
       "path": "@babylonjs/core/Rendering/geometryBufferRenderer.pure.d.ts",
-      "sha256": "38caf398cab2424b3991b30d724dae932f005f7b04a20d6f53cdd77669675b54"
+      "sha256": "89db3b2f18f86e7b0946c128500dc4ab637c030279dd9b1365d43f5095d3abbf"
     },
     {
       "path": "@babylonjs/core/Rendering/geometryBufferRendererSceneComponent.d.ts",
@@ -8854,7 +8934,7 @@
     },
     {
       "path": "@babylonjs/core/Rendering/objectRenderer.d.ts",
-      "sha256": "859b986b6fe842eab59f006b054af0204c051e9e09747de5f9ab9b0320f6ce41"
+      "sha256": "6461b566d03df9a09218eceb27e6a8c37634017915415878311cf454be80d528"
     },
     {
       "path": "@babylonjs/core/Rendering/outlineRenderer.d.ts",
@@ -8906,7 +8986,7 @@
     },
     {
       "path": "@babylonjs/core/Rendering/renderingManager.d.ts",
-      "sha256": "c9f1bc42fcdd162aa0fa80aa1a9935d076789c165c391dddc5fb83b6b7dc0556"
+      "sha256": "6cfd15867369b0a0e143562cc6419395d739974d91af7075404c87026d273bbc"
     },
     {
       "path": "@babylonjs/core/Rendering/subSurfaceConfiguration.d.ts",
@@ -8918,7 +8998,7 @@
     },
     {
       "path": "@babylonjs/core/Rendering/subSurfaceSceneComponent.pure.d.ts",
-      "sha256": "633a8e8f7948e5868caa78e6e7f1bc8118b9c3a3f4d689ed4380a094af11bc94"
+      "sha256": "376ffd68fd8cdff65a4634c7c10b30a1b092518285d896a6bdf181585af282ff"
     },
     {
       "path": "@babylonjs/core/Rendering/subSurfaceSceneComponent.types.d.ts",
@@ -9311,6 +9391,14 @@
     {
       "path": "@babylonjs/core/Shaders/fluidRenderingStandardBlur.fragment.d.ts",
       "sha256": "877d4fb29d35418e3731601055f7264f2aa1327135ab82a06f460b7a48b90784"
+    },
+    {
+      "path": "@babylonjs/core/Shaders/fsr1Sharpen.fragment.d.ts",
+      "sha256": "2912e1c832bb9850e01b58b6e435e06a7d552ba2078146a5dee951a3c943ed87"
+    },
+    {
+      "path": "@babylonjs/core/Shaders/fsr1Upscale.fragment.d.ts",
+      "sha256": "9df174445a9fb053d68c7510001c16bebf5d6c747e8fda775f8d9b807c49bed6"
     },
     {
       "path": "@babylonjs/core/Shaders/fxaa.fragment.d.ts",
@@ -9801,6 +9889,10 @@
       "sha256": "4198458f871023e72791e55ff0ff971e22d287c69c605673b7eb83ffd722f140"
     },
     {
+      "path": "@babylonjs/core/ShadersWGSL/ShadersInclude/clusteredLightingCompute.d.ts",
+      "sha256": "d44b5dfd21e2ff8dcadfebbc4956562094b903b8dd6fbf81a250fac0f8ca55e6"
+    },
+    {
       "path": "@babylonjs/core/ShadersWGSL/ShadersInclude/clusteredLightingFunctions.d.ts",
       "sha256": "237ac05bb3d33f384072397bd65cdaa4754c6ede6ec356da97ecbcf2e8150fed"
     },
@@ -9898,7 +9990,7 @@
     },
     {
       "path": "@babylonjs/core/ShadersWGSL/ShadersInclude/lightsFragmentFunctions.d.ts",
-      "sha256": "e97578738f9bc23a929dfd36673a4bf8ef6e6e185ebd2224b9a6e7340640d091"
+      "sha256": "f3ed6a18b804e63b3456aa9886bb3d13551cfc46e945d8ad9602ad4441d516dc"
     },
     {
       "path": "@babylonjs/core/ShadersWGSL/ShadersInclude/logDepthDeclaration.d.ts",
@@ -10135,6 +10227,14 @@
     {
       "path": "@babylonjs/core/ShadersWGSL/fluidRenderingStandardBlur.fragment.d.ts",
       "sha256": "022a287d3613aea1992ae12e4134b89e4eaece22d3f549a7e5f09400eb17ba3b"
+    },
+    {
+      "path": "@babylonjs/core/ShadersWGSL/fsr1Sharpen.fragment.d.ts",
+      "sha256": "f305bd87684aea9b0ee5ed9511a2369915d107ff6e8d72bfa511a1d03a629037"
+    },
+    {
+      "path": "@babylonjs/core/ShadersWGSL/fsr1Upscale.fragment.d.ts",
+      "sha256": "0918da9a21d5a99901d9864e9e73491fb5176846827ec160a114b7865fce85e3"
     },
     {
       "path": "@babylonjs/core/ShadersWGSL/fxaa.fragment.d.ts",
@@ -10542,7 +10642,7 @@
     },
     {
       "path": "@babylonjs/core/Sprites/spriteManager.d.ts",
-      "sha256": "d42d37d6af1d3af0cf0db8c06bb81c69d89ae58c1095b28bd31863941559fd55"
+      "sha256": "57f6ff2d49f247b84da689c626454d46ad75163bf165e948f79d086c257053a1"
     },
     {
       "path": "@babylonjs/core/Sprites/spriteMap.d.ts",
@@ -10558,7 +10658,7 @@
     },
     {
       "path": "@babylonjs/core/Sprites/spriteRenderer.d.ts",
-      "sha256": "0bb523eaf2106a6a1f5010f3f5ed62b162a678c51e90abaa5ae1ff6f827326f7"
+      "sha256": "d0d82b49a23b3842abe43e195461e8f7a70029891de8b6cec14ee592d3c712ac"
     },
     {
       "path": "@babylonjs/core/Sprites/spriteSceneComponent.d.ts",
@@ -10574,7 +10674,7 @@
     },
     {
       "path": "@babylonjs/core/Sprites/thinSprite.d.ts",
-      "sha256": "ba12f98d18afba9e59776b59263d16c13d3bf1e1f425de436badaa991c6125e0"
+      "sha256": "ea5138ed56c37cb79f5e5954e38e1440cb1a1ca0ad66d0e4a702a2582fef1e74"
     },
     {
       "path": "@babylonjs/core/States/IStencilState.d.ts",
@@ -10582,7 +10682,7 @@
     },
     {
       "path": "@babylonjs/core/States/alphaCullingState.d.ts",
-      "sha256": "263d962b9b975a79a80dd68a0d0feb36effa802eec4b087d203ce6582f1c5640"
+      "sha256": "d8f85dcff8ed921ed28ead0d7c9b3268bc6adb6d9ab001bfedefdbeeae983714"
     },
     {
       "path": "@babylonjs/core/States/depthCullingState.d.ts",
@@ -10602,7 +10702,11 @@
     },
     {
       "path": "@babylonjs/core/XR/features/Layers/WebXRCompositionLayer.d.ts",
-      "sha256": "dfd79c7d4b030423e9f2f128d5c6b0575a75d36ae0d75485394b6b755abd277d"
+      "sha256": "f987974bc34050a87b5d3807d8b9dc1b77d142c5493564551c263bf4279a130c"
+    },
+    {
+      "path": "@babylonjs/core/XR/features/Layers/WebXRFallbackLayer.d.ts",
+      "sha256": "b719b7982aa11f68c67faa3719e5d8f2789eac02b69a60e47384e6f89d26e747"
     },
     {
       "path": "@babylonjs/core/XR/features/Layers/WebXRProjectionLayer.d.ts",
@@ -10610,7 +10714,7 @@
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRAbstractFeature.d.ts",
-      "sha256": "bd56b52f4eaccae124acfa04a82cb4e74d3b5abdef2ff9daedd0aae6fa8fb2a5"
+      "sha256": "1882a0746c4e0fbb9559099d0d6d9ae30989d6733cecd7cd6709286df2655dad"
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRAnchorSystem.d.ts",
@@ -10618,7 +10722,7 @@
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRAnchorSystem.pure.d.ts",
-      "sha256": "c7071b3e222be81b09729c4a11baffbd6cf10ec51481233a0f26a42920be5af7"
+      "sha256": "3fe453e6e1756f14828bc6e3a70a71f004f60522b85fa7015f4f37faa488b38f"
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRBackgroundRemover.d.ts",
@@ -10682,7 +10786,7 @@
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRDepthSensing.pure.d.ts",
-      "sha256": "9704c22b1627629195916cda3eb068968151c427de9f9f38567281d3906f6b5d"
+      "sha256": "99dbabe4d466b3c2476f95a35714f759217fcb0b4e57f5555d18fbe830289900"
     },
     {
       "path": "@babylonjs/core/XR/features/WebXREyeTracking.d.ts",
@@ -10734,7 +10838,7 @@
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRLayers.pure.d.ts",
-      "sha256": "090549a732b6e881c46e7edce36d4b24d3fbdee52dde3bf52e1318b4c679b344"
+      "sha256": "c846549e89c5f371c4b71fc321b70795f56a231acd3e35529303bc33dc1901c4"
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRLightEstimation.d.ts",
@@ -10742,7 +10846,7 @@
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRLightEstimation.pure.d.ts",
-      "sha256": "34dbd803fbc19836932dcbcee98eabc804d6bbb3a66e94f0735bac53d5b38c97"
+      "sha256": "8ce453337e963b8d7edb3512cd24511a18437f670eedc859bb781a81785e359d"
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRMeshDetector.d.ts",
@@ -10750,7 +10854,7 @@
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRMeshDetector.pure.d.ts",
-      "sha256": "60804ffa1e4ac68698936b9c763d07b48fe2300124ed25d3190aa5a310c6c726"
+      "sha256": "e144f5e66713aa21dd0363b0fb94a60957e324c2a292651e68246f17fb08962c"
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRNearInteraction.d.ts",
@@ -10770,7 +10874,7 @@
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRPlaneDetector.pure.d.ts",
-      "sha256": "d126d14f5d3b47b091333f7a01b8c14fa3faa23c60a1e5d340caf342c54408da"
+      "sha256": "55190d1f9afde381caa511ee253deefee1c8fecb6ce82cc4bc57314e932aedc8"
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRRawCameraAccess.d.ts",
@@ -10786,7 +10890,15 @@
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRSpaceWarp.pure.d.ts",
-      "sha256": "1561b35fc4e46b7d0e76e6d5da0ffd86675b9bd8a0f30cb2a3dfc4f562e58c47"
+      "sha256": "938628198eaf09c68a814479e47fb5d31593a9484b1ba45796a559db2db12d41"
+    },
+    {
+      "path": "@babylonjs/core/XR/features/WebXRTrackedSources.d.ts",
+      "sha256": "75a4d5f8296641420069974076e6f91bc0585ae13f5362e5567903695f275d1b"
+    },
+    {
+      "path": "@babylonjs/core/XR/features/WebXRTrackedSources.pure.d.ts",
+      "sha256": "d98fcc75bedc4613ba23068e597534e245d2b2bbf39428863b6744f2a1df1883"
     },
     {
       "path": "@babylonjs/core/XR/features/WebXRWalkingLocomotion.d.ts",
@@ -10798,7 +10910,7 @@
     },
     {
       "path": "@babylonjs/core/XR/features/index.d.ts",
-      "sha256": "b0f5c278d17412411267c2a7bd34b89afa54ae8c28e585dbcca339faded6919e"
+      "sha256": "4cadee404c2efcf83995c8672a62d30ad822f0cb969f7ad3587916638e551191"
     },
     {
       "path": "@babylonjs/core/XR/index.d.ts",
@@ -10810,7 +10922,7 @@
     },
     {
       "path": "@babylonjs/core/XR/motionController/webXRAbstractMotionController.d.ts",
-      "sha256": "159e50678110eb742036b41af7c1a8e683d69a1018263e238f61605d40595fdc"
+      "sha256": "ec953163552c9d404defee9b0d235e440f60aa8077a33cb2406e24fba273d93f"
     },
     {
       "path": "@babylonjs/core/XR/motionController/webXRControllerComponent.d.ts",
@@ -10890,7 +11002,7 @@
     },
     {
       "path": "@babylonjs/core/XR/webXRCamera.d.ts",
-      "sha256": "99db0457b9e4d8840063a361ca4b82a5e9d9ce563d2b0dac6d0d5074cf163391"
+      "sha256": "5ee2d9033854360f3cd90c200b9aa7517d38bd6d6c7a729ad4ebdee64a5cd5c8"
     },
     {
       "path": "@babylonjs/core/XR/webXRDefaultExperience.d.ts",
@@ -10906,11 +11018,11 @@
     },
     {
       "path": "@babylonjs/core/XR/webXRFeaturesManager.d.ts",
-      "sha256": "7260c487546d1b6354f0a96f3c956777468a66de74628b2da3f05e33ed49971d"
+      "sha256": "451d7e964e5a6bf297e385984cb951d5cdff029916b410e3a1bc401f2923d1c4"
     },
     {
       "path": "@babylonjs/core/XR/webXRGraphicsBinding.d.ts",
-      "sha256": "278089553b667a02d49bfe2342c72be37c25511e5de30caa3c9fa6bd8819eafe"
+      "sha256": "73ef1d3ed30a5c945e0658f4d2129601318fa88d30091bc2e8e0862ebbf6e073"
     },
     {
       "path": "@babylonjs/core/XR/webXRInput.d.ts",
@@ -10922,7 +11034,7 @@
     },
     {
       "path": "@babylonjs/core/XR/webXRLayerWrapper.d.ts",
-      "sha256": "421eb823fbaa9a86e2ca41065818e8f648278db473a3a1ad75801d85b897e54a"
+      "sha256": "e2e6c76e16afeae8d4c6e4357fc212bbbe9ffbc95332674d51b95249ac601c7f"
     },
     {
       "path": "@babylonjs/core/XR/webXRManagedOutputCanvas.d.ts",
@@ -10930,11 +11042,11 @@
     },
     {
       "path": "@babylonjs/core/XR/webXRRenderTargetTextureProvider.d.ts",
-      "sha256": "ce72d3caaa69ea93d54380d2c103a3c4700752eebed00cc17398e658a7753dac"
+      "sha256": "5de41e8e5f606be8f815f9a78137b5e2de862a78cc2dbdf6ff132e7c4e36f31f"
     },
     {
       "path": "@babylonjs/core/XR/webXRSessionManager.d.ts",
-      "sha256": "b80b305315157af1e1f565c3fede425f9b32a37e10be985cf7d1de9b8a61270a"
+      "sha256": "0b79cd618a1ba31252de21f4054b3eb6c4c18464079333086e0fd23be28c99b5"
     },
     {
       "path": "@babylonjs/core/XR/webXRTypes.d.ts",
@@ -10946,7 +11058,7 @@
     },
     {
       "path": "@babylonjs/core/XR/webXRWebGLRenderTargetTextureProvider.d.ts",
-      "sha256": "b8ef3434a41861d3d8b6366a994d0904573a97e31e8aa976de466a53f92eb0e9"
+      "sha256": "a3bffe94f3a6bf3ae74e6339fccb1286aa6aee9120effeb21173d4b1122edd81"
     },
     {
       "path": "@babylonjs/core/assetContainer.d.ts",
@@ -10966,7 +11078,7 @@
     },
     {
       "path": "@babylonjs/core/scene.pure.d.ts",
-      "sha256": "d01ca81da4a50cf20f6443e9adafc31f842cf9d71b6ce113fd532aca7ff6e8bd"
+      "sha256": "b16242a9667c4b915719329498a7111dcd5ba38bb671d4e0a6be078d45987987"
     },
     {
       "path": "@babylonjs/core/sceneComponent.d.ts",

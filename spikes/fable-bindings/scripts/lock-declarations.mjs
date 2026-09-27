@@ -9,6 +9,7 @@ const valueAfter = flag => {
 };
 const root = resolve(valueAfter("--declarations-root") ?? resolve(import.meta.dirname, "..", "node_modules"));
 const lockPath = resolve(valueAfter("--lock") ?? resolve(import.meta.dirname, "..", "declaration-lock.json"));
+const packageManifest = JSON.parse(await readFile(resolve(import.meta.dirname, "..", "package.json"), "utf8"));
 const entryPoints = valueAfter("--entry") ? [valueAfter("--entry")] : [
   "@babylonjs/core/Engines/nullEngine.d.ts",
   "@babylonjs/core/scene.d.ts",
@@ -44,7 +45,7 @@ const files = await Promise.all([...seen].sort().map(async path => ({
   path,
   sha256: createHash("sha256").update(await readFile(resolve(root, path))).digest("hex")
 })));
-const document = { schema: 2, package: "@babylonjs/core@9.19.0", companionPackage: "@babylonjs/loaders@9.19.0", entryPoints, files };
+const document = { schema: 2, package: `@babylonjs/core@${packageManifest.dependencies["@babylonjs/core"]}`, companionPackage: `@babylonjs/loaders@${packageManifest.dependencies["@babylonjs/loaders"]}`, entryPoints, files };
 const rendered = `${JSON.stringify(document, null, 2)}\n`;
 if (args.includes("--write")) {
   await writeFile(lockPath, rendered);

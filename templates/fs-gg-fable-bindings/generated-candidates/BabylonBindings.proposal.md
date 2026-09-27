@@ -1,8 +1,8 @@
 # Generated candidate proposal
 
-Input declaration closure SHA-256: `3171be522100b5cd9be0d9c58b22de86afd6401979ea01549795dd879885e7e4`
+Input declaration closure SHA-256: `a17c61141dd2da67edad427ab56aeb430e894a8de53ae7372dfbd173ab4dfb06`
 
-The generator inspected 2898 locked declaration files with the TypeScript parser. It
+The generator inspected 2926 locked declaration files with the TypeScript parser. It
 writes review inputs only and never changes maintained bindings, `binding-plan.json`, or the lock.
 
 ## Construct pressure
@@ -12,7 +12,7 @@ writes review inputs only and never changes maintained bindings, `binding-plan.j
 | conditionalTypes | 56 |
 | mappedTypes | 19 |
 | templateLiteralTypes | 0 |
-| indexSignatures | 270 |
+| indexSignatures | 273 |
 | inferredTypes | 21 |
 
 ## Cross-file declaration-merging candidates

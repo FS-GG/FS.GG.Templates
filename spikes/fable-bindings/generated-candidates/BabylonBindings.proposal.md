@@ -1,6 +1,6 @@
 # Generated candidate proposal
 
-Input declaration closure SHA-256: `3171be522100b5cd9be0d9c58b22de86afd6401979ea01549795dd879885e7e4`
+Input declaration closure SHA-256: `a17c61141dd2da67edad427ab56aeb430e894a8de53ae7372dfbd173ab4dfb06`
 
 This tracked artifact is the reviewable generated proposal. Compare it with
 `../src/BabylonBindings.fs` and carry only reviewed, curated changes into the

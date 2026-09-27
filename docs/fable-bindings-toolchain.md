@@ -17,8 +17,8 @@ findings are now enforced by the generated workspace and composition gate.
 | Node / npm | 26.10.0 / 12.1.0 |
 | Fable tool / Fable.Core | 5.18.0 / 5.3.0 |
 | Glutinum template | `Glutinum.Template@1.1.1` |
-| npm corpus | `@babylonjs/core@9.19.0`, `@babylonjs/loaders@9.19.0` |
-| core artifact integrity | `sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeGpS/bQ3NzwtApB84GScm9v8w==` |
+| npm corpus | `@babylonjs/core@9.28.0`, `@babylonjs/loaders@9.19.0` |
+| core artifact integrity | `sha512-CrmxXdCQlXK6cq3ccL9yNcrasFVmU1lkT9mDsoaFcEJXGHxfxMfVmBjObr4OS0JdWP5sbH6oTymMsw89z4bjpQ==` |
 
 The selected closure is recorded in `spikes/fable-bindings/declaration-lock.json`.
 It covers deep ESM engine, scene, maths, camera, light, mesh-builder, and glTF
