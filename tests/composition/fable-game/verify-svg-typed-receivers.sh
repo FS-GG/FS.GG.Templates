@@ -165,7 +165,14 @@ cp -a "$out/retained" "$out/rollback-probe"
 [[ "$skills_before" == "$(tree_sha "$out/retained/.agents/skills")" ]] || fail 'installed skills were refreshed during adoption'
 
 for receiver in clean retained sdd-none wizard; do
-  (cd "$out/$receiver" && bash ./build.sh >"$out/$receiver-root-build.log" 2>&1) || {
+  build_env=()
+  if [[ "$receiver" == retained ]]; then
+    # Published 0.10.0 locks FSharp.Core 10.1.400. Its latestFeature SDK roll-forward
+    # can now select 10.0.401, whose implicit reference is 10.1.401. Preserve the
+    # published lock and make this retained build use its recorded package version.
+    build_env=(FSharpCoreImplicitPackageVersion=10.1.400)
+  fi
+  (cd "$out/$receiver" && env "${build_env[@]}" bash ./build.sh >"$out/$receiver-root-build.log" 2>&1) || {
     tail -n 160 "$out/$receiver-root-build.log" >&2
     fail "$receiver root build/test/browser entry failed"
   }
