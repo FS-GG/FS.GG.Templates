@@ -1,6 +1,6 @@
 # Build, evidence, and deployment runbook
 
-Run `bash ./build.sh` from the workspace root with .NET SDK 10.0.400. NuGet and npm lock
+Run `bash ./build.sh` from the workspace root with .NET SDK 10.0.401. NuGet and npm lock
 files are required. The build emits `artifacts/static-player`, optional
 `artifacts/static-studio`, `artifacts/authority-server`, and TRX/JUnit reports below
 `artifacts/test-results`.
