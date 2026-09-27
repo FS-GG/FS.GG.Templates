@@ -75,7 +75,7 @@ const validate = (input) => {
 
   const global = JSON.parse(input.read("global.json"));
   const tools = JSON.parse(input.read(".config/dotnet-tools.json"));
-  if (global.sdk?.version !== "10.0.400" || global.sdk?.rollForward !== "disable") fail("global.json SDK pin is not the supported exact toolchain metadata");
+  if (global.sdk?.version !== "10.0.401" || global.sdk?.rollForward !== "disable") fail("global.json SDK pin is not the supported exact toolchain metadata");
   if (tools.tools?.fable?.version !== "5.18.0" || !tools.tools.fable.commands?.includes("fable")) fail("dotnet tool manifest lacks the exact Fable tool pin");
   const clientPackage = JSON.parse(input.read("Client/package.json"));
   const browserPackage = JSON.parse(input.read("Browser.Tests/package.json"));
@@ -84,7 +84,7 @@ const validate = (input) => {
   const coherentLock = (name, manifest, lock) => lock.lockfileVersion === 3 && lock.packages?.[""]?.name === manifest.name && JSON.stringify(lock.packages[""]?.dependencies ?? {}) === JSON.stringify(manifest.dependencies ?? {}) && JSON.stringify(lock.packages[""]?.devDependencies ?? {}) === JSON.stringify(manifest.devDependencies ?? {});
   if (!coherentLock("Client", clientPackage, clientLock)) fail("Client package manifest and lockfile are incoherent");
   if (!coherentLock("Browser.Tests", browserPackage, browserLock)) fail("Browser.Tests package manifest and lockfile are incoherent");
-  if (clientPackage.dependencies?.["@microsoft/signalr"] !== "10.0.0" || clientPackage.devDependencies?.vite !== "7.3.6" || browserPackage.devDependencies?.["@playwright/test"] !== "1.63.0") fail("npm toolchain pins are not exact and coherent");
+  if (clientPackage.dependencies?.["@microsoft/signalr"] !== "10.0.11" || clientPackage.devDependencies?.vite !== "7.3.6" || browserPackage.devDependencies?.["@playwright/test"] !== "1.63.0") fail("npm toolchain pins are not exact and coherent");
 };
 
 const input = { read, required };
