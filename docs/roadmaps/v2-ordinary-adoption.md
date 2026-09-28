@@ -1,8 +1,7 @@
 # C3-TEMPLATES-01 — Ordinary V2 receiver adoption
 
-Status: disabled source prepared. The main-only `ordinary-v2` environment exists; dedicated
-credential enrollment, Coordination CLI 0.1.6 publication, installation, and activation remain
-pending.
+Status: ordinary V2 activation source. The main-only `ordinary-v2` environment has dedicated
+custody, and the protected-main workflow pins the verified public Coordination CLI 0.1.6 archive.
 
 FS.GG.Templates is the fixed source repository (`FS-GG/FS.GG.Templates`, repository ID
 `1281961814`) under the code-owned `templates-v1` profile. The repository-owned receiver source
@@ -13,11 +12,11 @@ would affect coordination only; it must not change product template defaults.
 
 ## Prepared source and native boundaries
 
-- The protected-main push workflow has an unconditional false job guard. It has read-only GitHub
-  permissions, no persisted checkout credential, credential job, environment binding, secret
-  reference, package download, or settlement command. It invokes no .NET setup while disabled;
-  this repository has no root `global.json`. A later credential job must use the CLI-supported
-  SDK explicitly in the workflow without changing template SDK pins or adding a root SDK pin.
+- The protected-main push workflow runs a secret-free preflight. Only its exact-run receipt can
+  admit the bounded credential job in the dedicated environment. Both jobs use read-only GitHub
+  permissions and exact-source checkout without persisted credentials. The credential job pins
+  .NET SDK `10.0.400` explicitly in the workflow. This repository has no root `global.json`;
+  template SDK pins stay unchanged.
 - The secret-free observer and qualifier derive from Net's disabled receiver at
   `dfc04d994e955842a7e16597f7093ed14f1b5251`, adapted only for the code-owned Templates
   source profile. The policy records their exact SHA-256 digests.
@@ -31,19 +30,21 @@ would affect coordination only; it must not change product template defaults.
   App `5064713`, installation `164553252`, Authority repository `1351660651`, and the existing
   writer and integrity ruleset pins. No V1 admission or receiver state is imported.
 - Read-only API observation on 2026-09-28 found protected main
-  `f3a7cd6ab6f035d4ba335d03fdc367db6164793f` and the new `ordinary-v2` environment ID
+  `bc0e89012804736268eb955077b6c03ab5793a50` and the `ordinary-v2` environment ID
   `22939062322`, restricted to its sole `main` branch policy ID `61312282`, with no reviewers.
-  Environment protection rule ID is `66982112`. Its current secret count is zero. Dedicated
-  custody will be enrolled through the separate sealed bridge and independently read back.
-- No immutable published CLI release with `templates-v1` support is selected. Version and
-  package SHA-256 remain null; the disabled source cannot settle work. Activation requires a
-  verified public 0.1.6 package and custody evidence.
+  Environment protection rule ID is `66982112`. Its three dedicated secret names were enrolled
+  through the signed sealed bridge at `.github` commit `3ed9b4f8316a14c5e15bfb4c1e11554730b9ae3f`
+  (run `36450830306`, attempt 1) and independently read back. No secret values are in source.
+- The immutable `v0.1.6` tag resolves to source
+  `275cccb30a5c9ade4b3bba344ede13d7df446d13`. Publisher run `36457989575` succeeded after
+  both served feeds and an anonymous install were read back. The public release archive SHA-256
+  is `0f5d92799af84acb8663df0f524dc2ccfe54cfcc0bc6ad2183e867c8cdd47730`; the workflow
+  verifies it before installing from a temporary local-only source. Nuget.org adds a signature
+  to its served archive but preserves the package payload.
 
 ## Installation boundary
 
-One later reviewed source change must bind the immutable published CLI 0.1.6 asset digest and
-`templates-v1` capability, current Templates identity and check producers, dedicated secret names,
-and shared Authority binding. It must change policy status, installed state, package evidence,
-observer guard, and a bounded credential job together. Preserve the three native required checks,
-merge only an exact green PR head, and verify the protected Authority result and normal
-`SettlementAlreadyComplete` whole-workflow rerun after activation.
+Admit this source only through a reviewed PR with the three native required checks, then merge its
+exact green head. The protected-main run must produce a secret-free receipt, execute one installed
+settlement attempt, and write one Authority effect. Read that Authority result independently and
+normally rerun the whole workflow to verify `SettlementAlreadyComplete` with an unchanged shard.

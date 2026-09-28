@@ -141,18 +141,19 @@ class TemplatesQualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(MODULE.Refusal, "wrong repository"):
             self.qualify(associations=associations)
 
-    def test_policy_remains_disabled_with_explicit_release_and_custody_refusals(self):
-        self.assertEqual("source-qualified-not-installed", self.policy["status"])
-        self.assertFalse(self.policy["credentialJob"]["installed"])
-        self.assertEqual(0, self.policy["credentialJob"]["liveObservation"]["secretCount"])
+    def test_policy_installs_only_with_immutable_public_release_and_custody(self):
+        self.assertEqual("installed", self.policy["status"])
+        self.assertTrue(self.policy["credentialJob"]["installed"])
+        self.assertEqual(3, self.policy["credentialJob"]["liveObservation"]["secretCount"])
         self.assertEqual(3, len(self.policy["credentialInventory"]))
-        self.assertTrue(all(not item["provisioned"] for item in self.policy["credentialInventory"]))
-        self.assertEqual("awaiting-published-templates-profile-release",
-                         self.policy["packagePin"]["status"])
-        self.assertIsNone(self.policy["packagePin"]["version"])
-        self.assertIsNone(self.policy["packagePin"]["sha256"])
-        self.assertIn("no immutable published CLI 0.1.6 release",
-                      self.policy["packagePin"]["refusal"])
+        self.assertTrue(all(item["provisioned"] for item in self.policy["credentialInventory"]))
+        self.assertEqual("sealed-and-independently-read-back",
+                         self.policy["credentialEnrollmentEvidence"]["status"])
+        self.assertEqual("published-verified", self.policy["packagePin"]["status"])
+        self.assertEqual("0.1.6", self.policy["packagePin"]["version"])
+        self.assertEqual("0f5d92799af84acb8663df0f524dc2ccfe54cfcc0bc6ad2183e867c8cdd47730",
+                         self.policy["packagePin"]["sha256"])
+        self.assertTrue(self.policy["packagePin"]["servedPackageVerified"])
         self.assertEqual(["OpenV2"], self.policy["unchangedGates"])
         self.assertEqual({"v1Admission": False, "receiverStateImport": False},
                          self.policy["migration"])
