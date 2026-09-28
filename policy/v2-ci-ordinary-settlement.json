@@ -1,0 +1,167 @@
+{
+  "schema": "fsgg.github.v2-ci-ordinary-settlement-policy/1",
+  "policyId": "v2-ci-i1-ordinary-settlement-v1",
+  "status": "source-qualified-not-installed",
+  "repository": "FS-GG/FS.GG.Templates",
+  "repositoryId": 1281961814,
+  "selectedSource": {
+    "profile": "templates-v1",
+    "repository": "FS-GG/FS.GG.Templates",
+    "repositoryId": 1281961814
+  },
+  "sourceImplementation": {
+    "repository": "FS-GG/FS.GG.Net",
+    "commit": "dfc04d994e955842a7e16597f7093ed14f1b5251",
+    "adaptation": "templates-v1-code-owned-source-profile",
+    "observerSha256": "6e63f6f724fb267e77ef02f41b4c58a833e0dc5b08c003f07fd16c89e4f7fd55",
+    "qualificationSha256": "7ab2060d244cea78b4141c647aaa8e024f1cad446b3b74618ba8e07d3d7b7637"
+  },
+  "operationClass": "ordinary-post-merge-delivery-settlement",
+  "trigger": {
+    "event": "push",
+    "ref": "refs/heads/main",
+    "associationEndpoint": "GET /repos/FS-GG/FS.GG.Templates/commits/{sourceSha}/pulls",
+    "associationCount": 1,
+    "requireMerged": true,
+    "requireMergeCommitMatch": true
+  },
+  "workflow": {
+    "path": ".github/workflows/v2-ci-ordinary-settlement.yml",
+    "revision": "sourceSha",
+    "requestEventsForbidden": [
+      "pull_request",
+      "pull_request_target"
+    ],
+    "manualEventsForbidden": [
+      "workflow_dispatch",
+      "repository_dispatch"
+    ]
+  },
+  "qualification": {
+    "phase": "secret-free-predecessor",
+    "credentialAccess": false,
+    "producerStatus": "trusted-main-push-predecessor",
+    "currentValidatorRole": "native-API-derived-evidence",
+    "requiredCheckAppId": 15368,
+    "requiredChecks": [
+      "composition",
+      "kit / coordination-kit"
+    ],
+    "requiredGateChecks": [
+      "composition",
+      "kit / coordination-kit",
+      "materialize / receiver-validate"
+    ],
+    "checkProducers": {
+      "composition": {
+        "workflowId": 303314945,
+        "path": ".github/workflows/composition.yml",
+        "event": "pull_request"
+      },
+      "kit / coordination-kit": {
+        "workflowId": 307166384,
+        "path": ".github/workflows/coordination-coherence.yml",
+        "event": "pull_request"
+      },
+      "materialize / receiver-validate": {
+        "workflowId": 316874197,
+        "path": ".github/workflows/kit-materialize.yml",
+        "event": "pull_request"
+      }
+    }
+  },
+  "credentialJob": {
+    "environment": "ordinary-v2",
+    "runner": "github-hosted-ephemeral",
+    "requiredReviewers": 0,
+    "protectedBranchesOnly": true,
+    "allowedBranches": [
+      "main"
+    ],
+    "installed": false,
+    "liveObservation": {
+      "observedAt": "2026-09-28T15:40:50Z",
+      "environmentPresent": true,
+      "environmentId": 22939062322,
+      "environmentNodeId": "EN_kwDOTGkvVs8AAAAFV0ZQMg",
+      "protectionRuleId": 66982112,
+      "protectionRuleNodeId": "GA_kwDOTGkvVs4D_hDg",
+      "branchPolicyId": 61312282,
+      "branchPolicyNodeId": "MDE2OkdhdGVCcmFuY2hQb2xpY3k2MTMxMjI4Mg==",
+      "customBranchPolicy": "main",
+      "customBranchPolicyCount": 1,
+      "protectedBranches": false,
+      "customBranchPolicies": true,
+      "canAdminsBypass": true,
+      "requiredReviewerCount": 0,
+      "secretCount": 0,
+      "secretNames": [],
+      "disposition": "dedicated-environment-created-custody-pending"
+    }
+  },
+  "packagePin": {
+    "status": "awaiting-published-templates-profile-release",
+    "version": null,
+    "sha256": null,
+    "servedPackageVerified": false,
+    "requiredCapability": "templates-v1 selected source",
+    "requiredBeforeActivation": true,
+    "refusal": "no immutable published CLI 0.1.6 release asset with templates-v1 support or verified served SHA-256 is selected"
+  },
+  "credentialInventory": [
+    {
+      "name": "V2_ORDINARY_AUTHORIZER_PRIVATE_KEY",
+      "purpose": "sign canonical ordinary-v2 settlement intent",
+      "generation": "new-v2-dedicated",
+      "provisioned": false,
+      "publicIdentity": "ordinary-v2-production-6121c3f2ab38acf3; spki-sha256:6121c3f2ab38acf38a37f782eb7775da78598b9cfabc0054917d3d59fe50e3ee"
+    },
+    {
+      "name": "V2_ORDINARY_APP_ID",
+      "purpose": "identify the repository-scoped ordinary-v2 GitHub App",
+      "generation": "new-v2-dedicated",
+      "provisioned": false,
+      "publicIdentity": "app:5064713; installation:164553252"
+    },
+    {
+      "name": "V2_ORDINARY_APP_PRIVATE_KEY",
+      "purpose": "mint a short-lived repository-scoped installation token",
+      "generation": "new-v2-dedicated",
+      "provisioned": false,
+      "publicIdentity": "app:5064713; installation:164553252"
+    }
+  ],
+  "credentialEnrollmentEvidence": {
+    "status": "pending-sealed-bridge-and-independent-readback",
+    "environmentId": 22939062322,
+    "secretCount": 0
+  },
+  "activationEvidence": {
+    "observedAt": "2026-09-28T15:40:50Z",
+    "sourceMainSha": "f3a7cd6ab6f035d4ba335d03fdc367db6164793f",
+    "sourceRepositoryId": 1281961814,
+    "requiredCheckAppId": 15368,
+    "requiredGateChecks": [
+      "composition",
+      "kit / coordination-kit",
+      "materialize / receiver-validate"
+    ]
+  },
+  "activationPrerequisites": [
+    "published immutable Coordination CLI 0.1.6 with templates-v1 support and verified package SHA-256",
+    "dedicated ordinary-v2 custody is sealed and independently read back",
+    "current source-check population and shared Authority binding are read back again"
+  ],
+  "forbiddenCredentialReuse": [
+    "CALLABLE_ISOLATED_OPERATION_APP_PRIVATE_KEY",
+    "V1_ADMISSION_AUTHORIZER_PRIVATE_KEY",
+    "V1_ADMISSION_APP_PRIVATE_KEY"
+  ],
+  "unchangedGates": [
+    "OpenV2"
+  ],
+  "migration": {
+    "v1Admission": false,
+    "receiverStateImport": false
+  }
+}
