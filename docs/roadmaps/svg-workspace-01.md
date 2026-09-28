@@ -375,10 +375,11 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   gate remain separate. The composition is handed off to SVG-RELEASE-D; #491 does not block compatible publication.
 
 Current executable window: **SVG-WORKSPACE-01.1–.6 are complete and the exact candidate is frozen for
-SVG-RELEASE-D**. Durable public deployment is explicitly deferred to #491 and must not be inferred from the accepted
-local edge evidence. Public Templates/wizard publication and compatible product activation are next. The later
-lifecycle-default effect still requires its actual common-base and OperatingV2 evidence. Broad SDD #927 and a future
-ChangeProposal format are not blanket blockers.
+SVG-RELEASE-D**. Templates 0.14.0 and wizard 0.11.2 are public, and compatible SVG product activation is complete
+through Release D.4. The separate [D.5 public receiver qualification](../reports/2026-09-28-svg-release-d5-public-receiver.md)
+uses SDD 2.0.2 with explicit `typed-sdd`; the lifecycle default stays `sdd` until its authority sources and actual
+OperatingV2 evidence permit activation. Durable public deployment remains deferred to #491 and must not be inferred
+from the accepted local edge evidence.
 
 ## Journey coverage and authority/upgrade matrix
 
