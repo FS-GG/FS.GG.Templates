@@ -1,7 +1,7 @@
 {
   "schema": "fsgg.github.v2-ci-ordinary-settlement-policy/1",
   "policyId": "v2-ci-i1-ordinary-settlement-v1",
-  "status": "source-qualified-not-installed",
+  "status": "installed",
   "repository": "FS-GG/FS.GG.Templates",
   "repositoryId": 1281961814,
   "selectedSource": {
@@ -78,9 +78,9 @@
     "allowedBranches": [
       "main"
     ],
-    "installed": false,
+    "installed": true,
     "liveObservation": {
-      "observedAt": "2026-09-28T15:40:50Z",
+      "observedAt": "2026-09-28T17:29:48Z",
       "environmentPresent": true,
       "environmentId": 22939062322,
       "environmentNodeId": "EN_kwDOTGkvVs8AAAAFV0ZQMg",
@@ -94,51 +94,67 @@
       "customBranchPolicies": true,
       "canAdminsBypass": true,
       "requiredReviewerCount": 0,
-      "secretCount": 0,
-      "secretNames": [],
-      "disposition": "dedicated-environment-created-custody-pending"
+      "secretCount": 3,
+      "secretNames": [
+        "V2_ORDINARY_APP_ID",
+        "V2_ORDINARY_APP_PRIVATE_KEY",
+        "V2_ORDINARY_AUTHORIZER_PRIVATE_KEY"
+      ],
+      "disposition": "dedicated-custody-enrolled"
     }
   },
   "packagePin": {
-    "status": "awaiting-published-templates-profile-release",
-    "version": null,
-    "sha256": null,
-    "servedPackageVerified": false,
+    "status": "published-verified",
+    "version": "0.1.6",
+    "sha256": "0f5d92799af84acb8663df0f524dc2ccfe54cfcc0bc6ad2183e867c8cdd47730",
+    "servedPackageVerified": true,
+    "sourceCommit": "275cccb30a5c9ade4b3bba344ede13d7df446d13",
+    "releaseTag": "v0.1.6",
+    "publisherRunId": 36457989575,
     "requiredCapability": "templates-v1 selected source",
-    "requiredBeforeActivation": true,
-    "refusal": "no immutable published CLI 0.1.6 release asset with templates-v1 support or verified served SHA-256 is selected"
+    "requiredBeforeActivation": true
   },
   "credentialInventory": [
     {
       "name": "V2_ORDINARY_AUTHORIZER_PRIVATE_KEY",
       "purpose": "sign canonical ordinary-v2 settlement intent",
       "generation": "new-v2-dedicated",
-      "provisioned": false,
+      "provisioned": true,
       "publicIdentity": "ordinary-v2-production-6121c3f2ab38acf3; spki-sha256:6121c3f2ab38acf38a37f782eb7775da78598b9cfabc0054917d3d59fe50e3ee"
     },
     {
       "name": "V2_ORDINARY_APP_ID",
       "purpose": "identify the repository-scoped ordinary-v2 GitHub App",
       "generation": "new-v2-dedicated",
-      "provisioned": false,
+      "provisioned": true,
       "publicIdentity": "app:5064713; installation:164553252"
     },
     {
       "name": "V2_ORDINARY_APP_PRIVATE_KEY",
       "purpose": "mint a short-lived repository-scoped installation token",
       "generation": "new-v2-dedicated",
-      "provisioned": false,
+      "provisioned": true,
       "publicIdentity": "app:5064713; installation:164553252"
     }
   ],
   "credentialEnrollmentEvidence": {
-    "status": "pending-sealed-bridge-and-independent-readback",
-    "environmentId": 22939062322,
-    "secretCount": 0
+    "status": "sealed-and-independently-read-back",
+    "bridgeRepository": "FS-GG/.github",
+    "bridgeRepositoryId": 1269292704,
+    "bridgeCommit": "3ed9b4f8316a14c5e15bfb4c1e11554730b9ae3f",
+    "bridgeWorkflow": ".github/workflows/c3-templates-ordinary-enrollment-bridge.yml",
+    "bridgeRunId": 36450830306,
+    "bridgeRunAttempt": 1,
+    "bridgeConclusion": "success",
+    "artifactId": 10983266846,
+    "artifactSha256": "8aa00bb0358ed0fd66f53cad1baf0768da91307aaabd9622e9b2348135a0001d",
+    "ciphertextPacketVerification": "signed-packet-validated",
+    "encryptedPutCount": 3,
+    "readBackAt": "2026-09-28T16:27:00Z"
   },
   "activationEvidence": {
-    "observedAt": "2026-09-28T15:40:50Z",
-    "sourceMainSha": "f3a7cd6ab6f035d4ba335d03fdc367db6164793f",
+    "observedAt": "2026-09-28T17:29:48Z",
+    "sourceMainSha": "848fe5a1fb581707be67ecb6bda326ecd43a2fe8",
     "sourceRepositoryId": 1281961814,
     "requiredCheckAppId": 15368,
     "requiredGateChecks": [
@@ -148,9 +164,9 @@
     ]
   },
   "activationPrerequisites": [
-    "published immutable Coordination CLI 0.1.6 with templates-v1 support and verified package SHA-256",
-    "dedicated ordinary-v2 custody is sealed and independently read back",
-    "current source-check population and shared Authority binding are read back again"
+    "published immutable Coordination CLI with templates-v1 support and verified package SHA-256: satisfied by 0.1.6 release and public feed readback",
+    "dedicated ordinary-v2 custody sealed and independently read back on 2026-09-28",
+    "current source-check population and shared Authority binding read back before activation"
   ],
   "forbiddenCredentialReuse": [
     "CALLABLE_ISOLATED_OPERATION_APP_PRIVATE_KEY",

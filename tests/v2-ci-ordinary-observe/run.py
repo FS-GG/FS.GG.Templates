@@ -94,17 +94,23 @@ class TemplatesObservationSourceTests(unittest.TestCase):
         with patch.object(MODULE, "api", side_effect=api):
             MODULE.current_authority("FS-GG/FS.GG.Templates", policy)
 
-    def test_workflow_is_hard_disabled_and_has_no_credential_or_package_surface(self):
+    def test_installed_workflow_has_bounded_credential_job_and_pinned_package(self):
         workflow = (ROOT / ".github/workflows/v2-ci-ordinary-settlement.yml").read_text()
         self.assertIn("  push:\n    branches: [main]", workflow)
-        self.assertIn("    if: ${{ false }}", workflow)
+        self.assertNotIn("    if: ${{ false }}", workflow)
         self.assertIn("FSGG_V2_SOURCE_PROFILE: templates-v1", workflow)
         self.assertIn("persist-credentials: false", workflow)
         self.assertIn("python3 tools/v2-ci-ordinary-observe.py produce", workflow)
+        self.assertIn("if: needs.preflight.outputs.activation == 'true'", workflow)
+        self.assertIn("environment: ordinary-v2", workflow)
+        self.assertIn("dotnet-version: 10.0.400", workflow)
+        self.assertIn("PACKAGE_VERSION: 0.1.6", workflow)
+        self.assertIn("PACKAGE_SHA256: 0f5d92799af84acb8663df0f524dc2ccfe54cfcc0bc6ad2183e867c8cdd47730", workflow)
+        self.assertIn("ordinary-settlement execute", workflow)
+        self.assertNotIn("global-json-file:", workflow)
         for forbidden in (
-            "secrets.", "environment:", "ordinary-settlement execute", "PACKAGE_VERSION",
-            "PACKAGE_SHA256", "setup-dotnet", "global.json", "workflow_dispatch:",
-            "repository_dispatch:", "pull_request:", "pull_request_target:",
+            "workflow_dispatch:", "repository_dispatch:", "pull_request:",
+            "pull_request_target:",
         ):
             self.assertNotIn(forbidden, workflow)
 
@@ -113,22 +119,26 @@ class TemplatesObservationSourceTests(unittest.TestCase):
         anchor = json.loads((ROOT / "policy/v2-ci-ordinary-settlement-anchor.json").read_text())
         self.assertEqual("v2-ci-i1-ordinary-settlement-v1", policy["policyId"])
         self.assertEqual(policy["policyId"], anchor["policyId"])
-        self.assertEqual("source-qualified-not-installed", policy["status"])
-        self.assertFalse(policy["credentialJob"]["installed"])
+        self.assertEqual("installed", policy["status"])
+        self.assertTrue(policy["credentialJob"]["installed"])
         observation = policy["credentialJob"]["liveObservation"]
         self.assertEqual(22939062322, observation["environmentId"])
         self.assertEqual(66982112, observation["protectionRuleId"])
         self.assertEqual(61312282, observation["branchPolicyId"])
         self.assertEqual("main", observation["customBranchPolicy"])
-        self.assertEqual(0, observation["secretCount"])
-        self.assertEqual([], observation["secretNames"])
-        self.assertEqual("awaiting-published-templates-profile-release",
-                         policy["packagePin"]["status"])
-        self.assertIsNone(policy["packagePin"]["version"])
-        self.assertIsNone(policy["packagePin"]["sha256"])
-        self.assertFalse(policy["packagePin"]["servedPackageVerified"])
+        self.assertEqual(3, observation["secretCount"])
+        self.assertEqual(
+            ["V2_ORDINARY_APP_ID", "V2_ORDINARY_APP_PRIVATE_KEY",
+             "V2_ORDINARY_AUTHORIZER_PRIVATE_KEY"],
+            observation["secretNames"],
+        )
+        self.assertEqual("published-verified", policy["packagePin"]["status"])
+        self.assertEqual("0.1.6", policy["packagePin"]["version"])
+        self.assertEqual("0f5d92799af84acb8663df0f524dc2ccfe54cfcc0bc6ad2183e867c8cdd47730",
+                         policy["packagePin"]["sha256"])
+        self.assertTrue(policy["packagePin"]["servedPackageVerified"])
         self.assertEqual(3, len(policy["credentialInventory"]))
-        self.assertTrue(all(not item["provisioned"] for item in policy["credentialInventory"]))
+        self.assertTrue(all(item["provisioned"] for item in policy["credentialInventory"]))
         self.assertEqual(5064713, anchor["writer"]["appId"])
         self.assertEqual(164553252, anchor["writer"]["installationId"])
         self.assertEqual(1351660651, anchor["writer"]["repositoryId"])
