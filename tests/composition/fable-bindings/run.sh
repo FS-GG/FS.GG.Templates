@@ -2,6 +2,9 @@
 # Template-owned structural proof. Runtime calls require the consumer's selected npm package.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+if [[ "${FSGG_FABLE_BINDINGS_PUBLIC_INSTALLED:-0}" == "1" ]]; then
+  exec bash "$ROOT/tests/composition/fable-bindings/verify-public-installed.sh" "${FSGG_FABLE_BINDINGS_PUBLIC_OUT:-}"
+fi
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 export DOTNET_CLI_HOME="$WORK/home" DOTNET_NOLOGO=1 DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
