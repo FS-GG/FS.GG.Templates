@@ -33,7 +33,7 @@ const reportPath = resolve(runDir, "run-report.json");
 
 const started = new Date(); const diagnostics = []; const phaseDurationsMs = {};
 let configBytes = Buffer.alloc(0); let toolchainBytes = Buffer.alloc(0); let config = null; let toolchain = null; let manifest = null; let toolDir = null;
-let cliVersion = null; let compilerVersion = null; let artifactHashes = {}; let beforeMaintained = null; let afterMaintained = null; let status = "rejected";
+let cliVersion = null; let compilerVersion = null; let artifactHashes = {}; let beforeMaintained = null; let afterMaintained = null; let status = "rejected"; let generatedFile = null;
 const processRecord = { command: [], exitCode: null, signal: null, limits: null, stdout: "stdout.log", stderr: "stderr.log", limitTriggered: null };
 const verification = { reportSchema: "not-run", limits: "not-run", imports: "not-run", selectedSymbols: "not-run", fsharpCompile: "not-run", fableCompile: "not-run", runtime: "not-run" };
 
@@ -135,7 +135,8 @@ try {
   if (packageJson.name !== config.package.name || packageJson.version !== config.package.version) throw new Error(`installed package does not match ${config.package.name}@${config.package.version}`);
   const pilotLockPath = resolve(toolDir, "pilot/package-lock.json"); const pilotLock = JSON.parse(await readFile(pilotLockPath, "utf8"));
   if (pilotLock.packages?.[`node_modules/${config.package.name}`]?.integrity !== config.package.integrity) throw new Error("installed pilot package integrity is not the qualified lock entry");
-  await import(pathToFileURL(resolve(packageDir, packageJson.exports ?? packageJson.main ?? "index.js"))); verification.imports = "pass";
+  const packageExport = typeof packageJson.exports === "string" ? packageJson.exports : packageJson.exports?.["."]?.default ?? packageJson.exports?.default ?? packageJson.main ?? "index.js";
+  await import(pathToFileURL(resolveInside(packageDir, packageExport, "package export"))); verification.imports = "pass";
 
   const generationStarted = Date.now(); const prlimit = "/usr/bin/prlimit";
   const generatorArgs = [`--as=${config.limits.addressSpaceBytes}`, "--", "dotnet", cliAssembly, "generate", packageDir, "-o", rawDir, "--config", rawConfig];
@@ -147,10 +148,10 @@ try {
   if (generated.trigger) throw new Error(`generation exceeded ${generated.trigger} limit`);
   if (generated.code !== 0) throw new Error(`Xantham exited ${generated.code}: ${generated.stderr.toString("utf8").trim()}`);
   if (await directorySize(rawDir) > config.limits.outputBytes) throw new Error("generated output exceeds configured byte limit");
-  ({ manifest } = await validateXanthamCandidate(rawDir, config));
+  ({ manifest, generatedFile } = await validateXanthamCandidate(rawDir, config));
   verification.selectedSymbols = "pass";
 
-  const compileDir = resolve(scratchDir, "compile"); await mkdir(compileDir, { recursive: true }); await cp(resolve(rawDir, "AnsiRegex.fs"), resolve(compileDir, "Generated.fs"));
+  const compileDir = resolve(scratchDir, "compile"); await mkdir(compileDir, { recursive: true }); await cp(resolve(rawDir, generatedFile), resolve(compileDir, "Generated.fs"));
   await writeFile(resolve(compileDir, "Compile.fsproj"), '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.1</TargetFramework></PropertyGroup><ItemGroup><Compile Include="Generated.fs" /><PackageReference Include="Fable.Core" /></ItemGroup></Project>\n');
   const compileStarted = Date.now();
   const compile = await boundedProcess("dotnet", ["build", resolve(compileDir, "Compile.fsproj"), "--nologo"], { cwd: repositoryRoot, env: probeEnv, timeoutMs: 90000, logBytes: config.limits.logBytes, rssBytes: config.limits.sampledProcessGroupRssBytes });
@@ -158,7 +159,7 @@ try {
   if (compile.code !== 0 || compile.trigger) throw new Error(`generated binding did not compile: ${compile.trigger ?? `${compile.stdout.toString("utf8")}\n${compile.stderr.toString("utf8")}`.trim()}`);
   verification.fsharpCompile = "pass";
   const files = await walkFiles(rawDir); artifactHashes = Object.fromEntries(await Promise.all(files.map(async file => [relative(rawDir, file), await hashFile(file)])));
-  const proposalDir = resolve(candidatesRoot, "proposal");
+  const proposalDir = resolveInside(candidatesRoot, config.proposalDirectory ?? "proposal", "proposal directory");
   const proposalInfo = await lstat(proposalDir).catch(error => error.code === "ENOENT" ? null : Promise.reject(error));
   if (proposalInfo?.isSymbolicLink() || (proposalInfo && !proposalInfo.isDirectory())) throw new Error("refusing unsafe Xantham proposal directory");
   status = "proposal-ready";
@@ -180,9 +181,9 @@ catch (error) { verification.reportSchema = "fail"; diagnostics.push(error.messa
 await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 
 if (status === "proposal-ready") {
-  const proposalDir = resolve(candidatesRoot, "proposal");
+  const proposalDir = resolveInside(candidatesRoot, config.proposalDirectory ?? "proposal", "proposal directory");
   await mkdir(proposalDir, { recursive: true });
-  for (const name of ["AnsiRegex.fs", "manifest.json", "symbols.jsonl"]) { const temp = resolve(proposalDir, `.${name}.${runId}`); await cp(resolve(rawDir, name), temp); await rename(temp, resolve(proposalDir, name)); }
+  for (const name of [generatedFile, "manifest.json", "symbols.jsonl"]) { const temp = resolve(proposalDir, `.${name}.${runId}`); await cp(resolve(rawDir, name), temp); await rename(temp, resolve(proposalDir, name)); }
 }
 console.log(`${status}: ${relative(root, reportPath)}`);
 if (status !== "proposal-ready") { console.error(diagnostics.join("\n")); process.exitCode = 1; }

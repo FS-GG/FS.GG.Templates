@@ -31,6 +31,7 @@ if [[ ! -x "$fable" ]]; then (cd "$ROOT" && dotnet tool install Fable --version 
 "$fable" "$PRODUCT/xantham/qualification/Runtime.fsproj" --outDir "$PRODUCT/.nuget/xantham-tools/pilot/runtime-dist" --noCache >/dev/null
 grep -Eq '^import [A-Za-z0-9_]+ from "ansi-regex";' "$PRODUCT/.nuget/xantham-tools/pilot/runtime-dist/Program.js"
 node "$PRODUCT/.nuget/xantham-tools/pilot/runtime-dist/Program.js" | grep -Fq 'PASS Xantham ANSI candidate'
+bash "$ROOT/tests/toolchain/fable-bindings/xantham-second-runtime.sh"
 
 proposal_before="$(sha256sum "$PRODUCT/generated-candidates/xantham/proposal/"*)"
 failure_config() { jq "$1" "$PRODUCT/xantham/ansi-regex.json" >"$PRODUCT/.nuget/$2.json"; }

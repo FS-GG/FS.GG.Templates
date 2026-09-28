@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "package": "strip-ansi",
+  "module": "StripAnsi",
+  "counts": {
+    "exact": 1,
+    "ergonomic": 0,
+    "widened": 0,
+    "escape": 0
+  },
+  "passes": []
+}

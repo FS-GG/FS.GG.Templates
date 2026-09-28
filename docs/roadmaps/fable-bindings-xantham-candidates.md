@@ -2,7 +2,7 @@
 
 Feature identity: `FB-XANTHAM-01`  
 Owner: FS.GG.Templates  
-Status: source implementation and public installed receiver qualification complete
+Status: public installed receiver complete; second-package source qualified locally, hosted composition pending
 Route: routine, one accountable Sol-medium worker  
 Unified part: **Fable bindings candidate generation and upstream integration assessment**  
 Stage: independently executable producer work from section 15; not a v2 prerequisite
@@ -223,6 +223,28 @@ curated maintenance. An unavailable required pinned dependency blocks its own pr
   public 0.13.0 workspace preserves unrelated owner edits and refuses an edited managed path before
   writes. The live assessment reports its exact status without changing the retained baseline.
 
+- [x] FBX-06 — Second real npm package and reusable candidate selection — route: routine
+  Depends on: FBX-05.
+  Scope: remove the ANSI-specific output filename/signature assumptions from the bounded runner and
+  add an exact `strip-ansi@7.1.2` fixture, generated proposal and Fable/Node consumer beside the
+  retained `ansi-regex@6.2.2` pilot. Inventory remains the default and neither proposal becomes
+  maintained bindings or accepted coverage.
+  Acceptance: both package configs select their own reviewed generated file, required signatures,
+  symbols and isolated proposal directory. The second package produces one exact symbol with no
+  ergonomic, widened or escaped findings; two runs have identical proposal/manifest/symbol bytes,
+  maintained bindings/locks/coverage remain unchanged, F# compilation succeeds, and Fable/Node
+  execution proves ANSI removal plus a plain-text control. The exact package and fixture files are
+  present in the locally packed template archive.
+
+- [ ] FBX-07 — Hosted exact-head second-runtime composition — route: routine
+  Depends on: FBX-06.
+  Scope: the existing `composition` receiver lane on the exact candidate head; do not add another
+  release or public-default path.
+  Acceptance: a clean workspace created from the candidate archive executes its delivered SDD
+  lifecycle with `fsgg-fsharp-surface`, completes the existing Chromium receiver journey, and runs
+  both delivered npm witnesses through the exact prepared Xantham/compiler cache. The hosted result
+  must bind the candidate head and archive; local source and pack checks alone do not satisfy FBX-07.
+
 Use one accountable worker and a coherent routine implementation branch/PR for this bounded window.
 Run focused checks as slices become ready, then the affected native delivery checks. Current required
 contexts include `kit / coordination-kit`, `composition`, and `materialize / receiver-validate`.
@@ -256,6 +278,15 @@ refusing an edited managed runner before writes. The live `2026-09-28T10:36:49.9
 blockers keep alpha.2 as the executable baseline. No delivered template repair or republication was
 needed. See `docs/reports/2026-09-28-fbx-public-installed-receiver.md`.
 
+The FBX-06 local source window selects `strip-ansi@7.1.2` because its bundled declaration exposes one
+exact default string-to-string export and its actual runtime depends on the already qualified
+`ansi-regex` family. The generalized runner keeps package-specific reviewed signatures in each config
+and writes separate proposal directories. Focused qualification passed deterministic generation, exact
+loss accounting, F# compilation, Fable 5.13.0 emission, real Node execution and packed archive
+membership for the second fixture while the complete original ANSI positive and rejection suite stayed
+green. This host has neither `fsgg-fsharp-surface` nor Chromium, so FBX-07 remains unchecked pending the
+native hosted `composition` result on the exact branch head.
+
 ### 2026-09-15 stable-release assessment
 
 Xantham 0.1.0 and Xantham.Fable.Core 0.1.0 are now published. The release adds useful public-export
@@ -285,12 +316,19 @@ choices. Other product providers and shared driver skills have no intended behav
 
 Before: generation inventories declarations; the skill has no Xantham assessment.
 After: inventory remains the default, the explicit Xantham backend can produce qualified small-package
-review candidates, and skill loading checks current upstream information.
+review candidates for the two bounded runtime fixtures, and skill loading checks current upstream
+information.
 
 FBX-02 first changes local opt-in execution. FBX-03 first changes local skill behavior. FBX-04 proves
 fresh creation from a locally packed producer artifact. FBX-05 proves the actual public 0.14.0
 template archive and its installed receiver path. Inspect a scaffold consumer's actual pin before
 claiming that specific workspace has adopted the release.
+
+FBX-06 adds only opt-in fixture/configuration files and a package-generic output validation boundary;
+it does not alter fresh workspace defaults or activate Xantham during normal build, creation or skill
+loading. FBX-07 is the first milestone that observes the second fixture through a clean archived
+workspace's hosted lifecycle/browser composition. A later publication and public receiver selection
+would remain separate adoption gates if this candidate is released.
 
 Publication does not rewrite existing workspaces. Their upgrade must deliberately reconcile the
 new scripts/config, package commands and owner skill/manifest with local edits. Existing-workspace
@@ -303,8 +341,6 @@ it does not claim a general workspace upgrade mechanism.
 
 Expand only when the preceding evidence makes a useful next window concrete:
 
-- A second real package and reusable mapping policy: require a selected executable journey, runtime
-  proof, classified losses and measured review/curation effort before widening qualification.
 - Wire-backed declaration closure: compare resolved closure with existing locks and target-host
   conditions before replacing the current traversal.
 - Catalog/shared-type reuse: restore relevant upstream tests; prove a producer/consumer shared type,

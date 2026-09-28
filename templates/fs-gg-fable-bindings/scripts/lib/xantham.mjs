@@ -44,7 +44,10 @@ export const rejectSymlinkPath = async (root, target) => {
 };
 
 export async function validateXanthamCandidate(rawDir, config) {
-  for (const name of ["AnsiRegex.fs", "manifest.json", "symbols.jsonl"]) {
+  if (!Array.isArray(config.requiredGeneratedText) || config.requiredGeneratedText.length === 0) throw new Error("Xantham config requires reviewed generated signatures/imports");
+  if (!Array.isArray(config.requiredSymbols) || config.requiredSymbols.length === 0) throw new Error("Xantham config requires reviewed provenance symbols");
+  const generatedFile = `${config.fsharpModule}.fs`;
+  for (const name of [generatedFile, "manifest.json", "symbols.jsonl"]) {
     if (!(await stat(resolve(rawDir, name)).catch(() => null))) throw new Error(`missing Xantham output: ${name}`);
   }
   const manifest = JSON.parse(await readFile(resolve(rawDir, "manifest.json"), "utf8"));
@@ -52,13 +55,13 @@ export async function validateXanthamCandidate(rawDir, config) {
   if (manifest.counts.widened !== 0 || manifest.counts.escape !== 0) throw new Error("selected candidate contains unaccepted widened or escape losses");
   const ergonomic = config.lossDispositions.find(row => row.grade === "ergonomic");
   if (!ergonomic || ergonomic.disposition !== "reviewed" || ergonomic.count !== manifest.counts.ergonomic) throw new Error("selected ergonomic losses are not fully accounted for");
-  const generatedFs = await readFile(resolve(rawDir, "AnsiRegex.fs"), "utf8");
-  for (const needle of ["static member ansiRegex", "static member Create", "abstract onlyFirst", '[<Import("default", "ansi-regex")>]']) {
+  const generatedFs = await readFile(resolve(rawDir, generatedFile), "utf8");
+  for (const needle of config.requiredGeneratedText ?? []) {
     if (!generatedFs.includes(needle)) throw new Error(`selected generated signature/import is missing: ${needle}`);
   }
   const symbolRows = (await readFile(resolve(rawDir, "symbols.jsonl"), "utf8")).trim().split("\n").map(JSON.parse);
-  for (const symbol of ["Options", "ansiRegex"]) if (!symbolRows.some(row => row.name === symbol)) throw new Error(`selected symbol is missing from Xantham provenance: ${symbol}`);
-  return { manifest, generatedFs, symbolRows };
+  for (const symbol of config.requiredSymbols ?? []) if (!symbolRows.some(row => row.name === symbol)) throw new Error(`selected symbol is missing from Xantham provenance: ${symbol}`);
+  return { manifest, generatedFile, generatedFs, symbolRows };
 }
 
 const prereleaseParts = version => {

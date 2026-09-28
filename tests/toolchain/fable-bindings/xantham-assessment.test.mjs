@@ -51,5 +51,6 @@ assert.equal(outage.status, "unavailable"); assert.equal(outage.compatibility, "
 
 const missingPin = await assessUpdates(baseline, fixture({ versions: { support: [] } }), now);
 assert.equal(missingPin.compatibility, "unqualified"); assert.equal(missingPin.recommendation.disposition, "investigate"); assert.match(missingPin.knownBlockers.join(" "), /preparation is blocked/);
-await assert.rejects(() => validateXanthamCandidate(resolve(import.meta.dirname, "missing-upstream-reports"), { package: { name: "ansi-regex" }, fsharpModule: "AnsiRegex", lossDispositions: [] }), /missing Xantham output/);
+await assert.rejects(() => validateXanthamCandidate(resolve(import.meta.dirname, "missing-upstream-reports"), { package: { name: "ansi-regex" }, fsharpModule: "AnsiRegex", requiredGeneratedText: ["static member ansiRegex"], requiredSymbols: ["ansiRegex"], lossDispositions: [] }), /missing Xantham output/);
+await assert.rejects(() => validateXanthamCandidate(resolve(import.meta.dirname, "missing-upstream-reports"), { package: { name: "ansi-regex" }, fsharpModule: "AnsiRegex", requiredGeneratedText: [], requiredSymbols: [], lossDispositions: [] }), /requires reviewed generated signatures/);
 console.log("PASS Xantham assessment distinguishes packages, source-only changes, compatibility gaps, partial retrieval and outage");

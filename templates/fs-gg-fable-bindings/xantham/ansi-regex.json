@@ -5,6 +5,8 @@
   "declarationEntry": "index.d.ts",
   "runtimeImport": "ansi-regex",
   "fsharpModule": "AnsiRegex",
+  "requiredGeneratedText": ["static member ansiRegex", "static member Create", "abstract onlyFirst", "[<Import(\"default\", \"ansi-regex\")>]"],
+  "requiredSymbols": ["Options", "ansiRegex"],
   "xanthamConfig": "xantham/ansi-regex.xantham.json",
   "selectedSignatures": ["Exports.ansiRegex", "Options.Create", "Options.onlyFirst"],
   "lossDispositions": [
