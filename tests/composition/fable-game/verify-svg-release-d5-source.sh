@@ -84,6 +84,28 @@ test -f "$out/complete/SvgFoundation/Examples/Tactical/scene.json"
 test -f "$out/complete/SvgFoundation/Examples/Arcade/scene.json"
 test ! -e "$out/omitted/SvgFoundation/Studio"
 
+# The retained selector still creates its non-SVG product under this new
+# package. Provider defaults are unconditional: 0.15.0 records typed-sdd for
+# omitted lifecycle even when svgFoundation=false, while explicit sdd wins.
+legacy_scaffold() {
+  local name="$1" lifecycle="$2" destination
+  destination="$out/$name"
+  mkdir -p "$destination/.fsgg"
+  cp "$provider" "$destination/.fsgg/providers.yml"
+  local -a args=(--param "productName=D5${name}" --param "rootNamespace=D5${name}" --param svgFoundation=false)
+  [[ "$lifecycle" == omitted ]] || args+=(--param "lifecycle=$lifecycle")
+  "$sdd" scaffold --root "$destination" --provider fable-game --no-update --json "${args[@]}" >"$out/$name.json"
+  jq -e '.outcome=="succeeded" and .scaffold.providerInvoked==true' "$out/$name.json" >/dev/null
+  local expected="$lifecycle"
+  [[ "$lifecycle" == omitted ]] && expected=typed-sdd
+  jq -e --arg expected "$expected" '[.effectiveParameters[]|select(.key=="lifecycle" and .value==$expected)]|length==1' \
+    "$destination/.fsgg/scaffold-provenance.json" >/dev/null
+  test ! -e "$destination/SvgFoundation"
+  test -f "$destination/Server/Server.fsproj"
+}
+legacy_scaffold legacyOmitted omitted
+legacy_scaffold legacySdd sdd
+
 python3 - "$out/omitted/.fsgg/scaffold-provenance.json" "$out/typed/.fsgg/scaffold-provenance.json" <<'PY'
 from pathlib import Path
 import json,sys
@@ -124,6 +146,7 @@ fi
 test ! -e "$out/omitted/readiness/d5-refused/typed-authority.json"
 
 (cd "$out/omitted" && dotnet restore D5omitted.slnx --locked-mode --configfile "$config" && dotnet build D5omitted.slnx --no-restore) >"$out/locked-build.log" 2>&1 || { tail -n 80 "$out/locked-build.log" >&2; fail 'omitted locked build'; }
+(cd "$out/legacyOmitted" && dotnet restore D5legacyOmitted.slnx --locked-mode --configfile "$config" && dotnet build D5legacyOmitted.slnx --no-restore) >"$out/legacy-locked-build.log" 2>&1 || { tail -n 80 "$out/legacy-locked-build.log" >&2; fail 'legacy omitted locked build'; }
 
 python3 - "$package" "$out/qualification.json" <<'PY'
 from pathlib import Path
@@ -137,8 +160,8 @@ report.write_text(json.dumps({
   'sdd':{'version':'2.0.2','source':'nuget.org','omittedBackend':'quint-specification-v1'},
   'newFableGameOmission':'typed-sdd',
   'rawPlayer':'passed',
-  'provider':{'omitted':'typed-sdd','explicit':['none','sdd','typed-sdd','spec-kit'],'completeBundle':'passed','authorInspect':'passed','refusal':'passed','lockedBuild':'passed'},
-  'legacyAndOtherProviders':'sdd',
+  'provider':{'omitted':'typed-sdd','explicit':['none','sdd','typed-sdd','spec-kit'],'completeBundle':'passed','authorInspect':'passed','refusal':'passed','lockedBuild':'passed','legacyFalseOmitted':'typed-sdd-non-svg-locked-build-passed','legacyFalseExplicitSdd':'passed'},
+  'otherProviders':'sdd',
   'wizard':'pending-owner-package-and-public-receiver',
   'defaultActivation':'pending-public-composition-and-registry-readback'
 },indent=2)+'\n')
