@@ -18,6 +18,9 @@ download() { curl --fail --silent --show-error --location --retry 3 "$1" --outpu
 mkdir -p "$out/feed" "$out/home" "$out/packages" "$out/http" "$out/tools"
 cp "$pins" "$out/pins.json"
 pins="$out/pins.json"
+exec 9>"$out/commands.log"
+export BASH_XTRACEFD=9
+set -x
 export DOTNET_CLI_HOME="$out/home" NUGET_PACKAGES="$out/packages" NUGET_HTTP_CACHE_PATH="$out/http"
 export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 DOTNET_CLI_TELEMETRY_OPTOUT=1
 # Work outside all source checkouts. Every package source is either nuget.org
@@ -80,6 +83,8 @@ grep -F 'Cooperative SVG arena' "$out/raw/SvgFoundation/index.html" >/dev/null
 
 check_lifecycle() {
   local destination="$1" expected="$2"
+  test -f "$destination/.fsgg/sdd.yml"
+  [[ "$(find "$destination" -type f -path '*/.fsgg/sdd.yml' | wc -l)" -eq 1 ]] || fail 'expected one root SDD lifecycle'
   jq -e --arg expected "$expected" '[.effectiveParameters[]|select(.key=="lifecycle" and .value==$expected)]|length==1' \
     "$destination/.fsgg/scaffold-provenance.json" >/dev/null
   jq -e '.generator.id=="FS.GG.SDD.Artifacts" and .generator.version=="2.0.2"' \
@@ -90,9 +95,10 @@ scaffold() {
   destination="$out/$name"
   mkdir -p "$destination/.fsgg"
   cp "$provider" "$destination/.fsgg/providers.yml"
-  local -a args=(--param "productName=D5${name//-/}" --param "rootNamespace=D5${name//-/}" --param "bundle=$bundle")
+  local -a args=(--param "productName=D5${name//-/}" --param "rootNamespace=D5${name//-/}")
   [[ "$lifecycle" == omitted ]] || args+=(--param "lifecycle=$lifecycle")
-  [[ "$legacy" == false ]] || args+=(--param svgFoundation=false)
+  if [[ "$legacy" == true ]]; then args+=(--param svgFoundation=false)
+  else args+=(--param "bundle=$bundle"); fi
   "$sdd" scaffold --root "$destination" --provider fable-game --no-update --json "${args[@]}" >"$out/$name.json"
   jq -e '.outcome=="succeeded" and .scaffold.providerInvoked==true' "$out/$name.json" >/dev/null
   expected="$lifecycle"; [[ "$expected" != omitted ]] || expected=typed-sdd
@@ -106,12 +112,22 @@ scaffold() {
 }
 scaffold omitted omitted
 for lifecycle in none sdd typed-sdd spec-kit; do scaffold "$lifecycle" "$lifecycle"; done
-scaffold complete typed-sdd complete
+for bundle in studio tactical arcade complete; do scaffold "$bundle" omitted "$bundle"; done
 scaffold legacyOmitted omitted player true
 scaffold legacySdd sdd player true
-test -f "$out/complete/SvgFoundation/Examples/Tactical/scene.json"
-test -f "$out/complete/SvgFoundation/Examples/Arcade/scene.json"
-test ! -e "$out/omitted/SvgFoundation/Studio"
+check_bundle() {
+  local destination="$1" bundle="$2"
+  python3 - "$destination" "$bundle" <<'PY'
+from pathlib import Path
+import sys
+foundation=Path(sys.argv[1])/'SvgFoundation'; bundle=sys.argv[2]
+assert (foundation/'Studio').is_dir()==(bundle!='player'), (bundle,'Studio')
+assert (foundation/'Examples/Tactical/scene.json').is_file()==(bundle in ('tactical','complete')), (bundle,'Tactical')
+assert (foundation/'Examples/Arcade/scene.json').is_file()==(bundle in ('arcade','complete')), (bundle,'Arcade')
+PY
+}
+check_bundle "$out/omitted" player
+for bundle in studio tactical arcade complete; do check_bundle "$out/$bundle" "$bundle"; done
 python3 - "$out" <<'PY'
 from pathlib import Path
 import json,sys
@@ -123,7 +139,7 @@ assert params('omitted')==params('typed-sdd')
 PY
 
 receivers=(omitted)
-locked_receivers=(raw omitted none sdd typed-sdd spec-kit legacyOmitted legacySdd)
+locked_receivers=(raw omitted none sdd typed-sdd spec-kit studio tactical arcade complete legacyOmitted legacySdd)
 if [[ "$mode" == full ]]; then
   dotnet tool install FS.GG.NewSddWorkspace --version 0.12.0 --tool-path "$out/tools/wizard" --configfile "$config" --add-source "$out/feed" --no-cache >"$out/wizard-install.log"
   check_installed_archive fs.gg.newsddworkspace 0.12.0 "$out/tools/wizard" wizard
@@ -136,8 +152,14 @@ if [[ "$mode" == full ]]; then
     expected="$lifecycle"; [[ "$expected" != omitted ]] || expected=typed-sdd
     check_lifecycle "$out/$name" "$expected"
     test -f "$out/$name/SvgFoundation/SvgFoundation.fsproj"
+    check_bundle "$out/$name" player
     locked_receivers+=("$name")
   done
+  "$wizard" "$out/wizard-complete" D5WizardComplete --template fable-game --bundle complete \
+    --ref "$tag" --pinned --no-governance --no-coordination >"$out/wizard-complete.log"
+  check_lifecycle "$out/wizard-complete" typed-sdd
+  check_bundle "$out/wizard-complete" complete
+  locked_receivers+=(wizard-complete)
   receivers+=(wizard-omitted)
 fi
 
@@ -190,6 +212,9 @@ for receiver in "${locked_receivers[@]}"; do
   (cd "$destination" && dotnet restore "$solution" --locked-mode --configfile "$config" && dotnet build "$solution" --no-restore) >"$out/$receiver-locked-build.log" 2>&1 || { tail -n 60 "$out/$receiver-locked-build.log" >&2; fail "$receiver locked build"; }
 done
 
+# Close tracing before hashing the completed command log into the receipt.
+set +x
+exec 9>&-
 python3 - "$out" "$root" <<'PY'
 from pathlib import Path
 from hashlib import sha256
@@ -199,14 +224,15 @@ receivers=['omitted']+(['wizard-omitted'] if pins['mode']=='full' else [])
 report={'schema':'fsgg.svg-release-d5.public-default/1','result':'passed','mode':pins['mode'],
         'pins':pins,'packageSource':'nuget.org-only','rawPlayerOmission':'passed',
         'provider':{'omitted':'typed-sdd','explicit':['none','sdd','typed-sdd','spec-kit'],
-                    'completeBundle':'passed','legacyFalseOmitted':'typed-sdd','legacyFalseExplicit':'sdd'},
-        'wizard':({'omitted':'typed-sdd','explicit':['none','sdd','typed-sdd','spec-kit']} if pins['mode']=='full' else 'pending-not-exercised'),
+                    'bundles':['player','studio','tactical','arcade','complete'],
+                    'legacyFalseOmitted':'typed-sdd','legacyFalseExplicit':'sdd'},
+        'wizard':({'omitted':'typed-sdd','explicit':['none','sdd','typed-sdd','spec-kit'],'bundles':['player','complete']} if pins['mode']=='full' else 'pending-not-exercised'),
         'authoredReceivers':receivers,'backend':'quint-specification-v1',
         'authorInspectArtifactHashes':'passed','wrongProfileRefusal':'passed',
         'quintSimulation':{'invariants':6,'samplesPerInvariant':32,'maxSteps':12,'seed':'0x0123456789abcdef','result':'passed','exhaustive':False},
         'verificationBoundary':'compiled authority inspect and sampled invariants; not full SDD verificationReady',
-        'lockedBuilds':['raw','omitted','none','sdd','typed-sdd','spec-kit','legacyOmitted','legacySdd']+
-                       (['wizard-'+lane for lane in ['omitted','none','sdd','typed-sdd','spec-kit']] if pins['mode']=='full' else []),
+        'lockedBuilds':['raw','omitted','none','sdd','typed-sdd','spec-kit','studio','tactical','arcade','complete','legacyOmitted','legacySdd']+
+                       (['wizard-'+lane for lane in ['omitted','none','sdd','typed-sdd','spec-kit','complete']] if pins['mode']=='full' else []),
         'defaultActivation':'pending-effective-registry-repeat-and-independent-default-readback',
         'source':{'head':subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip(),
                   'dirty':bool(subprocess.check_output(['git','-C',str(source),'status','--porcelain'],text=True).strip())}}

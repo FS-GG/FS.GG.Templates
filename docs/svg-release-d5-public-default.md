@@ -57,13 +57,16 @@ immutable tag must resolve to the package source commit, and tag/source provider
 descriptors must match. The package-backed provider remains unmodified.
 
 The receipt covers raw Player product omission; installed-provider root lifecycle
-omission; all four explicit tokens; complete bundle content; and fresh
+omission; all four explicit tokens; Player, Studio, Tactical, Arcade and Complete
+bundle contents; and fresh
 `svgFoundation=false` omission/explicit-sdd behavior. Full mode also covers wizard
-omission and explicit tokens using the immutable provider tag. Both omitted roots
+omission, explicit tokens and the explicit Complete bundle using the immutable
+provider tag. Each generated receiver must have one root SDD configuration. Both omitted roots
 author with the backend omitted, inspect Quint profile-2 authority and artifact
 hashes, run six named invariants for 32 traces of at most 12 steps with a fixed seed,
 and refuse wrong-profile bindings without publishing authority. All raw/provider
-lanes and, in full mode, all wizard lanes perform locked restore/build.
+lanes and, in full mode, all wizard lanes perform locked restore/build. A command
+trace is retained and its final hash is bound into the receipt.
 
 This is compiled-authority and sampled-model verification, not exhaustive model
 checking or a full SDD `verificationReady` lifecycle. No installed-public pass is
