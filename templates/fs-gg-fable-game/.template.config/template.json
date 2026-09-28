@@ -78,12 +78,12 @@
     "lifecycle": {
       "type": "parameter",
       "datatype": "choice",
-      "defaultValue": "sdd",
+      "defaultValue": "typed-sdd",
       "description": "Lifecycle lane forwarded by fsgg-sdd; the orchestrator owns lifecycle artifacts.",
       "choices": [
         { "choice": "none", "description": "Product files only; no SDD lifecycle tree." },
-        { "choice": "sdd", "description": "Standard SDD lifecycle (default)." },
-        { "choice": "typed-sdd", "description": "Standard SDD plus the Typed Protocol Kernel." },
+        { "choice": "sdd", "description": "Explicit Standard SDD compatibility lifecycle." },
+        { "choice": "typed-sdd", "description": "Quint-backed Typed SDD lifecycle (default)." },
         { "choice": "spec-kit", "description": "Legacy Spec Kit lifecycle (retiring; compatibility only)." }
       ]
     },

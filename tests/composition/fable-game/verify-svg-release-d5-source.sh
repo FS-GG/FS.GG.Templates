@@ -1,0 +1,169 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+out="${1:?empty output directory required}"
+: "${QUINT_BIN:?set QUINT_BIN to qualified Quint 0.32.0}"
+: "${LMT_BIN:?set LMT_BIN to qualified lmt}"
+[[ ! -e "$out" ]]
+mkdir -p "$out/feed" "$out/home" "$out/packages" "$out/http" "$out/tools"
+export DOTNET_CLI_HOME="$out/home" NUGET_PACKAGES="$out/packages" NUGET_HTTP_CACHE_PATH="$out/http"
+fail() { echo "svg-release-d5-source: $*" >&2; exit 1; }
+sha() { sha256sum "$1" | cut -d' ' -f1; }
+[[ -x "$QUINT_BIN" && "$(sha "$QUINT_BIN")" == 939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f ]] || fail 'Quint object mismatch'
+[[ -x "$LMT_BIN" && "$(sha "$LMT_BIN")" == 37e0b0365c2641edce40b48605471f61fa12e97c3e2376152f0e849abdc31f10 ]] || fail 'lmt object mismatch'
+config="$out/NuGet.Config"
+printf '%s\n' '<configuration><packageSources><clear/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>' >"$config"
+dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/feed" >"$out/pack.log"
+package="$out/feed/FS.GG.Workspace.Template.0.15.0.nupkg"
+[[ -f "$package" ]] || fail '0.15.0 source candidate missing'
+python3 - "$package" <<'PY'
+from pathlib import Path
+from zipfile import ZipFile
+import json,sys,xml.etree.ElementTree as ET
+archive=Path(sys.argv[1])
+with ZipFile(archive) as z:
+    nuspec=next(x for x in z.namelist() if x.endswith('.nuspec'))
+    metadata=next(x for x in ET.fromstring(z.read(nuspec)) if x.tag.rsplit('}',1)[-1]=='metadata')
+    fields={x.tag.rsplit('}',1)[-1]:x.text for x in metadata}
+    assert fields['id']=='FS.GG.Workspace.Template' and fields['version']=='0.15.0'
+    entries={p:json.loads(z.read(p)) for p in z.namelist() if p.endswith('fs-gg-fable-game/.template.config/template.json') or p.endswith('fs-gg-fable-game-legacy/.template.config/template.json')}
+    assert len(entries)==2, entries.keys()
+    for path,data in entries.items():
+        expected='sdd' if 'legacy' in path else 'typed-sdd'
+        assert data['symbols']['lifecycle']['defaultValue']==expected, (path,expected)
+        assert [x['choice'] for x in data['symbols']['lifecycle']['choices']]==['none','sdd','typed-sdd','spec-kit']
+PY
+python3 "$root/tests/composition/lib/lifecycle-contract.py" --root "$root" --self-test >"$out/lifecycle-contract.log"
+dotnet tool install FS.GG.SDD.Cli --version 2.0.2 --tool-path "$out/tools/sdd" --configfile "$config" --no-cache >"$out/sdd-install.log"
+sdd="$out/tools/sdd/fsgg-sdd"
+"$sdd" --version >"$out/sdd-version.log"
+grep -F '2.0.2' "$out/sdd-version.log" >/dev/null
+dotnet new install "$package" --force >"$out/template-install.log"
+
+# Raw dotnet new proves the omitted SVG Player product. The SDD-owned root
+# lifecycle is qualified separately through the provider below.
+dotnet new fs-gg-fable-game -n D5Raw -o "$out/raw" >"$out/raw.log"
+test -f "$out/raw/SvgFoundation/SvgFoundation.fsproj"
+test ! -e "$out/raw/SvgFoundation/Studio"
+grep -F 'Cooperative SVG arena' "$out/raw/SvgFoundation/index.html" >/dev/null
+
+provider="$out/provider.yml"
+cp "$root/providers/fable-game.providers.yml" "$provider"
+python3 - "$provider" "$package" <<'PY'
+from pathlib import Path
+import re,sys
+p=Path(sys.argv[1]); package=Path(sys.argv[2]).resolve()
+value,count=re.subn(r'(?m)^(\s*source:\s*)FS\.GG\.Workspace\.Template::0\.15\.0',lambda m:m.group(1)+str(package),p.read_text())
+assert count==1
+p.write_text(value)
+PY
+
+scaffold() {
+  local name="$1" lifecycle="$2" bundle="${3:-player}" destination
+  destination="$out/$name"
+  mkdir -p "$destination/.fsgg"
+  cp "$provider" "$destination/.fsgg/providers.yml"
+  local -a args=(--param "productName=D5${name}" --param "rootNamespace=D5${name}" --param "bundle=$bundle")
+  [[ "$lifecycle" == omitted ]] || args+=(--param "lifecycle=$lifecycle")
+  "$sdd" scaffold --root "$destination" --provider fable-game --no-update --json "${args[@]}" >"$out/$name.json"
+  jq -e '.outcome=="succeeded" and .scaffold.providerInvoked==true' "$out/$name.json" >/dev/null
+  local expected="$lifecycle"
+  [[ "$lifecycle" == omitted ]] && expected=typed-sdd
+  jq -e --arg expected "$expected" '[.effectiveParameters[]|select(.key=="lifecycle" and .value==$expected)]|length==1' \
+    "$destination/.fsgg/scaffold-provenance.json" >/dev/null
+  test -f "$destination/SvgFoundation/SvgFoundation.fsproj"
+}
+scaffold omitted omitted
+scaffold typed typed-sdd
+scaffold sdd sdd
+scaffold none none
+scaffold spec-kit spec-kit
+scaffold complete typed-sdd complete
+test -f "$out/complete/SvgFoundation/Examples/Tactical/scene.json"
+test -f "$out/complete/SvgFoundation/Examples/Arcade/scene.json"
+test ! -e "$out/omitted/SvgFoundation/Studio"
+
+# The retained selector still creates its non-SVG product under this new
+# package. Provider defaults are unconditional: 0.15.0 records typed-sdd for
+# omitted lifecycle even when svgFoundation=false, while explicit sdd wins.
+legacy_scaffold() {
+  local name="$1" lifecycle="$2" destination
+  destination="$out/$name"
+  mkdir -p "$destination/.fsgg"
+  cp "$provider" "$destination/.fsgg/providers.yml"
+  local -a args=(--param "productName=D5${name}" --param "rootNamespace=D5${name}" --param svgFoundation=false)
+  [[ "$lifecycle" == omitted ]] || args+=(--param "lifecycle=$lifecycle")
+  "$sdd" scaffold --root "$destination" --provider fable-game --no-update --json "${args[@]}" >"$out/$name.json"
+  jq -e '.outcome=="succeeded" and .scaffold.providerInvoked==true' "$out/$name.json" >/dev/null
+  local expected="$lifecycle"
+  [[ "$lifecycle" == omitted ]] && expected=typed-sdd
+  jq -e --arg expected "$expected" '[.effectiveParameters[]|select(.key=="lifecycle" and .value==$expected)]|length==1' \
+    "$destination/.fsgg/scaffold-provenance.json" >/dev/null
+  test ! -e "$destination/SvgFoundation"
+  test -f "$destination/Server/Server.fsproj"
+}
+legacy_scaffold legacyOmitted omitted
+legacy_scaffold legacySdd sdd
+
+python3 - "$out/omitted/.fsgg/scaffold-provenance.json" "$out/typed/.fsgg/scaffold-provenance.json" <<'PY'
+from pathlib import Path
+import json,sys
+a,b=(json.loads(Path(p).read_text()) for p in sys.argv[1:])
+def params(v):
+    return {x['key']:x['value'] for x in v['effectiveParameters'] if x['key'] not in ('productName','rootNamespace')}
+assert params(a)==params(b), (params(a),params(b))
+PY
+
+# The omitted provider is an actual SDD root. Author against installed SDD
+# 2.0.2 without spelling the backend and inspect its committed v2 authority.
+# Player intentionally omits Studio models; a receiver can author one from the
+# same candidate's complete-bundle model after clean scaffold.
+mkdir -p "$out/omitted/models"
+cp -a "$out/complete/models/svg-arena" "$out/omitted/models/"
+"$sdd" typed-sdd provision --cache "$out/cache" --quint "$QUINT_BIN" --lmt "$LMT_BIN" >"$out/provision.json"
+jq -e '.outcome=="succeeded"' "$out/provision.json" >/dev/null
+"$sdd" typed-sdd author --root "$out/omitted" --work d5-default --title 'D.5 default receiver' \
+  --agent composition --session clean-start --cache "$out/cache" --profile fsgg-quint-profile/2 \
+  --source models/svg-arena/arena-rules.md --bindings models/svg-arena/arena-rules.bindings.json >"$out/author.json"
+jq -e '.outcome=="succeeded"' "$out/author.json" >/dev/null
+"$sdd" typed-sdd inspect --root "$out/omitted" --work d5-default >"$out/inspect.json"
+jq -e '.outcome=="succeeded"' "$out/inspect.json" >/dev/null
+jq -e '.backend=="quint-specification-v1" and .profileIdentity=="fsgg-quint-profile/2"' \
+  "$out/omitted/readiness/d5-default/typed-authority.json" >/dev/null
+
+python3 - "$out/omitted/models/svg-arena/arena-rules.bindings.json" "$out/omitted/models/svg-arena/refused.bindings.json" <<'PY'
+from pathlib import Path
+import json,sys
+value=json.loads(Path(sys.argv[1]).read_text()); value['profile']='fsgg-quint-profile/1'
+Path(sys.argv[2]).write_text(json.dumps(value,indent=2)+'\n')
+PY
+if "$sdd" typed-sdd author --root "$out/omitted" --work d5-refused --title 'D.5 refusal' \
+  --agent composition --session refused --cache "$out/cache" --profile fsgg-quint-profile/2 \
+  --source models/svg-arena/arena-rules.md --bindings models/svg-arena/refused.bindings.json >"$out/refused.json"; then
+  fail 'wrong-profile bindings were accepted'
+fi
+test ! -e "$out/omitted/readiness/d5-refused/typed-authority.json"
+
+(cd "$out/omitted" && dotnet restore D5omitted.slnx --locked-mode --configfile "$config" && dotnet build D5omitted.slnx --no-restore) >"$out/locked-build.log" 2>&1 || { tail -n 80 "$out/locked-build.log" >&2; fail 'omitted locked build'; }
+(cd "$out/legacyOmitted" && dotnet restore D5legacyOmitted.slnx --locked-mode --configfile "$config" && dotnet build D5legacyOmitted.slnx --no-restore) >"$out/legacy-locked-build.log" 2>&1 || { tail -n 80 "$out/legacy-locked-build.log" >&2; fail 'legacy omitted locked build'; }
+
+python3 - "$package" "$out/qualification.json" <<'PY'
+from pathlib import Path
+from hashlib import sha256
+import json,sys
+archive,report=map(Path,sys.argv[1:])
+report.write_text(json.dumps({
+  'schema':'fsgg.svg-release-d5.source-candidate/v1',
+  'status':'source-candidate-only',
+  'templates':{'version':'0.15.0','candidateSha256':sha256(archive.read_bytes()).hexdigest(),'publication':'pending'},
+  'sdd':{'version':'2.0.2','source':'nuget.org','omittedBackend':'quint-specification-v1'},
+  'newFableGameOmission':'typed-sdd',
+  'rawPlayer':'passed',
+  'provider':{'omitted':'typed-sdd','explicit':['none','sdd','typed-sdd','spec-kit'],'completeBundle':'passed','authorInspect':'passed','refusal':'passed','lockedBuild':'passed','legacyFalseOmitted':'typed-sdd-non-svg-locked-build-passed','legacyFalseExplicitSdd':'passed'},
+  'otherProviders':'sdd',
+  'wizard':'pending-owner-package-and-public-receiver',
+  'defaultActivation':'pending-public-composition-and-registry-readback'
+},indent=2)+'\n')
+PY
+echo "svg-release-d5-source: passed; evidence=$out/qualification.json"

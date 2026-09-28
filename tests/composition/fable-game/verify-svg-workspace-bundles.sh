@@ -3,7 +3,7 @@ set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/fs-gg-svg-bundles.XXXXXX")"
 home="$work/home"
-package="${1:-$work/feed/FS.GG.Workspace.Template.0.14.0.nupkg}"
+package="${1:-$work/feed/FS.GG.Workspace.Template.0.15.0.nupkg}"
 expectations="${2:-}"
 if [[ $# -gt 2 ]]; then
   echo "usage: $0 [package [source|published]]" >&2
@@ -238,7 +238,9 @@ cmp -s "$archive_one" "$archive_two" || {
   echo "bundle composition: identical production inputs produced different archives" >&2; exit 1
 }
 
-grep -F 'source: FS.GG.Workspace.Template::0.14.0' "$root/providers/fable-game.providers.yml" >/dev/null
+if [[ "$expectations" == source ]]; then
+  grep -F 'source: FS.GG.Workspace.Template::0.15.0' "$root/providers/fable-game.providers.yml" >/dev/null
+fi
 if grep -A3 -- '- key: bundle' "$root/providers/fable-game.providers.yml" | grep -F 'default:' >/dev/null; then
   echo "bundle composition: provider must preserve bundle omission for legacy callers" >&2; exit 1
 fi

@@ -381,6 +381,14 @@ uses SDD 2.0.2 with explicit `typed-sdd`. Its current omitted lifecycle remains 
 authority, receiver qualification and default activation boundary remain pending. Durable public deployment remains
 deferred to #491 and must not be inferred from the accepted local edge evidence.
 
+The separate [Release D.5 Packet B Templates 0.15.0 source candidate](../reports/2026-09-28-svg-release-d5-source-candidate.md)
+prepares omitted `typed-sdd` for the
+new fable-game template and provider. The 0.15.0 provider's default also applies when a caller explicitly
+selects the retained `svgFoundation=false` non-SVG product; that route still creates and builds with locked
+dependencies, and explicit `sdd` remains available. The legacy template's raw default remains `sdd`, as do
+other providers. This source change does not alter the public 0.14.0 receiver. Public Templates and wizard successors, installed omitted-lifecycle
+proof, registry selection and activation readback remain separate pending boundaries.
+
 ## Journey coverage and authority/upgrade matrix
 
 Each C row gets owner, exact source/package, focused tests, production journey and evidence location in
