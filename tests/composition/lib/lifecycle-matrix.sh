@@ -108,9 +108,13 @@ assert_generated_lifecycle_completion() {
   cp -a "$fixture/readiness/$work_id" "$root/readiness/"
   if [[ "$effective_lane" == typed-sdd ]]; then
     # This historical P4 fixture exercises the retained F# authority. Release
-    # D.5's omitted Quint backend has its separate installed source gate.
+    # D.5's omitted Quint backend has its separate installed source gate. SDD
+    # 1.x only accepts the F# backend and has no --backend option; SDD 2.x
+    # requires the explicit choice to avoid the new Quint default.
+    local -a backend_args=()
+    [[ "$(fsgg-sdd --version)" == 1.* ]] || backend_args=(--backend fsharp-specification-v1)
     fsgg-sdd typed-sdd migrate --root "$root" --work "$work_id" \
-      --source "work/$work_id/spec.md" --backend fsharp-specification-v1 \
+      --source "work/$work_id/spec.md" "${backend_args[@]}" \
       --accept >"$report_root/$lane.completion-migrate.json"
     jq -e '.outcome == "succeeded" and .classification == "Migrated"' "$report_root/$lane.completion-migrate.json" >/dev/null
     fsgg-sdd plan --root "$root" --work "$work_id" --accept-upstream --json >"$report_root/$lane.completion-plan.json"
@@ -213,7 +217,11 @@ assert_provider_lifecycle_matrix() {
   root="$matrix_root/typed-sdd"
   local provenance_before
   provenance_before="$(jq -cS '.effectiveParameters' "$root/.fsgg/scaffold-provenance.json")"
-  if ! fsgg-sdd typed-sdd author --root "$root" --work matrix-spec --title "${provider} typed matrix" --agent composition --session "$provider" --backend fsharp-specification-v1 >"$matrix_root/typed-sdd.author.json"; then
+  # The historical native matrix runs with SDD 1.x's F#-only CLI on the
+  # protected composition gate; 2.x needs an explicit F# backend selection.
+  local -a backend_args=()
+  [[ "$(fsgg-sdd --version)" == 1.* ]] || backend_args=(--backend fsharp-specification-v1)
+  if ! fsgg-sdd typed-sdd author --root "$root" --work matrix-spec --title "${provider} typed matrix" --agent composition --session "$provider" "${backend_args[@]}" >"$matrix_root/typed-sdd.author.json"; then
     echo "lifecycle matrix: $provider typed authoring failed" >&2
     return 1
   fi
