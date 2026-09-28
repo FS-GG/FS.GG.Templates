@@ -68,6 +68,12 @@ and refuse wrong-profile bindings without publishing authority. All raw/provider
 lanes and, in full mode, all wizard lanes perform locked restore/build. A command
 trace is retained and its final hash is bound into the receipt.
 
+The explicit `none`, `sdd`, `typed-sdd` and frozen `spec-kit` checks establish
+token compatibility in fresh workspaces. `legacyOmitted` and `legacySdd` are fresh
+0.15.0 `svgFoundation=false` selections. This receiver promises no retained older
+workspace upgrade and makes no upgrade-proof claim; any future promised upgrade
+needs its own qualification under the selected D.5 clean-start contract.
+
 This is compiled-authority and sampled-model verification, not exhaustive model
 checking or a full SDD `verificationReady` lifecycle. No installed-public pass is
 claimed until the real public run completes. A Templates-only pass leaves the
