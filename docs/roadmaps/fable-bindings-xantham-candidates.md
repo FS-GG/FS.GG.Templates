@@ -2,7 +2,7 @@
 
 Feature identity: `FB-XANTHAM-01`  
 Owner: FS.GG.Templates  
-Status: source implementation complete; package publication pending  
+Status: source implementation and public installed receiver qualification complete
 Route: routine, one accountable Sol-medium worker  
 Unified part: **Fable bindings candidate generation and upstream integration assessment**  
 Stage: independently executable producer work from section 15; not a v2 prerequisite
@@ -24,8 +24,9 @@ and proposes concrete integration steps. Loading the skill does not install tool
 code, change pins, regenerate bindings, publish artifacts, or contact upstream maintainers.
 
 Completion here means a usable optional backend, an executable small-package qualification,
-automated diagnostics/provenance, updated delivered skill guidance, and local packed-product
-qualification. Producer publication and installed receiver adoption remain separately reported.
+automated diagnostics/provenance, updated delivered skill guidance, local packed-product
+qualification, and a fresh execution from the exact public installed package. Publication and
+receiver evidence remain separately identified so local producer proof is not mistaken for adoption.
 It does not mean complete Babylon, Zod, XState or arbitrary-package synthesis.
 
 ## Evidence to reuse
@@ -209,6 +210,19 @@ curated maintenance. An unavailable required pinned dependency blocks its own pr
   of owner-edited skills, maintained bindings or locks. Record exact local package/source identities
   and identify publication/adoption as pending unless independently completed.
 
+- [x] FBX-05 — Public installed receiver completion — route: routine
+  Depends on: FBX-04 and independently verified publication of `FS.GG.Workspace.Template` 0.14.0.
+  Scope: focused installed qualification under `tests/toolchain/fable-bindings/`, the
+  `tests/composition/fable-bindings/run.sh` public-installed hook, and bounded receiver evidence.
+  Acceptance: download and fingerprint the exact public archive, install it with an isolated
+  `DOTNET_CLI_HOME`, create a fresh `fs-gg-fable-bindings` workspace, and use only delivered files to
+  prepare the pinned tools, generate twice with identical candidate/manifest/symbol bytes, compile
+  F#, Fable-compile and execute Node. Exact rejected reports cover wrong tool identity, path escape,
+  timeout, selected-signature loss and compile failure; a conflicting caller cache is proven unable
+  to select the compiler. A bounded three-way adoption of the 20 Xantham-named payload files from a
+  public 0.13.0 workspace preserves unrelated owner edits and refuses an edited managed path before
+  writes. The live assessment reports its exact status without changing the retained baseline.
+
 Use one accountable worker and a coherent routine implementation branch/PR for this bounded window.
 Run focused checks as slices become ready, then the affected native delivery checks. Current required
 contexts include `kit / coordination-kit`, `composition`, and `materialize / receiver-validate`.
@@ -228,7 +242,19 @@ compile failure, source-only updates, package updates, missing pins, partial ret
 The live update observation at `2026-09-08T09:51:04.822Z` found all three exact NuGet pins available,
 the inspected source revision unchanged, and no GitHub Release; the recommended disposition was
 `retain`. The generated skill manifest and packed clean-workspace composition prove the helper,
-schemas, configs and updated skill entrypoint reach the product. Package publication remains pending.
+schemas, configs and updated skill entrypoint reach the product.
+
+The public receiver window independently downloaded `FS.GG.Workspace.Template` 0.14.0 from NuGet.org
+with SHA-256 `a5f218d10bbac42b11afcfb401806c8f0f56261cf79876cc76710471d3666563`
+and found all 20 Xantham-named payload members. A clean installed workspace reproduced
+`proposal-ready`, zero widened/escape findings, deterministic candidate/manifest/symbol hashes,
+`netstandard2.1` compilation, Fable 5.13.0 compilation and the real Node journey. The same harness
+qualified a bounded retained adoption from public 0.13.0, preserving an owner README edit and
+refusing an edited managed runner before writes. The live `2026-09-28T10:36:49.916Z` assessment was
+`updates-found`, compatibility `unqualified`, disposition `investigate`; it observed CLI/support
+0.1.0 and upstream `0161084197bd4e1cba281cc06a3f4b7aa8d23067`, while the reviewed stable-release
+blockers keep alpha.2 as the executable baseline. No delivered template repair or republication was
+needed. See `docs/reports/2026-09-28-fbx-public-installed-receiver.md`.
 
 ### 2026-09-15 stable-release assessment
 
@@ -262,15 +288,16 @@ After: inventory remains the default, the explicit Xantham backend can produce q
 review candidates, and skill loading checks current upstream information.
 
 FBX-02 first changes local opt-in execution. FBX-03 first changes local skill behavior. FBX-04 proves
-fresh creation from a locally packed producer artifact. Installed users receive those changes only
-after publication of an exact FS.GG.Templates release and selection/adoption through their actual
-template/provider path. No release number is reserved by this plan; record the published identity and
-receiver selection when known. Inspect the scaffold consumer's actual pin before claiming adoption.
+fresh creation from a locally packed producer artifact. FBX-05 proves the actual public 0.14.0
+template archive and its installed receiver path. Inspect a scaffold consumer's actual pin before
+claiming that specific workspace has adopted the release.
 
 Publication does not rewrite existing workspaces. Their upgrade must deliberately reconcile the
 new scripts/config, package commands and owner skill/manifest with local edits. Existing-workspace
 skill preservation means a new scaffold release alone cannot establish the every-load behavior there.
 Neither delivery nor adoption changes omitted lifecycle from `sdd`, opens v2 or activates a registry.
+The bounded receiver qualification demonstrates the 20-file Xantham payload adoption from 0.13.0;
+it does not claim a general workspace upgrade mechanism.
 
 ## Later outcome outline
 
