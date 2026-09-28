@@ -99,7 +99,8 @@ for name in ('direct','provider','wizard'):
     else: assert current==expected, name
 PY
 
-# A separate omitted selection demonstrates the pre-OperatingV2 default.
+# A separate omitted selection records the current default ahead of the
+# selected D.5 clean-start authority and activation decision.
 mkdir -p "$out/omitted/.fsgg"
 cp "$out/public-provider.yml" "$out/omitted/.fsgg/providers.yml"
 "$sdd" scaffold --root "$out/omitted" --provider fable-game --no-update --json \
@@ -175,7 +176,7 @@ import json,sys
 out=Path(sys.argv[1]); feed=out/'feed'
 (out/'qualification.json').write_text(json.dumps({
   'schema':'fsgg.svg-release-d5.receiver-qualification/v1',
-  'result':'passed', 'activation':'pending-OperatingV2',
+  'result':'passed', 'activation':'pending-selected-D5-clean-start-authority-receiver-qualification-and-default-activation',
   'templates':{'version':'0.14.0','source':'nuget.org','sha256':sha256((feed/'FS.GG.Workspace.Template.0.14.0.nupkg').read_bytes()).hexdigest()},
   'wizard':{'version':'0.11.2','source':'nuget.org','sha256':sha256((feed/'FS.GG.NewSddWorkspace.0.11.2.nupkg').read_bytes()).hexdigest()},
   'sdd':{'version':'2.0.2','source':'nuget.org','sha256':sha256((feed/'FS.GG.SDD.Cli.2.0.2.nupkg').read_bytes()).hexdigest(),'generatedBackendGuidance':'quint-specification-v1'},

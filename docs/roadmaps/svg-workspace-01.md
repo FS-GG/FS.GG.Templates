@@ -376,10 +376,10 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
 
 Current executable window: **SVG-WORKSPACE-01.1–.6 are complete and the exact candidate is frozen for
 SVG-RELEASE-D**. Templates 0.14.0 and wizard 0.11.2 are public, and compatible SVG product activation is complete
-through Release D.4. The separate [D.5 public receiver qualification](../reports/2026-09-28-svg-release-d5-public-receiver.md)
-uses SDD 2.0.2 with explicit `typed-sdd`; the lifecycle default stays `sdd` until its authority sources and actual
-OperatingV2 evidence permit activation. Durable public deployment remains deferred to #491 and must not be inferred
-from the accepted local edge evidence.
+through Release D.4. The separate [D.5 public receiver preparation](../reports/2026-09-28-svg-release-d5-public-receiver.md)
+uses SDD 2.0.2 with explicit `typed-sdd`. Its current omitted lifecycle remains `sdd`; the selected D.5 clean-start
+authority, receiver qualification and default activation boundary remain pending. Durable public deployment remains
+deferred to #491 and must not be inferred from the accepted local edge evidence.
 
 ## Journey coverage and authority/upgrade matrix
 
