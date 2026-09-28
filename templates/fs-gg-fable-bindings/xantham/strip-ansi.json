@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "package": { "name": "strip-ansi", "version": "7.1.2", "integrity": "sha512-gmBGslpoQJtgnMAvOVqGZpEz9dyoKTCzy2nfz/n8aIFhN/jCE/rCmcxabB6jOOHV+0WNnylOxaxBQPSvcWklhA==" },
+  "packageDirectory": ".nuget/xantham-tools/pilot/node_modules/strip-ansi",
+  "declarationEntry": "index.d.ts",
+  "runtimeImport": "strip-ansi",
+  "fsharpModule": "StripAnsi",
+  "xanthamConfig": "xantham/strip-ansi.xantham.json",
+  "proposalDirectory": "strip-ansi-proposal",
+  "selectedSignatures": ["Exports.stripAnsi"],
+  "requiredGeneratedText": ["static member stripAnsi", "[<Import(\"default\", \"strip-ansi\")>]"],
+  "requiredSymbols": ["stripAnsi"],
+  "lossDispositions": [
+    { "grade": "ergonomic", "count": 0, "disposition": "reviewed", "reason": "The default string-to-string export is exact; there are no ergonomic losses to accept." }
+  ],
+  "limits": { "timeoutSeconds": 90, "sampledProcessGroupRssBytes": 1610612736, "addressSpaceBytes": 8589934592, "outputBytes": 1048576, "logBytes": 1048576 },
+  "maintainedEvidence": ["binding-plan.json", "coverage-and-drift.json"]
+}
