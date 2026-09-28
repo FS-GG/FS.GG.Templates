@@ -374,20 +374,26 @@ dependent-activation fence unchanged. No planning-only PR or duplicate status re
   installed explicit typed/profile-2 readiness, compatible publication eligibility and the later lifecycle-default
   gate remain separate. The composition is handed off to SVG-RELEASE-D; #491 does not block compatible publication.
 
-Current executable window: **SVG-WORKSPACE-01.1–.6 are complete and the exact candidate is frozen for
-SVG-RELEASE-D**. Templates 0.14.0 and wizard 0.11.2 are public, and compatible SVG product activation is complete
-through Release D.4. The separate [D.5 public receiver preparation](../reports/2026-09-28-svg-release-d5-public-receiver.md)
-uses SDD 2.0.2 with explicit `typed-sdd`. Its current omitted lifecycle remains `sdd`; the selected D.5 clean-start
-authority, receiver qualification and default activation boundary remain pending. Durable public deployment remains
-deferred to #491 and must not be inferred from the accepted local edge evidence.
+Current executable window: **SVG-WORKSPACE-01.1–.6 are complete and Release D.5 has an accepted public
+clean-start receiver**. Templates 0.15.0 and wizard 0.12.0 are public alongside SDD 2.0.2. Templates
+[PR #644](https://github.com/FS-GG/FS.GG.Templates/pull/644) added the exact public receiver at protected
+merge `59d0c521446a3d9d362d81a978b25434ce4d2d6f`; full run
+[36472328832](https://github.com/FS-GG/FS.GG.Templates/actions/runs/36472328832) passed direct, provider and
+wizard omission as `typed-sdd`, every explicit compatible lifecycle, the promised bundles, locked builds,
+Quint authority sampling and wrong-profile refusal. Registry activation merge
+`2574f02aa8cf835ab1e0b5ff6c62504c33098183` then selected Templates 0.15.0 and wizard 0.12.0. Fresh
+post-activation run [36474756648](https://github.com/FS-GG/FS.GG.Templates/actions/runs/36474756648)
+repeated the full public receiver from those effective pins; independent readback verified all 63 receipt
+digests, the three public package archives and both authored authorities. This closes the Release D.5 public
+clean-start/default receiver boundary. Durable public deployment remains deferred to #491 and must not be
+inferred from the accepted local edge evidence.
 
 The separate [Release D.5 Packet B Templates 0.15.0 source candidate](../reports/2026-09-28-svg-release-d5-source-candidate.md)
-prepares omitted `typed-sdd` for the
-new fable-game template and provider. The 0.15.0 provider's default also applies when a caller explicitly
-selects the retained `svgFoundation=false` non-SVG product; that route still creates and builds with locked
-dependencies, and explicit `sdd` remains available. The legacy template's raw default remains `sdd`, as do
-other providers. This source change does not alter the public 0.14.0 receiver. Public Templates and wizard successors, installed omitted-lifecycle
-proof, registry selection and activation readback remain separate pending boundaries.
+is now the published input to that receiver. Its provider default applies when a caller explicitly selects the
+retained `svgFoundation=false` non-SVG product; that route creates and builds with locked dependencies, and
+explicit `sdd` remains available. The legacy template's raw default remains `sdd`, as do other providers.
+Effective registry selection, activation readback and the fresh post-activation repeat are complete. This
+clean-start closure makes no retained older-workspace upgrade claim.
 
 ## Journey coverage and authority/upgrade matrix
 
@@ -407,7 +413,7 @@ the existing qualification report; this is a traceability table, not another mut
 
 | Receiver/transition | Required evidence and rollback/refusal |
 |---|---|
-| Fresh direct/SDD/wizard, selected bundle | Exact installed archive and tool/owner-skill closure; lifecycle omission remains `sdd`; `typed-sdd` target is explicit; no hidden bundle-dependent authority choice |
+| Fresh direct/SDD/wizard, selected bundle | Exact installed archive and tool/owner-skill closure; lifecycle omission is `typed-sdd`; `none`, `sdd`, `typed-sdd` and `spec-kit` remain explicit compatible choices; no hidden bundle-dependent authority choice |
 | Public Templates 0.10/0.11/0.12/0.13 retained products | Reuse old preview baselines, then inventory new managed scope; dry run, conflict before write, interrupted transaction recovery, authored content/keymaps/save/replay/skill preservation; byte-identical managed rollback where supported |
 | Templates-owned disclosed tactical fixture | Same bounded adoption path; preserve its authored adapters/content and disclosure semantics. No S.I.R. adoption or repository access claim |
 | F# manifest-v1 requirements/evidence | Published SDD migrator only within its supported scope; readable diff, exact originals, lock/journal and interrupted recovery. Arbitrary gameplay/rule AST conversion is unsupported unless its owning producer explicitly qualifies it |
