@@ -31,8 +31,9 @@ framework copy**. `providers/rendering.providers.yml` + the
 - **Rendering** — `fsgg-sdd scaffold --provider rendering` installs the **live,
   un-vendored** `FS.GG.Rendering` app from the published `FS.GG.UI.Template` package
   pinned by the provider descriptor. All providers preserve explicit `none`, `sdd`, and
-  `typed-sdd` selection, with omission resolving to `sdd`; product templates carry no lifecycle
-  files because FS.GG.SDD owns `.fsgg/`, `work/`, and `readiness/`.
+  `typed-sdd` selection. The Release D.5 fable-game 0.15.0 source candidate makes omission
+  select `typed-sdd`; other providers and the legacy fable-game template retain `sdd`.
+  Product templates carry no lifecycle files because FS.GG.SDD owns `.fsgg/`, `work/`, and `readiness/`.
 - **SDD** — the lifecycle skeleton (`.fsgg/{project,sdd,agents}.yml` + `work/` +
   `readiness/`), owned by `fsgg-sdd`.
 - **Governance** — the populated `fs-gg-governance` overlay, derived from the exact

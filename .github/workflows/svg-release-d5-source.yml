@@ -1,0 +1,71 @@
+name: svg-release-d5-source
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'FS.GG.Templates.csproj'
+      - 'providers/fable-game.providers.yml'
+      - 'templates/fs-gg-fable-game/**'
+      - 'tests/composition/fable-game/verify-svg-release-d5-source.sh'
+      - 'tests/composition/lib/lifecycle-contract.py'
+      - 'tests/composition/lib/lifecycle-matrix.sh'
+      - '.github/workflows/svg-release-d5-source.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'FS.GG.Templates.csproj'
+      - 'providers/fable-game.providers.yml'
+      - 'templates/fs-gg-fable-game/**'
+      - 'tests/composition/fable-game/verify-svg-release-d5-source.sh'
+      - 'tests/composition/lib/lifecycle-contract.py'
+      - 'tests/composition/lib/lifecycle-matrix.sh'
+      - '.github/workflows/svg-release-d5-source.yml'
+
+jobs:
+  qualify:
+    name: D.5 clean-start Templates source candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            10.0.400
+            10.0.401
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.24.1'
+      - name: Acquire exact profile-2 tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/d5-tools"
+          curl --fail --location --retry 3 \
+            https://github.com/quint-co/quint/releases/download/v0.32.0/quint-linux-amd64 \
+            --output "$RUNNER_TEMP/d5-tools/quint"
+          echo '939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f  '"$RUNNER_TEMP/d5-tools/quint" | sha256sum --check --strict
+          chmod +x "$RUNNER_TEMP/d5-tools/quint"
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/driusan/lmt/62fe18f2f6a6e11c158ff2b2209e1082a4fcd59c/main.go \
+            --output "$RUNNER_TEMP/d5-tools/main.go"
+          echo '88bc47acae2c26919ab96a5cafa80b12fac762092c57840a2baad1afcc7feda3  '"$RUNNER_TEMP/d5-tools/main.go" | sha256sum --check --strict
+          (cd "$RUNNER_TEMP/d5-tools" && GO111MODULE=off CGO_ENABLED=1 go build -trimpath -ldflags '-buildid=IvXAt1kJ-3iINki1alCT/Ut12KGabgkWIkwVpw-xO/c4zkZMLAubfWHvjZOY8o/8-oR_8tNNndNgfMVoD8F -B 0x03d1703027f57ed4dd2ba90b7cdfc8cdea2815da' -o lmt main.go)
+          echo '37e0b0365c2641edce40b48605471f61fa12e97c3e2376152f0e849abdc31f10  '"$RUNNER_TEMP/d5-tools/lmt" | sha256sum --check --strict
+      - name: Qualify source candidate and installed SDD default
+        shell: bash
+        env:
+          QUINT_BIN: ${{ runner.temp }}/d5-tools/quint
+          LMT_BIN: ${{ runner.temp }}/d5-tools/lmt
+        run: bash tests/composition/fable-game/verify-svg-release-d5-source.sh "$RUNNER_TEMP/svg-release-d5-source"
+      - name: Upload candidate evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: svg-release-d5-source-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/svg-release-d5-source/*.json
+            ${{ runner.temp }}/svg-release-d5-source/*.log
+          if-no-files-found: warn
+          retention-days: 90

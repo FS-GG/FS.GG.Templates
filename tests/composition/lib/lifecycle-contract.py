@@ -21,7 +21,7 @@ TEMPLATE = re.compile(r"^    templateId:\s*(\S+)", re.MULTILINE)
 LIFECYCLE = re.compile(
     r"^      - key:\s*lifecycle\s*$\n"
     r"^        required:\s*false\s*$\n"
-    r"^        default:\s*sdd\s*$",
+    r"^        default:\s*(sdd|typed-sdd)\s*$",
     re.MULTILINE,
 )
 FLOOR = re.compile(r'^      version:\s*"1\.4\.0-preview\.1"', re.MULTILINE)
@@ -41,7 +41,9 @@ def inspect(root: Path) -> list[str]:
         if not provider or not template:
             failures.append(f"lifecycle.descriptorUnreadable:{label}")
             continue
-        if not LIFECYCLE.search(text):
+        expected_default = "typed-sdd" if label == "fable-game" else "sdd"
+        lifecycle_match = LIFECYCLE.search(text)
+        if not lifecycle_match or lifecycle_match.group(1) != expected_default:
             failures.append(f"lifecycle.parameterMissingOrWrongDefault:{label}")
         if not FLOOR.search(text):
             failures.append(f"lifecycle.minimumCompilerWrong:{label}")
@@ -61,7 +63,7 @@ def inspect(root: Path) -> list[str]:
         choices = tuple(item.get("choice") for item in lifecycle.get("choices", []))
         if lifecycle.get("type") != "parameter" or lifecycle.get("datatype") != "choice":
             failures.append(f"lifecycle.templateSymbolWrongKind:{label}")
-        if lifecycle.get("defaultValue") != "sdd":
+        if lifecycle.get("defaultValue") != expected_default:
             failures.append(f"lifecycle.templateDefaultWrong:{label}")
         if choices != LANES:
             failures.append(f"lifecycle.templateChoicesWrong:{label}")
@@ -72,9 +74,11 @@ def self_test(root: Path) -> list[str]:
     cases = (
         ("dropped-provider-parameter", "lifecycle.parameterMissingOrWrongDefault", lambda p: p.write_text(p.read_text().replace("      - key: lifecycle", "      - key: dropped"))),
         ("wrong-provider-default", "lifecycle.parameterMissingOrWrongDefault", lambda p: p.write_text(p.read_text().replace("        default: sdd", "        default: none"))),
+        ("fable-wrong-provider-default", "lifecycle.parameterMissingOrWrongDefault", lambda p: p.write_text(p.read_text().replace("        default: typed-sdd", "        default: sdd"))),
         ("missing-template-choice", "lifecycle.templateChoicesWrong", lambda p: p.write_text(p.read_text().replace('{ "choice": "typed-sdd", "description": "Standard SDD plus the Typed Protocol Kernel." }', '{ "choice": "sdd", "description": "aliased" }'))),
         ("missing-legacy-template-choice", "lifecycle.templateChoicesWrong", lambda p: p.write_text(p.read_text().replace('{ "choice": "spec-kit", "description": "Legacy Spec Kit lifecycle (retiring; compatibility only)." }', '{ "choice": "none", "description": "aliased" }'))),
         ("wrong-template-default", "lifecycle.templateDefaultWrong", lambda p: p.write_text(p.read_text().replace('"defaultValue": "sdd"', '"defaultValue": "none"'))),
+        ("fable-wrong-template-default", "lifecycle.templateDefaultWrong", lambda p: p.write_text(p.read_text().replace('"defaultValue": "typed-sdd"', '"defaultValue": "sdd"'))),
     )
     failures: list[str] = []
     for name, expected, mutate in cases:
@@ -82,7 +86,8 @@ def self_test(root: Path) -> list[str]:
             fixture = Path(temporary)
             shutil.copytree(root / "providers", fixture / "providers")
             shutil.copytree(root / "templates", fixture / "templates")
-            target = fixture / ("providers/console.providers.yml" if "provider" in name else "templates/fs-gg-console/.template.config/template.json")
+            family = "fable-game" if name.startswith("fable-") else "console"
+            target = fixture / (f"providers/{family}.providers.yml" if "provider" in name else f"templates/fs-gg-{family}/.template.config/template.json")
             mutate(target)
             diagnostics = inspect(fixture)
             if not any(item.startswith(expected) for item in diagnostics):
@@ -102,7 +107,7 @@ def main() -> int:
         for failure in failures:
             print(f"FAIL {failure}")
         return 1
-    print(f"PASS lifecycle contract: {len(list((args.root / 'providers').glob('*.providers.yml')))} providers; lanes={','.join(LANES)}; omitted=sdd")
+    print(f"PASS lifecycle contract: {len(list((args.root / 'providers').glob('*.providers.yml')))} providers; lanes={','.join(LANES)}; fable-game omitted=typed-sdd; others omitted=sdd")
     if args.self_test:
         print("PASS lifecycle contract self-test: every mutation class fired")
     return 0

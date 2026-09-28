@@ -35,7 +35,7 @@ assert_lifecycle_trees_equivalent() {
   lifecycle_tree_manifest "$explicit_root" >"$explicit_manifest"
   lifecycle_tree_manifest "$omitted_root" >"$omitted_manifest"
   if ! diff -u "$explicit_manifest" "$omitted_manifest" >"$output"; then
-    echo "lifecycle matrix: omitted lifecycle tree differs from explicit sdd (see $output)" >&2
+    echo "lifecycle matrix: omitted lifecycle tree differs from explicit selection (see $output)" >&2
     return 1
   fi
 }
@@ -79,7 +79,7 @@ assert_generated_product_restore_build_test() {
 }
 
 assert_generated_lifecycle_completion() {
-  local provider="$1" lane="$2" root="$3" report_root="$4"
+  local provider="$1" lane="$2" root="$3" report_root="$4" effective_lane="${5:-$2}"
   local fixture="$LANE_REPO_ROOT/tests/composition/fixtures/lifecycle-completion"
   local work_id="typed-sdd-p4-templates"
 
@@ -106,9 +106,12 @@ assert_generated_lifecycle_completion() {
   mkdir -p "$root/work" "$root/readiness"
   cp -a "$fixture/work/$work_id" "$root/work/"
   cp -a "$fixture/readiness/$work_id" "$root/readiness/"
-  if [[ "$lane" == typed-sdd ]]; then
+  if [[ "$effective_lane" == typed-sdd ]]; then
+    # This historical P4 fixture exercises the retained F# authority. Release
+    # D.5's omitted Quint backend has its separate installed source gate.
     fsgg-sdd typed-sdd migrate --root "$root" --work "$work_id" \
-      --source "work/$work_id/spec.md" --accept >"$report_root/$lane.completion-migrate.json"
+      --source "work/$work_id/spec.md" --backend fsharp-specification-v1 \
+      --accept >"$report_root/$lane.completion-migrate.json"
     jq -e '.outcome == "succeeded" and .classification == "Migrated"' "$report_root/$lane.completion-migrate.json" >/dev/null
     fsgg-sdd plan --root "$root" --work "$work_id" --accept-upstream --json >"$report_root/$lane.completion-plan.json"
     jq -e '.outcome == "succeeded" or .outcome == "succeededWithWarnings"' "$report_root/$lane.completion-plan.json" >/dev/null
@@ -137,7 +140,9 @@ assert_provider_lifecycle_matrix() {
   shift 3
   local -a provider_params=("$@")
   local lane root descriptor report actual direct_legacy
-  local explicit_sdd_parameters=""
+  local default_lane=sdd
+  [[ "$provider" == fable-game ]] && default_lane=typed-sdd
+  local explicit_default_parameters=""
 
   mkdir -p "$matrix_root"
   for lane in none sdd typed-sdd spec-kit omitted; do
@@ -185,52 +190,56 @@ assert_provider_lifecycle_matrix() {
     if [[ "$direct_legacy" == false ]]; then
       jq -e --arg provider "$provider" '.outcome == "succeeded" and .scaffold.providerName == $provider and .scaffold.providerInvoked == true' "$report" >/dev/null
       actual="$(jq -r '.effectiveParameters[] | select(.key == "lifecycle") | .value' "$root/.fsgg/scaffold-provenance.json")"
-      [[ "$actual" == "${lane/omitted/sdd}" ]] || {
-        echo "lifecycle matrix: $provider/$lane recorded '$actual', expected '${lane/omitted/sdd}'" >&2
+      local expected_lane="$lane"
+      [[ "$lane" == omitted ]] && expected_lane="$default_lane"
+      [[ "$actual" == "$expected_lane" ]] || {
+        echo "lifecycle matrix: $provider/$lane recorded '$actual', expected '$expected_lane'" >&2
         return 1
       }
       jq -e '.requiredMinimumCliVersion == "1.4.0-preview.1"' "$root/.fsgg/scaffold-provenance.json" >/dev/null
     fi
 
-    if [[ "$lane" == sdd ]]; then
-      explicit_sdd_parameters="$(jq -cS '.effectiveParameters' "$root/.fsgg/scaffold-provenance.json")"
+    if [[ "$lane" == "$default_lane" ]]; then
+      explicit_default_parameters="$(jq -cS '.effectiveParameters' "$root/.fsgg/scaffold-provenance.json")"
     elif [[ "$lane" == omitted ]]; then
-      [[ "$(jq -cS '.effectiveParameters' "$root/.fsgg/scaffold-provenance.json")" == "$explicit_sdd_parameters" ]] || {
-        echo "lifecycle matrix: $provider omitted parameters differ from explicit sdd" >&2
+      [[ "$(jq -cS '.effectiveParameters' "$root/.fsgg/scaffold-provenance.json")" == "$explicit_default_parameters" ]] || {
+        echo "lifecycle matrix: $provider omitted parameters differ from explicit $default_lane" >&2
         return 1
       }
-      assert_lifecycle_trees_equivalent "$matrix_root/sdd" "$root" "$matrix_root/omitted-vs-sdd.diff"
-    elif [[ "$lane" == typed-sdd ]]; then
-      local provenance_before
-      provenance_before="$(jq -cS '.effectiveParameters' "$root/.fsgg/scaffold-provenance.json")"
-      if ! fsgg-sdd typed-sdd author --root "$root" --work matrix-spec --title "${provider} typed matrix" --agent composition --session "$provider" >"$matrix_root/$lane.author.json"; then
-        echo "lifecycle matrix: $provider typed authoring failed" >&2
-        return 1
-      fi
-      fsgg-sdd typed-sdd inspect --root "$root" --work matrix-spec >"$matrix_root/$lane.inspect.json"
-      jq -e '.outcome == "succeeded"' "$matrix_root/$lane.inspect.json" >/dev/null
-      test -f "$root/work/matrix-spec/specification.fsx"
-      test -f "$root/work/matrix-spec/spec.md"
-      test -f "$root/readiness/matrix-spec/specification.normalized.json"
-      test -f "$root/readiness/matrix-spec/typed-authority.json"
-      cmp "$root/.agents/skills/fs-gg-sdd-typed-author/SKILL.md" "$root/.claude/skills/fs-gg-sdd-typed-author/SKILL.md"
-      fsgg-sdd refresh --root "$root" --work matrix-spec --json >"$matrix_root/$lane.refresh.json"
-      jq -e '.outcome == "noChange" and .refresh.status == "early-stage"' "$matrix_root/$lane.refresh.json" >/dev/null
-      fsgg-sdd upgrade --root "$root" --yes --json >"$matrix_root/$lane.upgrade.json"
-      jq -e '(.outcome == "noChange" or .outcome == "succeeded") and .upgrade.residualDrift == false' "$matrix_root/$lane.upgrade.json" >/dev/null
-      [[ "$(jq -cS '.effectiveParameters' "$root/.fsgg/scaffold-provenance.json")" == "$provenance_before" ]]
-      fsgg-sdd typed-sdd inspect --root "$root" --work matrix-spec >"$matrix_root/$lane.post-upgrade-inspect.json"
-      jq -e '.outcome == "succeeded"' "$matrix_root/$lane.post-upgrade-inspect.json" >/dev/null
+      assert_lifecycle_trees_equivalent "$matrix_root/$default_lane" "$root" "$matrix_root/omitted-vs-$default_lane.diff"
     fi
-
   done
+
+  root="$matrix_root/typed-sdd"
+  local provenance_before
+  provenance_before="$(jq -cS '.effectiveParameters' "$root/.fsgg/scaffold-provenance.json")"
+  if ! fsgg-sdd typed-sdd author --root "$root" --work matrix-spec --title "${provider} typed matrix" --agent composition --session "$provider" --backend fsharp-specification-v1 >"$matrix_root/typed-sdd.author.json"; then
+    echo "lifecycle matrix: $provider typed authoring failed" >&2
+    return 1
+  fi
+  fsgg-sdd typed-sdd inspect --root "$root" --work matrix-spec >"$matrix_root/typed-sdd.inspect.json"
+  jq -e '.outcome == "succeeded"' "$matrix_root/typed-sdd.inspect.json" >/dev/null
+  test -f "$root/work/matrix-spec/specification.fsx"
+  test -f "$root/work/matrix-spec/spec.md"
+  test -f "$root/readiness/matrix-spec/specification.normalized.json"
+  test -f "$root/readiness/matrix-spec/typed-authority.json"
+  cmp "$root/.agents/skills/fs-gg-sdd-typed-author/SKILL.md" "$root/.claude/skills/fs-gg-sdd-typed-author/SKILL.md"
+  fsgg-sdd refresh --root "$root" --work matrix-spec --json >"$matrix_root/typed-sdd.refresh.json"
+  jq -e '.outcome == "noChange" and .refresh.status == "early-stage"' "$matrix_root/typed-sdd.refresh.json" >/dev/null
+  fsgg-sdd upgrade --root "$root" --yes --json >"$matrix_root/typed-sdd.upgrade.json"
+  jq -e '(.outcome == "noChange" or .outcome == "succeeded") and .upgrade.residualDrift == false' "$matrix_root/typed-sdd.upgrade.json" >/dev/null
+  [[ "$(jq -cS '.effectiveParameters' "$root/.fsgg/scaffold-provenance.json")" == "$provenance_before" ]]
+  fsgg-sdd typed-sdd inspect --root "$root" --work matrix-spec >"$matrix_root/typed-sdd.post-upgrade-inspect.json"
+  jq -e '.outcome == "succeeded"' "$matrix_root/typed-sdd.post-upgrade-inspect.json" >/dev/null
 
 
   # Keep the first loop a clean-scaffold proof. Completion and builds intentionally run only after
-  # omitted-vs-explicit SDD has compared the unpolluted file trees.
+  # omitted-vs-explicit default has compared the unpolluted file trees.
   for lane in none sdd typed-sdd spec-kit omitted; do
     root="$matrix_root/$lane"
-    assert_generated_lifecycle_completion "$provider" "$lane" "$root" "$matrix_root"
+    local effective_lane="$lane"
+    [[ "$lane" == omitted ]] && effective_lane="$default_lane"
+    assert_generated_lifecycle_completion "$provider" "$lane" "$root" "$matrix_root" "$effective_lane"
     assert_generated_product_restore_build_test "$provider" "$lane" "$root"
   done
 

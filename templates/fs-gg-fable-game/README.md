@@ -49,6 +49,10 @@ the integrated Create/Arrange/Play/Review tools; tactical and arcade add their e
 examples plus Studio; complete includes both. The player bundle contains no Studio or example
 source. Rendering's profile remains independent from this product composition choice.
 
+When lifecycle is omitted, this fable-game provider selects Quint-backed `typed-sdd`.
+Explicit `none`, `sdd`, `typed-sdd`, and `spec-kit` keep their distinct selections. Raw
+`dotnet new` emits product files; use `fsgg-sdd scaffold` to create the SDD-owned root lifecycle.
+
 The compatibility flag remains readable for existing scripts: explicit
 `--svgFoundation true` selects the retained preview-compatible complete composition, while
 explicit `--svgFoundation false` retains the pre-0.14 non-SVG product. The old and new selectors

@@ -8,9 +8,9 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Workspace.Template</PackageId>
-    <!-- 0.14.0 composes the qualified SVG player as the fable-game product default and
-         adds explicit player/studio/tactical/arcade/complete bundle selection. -->
-    <Version>0.14.0</Version>
+    <!-- 0.15.0 prepares the fable-game omitted typed-sdd lifecycle while preserving
+         the 0.14.0 SVG product and explicit lifecycle/bundle selections. -->
+    <Version>0.15.0</Version>
     <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new workspace templates for FS.GG.SDD: governance, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</Description>
