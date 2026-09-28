@@ -2,7 +2,7 @@
 
 Feature identity: `FB-XANTHAM-01`  
 Owner: FS.GG.Templates  
-Status: public installed receiver complete; second-package source qualified locally, hosted composition pending
+Status: public installed receiver and hosted second-package composition complete; publication pending
 Route: routine, one accountable Sol-medium worker  
 Unified part: **Fable bindings candidate generation and upstream integration assessment**  
 Stage: independently executable producer work from section 15; not a v2 prerequisite
@@ -236,7 +236,7 @@ curated maintenance. An unavailable required pinned dependency blocks its own pr
   execution proves ANSI removal plus a plain-text control. The exact package and fixture files are
   present in the locally packed template archive.
 
-- [ ] FBX-07 — Hosted exact-head second-runtime composition — route: routine
+- [x] FBX-07 — Hosted exact-head second-runtime composition — route: routine
   Depends on: FBX-06.
   Scope: the existing `composition` receiver lane on the exact candidate head; do not add another
   release or public-default path.
@@ -284,8 +284,13 @@ exact default string-to-string export and its actual runtime depends on the alre
 and writes separate proposal directories. Focused qualification passed deterministic generation, exact
 loss accounting, F# compilation, Fable 5.13.0 emission, real Node execution and packed archive
 membership for the second fixture while the complete original ANSI positive and rejection suite stayed
-green. This host has neither `fsgg-fsharp-surface` nor Chromium, so FBX-07 remains unchecked pending the
-native hosted `composition` result on the exact branch head.
+green. Templates PR #645 bound candidate head
+`92b5ebfd68a29d3e6a7adb15c4606bcb02b9f6ac` to the candidate archive and passed hosted composition
+run `36473506070` (job `109101353158`). That run executed the clean delivered lifecycle with
+`fsgg-fsharp-surface`, the Chromium receiver journey and both npm runtime witnesses before the source
+merged as protected main `1e29a45ba26cddf900cb89064c8a89e2f3960f35`. FBX-07 is complete at this
+hosted candidate-composition boundary. The immutable public 0.15.0 archive predates this source and is
+not evidence of publication or installed public adoption for the second package; those remain separate.
 
 ### 2026-09-15 stable-release assessment
 
