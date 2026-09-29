@@ -6,7 +6,7 @@ const coord = async (locator) => ({ x: await locator.getAttribute("data-x"), y: 
 
 async function openWithClock(page) {
   await page.clock.install();
-  await page.goto("./");
+  await page.goto("/snake/");
   await expect(page.getByRole("heading", { name: "Snake" })).toBeVisible();
 }
 
@@ -103,7 +103,7 @@ test("public controls reach deterministic food and a self collision", async ({ p
 
 test("small viewport retains keyboard-operable controls and a bounded board", async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });
-  await page.goto("./");
+  await page.goto("/snake/");
   await expect(board(page)).toBeVisible();
   const bounds = await board(page).boundingBox();
   expect(bounds.width).toBeLessThanOrEqual(360);
@@ -115,7 +115,7 @@ test("small viewport retains keyboard-operable controls and a bounded board", as
 });
 
 test("retained real-clock smoke proves the live timer is connected", async ({ page }) => {
-  await page.goto("./");
+  await page.goto("/snake/");
   await start(page);
   await expect(head(page)).toHaveAttribute("data-x", "17", { timeout: 1_500 });
 });

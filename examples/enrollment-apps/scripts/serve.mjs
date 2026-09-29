@@ -9,6 +9,7 @@ const mime = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.
 const server = createServer(async (request, response) => {
   try {
     const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+    if (pathname === '/favicon.ico') { response.writeHead(204).end(); return; }
     const target = resolve(root, `.${pathname.endsWith('/') ? pathname + 'index.html' : pathname}`);
     if (!target.startsWith(root + sep)) { response.writeHead(403).end(); return; }
     const bytes = await readFile(target);
