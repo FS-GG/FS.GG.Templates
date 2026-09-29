@@ -1,0 +1,35 @@
+name: Enrollment apps
+
+on:
+  pull_request:
+    paths:
+      - 'examples/enrollment-apps/**'
+      - '.github/workflows/enrollment-apps.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'examples/enrollment-apps/**'
+      - '.github/workflows/enrollment-apps.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  browser-apps:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.8.0
+          cache: npm
+          cache-dependency-path: examples/enrollment-apps/package-lock.json
+      - name: Install locked browser harness
+        working-directory: examples/enrollment-apps
+        run: |
+          npm ci --ignore-scripts
+          npx playwright install --with-deps chromium
+      - name: Stage and qualify all four applications
+        working-directory: examples/enrollment-apps
+        run: npm run verify
