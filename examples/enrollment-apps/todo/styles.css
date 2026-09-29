@@ -1,0 +1,117 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #222118;
+  background: #f4f0e7;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  min-width: 18rem;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 15% 10%, rgb(241 179 102 / 35%), transparent 32rem),
+    linear-gradient(160deg, #fbf8f0 0%, #ebe4d5 100%);
+}
+
+button, input { font: inherit; }
+button { cursor: pointer; }
+
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid #075985;
+  outline-offset: 3px;
+}
+
+.app-shell {
+  width: min(48rem, calc(100% - 2rem));
+  margin: 0 auto;
+  padding: 4rem 0;
+}
+
+.app-header { margin-bottom: 2rem; }
+.eyebrow {
+  margin: 0 0 .4rem;
+  color: #9a3412;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .15em;
+  text-transform: uppercase;
+}
+h1, h2, p { margin-top: 0; }
+h1 { margin-bottom: .35rem; font: 800 clamp(2.5rem, 8vw, 4.8rem)/.95 Georgia, serif; }
+h2 { margin-bottom: 1rem; font-size: 1.15rem; }
+.intro, .count { color: #625f54; }
+
+.composer,
+.list-panel,
+.notice {
+  border: 1px solid rgb(34 33 24 / 14%);
+  border-radius: 1.1rem;
+  background: rgb(255 254 250 / 88%);
+  box-shadow: 0 .8rem 2.2rem rgb(72 57 29 / 10%);
+}
+
+.composer, .list-panel { padding: 1.35rem; }
+.composer { margin-bottom: 1rem; }
+label { font-weight: 700; }
+.composer-row { display: flex; gap: .65rem; margin-top: .55rem; }
+input {
+  min-width: 0;
+  border: 1px solid #a7a294;
+  border-radius: .65rem;
+  padding: .75rem .85rem;
+  background: #fff;
+  color: inherit;
+}
+.composer-row input { flex: 1; }
+
+button {
+  border: 1px solid #29271e;
+  border-radius: .65rem;
+  padding: .7rem .95rem;
+  background: #29271e;
+  color: #fffdf7;
+  font-weight: 750;
+}
+button:hover { background: #474438; }
+button.secondary { background: transparent; color: #29271e; }
+button.secondary:hover { background: #ede8dc; }
+button.danger { border-color: transparent; background: transparent; color: #a12a20; }
+button.danger:hover { background: #fae6e1; }
+
+.form-error { margin: .55rem 0 0; color: #a12a20; font-weight: 700; }
+.notice { margin: 0 0 1rem; padding: .9rem 1.1rem; border-color: #b45309; background: #fff7dc; }
+.list-heading-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.list-heading-row h2 { margin-bottom: .2rem; }
+.count { margin-bottom: 0; font-size: .92rem; }
+.filters { display: flex; flex-wrap: wrap; gap: .35rem; }
+.filters button { padding: .45rem .7rem; background: transparent; color: #29271e; }
+.filters button[aria-pressed="true"] { background: #29271e; color: #fffdf7; }
+.empty-state { margin: 2rem 0 .7rem; padding: 1.2rem; border: 1px dashed #aaa393; border-radius: .8rem; color: #625f54; text-align: center; }
+.todo-list { display: grid; gap: .65rem; margin: 1.25rem 0 0; padding: 0; list-style: none; }
+.todo-item { border: 1px solid #d8d2c5; border-radius: .8rem; padding: .8rem; background: #fffefa; }
+.todo-view { display: flex; align-items: center; justify-content: space-between; gap: .8rem; }
+.check-row { display: flex; min-width: 0; align-items: center; gap: .7rem; font-weight: 600; }
+.todo-toggle { width: 1.2rem; height: 1.2rem; flex: 0 0 auto; accent-color: #9a3412; }
+.todo-text { overflow-wrap: anywhere; }
+.completed .todo-text { color: #777267; text-decoration: line-through; }
+.todo-actions, .edit-actions { display: flex; flex: 0 0 auto; gap: .35rem; }
+.todo-actions button, .edit-actions button { padding: .45rem .65rem; }
+.edit-form { display: grid; gap: .65rem; }
+.edit-label { display: grid; gap: .4rem; }
+
+[hidden] { display: none !important; }
+
+@media (max-width: 35rem) {
+  .app-shell { width: min(100% - 1rem, 48rem); padding: 2rem 0; }
+  .composer, .list-panel { padding: 1rem; }
+  .composer-row, .list-heading-row, .todo-view { align-items: stretch; flex-direction: column; }
+  .composer-row button { width: 100%; }
+  .filters { margin-top: .5rem; }
+  .filters button { flex: 1; }
+  .todo-actions { justify-content: flex-end; }
+}

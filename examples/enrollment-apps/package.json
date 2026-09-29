@@ -1,0 +1,13 @@
+{
+  "name": "fs-gg-enrollment-apps",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/stage.mjs",
+    "serve": "node scripts/serve.mjs",
+    "test:domain": "node scripts/test-domain.mjs",
+    "test:browser": "playwright test --config playwright.config.mjs",
+    "verify": "npm run build && npm run test:domain && npm run test:browser"
+  },
+  "devDependencies": { "@playwright/test": "1.63.0" }
+}

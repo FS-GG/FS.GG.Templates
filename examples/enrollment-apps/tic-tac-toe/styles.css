@@ -1,0 +1,102 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+  color: #172033;
+  background: #f5f7fb;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  min-width: 0;
+  margin: 0;
+}
+
+main {
+  width: min(100% - 2rem, 28rem);
+  margin: 0 auto;
+  padding: 2rem 0;
+  text-align: center;
+}
+
+h1 {
+  margin: 0 0 0.5rem;
+  font-size: clamp(2rem, 10vw, 3rem);
+}
+
+.instructions {
+  max-width: 32rem;
+  margin: 0 auto 1rem;
+  line-height: 1.5;
+}
+
+.status {
+  min-height: 1.5em;
+  margin: 1rem 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  width: min(100%, 22rem);
+  margin: 0 auto 1.25rem;
+  border: 2px solid #172033;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: #172033;
+  gap: 2px;
+}
+
+.cell {
+  aspect-ratio: 1;
+  min-width: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  color: #172033;
+  background: #fff;
+  font: 700 clamp(2rem, 16vw, 4rem) / 1 system-ui, sans-serif;
+  cursor: pointer;
+}
+
+.cell[aria-disabled="true"] {
+  cursor: default;
+}
+
+.cell[data-mark="X"] {
+  color: #075ab5;
+}
+
+.cell[data-mark="O"] {
+  color: #9c2c13;
+}
+
+.cell:focus-visible,
+.restart:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 4px solid #f0a000;
+  outline-offset: -4px;
+}
+
+.restart {
+  min-height: 2.75rem;
+  border: 2px solid #172033;
+  border-radius: 0.4rem;
+  padding: 0.5rem 1.25rem;
+  color: #fff;
+  background: #172033;
+  font: 700 1rem system-ui, sans-serif;
+  cursor: pointer;
+}
+
+@media (max-width: 22rem) {
+  main {
+    width: min(100% - 1rem, 28rem);
+    padding-top: 1rem;
+  }
+}

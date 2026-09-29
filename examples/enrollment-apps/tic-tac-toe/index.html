@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tic-tac-toe</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Tic-tac-toe</h1>
+      <p class="instructions">Two players share this board. X goes first; take turns placing X and O.</p>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+
+      <div class="board" aria-label="Tic-tac-toe board">
+        <button type="button" class="cell" data-cell="0"></button>
+        <button type="button" class="cell" data-cell="1"></button>
+        <button type="button" class="cell" data-cell="2"></button>
+        <button type="button" class="cell" data-cell="3"></button>
+        <button type="button" class="cell" data-cell="4"></button>
+        <button type="button" class="cell" data-cell="5"></button>
+        <button type="button" class="cell" data-cell="6"></button>
+        <button type="button" class="cell" data-cell="7"></button>
+        <button type="button" class="cell" data-cell="8"></button>
+      </div>
+
+      <button type="button" id="restart" class="restart">Restart</button>
+    </main>
+    <script type="module" src="./main.mjs"></script>
+  </body>
+</html>
