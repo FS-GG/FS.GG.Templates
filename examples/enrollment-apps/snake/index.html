@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snake</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="eyebrow">Browser arcade</p>
+      <h1>Snake</h1>
+      <p>Guide the snake to the food. Each bite adds 10 points and speeds things up.</p>
+    </header>
+    <section class="game" aria-label="Snake game">
+      <div class="scoreboard" aria-label="Game information">
+        <span>Score <strong id="score-value">0</strong></span>
+        <span>State <strong id="state-value">Ready</strong></span>
+      </div>
+      <svg id="board" role="application" aria-label="Snake play area. Use arrow keys or W A S D to steer." tabindex="0"></svg>
+      <div class="controls">
+        <button id="primary-action" type="button">Start</button>
+        <button id="restart" class="secondary" type="button">Restart</button>
+      </div>
+      <p class="instructions">Start, then steer with arrow keys or W A S D. Press Space or P to pause and resume.</p>
+      <p id="announcement" class="visually-hidden" aria-live="polite"></p>
+    </section>
+  </main>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
