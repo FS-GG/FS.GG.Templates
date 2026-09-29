@@ -35,7 +35,7 @@ Provide visible score, state and brief control instructions, a focusable named p
 
 ## One ready delivery item
 
-- [ ] **SNAKE-01.1 — Play and deliver the complete browser Snake app — route: routine.**
+- [x] **SNAKE-01.1 — Play and deliver the complete browser Snake app — route: routine.**
   Depends on: none for local implementation. Parent’s shared runner is needed only for integrated browser/native qualification. Scope: `examples/enrollment-apps/snake/**`, including app entry, reducer, styles, unit tests, browser spec and concise README/owning acceptance record. The same item covers all steps below and all repairs.
 
 The first executable window is the entire item’s local implementation and focused qualification. Complete these dependent steps on one isolated branch, without separate PRs or completion counts:
@@ -72,3 +72,7 @@ Proposed §9.8 row once the actual draft or durable plan exists:
 | **Opt-in browser Snake** | Independent product track; SNAKE-01.1 is one prospectively selected whole-app original | `FS.GG.Templates`; complete keyboard play, food/growth/score, pause/restart and collision terminal behavior. Native source acceptance required; no scaffold/default or installed-adoption claim | [SNAKE-01 owning plan](https://github.com/FS-GG/FS.GG.Templates/blob/main/docs/roadmaps/snake-01.md) |
 
 Do not publish that future main link before the file lands; use this actual draft path or its actual implementation-branch location in the interim. No unresolved product decision prevents the local window. A material request to use the Fable/SVG engine or ship a generated template would require a bounded scope amendment and the corresponding real model/receiver checks.
+
+## Qualified source window — 2026-09-29
+
+The complete local source window is qualified at clean code checkpoint `4181f1a6dacf92151fff7f6217d045137d4546cc`. The root-owned locked shared harness stages exact source bytes and passes all 18 domain checks and 14 serial Chromium journeys, including this app's real entry and controls. Each app remains one original. Native required qualification, source merge and protected owning-plan readback establish authoritative completion; this local checked outcome does not increment the cohort by itself. See [joined source evidence](evidence/r5-browser-apps-20260929.md). Publication and installed scaffold adoption remain separate and unselected.

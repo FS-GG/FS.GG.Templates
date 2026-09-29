@@ -30,7 +30,7 @@ Use nine `button` elements with stable row/column accessible names plus the curr
 
 ## One whole delivery item and ready window
 
-- [ ] **TTT-01.1 — Play and restart a complete local tic-tac-toe game — routine.** Depends on no other product lane. Completion requires the product, focused verification, required native checks, source merge, protected readback and owning acceptance together.
+- [x] **TTT-01.1 — Play and restart a complete local tic-tac-toe game — routine.** Depends on no other product lane. Completion requires the product, focused verification, required native checks, source merge, protected readback and owning acceptance together.
 
 The first executable window is the entire bounded source item, in three adjacent stages on one isolated branch. These stage labels do not create new item/original identities.
 
@@ -61,3 +61,7 @@ Clean-source proof here means a fresh checkout installs the pinned shared test t
 Telemetry begin was reported by the parent as exit 2/not configured. Keep planning, implementation, repairs and delivery under `TTT-01.1`; preserve available real command/CI evidence. Native usage remains unknown until actual complete observations exist. Missing measurement does not block source delivery or establish efficiency. The R5 target remains ten completed canonical originals: this game contributes at most one after native acceptance/readback, never one per stage or win/draw case.
 
 No consequential product decision remains unresolved. Stop on a newly discovered shared-surface collision or a failed technical/native gate, repair within the same original, and distinguish ready-window completion from whole delivery. AI, online multiplayer, persistence, packaging and publication are outside this selected outcome and need no outline milestone to finish it.
+
+## Qualified source window — 2026-09-29
+
+The complete local source window is qualified at clean code checkpoint `4181f1a6dacf92151fff7f6217d045137d4546cc`. The root-owned locked shared harness stages exact source bytes and passes all 18 domain checks and 14 serial Chromium journeys, including this app's real entry and controls. Each app remains one original. Native required qualification, source merge and protected owning-plan readback establish authoritative completion; this local checked outcome does not increment the cohort by itself. See [joined source evidence](evidence/r5-browser-apps-20260929.md). Publication and installed scaffold adoption remain separate and unselected.

@@ -33,7 +33,7 @@ Inspected clean Templates main `408bc596ad435908ff730b464096bf700ed71b3e`:
 
 ## One executable milestone
 
-- [ ] **HELLO-01.1 — Usable hello-world browser app delivered** — route: routine.
+- [x] **HELLO-01.1 — Usable hello-world browser app delivered** — route: routine.
   Canonical original: `HELLO-01.1`. Depends on: none beyond the normal repository
   delivery boundary. Implement the whole app and its focused proof together;
   do not split scaffolding, build, browser observation or delivery into originals.
@@ -119,3 +119,7 @@ After authoritative closure, root updates Unified §0 and cohort evidence with
 the actual source, native delivery and browser proof, preserving the usage gap
 and the separate publication/generated-adoption boundary. Do not open a
 planning-only PR or create a second completion ledger.
+
+## Qualified source window — 2026-09-29
+
+The complete local source window is qualified at clean code checkpoint `4181f1a6dacf92151fff7f6217d045137d4546cc`. The root-owned locked shared harness stages exact source bytes and passes all 18 domain checks and 14 serial Chromium journeys, including this app's real entry and controls. Each app remains one original. Native required qualification, source merge and protected owning-plan readback establish authoritative completion; this local checked outcome does not increment the cohort by itself. See [joined source evidence](evidence/r5-browser-apps-20260929.md). Publication and installed scaffold adoption remain separate and unselected.

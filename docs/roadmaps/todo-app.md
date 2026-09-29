@@ -83,7 +83,7 @@ receiver acceptance is a delivery input, not evidence that TODO-01.1 has run.
 
 ## First executable window: one whole-app original
 
-- [ ] **TODO-01.1 — Usable local todo app delivered and independently read back** — route: routine.
+- [x] **TODO-01.1 — Usable local todo app delivered and independently read back** — route: routine.
   Depends on: the existing Templates receiver and available browser/toolchain;
   no unfinished unrelated app, release or fleet migration.
   Scope: one isolated branch/worktree, one accountable Sol-medium owner, complete
@@ -212,3 +212,7 @@ with implementation by the integrator. Until then this file is the actual draft.
 Proposed §9.8 row, retaining existing unrelated links:
 
 | **Local todo app — TODO-01** | Independent opt-in source app; TODO-01.1 delivers add/edit/complete/filter/delete with retained browser state and actual browser qualification | Templates owner; accepted ordinary-V2 receiver, routine source delivery, one prospective whole-app original | Draft: `/tmp/r5-todo-app-plan-20260929.md`; replace with the durable Templates `docs/roadmaps/todo-app.md` link after delivery |
+
+## Qualified source window — 2026-09-29
+
+The complete local source window is qualified at clean code checkpoint `4181f1a6dacf92151fff7f6217d045137d4546cc`. The root-owned locked shared harness stages exact source bytes and passes all 18 domain checks and 14 serial Chromium journeys, including this app's real entry and controls. Each app remains one original. Native required qualification, source merge and protected owning-plan readback establish authoritative completion; this local checked outcome does not increment the cohort by itself. See [joined source evidence](evidence/r5-browser-apps-20260929.md). Publication and installed scaffold adoption remain separate and unselected.
