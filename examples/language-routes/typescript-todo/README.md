@@ -9,4 +9,13 @@ npm run verify
 
 `toolchain-lock.json` selects Node 24.8.0 and TypeScript 5.9.2 for the future V2-LANG-01.2 qualification candidate. `scripts/check-toolchain.mjs` prints the actual host version and marks any other Node runtime as `preparatory-host-version-mismatch`. Such a run verifies source and behavior but does not qualify the selected runtime or an execution image. No image is selected by this fixture.
 
+An isolated exact Node 24.8.0 installation can run the bounded native fixture qualification after its official archive is independently verified:
+
+```console
+TYPESCRIPT_TODO_NODE_ARCHIVE=/absolute/node-v24.8.0-linux-x64.tar.gz \
+  /absolute/node-v24.8.0-linux-x64/bin/node scripts/qualify-selected-node.mjs
+```
+
+The qualifier refuses another Node version or a mismatched archive, binds TypeScript compilation, unit tests, the static server and Playwright to `process.execPath`, and reports native fixture scope. It does not select or qualify an execution image.
+
 This is source and native fixture preparation for V2-LANG-01.5. Portable installed adoption remains dependent on the published and enforced V2-LANG-01.2 integration route.
