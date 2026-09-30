@@ -24,7 +24,7 @@ class SourceContract(unittest.TestCase):
   support=(ROOT/'eng/language-route-bindings/BindingSupport.fsx').read_text()
   self.assertIn('binding-qualified-image-mismatch',support)
   self.assertIn('qualifiedImageReference trustedImage image',text)
-  self.assertIn('trustedImage.GetProperty("qualifiedReference")',support)
+  self.assertIn('retained.GetProperty("importReference")',support)
   self.assertNotIn('"localhost/fsgg-language-route@" + manifestDigest',text)
   self.assertIn('parseCommand commandBytes',text)
  def test_qualified_image_mapping_distinguishes_build_and_retained_oci_identities(self):
@@ -37,4 +37,21 @@ class SourceContract(unittest.TestCase):
    self.assertRegex(image['qualifiedBuildDigest'],r'^sha256:[0-9a-f]{64}$')
    self.assertNotEqual(image['retainedOciManifestDigest'],image['qualifiedBuildDigest'])
    self.assertEqual(image['qualifiedReference'],'localhost/fsgg-language-route@'+image['qualifiedBuildDigest'])
+   retained=image['retainedImport']
+   self.assertNotIn('@',retained['importName'])
+   self.assertEqual(retained['importReference'],retained['importName']+'@'+image['retainedOciManifestDigest'])
+   self.assertEqual(retained['original']['archiveSha256'],image['archiveSha256'])
+   self.assertEqual(retained['original']['manifestDigest'],image['retainedOciManifestDigest'])
+   self.assertEqual(retained['derived']['manifestDigest'],image['retainedOciManifestDigest'])
+   self.assertEqual(retained['derived']['configDigest'],image['configDigest'])
+   for stage in ('original','derived'):
+    for field in ('archiveSha256','indexSha256','memberInventorySha256'):
+     self.assertRegex(retained[stage][field],r'^[0-9a-f]{64}$')
+ def test_derived_loader_has_no_arbitrary_command_surface(self):
+  derive=(ROOT/'eng/language-route-bindings/derive-import.py').read_text()
+  loader=(ROOT/'eng/language-route-bindings/load-derived.py').read_text()
+  self.assertIn('changedMembers":["index.json"]',derive)
+  self.assertIn('"load","--input"',loader)
+  self.assertIn('"image","inspect",policy["importReference"]',loader)
+  self.assertNotIn('shell=True',derive+loader)
 if __name__=='__main__':unittest.main()

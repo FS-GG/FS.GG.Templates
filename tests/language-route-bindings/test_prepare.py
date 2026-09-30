@@ -29,6 +29,13 @@ class BindingTests(unittest.TestCase):
             mod.POLICY["qualifiedImages"][kind]["archiveSha256"]=digest
             mod.POLICY["qualifiedImages"][kind]["retainedOciManifestDigest"]="sha256:"+manifest_digest
             mod.POLICY["qualifiedImages"][kind]["configDigest"]="sha256:"+config_digest
+            retained=mod.POLICY["qualifiedImages"][kind]["retainedImport"]
+            retained["original"]["archiveSha256"]=digest
+            retained["original"]["manifestDigest"]="sha256:"+manifest_digest
+            retained["original"]["configDigest"]="sha256:"+config_digest
+            retained["derived"]["manifestDigest"]="sha256:"+manifest_digest
+            retained["derived"]["configDigest"]="sha256:"+config_digest
+            retained["importReference"]=retained["importName"]+"@sha256:"+manifest_digest
             images[kind]={"candidate":"/private/"+p.name,"candidateSha256":digest,"id":"sha256:"+config_digest,"journal":"/private/journal","journalSha256":"2"*64,"reference":"localhost/fsgg-language-route:"+kind}
         q={"schema":"fsgg.language-route-image-qualification/1","sourceRevision":mod.POLICY["templatesCandidate"]["sourceRevision"],"sourceTree":mod.POLICY["templatesCandidate"]["sourceTree"],"inputsSha256":mod.POLICY["imageInputsSha256"],"recipeSha256":{"rust":mod.POLICY["operations"]["rust-tic-tac-toe-journey"]["recipeSha256"],"go":mod.POLICY["operations"]["go-snake-journey"]["recipeSha256"]},"images":images}
         self.artifact=self.root/"artifact.zip"
@@ -48,6 +55,7 @@ class BindingTests(unittest.TestCase):
     def test_prepares_closed_binding_without_native_claim(self):
         mod.prepare(self.args()); result=json.loads((self.root/"out/binding.json").read_text())
         self.assertFalse(result["acceptedNativeExecution"]); self.assertEqual(set(result["images"]),{"rust","go"})
+        self.assertEqual(result["images"]["rust"]["importReference"],mod.POLICY["qualifiedImages"]["rust"]["retainedImport"]["importReference"])
         self.assertEqual(result["operations"]["go-snake-journey"]["executable"],"/bin/sh")
     def test_refuses_changed_artifact(self):
         with self.artifact.open("ab") as f:f.write(b"changed")

@@ -16,9 +16,11 @@ let fixedNow=portableNowFrom unalignedNow
 if fixedNow.Ticks%10L<>0L || fixedNow.Ticks=unalignedNow.Ticks then failwith "portable clock was not normalized"
 for kind in ["rust";"go"] do
     let trustedImage=root.GetProperty("qualifiedImages").GetProperty(kind)
-    let boundJson=sprintf """{"archiveSha256":"%s","configDigest":"%s","imageId":"%s","manifestDigest":"%s"}""" (trustedImage.GetProperty("archiveSha256").GetString()) (trustedImage.GetProperty("configDigest").GetString()) (trustedImage.GetProperty("configDigest").GetString()) (trustedImage.GetProperty("retainedOciManifestDigest").GetString())
+    let retained=trustedImage.GetProperty("retainedImport")
+    let derived=retained.GetProperty("derived")
+    let boundJson=sprintf """{"archiveSha256":"%s","configDigest":"%s","imageId":"%s","manifestDigest":"%s","importArchiveSha256":"%s","importManifestDigest":"%s","importConfigDigest":"%s","importReference":"%s"}""" (trustedImage.GetProperty("archiveSha256").GetString()) (trustedImage.GetProperty("configDigest").GetString()) (trustedImage.GetProperty("configDigest").GetString()) (trustedImage.GetProperty("retainedOciManifestDigest").GetString()) (derived.GetProperty("archiveSha256").GetString()) (derived.GetProperty("manifestDigest").GetString()) (derived.GetProperty("configDigest").GetString()) (retained.GetProperty("importReference").GetString())
     let bound=JsonDocument.Parse(boundJson).RootElement
-    if qualifiedImageReference trustedImage bound<>trustedImage.GetProperty("qualifiedReference").GetString() then failwith "trusted image was not selected"
+    if qualifiedImageReference trustedImage bound<>retained.GetProperty("importReference").GetString() then failwith "trusted retained import image was not selected"
     let tampered=JsonDocument.Parse(boundJson.Replace(trustedImage.GetProperty("retainedOciManifestDigest").GetString(),"sha256:"+String.replicate 64 "0")).RootElement
     try
         qualifiedImageReference trustedImage tampered |> ignore

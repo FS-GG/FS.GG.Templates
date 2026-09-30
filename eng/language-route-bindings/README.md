@@ -19,14 +19,34 @@ python3 eng/language-route-bindings/prepare.py \
 ```
 
 The policy keeps the hosted qualified build digest separate from the retained
-OCI archive's manifest digest and config/image ID. `execute.fsx` selects only
-the committed qualified build reference; values copied into `binding.json`
-cannot select another image. The original retained OCI archives currently fail
-a fresh Podman load because their index annotations use an old-name-at-digest
-form. They remain byte-verified custody evidence, but are not a native-ready
-import path. A metadata-only derived import archive must preserve every
-manifest, config, and layer byte, record both archive hashes, and pass a fresh
-native load before it can be admitted separately.
+OCI archive's manifest digest and config/image ID. The qualified Docker build
+reference cannot be recreated by loading the retained OCI archive: export
+changed the manifest identity, and its index annotation contains the old name
+joined to the Docker digest. `derive-import.py` therefore creates a bounded
+successor archive for each route. It requires the committed original archive,
+index, full member inventory, manifest, config and every layer digest and size;
+changes only the index image-name annotation; then verifies every other file is
+byte-identical and the derived archive matches its committed hashes. It never
+extracts archive paths and never modifies the original files.
+
+`execute.fsx` selects the committed derived OCI name and retained manifest
+digest. Values copied into `binding.json` cannot select another image. The
+hosted build digest remains provenance for the original qualification and is
+not presented as a fresh-store selector. Create the private derived archives
+without loading either image:
+
+```text
+python3 eng/language-route-bindings/derive-import.py \
+  --rust-archive <read-only-original>/rust-candidate.oci.tar \
+  --go-archive <read-only-original>/go-candidate.oci.tar \
+  --source-root "$PWD" --source-revision "$(git rev-parse HEAD)" \
+  --output <private-new-derived-directory>
+```
+
+This emits two `0600` archives and a `0600` receipt with both original and
+derived archive/index identities, all manifest/config/layer identities, member
+inventory hashes, and the isolated metadata change. Source preparation accepts
+neither native import nor execution.
 
 The resulting plan is input to `execute.fsx`. The native gate must run each
 operation once, cancel one actually running operation, reconstruct the executor
@@ -37,10 +57,27 @@ proved. Source preparation alone is not native binding acceptance.
 Before downloading, the effect owner must read the GitHub artifact API and
 require `expired=false`, run `36744671457`, artifact `11112465308`, and digest
 `sha256:d3ede…56027`. Download the archive through the artifact API without
-repacking it. `prepare.py` retains the two byte-verified OCI archives in its
-private output. Load each archive into a new scoped rootless VFS store and
-retain the returned image identity. Create each command once with an
-owner-selected fixed deadline:
+repacking it. `prepare.py` retains the two byte-verified original OCI archives
+in its private output. For each route, `load-derived.py` rechecks the committed
+source, policy, derived receipt, archive closure and exact archive bytes before
+issuing one fixed load into new scoped rootless VFS roots. It then inspects the
+committed OCI reference and requires the retained manifest and config
+identities:
+
+```text
+python3 eng/language-route-bindings/load-derived.py \
+  --kind rust \
+  --archive <private-derived>/rust-derived.oci.tar \
+  --receipt <private-derived>/derived-import.json \
+  --source-root "$PWD" --source-revision "$(git rev-parse HEAD)" \
+  --store-root <private-new-store> --runroot <private-new-runroot> \
+  --output <private-new-rust-load-receipt.json> --podman /usr/bin/podman
+```
+
+Repeat for Go with its own fresh store and runroot. Local source checks do not
+run this command. A later native gate must retain both load receipts and prove
+the real operations through those same stores. Create each command once with
+an owner-selected fixed deadline:
 
 ```text
 dotnet fsi --reference:<verified-Akka> --reference:<verified-c069-executor> \
@@ -62,8 +99,8 @@ dotnet fsi \
   --binding <private-output>/binding.json --kind rust \
   --command <private-command.json> \
   --source-root "$PWD" --source-revision "$(git rev-parse HEAD)" \
-  --state-root <private-state> --store-root <private-store> \
-  --runroot <private-runroot> --podman /usr/bin/podman \
+  --state-root <private-state> --store-root <loaded-private-store> \
+  --runroot <loaded-private-runroot> --podman /usr/bin/podman \
   --git /usr/bin/git --tar /usr/bin/tar
 ```
 

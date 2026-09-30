@@ -22,14 +22,52 @@
       "configDigest": "sha256:7a1cfd29f845b19c55c75645ecfb3ed0edd0d812f2323a7a0151e779d2d0e269",
       "qualifiedBuildDigest": "sha256:0bda58697b531b4d8ebceebf77a3cbe4bd4eda0bce21d79de7c6f18a2c2aa6c1",
       "qualifiedReference": "localhost/fsgg-language-route@sha256:0bda58697b531b4d8ebceebf77a3cbe4bd4eda0bce21d79de7c6f18a2c2aa6c1",
-      "retainedOciManifestDigest": "sha256:5f2aa99db0d6e06badb69391c4c863a8662e4d9c609db2c28517ef637a91518b"
+      "retainedOciManifestDigest": "sha256:5f2aa99db0d6e06badb69391c4c863a8662e4d9c609db2c28517ef637a91518b",
+      "retainedImport": {
+        "originalAnnotation": "localhost/fsgg-language-route@sha256:0bda58697b531b4d8ebceebf77a3cbe4bd4eda0bce21d79de7c6f18a2c2aa6c1",
+        "importName": "localhost/fsgg-language-route-go:retained-20260930",
+        "importReference": "localhost/fsgg-language-route-go:retained-20260930@sha256:5f2aa99db0d6e06badb69391c4c863a8662e4d9c609db2c28517ef637a91518b",
+        "original": {
+          "archiveSha256": "7f272d77e4d6afef4dcd7c8a95d2220fbe309fc4a3c1450d9724e3edbd816fce",
+          "indexSha256": "dd418baca3d9331404c2f425074e34c1d220608d7fcb1c303a7c350897ea1ee6",
+          "memberInventorySha256": "8ac6990357661f4c63f65e95f87416e10dfb35a3c1cc8fe21f0dcc8171f71b0d",
+          "manifestDigest": "sha256:5f2aa99db0d6e06badb69391c4c863a8662e4d9c609db2c28517ef637a91518b",
+          "configDigest": "sha256:7a1cfd29f845b19c55c75645ecfb3ed0edd0d812f2323a7a0151e779d2d0e269"
+        },
+        "derived": {
+          "archiveSha256": "fa6332e4629f1a1b864a1b77872441f3a5e6aa4070276260c81e6a055bba1e9c",
+          "indexSha256": "b10ddc6a1fce540996b4a141811d615a6e8c82a90b789c9babc97c59e0de8c2d",
+          "memberInventorySha256": "fa0a59873a4f5b27df6b59e58ee311a0f99f7211fe2f8904a00795a731b0ef70",
+          "manifestDigest": "sha256:5f2aa99db0d6e06badb69391c4c863a8662e4d9c609db2c28517ef637a91518b",
+          "configDigest": "sha256:7a1cfd29f845b19c55c75645ecfb3ed0edd0d812f2323a7a0151e779d2d0e269"
+        }
+      }
     },
     "rust": {
       "archiveSha256": "e700720bbb25ed0d62a2ae4dab217fd14b545481eafd7a425780eedeacca0aae",
       "configDigest": "sha256:e72ef546069bf2478e35fbdf60f374e263caf852e08ba62a96868b80191fc2e8",
       "qualifiedBuildDigest": "sha256:b2fa63821b93d1e35b44a90d8102ac42967d381e9d55676e4092140bd59da69c",
       "qualifiedReference": "localhost/fsgg-language-route@sha256:b2fa63821b93d1e35b44a90d8102ac42967d381e9d55676e4092140bd59da69c",
-      "retainedOciManifestDigest": "sha256:41f2a51451a6213d3f504fa5164b2ed16d7281b8de861546360cdc7d983f3c23"
+      "retainedOciManifestDigest": "sha256:41f2a51451a6213d3f504fa5164b2ed16d7281b8de861546360cdc7d983f3c23",
+      "retainedImport": {
+        "originalAnnotation": "localhost/fsgg-language-route@sha256:b2fa63821b93d1e35b44a90d8102ac42967d381e9d55676e4092140bd59da69c",
+        "importName": "localhost/fsgg-language-route-rust:retained-20260930",
+        "importReference": "localhost/fsgg-language-route-rust:retained-20260930@sha256:41f2a51451a6213d3f504fa5164b2ed16d7281b8de861546360cdc7d983f3c23",
+        "original": {
+          "archiveSha256": "e700720bbb25ed0d62a2ae4dab217fd14b545481eafd7a425780eedeacca0aae",
+          "indexSha256": "ec38f2cf0ced0c7ef57020653af8313b708489aca5d8da80e16db8a7a73fb0ef",
+          "memberInventorySha256": "c3981d911260e323390a86dbbe24fe689af4d341f285d3932b0ee9c121462901",
+          "manifestDigest": "sha256:41f2a51451a6213d3f504fa5164b2ed16d7281b8de861546360cdc7d983f3c23",
+          "configDigest": "sha256:e72ef546069bf2478e35fbdf60f374e263caf852e08ba62a96868b80191fc2e8"
+        },
+        "derived": {
+          "archiveSha256": "62b64af442d797b5a321585594b9406fcb40aa42f88abf670e7e8ce02f68e3dc",
+          "indexSha256": "7ec840731df7c7f45aba299e364f715a31e4a158c1912645a896a8be0bfa81e9",
+          "memberInventorySha256": "8cb3808d5aca1111c3089251721e8992ad72d7e9d8ede1774bf1dea073374d90",
+          "manifestDigest": "sha256:41f2a51451a6213d3f504fa5164b2ed16d7281b8de861546360cdc7d983f3c23",
+          "configDigest": "sha256:e72ef546069bf2478e35fbdf60f374e263caf852e08ba62a96868b80191fc2e8"
+        }
+      }
     }
   },
   "operations": {
