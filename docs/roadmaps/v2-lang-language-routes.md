@@ -8,16 +8,17 @@ Coordination owns the [portable producer plan](https://github.com/FS-GG/FS.GG.Co
 Templates owns these native fixtures and receiver materialization. Product owners retain functional
 acceptance and artifact custody. The programme integrator joins the shared boundaries.
 
-**Status, 2026-09-30:** native fixture preparation is locally qualified; source delivery and hosted
-checks are pending. Portable binding, publication, installed adoption and complete matrix acceptance
-remain open. The prospective population below does not alter the accepted R5 cohort or its cutoff.
+**Status, 2026-09-30:** native fixture preparation is locally qualified. The TypeScript Todo browser-image
+source checkpoint is prepared; its exact-head strict native image run and source delivery remain pending.
+Portable binding, publication, installed adoption and complete matrix acceptance remain open. The prospective
+population below does not alter the accepted R5 cohort or its cutoff.
 
 ## Declared population
 
 | Route | Selected source and runtime | Native product evidence | Portable disposition |
 |---|---|---|---|
 | Python Hello | Coordination `tests/portable-workspace/image/fixture/python`; CPython 3.14.0 | Invoke the actual greeting entry point as well as build/test operations | Await enforced P2 and qualified image |
-| TypeScript Todo | [Fixture](../../examples/language-routes/typescript-todo/README.md); Node 24.8.0, TypeScript 5.9.2 | Served compiled entry point: add/edit/complete/filter/delete, reload and malformed retained state | Native preparation passed; binding and adoption pending |
+| TypeScript Todo | [Fixture](../../examples/language-routes/typescript-todo/README.md); Node 24.8.0, TypeScript 5.9.2, Playwright 1.63.0 | Served compiled entry point: add/edit/complete/filter/delete, reload and malformed retained state | Browser-image source prepared; strict native image qualification, binding and adoption pending |
 | Rust Tic-tac-toe | [Fixture](../../examples/language-routes/rust-tic-tac-toe/README.md); Rust/Cargo 1.98.1 | Built entry point, legal play, both winners, draw, terminal refusal and restart | Native preparation passed; reviewed image and binding pending |
 | Go Snake | [Fixture](../../examples/language-routes/go-snake/README.md); Go 1.27.1 | Built JSON entry point, input, growth/score, pause, collision, terminal refusal and restart | Native preparation passed; reviewed image and binding pending |
 | FourD | Existing selected stack and product revision `931869236b4253b1489c4e8095a36017709194e2`; .NET SDK 10.0.401, Fable 5.13.0 | Preserve the accepted design-v2 technical comparison and save/runtime boundaries | Existing product evidence retained; portable binding and adoption pending |
@@ -42,12 +43,47 @@ Akka.NET or Agent Framework product dependency.
   switching and module network discovery are disabled by the fixture verifier.
 - TypeScript source `8e0b3e81efa857eb8b45aa50ee10fa9b12cde33e`: verified official Node 24.8.0
   archive and exact TypeScript 5.9.2; five unit tests and two served compiled browser journeys passed.
-  The qualifier binds subprocesses to the selected absolute Node executable. `qualificationImage`
-  remains null.
+  The qualifier binds subprocesses to the selected absolute Node executable.
 
 The [native fixture workflow](../../.github/workflows/language-route-fixtures.yml) repeats these checks
 in three independent bounded jobs. Native source checks do not establish portable image qualification,
 publication or installed receiver acceptance. Retain the exact joined head and hosted run when delivered.
+
+## TypeScript Todo browser-image source checkpoint
+
+Source commit `6859ece6a0b94cea51444a5b5d13bc0303948900` prepares the dedicated image recipe, fixed
+qualification entry point, source contracts and strict workflow and is retained as the integration candidate's
+first commit. Review then tightened the OCI archive verifier to close every referenced layer before acceptance;
+the pinned recipe, inputs, fixed entry point and product fixture remain byte-identical to that source commit.
+The inputs pin Node 24.8.0, TypeScript 5.9.2, Playwright 1.63.0, Chromium
+153.0.8010.12 revision 1243, the Linux amd64 Playwright base manifest, browser archives, npm packages and
+licence identities. Reviewed source digests are `995914cf786fb2021e2034171935b88cced44a05fe542662f8d91e9daa2fa8e9`
+for the input manifest, `d622348d58f7584d4214a921611bbd8ca976cd349098dc4978dedcf97b0b1553`
+for the recipe and `2943571089ce68a15085dc037fb60eac69eff8e8cc1ce81a1a1be84015f35e11`
+for the fixed entry point.
+
+The operation exposes no caller-controlled command. It mounts committed source read only, runs as uid/gid
+`32768:32768`, disables external container networking while retaining loopback for the served journey, and
+places compiled output, reports, cache, home, temporary browser profiles and retained browser state beneath
+scoped `/output`. Its result covers add, edit, complete, filter, delete, reload and malformed retained-state
+recovery. The qualifier binds the exact source revision and tree, local image ID and digest, exported OCI
+layout/index with unique safe members, manifest and config, and every referenced layer by descriptor media type,
+path, declared size and content hash. The archive blob inventory must exactly match those descriptors. The local
+image digest must equal the exported manifest digest, and the local image ID must equal the exported config
+digest. It also retains candidate archive, journal and operation-result hashes. Candidate and evidence custody
+is limited to the dedicated workflow artifact for 14 days; this checkpoint publishes or activates nothing.
+
+Pipeline preflight remains static and precedes the costly base pull and image build. The workflow is one linear
+job with no fan-out, shared cache, evidence reuse, retry state or publication, so a separate state model would
+duplicate the execution plan without testing another interaction. Existing source contracts check reviewed
+hashes, closed command construction and OCI closure; exact-head rootless preflight checks platform, uid mapping,
+Podman capabilities and clean source. This adds no setup job or dependency and can avoid the bounded 35-minute
+native workload on a malformed candidate. Reassess the preflight if fan-out, cross-job artifacts, retries, reuse
+or publication are added.
+
+This is a source checkpoint only. A future run of the dedicated strict workflow must qualify the exact admitted
+head and retain its OCI candidate and evidence before the image can enter native binding. Portable executor
+binding, lifecycle evidence, publication, installed adoption, defaults and parent closure remain pending.
 
 ## Dependency-ready windows
 

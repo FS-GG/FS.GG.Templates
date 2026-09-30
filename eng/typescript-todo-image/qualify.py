@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+from pathlib import PurePosixPath
 import re
 import shutil
 import subprocess
@@ -257,28 +258,112 @@ def qualify_operation(args: argparse.Namespace, state: Path, reference: str, ima
     return journal
 
 
-def oci_archive_identity(path: Path) -> dict[str, str]:
+def oci_archive_members(archive: tarfile.TarFile) -> dict[str, tarfile.TarInfo]:
+    members: dict[str, tarfile.TarInfo] = {}
+    for member in archive.getmembers():
+        normalized = str(PurePosixPath(member.name))
+        if (
+            not member.name or member.name.startswith("/") or "\\" in member.name
+            or normalized != member.name.rstrip("/") or ".." in PurePosixPath(member.name).parts
+            or not (member.isfile() or member.isdir())
+        ):
+            raise RuntimeError(f"OCI archive member path or type is unsafe: {member.name!r}")
+        if normalized in members:
+            raise RuntimeError(f"OCI archive has ambiguous duplicate member: {normalized}")
+        members[normalized] = member
+    return members
+
+
+def oci_descriptor_blob(archive: tarfile.TarFile, members: dict[str, tarfile.TarInfo], descriptor: object, label: str, *, retain: bool = False) -> tuple[str, bytes | None]:
+    if not isinstance(descriptor, dict):
+        raise RuntimeError(f"{label} descriptor is not an object")
+    if not isinstance(descriptor.get("mediaType"), str) or not descriptor["mediaType"]:
+        raise RuntimeError(f"{label} descriptor media type is invalid")
+    digest = immutable_sha(descriptor.get("digest"), f"{label} digest")
+    size = descriptor.get("size")
+    if not isinstance(size, int) or isinstance(size, bool) or size < 0:
+        raise RuntimeError(f"{label} descriptor size is invalid")
+    member_path = f"blobs/sha256/{digest[7:]}"
+    member = members.get(member_path)
+    if member is None:
+        raise RuntimeError(f"OCI archive lacks {label} blob")
+    if not member.isfile() or member.size != size:
+        raise RuntimeError(f"{label} blob size does not match its descriptor")
+    stream = archive.extractfile(member)
+    if stream is None:
+        raise RuntimeError(f"OCI archive cannot read {label} blob")
+    content = bytearray() if retain else None
+    actual_size = 0
+    actual_digest = hashlib.sha256()
+    for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+        actual_size += len(chunk); actual_digest.update(chunk)
+        if content is not None:
+            if actual_size > MAX_OUTPUT:
+                raise RuntimeError(f"{label} blob exceeds the retained metadata bound")
+            content.extend(chunk)
+    if actual_size != size or actual_digest.hexdigest() != digest[7:]:
+        raise RuntimeError(f"{label} blob content does not match its descriptor")
+    return digest, bytes(content) if content is not None else None
+
+
+def oci_archive_identity(path: Path) -> dict[str, object]:
     with tarfile.open(path, "r") as archive:
-        index_member = archive.extractfile("index.json")
-        if index_member is None:
+        members = oci_archive_members(archive)
+        layout_member = members.get("oci-layout")
+        if layout_member is None or not layout_member.isfile() or layout_member.size > MAX_OUTPUT:
+            raise RuntimeError("OCI archive lacks bounded oci-layout metadata")
+        layout_stream = archive.extractfile(layout_member)
+        if layout_stream is None or json.load(layout_stream) != {"imageLayoutVersion": "1.0.0"}:
+            raise RuntimeError("OCI archive layout version is not 1.0.0")
+        index_info = members.get("index.json")
+        if index_info is None or not index_info.isfile() or index_info.size > MAX_OUTPUT:
             raise RuntimeError("OCI archive lacks index.json")
+        index_member = archive.extractfile(index_info)
+        if index_member is None:
+            raise RuntimeError("OCI archive cannot read index.json")
         index = json.load(index_member)
+        if index.get("schemaVersion") != 2:
+            raise RuntimeError("OCI index schema version is not 2")
         manifests = index.get("manifests", [])
         if len(manifests) != 1:
             raise RuntimeError("OCI archive must contain exactly one manifest")
-        manifest_digest = immutable_sha(manifests[0].get("digest"), "OCI manifest digest")
-        manifest_member = archive.extractfile(f"blobs/sha256/{manifest_digest[7:]}")
-        if manifest_member is None:
-            raise RuntimeError("OCI archive lacks its manifest blob")
-        manifest_bytes = manifest_member.read()
-        if hashlib.sha256(manifest_bytes).hexdigest() != manifest_digest[7:]:
-            raise RuntimeError("OCI manifest blob digest mismatch")
+        manifest_descriptor = manifests[0]
+        index_platform = manifest_descriptor.get("platform")
+        if index_platform is not None and (
+            not isinstance(index_platform, dict)
+            or index_platform.get("architecture") != "amd64"
+            or index_platform.get("os") != "linux"
+        ):
+            raise RuntimeError("OCI index manifest platform conflicts with linux/amd64")
+        manifest_digest, manifest_bytes = oci_descriptor_blob(archive, members, manifest_descriptor, "manifest", retain=True)
+        assert manifest_bytes is not None
         manifest = json.loads(manifest_bytes)
-        config_digest = immutable_sha(manifest.get("config", {}).get("digest"), "OCI config digest")
-        config_member = archive.extractfile(f"blobs/sha256/{config_digest[7:]}")
-        if config_member is None or hashlib.sha256(config_member.read()).hexdigest() != config_digest[7:]:
-            raise RuntimeError("OCI config blob digest mismatch")
-    return {"manifestDigest": manifest_digest, "configDigest": config_digest}
+        if manifest.get("schemaVersion") != 2:
+            raise RuntimeError("OCI manifest schema version is not 2")
+        config_digest, config_bytes = oci_descriptor_blob(archive, members, manifest.get("config"), "config", retain=True)
+        assert config_bytes is not None
+        config = json.loads(config_bytes)
+        if config.get("architecture") != "amd64" or config.get("os") != "linux":
+            raise RuntimeError("OCI config platform is not linux/amd64")
+        layers = manifest.get("layers")
+        if not isinstance(layers, list) or not layers:
+            raise RuntimeError("OCI manifest has no layers")
+        layer_digests = []
+        for position, descriptor in enumerate(layers):
+            digest, _ = oci_descriptor_blob(archive, members, descriptor, f"layer {position}")
+            layer_digests.append(digest)
+        referenced_blobs = {f"blobs/sha256/{digest[7:]}" for digest in [manifest_digest, config_digest, *layer_digests]}
+        archived_blobs = {name for name, member in members.items() if member.isfile() and name.startswith("blobs/")}
+        if archived_blobs != referenced_blobs:
+            raise RuntimeError("OCI archive blob inventory does not exactly match its descriptors")
+    return {"manifestDigest": manifest_digest, "configDigest": config_digest, "layerDigests": layer_digests}
+
+
+def require_archive_image_binding(oci: dict[str, object], image: dict) -> None:
+    if oci["manifestDigest"] != image["Digest"]:
+        raise RuntimeError("exported OCI manifest digest does not match the qualified image digest")
+    if oci["configDigest"] != image["Id"]:
+        raise RuntimeError("exported OCI config digest does not match the qualified image ID")
 
 
 def main() -> int:
@@ -314,8 +399,7 @@ def main() -> int:
     if candidate.stat().st_size > MAX_CANDIDATE:
         raise RuntimeError(f"candidate exceeds {MAX_CANDIDATE} bytes")
     oci = oci_archive_identity(candidate)
-    if oci["configDigest"] != image["Id"]:
-        raise RuntimeError("exported OCI config digest does not match the qualified image ID")
+    require_archive_image_binding(oci, image)
     result = {
         "schema": "fsgg.typescript-todo-image-qualification/1", "sourceRevision": revision, "sourceTree": tree,
         "inputsSha256": INPUTS_SHA256, "recipeSha256": RECIPE_SHA256, "entrypointSha256": ENTRYPOINT_SHA256,
