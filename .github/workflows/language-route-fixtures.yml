@@ -1,0 +1,193 @@
+name: Language route fixtures
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'examples/language-routes/**'
+      - '.github/workflows/language-route-fixtures.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'examples/language-routes/**'
+      - '.github/workflows/language-route-fixtures.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: language-route-fixtures-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-tic-tac-toe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out candidate source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Preflight Rust fixture pins and source
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/rust-route-evidence"
+          mkdir -p "$evidence"
+          python3 - <<'PY' | tee "$evidence/preflight.log"
+          import pathlib
+          import tomllib
+
+          root = pathlib.Path("examples/language-routes/rust-tic-tac-toe")
+          toolchain = tomllib.loads((root / "rust-toolchain.toml").read_text())
+          package = tomllib.loads((root / "Cargo.toml").read_text())
+          assert toolchain["toolchain"] == {
+              "channel": "1.98.1",
+              "profile": "minimal",
+              "components": ["clippy", "rustfmt"],
+          }
+          assert package["package"]["rust-version"] == "1.98.1"
+          assert package.get("dependencies") == {}
+          assert (root / "Cargo.lock").is_file()
+          print("rust fixture preflight passed")
+          PY
+      - name: Install isolated exact Rust toolchain
+        shell: bash
+        env:
+          RUSTUP_HOME: ${{ runner.temp }}/rustup-home
+        run: |
+          set -euo pipefail
+          rustup toolchain install 1.98.1 --profile minimal --component clippy --component rustfmt \
+            2>&1 | tee "$RUNNER_TEMP/rust-route-evidence/toolchain-install.log"
+          rustup run 1.98.1 rustc --version --verbose \
+            | tee "$RUNNER_TEMP/rust-route-evidence/rustc-version.log"
+          test "$(rustup run 1.98.1 rustc --version)" = "rustc 1.98.1 (48a229cea 2026-09-01)"
+      - name: Run Rust domain protocol and built-entrypoint checks
+        working-directory: examples/language-routes/rust-tic-tac-toe
+        shell: bash
+        env:
+          RUSTUP_HOME: ${{ runner.temp }}/rustup-home
+          CARGO_NET_OFFLINE: 'true'
+        run: |
+          set -euo pipefail
+          rustup run 1.98.1 cargo test --locked --offline \
+            2>&1 | tee "$RUNNER_TEMP/rust-route-evidence/test.log"
+          rustup run 1.98.1 cargo clippy --all-targets --locked --offline -- -D warnings \
+            2>&1 | tee "$RUNNER_TEMP/rust-route-evidence/clippy.log"
+          rustup run 1.98.1 cargo fmt --check \
+            2>&1 | tee "$RUNNER_TEMP/rust-route-evidence/fmt.log"
+      - name: Retain Rust native fixture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: rust-route-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/rust-route-evidence
+          retention-days: 14
+          if-no-files-found: error
+
+  go-snake:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out candidate source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Preflight Go fixture pins and scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          root="examples/language-routes/go-snake"
+          evidence="$RUNNER_TEMP/go-route-evidence"
+          mkdir -p "$evidence"
+          test "$(sed -n '3p' "$root/go.mod")" = "go 1.27.1"
+          grep -Fq '63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445' \
+            "$root/scripts/provision-go.sh"
+          bash -n "$root/scripts/provision-go.sh" "$root/scripts/verify.sh"
+          printf 'Go fixture preflight passed\n' | tee "$evidence/preflight.log"
+      - name: Provision verified Go and run native fixture checks
+        working-directory: examples/language-routes/go-snake
+        shell: bash
+        env:
+          GOTOOLCHAIN: local
+        run: |
+          set -euo pipefail
+          ./scripts/provision-go.sh "$RUNNER_TEMP/go-1.27.1" "$RUNNER_TEMP/go1.27.1.linux-amd64.tar.gz" \
+            2>&1 | tee "$RUNNER_TEMP/go-route-evidence/toolchain.log"
+          FSGG_GO_BIN="$RUNNER_TEMP/go-1.27.1/bin/go" ./scripts/verify.sh \
+            2>&1 | tee "$RUNNER_TEMP/go-route-evidence/verify.log"
+      - name: Retain Go native fixture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: go-route-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/go-route-evidence
+          retention-days: 14
+          if-no-files-found: error
+
+  typescript-todo:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out candidate source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - name: Preflight TypeScript fixture pins and lock
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence="$RUNNER_TEMP/typescript-route-evidence"
+          mkdir -p "$evidence"
+          python3 - <<'PY' | tee "$evidence/preflight.log"
+          import json
+          import pathlib
+
+          root = pathlib.Path("examples/language-routes/typescript-todo")
+          package = json.loads((root / "package.json").read_text())
+          lock = json.loads((root / "package-lock.json").read_text())
+          toolchain = json.loads((root / "toolchain-lock.json").read_text())
+          assert package["engines"]["node"] == "24.8.0"
+          assert package["devDependencies"] == {
+              "@playwright/test": "1.63.0",
+              "typescript": "5.9.2",
+          }
+          assert toolchain["node"] == "24.8.0"
+          assert toolchain["typescript"] == "5.9.2"
+          assert toolchain["playwright"] == "1.63.0"
+          assert lock["packages"][""]["devDependencies"] == package["devDependencies"]
+          print("TypeScript fixture preflight passed")
+          PY
+      - name: Set up exact Node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: 24.8.0
+      - name: Install locked compiler and browser harness
+        working-directory: examples/language-routes/typescript-todo
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(node --version)" = "v24.8.0"
+          node --version | tee "$RUNNER_TEMP/typescript-route-evidence/node-version.log"
+          npm ci --ignore-scripts \
+            2>&1 | tee "$RUNNER_TEMP/typescript-route-evidence/npm-ci.log"
+          npx playwright install --with-deps chromium \
+            2>&1 | tee "$RUNNER_TEMP/typescript-route-evidence/playwright-install.log"
+      - name: Compile and run TypeScript unit and browser journeys
+        working-directory: examples/language-routes/typescript-todo
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run verify \
+            2>&1 | tee "$RUNNER_TEMP/typescript-route-evidence/verify.log"
+      - name: Retain TypeScript native fixture evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: typescript-route-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/typescript-route-evidence
+          retention-days: 14
+          if-no-files-found: error
