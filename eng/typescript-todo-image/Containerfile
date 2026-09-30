@@ -1,0 +1,40 @@
+FROM mcr.microsoft.com/playwright@sha256:bc6ab0d6d44ff4826e4cb8c1e6d801e185bfc42bb0753f8e2a30efc70db054c7
+
+COPY inputs/node-v24.8.0-linux-x64.tar.gz /inputs/node-v24.8.0-linux-x64.tar.gz
+COPY inputs/npm/ /inputs/npm/
+COPY package.json package-lock.json /opt/fsgg/typescript-todo/
+COPY qualify-readonly.sh /usr/local/bin/fsgg-typescript-todo-qualify
+
+RUN set -eux; \
+    test "$(sha256sum /inputs/node-v24.8.0-linux-x64.tar.gz | cut -d' ' -f1)" = "daf68404b478b4c3616666580d02500a24148c0f439e4d0134d65ce70e90e655"; \
+    test "$(sha256sum /inputs/npm/playwright-test-1.63.0.tgz | cut -d' ' -f1)" = "fc594f36b7b4aafece614ec6852ad728423215a76edd0a2a1821bb0c49539c4e"; \
+    test "$(sha256sum /inputs/npm/playwright-1.63.0.tgz | cut -d' ' -f1)" = "195a5ee9bfed7c6e9c03965950e32e5e4dbedaa02e740e5a530eb4b87dae050c"; \
+    test "$(sha256sum /inputs/npm/playwright-core-1.63.0.tgz | cut -d' ' -f1)" = "208593d4e1bcd8f8fe5f869cad1cc332dc7f1d70dc1d58c102dc3ac36e30f26c"; \
+    test "$(sha256sum /inputs/npm/typescript-5.9.2.tgz | cut -d' ' -f1)" = "67a3bc82e822b8f45f653a80fc3a9730d23214d36c83ba85dd7f5abebee82062"; \
+    tar -xzf /inputs/node-v24.8.0-linux-x64.tar.gz -C /usr/local --strip-components=1; \
+    test "$(node --version)" = "v24.8.0"; \
+    cd /opt/fsgg/typescript-todo; \
+    npm cache add /inputs/npm/playwright-test-1.63.0.tgz --cache=/tmp/npm-cache; \
+    npm cache add /inputs/npm/playwright-1.63.0.tgz --cache=/tmp/npm-cache; \
+    npm cache add /inputs/npm/playwright-core-1.63.0.tgz --cache=/tmp/npm-cache; \
+    npm cache add /inputs/npm/typescript-5.9.2.tgz --cache=/tmp/npm-cache; \
+    PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1 npm ci --offline --ignore-scripts --cache=/tmp/npm-cache; \
+    test "$(node -p "require('./node_modules/typescript/package.json').version")" = "5.9.2"; \
+    test "$(node -p "require('./node_modules/@playwright/test/package.json').version")" = "1.63.0"; \
+    test -x /ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/chrome-headless-shell; \
+    test -f /ms-playwright/chromium_headless_shell-1243/chrome-headless-shell-linux64/LICENSE.headless_shell; \
+    install -d /opt/fsgg/licenses/node /opt/fsgg/licenses/npm; \
+    tar -xOf /inputs/node-v24.8.0-linux-x64.tar.gz node-v24.8.0-linux-x64/LICENSE > /opt/fsgg/licenses/node/LICENSE; \
+    cp node_modules/typescript/LICENSE.txt /opt/fsgg/licenses/npm/typescript-Apache-2.0.txt; \
+    cp node_modules/playwright/LICENSE /opt/fsgg/licenses/npm/playwright-Apache-2.0.txt; \
+    cp node_modules/playwright-core/LICENSE /opt/fsgg/licenses/npm/playwright-core-Apache-2.0.txt; \
+    cp node_modules/@playwright/test/LICENSE /opt/fsgg/licenses/npm/playwright-test-Apache-2.0.txt; \
+    chmod 0555 /usr/local/bin/fsgg-typescript-todo-qualify; \
+    chmod -R a-w /opt/fsgg /ms-playwright; \
+    rm -r /inputs /tmp/npm-cache
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+USER 32768:32768
+WORKDIR /source/examples/language-routes/typescript-todo
+ENTRYPOINT []
+CMD []

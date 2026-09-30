@@ -7,6 +7,11 @@
     "sha256": "daf68404b478b4c3616666580d02500a24148c0f439e4d0134d65ce70e90e655"
   },
   "playwright": "1.63.0",
-  "qualificationImage": null,
-  "note": "Node 24.8.0 is the selected qualification runtime. Other hosts provide preparatory source evidence only. No execution image is selected by this source fixture."
+  "qualificationImage": {
+    "recipe": "eng/typescript-todo-image/Containerfile",
+    "platform": "linux/amd64",
+    "base": "mcr.microsoft.com/playwright@sha256:bc6ab0d6d44ff4826e4cb8c1e6d801e185bfc42bb0753f8e2a30efc70db054c7",
+    "status": "source-preparation"
+  },
+  "note": "The pinned browser image recipe is source preparation. Only a successful exact-revision strict rootless workflow run may produce a qualified OCI candidate."
 }

@@ -1,0 +1,108 @@
+name: TypeScript todo browser image qualification
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/typescript-todo-image-qualification.yml
+      - eng/typescript-todo-image/**
+      - examples/language-routes/typescript-todo/**
+      - tests/typescript-todo-image/**
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/typescript-todo-image-qualification.yml
+      - eng/typescript-todo-image/**
+      - examples/language-routes/typescript-todo/**
+      - tests/typescript-todo-image/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: typescript-todo-image-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  strict-rootless-qualification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      TODO_BASE: mcr.microsoft.com/playwright@sha256:bc6ab0d6d44ff4826e4cb8c1e6d801e185bfc42bb0753f8e2a30efc70db054c7
+      PODMAN_ROOT: /tmp/tti-root-${{ github.run_id }}-${{ github.run_attempt }}
+      PODMAN_RUNROOT: /tmp/tti-runroot-${{ github.run_id }}-${{ github.run_attempt }}
+      QUALIFICATION_STATE: /tmp/tti-state-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out the exact candidate without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run source contracts and strict rootless preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          command -v podman
+          python3 -m unittest eng/typescript-todo-image/test_qualify.py tests/typescript-todo-image/test_source_contract.py
+          python3 -m py_compile eng/typescript-todo-image/qualify.py eng/typescript-todo-image/test_qualify.py tests/typescript-todo-image/test_source_contract.py
+          install -d -m 0700 "$QUALIFICATION_STATE"
+          python3 eng/typescript-todo-image/qualify.py preflight \
+            --expected-source-revision "$GITHUB_SHA" \
+            --state-dir "$QUALIFICATION_STATE" \
+            --root "$PODMAN_ROOT" \
+            --runroot "$PODMAN_RUNROOT" \
+            > "$QUALIFICATION_STATE/preflight-result.json"
+
+      - name: Pull only the approved immutable browser base
+        shell: bash
+        run: |
+          set -euo pipefail
+          podman --storage-driver=vfs --root "$PODMAN_ROOT" --runroot "$PODMAN_RUNROOT" \
+            pull --platform linux/amd64 "$TODO_BASE"
+
+      - name: Build and qualify the compiled browser journey
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 eng/typescript-todo-image/qualify.py qualify \
+            --expected-source-revision "$GITHUB_SHA" \
+            --state-dir "$QUALIFICATION_STATE" \
+            --root "$PODMAN_ROOT" \
+            --runroot "$PODMAN_RUNROOT" \
+            > "$QUALIFICATION_STATE/qualification-result.json"
+
+      - name: Remove only scoped qualification containers
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 0700 "$QUALIFICATION_STATE"
+          mapfile -t containers < <(podman --storage-driver=vfs --root "$PODMAN_ROOT" --runroot "$PODMAN_RUNROOT" \
+            container ps --all --quiet --filter label=fsgg.typescript-todo.qualification=true)
+          if (( ${#containers[@]} > 0 )); then
+            podman --storage-driver=vfs --root "$PODMAN_ROOT" --runroot "$PODMAN_RUNROOT" container rm --force "${containers[@]}"
+          fi
+          test -z "$(podman --storage-driver=vfs --root "$PODMAN_ROOT" --runroot "$PODMAN_RUNROOT" \
+            container ps --all --quiet --filter label=fsgg.typescript-todo.qualification=true)"
+
+      - name: Retain bounded candidate and exact qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: typescript-todo-image-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.QUALIFICATION_STATE }}/typescript-todo-candidate.oci.tar
+            ${{ env.QUALIFICATION_STATE }}/manifests/*.json
+            ${{ env.QUALIFICATION_STATE }}/preflight.json
+            ${{ env.QUALIFICATION_STATE }}/preflight-result.json
+            ${{ env.QUALIFICATION_STATE }}/qualification-result.json
+            ${{ env.QUALIFICATION_STATE }}/run/journal.jsonl
+            ${{ env.QUALIFICATION_STATE }}/run/output/result.json
+            ${{ env.QUALIFICATION_STATE }}/run/output/reports/results.json
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0

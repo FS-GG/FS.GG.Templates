@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTaskStore, decodeTasks, encodeTasks, STORAGE_KEY } from "../dist/storage.js";
+import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
+
+const dist = process.env.TYPESCRIPT_TODO_DIST_DIR ?? new URL("../dist/", import.meta.url).pathname;
+const { createTaskStore, decodeTasks, encodeTasks, STORAGE_KEY } = await import(pathToFileURL(resolve(dist, "storage.js")));
 
 test("compiled storage retains valid versioned tasks", () => {
   const task = { id: "one", text: "Retained", completed: true };

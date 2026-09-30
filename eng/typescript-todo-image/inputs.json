@@ -1,0 +1,54 @@
+{
+  "architecture": "amd64",
+  "base": {
+    "license": "Ubuntu package licences and Microsoft Playwright image notices retained by the pinned OCI manifest",
+    "reference": "mcr.microsoft.com/playwright@sha256:bc6ab0d6d44ff4826e4cb8c1e6d801e185bfc42bb0753f8e2a30efc70db054c7",
+    "source": "https://playwright.dev/docs/docker",
+    "version": "v1.63.0-noble"
+  },
+  "browserAssets": [
+    {
+      "archive": "chrome-linux64.zip",
+      "browserVersion": "153.0.8010.12",
+      "name": "chromium",
+      "revision": "1243",
+      "sha256": "8aac35011c18f6e2d10696154af89a5728ac2ddd6dc6fad24ffdf243c3fcfd5a",
+      "url": "https://cdn.playwright.dev/builds/cft/153.0.8010.12/linux64/chrome-linux64.zip"
+    },
+    {
+      "archive": "chrome-headless-shell-linux64.zip",
+      "browserVersion": "153.0.8010.12",
+      "licensePath": "LICENSE.headless_shell",
+      "licenseSha256": "b92247f7a44c14627ef5cbbe0aa6dcca4e4422b7c05e6f2c660054061a5e3da7",
+      "name": "chromium-headless-shell",
+      "revision": "1243",
+      "sha256": "a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d",
+      "url": "https://cdn.playwright.dev/builds/cft/153.0.8010.12/linux64/chrome-headless-shell-linux64.zip"
+    },
+    {
+      "archive": "ffmpeg-linux.zip",
+      "name": "ffmpeg",
+      "revision": "1011",
+      "sha256": "ebc74fc5b94830176a3c2914ae96bd8bc7f6a91f4f33890230f84a172ee61ccc",
+      "url": "https://cdn.playwright.dev/dbazure/download/playwright/builds/ffmpeg/1011/ffmpeg-linux.zip"
+    }
+  ],
+  "node": {
+    "archive": "node-v24.8.0-linux-x64.tar.gz",
+    "license": "MIT",
+    "sha256": "daf68404b478b4c3616666580d02500a24148c0f439e4d0134d65ce70e90e655",
+    "source": "https://github.com/nodejs/node/tree/v24.8.0",
+    "url": "https://nodejs.org/download/release/v24.8.0/node-v24.8.0-linux-x64.tar.gz",
+    "version": "24.8.0"
+  },
+  "npmPackages": [
+    {"archive":"playwright-test-1.63.0.tgz","license":"Apache-2.0","name":"@playwright/test","sha256":"fc594f36b7b4aafece614ec6852ad728423215a76edd0a2a1821bb0c49539c4e","url":"https://registry.npmjs.org/@playwright/test/-/test-1.63.0.tgz","version":"1.63.0"},
+    {"archive":"playwright-1.63.0.tgz","license":"Apache-2.0","name":"playwright","sha256":"195a5ee9bfed7c6e9c03965950e32e5e4dbedaa02e740e5a530eb4b87dae050c","url":"https://registry.npmjs.org/playwright/-/playwright-1.63.0.tgz","version":"1.63.0"},
+    {"archive":"playwright-core-1.63.0.tgz","license":"Apache-2.0","name":"playwright-core","sha256":"208593d4e1bcd8f8fe5f869cad1cc332dc7f1d70dc1d58c102dc3ac36e30f26c","url":"https://registry.npmjs.org/playwright-core/-/playwright-core-1.63.0.tgz","version":"1.63.0"},
+    {"archive":"typescript-5.9.2.tgz","license":"Apache-2.0","name":"typescript","sha256":"67a3bc82e822b8f45f653a80fc3a9730d23214d36c83ba85dd7f5abebee82062","url":"https://registry.npmjs.org/typescript/-/typescript-5.9.2.tgz","version":"5.9.2"}
+  ],
+  "os": "linux",
+  "playwright": "1.63.0",
+  "schema": "fsgg.typescript-todo-image-inputs/1",
+  "typescript": "5.9.2"
+}
