@@ -1,3 +1,5 @@
+#load "BindingSupport.fsx"
+
 open System
 open System.IO
 open System.Diagnostics
@@ -5,6 +7,7 @@ open System.Security.Cryptography
 open System.Text.Json
 open System.Threading
 open FS.GG.Coordination.Orchestration.Execution
+open BindingSupport.LanguageRouteBindingSupport
 
 let pairs = fsi.CommandLineArgs |> Array.skip 1 |> Array.chunkBySize 2
 let options = pairs |> Array.map (function | [|k;v|] when k.StartsWith("--") -> k[2..],v | _ -> invalidArg "args" "use --name value") |> Map.ofArray
@@ -32,6 +35,17 @@ let gitShow revision path =
     if not(child.WaitForExit(30000)) then child.Kill true;invalidOp "binding-source-git-timeout"
     if child.ExitCode<>0 then invalidOp ("binding-source-git-refused:"+error.Trim())
     bytes.ToArray()
+let gitTree revision =
+    use child=new Process()
+    child.StartInfo<-ProcessStartInfo(git,RedirectStandardOutput=true,RedirectStandardError=true,UseShellExecute=false)
+    for argument in ["-C";sourceRoot;"rev-parse";revision+"^{tree}"] do child.StartInfo.ArgumentList.Add argument
+    if not(child.Start()) then invalidOp "binding-source-git-start-refused"
+    let output=child.StandardOutput.ReadToEnd().Trim()
+    let error=child.StandardError.ReadToEnd()
+    if not(child.WaitForExit(30000)) then child.Kill true;invalidOp "binding-source-git-timeout"
+    if child.ExitCode<>0 then invalidOp ("binding-source-git-refused:"+error.Trim())
+    output
+if gitTree sourceRevision<>boundSource.GetProperty("tree").GetString() then invalidOp "binding-source-tree-mismatch"
 let policyBytes = gitShow sourceRevision "eng/language-route-bindings/policy.json"
 let policySha = SHA256.HashData policyBytes |> Convert.ToHexString |> _.ToLowerInvariant()
 let policyDocument = JsonDocument.Parse policyBytes
@@ -41,9 +55,9 @@ if root.GetProperty("acceptedNativeExecution").GetBoolean() then invalidOp "sour
 if root.GetProperty("policySha256").GetString() <> policySha || not(JsonElement.DeepEquals(root.GetProperty("operations"),trusted.GetProperty("operations"))) then invalidOp "binding-policy-mismatch"
 let opId = if kind="rust" then "rust-tic-tac-toe-journey" else "go-snake-journey"
 let image = root.GetProperty("images").GetProperty(kind)
+let trustedImage = trusted.GetProperty("qualifiedImages").GetProperty(kind)
 let op = trusted.GetProperty("operations").GetProperty(opId)
-let manifestDigest = image.GetProperty("manifestDigest").GetString()
-let imageReference = "localhost/fsgg-language-route@" + manifestDigest
+let imageReference = qualifiedImageReference trustedImage image
 let scope = "fs-gg/templates/language-route/" + kind
 let componentId = op.GetProperty("componentId").GetString()
 let verificationSha = op.GetProperty("verificationSha256").GetString()
@@ -61,7 +75,7 @@ let profile = PortableWorkspaceContract.parseProfile profileBytes |> Result.defa
 let reviewed = { EntryPoint=opId; OperationIdentity="test"; ComponentId=Some componentId; WorkingDirectory=workingDirectory; QualifiedImage=imageReference; RequiredToolchains=[(toolchainId,toolchainVersion)]; Executable="/bin/sh"; Arguments=[wrapper]; VerificationIdentity=op.GetProperty("verificationIdentity").GetString(); VerificationPath=op.GetProperty("verificationPath").GetString(); VerificationSha256=verificationSha; RecipeSha256=recipeSha }
 let runtime = { GitExecutable=git; TarExecutable=tar; PodmanExecutable=podman; PodmanGlobalArguments=["--storage-driver=vfs";"--root";storeRoot;"--runroot";runRoot]; StateRoot=stateRoot; ContainerPath="/usr/local/bin:/usr/local/go/bin:/usr/bin:/bin"; ContainerUser="32768:32768"; HostEnvironment=Map["HOME",stateRoot;"PATH","/usr/local/bin:/usr/bin:/bin";"LANG","C.UTF-8"]; ContainerEnvironment=Map["HOME","/output/home";"PATH","/usr/local/bin:/usr/local/go/bin:/usr/bin:/bin";"LANG","C.UTF-8"]; MaximumSnapshotBytes=16UL*1024UL*1024UL; TerminationGrace=TimeSpan.FromSeconds 10. }
 let policy = { WorkspaceRoot=sourceRoot; WorkspaceScope=scope; SourceRevision=sourceRevision; QualifiedImage=imageReference; MaximumRuntimeSeconds=120UL; MaximumOutputBytes=262144UL; Operations=[reviewed]; Runtime=runtime }
-let now()=DateTimeOffset.UtcNow
+let now()=portableNowFrom DateTimeOffset.UtcNow
 let authority={WorkspaceScope=scope;WorkflowRevision=1UL;FenceGeneration=1UL;ObservedAt=now()}
 let commandBytes = File.ReadAllBytes commandPath
 let command = PortableWorkspaceContract.parseCommand commandBytes |> Result.defaultWith invalidOp

@@ -18,6 +18,16 @@ python3 eng/language-route-bindings/prepare.py \
   --output <private-new-directory>
 ```
 
+The policy keeps the hosted qualified build digest separate from the retained
+OCI archive's manifest digest and config/image ID. `execute.fsx` selects only
+the committed qualified build reference; values copied into `binding.json`
+cannot select another image. The original retained OCI archives currently fail
+a fresh Podman load because their index annotations use an old-name-at-digest
+form. They remain byte-verified custody evidence, but are not a native-ready
+import path. A metadata-only derived import archive must preserve every
+manifest, config, and layer byte, record both archive hashes, and pass a fresh
+native load before it can be admitted separately.
+
 The resulting plan is input to `execute.fsx`. The native gate must run each
 operation once, cancel one actually running operation, reconstruct the executor
 from the same durable state root, observe duplicate execution without a second

@@ -1,3 +1,5 @@
+#load "../../eng/language-route-bindings/BindingSupport.fsx"
+
 open System
 open System.IO
 open System.Text
@@ -5,10 +7,24 @@ open System.Text.Json
 open System.Threading
 open System.Threading.Tasks
 open FS.GG.Coordination.Orchestration.Execution
+open BindingSupport.LanguageRouteBindingSupport
 
 let policyPath=Path.GetFullPath fsi.CommandLineArgs[1]
 let root=JsonDocument.Parse(File.ReadAllBytes policyPath).RootElement
-let fixedNow=DateTimeOffset(2098,1,1,0,0,0,TimeSpan.Zero)
+let unalignedNow=DateTimeOffset(2098,1,1,0,0,0,TimeSpan.Zero).AddTicks 7L
+let fixedNow=portableNowFrom unalignedNow
+if fixedNow.Ticks%10L<>0L || fixedNow.Ticks=unalignedNow.Ticks then failwith "portable clock was not normalized"
+for kind in ["rust";"go"] do
+    let trustedImage=root.GetProperty("qualifiedImages").GetProperty(kind)
+    let boundJson=sprintf """{"archiveSha256":"%s","configDigest":"%s","imageId":"%s","manifestDigest":"%s"}""" (trustedImage.GetProperty("archiveSha256").GetString()) (trustedImage.GetProperty("configDigest").GetString()) (trustedImage.GetProperty("configDigest").GetString()) (trustedImage.GetProperty("retainedOciManifestDigest").GetString())
+    let bound=JsonDocument.Parse(boundJson).RootElement
+    if qualifiedImageReference trustedImage bound<>trustedImage.GetProperty("qualifiedReference").GetString() then failwith "trusted image was not selected"
+    let tampered=JsonDocument.Parse(boundJson.Replace(trustedImage.GetProperty("retainedOciManifestDigest").GetString(),"sha256:"+String.replicate 64 "0")).RootElement
+    try
+        qualifiedImageReference trustedImage tampered |> ignore
+        failwith "caller-controlled manifest was accepted"
+    with
+    | :? InvalidOperationException as ex when ex.Message="binding-qualified-image-mismatch" -> ()
 let sourceRevision="66ce4faacc122ef4a2d2331a0c10fe388e7c3b69"
 
 let observation output terminated =

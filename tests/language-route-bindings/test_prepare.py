@@ -15,7 +15,7 @@ def oci(path,kind):
     with tarfile.open(path,"w") as tf:
         for name,data in [("oci-layout",canon({"imageLayoutVersion":"1.0.0"})),("index.json",index),("blobs/sha256/"+md,manifest),("blobs/sha256/"+cd,config),("blobs/sha256/"+ld,layer)]:
             info=tarfile.TarInfo(name);info.size=len(data);info.mode=0o600;tf.addfile(info,io.BytesIO(data))
-    return hashlib.sha256(path.read_bytes()).hexdigest(),cd
+    return hashlib.sha256(path.read_bytes()).hexdigest(),md,cd
 
 class BindingTests(unittest.TestCase):
     def setUp(self):
@@ -25,7 +25,10 @@ class BindingTests(unittest.TestCase):
         images={}
         candidates={}
         for kind in ("rust","go"):
-            p=self.root/(kind+"-candidate.oci.tar"); digest,config_digest=oci(p,kind); candidates[kind]=p
+            p=self.root/(kind+"-candidate.oci.tar"); digest,manifest_digest,config_digest=oci(p,kind); candidates[kind]=p
+            mod.POLICY["qualifiedImages"][kind]["archiveSha256"]=digest
+            mod.POLICY["qualifiedImages"][kind]["retainedOciManifestDigest"]="sha256:"+manifest_digest
+            mod.POLICY["qualifiedImages"][kind]["configDigest"]="sha256:"+config_digest
             images[kind]={"candidate":"/private/"+p.name,"candidateSha256":digest,"id":"sha256:"+config_digest,"journal":"/private/journal","journalSha256":"2"*64,"reference":"localhost/fsgg-language-route:"+kind}
         q={"schema":"fsgg.language-route-image-qualification/1","sourceRevision":mod.POLICY["templatesCandidate"]["sourceRevision"],"sourceTree":mod.POLICY["templatesCandidate"]["sourceTree"],"inputsSha256":mod.POLICY["imageInputsSha256"],"recipeSha256":{"rust":mod.POLICY["operations"]["rust-tic-tac-toe-journey"]["recipeSha256"],"go":mod.POLICY["operations"]["go-snake-journey"]["recipeSha256"]},"images":images}
         self.artifact=self.root/"artifact.zip"
@@ -52,6 +55,9 @@ class BindingTests(unittest.TestCase):
     def test_refuses_changed_executor(self):
         self.assembly.write_bytes(b"changed")
         with self.assertRaisesRegex(mod.Refusal,"executor-assembly-digest-mismatch"): mod.prepare(self.args())
+    def test_refuses_candidate_not_in_trusted_image_mapping(self):
+        mod.POLICY["qualifiedImages"]["rust"]["archiveSha256"]="0"*64
+        with self.assertRaisesRegex(mod.Refusal,"rust-archive-policy-mismatch"): mod.prepare(self.args())
     def test_refuses_unsafe_artifact_member(self):
         with zipfile.ZipFile(self.artifact,"a") as z:z.writestr("../escape",b"x")
         mod.POLICY["templatesCandidate"]["artifactDigest"]="sha256:"+hashlib.sha256(self.artifact.read_bytes()).hexdigest()

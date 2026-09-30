@@ -116,6 +116,10 @@ def prepare(args):
             image_id=item.get("id","")
             require(image_id.startswith("sha256:") and len(image_id)==71,kind+"-image-id-refused")
             require(image_id==config_digest,kind+"-qualified-image-config-mismatch")
+            trusted=POLICY["qualifiedImages"][kind]
+            require(item["candidateSha256"]==trusted["archiveSha256"],kind+"-archive-policy-mismatch")
+            require(manifest_digest==trusted["retainedOciManifestDigest"],kind+"-manifest-policy-mismatch")
+            require(config_digest==trusted["configDigest"],kind+"-config-policy-mismatch")
             bound[kind]={"archiveSha256":item["candidateSha256"],"configDigest":config_digest,"imageId":image_id,"manifestDigest":manifest_digest,"reference":item.get("reference")}
     wrappers={}
     for opid,op in POLICY["operations"].items():

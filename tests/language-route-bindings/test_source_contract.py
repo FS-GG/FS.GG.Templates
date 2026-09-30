@@ -19,5 +19,22 @@ class SourceContract(unittest.TestCase):
   for symbol in ('PortableWorkspacePodmanRunner','PortableWorkspaceExecutor.Executor','ExecuteAsync','RecoverAsync','CancelAfter'): self.assertIn(symbol,text)
   self.assertNotIn('Process.Start',text)
   self.assertNotIn('UtcNow.AddSeconds',text)
+  self.assertIn('portableNowFrom DateTimeOffset.UtcNow',text)
+  self.assertIn('binding-source-tree-mismatch',text)
+  support=(ROOT/'eng/language-route-bindings/BindingSupport.fsx').read_text()
+  self.assertIn('binding-qualified-image-mismatch',support)
+  self.assertIn('qualifiedImageReference trustedImage image',text)
+  self.assertIn('trustedImage.GetProperty("qualifiedReference")',support)
+  self.assertNotIn('"localhost/fsgg-language-route@" + manifestDigest',text)
   self.assertIn('parseCommand commandBytes',text)
+ def test_qualified_image_mapping_distinguishes_build_and_retained_oci_identities(self):
+  p=json.loads((ROOT/'eng/language-route-bindings/policy.json').read_text())
+  for kind in ('rust','go'):
+   image=p['qualifiedImages'][kind]
+   self.assertRegex(image['archiveSha256'],r'^[0-9a-f]{64}$')
+   self.assertRegex(image['configDigest'],r'^sha256:[0-9a-f]{64}$')
+   self.assertRegex(image['retainedOciManifestDigest'],r'^sha256:[0-9a-f]{64}$')
+   self.assertRegex(image['qualifiedBuildDigest'],r'^sha256:[0-9a-f]{64}$')
+   self.assertNotEqual(image['retainedOciManifestDigest'],image['qualifiedBuildDigest'])
+   self.assertEqual(image['qualifiedReference'],'localhost/fsgg-language-route@'+image['qualifiedBuildDigest'])
 if __name__=='__main__':unittest.main()

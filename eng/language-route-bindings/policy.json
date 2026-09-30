@@ -16,6 +16,22 @@
     "sourceRevision": "c069263c3e9e8780b1596eee82d2f6c017daa8df"
   },
   "imageInputsSha256": "33232c80576e6f1e15e3ed7a9df979aba97f1691ce66502931b63b2bf1bda424",
+  "qualifiedImages": {
+    "go": {
+      "archiveSha256": "7f272d77e4d6afef4dcd7c8a95d2220fbe309fc4a3c1450d9724e3edbd816fce",
+      "configDigest": "sha256:7a1cfd29f845b19c55c75645ecfb3ed0edd0d812f2323a7a0151e779d2d0e269",
+      "qualifiedBuildDigest": "sha256:0bda58697b531b4d8ebceebf77a3cbe4bd4eda0bce21d79de7c6f18a2c2aa6c1",
+      "qualifiedReference": "localhost/fsgg-language-route@sha256:0bda58697b531b4d8ebceebf77a3cbe4bd4eda0bce21d79de7c6f18a2c2aa6c1",
+      "retainedOciManifestDigest": "sha256:5f2aa99db0d6e06badb69391c4c863a8662e4d9c609db2c28517ef637a91518b"
+    },
+    "rust": {
+      "archiveSha256": "e700720bbb25ed0d62a2ae4dab217fd14b545481eafd7a425780eedeacca0aae",
+      "configDigest": "sha256:e72ef546069bf2478e35fbdf60f374e263caf852e08ba62a96868b80191fc2e8",
+      "qualifiedBuildDigest": "sha256:b2fa63821b93d1e35b44a90d8102ac42967d381e9d55676e4092140bd59da69c",
+      "qualifiedReference": "localhost/fsgg-language-route@sha256:b2fa63821b93d1e35b44a90d8102ac42967d381e9d55676e4092140bd59da69c",
+      "retainedOciManifestDigest": "sha256:41f2a51451a6213d3f504fa5164b2ed16d7281b8de861546360cdc7d983f3c23"
+    }
+  },
   "operations": {
     "go-snake-journey": {
       "arguments": ["portable-verify.sh"],
