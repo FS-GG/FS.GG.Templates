@@ -1,0 +1,12 @@
+{
+  "schema": "fsgg.v2-lang.typescript-toolchain/1",
+  "typescript": "5.9.2",
+  "node": "24.8.0",
+  "nodeArchive": {
+    "url": "https://nodejs.org/dist/v24.8.0/node-v24.8.0-linux-x64.tar.gz",
+    "sha256": "daf68404b478b4c3616666580d02500a24148c0f439e4d0134d65ce70e90e655"
+  },
+  "playwright": "1.63.0",
+  "qualificationImage": null,
+  "note": "Node 24.8.0 is the selected qualification runtime. Other hosts provide preparatory source evidence only. No execution image is selected by this source fixture."
+}
