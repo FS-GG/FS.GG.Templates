@@ -1,0 +1,65 @@
+{
+  "schema": "fsgg.language-route-portable-binding-policy/1",
+  "templatesCandidate": {
+    "artifactDigest": "sha256:d3ede2552d45357e505de41f34603adb458a815a20fc43dedae13f1650a56027",
+    "artifactId": 11112465308,
+    "artifactName": "language-route-images-b99b866af021cc0734c8ab7c06763f577b4983db-1",
+    "qualificationRunId": 36744671457,
+    "sourceRevision": "b99b866af021cc0734c8ab7c06763f577b4983db",
+    "sourceTree": "d0f4f91647d544f17fbdfeb8b53d3d4eab41ba75",
+    "retentionDays": 14
+  },
+  "executor": {
+    "assembly": "FS.GG.Coordination.Orchestration.Execution.dll",
+    "assemblySha256": "6395cdf3feb6ee114685920d9ba8b48b624df01bb1d38b922b12da0bffa89daf",
+    "compileDependency": {"name":"Akka.dll","sha256":"1ef266d80a923b25db758987a15e4db99acaa05863a236871bac4dbd6315c5b7","version":"1.5.71"},
+    "sourceRevision": "c069263c3e9e8780b1596eee82d2f6c017daa8df"
+  },
+  "imageInputsSha256": "33232c80576e6f1e15e3ed7a9df979aba97f1691ce66502931b63b2bf1bda424",
+  "qualifiedImages": {
+    "go": {
+      "archiveSha256": "7f272d77e4d6afef4dcd7c8a95d2220fbe309fc4a3c1450d9724e3edbd816fce",
+      "configDigest": "sha256:7a1cfd29f845b19c55c75645ecfb3ed0edd0d812f2323a7a0151e779d2d0e269",
+      "qualifiedBuildDigest": "sha256:0bda58697b531b4d8ebceebf77a3cbe4bd4eda0bce21d79de7c6f18a2c2aa6c1",
+      "qualifiedReference": "localhost/fsgg-language-route@sha256:0bda58697b531b4d8ebceebf77a3cbe4bd4eda0bce21d79de7c6f18a2c2aa6c1",
+      "retainedOciManifestDigest": "sha256:5f2aa99db0d6e06badb69391c4c863a8662e4d9c609db2c28517ef637a91518b"
+    },
+    "rust": {
+      "archiveSha256": "e700720bbb25ed0d62a2ae4dab217fd14b545481eafd7a425780eedeacca0aae",
+      "configDigest": "sha256:e72ef546069bf2478e35fbdf60f374e263caf852e08ba62a96868b80191fc2e8",
+      "qualifiedBuildDigest": "sha256:b2fa63821b93d1e35b44a90d8102ac42967d381e9d55676e4092140bd59da69c",
+      "qualifiedReference": "localhost/fsgg-language-route@sha256:b2fa63821b93d1e35b44a90d8102ac42967d381e9d55676e4092140bd59da69c",
+      "retainedOciManifestDigest": "sha256:41f2a51451a6213d3f504fa5164b2ed16d7281b8de861546360cdc7d983f3c23"
+    }
+  },
+  "operations": {
+    "go-snake-journey": {
+      "arguments": ["portable-verify.sh"],
+      "componentId": "go-snake",
+      "executable": "/bin/sh",
+      "maximumOutputBytes": 262144,
+      "maximumRuntimeSeconds": 120,
+      "recipeSha256": "a0d59ccedc4f09c9517ecf8d72677f62795a75286e0787e3d0710622a7a57319",
+      "wrapperSha256": "e48e9508fa28430eb4c5837484a0718833d762325a010da4a75200598e214e67",
+      "requiredToolchains": [["go", "1.27.1"]],
+      "verificationIdentity": "fsgg.language-route.go-snake/1",
+      "verificationPath": "go-snake-verification.json",
+      "verificationSha256": "b85670018c112b92d1bab95a68ced976b8ea596394848669d1d30a63da302f4a",
+      "workingDirectory": "examples/language-routes/go-snake"
+    },
+    "rust-tic-tac-toe-journey": {
+      "arguments": ["portable-verify.sh"],
+      "componentId": "rust-tic-tac-toe",
+      "executable": "/bin/sh",
+      "maximumOutputBytes": 262144,
+      "maximumRuntimeSeconds": 120,
+      "recipeSha256": "26f02aa5ca5b0ba3316603402e314c9b568d1c318c98cedb2d052798fe043c34",
+      "wrapperSha256": "49546fd94cb8af15bb94ef92fd039b0da01faaae6d4934ea6ec2dae73bd38802",
+      "requiredToolchains": [["rust", "1.98.1"]],
+      "verificationIdentity": "fsgg.language-route.rust-tic-tac-toe/1",
+      "verificationPath": "rust-tic-tac-toe-verification.json",
+      "verificationSha256": "6275f8fbec97200f0c2e29938cdcc1bfd37d4d8dc1bb0a2f4b8e45c5c854bff0",
+      "workingDirectory": "examples/language-routes/rust-tic-tac-toe"
+    }
+  }
+}
