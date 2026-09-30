@@ -3,6 +3,7 @@
 open System
 open System.IO
 open System.Diagnostics
+open System.Collections.Generic
 open System.Security.Cryptography
 open System.Text.Json
 open System.Threading
@@ -15,6 +16,7 @@ let need name = options |> Map.tryFind name |> Option.defaultWith (fun () -> inv
 let full name = need name |> Path.GetFullPath
 let bindingPath, sourceRoot, stateRoot = full "binding", full "source-root", full "state-root"
 let commandPath = full "command"
+let outputPath = full "output"
 let kind = need "kind"
 if kind <> "rust" && kind <> "go" then invalidArg "kind" "rust or go required"
 let podman, git, tar = full "podman", full "git", full "tar"
@@ -82,14 +84,64 @@ let command = PortableWorkspaceContract.parseCommand commandBytes |> Result.defa
 let canonicalCommand = PortableWorkspaceContract.commandBytes command |> Result.defaultWith invalidOp
 if not (canonicalCommand.AsSpan().SequenceEqual(commandBytes.AsSpan())) then invalidOp "portable-command-noncanonical"
 if command.SourceRevision<>sourceRevision || command.Operation<>"test" || command.ComponentId<>Some componentId then invalidOp "binding-command-mismatch"
+let effectiveProfile, effectiveCommand =
+    match options |> Map.tryFind "refusal-probe" with
+    | None -> profile, command
+    | Some "wrong-toolchain" ->
+        let routeComponent = { profile.Components.Head with Toolchain={ profile.Components.Head.Toolchain with Version="0.0.0-refusal-probe" } }
+        { profile with Components=[routeComponent] }, command
+    | Some "wrong-reference" ->
+        { profile with QualifiedImage="localhost/fsgg-language-route-refusal@sha256:"+String.replicate 64 "0" }, command
+    | Some "changed-source" ->
+        { profile with SourceRevision=String.replicate 40 "0" }, command
+    | Some value -> invalidArg "refusal-probe" ("unsupported refusal probe: "+value)
 let runner=PortableWorkspacePodmanRunner(runtime):>IPortableProcessRunner
 let executor=PortableWorkspaceExecutor.Executor(policy,runner,now)
 let cancellation = new CancellationTokenSource()
 match options |> Map.tryFind "cancel-after-ms" with
 | Some value -> cancellation.CancelAfter(Int32.Parse value)
 | None -> ()
-let outcome = if options.ContainsKey "recover" then executor.RecoverAsync(profile,command,cancellation.Token).Result else executor.ExecuteAsync(authority,profile,command,cancellation.Token).Result
+let outcome = if options.ContainsKey "recover" then executor.RecoverAsync(effectiveProfile,effectiveCommand,cancellation.Token).Result else executor.ExecuteAsync(authority,effectiveProfile,effectiveCommand,cancellation.Token).Result
 printfn "%A" outcome
+let evidence = Dictionary<string,obj>()
+evidence["schema"] <- "fsgg.language-route.hosted-execution/1"
+evidence["kind"] <- kind
+evidence["mode"] <- (if options.ContainsKey "recover" then "recover" else "execute")
+evidence["commandSha256"] <- (SHA256.HashData commandBytes |> Convert.ToHexString |> _.ToLowerInvariant())
+evidence["refusalProbe"] <- (options |> Map.tryFind "refusal-probe" |> Option.toObj)
+let receiptFields disposition (receipt:PortableExecutionReceipt) =
+    evidence["disposition"] <- disposition
+    evidence["commandId"] <- receipt.Result.CommandId.ToString("D")
+    evidence["executionStarted"] <- receipt.ExecutionStarted
+    evidence["cleanupCompleted"] <- receipt.CleanupCompleted
+    evidence["cancellationRequested"] <- receipt.CancellationRequested
+    evidence["terminationObserved"] <- receipt.TerminationObserved
+    evidence["qualifiedImage"] <- receipt.QualifiedImage
+    evidence["sourceRevision"] <- receipt.SourceRevision
+    evidence["sourceTree"] <- Option.toObj receipt.SourceTree
+    evidence["snapshotSha256"] <- Option.toObj receipt.SnapshotSha256
+    evidence["runtimeIdentity"] <- Option.toObj receipt.RuntimeIdentity
+    evidence["containerIdentity"] <- Option.toObj receipt.ContainerIdentity
+    evidence["verificationSha256"] <- receipt.VerificationSha256
+    evidence["verificationOutputSha256"] <-
+        (receipt.VerificationOutput |> Option.map (SHA256.HashData >> Convert.ToHexString >> _.ToLowerInvariant()) |> Option.toObj)
+    evidence["outputSha256"] <- receipt.OutputSha256
+    evidence["errorCode"] <- (receipt.Result.Error |> Option.map _.Code |> Option.toObj)
+match outcome with
+| Completed receipt -> receiptFields "completed" receipt
+| Duplicate receipt -> receiptFields "duplicate" receipt
+| PendingDuplicate commandId ->
+    evidence["disposition"] <- "pending-duplicate"
+    evidence["commandId"] <- commandId.ToString("D")
+| Refused reason ->
+    evidence["disposition"] <- "refused"
+    evidence["reason"] <- reason
+let evidenceBytes = JsonSerializer.SerializeToUtf8Bytes(evidence,JsonSerializerOptions(WriteIndented=true))
+let evidenceStream = new FileStream(outputPath,FileMode.CreateNew,FileAccess.Write,FileShare.None)
+evidenceStream.Write evidenceBytes
+evidenceStream.Flush true
+evidenceStream.Dispose()
+if not (OperatingSystem.IsWindows()) then File.SetUnixFileMode(outputPath,UnixFileMode.UserRead ||| UnixFileMode.UserWrite)
 let exitCode =
     match outcome with
     | Completed receipt when receipt.Result.Error.IsNone && receipt.CleanupCompleted -> 0

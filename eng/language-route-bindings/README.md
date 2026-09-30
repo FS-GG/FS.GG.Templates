@@ -101,7 +101,8 @@ dotnet fsi \
   --source-root "$PWD" --source-revision "$(git rev-parse HEAD)" \
   --state-root <private-state> --store-root <loaded-private-store> \
   --runroot <loaded-private-runroot> --podman /usr/bin/podman \
-  --git /usr/bin/git --tar /usr/bin/tar
+  --git /usr/bin/git --tar /usr/bin/tar \
+  --output <private-new-execution-evidence.json>
 ```
 
 Repeat with `--kind go`. For cancellation, add
@@ -109,3 +110,41 @@ Repeat with `--kind go`. For cancellation, add
 add `--recover true`. Repeating the original idempotency key must return the P2
 duplicate disposition. A pending duplicate or an operation whose termination
 or cleanup is unproved stays pending/unknown and cannot satisfy the native gate.
+
+## Protected-main hosted qualification
+
+`.github/workflows/rust-go-hosted-bind-qualification.yml` is the sole native
+qualification route for these two bindings. It is manual and accepts one
+`expected_head`; the job can start only when that value is both the dispatch
+SHA and the current `origin/main` SHA. Rootless VFS, policy identities, wrapper
+hashes, a clean source tree and the public artifact's live metadata are checked
+before the large artifact download or the exact c069 executor build.
+
+The job preserves the downloaded ZIP bytes, prepares the binding, derives and
+fresh-loads each policy-selected OCI reference into its own store, and checks
+the loaded manifest and config. It freezes each canonical command once. New
+FSI processes then run the real Rust and Go journey, observe the same command
+as a duplicate, and reconstruct the settled receipt through `RecoverAsync`.
+A separate Rust command requests cancellation during execution and performs
+one bounded recovery. Wrong toolchain, image reference and source inputs must
+be refused by P2 before launch.
+
+`hosted-qualification.py` validates the native evidence schema. It accepts the
+job only from actual P2 receipt fields: execution started, termination was
+observed, cleanup completed, the verification succeeded, and reconstructed
+calls retained the exact command hash and container identity. Cancellation is
+`unknown` unless the receipt proves the process started, cancellation was
+requested, termination was observed, cleanup completed, and recovery returned
+the settled duplicate. Helper exit flags, source preparation and OCI load alone
+cannot set `accepted`. The cleanup phase removes all containers and both owned
+VFS namespaces before final validation. The retained artifact contains the
+exact downloaded ZIP and bounded JSON evidence for 14 days; it publishes or
+activates nothing.
+
+Local nested Podman is unsupported. Run source validation without creating
+bytecode:
+
+```text
+PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover \
+  -s tests/language-route-bindings -p 'test_*.py' -v
+```

@@ -27,6 +27,8 @@ class SourceContract(unittest.TestCase):
   self.assertIn('retained.GetProperty("importReference")',support)
   self.assertNotIn('"localhost/fsgg-language-route@" + manifestDigest',text)
   self.assertIn('parseCommand commandBytes',text)
+  for probe in ('wrong-toolchain','wrong-reference','changed-source'): self.assertIn(probe,text)
+  for field in ('executionStarted','cleanupCompleted','cancellationRequested','terminationObserved','commandSha256'): self.assertIn(field,text)
  def test_qualified_image_mapping_distinguishes_build_and_retained_oci_identities(self):
   p=json.loads((ROOT/'eng/language-route-bindings/policy.json').read_text())
   for kind in ('rust','go'):
@@ -54,4 +56,16 @@ class SourceContract(unittest.TestCase):
   self.assertIn('"load","--input"',loader)
   self.assertIn('"image","inspect",policy["importReference"]',loader)
   self.assertNotIn('shell=True',derive+loader)
+ def test_hosted_workflow_is_exact_main_serial_and_receipt_driven(self):
+  workflow=(ROOT/'.github/workflows/rust-go-hosted-bind-qualification.yml').read_text()
+  validator=(ROOT/'eng/language-route-bindings/hosted-qualification.py').read_text()
+  self.assertIn("inputs.expected_head == github.sha",workflow)
+  self.assertEqual(workflow.count('runs-on:'),1)
+  self.assertIn('refs/remotes/origin/main',validator)
+  self.assertLess(workflow.index('hosted-qualification.py preflight'),workflow.index('qualified-artifact.zip'))
+  self.assertLess(workflow.index('qualified-artifact.zip'),workflow.index('dotnet build'))
+  self.assertIn('command-bytes-regenerated-refused',validator)
+  self.assertIn('settled-reconstruction-refused',validator)
+  self.assertIn('cancellation-or-termination-unknown',validator)
+  self.assertIn('"accepted":cancellation_proven',validator)
 if __name__=='__main__':unittest.main()
