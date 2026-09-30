@@ -3,7 +3,7 @@ import { stat } from "node:fs/promises";
 import { createServer } from "node:http";
 import { extname, resolve, sep } from "node:path";
 
-const root = resolve(new URL("../dist/", import.meta.url).pathname);
+const root = resolve(process.env.TYPESCRIPT_TODO_DIST_DIR ?? new URL("../dist/", import.meta.url).pathname);
 const port = Number(process.env.TYPESCRIPT_TODO_PORT ?? 4215);
 const types = new Map([[".html", "text/html; charset=utf-8"], [".js", "text/javascript; charset=utf-8"], [".css", "text/css; charset=utf-8"]]);
 const server = createServer(async (request, response) => {

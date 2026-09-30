@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { addTask, deleteTask, editTask, remainingCount, toggleTask, visibleTasks } from "../dist/domain.js";
+import { pathToFileURL } from "node:url";
+import { resolve } from "node:path";
+
+const dist = process.env.TYPESCRIPT_TODO_DIST_DIR ?? new URL("../dist/", import.meta.url).pathname;
+const { addTask, deleteTask, editTask, remainingCount, toggleTask, visibleTasks } = await import(pathToFileURL(resolve(dist, "domain.js")));
 
 test("compiled todo domain covers add, edit, complete, filter and delete", () => {
   let tasks = addTask([], "  Write notes  ", "one");
