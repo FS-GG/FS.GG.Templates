@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="A small, local-first todo list." />
+    <title>Local todo list</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="app-header">
+        <p class="eyebrow">Local workspace</p>
+        <h1>Things to do</h1>
+        <p class="intro">A focused list that stays in this browser.</p>
+      </header>
+
+      <section class="composer" aria-labelledby="add-heading">
+        <h2 id="add-heading">Add a task</h2>
+        <form id="todo-form" novalidate>
+          <label for="todo-input">What needs doing?</label>
+          <div class="composer-row">
+            <input id="todo-input" name="task" autocomplete="off" maxlength="200" required />
+            <button type="submit">Add task</button>
+          </div>
+          <p id="form-error" class="form-error" role="alert" hidden></p>
+        </form>
+      </section>
+
+      <div id="storage-status" class="notice" role="status" hidden></div>
+
+      <section class="list-panel" aria-labelledby="list-heading">
+        <div class="list-heading-row">
+          <div>
+            <h2 id="list-heading">Your tasks</h2>
+            <p id="remaining-count" class="count" aria-live="polite">0 tasks remaining</p>
+          </div>
+          <div class="filters" role="group" aria-label="Filter tasks">
+            <button type="button" data-filter="all" aria-pressed="true">All</button>
+            <button type="button" data-filter="active" aria-pressed="false">Active</button>
+            <button type="button" data-filter="completed" aria-pressed="false">Completed</button>
+          </div>
+        </div>
+
+        <p id="empty-state" class="empty-state">No tasks yet. Add one above when you are ready.</p>
+        <ul id="todo-list" class="todo-list" aria-label="Tasks"></ul>
+      </section>
+    </main>
+
+    <template id="todo-template">
+      <li class="todo-item">
+        <div class="todo-view">
+          <label class="check-row">
+            <input class="todo-toggle" type="checkbox" />
+            <span class="todo-text"></span>
+          </label>
+          <div class="todo-actions">
+            <button class="edit-button secondary" type="button">Edit</button>
+            <button class="delete-button danger" type="button">Delete</button>
+          </div>
+        </div>
+        <form class="edit-form" hidden novalidate>
+          <label class="edit-label">
+            Edit task
+            <input class="edit-input" maxlength="200" required />
+          </label>
+          <div class="edit-actions">
+            <button type="submit">Save</button>
+            <button class="cancel-button secondary" type="button">Cancel</button>
+          </div>
+          <p class="edit-error form-error" role="alert" hidden></p>
+        </form>
+      </li>
+    </template>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
