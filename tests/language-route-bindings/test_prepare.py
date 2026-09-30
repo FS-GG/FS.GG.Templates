@@ -1,9 +1,10 @@
-import hashlib, importlib.util, io, json, os, tarfile, tempfile, unittest, zipfile
+import hashlib, importlib.util, io, json, os, subprocess, tarfile, tempfile, unittest, zipfile
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]
 spec=importlib.util.spec_from_file_location("binding_prepare",ROOT/"eng/language-route-bindings/prepare.py")
 mod=importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
+REAL_GIT_SOURCE_IDENTITY=mod.git_source_identity
 
 def canon(x): return (json.dumps(x,sort_keys=True,separators=(",",":"))+"\n").encode()
 def oci(path,kind):
@@ -32,9 +33,15 @@ class BindingTests(unittest.TestCase):
             z.writestr("manifests/qualification.json",canon(q))
             for kind,p in candidates.items(): z.write(p,p.name)
         mod.POLICY["templatesCandidate"]["artifactDigest"]="sha256:"+hashlib.sha256(self.artifact.read_bytes()).hexdigest()
+        def committed(*args):
+            path=args[-1]
+            if path.endswith('policy.json'):return (ROOT/'eng/language-route-bindings/policy.json').read_bytes()
+            operation='rust-tic-tac-toe-journey' if 'rust' in path else 'go-snake-journey'
+            return (ROOT/mod.POLICY['operations'][operation]['workingDirectory']/"portable-verify.sh").read_bytes()
+        mod.git_source_identity=lambda source,revision:("3"*40,committed)
     def tearDown(self): self.t.cleanup()
     def args(self):
-        return type("Args",(),{"source_root":str(ROOT),"artifact_zip":str(self.artifact),"executor_assembly":str(self.assembly),"executor_compile_dependency":str(self.dependency),"output":str(self.root/"out")})()
+        return type("Args",(),{"source_root":str(ROOT),"source_revision":"4"*40,"artifact_zip":str(self.artifact),"executor_assembly":str(self.assembly),"executor_compile_dependency":str(self.dependency),"output":str(self.root/"out")})()
     def test_prepares_closed_binding_without_native_claim(self):
         mod.prepare(self.args()); result=json.loads((self.root/"out/binding.json").read_text())
         self.assertFalse(result["acceptedNativeExecution"]); self.assertEqual(set(result["images"]),{"rust","go"})
@@ -49,5 +56,13 @@ class BindingTests(unittest.TestCase):
         with zipfile.ZipFile(self.artifact,"a") as z:z.writestr("../escape",b"x")
         mod.POLICY["templatesCandidate"]["artifactDigest"]="sha256:"+hashlib.sha256(self.artifact.read_bytes()).hexdigest()
         with self.assertRaisesRegex(mod.Refusal,"artifact-member-refused"): mod.prepare(self.args())
+    def test_git_source_identity_refuses_changed_worktree(self):
+        repo=self.root/"source";repo.mkdir();subprocess.run(["git","init","-q",str(repo)],check=True)
+        (repo/"wrapper.sh").write_text("one\n")
+        subprocess.run(["git","-C",str(repo),"add","wrapper.sh"],check=True)
+        subprocess.run(["git","-C",str(repo),"-c","user.name=test","-c","user.email=test@example.invalid","commit","-qm","one"],check=True)
+        revision=subprocess.check_output(["git","-C",str(repo),"rev-parse","HEAD"],text=True).strip()
+        (repo/"wrapper.sh").write_text("two\n")
+        with self.assertRaisesRegex(mod.Refusal,"source-working-tree-not-clean"):REAL_GIT_SOURCE_IDENTITY(repo,revision)
 
 if __name__=="__main__": unittest.main()

@@ -7,6 +7,9 @@ class SourceContract(unittest.TestCase):
   self.assertEqual(set(p['operations']),{'rust-tic-tac-toe-journey','go-snake-journey'})
   go=(ROOT/'examples/language-routes/go-snake/portable-verify.sh').read_text()
   for value in ('TMPDIR=/output/tmp','GOTOOLCHAIN=local','GOWORK=off','GOPROXY=off','GOSUMDB=off'): self.assertIn(value,go)
+  self.assertEqual(p['operations']['go-snake-journey']['workingDirectory'],'examples/language-routes/go-snake')
+  self.assertEqual(p['operations']['rust-tic-tac-toe-journey']['workingDirectory'],'examples/language-routes/rust-tic-tac-toe')
+  self.assertEqual(p['operations']['go-snake-journey']['arguments'],['portable-verify.sh'])
  def test_verification_bytes_are_exact(self):
   p=json.loads((ROOT/'eng/language-route-bindings/policy.json').read_text())
   values={'rust-tic-tac-toe-journey':b'{"journey":"rust-tic-tac-toe","schema":"fsgg.language-route.rust-tic-tac-toe/1","toolchain":"1.98.1"}\n','go-snake-journey':b'{"journey":"go-snake","schema":"fsgg.language-route.go-snake/1","toolchain":"1.27.1"}\n'}
@@ -15,4 +18,6 @@ class SourceContract(unittest.TestCase):
   text=(ROOT/'eng/language-route-bindings/execute.fsx').read_text()
   for symbol in ('PortableWorkspacePodmanRunner','PortableWorkspaceExecutor.Executor','ExecuteAsync','RecoverAsync','CancelAfter'): self.assertIn(symbol,text)
   self.assertNotIn('Process.Start',text)
+  self.assertNotIn('UtcNow.AddSeconds',text)
+  self.assertIn('parseCommand commandBytes',text)
 if __name__=='__main__':unittest.main()

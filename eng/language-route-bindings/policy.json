@@ -18,7 +18,7 @@
   "imageInputsSha256": "33232c80576e6f1e15e3ed7a9df979aba97f1691ce66502931b63b2bf1bda424",
   "operations": {
     "go-snake-journey": {
-      "arguments": ["examples/language-routes/go-snake/portable-verify.sh"],
+      "arguments": ["portable-verify.sh"],
       "componentId": "go-snake",
       "executable": "/bin/sh",
       "maximumOutputBytes": 262144,
@@ -29,10 +29,10 @@
       "verificationIdentity": "fsgg.language-route.go-snake/1",
       "verificationPath": "go-snake-verification.json",
       "verificationSha256": "b85670018c112b92d1bab95a68ced976b8ea596394848669d1d30a63da302f4a",
-      "workingDirectory": "."
+      "workingDirectory": "examples/language-routes/go-snake"
     },
     "rust-tic-tac-toe-journey": {
-      "arguments": ["examples/language-routes/rust-tic-tac-toe/portable-verify.sh"],
+      "arguments": ["portable-verify.sh"],
       "componentId": "rust-tic-tac-toe",
       "executable": "/bin/sh",
       "maximumOutputBytes": 262144,
@@ -43,7 +43,7 @@
       "verificationIdentity": "fsgg.language-route.rust-tic-tac-toe/1",
       "verificationPath": "rust-tic-tac-toe-verification.json",
       "verificationSha256": "6275f8fbec97200f0c2e29938cdcc1bfd37d4d8dc1bb0a2f4b8e45c5c854bff0",
-      "workingDirectory": "."
+      "workingDirectory": "examples/language-routes/rust-tic-tac-toe"
     }
   }
 }

@@ -14,7 +14,8 @@ python3 eng/language-route-bindings/prepare.py \
   --artifact-zip <downloaded-artifact.zip> \
   --executor-assembly <c069-release/FS.GG.Coordination.Orchestration.Execution.dll> \
   --executor-compile-dependency <akka-1.5.71-net6/Akka.dll> \
-  --source-root "$PWD" --output <private-new-directory>
+  --source-root "$PWD" --source-revision "$(git rev-parse HEAD)" \
+  --output <private-new-directory>
 ```
 
 The resulting plan is input to `execute.fsx`. The native gate must run each
@@ -27,8 +28,21 @@ Before downloading, the effect owner must read the GitHub artifact API and
 require `expired=false`, run `36744671457`, artifact `11112465308`, and digest
 `sha256:d3ede…56027`. Download the archive through the artifact API without
 repacking it. `prepare.py` retains the two byte-verified OCI archives in its
-private output. Load each archive into a new scoped rootless VFS store, retain
-the returned image identity, and invoke the harness with both pinned references:
+private output. Load each archive into a new scoped rootless VFS store and
+retain the returned image identity. Create each command once with an
+owner-selected fixed deadline:
+
+```text
+dotnet fsi --reference:<verified-Akka> --reference:<verified-c069-executor> \
+  eng/language-route-bindings/prepare-command.fsx -- \
+  --kind rust --source-revision <binding-source-revision> \
+  --command-id <owner-guid> --idempotency-id <owner-key> \
+  --deadline <UTC-with-exactly-six-fractional-digits> \
+  --output <private-new-command.json>
+```
+
+Retain those exact command bytes for execution, duplicate observation, and
+recovery. Then invoke the harness with both pinned references:
 
 ```text
 dotnet fsi \
@@ -36,11 +50,11 @@ dotnet fsi \
   --reference:<verified-c069-executor.dll> \
   eng/language-route-bindings/execute.fsx -- \
   --binding <private-output>/binding.json --kind rust \
+  --command <private-command.json> \
   --source-root "$PWD" --source-revision "$(git rev-parse HEAD)" \
   --state-root <private-state> --store-root <private-store> \
   --runroot <private-runroot> --podman /usr/bin/podman \
-  --git /usr/bin/git --tar /usr/bin/tar \
-  --command-id <owner-guid> --idempotency-id <owner-key>
+  --git /usr/bin/git --tar /usr/bin/tar
 ```
 
 Repeat with `--kind go`. For cancellation, add

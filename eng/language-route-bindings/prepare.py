@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import argparse, hashlib, json, os, tarfile, tempfile, zipfile
+import argparse, hashlib, json, os, subprocess, tarfile, tempfile, zipfile
 from pathlib import Path, PurePosixPath
 
 HERE = Path(__file__).resolve().parent
@@ -26,6 +26,17 @@ def read_json_bytes(data, label):
     require(len(data)<=MAX_JSON, label+"-too-large")
     try: return json.loads(data)
     except Exception as e: raise Refusal(label+"-invalid-json") from e
+
+def git_source_identity(source, revision):
+    def git(*arguments):
+        result=subprocess.run(["git","-C",str(source),*arguments],stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False)
+        require(result.returncode==0,"source-git-refused")
+        return result.stdout
+    require(git("rev-parse","HEAD").decode().strip()==revision,"source-revision-mismatch")
+    require(git("status","--porcelain")==b"","source-working-tree-not-clean")
+    tree=git("rev-parse",revision+"^{tree}").decode().strip()
+    require(len(tree)==40 and set(tree)<=HEX,"source-tree-refused")
+    return tree,git
 
 def verify_oci(path, kind):
     require(path.is_file(), kind+"-candidate-missing")
@@ -70,6 +81,8 @@ def verify_oci(path, kind):
 
 def prepare(args):
     source=Path(args.source_root).resolve(); artifact=Path(args.artifact_zip).resolve(); assembly=Path(args.executor_assembly).resolve(); dependency=Path(args.executor_compile_dependency).resolve()
+    require(len(args.source_revision)==40 and set(args.source_revision)<=HEX,"source-revision-refused")
+    source_tree,git=git_source_identity(source,args.source_revision)
     out=Path(args.output).resolve(); require(not out.exists(),"output-already-exists")
     out.parent.mkdir(parents=True,exist_ok=True)
     staging=Path(tempfile.mkdtemp(prefix=".language-route-binding-",dir=out.parent)); os.chmod(staging,0o700)
@@ -106,17 +119,21 @@ def prepare(args):
             bound[kind]={"archiveSha256":item["candidateSha256"],"configDigest":config_digest,"imageId":image_id,"manifestDigest":manifest_digest,"reference":item.get("reference")}
     wrappers={}
     for opid,op in POLICY["operations"].items():
-        wrapper=source/op["arguments"][0]
+        wrapper_path=op["workingDirectory"]+"/"+op["arguments"][0]
+        wrapper=source/wrapper_path
         require(wrapper.is_file() and not wrapper.is_symlink(),opid+"-wrapper-missing")
         wrappers[opid]=sha(wrapper)
         require(wrappers[opid]==op["wrapperSha256"],opid+"-wrapper-digest-mismatch")
-    result={"schema":"fsgg.language-route-portable-binding/1","acceptedNativeExecution":False,"artifact":POLICY["templatesCandidate"],"executor":POLICY["executor"],"images":bound,"operations":POLICY["operations"],"wrapperSha256":wrappers}
+        require(hashlib.sha256(git("show",args.source_revision+":"+wrapper_path)).hexdigest()==wrappers[opid],opid+"-committed-wrapper-mismatch")
+    policy_digest=sha(HERE/"policy.json")
+    require(hashlib.sha256(git("show",args.source_revision+":eng/language-route-bindings/policy.json")).hexdigest()==policy_digest,"committed-policy-mismatch")
+    result={"schema":"fsgg.language-route-portable-binding/1","acceptedNativeExecution":False,"artifact":POLICY["templatesCandidate"],"bindingSource":{"revision":args.source_revision,"tree":source_tree},"executor":POLICY["executor"],"images":bound,"operations":POLICY["operations"],"policySha256":policy_digest,"wrapperSha256":wrappers}
     target=staging/"binding.json"; target.write_bytes(canonical(result)); os.chmod(target,0o600)
     staging.rename(out); target=out/"binding.json"
     print(canonical({"binding":str(target),"bindingSha256":sha(target),"nativeExecutionAccepted":False}).decode(),end="")
 
 def main():
-    p=argparse.ArgumentParser(); p.add_argument("--artifact-zip",required=True); p.add_argument("--executor-assembly",required=True); p.add_argument("--executor-compile-dependency",required=True); p.add_argument("--source-root",required=True); p.add_argument("--output",required=True)
+    p=argparse.ArgumentParser(); p.add_argument("--artifact-zip",required=True); p.add_argument("--executor-assembly",required=True); p.add_argument("--executor-compile-dependency",required=True); p.add_argument("--source-root",required=True); p.add_argument("--source-revision",required=True); p.add_argument("--output",required=True)
     try: prepare(p.parse_args()); return 0
     except (Refusal,OSError,zipfile.BadZipFile,tarfile.TarError) as e: print(json.dumps({"accepted":False,"reason":str(e)},sort_keys=True)); return 2
 if __name__=="__main__": raise SystemExit(main())
