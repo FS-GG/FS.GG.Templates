@@ -6,6 +6,7 @@ import (
 	"io"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -18,7 +19,8 @@ type builtSnake struct {
 func startBuiltSnake(t *testing.T) *builtSnake {
 	t.Helper()
 	binary := filepath.Join(t.TempDir(), "go-snake")
-	build := exec.Command("go", "build", "-trimpath", "-o", binary, ".")
+	goBinary := filepath.Join(runtime.GOROOT(), "bin", "go")
+	build := exec.Command(goBinary, "build", "-buildvcs=false", "-trimpath", "-o", binary, ".")
 	build.Env = append(build.Environ(), "GOTOOLCHAIN=local")
 	if output, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build actual entrypoint: %v\n%s", err, output)
