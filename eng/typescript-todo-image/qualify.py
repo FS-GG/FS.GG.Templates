@@ -250,7 +250,8 @@ def qualify_operation(args: argparse.Namespace, state: Path, reference: str, ima
         actual_id = immutable_sha(inspected["Image"], "operation image ID")
         record = {
             "event": "operation", "name": "compiled-browser-journey", "containerId": created.stdout.decode().strip(),
-            "imageId": actual_id, "containerUser": inspected["Config"]["User"], "exitCode": inspected["State"]["ExitCode"],
+            "buildReference": reference, "buildManifestDigest": image["Digest"], "imageId": actual_id,
+            "containerUser": inspected["Config"]["User"], "exitCode": inspected["State"]["ExitCode"],
             "stdoutSha256": hashlib.sha256(started.stdout).hexdigest(), "stderrSha256": hashlib.sha256(started.stderr).hexdigest(),
         }
         journal.touch(mode=0o600, exist_ok=True); os.chmod(journal, 0o600)
@@ -329,7 +330,7 @@ def oci_descriptor_blob(archive: tarfile.TarFile, members: dict[str, tarfile.Tar
     return digest, bytes(content) if content is not None else None
 
 
-def oci_archive_identity(path: Path) -> dict[str, object]:
+def oci_archive_identity(path: Path, expected_name: str) -> dict[str, object]:
     with tarfile.open(path, "r") as archive:
         members = oci_archive_members(archive)
         layout_member = members.get("oci-layout")
@@ -351,6 +352,9 @@ def oci_archive_identity(path: Path) -> dict[str, object]:
         if len(manifests) != 1:
             raise RuntimeError("OCI archive must contain exactly one manifest")
         manifest_descriptor = manifests[0]
+        annotations = manifest_descriptor.get("annotations")
+        if not isinstance(annotations, dict) or annotations.get("org.opencontainers.image.ref.name") != expected_name or "@" in expected_name:
+            raise RuntimeError("OCI index manifest does not retain the stable image name")
         index_platform = manifest_descriptor.get("platform")
         if index_platform is not None and (
             not isinstance(index_platform, dict)
@@ -371,22 +375,53 @@ def oci_archive_identity(path: Path) -> dict[str, object]:
         layers = manifest.get("layers")
         if not isinstance(layers, list) or not layers:
             raise RuntimeError("OCI manifest has no layers")
-        layer_digests = []
+        layer_descriptors = []
         for position, descriptor in enumerate(layers):
             digest, _ = oci_descriptor_blob(archive, members, descriptor, f"layer {position}")
-            layer_digests.append(digest)
+            layer_descriptors.append({"mediaType": descriptor["mediaType"], "digest": digest, "size": descriptor["size"]})
+        layer_digests = [descriptor["digest"] for descriptor in layer_descriptors]
         referenced_blobs = {f"blobs/sha256/{digest[7:]}" for digest in [manifest_digest, config_digest, *layer_digests]}
         archived_blobs = {name for name, member in members.items() if member.isfile() and name.startswith("blobs/")}
         if archived_blobs != referenced_blobs:
             raise RuntimeError("OCI archive blob inventory does not exactly match its descriptors")
-    return {"manifestDigest": manifest_digest, "configDigest": config_digest, "layerDigests": layer_digests}
+    return {
+        "name": expected_name,
+        "manifestDigest": manifest_digest, "manifestMediaType": manifest_descriptor["mediaType"], "manifestSize": manifest_descriptor["size"],
+        "configDigest": config_digest, "configMediaType": manifest["config"]["mediaType"], "configSize": manifest["config"]["size"],
+        "layerDigests": layer_digests, "layerDescriptors": layer_descriptors,
+    }
 
 
-def require_archive_image_binding(oci: dict[str, object], image: dict) -> None:
-    if oci["manifestDigest"] != image["Digest"]:
-        raise RuntimeError("exported OCI manifest digest does not match the qualified image digest")
+def require_archive_image_binding(oci: dict[str, object], image: dict, build_reference: str) -> None:
+    if build_reference != f"{IMAGE_NAME}@{image['Digest']}":
+        raise RuntimeError("build-store reference does not match the qualified image digest")
+    if oci.get("name") != IMAGE_NAME:
+        raise RuntimeError("exported OCI image name does not match the qualified build name")
     if oci["configDigest"] != image["Id"]:
         raise RuntimeError("exported OCI config digest does not match the qualified image ID")
+
+
+def qualification_identity_record(build_reference: str, image: dict, oci: dict[str, object], candidate: Path) -> dict[str, object]:
+    require_archive_image_binding(oci, image, build_reference)
+    return {
+        "buildStore": {
+            "name": IMAGE_NAME,
+            "reference": build_reference,
+            "manifestDigest": image["Digest"],
+            "imageId": image["Id"],
+        },
+        "archiveOci": {
+            "name": oci["name"],
+            "reference": f"{oci['name']}@{oci['manifestDigest']}",
+            "manifestDigest": oci["manifestDigest"],
+            "configDigest": oci["configDigest"],
+            "manifestMediaType": oci["manifestMediaType"], "manifestSize": oci["manifestSize"],
+            "configMediaType": oci["configMediaType"], "configSize": oci["configSize"],
+            "layerDigests": oci["layerDigests"], "layerDescriptors": oci["layerDescriptors"],
+            "candidate": str(candidate),
+            "candidateSha256": sha256_file(candidate),
+        },
+    }
 
 
 def main() -> int:
@@ -415,19 +450,18 @@ def main() -> int:
     podman = prefix(args)
     run(podman + ["build", "--pull=never", "--network=none", "--timestamp=0", "--platform=linux/amd64", "--format=oci", "--tag", IMAGE_NAME, "--file", str(context / "Containerfile"), str(context)], timeout=1200)
     image = inspect_image(podman, IMAGE_NAME)
-    reference = f"{IMAGE_NAME}@{image['Digest']}"
-    journal = qualify_operation(args, state, reference, image)
+    build_reference = f"{IMAGE_NAME}@{image['Digest']}"
+    journal = qualify_operation(args, state, build_reference, image)
     candidate = state / "typescript-todo-candidate.oci.tar"
-    run(podman + ["save", "--format=oci-archive", "--output", str(candidate), reference], timeout=900)
+    run(podman + ["save", "--format=oci-archive", "--output", str(candidate), IMAGE_NAME], timeout=900)
     if candidate.stat().st_size > MAX_CANDIDATE:
         raise RuntimeError(f"candidate exceeds {MAX_CANDIDATE} bytes")
-    oci = oci_archive_identity(candidate)
-    require_archive_image_binding(oci, image)
+    oci = oci_archive_identity(candidate, IMAGE_NAME)
+    identities = qualification_identity_record(build_reference, image, oci, candidate)
     result = {
         "schema": "fsgg.typescript-todo-image-qualification/1", "sourceRevision": revision, "sourceTree": tree,
         "inputsSha256": INPUTS_SHA256, "recipeSha256": RECIPE_SHA256, "entrypointSha256": ENTRYPOINT_SHA256,
-        "reference": reference, "imageId": image["Id"], **oci, "candidate": str(candidate),
-        "candidateSha256": sha256_file(candidate), "journal": str(journal), "journalSha256": sha256_file(journal),
+        **identities, "journal": str(journal), "journalSha256": sha256_file(journal),
         "operationResult": str(state / "run" / "output" / "result.json"),
         "operationResultSha256": sha256_file(state / "run" / "output" / "result.json"),
     }

@@ -67,6 +67,7 @@ class QualificationSourceTests(unittest.TestCase):
         index = json.dumps({"schemaVersion": 2, "manifests": [{
             "mediaType": "application/vnd.oci.image.manifest.v1+json", "digest": f"sha256:{manifest_digest}", "size": len(manifest),
             "platform": {"architecture": "amd64", "os": "linux"},
+            "annotations": {"org.opencontainers.image.ref.name": QUALIFY.IMAGE_NAME},
         }]}).encode()
         with tempfile.TemporaryDirectory() as temporary:
             archive_path = Path(temporary) / "candidate.tar"
@@ -74,10 +75,16 @@ class QualificationSourceTests(unittest.TestCase):
                 for name, value in (("oci-layout", b'{"imageLayoutVersion":"1.0.0"}'), ("index.json", index), (f"blobs/sha256/{manifest_digest}", manifest), (f"blobs/sha256/{config_digest}", config), (f"blobs/sha256/{layer_digest}", layer)):
                     info = tarfile.TarInfo(name); info.size = len(value)
                     archive.addfile(info, io.BytesIO(value))
-            self.assertEqual(QUALIFY.oci_archive_identity(archive_path), {
+            self.assertEqual(QUALIFY.oci_archive_identity(archive_path, QUALIFY.IMAGE_NAME), {
+                "name": QUALIFY.IMAGE_NAME,
                 "manifestDigest": f"sha256:{manifest_digest}",
+                "manifestMediaType": "application/vnd.oci.image.manifest.v1+json",
+                "manifestSize": len(manifest),
                 "configDigest": f"sha256:{config_digest}",
+                "configMediaType": "application/vnd.oci.image.config.v1+json",
+                "configSize": len(config),
                 "layerDigests": [f"sha256:{layer_digest}"],
+                "layerDescriptors": [{"mediaType": "application/vnd.oci.image.layer.v1.tar", "digest": f"sha256:{layer_digest}", "size": len(layer)}],
             })
 
     def test_oci_archive_identity_refuses_a_missing_referenced_layer(self):
@@ -86,7 +93,7 @@ class QualificationSourceTests(unittest.TestCase):
         missing_layer = hashlib.sha256(b"missing").hexdigest()
         manifest = json.dumps({"schemaVersion": 2, "config": {"mediaType": "application/vnd.oci.image.config.v1+json", "digest": f"sha256:{config_digest}", "size": len(config)}, "layers": [{"mediaType": "application/vnd.oci.image.layer.v1.tar", "digest": f"sha256:{missing_layer}", "size": 7}]}).encode()
         manifest_digest = hashlib.sha256(manifest).hexdigest()
-        index = json.dumps({"schemaVersion": 2, "manifests": [{"mediaType": "application/vnd.oci.image.manifest.v1+json", "digest": f"sha256:{manifest_digest}", "size": len(manifest), "platform": {"architecture": "amd64", "os": "linux"}}]}).encode()
+        index = json.dumps({"schemaVersion": 2, "manifests": [{"mediaType": "application/vnd.oci.image.manifest.v1+json", "digest": f"sha256:{manifest_digest}", "size": len(manifest), "platform": {"architecture": "amd64", "os": "linux"}, "annotations": {"org.opencontainers.image.ref.name": QUALIFY.IMAGE_NAME}}]}).encode()
         with tempfile.TemporaryDirectory() as temporary:
             archive_path = Path(temporary) / "candidate.tar"
             with tarfile.open(archive_path, "w") as archive:
@@ -94,7 +101,7 @@ class QualificationSourceTests(unittest.TestCase):
                     info = tarfile.TarInfo(name); info.size = len(value)
                     archive.addfile(info, io.BytesIO(value))
             with self.assertRaisesRegex(RuntimeError, "lacks layer 0 blob"):
-                QUALIFY.oci_archive_identity(archive_path)
+                QUALIFY.oci_archive_identity(archive_path, QUALIFY.IMAGE_NAME)
 
     def test_oci_descriptor_refuses_declared_size_and_content_digest_mismatch(self):
         value = b"blob bytes"
@@ -116,13 +123,49 @@ class QualificationSourceTests(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "content does not match"):
                     QUALIFY.oci_descriptor_blob(archive, QUALIFY.oci_archive_members(archive), {"mediaType": "test/blob", "digest": f"sha256:{wrong_digest}", "size": len(value)}, "test")
 
-    def test_changed_manifest_with_same_config_cannot_bind_to_local_image(self):
-        oci = {"manifestDigest": "sha256:" + "a" * 64, "configDigest": "sha256:" + "b" * 64}
-        QUALIFY.require_archive_image_binding(oci, {"Digest": oci["manifestDigest"], "Id": oci["configDigest"]})
-        with self.assertRaisesRegex(RuntimeError, "manifest digest"):
-            QUALIFY.require_archive_image_binding(oci, {"Digest": "sha256:" + "c" * 64, "Id": oci["configDigest"]})
+    def test_format_conversion_with_same_config_retains_two_bound_identities(self):
+        config_digest = "sha256:" + "b" * 64
+        layer_digest = "sha256:" + "d" * 64
+        docker_manifest = json.dumps({"schemaVersion": 2, "config": {"mediaType": "application/vnd.docker.container.image.v1+json", "digest": config_digest, "size": 42}, "layers": [{"mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip", "digest": layer_digest, "size": 84}]}, sort_keys=True).encode()
+        oci_manifest = json.dumps({"schemaVersion": 2, "config": {"mediaType": "application/vnd.oci.image.config.v1+json", "digest": config_digest, "size": 42}, "layers": [{"mediaType": "application/vnd.oci.image.layer.v1.tar+gzip", "digest": layer_digest, "size": 84}]}, sort_keys=True).encode()
+        oci = {
+            "name": QUALIFY.IMAGE_NAME, "manifestDigest": "sha256:" + hashlib.sha256(oci_manifest).hexdigest(),
+            "manifestMediaType": "application/vnd.oci.image.manifest.v1+json", "manifestSize": len(oci_manifest),
+            "configDigest": config_digest, "configMediaType": "application/vnd.oci.image.config.v1+json", "configSize": 42,
+            "layerDigests": [layer_digest], "layerDescriptors": [{"mediaType": "application/vnd.oci.image.layer.v1.tar+gzip", "digest": layer_digest, "size": 84}],
+        }
+        image = {"Digest": "sha256:" + hashlib.sha256(docker_manifest).hexdigest(), "Id": config_digest}
+        with tempfile.TemporaryDirectory() as temporary:
+            candidate = Path(temporary) / "candidate.tar"; candidate.write_bytes(b"archive")
+            record = QUALIFY.qualification_identity_record(f"{QUALIFY.IMAGE_NAME}@{image['Digest']}", image, oci, candidate)
+        self.assertEqual(record["buildStore"]["manifestDigest"], image["Digest"])
+        self.assertEqual(record["archiveOci"]["manifestDigest"], oci["manifestDigest"])
+        self.assertNotEqual(record["buildStore"]["manifestDigest"], record["archiveOci"]["manifestDigest"])
+        self.assertEqual(record["buildStore"]["imageId"], record["archiveOci"]["configDigest"])
+        self.assertEqual(record["archiveOci"]["reference"], f"{QUALIFY.IMAGE_NAME}@{oci['manifestDigest']}")
+        with self.assertRaisesRegex(RuntimeError, "build-store reference"):
+            QUALIFY.require_archive_image_binding(oci, image, f"{QUALIFY.IMAGE_NAME}@sha256:" + "f" * 64)
         with self.assertRaisesRegex(RuntimeError, "config digest"):
-            QUALIFY.require_archive_image_binding(oci, {"Digest": oci["manifestDigest"], "Id": "sha256:" + "c" * 64})
+            QUALIFY.require_archive_image_binding(oci, {"Digest": image["Digest"], "Id": "sha256:" + "e" * 64}, f"{QUALIFY.IMAGE_NAME}@{image['Digest']}")
+
+    def test_archive_refuses_digest_qualified_or_changed_index_name(self):
+        oci = {"name": f"{QUALIFY.IMAGE_NAME}@sha256:" + "a" * 64, "manifestDigest": "sha256:" + "c" * 64, "configDigest": "sha256:" + "b" * 64, "layerDigests": []}
+        image = {"Digest": "sha256:" + "c" * 64, "Id": oci["configDigest"]}
+        with self.assertRaisesRegex(RuntimeError, "image name"):
+            QUALIFY.require_archive_image_binding(oci, image, f"{QUALIFY.IMAGE_NAME}@{image['Digest']}")
+        manifest_digest = "a" * 64
+        index = json.dumps({"schemaVersion": 2, "manifests": [{
+            "mediaType": "application/vnd.oci.image.manifest.v1+json", "digest": f"sha256:{manifest_digest}", "size": 1,
+            "annotations": {"org.opencontainers.image.ref.name": f"{QUALIFY.IMAGE_NAME}@sha256:{manifest_digest}"},
+        }]}).encode()
+        with tempfile.TemporaryDirectory() as temporary:
+            archive_path = Path(temporary) / "wrong-name.tar"
+            with tarfile.open(archive_path, "w") as archive:
+                for name, value in (("oci-layout", b'{"imageLayoutVersion":"1.0.0"}'), ("index.json", index)):
+                    info = tarfile.TarInfo(name); info.size = len(value)
+                    archive.addfile(info, io.BytesIO(value))
+            with self.assertRaisesRegex(RuntimeError, "stable image name"):
+                QUALIFY.oci_archive_identity(archive_path, QUALIFY.IMAGE_NAME)
 
     def test_oci_archive_refuses_ambiguous_duplicate_members(self):
         with tempfile.TemporaryDirectory() as temporary:

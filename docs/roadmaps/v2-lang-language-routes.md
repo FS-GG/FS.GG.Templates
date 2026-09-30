@@ -68,12 +68,16 @@ The operation exposes no caller-controlled command. It mounts committed source r
 while retaining loopback for the served journey, and
 places compiled output, reports, cache, home, temporary browser profiles and retained browser state beneath
 scoped `/output`. Its result covers add, edit, complete, filter, delete, reload and malformed retained-state
-recovery. The qualifier binds the exact source revision and tree, local image ID and digest, exported OCI
-layout/index with unique safe members, manifest and config, and every referenced layer by descriptor media type,
-path, declared size and content hash. The archive blob inventory must exactly match those descriptors. The local
-image digest must equal the exported manifest digest, and the local image ID must equal the exported config
-digest. It also retains candidate archive, journal and operation-result hashes. Candidate and evidence custody
-is limited to the dedicated workflow artifact for 14 days; this checkpoint publishes or activates nothing.
+recovery. The qualifier binds the exact source revision and tree and separately retains the build-store name,
+digest-qualified reference, manifest digest and image ID used for the operation. OCI export can reserialize the
+manifest, so the exported archive has its own stable image-name annotation, manifest digest and digest-qualified
+OCI reference. Its layout/index has unique safe members; every manifest, config and layer descriptor is checked
+for media type, path, declared size and content hash, and the archive blob inventory must exactly match those
+descriptors. The exported config digest must equal the build-store image ID, while the two manifest digests are
+retained without assuming equality. Candidate archive, journal and operation-result hashes are also retained.
+A later fresh load must select the exported OCI identity and preserve its bound config digest. Candidate and
+evidence custody is limited to the dedicated workflow artifact for 14 days; this checkpoint publishes or
+activates nothing.
 
 Pipeline preflight remains static and precedes the costly base pull and image build. The workflow is one linear
 job with no fan-out, shared cache, evidence reuse, retry state or publication, so a separate state model would

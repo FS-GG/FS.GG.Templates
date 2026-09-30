@@ -31,5 +31,9 @@ python3 eng/typescript-todo-image/qualify.py qualify \
   --runroot /absolute/private/podman-runroot
 ```
 
-A source-only run is preparation. Qualification requires the exact-revision native result, candidate archive,
-OCI image ID and digest, and operation journal emitted by that command.
+A source-only run is preparation. Qualification requires the exact-revision native result and operation
+journal, the build-store name, digest-qualified reference and image ID used for that operation, and the
+exported archive's stable image name, OCI manifest reference, config and layer descriptors, and archive hash.
+OCI export may reserialize the manifest and therefore change its digest. Acceptance keeps both identities and
+requires the archive config digest to equal the build-store image ID. A later fresh load must select the
+exported OCI identity and preserve that config digest; this source checkpoint does not establish that result.
