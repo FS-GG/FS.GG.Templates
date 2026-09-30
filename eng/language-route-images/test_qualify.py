@@ -58,5 +58,17 @@ class ImmutableIdentityTests(unittest.TestCase):
                     qualifier.immutable_digest(value)
 
 
+class QualificationPlanTests(unittest.TestCase):
+    def test_go_compiler_scratch_uses_scoped_executable_output(self) -> None:
+        environment, commands = qualifier.qualification_plan("go")
+        self.assertIn("TMPDIR=/output", environment)
+        self.assertNotIn("TMPDIR=/tmp", environment)
+        self.assertEqual([("verify-and-entrypoint", "/bin/bash", ["scripts/verify.sh"])], commands)
+
+    def test_unknown_language_has_no_fallback_plan(self) -> None:
+        with self.assertRaises(RuntimeError):
+            qualifier.qualification_plan("unknown")
+
+
 if __name__ == "__main__":
     unittest.main()

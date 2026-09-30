@@ -272,13 +272,7 @@ def operation(podman: list[str], reference: str, image_id: str, kind: str, route
         run(podman + ["container", "rm", "--force", container], check=False)
 
 
-def qualify_image(args: argparse.Namespace, state: Path, kind: str, reference: str, image: dict) -> Path:
-    podman = prefix(args)
-    output = state / "runs" / kind / "output"
-    output.mkdir(parents=True, exist_ok=True, mode=0o755)
-    run(podman + ["unshare", "chown", "32768:32768", str(output)])
-    journal = output.parent / "journal.jsonl"
-    source = ROUTES[kind]
+def qualification_plan(kind: str) -> tuple[list[str], list[tuple[str, str, list[str]]]]:
     if kind == "rust":
         environment = ["HOME=/tmp", "PATH=/usr/local/bin:/usr/bin:/bin", "CARGO_HOME=/tmp/cargo", "CARGO_TARGET_DIR=/output/target", "CARGO_NET_OFFLINE=true", "LANG=C.UTF-8"]
         commands = [
@@ -286,9 +280,22 @@ def qualify_image(args: argparse.Namespace, state: Path, kind: str, reference: s
             ("clippy", "/usr/local/bin/cargo", ["clippy", "--all-targets", "--locked", "--", "-D", "warnings"]),
             ("format", "/usr/local/bin/cargo", ["fmt", "--check"]),
         ]
-    else:
-        environment = ["HOME=/tmp", "PATH=/usr/local/go/bin:/usr/bin:/bin", "FSGG_GO_BIN=/usr/local/go/bin/go", "GOTOOLCHAIN=local", "GOWORK=off", "GOPROXY=off", "GOSUMDB=off", "CGO_ENABLED=0", "LANG=C.UTF-8"]
+    elif kind == "go":
+        environment = ["HOME=/tmp", "TMPDIR=/output", "PATH=/usr/local/go/bin:/usr/bin:/bin", "FSGG_GO_BIN=/usr/local/go/bin/go", "GOTOOLCHAIN=local", "GOWORK=off", "GOPROXY=off", "GOSUMDB=off", "CGO_ENABLED=0", "LANG=C.UTF-8"]
         commands = [("verify-and-entrypoint", "/bin/bash", ["scripts/verify.sh"])]
+    else:
+        raise RuntimeError(f"unsupported language image: {kind}")
+    return environment, commands
+
+
+def qualify_image(args: argparse.Namespace, state: Path, kind: str, reference: str, image: dict) -> Path:
+    podman = prefix(args)
+    output = state / "runs" / kind / "output"
+    output.mkdir(parents=True, exist_ok=True, mode=0o755)
+    run(podman + ["unshare", "chown", "32768:32768", str(output)])
+    journal = output.parent / "journal.jsonl"
+    source = ROUTES[kind]
+    environment, commands = qualification_plan(kind)
     for name, executable, arguments in commands:
         operation(podman, reference, image["Id"], kind, source, output, name, executable, arguments, environment, journal)
     return journal
