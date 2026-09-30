@@ -20,8 +20,9 @@ those interactions are introduced.
 Local source checks do not claim native image success:
 
 ```console
+python3 -m unittest eng/language-route-images/test_qualify.py
 python3 eng/language-route-images/qualify.py check
-python3 -m py_compile eng/language-route-images/qualify.py
+python3 -m py_compile eng/language-route-images/qualify.py eng/language-route-images/test_qualify.py
 ```
 
 V2-LANG-01.5 binding remains gated by Coordination P2. These candidates do not establish portable executor

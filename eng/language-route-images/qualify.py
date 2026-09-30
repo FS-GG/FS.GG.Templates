@@ -8,6 +8,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -32,6 +33,7 @@ ROUTES = {
 }
 MAX_OUTPUT = 1024 * 1024
 MAX_CANDIDATE = 768 * 1024 * 1024
+SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
 def clean_host_environment() -> dict[str, str]:
@@ -60,6 +62,21 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def immutable_image_id(value: object) -> str:
+    if not isinstance(value, str):
+        raise RuntimeError("image ID is not a string")
+    bare = value.removeprefix("sha256:")
+    if not SHA256.fullmatch(bare):
+        raise RuntimeError("image ID is not a full lowercase SHA-256")
+    return f"sha256:{bare}"
+
+
+def immutable_digest(value: object) -> str:
+    if not isinstance(value, str) or not value.startswith("sha256:") or not SHA256.fullmatch(value[7:]):
+        raise RuntimeError("image digest is not a full lowercase SHA-256")
+    return value
 
 
 def run(argv: list[str], *, cwd: Path | None = None, check: bool = True, timeout: int = 180) -> subprocess.CompletedProcess[bytes]:
@@ -209,10 +226,12 @@ def build(args: argparse.Namespace, state: Path, inputs: dict, kind: str) -> tup
         timeout=900,
     )
     image = inspect_one(podman, kind, IMAGE_NAMES[kind])
-    digest = image.get("Digest")
-    image_id = image.get("Id", "")
-    if not isinstance(digest, str) or not digest.startswith("sha256:") or not image_id.startswith("sha256:"):
-        raise RuntimeError(f"{kind} image lacks immutable digest or ID")
+    try:
+        digest = immutable_digest(image.get("Digest"))
+        image_id = immutable_image_id(image.get("Id"))
+    except RuntimeError as error:
+        raise RuntimeError(f"{kind} image lacks immutable digest or ID") from error
+    image["Id"] = image_id
     return f"{IMAGE_NAMES[kind]}@{digest}", image
 
 
@@ -232,7 +251,10 @@ def operation(podman: list[str], reference: str, image_id: str, kind: str, route
         ])
         started = run(podman + ["start", "--attach", container], check=False, timeout=300)
         inspected = json.loads(run(podman + ["container", "inspect", container]).stdout)[0]
-        actual_id = inspected["Image"]
+        try:
+            actual_id = immutable_image_id(inspected["Image"])
+        except RuntimeError as error:
+            raise RuntimeError(f"{kind}/{name} container lacks an immutable image ID") from error
         actual_user = inspected["Config"]["User"]
         record = {
             "event": "operation", "kind": kind, "name": name,
