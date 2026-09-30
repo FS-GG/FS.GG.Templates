@@ -1,0 +1,103 @@
+name: Rust and Go language route image qualification
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/language-route-image-qualification.yml
+      - eng/language-route-images/**
+      - examples/language-routes/rust-tic-tac-toe/**
+      - examples/language-routes/go-snake/**
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/language-route-image-qualification.yml
+      - eng/language-route-images/**
+      - examples/language-routes/rust-tic-tac-toe/**
+      - examples/language-routes/go-snake/**
+
+permissions:
+  contents: read
+
+concurrency:
+  group: language-route-images-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  strict-rootless-qualification:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      RUST_BASE: docker.io/library/buildpack-deps@sha256:672aaedcfec98774308e902ae592697bc34b05d58f62104015cf3511f58e318a
+      GO_BASE: docker.io/library/debian@sha256:f3034a6ec3c1205360777c4aae76234998866ad18806ae62b63a3f84ccad782b
+      PODMAN_ROOT: /tmp/lri-root-${{ github.run_id }}-${{ github.run_attempt }}
+      PODMAN_RUNROOT: /tmp/lri-runroot-${{ github.run_id }}-${{ github.run_attempt }}
+      QUALIFICATION_STATE: /tmp/lri-state-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out the exact candidate without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Run static recipe and strict rootless preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git status --porcelain)"
+          command -v podman
+          install -d -m 0700 "$QUALIFICATION_STATE"
+          python3 eng/language-route-images/qualify.py preflight \
+            --expected-source-revision "$GITHUB_SHA" \
+            --state-dir "$QUALIFICATION_STATE" \
+            --root "$PODMAN_ROOT" \
+            --runroot "$PODMAN_RUNROOT" \
+            > "$QUALIFICATION_STATE/preflight-result.json"
+
+      - name: Pull only the approved immutable bases
+        shell: bash
+        run: |
+          set -euo pipefail
+          podman --storage-driver=vfs --root "$PODMAN_ROOT" --runroot "$PODMAN_RUNROOT" pull --platform linux/amd64 "$RUST_BASE"
+          podman --storage-driver=vfs --root "$PODMAN_ROOT" --runroot "$PODMAN_RUNROOT" pull --platform linux/amd64 "$GO_BASE"
+
+      - name: Build and qualify actual Rust and Go entrypoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 eng/language-route-images/qualify.py qualify \
+            --expected-source-revision "$GITHUB_SHA" \
+            --state-dir "$QUALIFICATION_STATE" \
+            --root "$PODMAN_ROOT" \
+            --runroot "$PODMAN_RUNROOT" \
+            > "$QUALIFICATION_STATE/qualification-result.json"
+
+      - name: Remove only scoped qualification containers
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -d -m 0700 "$QUALIFICATION_STATE"
+          mapfile -t containers < <(podman --storage-driver=vfs --root "$PODMAN_ROOT" --runroot "$PODMAN_RUNROOT" container ps --all --quiet --filter label=fsgg.language-route.qualification=true)
+          if (( ${#containers[@]} > 0 )); then
+            podman --storage-driver=vfs --root "$PODMAN_ROOT" --runroot "$PODMAN_RUNROOT" container rm --force "${containers[@]}"
+          fi
+          test -z "$(podman --storage-driver=vfs --root "$PODMAN_ROOT" --runroot "$PODMAN_RUNROOT" container ps --all --quiet --filter label=fsgg.language-route.qualification=true)"
+
+      - name: Retain bounded candidates and exact qualification evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: language-route-images-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            ${{ env.QUALIFICATION_STATE }}/*-candidate.oci.tar
+            ${{ env.QUALIFICATION_STATE }}/manifests/*.json
+            ${{ env.QUALIFICATION_STATE }}/preflight.json
+            ${{ env.QUALIFICATION_STATE }}/preflight-result.json
+            ${{ env.QUALIFICATION_STATE }}/qualification-result.json
+            ${{ env.QUALIFICATION_STATE }}/runs/*/journal.jsonl
+          if-no-files-found: warn
+          retention-days: 14
+          compression-level: 0
