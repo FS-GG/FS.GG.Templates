@@ -54,16 +54,18 @@ publication or installed receiver acceptance. Retain the exact joined head and h
 Source commit `6859ece6a0b94cea51444a5b5d13bc0303948900` prepares the dedicated image recipe, fixed
 qualification entry point, source contracts and strict workflow and is retained as the integration candidate's
 first commit. Review then tightened the OCI archive verifier to close every referenced layer before acceptance;
-the pinned recipe, inputs, fixed entry point and product fixture remain byte-identical to that source commit.
+the pinned recipe, inputs and product fixture remain byte-identical to that source commit. The fixed entry point
+later added a private umask and actual container uid/gid evidence for host-readable rootless custody.
 The inputs pin Node 24.8.0, TypeScript 5.9.2, Playwright 1.63.0, Chromium
 153.0.8010.12 revision 1243, the Linux amd64 Playwright base manifest, browser archives, npm packages and
 licence identities. Reviewed source digests are `995914cf786fb2021e2034171935b88cced44a05fe542662f8d91e9daa2fa8e9`
 for the input manifest, `d622348d58f7584d4214a921611bbd8ca976cd349098dc4978dedcf97b0b1553`
-for the recipe and `2943571089ce68a15085dc037fb60eac69eff8e8cc1ce81a1a1be84015f35e11`
+for the recipe and `2e297b09cda323601766eed8722de1319cf8f7501b0eb873cd01ca99cbf9d6db`
 for the fixed entry point.
 
 The operation exposes no caller-controlled command. It mounts committed source read only, runs as uid/gid
-`32768:32768`, disables external container networking while retaining loopback for the served journey, and
+`32768:32768` mapped by rootless `keep-id` to the calling host user, disables external container networking
+while retaining loopback for the served journey, and
 places compiled output, reports, cache, home, temporary browser profiles and retained browser state beneath
 scoped `/output`. Its result covers add, edit, complete, filter, delete, reload and malformed retained-state
 recovery. The qualifier binds the exact source revision and tree, local image ID and digest, exported OCI

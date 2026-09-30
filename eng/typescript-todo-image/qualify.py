@@ -11,6 +11,7 @@ from pathlib import Path
 from pathlib import PurePosixPath
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -23,7 +24,7 @@ IMAGE_DIR = ROOT / "eng" / "typescript-todo-image"
 FIXTURE = ROOT / "examples" / "language-routes" / "typescript-todo"
 INPUTS_SHA256 = "995914cf786fb2021e2034171935b88cced44a05fe542662f8d91e9daa2fa8e9"
 RECIPE_SHA256 = "d622348d58f7584d4214a921611bbd8ca976cd349098dc4978dedcf97b0b1553"
-ENTRYPOINT_SHA256 = "2943571089ce68a15085dc037fb60eac69eff8e8cc1ce81a1a1be84015f35e11"
+ENTRYPOINT_SHA256 = "2e297b09cda323601766eed8722de1319cf8f7501b0eb873cd01ca99cbf9d6db"
 IMAGE_NAME = "localhost/fsgg-typescript-todo:node-24.8.0-playwright-1.63.0"
 BASE_REFERENCE = "mcr.microsoft.com/playwright@sha256:bc6ab0d6d44ff4826e4cb8c1e6d801e185bfc42bb0753f8e2a30efc70db054c7"
 MAX_OUTPUT = 1024 * 1024
@@ -150,13 +151,14 @@ def preflight(args: argparse.Namespace, state: Path, expected: str) -> Path:
     for option in ("--network", "--pull", "--platform", "--timestamp", "--format"):
         if option not in build_help:
             raise RuntimeError(f"Podman build lacks required option {option}")
-    for option in ("--read-only", "--network", "--cap-drop", "--security-opt", "--user", "--unsetenv-all", "--volume", "--tmpfs"):
+    for option in ("--read-only", "--network", "--cap-drop", "--security-opt", "--userns", "--user", "--unsetenv-all", "--volume", "--tmpfs"):
         if option not in create_help:
             raise RuntimeError(f"Podman create lacks required option {option}")
     receipt = {
         "schema": "fsgg.typescript-todo-image-preflight/1", "sourceRevision": revision, "sourceTree": tree,
         "inputsSha256": INPUTS_SHA256, "recipeSha256": RECIPE_SHA256, "entrypointSha256": ENTRYPOINT_SHA256,
         "baseReference": BASE_REFERENCE, "platform": "linux/amd64", "rootless": True, "containerUser": "32768:32768",
+        "userNamespace": "keep-id:uid=32768,gid=32768", "hostOutputOwnership": "calling-user-private",
         "buildNetwork": "none", "executionNetwork": "container-loopback-only", "sourceMount": "read-only",
         "podmanVersion": run(podman + ["version", "--format", "{{.Client.Version}}"]).stdout.decode().strip(),
     }
@@ -208,7 +210,8 @@ def operation_create_argv(podman: list[str], reference: str, output: Path, conta
         "create", "--name", container,
         "--label=fsgg.typescript-todo.qualification=true",
         "--pull=never", "--read-only", "--network=none", "--cap-drop=all",
-        "--security-opt=no-new-privileges", "--user=32768:32768", "--unsetenv-all",
+        "--security-opt=no-new-privileges", "--userns=keep-id:uid=32768,gid=32768",
+        "--user=32768:32768", "--unsetenv-all",
         f"--volume={ROOT}:/source:ro", f"--volume={output}:/output:rw",
         "--tmpfs=/tmp:rw,noexec,nosuid,nodev,size=128m", "--tmpfs=/dev/shm:rw,nosuid,nodev,size=512m",
         "--workdir=/source/examples/language-routes/typescript-todo",
@@ -216,11 +219,28 @@ def operation_create_argv(podman: list[str], reference: str, output: Path, conta
     ]
 
 
+def validate_host_evidence(output: Path, *, host_uid: int | None = None, host_gid: int | None = None) -> None:
+    expected_uid = os.getuid() if host_uid is None else host_uid
+    expected_gid = os.getgid() if host_gid is None else host_gid
+    expected = ((output, 0o700), (output / "reports", 0o700), (output / "result.json", 0o600), (output / "reports" / "results.json", 0o600))
+    for path, mode in expected:
+        status = path.stat(follow_symlinks=False)
+        if status.st_uid != expected_uid or status.st_gid != expected_gid:
+            raise RuntimeError(f"host evidence ownership mismatch: {path}")
+        if status.st_mode & 0o777 != mode:
+            raise RuntimeError(f"host evidence mode mismatch: {path}")
+        if path.suffix == ".json":
+            if not stat.S_ISREG(status.st_mode):
+                raise RuntimeError(f"host evidence is not a regular file: {path}")
+        elif not stat.S_ISDIR(status.st_mode):
+            raise RuntimeError(f"host evidence is not a directory: {path}")
+
+
 def qualify_operation(args: argparse.Namespace, state: Path, reference: str, image: dict) -> Path:
     podman = prefix(args)
     output = state / "run" / "output"
-    output.mkdir(parents=True, exist_ok=True, mode=0o755)
-    run(podman + ["unshare", "chown", "32768:32768", str(output)])
+    output.mkdir(parents=True, exist_ok=True, mode=0o700)
+    os.chmod(output, 0o700)
     container = f"fsgg-typescript-todo-{uuid.uuid4().hex[:16]}"
     journal = output.parent / "journal.jsonl"
     try:
@@ -233,12 +253,14 @@ def qualify_operation(args: argparse.Namespace, state: Path, reference: str, ima
             "imageId": actual_id, "containerUser": inspected["Config"]["User"], "exitCode": inspected["State"]["ExitCode"],
             "stdoutSha256": hashlib.sha256(started.stdout).hexdigest(), "stderrSha256": hashlib.sha256(started.stderr).hexdigest(),
         }
+        journal.touch(mode=0o600, exist_ok=True); os.chmod(journal, 0o600)
         with journal.open("ab") as stream:
             stream.write(canonical(record)); stream.flush(); os.fsync(stream.fileno())
         if actual_id != image["Id"] or record["containerUser"] not in ("32768", "32768:32768"):
             raise RuntimeError("operation container identity mismatch")
         if started.returncode != 0 or record["exitCode"] != 0:
             raise RuntimeError("compiled browser journey failed")
+        validate_host_evidence(output)
         result = json.loads((output / "result.json").read_text())
         expected_journey = {name: "passed" for name in ("add", "edit", "complete", "filter", "delete", "reload", "malformedRetainedState")}
         expected_outputs = {"dist": "/output/dist", "reports": "/output/reports", "cache": "/output/cache", "retainedBrowserState": "/output/tmp"}
@@ -246,6 +268,7 @@ def qualify_operation(args: argparse.Namespace, state: Path, reference: str, ima
         if (
             result.get("schema") != "fsgg.typescript-todo-image-operation/1"
             or result.get("node") != "24.8.0" or result.get("typescript") != "5.9.2" or result.get("playwright") != "1.63.0"
+            or result.get("containerUid") != 32768 or result.get("containerGid") != 32768
             or result.get("sourceMount") != "read-only" or result.get("network") != "container-loopback-only"
             or result.get("outputs") != expected_outputs or result.get("journey") != expected_journey
             or browser.get("version") != "153.0.8010.12" or browser.get("revision") != "1243"

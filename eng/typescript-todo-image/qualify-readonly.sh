@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 source_root=/source/examples/language-routes/typescript-todo
 output_root=/output
@@ -50,6 +51,8 @@ node -e '
     node: process.versions.node,
     typescript: "5.9.2",
     playwright: "1.63.0",
+    containerUid: process.getuid(),
+    containerGid: process.getgid(),
     chromium: { version: "153.0.8010.12", revision: "1243", executableSha256: process.env.FSGG_BROWSER_EXECUTABLE_SHA256, licenseSha256: process.env.FSGG_BROWSER_LICENSE_SHA256 },
     sourceMount: "read-only",
     network: "container-loopback-only",

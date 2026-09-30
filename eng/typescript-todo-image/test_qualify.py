@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tarfile
 import tempfile
@@ -30,9 +31,27 @@ class QualificationSourceTests(unittest.TestCase):
         self.assertEqual(args[-2:], ["--entrypoint=/usr/local/bin/fsgg-typescript-todo-qualify", "image@sha256:" + "a" * 64])
         self.assertIn("--network=none", args)
         self.assertIn("--read-only", args)
+        self.assertIn("--userns=keep-id:uid=32768,gid=32768", args)
+        self.assertIn("--user=32768:32768", args)
         self.assertIn(f"--volume={QUALIFY.ROOT}:/source:ro", args)
         self.assertIn("--volume=/private/output:/output:rw", args)
         self.assertNotIn("/bin/bash", args)
+
+    def test_host_evidence_requires_private_calling_user_ownership(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "output"
+            reports = output / "reports"
+            reports.mkdir(parents=True, mode=0o700)
+            output.chmod(0o700); reports.chmod(0o700)
+            result = output / "result.json"; result.write_text("{}\n"); result.chmod(0o600)
+            report = reports / "results.json"; report.write_text("{}\n"); report.chmod(0o600)
+            QUALIFY.validate_host_evidence(output)
+            report.chmod(0o640)
+            with self.assertRaisesRegex(RuntimeError, "mode mismatch"):
+                QUALIFY.validate_host_evidence(output)
+            report.chmod(0o600)
+            with self.assertRaisesRegex(RuntimeError, "ownership mismatch"):
+                QUALIFY.validate_host_evidence(output, host_uid=0 if os.getuid() != 0 else 1)
 
     def test_oci_archive_identity_checks_manifest_and_config_closure(self):
         config = b'{"architecture":"amd64","os":"linux"}'

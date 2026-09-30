@@ -16,6 +16,14 @@ class SourceContractTests(unittest.TestCase):
         self.assertIn("test ! -w \"$source_root\"", adapter)
         self.assertIn("--test", adapter)
         self.assertIn("browser.spec.mjs", adapter)
+        self.assertIn("umask 077", adapter)
+
+    def test_rootless_operation_maps_fixed_container_user_to_calling_host_user(self):
+        qualifier = (IMAGE / "qualify.py").read_text()
+        self.assertIn('"--userns=keep-id:uid=32768,gid=32768"', qualifier)
+        self.assertIn('"--user=32768:32768"', qualifier)
+        self.assertNotIn('["unshare", "chown"', qualifier)
+        self.assertIn("validate_host_evidence(output)", qualifier)
 
     def test_fixture_and_image_describe_the_same_exact_toolchain(self):
         fixture = json.loads((FIXTURE / "toolchain-lock.json").read_text())

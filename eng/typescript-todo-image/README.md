@@ -9,7 +9,9 @@ the pinned Playwright base; the build does not download them again.
 The only runtime entry point is `fsgg-typescript-todo-qualify`. The qualifier supplies no caller-controlled
 command or arguments. It mounts the committed source at `/source` read only, disables container networking
 while preserving loopback for the local HTTP journey, and writes compilation, reports, caches, temporary
-browser profiles and its result only below `/output`.
+browser profiles and its result only below `/output`. Rootless `keep-id` maps the calling host user to the
+fixed container uid/gid `32768:32768`; private evidence therefore remains owned and readable by the calling
+user for validation, upload and scoped cleanup.
 
 Local checks validate source decisions and do not build or qualify an image:
 
