@@ -135,7 +135,13 @@ let main _ =
             use writer = new StreamWriter(entry.Open(), UTF8Encoding(false))
             writer.Write(body)
         add "FS.GG.Workspace.Template.nuspec" $"<package><metadata><id>FS.GG.Workspace.Template</id><version>0.17.0</version><repository commit=\"{revision}\" /></metadata></package>"
-        requiredEntries |> List.filter ((<>) omit) |> List.iter (fun name -> add name "fixture")
+        requiredEntries |> List.filter ((<>) omit) |> List.iter (fun name ->
+            let body =
+                if name.EndsWith("template.json") then """{"symbols":{"effectiveName":{"replaces":"FableGameWorkspace","fileRename":"FableGameWorkspace","parameters":{"sourceVariableName":"productNameTrimmed","fallbackVariableName":"name"}},"effectiveIdentifier":{"replaces":"FableGameWorkspaceNamespace","parameters":{"sourceVariableName":"rootNamespaceTrimmed","fallbackVariableName":"effectiveName"}}}}"""
+                elif name.EndsWith("FourDReference.fs") then "module FableGameWorkspaceNamespace.SvgFoundation.FourDReference"
+                elif name.EndsWith("two-client.spec.ts") then "const db = 'FableGameWorkspaceNamespace-svg-studio';"
+                else "fixture"
+            add name body)
         if duplicate then add requiredEntries.Head "again"
     let archive = Path.Combine(temp, "valid.nupkg")
     makeArchive archive "" false
@@ -184,26 +190,66 @@ let main _ =
     assertEqual "stale descriptor pin refuses" (Error "descriptor-source-refused")
         (validate { request archive with Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::0.16.0" } })
     let receiver = Path.Combine(temp, "receiver")
+    use receiverArchive = ZipFile.OpenRead archive
     for name in requiredEntries.Tail do
         let relative = name.Substring("content/templates/fs-gg-fable-game/".Length)
         let target = Path.Combine(receiver, relative.Replace('/', Path.DirectorySeparatorChar))
         Directory.CreateDirectory(Path.GetDirectoryName target) |> ignore
-        File.WriteAllText(target, "fixture")
-    assertEqual "direct none receiver exact package source closes" (Ok ()) (validateReceiver archive receiver "direct" "none" "1.2.3")
-    assertEqual "direct route cannot claim an unobserved lifecycle default" (Error "receiver-lifecycle-refused") (validateReceiver archive receiver "direct" "typed-sdd" "1.2.3")
+        let entry = receiverArchive.GetEntry name
+        use reader = new StreamReader(entry.Open(), UTF8Encoding(false, true))
+        File.WriteAllText(target, reader.ReadToEnd().Replace("FableGameWorkspaceNamespace", "ReferenceDirect"))
+    receiverArchive.Dispose()
+    File.WriteAllText(Path.Combine(receiver, "ReferenceDirect.slnx"), "fixture")
+    assertEqual "direct namespace transform closes exact package source" (Ok ()) (validateReceiver archive receiver "direct" "none" "1.2.3" "ReferenceDirect")
+    let fourDOutput = Path.Combine(receiver, "SvgFoundation", "FourDReference.fs")
+    let fourDBytes = File.ReadAllBytes fourDOutput
+    File.AppendAllText(fourDOutput, "x")
+    assertEqual "one-byte transformed source mutation refuses" (Error "receiver-source-closure-refused") (validateReceiver archive receiver "direct" "none" "1.2.3" "ReferenceDirect")
+    File.WriteAllBytes(fourDOutput, fourDBytes)
+    assertEqual "wrong trusted product name refuses" (Error "receiver-product-name-refused") (validateReceiver archive receiver "direct" "none" "1.2.3" "OtherName")
+    assertEqual "direct route cannot claim an unobserved lifecycle default" (Error "receiver-lifecycle-refused") (validateReceiver archive receiver "direct" "typed-sdd" "1.2.3" "ReferenceDirect")
     let provenance = Path.Combine(receiver, ".fsgg", "scaffold-provenance.json")
     Directory.CreateDirectory(Path.GetDirectoryName provenance) |> ignore
-    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","templateRef":"FS.GG.Workspace.Template::0.17.0","effectiveParameters":[{"key":"lifecycle","value":"typed-sdd"}]}""")
-    assertEqual "provider receiver binds generator provider source and omitted default" (Ok ()) (validateReceiver archive receiver "provider" "typed-sdd" "1.2.3")
-    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","providerName":"other","templateRef":"FS.GG.Workspace.Template::0.17.0","effectiveParameters":[{"key":"lifecycle","value":"typed-sdd"}]}""")
-    assertEqual "duplicate receiver provenance field refuses" (Error "receiver-provenance-duplicate-field-refused") (validateReceiver archive receiver "provider" "typed-sdd" "1.2.3")
+    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","templateRef":"FS.GG.Workspace.Template::0.17.0","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"typed-sdd"}]}""")
+    assertEqual "provider receiver binds generator provider source namespace and omitted default" (Ok ()) (validateReceiver archive receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
+    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","providerName":"other","templateRef":"FS.GG.Workspace.Template::0.17.0","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"typed-sdd"}]}""")
+    assertEqual "duplicate receiver provenance field refuses" (Error "receiver-provenance-duplicate-field-refused") (validateReceiver archive receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
     let toolArchive = Path.Combine(temp, "tool.nupkg")
     use toolZip = ZipFile.Open(toolArchive, ZipArchiveMode.Create)
     let toolNuspec = toolZip.CreateEntry("FS.GG.SDD.Cli.nuspec")
     use toolWriter = new StreamWriter(toolNuspec.Open(), UTF8Encoding(false))
     toolWriter.Write($"<package><metadata><id>FS.GG.SDD.Cli</id><version>1.2.3</version><repository commit=\"{revision}\" /></metadata></package>")
-    toolWriter.Dispose(); toolZip.Dispose()
-    assertEqual "published tool archive identity joins exact source" (Ok 1) (validatePackageIdentity toolArchive (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision)
+    toolWriter.Dispose()
+    let settings = toolZip.CreateEntry("tools/net10.0/any/DotnetToolSettings.xml")
+    use settingsWriter = new StreamWriter(settings.Open(), UTF8Encoding(false))
+    settingsWriter.Write("<DotNetCliTool Version=\"1\"><Commands><Command Name=\"fsgg-sdd\" EntryPoint=\"FS.GG.SDD.Cli.dll\" Runner=\"dotnet\" /></Commands></DotNetCliTool>")
+    settingsWriter.Dispose()
+    let core = toolZip.CreateEntry("tools/net10.0/any/FS.GG.SDD.Cli.dll")
+    use coreWriter = new StreamWriter(core.Open(), UTF8Encoding(false))
+    coreWriter.Write("core")
+    coreWriter.Dispose(); toolZip.Dispose()
+    assertEqual "published tool archive identity joins exact source" (Ok 3) (validatePackageIdentity toolArchive (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision)
     assertEqual "published tool wrong source refuses" (Error "package-source-revision-refused") (validatePackageIdentity toolArchive (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" (String.replicate 40 "b"))
+    let toolRoot = Path.Combine(temp, "tools")
+    let installedRoot = Path.Combine(toolRoot, ".store", "fs.gg.sdd.cli", "1.2.3", "fs.gg.sdd.cli", "1.2.3")
+    Directory.CreateDirectory(installedRoot) |> ignore
+    File.Copy(toolArchive, Path.Combine(installedRoot, "fs.gg.sdd.cli.1.2.3.nupkg"))
+    let installedCore = Path.Combine(installedRoot, "tools", "net10.0", "any", "FS.GG.SDD.Cli.dll")
+    Directory.CreateDirectory(Path.GetDirectoryName installedCore) |> ignore
+    File.WriteAllText(installedCore, "core")
+    File.WriteAllText(Path.Combine(toolRoot, "fsgg-sdd"), "launcher FS.GG.SDD.Cli.dll")
+    assertEqual "executed tool store joins exact served archive source core and launcher" (Ok 3)
+        (validateInstalledTool toolArchive toolRoot (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision "fsgg-sdd")
+    File.WriteAllText(installedCore, "changed")
+    assertEqual "changed installed tool core refuses" (Error "installed-tool-core-refused")
+        (validateInstalledTool toolArchive toolRoot (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision "fsgg-sdd")
+    File.WriteAllText(installedCore, "core")
+    File.WriteAllText(Path.Combine(toolRoot, "fsgg-sdd"), "unbound launcher")
+    assertEqual "launcher without declared entrypoint refuses" (Error "installed-tool-core-refused")
+        (validateInstalledTool toolArchive toolRoot (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision "fsgg-sdd")
+    File.WriteAllText(Path.Combine(toolRoot, "fsgg-sdd"), "launcher FS.GG.SDD.Cli.dll")
+    File.AppendAllText(Path.Combine(installedRoot, "fs.gg.sdd.cli.1.2.3.nupkg"), "changed")
+    assertEqual "changed installed tool archive refuses" (Error "installed-tool-archive-refused")
+        (validateInstalledTool toolArchive toolRoot (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision "fsgg-sdd")
     Directory.Delete(temp, true)
     0

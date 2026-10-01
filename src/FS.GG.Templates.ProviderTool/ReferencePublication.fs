@@ -38,6 +38,9 @@ let private refuse message = Error message
 let private sha256 path =
     use stream = File.OpenRead path
     Convert.ToHexString(SHA256.HashData stream).ToLowerInvariant()
+let private regularFile path =
+    File.Exists path
+    && not ((File.GetAttributes path &&& FileAttributes.ReparsePoint) = FileAttributes.ReparsePoint)
 
 let validatePackageIdentity (archive: string) (expectedSha: string) (expectedId: string) (expectedVersion: string) (expectedRevision: string) =
     if not (File.Exists archive) then refuse "input-file-missing"
@@ -60,6 +63,49 @@ let validatePackageIdentity (archive: string) (expectedSha: string) (expectedId:
             | _ -> refuse "package-nuspec-census-refused"
         with :? InvalidDataException -> refuse "archive-format-refused"
 
+let validateInstalledTool (archive: string) (toolRoot: string) (expectedSha: string) (expectedId: string) (expectedVersion: string) (expectedRevision: string) (commandName: string) =
+    match validatePackageIdentity archive expectedSha expectedId expectedVersion expectedRevision with
+    | Error reason -> Error reason
+    | Ok _ ->
+        let lowerId = expectedId.ToLowerInvariant()
+        let lowerVersion = expectedVersion.ToLowerInvariant()
+        let packageRoot = Path.Combine(toolRoot, ".store", lowerId, lowerVersion, lowerId, lowerVersion)
+        let installedArchive = Path.Combine(packageRoot, lowerId + "." + lowerVersion + ".nupkg")
+        let command = Path.Combine(toolRoot, commandName)
+        if not (Directory.Exists packageRoot) || not (regularFile installedArchive) || not (regularFile command) then refuse "installed-tool-custody-refused"
+        elif sha256 installedArchive <> expectedSha then refuse "installed-tool-archive-refused"
+        else
+            match validatePackageIdentity installedArchive expectedSha expectedId expectedVersion expectedRevision with
+            | Ok count ->
+                use package = ZipFile.OpenRead archive
+                let settings = package.Entries |> Seq.filter (fun e -> e.FullName.EndsWith("/DotnetToolSettings.xml", StringComparison.Ordinal)) |> Seq.toList
+                match settings with
+                | [ setting ] ->
+                    use stream = setting.Open()
+                    let doc = XDocument.Load stream
+                    let commands = doc.Descendants() |> Seq.filter (fun e -> e.Name.LocalName = "Command") |> Seq.toList
+                    match commands with
+                    | [ declared ] ->
+                        let attribute name = declared.Attribute(XName.Get name) |> Option.ofObj |> Option.map _.Value
+                        match attribute "Name", attribute "EntryPoint", attribute "Runner" with
+                        | Some declaredName, Some entryPoint, Some "dotnet" when declaredName = commandName ->
+                            let entryPrefix = setting.FullName.Substring(0, setting.FullName.LastIndexOf('/') + 1)
+                            let coreEntry = package.GetEntry(entryPrefix + entryPoint)
+                            let corePath = Path.Combine(packageRoot, (entryPrefix + entryPoint).Replace('/', Path.DirectorySeparatorChar))
+                            if isNull coreEntry || not (regularFile corePath) then refuse "installed-tool-core-refused"
+                            else
+                                use source = coreEntry.Open()
+                                use target = File.OpenRead corePath
+                                let coreMatches = SHA256.HashData(source).AsSpan().SequenceEqual(SHA256.HashData(target))
+                                let launcher = File.ReadAllBytes command
+                                let marker = Encoding.UTF8.GetBytes entryPoint
+                                let launcherNamesCore = launcher.AsSpan().IndexOf(marker.AsSpan()) >= 0
+                                if coreMatches && launcherNamesCore then Ok count else refuse "installed-tool-core-refused"
+                        | _ -> refuse "installed-tool-command-refused"
+                    | _ -> refuse "installed-tool-command-refused"
+                | _ -> refuse "installed-tool-settings-refused"
+            | Error reason -> Error reason
+
 let private uniqueObject (element: JsonElement) =
     let rec walk (value: JsonElement) =
         match value.ValueKind with
@@ -71,32 +117,81 @@ let private uniqueObject (element: JsonElement) =
         | _ -> true
     walk element
 
-let validateReceiver (archive: string) (receiver: string) (route: string) (expectedLifecycle: string) (expectedGeneratorVersion: string) =
+let validateReceiver (archive: string) (receiver: string) (route: string) (expectedLifecycle: string) (expectedGeneratorVersion: string) (productName: string) =
     if not (File.Exists archive) || not (Directory.Exists receiver) then refuse "receiver-input-missing"
     elif not ([ "direct"; "provider"; "wizard" ] |> List.contains route) then refuse "receiver-route-refused"
     elif not ([ "none"; "typed-sdd" ] |> List.contains expectedLifecycle) then refuse "receiver-lifecycle-refused"
     elif route = "direct" && expectedLifecycle <> "none" then refuse "receiver-lifecycle-refused"
+    elif not (Regex.IsMatch(productName, "^[A-Za-z_][A-Za-z0-9_']*$", RegexOptions.CultureInvariant)) then refuse "receiver-product-name-refused"
     else
         try
             use package = ZipFile.OpenRead archive
             let prefix = "content/templates/fs-gg-fable-game/"
-            let receiverExact =
+            let bytes (entry: ZipArchiveEntry) =
+                use stream = entry.Open()
+                use memory = new MemoryStream()
+                stream.CopyTo memory
+                memory.ToArray()
+            let templateEntry = package.GetEntry(prefix + ".template.config/template.json")
+            if isNull templateEntry then raise (InvalidDataException "template config missing")
+            use templateDoc = JsonDocument.Parse(bytes templateEntry)
+            let templateRoot = templateDoc.RootElement
+            let mutable symbols = Unchecked.defaultof<JsonElement>
+            let mutable effectiveName = Unchecked.defaultof<JsonElement>
+            let mutable effectiveIdentifier = Unchecked.defaultof<JsonElement>
+            let mutable nameReplaces = Unchecked.defaultof<JsonElement>
+            let mutable nameFileRename = Unchecked.defaultof<JsonElement>
+            let mutable nameParameters = Unchecked.defaultof<JsonElement>
+            let mutable nameSource = Unchecked.defaultof<JsonElement>
+            let mutable nameFallback = Unchecked.defaultof<JsonElement>
+            let mutable identifierReplaces = Unchecked.defaultof<JsonElement>
+            let mutable identifierParameters = Unchecked.defaultof<JsonElement>
+            let mutable identifierSource = Unchecked.defaultof<JsonElement>
+            let mutable identifierFallback = Unchecked.defaultof<JsonElement>
+            let templateContract =
+                uniqueObject templateRoot
+                && templateRoot.TryGetProperty("symbols", &symbols)
+                && symbols.TryGetProperty("effectiveName", &effectiveName)
+                && symbols.TryGetProperty("effectiveIdentifier", &effectiveIdentifier)
+                && effectiveName.TryGetProperty("replaces", &nameReplaces)
+                && effectiveIdentifier.TryGetProperty("replaces", &identifierReplaces)
+                && effectiveName.TryGetProperty("fileRename", &nameFileRename)
+                && effectiveName.TryGetProperty("parameters", &nameParameters)
+                && nameParameters.TryGetProperty("sourceVariableName", &nameSource)
+                && nameParameters.TryGetProperty("fallbackVariableName", &nameFallback)
+                && effectiveIdentifier.TryGetProperty("parameters", &identifierParameters)
+                && identifierParameters.TryGetProperty("sourceVariableName", &identifierSource)
+                && identifierParameters.TryGetProperty("fallbackVariableName", &identifierFallback)
+                && nameReplaces.GetString() = "FableGameWorkspace"
+                && nameFileRename.GetString() = "FableGameWorkspace"
+                && nameSource.GetString() = "productNameTrimmed"
+                && nameFallback.GetString() = "name"
+                && identifierReplaces.GetString() = "FableGameWorkspaceNamespace"
+                && identifierSource.GetString() = "rootNamespaceTrimmed"
+                && identifierFallback.GetString() = "effectiveName"
+            if not templateContract then raise (InvalidDataException "template transform contract refused")
+            let invariant =
+                [ "content/templates/fs-gg-fable-game/SvgFoundation/Examples/FourD/reference.json"
+                  "content/templates/fs-gg-fable-game/SvgFoundation/build.sh" ]
+            let transformed =
                 [ "content/templates/fs-gg-fable-game/SvgFoundation/FourDReference.fs"
-                  "content/templates/fs-gg-fable-game/SvgFoundation/Examples/FourD/reference.json"
-                  "content/templates/fs-gg-fable-game/SvgFoundation/build.sh"
                   "content/templates/fs-gg-fable-game/Browser.Tests/two-client.spec.ts" ]
+            let exact name expected =
+                let entry = package.GetEntry name
+                let relative = name.Substring(prefix.Length)
+                let output = Path.Combine(receiver, relative.Replace('/', Path.DirectorySeparatorChar))
+                if isNull entry || not (regularFile output) then false
+                else expected (bytes entry) (File.ReadAllBytes output)
+            let same (left: byte array) (right: byte array) = left.AsSpan().SequenceEqual right
+            let replaced (raw: byte array) (actual: byte array) =
+                let text = UTF8Encoding(false, true).GetString raw
+                if not (text.Contains("FableGameWorkspaceNamespace", StringComparison.Ordinal)) then false
+                else same (UTF8Encoding(false).GetBytes(text.Replace("FableGameWorkspaceNamespace", productName, StringComparison.Ordinal))) actual
             let mismatched =
-                receiverExact
-                |> List.exists (fun name ->
-                    let entry = package.GetEntry name
-                    let relative = name.Substring(prefix.Length)
-                    let output = Path.Combine(receiver, relative.Replace('/', Path.DirectorySeparatorChar))
-                    if isNull entry || not (File.Exists output) then true
-                    else
-                        use sourceStream = entry.Open()
-                        use targetStream = File.OpenRead output
-                        not (SHA256.HashData(sourceStream).AsSpan().SequenceEqual(SHA256.HashData(targetStream))) )
-            if mismatched then refuse "receiver-source-closure-refused"
+                (invariant |> List.exists (fun name -> not (exact name same)))
+                || (transformed |> List.exists (fun name -> not (exact name replaced)))
+            if not (regularFile (Path.Combine(receiver, productName + ".slnx"))) then refuse "receiver-product-name-refused"
+            elif mismatched then refuse "receiver-source-closure-refused"
             elif route = "direct" then Ok ()
             else
                 let provenancePath = Path.Combine(receiver, ".fsgg", "scaffold-provenance.json")
@@ -124,12 +219,21 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
                                     let mutable value = Unchecked.defaultof<JsonElement>
                                     if row.TryGetProperty("key", &key) && row.TryGetProperty("value", &value) && key.GetString() = "lifecycle" then Some(value.GetString()) else None)
                                 |> Seq.toList
+                            let parameter key =
+                                parameters.EnumerateArray()
+                                |> Seq.choose (fun row ->
+                                    let mutable actualKey = Unchecked.defaultof<JsonElement>
+                                    let mutable value = Unchecked.defaultof<JsonElement>
+                                    if row.TryGetProperty("key", &actualKey) && row.TryGetProperty("value", &value) && actualKey.GetString() = key then Some(value.GetString()) else None)
+                                |> Seq.toList
                             if not generatorOk || generatorId.GetString() <> "FS.GG.SDD.Artifacts" || generatorVersion.GetString() <> expectedGeneratorVersion then refuse "receiver-generator-refused"
                             elif providerName.GetString() <> "fable-game" || templateRef.GetString() <> source then refuse "receiver-provider-source-refused"
                             elif lifecycle <> [ expectedLifecycle ] then refuse "receiver-lifecycle-refused"
+                            elif parameter "productName" <> [ productName ] then refuse "receiver-product-name-refused"
                             else Ok ()
         with
         | :? JsonException -> refuse "receiver-provenance-json-refused"
+        | :? InvalidDataException as ex when ex.Message = "template transform contract refused" -> refuse "receiver-template-contract-refused"
         | :? InvalidDataException -> refuse "archive-format-refused"
 
 let private descriptorCheck (provider: Provider) =

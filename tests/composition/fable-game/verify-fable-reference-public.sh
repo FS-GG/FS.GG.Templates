@@ -80,6 +80,8 @@ dotnet tool install FS.GG.SDD.Cli --version "$sdd_version" --tool-path "$evidenc
 dotnet tool install FS.GG.NewSddWorkspace --version "$wizard_version" --tool-path "$evidence/tools/wizard" --configfile "$config" --no-cache
 dotnet tool list --tool-path "$evidence/tools/sdd" | awk -v v="$sdd_version" 'tolower($1)=="fs.gg.sdd.cli" && $2==v {ok=1} END{exit !ok}'
 dotnet tool list --tool-path "$evidence/tools/wizard" | awk -v v="$wizard_version" 'tolower($1)=="fs.gg.newsddworkspace" && $2==v {ok=1} END{exit !ok}'
+"${validator[@]}" installed-tool-check --archive "$sdd_archive" --tool-root "$evidence/tools/sdd" --sha256 "$sdd_sha" --package-id FS.GG.SDD.Cli --version "$sdd_version" --source-revision "$sdd_revision" --command-name fsgg-sdd
+"${validator[@]}" installed-tool-check --archive "$wizard_archive" --tool-root "$evidence/tools/wizard" --sha256 "$wizard_sha" --package-id FS.GG.NewSddWorkspace --version "$wizard_version" --source-revision "$wizard_revision" --command-name new-sdd-workspace
 
 # Omitted lifecycle must resolve to typed-sdd; explicit none remains none for every public route.
 dotnet new fs-gg-fable-game -n ReferenceDirect -o "$evidence/direct" --bundle complete --lifecycle none
@@ -89,10 +91,11 @@ for receiver in provider provider-none; do mkdir -p "$evidence/$receiver/.fsgg";
 PATH="$evidence/tools/sdd:$PATH" "$evidence/tools/wizard/new-sdd-workspace" "$evidence/wizard" ReferenceWizard --template fable-game --bundle complete --ref "$tag" --pinned --no-governance --no-coordination >"$evidence/wizard.log"
 PATH="$evidence/tools/sdd:$PATH" "$evidence/tools/wizard/new-sdd-workspace" "$evidence/wizard-none" ReferenceWizardNone --template fable-game --bundle complete --lifecycle none --ref "$tag" --pinned --no-governance --no-coordination >"$evidence/wizard-none.log"
 
-"${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/direct" --route direct --lifecycle none --sdd-version "$sdd_version"
+"${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/direct" --route direct --lifecycle none --sdd-version "$sdd_version" --product-name ReferenceDirect
 for route in provider wizard; do
-  "${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/$route" --route "$route" --lifecycle typed-sdd --sdd-version "$sdd_version"
-  "${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/$route-none" --route "$route" --lifecycle none --sdd-version "$sdd_version"
+  if [[ "$route" == provider ]]; then product=ReferenceProvider; none_product=ReferenceProviderNone; else product=ReferenceWizard; none_product=ReferenceWizardNone; fi
+  "${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/$route" --route "$route" --lifecycle typed-sdd --sdd-version "$sdd_version" --product-name "$product"
+  "${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/$route-none" --route "$route" --lifecycle none --sdd-version "$sdd_version" --product-name "$none_product"
 done
 for route in direct provider wizard; do
   (cd "$evidence/$route" && QUINT_BIN="$QUINT_BIN" bash build.sh) >"$evidence/$route-build.log" 2>&1

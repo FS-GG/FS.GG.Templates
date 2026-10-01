@@ -370,10 +370,16 @@ let main argv =
             match ReferencePublication.validatePackageIdentity parsed.["--archive"] parsed.["--sha256"] parsed.["--package-id"] parsed.["--version"] parsed.["--source-revision"] with
             | Ok count -> printfn "published tool: valid — %d archive entries" count; 0
             | Error reason -> fail reason
-        | "reference-receiver-check" :: tail ->
-            let requiredNames = [ "--archive"; "--receiver"; "--route"; "--lifecycle"; "--sdd-version" ]
+        | "installed-tool-check" :: tail ->
+            let requiredNames = [ "--archive"; "--tool-root"; "--sha256"; "--package-id"; "--version"; "--source-revision"; "--command-name" ]
             let parsed = parseClosedOptions requiredNames tail
-            match ReferencePublication.validateReceiver parsed.["--archive"] parsed.["--receiver"] parsed.["--route"] parsed.["--lifecycle"] parsed.["--sdd-version"] with
+            match ReferencePublication.validateInstalledTool parsed.["--archive"] parsed.["--tool-root"] parsed.["--sha256"] parsed.["--package-id"] parsed.["--version"] parsed.["--source-revision"] parsed.["--command-name"] with
+            | Ok count -> printfn "installed tool: valid — %d archive entries" count; 0
+            | Error reason -> fail reason
+        | "reference-receiver-check" :: tail ->
+            let requiredNames = [ "--archive"; "--receiver"; "--route"; "--lifecycle"; "--sdd-version"; "--product-name" ]
+            let parsed = parseClosedOptions requiredNames tail
+            match ReferencePublication.validateReceiver parsed.["--archive"] parsed.["--receiver"] parsed.["--route"] parsed.["--lifecycle"] parsed.["--sdd-version"] parsed.["--product-name"] with
             | Ok () -> printfn "reference receiver: valid — %s %s" parsed.["--route"] parsed.["--lifecycle"]; 0
             | Error reason -> fail reason
         | _ ->
