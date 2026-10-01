@@ -6,6 +6,8 @@ open System.Net.Http
 open System.Text
 open System.Text.RegularExpressions
 open FsGgTemplates.ProviderComposition
+open FsGgTemplates.ReferencePublication
+open FsGgTemplates.FeedOccupancy
 
 let private fail message = raise (InvalidDataException message)
 let private pattern value = Regex(value, RegexOptions.CultureInvariant)
@@ -47,7 +49,7 @@ let private read path =
     try File.ReadAllText(path, UTF8Encoding(false, true))
     with :? DecoderFallbackException as ex -> fail $"{path}: is not valid UTF-8 ({ex.Message})"
 
-let private parseDescriptor path =
+let parseDescriptor path =
     let lines = (read path).Split('\n')
     let providers = ResizeArray<Provider>()
     let mutable current: Map<string, string> option = None
@@ -318,6 +320,65 @@ let private optionValue name args fallback =
     | Some _ -> fail $"{name} needs a value"
     | None -> fallback
 
+let parseClosedOptions (allowed: string list) (tokens: string list) =
+    let rec loop remaining found =
+        match remaining with
+        | [] -> found
+        | name :: value :: tail when allowed |> List.contains name ->
+            if value = "" || value.StartsWith("--", StringComparison.Ordinal) then fail $"{name} needs a value"
+            elif found |> Map.containsKey name then fail $"duplicate option {name}"
+            else loop tail (found.Add(name, value))
+        | name :: _ when allowed |> List.contains name -> fail $"{name} needs a value"
+        | name :: _ -> fail $"unknown option {name}"
+    let parsed = loop tokens Map.empty
+    allowed |> List.iter (fun name -> if not (parsed.ContainsKey name) then fail $"{name} needs a value")
+    parsed
+
+let private requiredEnvironment name =
+    match Environment.GetEnvironmentVariable name with
+    | null | "" -> fail $"environment variable {name} is required"
+    | value -> value
+
+let private feedOccupancy version =
+    let token = requiredEnvironment "GITHUB_TOKEN"
+    let sha = requiredEnvironment "GITHUB_SHA"
+    let tree = requiredEnvironment "FSGG_CHECKOUT_TREE"
+    if not (Regex.IsMatch(sha, "^[0-9a-f]{40}$", RegexOptions.CultureInvariant)) then fail "GITHUB_SHA must be a lowercase 40-character commit"
+    if not (Regex.IsMatch(tree, "^[0-9a-f]{40}$", RegexOptions.CultureInvariant)) then fail "FSGG_CHECKOUT_TREE must be a lowercase 40-character tree"
+    let repository = requiredEnvironment "GITHUB_REPOSITORY"
+    let workflow = requiredEnvironment "GITHUB_WORKFLOW"
+    let workflowRef = requiredEnvironment "GITHUB_WORKFLOW_REF"
+    let eventName = requiredEnvironment "GITHUB_EVENT_NAME"
+    if repository <> FeedOccupancy.Repository then fail "GITHUB_REPOSITORY is not the fixed occupancy repository"
+    if workflow <> "release" then fail "GITHUB_WORKFLOW is not the release workflow"
+    if not (workflowRef.StartsWith(FeedOccupancy.Repository + "/.github/workflows/release.yml@", StringComparison.Ordinal)) then
+        fail "GITHUB_WORKFLOW_REF is not the release workflow"
+    if eventName <> "workflow_dispatch" then fail "feed-occupancy requires workflow_dispatch"
+    let context: Context = {
+        Repository = repository
+        Workflow = workflow
+        WorkflowRef = workflowRef
+        EventName = eventName
+        RunId = requiredEnvironment "GITHUB_RUN_ID"
+        RunAttempt = requiredEnvironment "GITHUB_RUN_ATTEMPT"
+        CheckoutSha = sha
+        CheckoutTree = tree
+    }
+    match FeedOccupancy.inspectWith FeedOccupancy.DefaultLimits (FeedOccupancy.httpTransport token) context version with
+    | Error reason -> fail reason
+    | Ok receipt ->
+        let json = FeedOccupancy.receiptJson receipt
+        match Environment.GetEnvironmentVariable "FSGG_OCCUPANCY_RECEIPT" with
+        | null | "" -> printf "%s" json
+        | path -> File.WriteAllText(path, json, UTF8Encoding(false))
+        match Environment.GetEnvironmentVariable "GITHUB_STEP_SUMMARY" with
+        | null | "" -> ()
+        | path -> File.AppendAllText(path, FeedOccupancy.summary receipt, UTF8Encoding(false))
+        match receipt.Overall with
+        | Verdict.Absent -> 0
+        | Verdict.Occupied -> 3
+        | Verdict.Unknown -> 4
+
 [<EntryPoint>]
 let main argv =
     try
@@ -334,8 +395,44 @@ let main argv =
         | "workspace-check" :: _ ->
             workspaceCheck providers (optionValue "--workspace" args "") (optionValue "--registry" args registryUrl)
             0
+        | "reference-publication-check" :: tail ->
+            let requiredNames = [ "--archive"; "--descriptor"; "--sha256"; "--source-revision"; "--tag-revision"; "--descriptor-sha256" ]
+            let parsed = parseClosedOptions requiredNames tail
+            let providers = parseDescriptor parsed.["--descriptor"]
+            if providers.Length <> 1 then fail "descriptor must contain exactly one provider"
+            match ReferencePublication.validate {
+                Archive = parsed.["--archive"]
+                Descriptor = parsed.["--descriptor"]
+                ExpectedSha256 = parsed.["--sha256"]
+                ExpectedRevision = parsed.["--source-revision"]
+                ExpectedTagRevision = parsed.["--tag-revision"]
+                ExpectedDescriptorSha256 = parsed.["--descriptor-sha256"]
+                Provider = providers.Head } with
+            | Ok count -> printfn "reference publication: valid — %d unique archive entries" count; 0
+            | Error reason -> fail reason
+        | "published-tool-check" :: tail ->
+            let requiredNames = [ "--archive"; "--sha256"; "--package-id"; "--version"; "--source-revision" ]
+            let parsed = parseClosedOptions requiredNames tail
+            match ReferencePublication.validatePackageIdentity parsed.["--archive"] parsed.["--sha256"] parsed.["--package-id"] parsed.["--version"] parsed.["--source-revision"] with
+            | Ok count -> printfn "published tool: valid — %d archive entries" count; 0
+            | Error reason -> fail reason
+        | "installed-tool-check" :: tail ->
+            let requiredNames = [ "--archive"; "--tool-root"; "--sha256"; "--package-id"; "--version"; "--source-revision"; "--command-name" ]
+            let parsed = parseClosedOptions requiredNames tail
+            match ReferencePublication.validateInstalledTool parsed.["--archive"] parsed.["--tool-root"] parsed.["--sha256"] parsed.["--package-id"] parsed.["--version"] parsed.["--source-revision"] parsed.["--command-name"] with
+            | Ok tool -> printfn "%s" tool.CorePath; 0
+            | Error reason -> fail reason
+        | "reference-receiver-check" :: tail ->
+            let requiredNames = [ "--archive"; "--receiver"; "--route"; "--lifecycle"; "--sdd-version"; "--product-name" ]
+            let parsed = parseClosedOptions requiredNames tail
+            match ReferencePublication.validateReceiver parsed.["--archive"] parsed.["--receiver"] parsed.["--route"] parsed.["--lifecycle"] parsed.["--sdd-version"] parsed.["--product-name"] with
+            | Ok () -> printfn "reference receiver: valid — %s %s" parsed.["--route"] parsed.["--lifecycle"]; 0
+            | Error reason -> fail reason
+        | "feed-occupancy" :: tail ->
+            let parsed = parseClosedOptions [ "--version" ] tail
+            feedOccupancy parsed.["--version"]
         | _ ->
-            eprintfn "usage: ProviderTool grade [--providers DIR] [--registry PATH|URL] | effective-check [--provider FILE] | workspace-check --workspace FILE [--providers DIR]"
+            eprintfn "usage: ProviderTool grade ... | effective-check ... | workspace-check ... | reference-publication-check ... | published-tool-check ... | feed-occupancy --version <stable-version>"
             2
     with ex ->
         eprintfn "provider-tool: %s" ex.Message

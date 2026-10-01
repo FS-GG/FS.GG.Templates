@@ -1,0 +1,107 @@
+name: Fable reference public qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      archive_sha256: { description: Exact nuget.org FS.GG.Workspace.Template 0.17.0 archive SHA-256, required: true, type: string }
+      descriptor_sha256: { description: Exact protected fable-game provider descriptor SHA-256, required: true, type: string }
+      source_revision: { description: Exact protected Templates commit carried by the package, required: true, type: string }
+      tag_revision: { description: Peeled immutable fs-gg-templates/v0.17.0 revision, required: true, type: string }
+      sdd_version: { description: Exact published FS.GG.SDD.Cli version, required: true, type: string }
+      sdd_archive_sha256: { description: Exact public FS.GG.SDD.Cli archive SHA-256, required: true, type: string }
+      sdd_source_revision: { description: Exact FS.GG.SDD.Cli nuspec source revision, required: true, type: string }
+      wizard_version: { description: Exact published FS.GG.NewSddWorkspace version, required: true, type: string }
+      wizard_archive_sha256: { description: Exact public wizard archive SHA-256, required: true, type: string }
+      wizard_source_revision: { description: Exact wizard nuspec source revision, required: true, type: string }
+
+permissions:
+  contents: read
+
+jobs:
+  public-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    env:
+      ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
+      DESCRIPTOR_SHA256: ${{ inputs.descriptor_sha256 }}
+      SOURCE_REVISION: ${{ inputs.source_revision }}
+      TAG_REVISION: ${{ inputs.tag_revision }}
+      SDD_VERSION: ${{ inputs.sdd_version }}
+      SDD_ARCHIVE_SHA256: ${{ inputs.sdd_archive_sha256 }}
+      SDD_SOURCE_REVISION: ${{ inputs.sdd_source_revision }}
+      WIZARD_VERSION: ${{ inputs.wizard_version }}
+      WIZARD_ARCHIVE_SHA256: ${{ inputs.wizard_archive_sha256 }}
+      WIZARD_SOURCE_REVISION: ${{ inputs.wizard_source_revision }}
+    steps:
+      - name: Resolve runner qualification paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'EVIDENCE_DIR=%s/fable-reference-public\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'QUINT_BIN=%s/fable-reference-tools/quint\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.401'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '26.10.0'
+      - name: Preflight closed public inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tests/composition/fable-game/verify-fable-reference-public.sh
+          args=(--sha256 "$ARCHIVE_SHA256" --descriptor-sha256 "$DESCRIPTOR_SHA256" --source-revision "$SOURCE_REVISION" --tag-revision "$TAG_REVISION" --sdd-version "$SDD_VERSION" --sdd-sha256 "$SDD_ARCHIVE_SHA256" --sdd-source-revision "$SDD_SOURCE_REVISION" --wizard-version "$WIZARD_VERSION" --wizard-sha256 "$WIZARD_ARCHIVE_SHA256" --wizard-source-revision "$WIZARD_SOURCE_REVISION" --evidence-dir "$RUNNER_TEMP/fable-reference-preflight")
+          tests/composition/fable-game/verify-fable-reference-public.sh "${args[@]}" --preflight-only
+          marker="$RUNNER_TEMP/fable-reference-input-executed"
+          malicious="1.0.0'\$(touch $marker)'"
+          if tests/composition/fable-game/verify-fable-reference-public.sh \
+            --sha256 "$ARCHIVE_SHA256" --descriptor-sha256 "$DESCRIPTOR_SHA256" \
+            --source-revision "$SOURCE_REVISION" --tag-revision "$TAG_REVISION" \
+            --sdd-version "$malicious" --sdd-sha256 "$SDD_ARCHIVE_SHA256" --sdd-source-revision "$SDD_SOURCE_REVISION" \
+            --wizard-version "$WIZARD_VERSION" --wizard-sha256 "$WIZARD_ARCHIVE_SHA256" --wizard-source-revision "$WIZARD_SOURCE_REVISION" \
+            --evidence-dir "$RUNNER_TEMP/fable-reference-malicious" --preflight-only 2>/dev/null; then exit 1; fi
+          test ! -e "$marker"
+      - name: Initialize retained qualification evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -m 700 "$EVIDENCE_DIR"
+          printf '{"schema":"fable-reference-public/1","disposition":"started"}\n' >"$EVIDENCE_DIR/qualification.json"
+      - name: Pin npm and Quint
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global npm@12.1.0
+          test "$(npm --version)" = 12.1.0
+          mkdir -m 700 "$RUNNER_TEMP/fable-reference-tools"
+          curl --fail --location --retry 3 https://github.com/quint-co/quint/releases/download/v0.32.0/quint-linux-amd64 --output "$QUINT_BIN"
+          echo "939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f  $QUINT_BIN" | sha256sum --check --strict
+          chmod 700 "$QUINT_BIN"
+          test "$($QUINT_BIN --version)" = 0.32.0
+      - name: Qualify exact public archive through direct, provider, and wizard receivers
+        shell: bash
+        run: |
+          set -euo pipefail
+          export DOTNET_HOST_PATH="$DOTNET_ROOT/dotnet"
+          "$DOTNET_HOST_PATH" restore src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj --locked-mode
+          tests/composition/fable-game/verify-fable-reference-public.sh \
+            --sha256 "$ARCHIVE_SHA256" --descriptor-sha256 "$DESCRIPTOR_SHA256" \
+            --source-revision "$SOURCE_REVISION" --tag-revision "$TAG_REVISION" \
+            --sdd-version "$SDD_VERSION" --sdd-sha256 "$SDD_ARCHIVE_SHA256" --sdd-source-revision "$SDD_SOURCE_REVISION" \
+            --wizard-version "$WIZARD_VERSION" --wizard-sha256 "$WIZARD_ARCHIVE_SHA256" --wizard-source-revision "$WIZARD_SOURCE_REVISION" \
+            --evidence-dir "$EVIDENCE_DIR"
+      - name: Retain bounded public qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fable-reference-public-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/fable-reference-public/qualification.json
+            ${{ runner.temp }}/fable-reference-public/readback.sha256
+            ${{ runner.temp }}/fable-reference-public/*-build.log
+            ${{ runner.temp }}/fable-reference-public/*-browser.log
+            ${{ runner.temp }}/fable-reference-public/*-none.json
+            ${{ runner.temp }}/fable-reference-public/provider.json
+          if-no-files-found: warn
+          retention-days: 90

@@ -1,6 +1,39 @@
 open FsGgTemplates.ProviderComposition
+open FsGgTemplates.ReferencePublication
+open FsGgTemplates.FeedOccupancy
 open System
+open System.IO
+open System.IO.Compression
+open System.Diagnostics
+open System.Net
+open System.Net.Http
 open System.Security.Cryptography
+open System.Text
+open System.Threading
+open System.Threading.Tasks
+open FsGgTemplates.ProviderTool
+
+type private StallingStream(cancelled: TaskCompletionSource<bool>) =
+    inherit Stream()
+    override _.CanRead = true
+    override _.CanSeek = false
+    override _.CanWrite = false
+    override _.Length = raise (NotSupportedException())
+    override _.Position with get () = raise (NotSupportedException()) and set _ = raise (NotSupportedException())
+    override _.Flush() = ()
+    override _.Read(_, _, _) = Thread.Sleep(600); 0
+    override _.ReadAsync(buffer: Memory<byte>, cancellationToken: CancellationToken) =
+        ValueTask<int>(task {
+            try
+                do! Task.Delay(Timeout.Infinite, cancellationToken)
+                return 0
+            with :? OperationCanceledException as ex ->
+                cancelled.TrySetResult(true) |> ignore
+                return raise ex
+        })
+    override _.Seek(_, _) = raise (NotSupportedException())
+    override _.SetLength(_) = raise (NotSupportedException())
+    override _.Write(_, _, _) = raise (NotSupportedException())
 
 let productName: Parameter = { Key = "productName"; Required = true; Default = None }
 let lifecycle: Parameter = { Key = "lifecycle"; Required = false; Default = Some "sdd" }
@@ -25,6 +58,16 @@ let assertEqual name expected actual =
 
 [<EntryPoint>]
 let main _ =
+    assertEqual "closed CLI options accept each known option exactly once"
+        (Map.ofList [ "--archive", "a"; "--sha256", "b" ])
+        (parseClosedOptions [ "--archive"; "--sha256" ] [ "--archive"; "a"; "--sha256"; "b" ])
+    let refuses name action =
+        try action (); failwithf "%s: expected refusal" name
+        with :? InvalidDataException -> printfn "PASS %s" name
+    refuses "closed CLI options refuse duplicates" (fun () -> parseClosedOptions [ "--archive" ] [ "--archive"; "a"; "--archive"; "b" ] |> ignore)
+    refuses "closed CLI options refuse unknowns" (fun () -> parseClosedOptions [ "--archive" ] [ "--archive"; "a"; "--extra"; "b" ] |> ignore)
+    refuses "feed occupancy CLI refuses duplicate version option" (fun () -> parseClosedOptions [ "--version" ] [ "--version"; "0.17.0"; "--version"; "0.18.0" ] |> ignore)
+    refuses "feed occupancy CLI refuses unknown option" (fun () -> parseClosedOptions [ "--version" ] [ "--candidate"; "0.17.0" ] |> ignore)
     let selected = select known known
     assertEqual "two known providers compose" (Ok known) selected
     assertEqual "subset keeps requested identity" (Ok [ beta ]) (select known [ beta ])
@@ -102,4 +145,277 @@ let main _ =
           "# Review this block for the current selection; the release narrative remains in PIN HISTORY."
           "# effective[1]: name=alpha | template=fs-gg-alpha | source=Alpha.Template::1.0.0 | contract=1.1.0"
           "# effective[2]: name=beta | template=fs-gg-beta | source=Beta.Template::2.0.0 | contract=1.1.0" ] rendered
+    let temp = Path.Combine(Path.GetTempPath(), "fsgg-reference-publication-" + Guid.NewGuid().ToString("N"))
+    Directory.CreateDirectory temp |> ignore
+    let descriptor = Path.Combine(temp, "fable-game.providers.yml")
+    File.WriteAllText(descriptor, "schemaVersion: 1\nproviders:\n  - name: fable-game\n    contractVersion: \"1.1.0\"\n    templateId: fs-gg-fable-game\n    source: FS.GG.Workspace.Template::0.17.0\n    nameParameter: productName\n    minimumFsggSdd:\n      version: \"1.4.0-preview.1\"\n    parameters:\n      - key: lifecycle\n        required: false\n        default: typed-sdd\n", UTF8Encoding(false))
+    let revision = String.replicate 40 "a"
+    let requiredEntries =
+        [ "content/templates/fs-gg-fable-game/.template.config/template.json"
+          "content/templates/fs-gg-fable-game/SvgFoundation/FourDReference.fs"
+          "content/templates/fs-gg-fable-game/SvgFoundation/Examples/FourD/reference.json"
+          "content/templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj"
+          "content/templates/fs-gg-fable-game/SvgFoundation/Program.fs"
+          "content/templates/fs-gg-fable-game/SvgFoundation/build.sh"
+          "content/templates/fs-gg-fable-game/Browser.Tests/two-client.spec.ts" ]
+    let makeArchive path omit duplicate =
+        use zip = ZipFile.Open(path, ZipArchiveMode.Create)
+        let add (name: string) (body: string) =
+            let entry = zip.CreateEntry(name)
+            use writer = new StreamWriter(entry.Open(), UTF8Encoding(false))
+            writer.Write(body)
+        add "FS.GG.Workspace.Template.nuspec" $"<package><metadata><id>FS.GG.Workspace.Template</id><version>0.17.0</version><repository commit=\"{revision}\" /></metadata></package>"
+        requiredEntries |> List.filter ((<>) omit) |> List.iter (fun name ->
+            let body =
+                if name.EndsWith("template.json") then """{"symbols":{"effectiveName":{"replaces":"FableGameWorkspace","fileRename":"FableGameWorkspace","parameters":{"sourceVariableName":"productNameTrimmed","fallbackVariableName":"name"}},"effectiveIdentifier":{"replaces":"FableGameWorkspaceNamespace","parameters":{"sourceVariableName":"rootNamespaceTrimmed","fallbackVariableName":"effectiveName"}}}}"""
+                elif name.EndsWith("FourDReference.fs") then "module FableGameWorkspaceNamespace.SvgFoundation.FourDReference"
+                elif name.EndsWith("two-client.spec.ts") then "const db = 'FableGameWorkspaceNamespace-svg-studio';"
+                else "fixture"
+            add name body)
+        if duplicate then add requiredEntries.Head "again"
+    let archive = Path.Combine(temp, "valid.nupkg")
+    makeArchive archive "" false
+    let digest path = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes path)).ToLowerInvariant()
+    let parsedProvider: Provider = {
+        Name = "fable-game"; ContractVersion = "1.1.0"; TemplateId = "fs-gg-fable-game"
+        Source = "FS.GG.Workspace.Template::0.17.0"; NameParameter = Some "productName"
+        IdentifierParameter = None; Floor = Some "1.4.0-preview.1"
+        Parameters = [ { Key = "lifecycle"; Required = false; Default = Some "typed-sdd" } ]
+        File = descriptor; Line = 3 }
+    let request path = {
+        Archive = path; Descriptor = descriptor; ExpectedSha256 = digest path
+        ExpectedRevision = revision; ExpectedTagRevision = revision
+        ExpectedDescriptorSha256 = digest descriptor; Provider = parsedProvider }
+    match validate (request archive) with | Ok _ -> printfn "PASS exact reference publication archive" | Error x -> failwith x
+    let missing = Path.Combine(temp, "missing.nupkg")
+    makeArchive missing requiredEntries.Head false
+    assertEqual "missing reference member refuses" (Error "reference-member-missing") (validate (request missing))
+    let duplicate = Path.Combine(temp, "duplicate.nupkg")
+    makeArchive duplicate "" true
+    assertEqual "duplicate archive entry refuses" (Error "archive-duplicate-entry-refused") (validate (request duplicate))
+    let traversal = Path.Combine(temp, "traversal.nupkg")
+    makeArchive traversal "" false
+    use append = ZipFile.Open(traversal, ZipArchiveMode.Update)
+    append.CreateEntry("../escape") |> ignore
+    append.Dispose()
+    assertEqual "traversal archive entry refuses" (Error "archive-path-refused") (validate (request traversal))
+    let alias = Path.Combine(temp, "alias.nupkg")
+    makeArchive alias "" false
+    use aliasAppend = ZipFile.Open(alias, ZipArchiveMode.Update)
+    aliasAppend.CreateEntry("content/templates/fs-gg-fable-game/SvgFoundation/./FourDReference.fs") |> ignore
+    aliasAppend.Dispose()
+    assertEqual "lexical dot alias refuses" (Error "archive-path-refused") (validate (request alias))
+    let collision = Path.Combine(temp, "collision.nupkg")
+    makeArchive collision "" false
+    use collisionAppend = ZipFile.Open(collision, ZipArchiveMode.Update)
+    collisionAppend.CreateEntry("collision") |> ignore
+    collisionAppend.CreateEntry("collision/") |> ignore
+    collisionAppend.Dispose()
+    assertEqual "file and directory collision refuses" (Error "archive-duplicate-entry-refused") (validate (request collision))
+    assertEqual "changed archive hash refuses" (Error "archive-sha256-refused") (validate { request archive with ExpectedSha256 = String.replicate 64 "0" })
+    assertEqual "tag revision mismatch refuses" (Error "immutable-tag-revision-refused")
+        (validate { request archive with ExpectedTagRevision = String.replicate 40 "b" })
+    assertEqual "wrong lifecycle parameter refuses" (Error "descriptor-lifecycle-refused")
+        (validate { request archive with Provider = { parsedProvider with Parameters = [ { Key = "different_parameter"; Required = false; Default = Some "typed-sdd" } ] } })
+    assertEqual "stale descriptor pin refuses" (Error "descriptor-source-refused")
+        (validate { request archive with Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::0.16.0" } })
+    let receiver = Path.Combine(temp, "receiver")
+    use receiverArchive = ZipFile.OpenRead archive
+    for name in requiredEntries.Tail do
+        let relative = name.Substring("content/templates/fs-gg-fable-game/".Length)
+        let target = Path.Combine(receiver, relative.Replace('/', Path.DirectorySeparatorChar))
+        Directory.CreateDirectory(Path.GetDirectoryName target) |> ignore
+        let entry = receiverArchive.GetEntry name
+        use reader = new StreamReader(entry.Open(), UTF8Encoding(false, true))
+        File.WriteAllText(target, reader.ReadToEnd().Replace("FableGameWorkspaceNamespace", "ReferenceDirect"))
+    receiverArchive.Dispose()
+    File.WriteAllText(Path.Combine(receiver, "ReferenceDirect.slnx"), "fixture")
+    assertEqual "direct namespace transform closes exact package source" (Ok ()) (validateReceiver archive receiver "direct" "none" "1.2.3" "ReferenceDirect")
+    let fourDOutput = Path.Combine(receiver, "SvgFoundation", "FourDReference.fs")
+    let fourDBytes = File.ReadAllBytes fourDOutput
+    File.AppendAllText(fourDOutput, "x")
+    assertEqual "one-byte transformed source mutation refuses" (Error "receiver-source-closure-refused") (validateReceiver archive receiver "direct" "none" "1.2.3" "ReferenceDirect")
+    File.WriteAllBytes(fourDOutput, fourDBytes)
+    assertEqual "wrong trusted product name refuses" (Error "receiver-product-name-refused") (validateReceiver archive receiver "direct" "none" "1.2.3" "OtherName")
+    assertEqual "direct route cannot claim an unobserved lifecycle default" (Error "receiver-lifecycle-refused") (validateReceiver archive receiver "direct" "typed-sdd" "1.2.3" "ReferenceDirect")
+    let provenance = Path.Combine(receiver, ".fsgg", "scaffold-provenance.json")
+    Directory.CreateDirectory(Path.GetDirectoryName provenance) |> ignore
+    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","templateRef":"FS.GG.Workspace.Template::0.17.0","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"typed-sdd"}]}""")
+    assertEqual "provider receiver binds generator provider source namespace and omitted default" (Ok ()) (validateReceiver archive receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
+    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","providerName":"other","templateRef":"FS.GG.Workspace.Template::0.17.0","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"typed-sdd"}]}""")
+    assertEqual "duplicate receiver provenance field refuses" (Error "receiver-provenance-duplicate-field-refused") (validateReceiver archive receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
+    let toolArchive = Path.Combine(temp, "tool.nupkg")
+    use toolZip = ZipFile.Open(toolArchive, ZipArchiveMode.Create)
+    let toolNuspec = toolZip.CreateEntry("FS.GG.SDD.Cli.nuspec")
+    use toolWriter = new StreamWriter(toolNuspec.Open(), UTF8Encoding(false))
+    toolWriter.Write($"<package><metadata><id>FS.GG.SDD.Cli</id><version>1.2.3</version><repository commit=\"{revision}\" /></metadata></package>")
+    toolWriter.Dispose()
+    let settings = toolZip.CreateEntry("tools/net10.0/any/DotnetToolSettings.xml")
+    use settingsWriter = new StreamWriter(settings.Open(), UTF8Encoding(false))
+    settingsWriter.Write("<DotNetCliTool Version=\"1\"><Commands><Command Name=\"fsgg-sdd\" EntryPoint=\"FS.GG.SDD.Cli.dll\" Runner=\"dotnet\" /></Commands></DotNetCliTool>")
+    settingsWriter.Dispose()
+    let core = toolZip.CreateEntry("tools/net10.0/any/FS.GG.SDD.Cli.dll")
+    use coreWriter = new StreamWriter(core.Open(), UTF8Encoding(false))
+    coreWriter.Write("core")
+    coreWriter.Dispose(); toolZip.Dispose()
+    assertEqual "published tool archive identity joins exact source" (Ok 3) (validatePackageIdentity toolArchive (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision)
+    assertEqual "published tool wrong source refuses" (Error "package-source-revision-refused") (validatePackageIdentity toolArchive (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" (String.replicate 40 "b"))
+    let toolRoot = Path.Combine(temp, "tools")
+    let installedRoot = Path.Combine(toolRoot, ".store", "fs.gg.sdd.cli", "1.2.3", "fs.gg.sdd.cli", "1.2.3")
+    Directory.CreateDirectory(installedRoot) |> ignore
+    File.Copy(toolArchive, Path.Combine(installedRoot, "fs.gg.sdd.cli.1.2.3.nupkg"))
+    let installedCore = Path.Combine(installedRoot, "tools", "net10.0", "any", "FS.GG.SDD.Cli.dll")
+    Directory.CreateDirectory(Path.GetDirectoryName installedCore) |> ignore
+    File.WriteAllText(installedCore, "core")
+    File.WriteAllText(Path.Combine(toolRoot, "fsgg-sdd"), "launcher FS.GG.SDD.Cli.dll")
+    let authorized = { EntryCount = 3; CorePath = Path.GetFullPath installedCore }
+    assertEqual "installed tool authorizes the exact checked managed entrypoint" (Ok authorized)
+        (validateInstalledTool toolArchive toolRoot (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision "fsgg-sdd")
+    File.WriteAllText(installedCore, "changed")
+    assertEqual "changed installed tool core refuses" (Error "installed-tool-core-refused")
+        (validateInstalledTool toolArchive toolRoot (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision "fsgg-sdd")
+    File.WriteAllText(installedCore, "core")
+    File.WriteAllText(Path.Combine(toolRoot, "fsgg-sdd"), "unbound launcher")
+    assertEqual "plain launcher text grants no different execution identity" (Ok authorized)
+        (validateInstalledTool toolArchive toolRoot (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision "fsgg-sdd")
+    File.AppendAllText(Path.Combine(installedRoot, "fs.gg.sdd.cli.1.2.3.nupkg"), "changed")
+    assertEqual "changed installed tool archive refuses" (Error "installed-tool-archive-refused")
+        (validateInstalledTool toolArchive toolRoot (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision "fsgg-sdd")
+
+    let occupancyContext: Context = {
+        Repository = "FS-GG/FS.GG.Templates"; Workflow = "release"
+        WorkflowRef = "FS-GG/FS.GG.Templates/.github/workflows/release.yml@refs/heads/main"
+        EventName = "workflow_dispatch"; RunId = "42"; RunAttempt = "1"
+        CheckoutSha = revision; CheckoutTree = String.replicate 40 "c" }
+    let utf8 (value: string) = Encoding.UTF8.GetBytes value
+    let response status headers (body: string) = { Status = status; Headers = headers; Body = utf8 body }
+    let metadata repository =
+        $"{{\"name\":\"FS.GG.Workspace.Template\",\"package_type\":\"nuget\",\"owner\":{{\"login\":\"FS-GG\"}},\"repository\":{{\"full_name\":\"{repository}\"}},\"url\":\"https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template\",\"version_count\":0,\"updated_at\":\"2026-10-01T00:00:00Z\"}}"
+    let versionEntry id version =
+        $"{{\"id\":{id},\"name\":\"{version}\",\"url\":\"https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template/versions/{id}\"}}"
+    let serviceIndex = "{\"resources\":[{\"@id\":\"https://api.nuget.org/v3-flatcontainer/\",\"@type\":\"PackageBaseAddress/3.0.0\"}]}"
+    let mutable observedRequests: Request list = []
+    let transportFor (active: string list) (deleted: string list) (nuget: string list) overrides : Transport =
+        fun request _ ->
+            observedRequests <- request :: observedRequests
+            match overrides |> Map.tryFind request.Uri.AbsoluteUri with
+            | Some value -> value
+            | None when request.Uri.AbsoluteUri = "https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template" ->
+                response 200 Map.empty (metadata "FS-GG/FS.GG.Templates")
+            | None when request.Uri.Query.Contains("state=active") -> response 200 Map.empty ("[" + String.Join(",", active) + "]")
+            | None when request.Uri.Query.Contains("state=deleted") -> response 200 Map.empty ("[" + String.Join(",", deleted) + "]")
+            | None when request.Uri.AbsoluteUri = "https://api.nuget.org/v3/index.json" -> response 200 Map.empty serviceIndex
+            | None when request.Uri.AbsoluteUri = "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/index.json" ->
+                response 200 Map.empty ("{\"versions\":[" + (nuget |> List.map (sprintf "\"%s\"") |> String.concat ",") + "]}")
+            | None -> response 500 Map.empty "{}"
+    let inspect transport limits =
+        match inspectWith limits transport occupancyContext "0.17.0" with
+        | Ok value -> value
+        | Error reason -> failwith reason
+    observedRequests <- []
+    let absent = inspect (transportFor [] [] [ "0.16.0" ] Map.empty) DefaultLimits
+    assertEqual "complete feed censuses prove absence" Verdict.Absent absent.Overall
+    assertEqual "public feed requests carry no GitHub credential marker" true
+        (observedRequests |> List.filter (fun request -> request.Uri.Host = "api.nuget.org") |> List.forall (fun request -> not request.Authenticated))
+    assertEqual "every occupancy request is GET" true (observedRequests |> List.forall (fun request -> request.Method = "GET"))
+    let githubOccupied = inspect (transportFor [ versionEntry 1L "0.17.0" ] [] [] Map.empty) DefaultLimits
+    assertEqual "active GitHub version occupies candidate" Verdict.Occupied githubOccupied.Overall
+    let deletedOccupied = inspect (transportFor [] [ versionEntry 2L "0.17.0" ] [] Map.empty) DefaultLimits
+    assertEqual "deleted GitHub version occupies candidate" Verdict.Occupied deletedOccupied.Overall
+    let nugetOccupied = inspect (transportFor [] [] [ "0.17.0" ] Map.empty) DefaultLimits
+    assertEqual "NuGet version occupies candidate" Verdict.Occupied nugetOccupied.Overall
+    assertEqual "terminal LF candidate is refused absolutely" (Error "candidate-version-refused") (validateCandidate "0.17.0\n")
+    assertEqual "terminal CRLF candidate is refused absolutely" (Error "candidate-version-refused") (validateCandidate "0.17.0\r\n")
+    assertEqual "occupied exact version cannot be queried through newline candidate" (Error "candidate-version-refused")
+        (inspectWith DefaultLimits (transportFor [] [] [ "0.17.0" ] Map.empty) occupancyContext "0.17.0\n")
+    let metadataUrl = "https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template"
+    for status in [ 302; 401; 403; 404 ] do
+        let result = inspect (transportFor [] [] [] (Map.ofList [ metadataUrl, response status Map.empty "{}" ])) DefaultLimits
+        assertEqual $"GitHub {status} remains unknown" Verdict.Unknown result.GitHub.Verdict
+    let wrongRepository = inspect (transportFor [] [] [] (Map.ofList [ metadataUrl, response 200 Map.empty (metadata "FS-GG/Other") ])) DefaultLimits
+    assertEqual "wrong package repository remains unknown" Verdict.Unknown wrongRepository.GitHub.Verdict
+    let wrongPackageBody = (metadata "FS-GG/FS.GG.Templates").Replace("\"name\":\"FS.GG.Workspace.Template\"", "\"name\":\"FS.GG.Other\"")
+    let wrongPackage = inspect (transportFor [] [] [] (Map.ofList [ metadataUrl, response 200 Map.empty wrongPackageBody ])) DefaultLimits
+    assertEqual "wrong package name remains unknown" Verdict.Unknown wrongPackage.GitHub.Verdict
+    let activePage1 = "https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template/versions?per_page=100&page=1&state=active"
+    let activePage2 = "https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template/versions?per_page=100&page=2&state=active"
+    let later = transportFor [] [] [] (Map.ofList [
+        activePage1, response 200 (Map.ofList [ "link", $"<{activePage2}>; rel=\"next\"" ]) "[]"
+        activePage2, response 200 Map.empty ("[" + versionEntry 3L "0.17.0" + "]") ])
+    assertEqual "target on later GitHub page occupies candidate" Verdict.Occupied (inspect later DefaultLimits).Overall
+    let offHost = transportFor [] [] [] (Map.ofList [ activePage1, response 200 (Map.ofList [ "link", "<https://evil.example/page=2>; rel=\"next\"" ]) "[]" ])
+    assertEqual "off-host pagination remains unknown" Verdict.Unknown (inspect offHost DefaultLimits).GitHub.Verdict
+    let repeated = transportFor [] [] [] (Map.ofList [ activePage1, response 200 (Map.ofList [ "link", $"<{activePage1}>; rel=\"next\"" ]) "[]" ])
+    assertEqual "repeated pagination remains unknown" Verdict.Unknown (inspect repeated DefaultLimits).GitHub.Verdict
+    let unfinished = transportFor [] [] [] (Map.ofList [ activePage1, response 200 (Map.ofList [ "link", "malformed" ]) "[]" ])
+    assertEqual "unfinished pagination remains unknown" Verdict.Unknown (inspect unfinished DefaultLimits).GitHub.Verdict
+    let duplicateJson = response 200 Map.empty "{\"versions\":[],\"versions\":[]}"
+    let malformed = inspect (transportFor [] [] [] (Map.ofList [ "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/index.json", duplicateJson ])) DefaultLimits
+    assertEqual "duplicate authoritative JSON field remains unknown" Verdict.Unknown malformed.NuGet.Verdict
+    let malformedVersion = inspect (transportFor [] [] [ "not a version" ] Map.empty) DefaultLimits
+    assertEqual "malformed served version remains unknown" "malformed-version-identity" malformedVersion.NuGet.Reason
+    let newlineVersion = inspect (transportFor [] [] [ "0.17.0\\n" ] Map.empty) DefaultLimits
+    assertEqual "served version with terminal LF remains unknown" "malformed-version-identity" newlineVersion.NuGet.Reason
+    let repeatedIdentity = inspect (transportFor [ versionEntry 9L "0.16.0" ] [ versionEntry 10L "0.16.0" ] [] Map.empty) DefaultLimits
+    assertEqual "contradictory GitHub version state remains unknown" "github-version-identity-repeated" repeatedIdentity.GitHub.Reason
+    let mutable metadataReads = 0
+    let changedMetadata : Transport = fun request timeout ->
+        if request.Uri.AbsoluteUri = metadataUrl then
+            metadataReads <- metadataReads + 1
+            response 200 Map.empty ((metadata "FS-GG/FS.GG.Templates").Replace("2026-10-01T00:00:00Z", if metadataReads = 1 then "2026-10-01T00:00:00Z" else "2026-10-01T00:00:01Z"))
+        else (transportFor [] [] [] Map.empty) request timeout
+    assertEqual "metadata change across census remains unknown" "github-metadata-changed" (inspect changedMetadata DefaultLimits).GitHub.Reason
+    let timingOut : Transport = fun _ _ -> raise (TimeoutException())
+    assertEqual "transport timeout remains unknown" Verdict.Unknown (inspect timingOut DefaultLimits).Overall
+    let lateLimits = { DefaultLimits with RequestTimeout = TimeSpan.FromMilliseconds 100.0; AcquisitionTimeout = TimeSpan.FromMilliseconds 250.0 }
+    let lateFinal : Transport = fun request timeout ->
+        if request.Uri.AbsoluteUri = "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/index.json" then Thread.Sleep 350
+        (transportFor [] [] [ "0.16.0" ] Map.empty) request timeout
+    let lateClock = Stopwatch.StartNew()
+    let lateResult = inspect lateFinal lateLimits
+    assertEqual "late final response cannot classify absence" Verdict.Unknown lateResult.Overall
+    assertEqual "late final response reports acquisition exhaustion" "acquisition-time-limit" lateResult.NuGet.Reason
+    assertEqual "late final control actually crossed aggregate deadline" true (lateClock.Elapsed >= lateLimits.AcquisitionTimeout)
+    let bodyCancelled = TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)
+    use stalledHandler =
+        { new HttpMessageHandler() with
+            override _.SendAsync(_, _) =
+                let reply = new HttpResponseMessage(HttpStatusCode.OK)
+                reply.Content <- new StreamContent(new StallingStream(bodyCancelled))
+                Task.FromResult(reply) }
+    let stalledTransport = httpTransportWithHandler "unused" stalledHandler
+    let stalledClock = Stopwatch.StartNew()
+    let stalledCancelled =
+        try
+            stalledTransport { Uri = Uri("https://api.nuget.org/v3/index.json"); Method = "GET"; Authenticated = false } (TimeSpan.FromMilliseconds 75.0) |> ignore
+            false
+        with :? OperationCanceledException -> true
+    assertEqual "stalled response body observes request cancellation" true stalledCancelled
+    assertEqual "cancellation reaches the response body stream" true (bodyCancelled.Task.Wait(TimeSpan.FromSeconds 1.0))
+    assertEqual "stalled response body completes within bounded control window" true (stalledClock.Elapsed < TimeSpan.FromMilliseconds 500.0)
+    let tiny = { DefaultLimits with MaxResponseBytes = 2 }
+    assertEqual "response size exhaustion remains unknown" Verdict.Unknown (inspect (transportFor [] [] [] Map.empty) tiny).Overall
+    let tinyTotal = { DefaultLimits with MaxTotalBytes = 400L }
+    let totalLimited = inspect (transportFor [] [] [] Map.empty) tinyTotal
+    assertEqual "overall byte exhaustion remains unknown" true
+        (totalLimited.GitHub.Reason = "total-size-limit" || totalLimited.NuGet.Reason = "total-size-limit")
+    let onePage = { DefaultLimits with MaxGitHubPages = 1 }
+    assertEqual "GitHub page bound cannot look absent" Verdict.Unknown (inspect (transportFor [] [] [] Map.empty) onePage).GitHub.Verdict
+    let noItems = { DefaultLimits with MaxItemsPerPage = 0 }
+    assertEqual "GitHub item bound cannot look complete" "github-page-item-limit"
+        (inspect (transportFor [ versionEntry 11L "0.16.0" ] [] [] Map.empty) noItems).GitHub.Reason
+    let nugetIndexUrl = "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/index.json"
+    let nugetNotFound = inspect (transportFor [] [] [] (Map.ofList [ nugetIndexUrl, response 404 Map.empty "{}" ])) DefaultLimits
+    assertEqual "NuGet 404 remains unknown" Verdict.Unknown nugetNotFound.NuGet.Verdict
+    let aliasOccupied = inspect (transportFor [] [] [ "0.17.0.0+repository" ] Map.empty) DefaultLimits
+    assertEqual "NuGet zero-fourth/build alias occupies candidate" Verdict.Occupied aliasOccupied.Overall
+    let prereleaseAbsent = inspect (transportFor [] [] [ "0.17.0-rc.1" ] Map.empty) DefaultLimits
+    assertEqual "prerelease remains a different identity" Verdict.Absent prereleaseAbsent.Overall
+    let ambiguousAlias = inspect (transportFor [] [] [ "0.17.0"; "0.17.0.0" ] Map.empty) DefaultLimits
+    assertEqual "duplicate normalized NuGet aliases remain unknown" Verdict.Unknown ambiguousAlias.NuGet.Verdict
+    assertEqual "canonical stable candidate accepted" (Ok "0.17.0") (validateCandidate "0.17.0")
+    assertEqual "prerelease candidate refused" (Error "candidate-version-refused") (validateCandidate "0.17.0-rc.1")
+    let sanitized = receiptJson absent
+    assertEqual "receipt contains hashes rather than raw censuses" false (sanitized.Contains("0.16.0", StringComparison.Ordinal))
+    Directory.Delete(temp, true)
     0
