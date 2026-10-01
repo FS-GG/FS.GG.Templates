@@ -1,0 +1,6 @@
+{
+  "id": "fourd-reference-encounter",
+  "source": "local-reference-fixture",
+  "origin": [0, 0, 0, 0],
+  "legalDestination": [1, 1, 1, 1]
+}

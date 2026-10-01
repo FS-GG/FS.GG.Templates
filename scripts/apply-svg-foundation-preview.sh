@@ -134,8 +134,10 @@ esac
 # this same atomic transaction and teach its presence check about the Preview-A
 # generation boundary. Existing SVG workspaces retain their root entry point.
 if [[ ! -e "$workspace/SvgFoundation/SvgFoundation.fsproj" \
-      && ! -e "$source_payload/SvgFoundation/packages.lock.json" ]] \
-   && grep -Fq 'for locked in SvgFoundation SvgFoundation/Studio SvgFoundation/Examples/Tactical; do' "$workspace/build.sh"; then
+      && ! -e "$source_payload/SvgFoundation/packages.lock.json" \
+      && ! -e "$source_payload/SvgFoundation/build.sh" ]] \
+   && grep -Fq 'if [[ -f SvgFoundation/SvgFoundation.fsproj ]]; then' "$workspace/build.sh" \
+   && grep -Fq 'bash SvgFoundation/build.sh' "$workspace/build.sh"; then
   [[ -f "$workspace/build.sh" ]] || fail "legacy preview adopter has no root build.sh"
   files+=(build.sh)
 fi
@@ -335,11 +337,20 @@ new_lock='''if [[ -d SvgFoundation ]]; then
 old_build='''if [[ -f SvgFoundation/SvgFoundation.fsproj ]]; then'''
 new_build='''# Preview-A ships the project but predates the standalone player build entry point.
 if [[ -f SvgFoundation/SvgFoundation.fsproj && -f SvgFoundation/build.sh ]]; then'''
-if text.count(old_lock) != 1:
-    raise SystemExit('legacy preview adopter root build lock check is not the expected shape')
 if text.count(old_build) != 1:
     raise SystemExit('legacy preview adopter root SVG build check is not the expected shape')
-open(destination,'w').write(text.replace(old_lock,new_lock).replace(old_build,new_build))
+lock_count=text.count(old_lock)
+if lock_count > 1:
+    raise SystemExit('legacy preview adopter root build lock check is ambiguous')
+if lock_count == 0:
+    modern_lock='''# The current Player emission's root lock is asserted by the source and bundle
+  # qualifications. Retained preview adoption predates that lock, so only require
+  # locks for the optional subprojects that are present in every such payload.'''
+    if text.count(modern_lock) != 1:
+        raise SystemExit('legacy preview adopter root build lock check is not a supported shape')
+else:
+    text=text.replace(old_lock,new_lock)
+open(destination,'w').write(text.replace(old_build,new_build))
 PY
   else
     cp "$src" "$backup/staged/$path"
