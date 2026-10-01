@@ -117,4 +117,15 @@ class SourceContract(unittest.TestCase):
    result=subprocess.run(['bash','-c',shell],cwd=outer,env=environment,text=True,capture_output=True,check=True)
    self.assertEqual(result.stdout,'10.0.401\n10.0.400\n')
    self.assertEqual(invocations.read_text(),f'--version|{outer}|10.0.401\n--version|{build}|10.0.400\nbuild|{build}|10.0.400\n')
+ def test_hosted_cancellation_requires_both_expected_exit_receipts(self):
+  workflow=(ROOT/'.github/workflows/rust-go-hosted-bind-qualification.yml').read_text()
+  step=workflow.split('      - name: Exercise actual cancellation and bounded recovery\n',1)[1].split('      - name:',1)[0]
+  self.assertNotIn('continue-on-error:',step)
+  self.assertIn('dotnet fsi --reference:',step)
+  self.assertIn('|| status=$?',step)
+  self.assertIn('test "$status" -eq 4',step)
+  self.assertIn('test -s "$output"',step)
+  self.assertEqual(step.count('run_expected_cancellation "$QUALIFICATION_STATE/executions/'),2)
+  self.assertIn('run_expected_cancellation "$QUALIFICATION_STATE/executions/cancellation-first.json" --cancel-running-timeout-ms 30000',step)
+  self.assertIn('run_expected_cancellation "$QUALIFICATION_STATE/executions/cancellation-recovered.json" --recover true',step)
 if __name__=='__main__':unittest.main()
