@@ -6,6 +6,7 @@ open System.Net.Http
 open System.Text
 open System.Text.RegularExpressions
 open FsGgTemplates.ProviderComposition
+open FsGgTemplates.ReferencePublication
 
 let private fail message = raise (InvalidDataException message)
 let private pattern value = Regex(value, RegexOptions.CultureInvariant)
@@ -334,8 +335,17 @@ let main argv =
         | "workspace-check" :: _ ->
             workspaceCheck providers (optionValue "--workspace" args "") (optionValue "--registry" args registryUrl)
             0
+        | "reference-publication-check" :: _ ->
+            let required name = optionValue name args "" |> fun value -> if value = "" then fail $"{name} needs a value" else value
+            match ReferencePublication.validate {
+                Archive = required "--archive"
+                Descriptor = required "--descriptor"
+                ExpectedSha256 = required "--sha256"
+                ExpectedRevision = required "--source-revision" } with
+            | Ok count -> printfn "reference publication: valid — %d unique archive entries" count; 0
+            | Error reason -> fail reason
         | _ ->
-            eprintfn "usage: ProviderTool grade [--providers DIR] [--registry PATH|URL] | effective-check [--provider FILE] | workspace-check --workspace FILE [--providers DIR]"
+            eprintfn "usage: ProviderTool grade ... | effective-check ... | workspace-check ... | reference-publication-check --archive FILE --descriptor FILE --sha256 HEX --source-revision COMMIT"
             2
     with ex ->
         eprintfn "provider-tool: %s" ex.Message

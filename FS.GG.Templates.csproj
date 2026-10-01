@@ -8,9 +8,9 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Workspace.Template</PackageId>
-    <!-- 0.16.0 adds the opt-in Python workspace provider while preserving every
-         existing template identity, default and lifecycle selection. -->
-    <Version>0.16.0</Version>
+    <!-- 0.17.0 publishes the reviewed complete-bundle FourD reference while preserving
+         every existing template identity, default and lifecycle selection. -->
+    <Version>0.17.0</Version>
     <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new workspace templates for FS.GG.SDD: governance, Python, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</Description>

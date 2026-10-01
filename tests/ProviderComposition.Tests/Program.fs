@@ -1,6 +1,10 @@
 open FsGgTemplates.ProviderComposition
+open FsGgTemplates.ReferencePublication
 open System
+open System.IO
+open System.IO.Compression
 open System.Security.Cryptography
+open System.Text
 
 let productName: Parameter = { Key = "productName"; Required = true; Default = None }
 let lifecycle: Parameter = { Key = "lifecycle"; Required = false; Default = Some "sdd" }
@@ -102,4 +106,47 @@ let main _ =
           "# Review this block for the current selection; the release narrative remains in PIN HISTORY."
           "# effective[1]: name=alpha | template=fs-gg-alpha | source=Alpha.Template::1.0.0 | contract=1.1.0"
           "# effective[2]: name=beta | template=fs-gg-beta | source=Beta.Template::2.0.0 | contract=1.1.0" ] rendered
+    let temp = Path.Combine(Path.GetTempPath(), "fsgg-reference-publication-" + Guid.NewGuid().ToString("N"))
+    Directory.CreateDirectory temp |> ignore
+    let descriptor = Path.Combine(temp, "fable-game.providers.yml")
+    File.WriteAllText(descriptor, "schemaVersion: 1\nproviders:\n  - name: fable-game\n    contractVersion: \"1.1.0\"\n    templateId: fs-gg-fable-game\n    source: FS.GG.Workspace.Template::0.17.0\n    nameParameter: productName\n    minimumFsggSdd:\n      version: \"1.4.0-preview.1\"\n    parameters:\n      - key: lifecycle\n        required: false\n        default: typed-sdd\n", UTF8Encoding(false))
+    let revision = String.replicate 40 "a"
+    let requiredEntries =
+        [ "content/templates/fs-gg-fable-game/.template.config/template.json"
+          "content/templates/fs-gg-fable-game/SvgFoundation/FourDReference.fs"
+          "content/templates/fs-gg-fable-game/SvgFoundation/Examples/FourD/reference.json"
+          "content/templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj"
+          "content/templates/fs-gg-fable-game/SvgFoundation/Program.fs"
+          "content/templates/fs-gg-fable-game/SvgFoundation/build.sh"
+          "content/templates/fs-gg-fable-game/Browser.Tests/two-client.spec.ts" ]
+    let makeArchive path omit duplicate =
+        use zip = ZipFile.Open(path, ZipArchiveMode.Create)
+        let add (name: string) (body: string) =
+            let entry = zip.CreateEntry(name)
+            use writer = new StreamWriter(entry.Open(), UTF8Encoding(false))
+            writer.Write(body)
+        add "FS.GG.Workspace.Template.nuspec" $"<package><metadata><id>FS.GG.Workspace.Template</id><version>0.17.0</version><repository commit=\"{revision}\" /></metadata></package>"
+        requiredEntries |> List.filter ((<>) omit) |> List.iter (fun name -> add name "fixture")
+        if duplicate then add requiredEntries.Head "again"
+    let archive = Path.Combine(temp, "valid.nupkg")
+    makeArchive archive "" false
+    let digest path = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes path)).ToLowerInvariant()
+    let request path = { Archive = path; Descriptor = descriptor; ExpectedSha256 = digest path; ExpectedRevision = revision }
+    match validate (request archive) with | Ok _ -> printfn "PASS exact reference publication archive" | Error x -> failwith x
+    let missing = Path.Combine(temp, "missing.nupkg")
+    makeArchive missing requiredEntries.Head false
+    assertEqual "missing reference member refuses" (Error "reference-member-missing") (validate (request missing))
+    let duplicate = Path.Combine(temp, "duplicate.nupkg")
+    makeArchive duplicate "" true
+    assertEqual "duplicate archive entry refuses" (Error "archive-duplicate-entry-refused") (validate (request duplicate))
+    let traversal = Path.Combine(temp, "traversal.nupkg")
+    makeArchive traversal "" false
+    use append = ZipFile.Open(traversal, ZipArchiveMode.Update)
+    append.CreateEntry("../escape") |> ignore
+    append.Dispose()
+    assertEqual "traversal archive entry refuses" (Error "archive-path-refused") (validate (request traversal))
+    assertEqual "changed archive hash refuses" (Error "archive-sha256-refused") (validate { request archive with ExpectedSha256 = String.replicate 64 "0" })
+    File.WriteAllText(descriptor, File.ReadAllText(descriptor).Replace("::0.17.0", "::0.16.0"))
+    assertEqual "stale descriptor pin refuses" (Error "descriptor-source-refused") (validate (request archive))
+    Directory.Delete(temp, true)
     0

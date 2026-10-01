@@ -1,0 +1,56 @@
+name: Fable reference public qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      archive_sha256:
+        description: Exact nuget.org FS.GG.Workspace.Template 0.17.0 archive SHA-256
+        required: true
+        type: string
+      source_revision:
+        description: Exact protected Templates commit carried by the package
+        required: true
+        type: string
+      sdd_version:
+        description: Exact published FS.GG.SDD.Cli version
+        required: true
+        type: string
+      wizard_version:
+        description: Exact published FS.GG.NewSddWorkspace version
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  public-reference:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.401'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '26.10.0'
+      - name: Preflight closed public inputs
+        run: |
+          bash -n tests/composition/fable-game/verify-fable-reference-public.sh
+          tests/composition/fable-game/verify-fable-reference-public.sh \
+            --sha256 '${{ inputs.archive_sha256 }}' \
+            --source-revision '${{ inputs.source_revision }}' \
+            --sdd-version '${{ inputs.sdd_version }}' \
+            --wizard-version '${{ inputs.wizard_version }}' \
+            --evidence-dir '${{ runner.temp }}/fable-reference-preflight' \
+            --preflight-only
+      - name: Qualify exact public archive through direct, provider, and wizard receivers
+        run: |
+          dotnet restore src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj --locked-mode
+          tests/composition/fable-game/verify-fable-reference-public.sh \
+            --sha256 '${{ inputs.archive_sha256 }}' \
+            --source-revision '${{ inputs.source_revision }}' \
+            --sdd-version '${{ inputs.sdd_version }}' \
+            --wizard-version '${{ inputs.wizard_version }}' \
+            --evidence-dir '${{ runner.temp }}/fable-reference-public'
