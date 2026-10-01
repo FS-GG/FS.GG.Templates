@@ -8,10 +8,14 @@ Coordination owns the [portable producer plan](https://github.com/FS-GG/FS.GG.Co
 Templates owns these native fixtures and receiver materialization. Product owners retain functional
 acceptance and artifact custody. The programme integrator joins the shared boundaries.
 
-**Status, 2026-09-30:** native fixture preparation is locally qualified. The TypeScript Todo browser-image
-source checkpoint is prepared; its exact-head strict native image run and source delivery remain pending.
-Portable binding, publication, installed adoption and complete matrix acceptance remain open. The prospective
-population below does not alter the accepted R5 cohort or its cutoff.
+**Status, 2026-10-01:** Rust Tic-tac-toe and Go Snake completed exact-head hosted BIND qualification
+through the enforced portable executor contract. The
+[bounded evidence readback](evidence/v2-lang-rust-go-native-qualification-20261001.md) joins the protected
+source, fresh-loaded retained OCI identities, real journeys, duplicate delivery, reconstructed recovery,
+observed cancellation, refusal gates and owned cleanup. The TypeScript Todo browser-image source checkpoint
+is prepared; its exact-head strict native image run and source delivery remain pending. Publication, installed
+adoption, the other four routes and complete matrix acceptance remain open. The prospective population below
+does not alter the accepted R5 cohort or its cutoff.
 
 ## Declared population
 
@@ -19,8 +23,8 @@ population below does not alter the accepted R5 cohort or its cutoff.
 |---|---|---|---|
 | Python Hello | Coordination `tests/portable-workspace/image/fixture/python`; CPython 3.14.0 | Invoke the actual greeting entry point as well as build/test operations | Await enforced P2 and qualified image |
 | TypeScript Todo | [Fixture](../../examples/language-routes/typescript-todo/README.md); Node 24.8.0, TypeScript 5.9.2, Playwright 1.63.0 | Served compiled entry point: add/edit/complete/filter/delete, reload and malformed retained state | Browser-image source prepared; strict native image qualification, binding and adoption pending |
-| Rust Tic-tac-toe | [Fixture](../../examples/language-routes/rust-tic-tac-toe/README.md); Rust/Cargo 1.98.1 | Built entry point, legal play, both winners, draw, terminal refusal and restart | Native preparation passed; reviewed image and binding pending |
-| Go Snake | [Fixture](../../examples/language-routes/go-snake/README.md); Go 1.27.1 | Built JSON entry point, input, growth/score, pause, collision, terminal refusal and restart | Native preparation passed; reviewed image and binding pending |
+| Rust Tic-tac-toe | [Fixture](../../examples/language-routes/rust-tic-tac-toe/README.md); Rust/Cargo 1.98.1 | Built entry point, legal play, both winners, draw, terminal refusal and restart | Hosted BIND qualified on protected source; publication and installed adoption pending |
+| Go Snake | [Fixture](../../examples/language-routes/go-snake/README.md); Go 1.27.1 | Built JSON entry point, input, growth/score, pause, collision, terminal refusal and restart | Hosted BIND qualified on protected source; publication and installed adoption pending |
 | FourD | Existing selected stack and product revision `931869236b4253b1489c4e8095a36017709194e2`; .NET SDK 10.0.401, Fable 5.13.0 | Preserve the accepted design-v2 technical comparison and save/runtime boundaries | Existing product evidence retained; portable binding and adoption pending |
 | Composed TypeScript/Python | Coordination `tests/portable-workspace/image/fixture/composed`; Node 24.8.0, TypeScript 5.9.2, CPython 3.14.0 | Verify both components and the actual frontend-to-backend journey | Await enforced P2 and qualified image |
 
@@ -90,6 +94,24 @@ or publication are added.
 This is a source checkpoint only. A future run of the dedicated strict workflow must qualify the exact admitted
 head and retain its OCI candidate and evidence before the image can enter native binding. Portable executor
 binding, lifecycle evidence, publication, installed adoption, defaults and parent closure remain pending.
+
+## Rust and Go hosted BIND qualification
+
+Protected Templates commit `eb914297fdd9b6b7d7e85a18a2ee0e341451b421` and tree
+`fb15b4c244c09459da272e04a962a02d309c4458` completed the dedicated hosted workflow in run
+`36815503862`. The validator accepted both real product journeys and joined their first, duplicate and
+fresh-process recovered receipts to unchanged command, source, image and container identities. A separate
+running Rust operation recorded the cancellation request, termination and cleanup before a recovered duplicate
+returned the same settled identity. Wrong toolchain, wrong image reference and changed source were refused by
+the executor, and cleanup proved no containers plus removal of the preflight, Rust and Go namespaces.
+
+The [evidence record](evidence/v2-lang-rust-go-native-qualification-20261001.md) retains the exact receipt,
+executor, image, artifact and bounded readback identities. It records the output artifact digest as reported by
+GitHub metadata; the readback retrieved only the selected small JSON members and did not independently download
+or hash the complete output ZIP. This closes the Rust and Go BIND entries. It does not establish publication,
+installed producer/receiver adoption, another route or V2-LANG-01.5 as a whole. The next Rust/Go dependency is
+the coherent P3 producer publication and P4 installed receiver window; the parent remains open until every
+declared route completes BIND and ADOPT.
 
 ## Dependency-ready windows
 
