@@ -120,7 +120,17 @@ def prepare(args):
             require(item["candidateSha256"]==trusted["archiveSha256"],kind+"-archive-policy-mismatch")
             require(manifest_digest==trusted["retainedOciManifestDigest"],kind+"-manifest-policy-mismatch")
             require(config_digest==trusted["configDigest"],kind+"-config-policy-mismatch")
-            bound[kind]={"archiveSha256":item["candidateSha256"],"configDigest":config_digest,"imageId":image_id,"manifestDigest":manifest_digest,"reference":item.get("reference")}
+            retained=trusted["retainedImport"]
+            require(retained["original"]["archiveSha256"]==trusted["archiveSha256"] and retained["original"]["manifestDigest"]==manifest_digest and retained["original"]["configDigest"]==config_digest,kind+"-retained-import-policy-mismatch")
+            require(retained["derived"]["manifestDigest"]==manifest_digest and retained["derived"]["configDigest"]==config_digest,kind+"-derived-import-policy-mismatch")
+            bound[kind]={
+                "archiveSha256":item["candidateSha256"],"configDigest":config_digest,"imageId":image_id,
+                "manifestDigest":manifest_digest,"reference":item.get("reference"),
+                "importArchiveSha256":retained["derived"]["archiveSha256"],
+                "importManifestDigest":retained["derived"]["manifestDigest"],
+                "importConfigDigest":retained["derived"]["configDigest"],
+                "importReference":retained["importReference"],
+            }
     wrappers={}
     for opid,op in POLICY["operations"].items():
         wrapper_path=op["workingDirectory"]+"/"+op["arguments"][0]
