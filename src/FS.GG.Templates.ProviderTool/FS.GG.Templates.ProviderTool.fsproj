@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="Composition.fs" />
     <Compile Include="ReferencePublication.fs" />
+    <Compile Include="FeedOccupancy.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>
