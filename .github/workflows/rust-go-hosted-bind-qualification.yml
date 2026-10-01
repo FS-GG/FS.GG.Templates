@@ -183,12 +183,19 @@ jobs:
 
       - name: Exercise actual cancellation and bounded recovery
         shell: bash
-        continue-on-error: true
         run: |
           set -uo pipefail
           common=(--binding "$QUALIFICATION_STATE/binding/binding.json" --kind rust --command "$QUALIFICATION_STATE/commands/cancellation.json" --source-root "$GITHUB_WORKSPACE" --source-revision "$EXPECTED_HEAD" --state-root "$QUALIFICATION_STATE/rust-state" --store-root "$QUALIFICATION_STATE/rust-store" --runroot "$QUALIFICATION_STATE/rust-runroot" --podman /usr/bin/podman --git /usr/bin/git --tar /usr/bin/tar)
-          dotnet fsi --reference:"$AKKA" --reference:"$EXECUTOR" eng/language-route-bindings/execute.fsx -- "${common[@]}" --cancel-running-timeout-ms 30000 --output "$QUALIFICATION_STATE/executions/cancellation-first.json"
-          dotnet fsi --reference:"$AKKA" --reference:"$EXECUTOR" eng/language-route-bindings/execute.fsx -- "${common[@]}" --recover true --output "$QUALIFICATION_STATE/executions/cancellation-recovered.json"
+          run_expected_cancellation() {
+            local output="$1"
+            shift
+            local status=0
+            dotnet fsi --reference:"$AKKA" --reference:"$EXECUTOR" eng/language-route-bindings/execute.fsx -- "${common[@]}" "$@" --output "$output" || status=$?
+            test "$status" -eq 4
+            test -s "$output"
+          }
+          run_expected_cancellation "$QUALIFICATION_STATE/executions/cancellation-first.json" --cancel-running-timeout-ms 30000
+          run_expected_cancellation "$QUALIFICATION_STATE/executions/cancellation-recovered.json" --recover true
 
       - name: Prove wrong toolchain reference and source refusal
         shell: bash
