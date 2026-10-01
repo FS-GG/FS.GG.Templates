@@ -55,6 +55,10 @@
           "exclude": [ "SvgFoundation/Examples/Arcade/**" ]
         },
         {
+          "condition": "(bundle != \"complete\")",
+          "exclude": [ "SvgFoundation/Examples/FourD/**" ]
+        },
+        {
           "condition": "true",
           "exclude": [ "SvgFoundation/PreviewDocument.fs", "SvgFoundation/PreviewFont.fs" ]
         }
@@ -72,7 +76,7 @@
         { "choice": "studio", "description": "Arena plus Create/Arrange/Play/Review tools." },
         { "choice": "tactical", "description": "Arena, Studio, and the editable tactical example." },
         { "choice": "arcade", "description": "Arena, Studio, and the editable arcade example." },
-        { "choice": "complete", "description": "Arena, Studio, and both editable examples." }
+        { "choice": "complete", "description": "Arena, Studio, both editable examples, and the FourD reference slice." }
       ]
     },
     "lifecycle": {

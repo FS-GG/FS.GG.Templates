@@ -34,6 +34,9 @@ module ArcadeExample = FableGameWorkspaceNamespace.SvgFoundation.ArcadeExample
 #if TACTICAL_EXAMPLE
 module TacticalExample = FableGameWorkspaceNamespace.SvgFoundation.TacticalExample
 #endif
+#if FOURD_REFERENCE
+module FourDReference = FableGameWorkspaceNamespace.SvgFoundation.FourDReference
+#endif
 
 let private color red green blue =
     {
@@ -102,6 +105,9 @@ let private arcadeExample = ArcadeExample.mount ()
 #endif
 #if TACTICAL_EXAMPLE
 do TacticalExample.mount ()
+#endif
+#if FOURD_REFERENCE
+let private fourDReference = FourDReference.mount ()
 #endif
 
 #if LEGACY_SVG_PREVIEW
@@ -843,6 +849,9 @@ window.addEventListener ("gamepadconnected", refreshGamepads)
 window.addEventListener (
     "beforeunload",
     fun _ ->
+#if FOURD_REFERENCE
+        fourDReference.Dispose()
+#endif
 #if ARCADE_EXAMPLE
         arcadeExample.Dispose()
 #endif
