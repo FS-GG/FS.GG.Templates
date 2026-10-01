@@ -413,6 +413,57 @@ let main _ =
     let adminResult = inspect (transportFor [] [] [] (Map.ofList [ deletedPage1, response 403 (Map.ofList [ "x-accepted-github-permissions", "packages=admin" ]) forbiddenBody ])) DefaultLimits
     assertEqual "accepted package admin evidence stays diagnostic only" "package-admin-required"
         adminResult.GitHub.FailureDiagnostic.Value.ErrorClass
+    let alternativeBody label = $"{{\"message\":\"unrecognized permission diagnostic {label}\"}}"
+    let inspectAlternative header label =
+        match inspectWith DefaultLimits
+                  (transportFor [] [] []
+                      (Map.ofList [ deletedPage1, response 403 (Map.ofList [ "x-accepted-github-permissions", header ]) (alternativeBody label) ]))
+                  occupancyContext "0.17.0" with
+        | Ok value -> value
+        | Error reason -> failwith reason
+    let adminOrRead = inspectAlternative "packages=admin;packages=read" "admin-or-read"
+    let adminOrReadDiagnostic = adminOrRead.GitHub.FailureDiagnostic.Value
+    assertEqual "admin OR read does not claim mandatory package admin"
+        (Verdict.Unknown, Verdict.Unknown, 403, "integration-permission-denied",
+         [ [ { Name = "packages"; Level = "admin" } ]; [ { Name = "packages"; Level = "read" } ] ],
+         Convert.ToHexString(SHA256.HashData(utf8 (alternativeBody "admin-or-read"))).ToLowerInvariant())
+        (adminOrRead.Overall, adminOrRead.GitHub.Verdict, adminOrReadDiagnostic.HttpStatus,
+         adminOrReadDiagnostic.ErrorClass, adminOrReadDiagnostic.AcceptedPermissionSets,
+         adminOrRead.GitHub.ResponseSha256.[2])
+    let adminOrReadReceipt = receiptJson adminOrRead
+    assertEqual "admin OR read receipt preserves both alternatives without raw message" true
+        (adminOrReadReceipt.Contains("\"level\": \"admin\"", StringComparison.Ordinal) &&
+         adminOrReadReceipt.Contains("\"level\": \"read\"", StringComparison.Ordinal) &&
+         not (adminOrReadReceipt.Contains("admin-or-read", StringComparison.Ordinal)))
+    let adminOrWrite = inspectAlternative "packages=admin;packages=write" "admin-or-write"
+    let adminOrWriteDiagnostic = adminOrWrite.GitHub.FailureDiagnostic.Value
+    assertEqual "admin OR write does not claim mandatory package admin"
+        (Verdict.Unknown, Verdict.Unknown, 403, "integration-permission-denied",
+         [ [ { Name = "packages"; Level = "admin" } ]; [ { Name = "packages"; Level = "write" } ] ],
+         Convert.ToHexString(SHA256.HashData(utf8 (alternativeBody "admin-or-write"))).ToLowerInvariant())
+        (adminOrWrite.Overall, adminOrWrite.GitHub.Verdict, adminOrWriteDiagnostic.HttpStatus,
+         adminOrWriteDiagnostic.ErrorClass, adminOrWriteDiagnostic.AcceptedPermissionSets,
+         adminOrWrite.GitHub.ResponseSha256.[2])
+    let adminOrWriteReceipt = receiptJson adminOrWrite
+    assertEqual "admin OR write receipt preserves both alternatives without raw message" true
+        (adminOrWriteReceipt.Contains("\"level\": \"admin\"", StringComparison.Ordinal) &&
+         adminOrWriteReceipt.Contains("\"level\": \"write\"", StringComparison.Ordinal) &&
+         not (adminOrWriteReceipt.Contains("admin-or-write", StringComparison.Ordinal)))
+    let allAdmin = inspectAlternative "packages=admin,contents=read;metadata=read,packages=admin" "all-admin"
+    let allAdminDiagnostic = allAdmin.GitHub.FailureDiagnostic.Value
+    assertEqual "every alternative requiring package admin retains the narrow admin class"
+        (Verdict.Unknown, Verdict.Unknown, 403, "package-admin-required",
+         [ [ { Name = "packages"; Level = "admin" }; { Name = "contents"; Level = "read" } ]
+           [ { Name = "metadata"; Level = "read" }; { Name = "packages"; Level = "admin" } ] ],
+         Convert.ToHexString(SHA256.HashData(utf8 (alternativeBody "all-admin"))).ToLowerInvariant())
+        (allAdmin.Overall, allAdmin.GitHub.Verdict, allAdminDiagnostic.HttpStatus,
+         allAdminDiagnostic.ErrorClass, allAdminDiagnostic.AcceptedPermissionSets,
+         allAdmin.GitHub.ResponseSha256.[2])
+    let allAdminReceipt = receiptJson allAdmin
+    assertEqual "all-admin receipt preserves distinct AND terms without raw message" true
+        (allAdminReceipt.Contains("\"name\": \"contents\"", StringComparison.Ordinal) &&
+         allAdminReceipt.Contains("\"name\": \"metadata\"", StringComparison.Ordinal) &&
+         not (allAdminReceipt.Contains("all-admin", StringComparison.Ordinal)))
     let rateResult = inspect (transportFor [] [] [] (Map.ofList [ deletedPage1, response 403 (Map.ofList [ "x-ratelimit-remaining", "0" ]) forbiddenBody ])) DefaultLimits
     assertEqual "validated rate-limit marker has closed class" "rate-limited"
         rateResult.GitHub.FailureDiagnostic.Value.ErrorClass

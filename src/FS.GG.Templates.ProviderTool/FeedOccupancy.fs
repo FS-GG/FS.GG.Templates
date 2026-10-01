@@ -221,16 +221,20 @@ let private failureDiagnostic phase page (response: Response) =
             let matched = scopeMessage.Match value
             if matched.Success then [ matched.Groups.[1].Value ] else []
         | Error _ -> []
-    let hasPermission level =
-        permissionSets |> List.exists (List.exists (fun term -> term.Name = "packages" && term.Level = level))
+    let hasPackagePermission =
+        permissionSets |> List.exists (List.exists (fun term -> term.Name = "packages"))
+    let everyAlternativeRequiresPackageAdmin =
+        not permissionSets.IsEmpty &&
+        (permissionSets
+         |> List.forall (List.exists (fun term -> term.Name = "packages" && term.Level = "admin")))
     let errorClass =
         if rateLimited then "rate-limited"
         elif permissionsState = "malformed" || permissionsState = "oversized" then "malformed-error"
         elif Result.isError message then "malformed-error"
-        elif hasPermission "admin" then "package-admin-required"
+        elif message = Ok "You must have admin access to this package." || everyAlternativeRequiresPackageAdmin then
+            "package-admin-required"
         elif not scopes.IsEmpty then "package-scope-required"
-        elif message = Ok "You must have admin access to this package." then "package-admin-required"
-        elif message = Ok "Resource not accessible by integration" || hasPermission "write" || hasPermission "read" then
+        elif message = Ok "Resource not accessible by integration" || hasPackagePermission then
             "integration-permission-denied"
         elif response.Status = 403 then
             match message with Error _ -> "malformed-error" | Ok _ -> "unclassified-forbidden"
