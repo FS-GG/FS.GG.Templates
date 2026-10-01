@@ -36,6 +36,15 @@ class HostedQualificationTests(unittest.TestCase):
     self.assertFalse(store.exists());self.assertFalse(runroot.exists())
    finally: HOSTED.run=original
 
+ def test_preflight_refuses_runroot_paths_at_fifty_bytes_before_commands(self):
+  commands=[];original=HOSTED.run;HOSTED.run=lambda argv,env=None:commands.append(argv)
+  try:
+   args=SimpleNamespace(source_root=str(ROOT),expected_head="f"*40,git="git",podman="podman",store_root="/tmp/s",runroot="/tmp/"+"r"*45)
+   self.assertEqual(len(str(args.runroot).encode()),50)
+   with self.assertRaisesRegex(HOSTED.Refusal,"preflight-runroot-path-too-long"): HOSTED.source_preflight(args)
+   self.assertEqual(commands,[])
+  finally: HOSTED.run=original
+
  def qualification_fixture(self,mutate=None):
   temporary=tempfile.TemporaryDirectory();self.addCleanup(temporary.cleanup)
   state=Path(temporary.name);(state/"commands").mkdir();(state/"executions").mkdir();(state/"refusals").mkdir()

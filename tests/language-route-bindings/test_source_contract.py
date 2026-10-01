@@ -70,4 +70,16 @@ class SourceContract(unittest.TestCase):
   self.assertIn('runningCancellationObservation',validator)
   self.assertIn('cancellation-or-termination-unknown',validator)
   self.assertIn('"accepted":cancellation_proven',validator)
+ def test_hosted_workflow_job_environment_uses_supported_contexts_and_short_roots(self):
+  workflow=(ROOT/'.github/workflows/rust-go-hosted-bind-qualification.yml').read_text()
+  job_environment=workflow.split('    env:\n',1)[1].split('    steps:\n',1)[0]
+  contexts=set(__import__('re').findall(r'\$\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\.',job_environment))
+  self.assertLessEqual(contexts,{'github','needs','strategy','matrix','vars','secrets','inputs'})
+  self.assertNotIn('runner.',job_environment)
+  self.assertIn('QUALIFICATION_STATE: /tmp/r-${{ github.run_id }}-${{ github.run_attempt }}',job_environment)
+  self.assertIn('COORDINATION_ROOT: /tmp/c-${{ github.run_id }}-${{ github.run_attempt }}',job_environment)
+  actual_state='/tmp/r-36795096369-1'
+  for suffix in ('preflight-runroot','rust-runroot','go-runroot'):
+   self.assertLess(len((actual_state+'/'+suffix).encode()),50)
+  self.assertIn('--state "$QUALIFICATION_STATE" --allowed-root /tmp',workflow)
 if __name__=='__main__':unittest.main()

@@ -23,8 +23,8 @@ jobs:
     timeout-minutes: 55
     env:
       EXPECTED_HEAD: ${{ inputs.expected_head }}
-      QUALIFICATION_STATE: ${{ runner.temp }}/rust-go-bind-${{ github.run_id }}-${{ github.run_attempt }}
-      COORDINATION_ROOT: ${{ runner.temp }}/coordination-c069
+      QUALIFICATION_STATE: /tmp/r-${{ github.run_id }}-${{ github.run_attempt }}
+      COORDINATION_ROOT: /tmp/c-${{ github.run_id }}-${{ github.run_attempt }}
       ARTIFACT_ID: '11112465308'
       ARTIFACT_SHA256: d3ede2552d45357e505de41f34603adb458a815a20fc43dedae13f1650a56027
       EXECUTOR_REVISION: c069263c3e9e8780b1596eee82d2f6c017daa8df
@@ -193,7 +193,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 eng/language-route-bindings/hosted-qualification.py cleanup \
-            --state "$QUALIFICATION_STATE" --allowed-root "$RUNNER_TEMP" \
+            --state "$QUALIFICATION_STATE" --allowed-root /tmp \
             > "$QUALIFICATION_STATE/cleanup.json"
           find eng/language-route-bindings tests/language-route-bindings \
             -type d -name __pycache__ -prune -exec rm -rf -- {} +

@@ -35,7 +35,9 @@ def policy(root): return read(Path(root)/"eng/language-route-bindings/policy.jso
 
 def source_preflight(args):
     root=Path(args.source_root).resolve(); expected=args.expected_head
+    store=Path(args.store_root).resolve(); runroot=Path(args.runroot).resolve()
     require(HEAD_RE.fullmatch(expected),"expected-head-refused")
+    require(len(os.fsencode(runroot))<50,"preflight-runroot-path-too-long")
     require(run([args.git,"-C",str(root),"rev-parse","HEAD"])==expected,"exact-head-refused")
     require(run([args.git,"-C",str(root),"rev-parse","refs/remotes/origin/main"])==expected,"protected-main-head-refused")
     require(run([args.git,"-C",str(root),"status","--porcelain","--untracked-files=all"])=="","source-not-clean")
@@ -48,7 +50,6 @@ def source_preflight(args):
     for op in p["operations"].values():
         wrapper=root/op["workingDirectory"]/op["arguments"][0]
         require(wrapper.is_file() and sha(wrapper)==op["wrapperSha256"],"wrapper-hash-refused")
-    store=Path(args.store_root).resolve(); runroot=Path(args.runroot).resolve()
     require(not store.exists() and not runroot.exists(),"preflight-store-not-fresh")
     try:
         info=run([args.podman,"--storage-driver=vfs","--root",str(store),"--runroot",str(runroot),"info","--format","{{.Host.Security.Rootless}}|{{.Store.GraphDriverName}}"])
