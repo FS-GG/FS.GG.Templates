@@ -81,12 +81,7 @@ let private contract: SessionContract<unit, FourDProjection, FourDSemanticComman
                     failure "fourd.input.session" "reference input session mismatch"
                 else
                     match input.Value with
-                    | FourDSemanticCommand.MoveToFullCell cell when cell = state.LegalDestination ->
-                        Ok
-                            { state with
-                                Agent = cell
-                                Revision = state.Revision + 1UL
-                            }
+                    | FourDSemanticCommand.MoveToFullCell cell when cell = state.LegalDestination -> Ok state
                     | _ -> failure "fourd.input.destination" "destination is not the projected legal full cell"
         Advance = fun _ state -> Ok state
         Project =
@@ -270,6 +265,7 @@ let mount () : IDisposable =
     let mutable projectionRequests: uint64 list = []
     let mutable sessionHost: SvgSessionHost<FourDProjection> option = None
     let mutable disposed = false
+    let buttonListeners = ResizeArray<HTMLElement * (Event -> unit)>()
 
     let mutable selectionHandler: string -> unit = ignore
     let mutable observedSelection: string option = None
@@ -325,6 +321,7 @@ let mount () : IDisposable =
                     | _ -> false)
             then
                 commandOrder <- commandOrder @ [ string commandSequence ]
+                root.setAttribute ("data-last-command-destination", "1:1:1:1")
                 sessionHost |> Option.iter _.DemandProjection()
 
             describe ())
@@ -390,7 +387,9 @@ let mount () : IDisposable =
     let button text action =
         let value = document.createElement "button"
         value.textContent <- text
-        value.addEventListener ("click", fun _ -> action ())
+        let handler = fun (_: Event) -> action ()
+        value.addEventListener ("click", handler)
+        buttonListeners.Add(value, handler)
         root.appendChild value |> ignore
 
     button "Move to legal full cell" (fun () -> admit (NormalizedBrowserObservation.Invoke "fourd.move-full-cell"))
@@ -424,6 +423,11 @@ let mount () : IDisposable =
     let dispose () =
         if not disposed then
             disposed <- true
+
+            for element, handler in buttonListeners do
+                element.removeEventListener ("click", handler)
+
+            buttonListeners.Clear()
             (input :> IDisposable).Dispose()
             (clock :> IDisposable).Dispose()
             (svg :> IDisposable).Dispose()
@@ -448,6 +452,8 @@ let mount () : IDisposable =
                     + sessionObservation.OwnedRequestCount
                 )
             )
+
+            root.remove ()
 
     button "Dispose FourD reference" dispose
     describe ()

@@ -865,6 +865,32 @@ test("selected tactical and arcade examples load and execute their engine paths"
 
 test("FourD reference composes local session, normalized input, transformed hit testing and settled disposal", async ({ page }) => {
   test.skip(!hasFourDReference, "selected composition has no FourD reference fixture");
+  const observeDisposal = async (): Promise<void> => page.evaluate(() => {
+    const owner = window as any;
+    owner.__fourdDisposedElement = undefined;
+    owner.__fourdDetachedMove = [...document.querySelectorAll<HTMLButtonElement>("#fourd-reference button")]
+      .find(button => button.textContent === "Move to legal full cell");
+    const observer = new MutationObserver(records => {
+      for (const record of records) {
+        for (const node of record.removedNodes) {
+          if (node instanceof HTMLElement && node.id === "fourd-reference") {
+            owner.__fourdDisposedElement = node;
+            observer.disconnect();
+          }
+        }
+      }
+    });
+    observer.observe(document.body, { childList: true });
+  });
+  const disposedSnapshot = async (): Promise<{ inputOwned: string | null; sessionOwned: string | null; commandOrder: string | null } | undefined> =>
+    page.evaluate(() => {
+      const element = (window as any).__fourdDisposedElement as HTMLElement | undefined;
+      return element === undefined ? undefined : {
+        inputOwned: element.getAttribute("data-input-owned"),
+        sessionOwned: element.getAttribute("data-session-owned"),
+        commandOrder: element.getAttribute("data-command-order")
+      };
+    });
   await page.goto("/");
   const reference = page.locator("#fourd-reference");
   await expect(reference).toHaveAttribute("data-fixture-id", "fourd-reference-encounter");
@@ -878,7 +904,8 @@ test("FourD reference composes local session, normalized input, transformed hit 
   const bounds = await destination.boundingBox();
   expect(bounds).not.toBeNull();
   await page.mouse.click((bounds?.x ?? 0) + (bounds?.width ?? 0) / 2, (bounds?.y ?? 0) + (bounds?.height ?? 0) / 2);
-  await expect(reference).toHaveAttribute("data-agent-full-cell", "1:1:1:1");
+  await expect(reference).toHaveAttribute("data-agent-full-cell", "0:0:0:0");
+  await expect(reference).toHaveAttribute("data-last-command-destination", "1:1:1:1");
   await expect(reference).toHaveAttribute("data-command-order", "1");
 
   // Native editing and an active IME retain Enter instead of dispatching gameplay.
@@ -919,21 +946,24 @@ test("FourD reference composes local session, normalized input, transformed hit 
   await expect(reference).toHaveAttribute("data-command-order", "1,2,3");
   await expect.poll(async () => Number(await reference.getAttribute("data-projection-request-count"))).toBeGreaterThan(requestsBeforeReplace);
   await page.getByRole("button", { name: "Complete current projection" }).click();
-  await expect(reference).toHaveAttribute("data-applied-revision", "4");
+  await expect(reference).toHaveAttribute("data-applied-revision", "1");
 
+  await observeDisposal();
   await page.getByRole("button", { name: "Dispose FourD reference" }).click();
-  await expect(reference).toHaveAttribute("data-disposed", "true");
-  await expect(reference).toHaveAttribute("data-input-owned", "0");
-  await expect(reference).toHaveAttribute("data-session-owned", "0");
+  await expect(reference).toHaveCount(0);
+  await expect.poll(disposedSnapshot).toEqual({ inputOwned: "0", sessionOwned: "0", commandOrder: "1,2,3" });
+  await page.evaluate(() => (window as any).__fourdDetachedMove.click());
+  await expect.poll(disposedSnapshot).toEqual({ inputOwned: "0", sessionOwned: "0", commandOrder: "1,2,3" });
 
   // A fresh mount after disposal owns and then settles its resources independently.
   await page.reload();
   const remounted = page.locator("#fourd-reference");
   await expect(remounted).toHaveAttribute("data-agent-full-cell", "0:0:0:0");
   await page.getByRole("button", { name: "Replace local session" }).click();
+  await observeDisposal();
   await page.getByRole("button", { name: "Dispose FourD reference" }).click();
-  await expect(remounted).toHaveAttribute("data-input-owned", "0");
-  await expect(remounted).toHaveAttribute("data-session-owned", "0");
+  await expect(remounted).toHaveCount(0);
+  await expect.poll(disposedSnapshot).toEqual({ inputOwned: "0", sessionOwned: "0", commandOrder: "" });
 });
 
 test("current player and Studio remain operable at 320 CSS pixels with reduced motion", async ({ page }) => {
