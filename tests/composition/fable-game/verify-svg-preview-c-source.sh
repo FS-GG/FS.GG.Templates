@@ -7,28 +7,42 @@ mkdir -p "$out/feed"
 # shellcheck source=tests/composition/fable-game/svg-source-python-fixture.sh
 . "$root/tests/composition/fable-game/svg-source-python-fixture.sh"
 prepare_svg_source_python_fixture "$root" "$out"
+package_properties="$(dotnet msbuild "$root/FS.GG.Templates.csproj" -nologo -getProperty:PackageId -getProperty:Version)"
+package_id="$(jq -er '.Properties.PackageId | select(. == "FS.GG.Workspace.Template")' <<<"$package_properties")"
+package_version="$(jq -er '.Properties.Version | select(test("^[0-9A-Za-z][0-9A-Za-z.+-]*$"))' <<<"$package_properties")"
 dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/feed" -p:ContinuousIntegrationBuild=true >/dev/null
-mapfile -t templates < <(find "$out/feed" -maxdepth 1 -type f -name 'FS.GG.Workspace.Template.*.nupkg' -print)
+mapfile -t templates < <(find "$out/feed" -maxdepth 1 -type f -name '*.nupkg' -print)
 [[ "${#templates[@]}" == 1 ]] || { echo "expected exactly one packed Templates candidate, found ${#templates[@]}" >&2; exit 1; }
 template="${templates[0]}"
-bash "$root/tests/composition/fable-game/verify-svg-workspace-bundles.sh" "$template" source \
+[[ "$(basename "$template")" == "$package_id.$package_version.nupkg" ]] || { echo "packed Templates candidate filename does not match producer properties" >&2; exit 1; }
+package_sha="$(sha256sum "$template" | cut -d' ' -f1)"
+source_revision="$(git -C "$root" rev-parse HEAD)"
+dotnet run --project "$root/src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj" -c Release -- \
+  published-tool-check --archive "$template" --sha256 "$package_sha" --package-id "$package_id" \
+  --version "$package_version" --source-revision "$source_revision" >/dev/null
+
+# The retained bundle validator still carries the historical provider version as
+# a literal. Project that one assertion to the producer's current version while
+# executing every other source check from the repository-owned validator.
+validator_root="$out/source-bundle-validator"
+validator="$validator_root/tests/composition/fable-game/verify-svg-workspace-bundles.sh"
+mkdir -p "$(dirname "$validator")" "$validator_root/providers"
+cp "$root/providers/fable-game.providers.yml" "$validator_root/providers/"
+awk -v version="$package_version" '
+  $0 == "  grep -F '\''source: FS.GG.Workspace.Template::0.15.0'\'' \"$root/providers/fable-game.providers.yml\" >/dev/null" {
+    print "  grep -F '\''source: FS.GG.Workspace.Template::" version "'\'' \"$root/providers/fable-game.providers.yml\" >/dev/null"
+    replaced++
+    next
+  }
+  { print }
+  END { if (replaced != 1) exit 42 }
+' "$root/tests/composition/fable-game/verify-svg-workspace-bundles.sh" >"$validator" || {
+  echo "current bundle validator no longer has the one known historical provider assertion" >&2
+  exit 1
+}
+bash "$validator" "$template" source \
   >"$out/bundle-matrix.log"
-template_version="$(python3 - "$template" <<'PYVERSION'
-from pathlib import Path
-from zipfile import ZipFile
-import re, sys
-archive = Path(sys.argv[1])
-with ZipFile(archive) as package:
-    nuspecs = [name for name in package.namelist() if name.endswith('.nuspec')]
-    if len(nuspecs) != 1:
-        raise SystemExit(f'{archive}: expected one nuspec, found {len(nuspecs)}')
-    metadata = package.read(nuspecs[0]).decode('utf-8-sig')
-match = re.search(r'<id>FS\.GG\.Workspace\.Template</id>.*?<version>([^<]+)</version>', metadata, re.S)
-if not match:
-    raise SystemExit(f'{archive}: package identity/version missing')
-print(match.group(1))
-PYVERSION
-)"
+template_version="$package_version"
 rendering_version=0.31.0
 game_version=0.16.0
 net_version=0.6.0

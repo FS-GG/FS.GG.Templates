@@ -17,19 +17,25 @@ printf '%s\n' '<configuration><packageSources><clear/><add key="public" value="h
 # shellcheck source=tests/composition/fable-game/svg-source-python-fixture.sh
 . "$root/tests/composition/fable-game/svg-source-python-fixture.sh"
 prepare_svg_source_python_fixture "$root" "$out"
+package_properties="$(dotnet msbuild "$root/FS.GG.Templates.csproj" -nologo -getProperty:PackageId -getProperty:Version)"
+package_id="$(jq -er '.Properties.PackageId | select(. == "FS.GG.Workspace.Template")' <<<"$package_properties")"
+package_version="$(jq -er '.Properties.Version | select(test("^[0-9A-Za-z][0-9A-Za-z.+-]*$"))' <<<"$package_properties")"
 dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/feed" >"$out/pack.log"
-package="$out/feed/FS.GG.Workspace.Template.0.16.0.nupkg"
-[[ -f "$package" ]] || fail '0.16.0 source candidate missing'
+mapfile -t packages < <(find "$out/feed" -maxdepth 1 -type f -name '*.nupkg' -print)
+[[ "${#packages[@]}" == 1 ]] || fail "expected exactly one source candidate, found ${#packages[@]}"
+package="${packages[0]}"
+[[ "$(basename "$package")" == "$package_id.$package_version.nupkg" ]] || fail "source candidate filename does not match producer properties"
+package_sha="$(sha "$package")"
+source_revision="$(git -C "$root" rev-parse HEAD)"
+dotnet run --project "$root/src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj" -c Release -- \
+  published-tool-check --archive "$package" --sha256 "$package_sha" --package-id "$package_id" \
+  --version "$package_version" --source-revision "$source_revision" >/dev/null
 python3 - "$package" <<'PY'
 from pathlib import Path
 from zipfile import ZipFile
-import json,sys,xml.etree.ElementTree as ET
+import json,sys
 archive=Path(sys.argv[1])
 with ZipFile(archive) as z:
-    nuspec=next(x for x in z.namelist() if x.endswith('.nuspec'))
-    metadata=next(x for x in ET.fromstring(z.read(nuspec)) if x.tag.rsplit('}',1)[-1]=='metadata')
-    fields={x.tag.rsplit('}',1)[-1]:x.text for x in metadata}
-    assert fields['id']=='FS.GG.Workspace.Template' and fields['version']=='0.16.0'
     entries={p:json.loads(z.read(p)) for p in z.namelist() if p.endswith('fs-gg-fable-game/.template.config/template.json') or p.endswith('fs-gg-fable-game-legacy/.template.config/template.json')}
     assert len(entries)==2, entries.keys()
     for path,data in entries.items():
@@ -53,13 +59,14 @@ grep -F 'Cooperative SVG arena' "$out/raw/SvgFoundation/index.html" >/dev/null
 
 provider="$out/provider.yml"
 cp "$root/providers/fable-game.providers.yml" "$provider"
-python3 - "$provider" "$package" <<'PY'
+python3 - "$provider" "$package" "$package_id::$package_version" <<'PY'
 from pathlib import Path
-import re,sys
-p=Path(sys.argv[1]); package=Path(sys.argv[2]).resolve()
-value,count=re.subn(r'(?m)^(\s*source:\s*)FS\.GG\.Workspace\.Template::0\.15\.0',lambda m:m.group(1)+str(package),p.read_text())
-assert count==1
-p.write_text(value)
+import sys
+p=Path(sys.argv[1]); package=Path(sys.argv[2]).resolve(); expected=sys.argv[3]
+text=p.read_text(); needle=f"source: {expected}"
+if text.count(needle) != 1:
+    raise SystemExit(f"{p}: expected exactly one current Templates source {expected}")
+p.write_text(text.replace(needle, f"source: {package}"))
 PY
 
 scaffold() {
@@ -88,7 +95,7 @@ test -f "$out/complete/SvgFoundation/Examples/Arcade/scene.json"
 test ! -e "$out/omitted/SvgFoundation/Studio"
 
 # The retained selector still creates its non-SVG product under this new
-# package. Provider defaults are unconditional: 0.16.0 records typed-sdd for
+# package. Provider defaults are unconditional: the current candidate records typed-sdd for
 # omitted lifecycle even when svgFoundation=false, while explicit sdd wins.
 legacy_scaffold() {
   local name="$1" lifecycle="$2" destination
@@ -151,15 +158,15 @@ test ! -e "$out/omitted/readiness/d5-refused/typed-authority.json"
 (cd "$out/omitted" && dotnet restore D5omitted.slnx --locked-mode --configfile "$config" && dotnet build D5omitted.slnx --no-restore) >"$out/locked-build.log" 2>&1 || { tail -n 80 "$out/locked-build.log" >&2; fail 'omitted locked build'; }
 (cd "$out/legacyOmitted" && dotnet restore D5legacyOmitted.slnx --locked-mode --configfile "$config" && dotnet build D5legacyOmitted.slnx --no-restore) >"$out/legacy-locked-build.log" 2>&1 || { tail -n 80 "$out/legacy-locked-build.log" >&2; fail 'legacy omitted locked build'; }
 
-python3 - "$package" "$out/qualification.json" <<'PY'
+python3 - "$package" "$package_version" "$out/qualification.json" <<'PY'
 from pathlib import Path
 from hashlib import sha256
 import json,sys
-archive,report=map(Path,sys.argv[1:])
+archive=Path(sys.argv[1]); version=sys.argv[2]; report=Path(sys.argv[3])
 report.write_text(json.dumps({
   'schema':'fsgg.svg-release-d5.source-candidate/v1',
   'status':'source-candidate-only',
-  'templates':{'version':'0.16.0','candidateSha256':sha256(archive.read_bytes()).hexdigest(),'publication':'pending'},
+  'templates':{'version':version,'candidateSha256':sha256(archive.read_bytes()).hexdigest(),'publication':'pending'},
   'sdd':{'version':'2.0.2','source':'nuget.org','omittedBackend':'quint-specification-v1'},
   'newFableGameOmission':'typed-sdd',
   'rawPlayer':'passed',
