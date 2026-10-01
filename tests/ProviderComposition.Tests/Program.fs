@@ -7,6 +7,7 @@ open System.IO.Compression
 open System.Diagnostics
 open System.Net
 open System.Net.Http
+open System.Net.Http.Headers
 open System.Security.Cryptography
 open System.Text
 open System.Threading
@@ -324,14 +325,110 @@ let main _ =
     assertEqual "deleted GitHub version occupies candidate" Verdict.Occupied deletedOccupied.Overall
     let nugetOccupied = inspect (transportFor [] [] [ "0.17.0" ] Map.empty) DefaultLimits
     assertEqual "NuGet version occupies candidate" Verdict.Occupied nugetOccupied.Overall
+    assertEqual "successful census omits failure diagnostic" None absent.GitHub.FailureDiagnostic
+    assertEqual "deleted empty 200 participates in complete absence" Verdict.Absent absent.GitHub.Verdict
+    assertEqual "deleted target 200 remains occupied" Verdict.Occupied deletedOccupied.GitHub.Verdict
     assertEqual "terminal LF candidate is refused absolutely" (Error "candidate-version-refused") (validateCandidate "0.17.0\n")
     assertEqual "terminal CRLF candidate is refused absolutely" (Error "candidate-version-refused") (validateCandidate "0.17.0\r\n")
     assertEqual "occupied exact version cannot be queried through newline candidate" (Error "candidate-version-refused")
         (inspectWith DefaultLimits (transportFor [] [] [ "0.17.0" ] Map.empty) occupancyContext "0.17.0\n")
     let metadataUrl = "https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template"
+    let deletedPage1 = "https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template/versions?per_page=100&page=1&state=deleted"
+    let activeTwelve = [ 1L .. 12L ] |> List.map (fun id -> versionEntry (100L + id) $"0.1.{id}")
+    let forbiddenBody = "{\"message\":\"Resource not accessible by integration\"}"
+    let deleted403 = response 403 (Map.ofList [ "X-Accepted-GitHub-Permissions", "packages=write" ]) forbiddenBody
+    let observed403 = inspect (transportFor activeTwelve [] [ "0.16.0" ] (Map.ofList [ deletedPage1, deleted403 ])) DefaultLimits
+    assertEqual "observed 200/200/403 remains overall unknown" Verdict.Unknown observed403.Overall
+    assertEqual "observed deleted failure leaves GitHub incomplete" (Verdict.Unknown, false, [ 200; 200; 403 ], 1, 12)
+        (observed403.GitHub.Verdict, observed403.GitHub.Complete, observed403.GitHub.Statuses, observed403.GitHub.Pages, observed403.GitHub.Records)
+    assertEqual "independent NuGet absence survives GitHub diagnostic" Verdict.Absent observed403.NuGet.Verdict
+    let observedDiagnostic =
+        match observed403.GitHub.FailureDiagnostic with
+        | Some value -> value
+        | None -> failwith "deleted 403 omitted failureDiagnostic"
+    assertEqual "deleted diagnostic binds phase page and status" ("deleted", Some 1, 403)
+        (observedDiagnostic.Phase, observedDiagnostic.Page, observedDiagnostic.HttpStatus)
+    assertEqual "accepted packages write is structured, not flattened"
+        ("integration-permission-denied", "valid", [ [ { Name = "packages"; Level = "write" } ] ])
+        (observedDiagnostic.ErrorClass, observedDiagnostic.AcceptedPermissionsState, observedDiagnostic.AcceptedPermissionSets)
+    assertEqual "failure diagnostic preserves original 403 response hash"
+        (Convert.ToHexString(SHA256.HashData(utf8 forbiddenBody)).ToLowerInvariant())
+        observed403.GitHub.ResponseSha256.[2]
+    let observedReceipt = receiptJson observed403
+    assertEqual "serialized diagnostic carries closed fields and structured terms" true
+        (observedReceipt.Contains("\"failureDiagnostic\"", StringComparison.Ordinal) &&
+         observedReceipt.Contains("\"acceptedPermissionsState\": \"valid\"", StringComparison.Ordinal) &&
+         observedReceipt.Contains("\"name\": \"packages\"", StringComparison.Ordinal) &&
+         observedReceipt.Contains("\"level\": \"write\"", StringComparison.Ordinal))
+    assertEqual "recognized upstream message is not serialized" false
+        (observedReceipt.Contains("Resource not accessible", StringComparison.Ordinal))
+
+    assertEqual "missing accepted-permissions header remains explicit" ("absent", []) (parseAcceptedPermissions None)
+    assertEqual "accepted-permissions OR alternatives retain AND terms"
+        ("valid",
+         [ [ { Name = "packages"; Level = "write" } ]
+           [ { Name = "packages"; Level = "read" }; { Name = "contents"; Level = "read" } ] ])
+        (parseAcceptedPermissions (Some "packages=write; packages=read, contents=read"))
+    for name, raw, expectedState in
+        [ "unknown permission", "issues=write", "unrecognized"
+          "duplicate permission", "packages=read,packages=read", "malformed"
+          "conflicting permission", "packages=read,packages=write", "malformed"
+          "duplicate alternatives", "packages=read,contents=read;contents=read,packages=read", "malformed"
+          "invalid delimiter", "packages:read", "malformed"
+          "invalid level", "packages=owner", "unrecognized"
+          "control character", "packages=read\n", "malformed"
+          "too many alternatives", "packages=read;contents=read;metadata=read;packages=write;contents=write", "malformed"
+          "too many AND terms", "packages=read,contents=read,metadata=read,packages=write,contents=write,metadata=write,packages=admin,contents=admin,metadata=admin", "malformed"
+          "oversized header", String.replicate 1025 "a", "oversized" ] do
+        let state, sets = parseAcceptedPermissions (Some raw)
+        assertEqual $"{name} closes accepted-permissions diagnostic" (expectedState, []) (state, sets)
+
+    let sentinel = "CREDENTIAL_SENTINEL_7f31"
+    let maliciousHeaders = Map.ofList [ "x-accepted-github-permissions", $"packages=write;{sentinel}=admin"; "cookie", sentinel ]
+    let maliciousBody = $"{{\"message\":\"{sentinel}\",\"documentation_url\":\"https://evil.example/{sentinel}\"}}"
+    let malicious403 = response 403 maliciousHeaders maliciousBody
+    let maliciousResult = inspect (transportFor [] [] [] (Map.ofList [ deletedPage1, malicious403 ])) DefaultLimits
+    let maliciousReceipt = receiptJson maliciousResult
+    assertEqual "unrecognized diagnostic text never enters receipt" false (maliciousReceipt.Contains(sentinel, StringComparison.Ordinal))
+    assertEqual "raw response headers never enter receipt" false (maliciousReceipt.Contains("cookie", StringComparison.OrdinalIgnoreCase))
+    assertEqual "malicious 403 retains unknown classification" Verdict.Unknown maliciousResult.Overall
+
+    let malformed403Body = "{\"message\":\"Resource not accessible by integration\",\"message\":\"changed\"}"
+    let malformed403 = inspect (transportFor [] [] [] (Map.ofList [ deletedPage1, response 403 Map.empty malformed403Body ])) DefaultLimits
+    let malformedDiagnostic = malformed403.GitHub.FailureDiagnostic.Value
+    assertEqual "malformed error body is closed without losing status" ("malformed-error", "absent", 403)
+        (malformedDiagnostic.ErrorClass, malformedDiagnostic.AcceptedPermissionsState, malformedDiagnostic.HttpStatus)
+    assertEqual "malformed error body retains original response hash"
+        (Convert.ToHexString(SHA256.HashData(utf8 malformed403Body)).ToLowerInvariant())
+        malformed403.GitHub.ResponseSha256.[2]
+    let malformedWithPermission = inspect (transportFor [] [] [] (Map.ofList [ deletedPage1, response 403 (Map.ofList [ "x-accepted-github-permissions", "packages=write" ]) "{}" ])) DefaultLimits
+    assertEqual "valid permission header cannot mask malformed body" "malformed-error"
+        malformedWithPermission.GitHub.FailureDiagnostic.Value.ErrorClass
+
+    let scope403Body = "{\"message\":\"Your token has not been granted the required scopes to execute this request. The 'read:packages' scope is required.\"}"
+    let scopeResult = inspect (transportFor [] [] [] (Map.ofList [ deletedPage1, response 403 Map.empty scope403Body ])) DefaultLimits
+    let scopeDiagnostic = scopeResult.GitHub.FailureDiagnostic.Value
+    assertEqual "fixed package scope template records only enumerated scope" ("package-scope-required", [ "read:packages" ])
+        (scopeDiagnostic.ErrorClass, scopeDiagnostic.RequiredScopes)
+    let adminResult = inspect (transportFor [] [] [] (Map.ofList [ deletedPage1, response 403 (Map.ofList [ "x-accepted-github-permissions", "packages=admin" ]) forbiddenBody ])) DefaultLimits
+    assertEqual "accepted package admin evidence stays diagnostic only" "package-admin-required"
+        adminResult.GitHub.FailureDiagnostic.Value.ErrorClass
+    let rateResult = inspect (transportFor [] [] [] (Map.ofList [ deletedPage1, response 403 (Map.ofList [ "x-ratelimit-remaining", "0" ]) forbiddenBody ])) DefaultLimits
+    assertEqual "validated rate-limit marker has closed class" "rate-limited"
+        rateResult.GitHub.FailureDiagnostic.Value.ErrorClass
+    let otherHttp = inspect (transportFor [] [] [] (Map.ofList [ deletedPage1, response 500 Map.empty "{\"message\":\"upstream failure\"}" ])) DefaultLimits
+    assertEqual "non-forbidden HTTP failure has closed class" "other-http-error"
+        otherHttp.GitHub.FailureDiagnostic.Value.ErrorClass
+    let oversizedDiagnosticBody = "{\"message\":\"" + String.replicate (16 * 1024) "x" + "\"}"
+    let oversizedDiagnostic = inspect (transportFor [] [] [] (Map.ofList [ deletedPage1, response 403 Map.empty oversizedDiagnosticBody ])) DefaultLimits
+    assertEqual "diagnostic body cap retains unknown and original hash" (Verdict.Unknown, "malformed-error", Convert.ToHexString(SHA256.HashData(utf8 oversizedDiagnosticBody)).ToLowerInvariant())
+        (oversizedDiagnostic.Overall, oversizedDiagnostic.GitHub.FailureDiagnostic.Value.ErrorClass, oversizedDiagnostic.GitHub.ResponseSha256.[2])
     for status in [ 302; 401; 403; 404 ] do
         let result = inspect (transportFor [] [] [] (Map.ofList [ metadataUrl, response status Map.empty "{}" ])) DefaultLimits
         assertEqual $"GitHub {status} remains unknown" Verdict.Unknown result.GitHub.Verdict
+    let metadataFailure = inspect (transportFor [] [] [] (Map.ofList [ metadataUrl, response 403 Map.empty forbiddenBody ])) DefaultLimits
+    assertEqual "metadata diagnostic omits page" ("metadata-before", None)
+        (metadataFailure.GitHub.FailureDiagnostic.Value.Phase, metadataFailure.GitHub.FailureDiagnostic.Value.Page)
     let wrongRepository = inspect (transportFor [] [] [] (Map.ofList [ metadataUrl, response 200 Map.empty (metadata "FS-GG/Other") ])) DefaultLimits
     assertEqual "wrong package repository remains unknown" Verdict.Unknown wrongRepository.GitHub.Verdict
     let wrongPackageBody = (metadata "FS-GG/FS.GG.Templates").Replace("\"name\":\"FS.GG.Workspace.Template\"", "\"name\":\"FS.GG.Other\"")
@@ -393,6 +490,25 @@ let main _ =
     assertEqual "stalled response body observes request cancellation" true stalledCancelled
     assertEqual "cancellation reaches the response body stream" true (bodyCancelled.Task.Wait(TimeSpan.FromSeconds 1.0))
     assertEqual "stalled response body completes within bounded control window" true (stalledClock.Elapsed < TimeSpan.FromMilliseconds 500.0)
+    let mutable boundaryCalls = 0
+    let mutable boundaryAuthorization: AuthenticationHeaderValue option = None
+    use boundaryHandler =
+        { new HttpMessageHandler() with
+            override _.SendAsync(request, _) =
+                boundaryCalls <- boundaryCalls + 1
+                boundaryAuthorization <- Option.ofObj request.Headers.Authorization
+                let reply = new HttpResponseMessage(HttpStatusCode.OK)
+                reply.Content <- new StringContent("{}", Encoding.UTF8, "application/json")
+                Task.FromResult(reply) }
+    let boundaryTransport = httpTransportWithHandler sentinel boundaryHandler
+    let refusesBoundary name request =
+        try boundaryTransport request (TimeSpan.FromSeconds 1.0) |> ignore; failwith $"{name}: expected refusal"
+        with :? InvalidOperationException -> printfn "PASS %s" name
+    refusesBoundary "production transport refuses non-GET" { Uri = Uri("https://api.github.com/"); Method = "POST"; Authenticated = true }
+    refusesBoundary "production transport refuses authenticated off-host request" { Uri = Uri("https://api.nuget.org/v3/index.json"); Method = "GET"; Authenticated = true }
+    assertEqual "refused requests never reach handler" 0 boundaryCalls
+    boundaryTransport { Uri = Uri("https://api.nuget.org/v3/index.json"); Method = "GET"; Authenticated = false } (TimeSpan.FromSeconds 1.0) |> ignore
+    assertEqual "public NuGet request carries no Authorization header" None boundaryAuthorization
     let tiny = { DefaultLimits with MaxResponseBytes = 2 }
     assertEqual "response size exhaustion remains unknown" Verdict.Unknown (inspect (transportFor [] [] [] Map.empty) tiny).Overall
     let tinyTotal = { DefaultLimits with MaxTotalBytes = 400L }
@@ -417,5 +533,6 @@ let main _ =
     assertEqual "prerelease candidate refused" (Error "candidate-version-refused") (validateCandidate "0.17.0-rc.1")
     let sanitized = receiptJson absent
     assertEqual "receipt contains hashes rather than raw censuses" false (sanitized.Contains("0.16.0", StringComparison.Ordinal))
+    assertEqual "successful receipt omits optional failureDiagnostic" false (sanitized.Contains("failureDiagnostic", StringComparison.Ordinal))
     Directory.Delete(temp, true)
     0
