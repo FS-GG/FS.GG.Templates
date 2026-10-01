@@ -20,6 +20,8 @@ type Request = {
     Provider: Provider
 }
 
+type InstalledTool = { EntryCount: int; CorePath: string }
+
 let private packageId = "FS.GG.Workspace.Template"
 let private version = "0.17.0"
 let private source = packageId + "::" + version
@@ -71,8 +73,7 @@ let validateInstalledTool (archive: string) (toolRoot: string) (expectedSha: str
         let lowerVersion = expectedVersion.ToLowerInvariant()
         let packageRoot = Path.Combine(toolRoot, ".store", lowerId, lowerVersion, lowerId, lowerVersion)
         let installedArchive = Path.Combine(packageRoot, lowerId + "." + lowerVersion + ".nupkg")
-        let command = Path.Combine(toolRoot, commandName)
-        if not (Directory.Exists packageRoot) || not (regularFile installedArchive) || not (regularFile command) then refuse "installed-tool-custody-refused"
+        if not (Directory.Exists packageRoot) || not (regularFile installedArchive) then refuse "installed-tool-custody-refused"
         elif sha256 installedArchive <> expectedSha then refuse "installed-tool-archive-refused"
         else
             match validatePackageIdentity installedArchive expectedSha expectedId expectedVersion expectedRevision with
@@ -97,10 +98,8 @@ let validateInstalledTool (archive: string) (toolRoot: string) (expectedSha: str
                                 use source = coreEntry.Open()
                                 use target = File.OpenRead corePath
                                 let coreMatches = SHA256.HashData(source).AsSpan().SequenceEqual(SHA256.HashData(target))
-                                let launcher = File.ReadAllBytes command
-                                let marker = Encoding.UTF8.GetBytes entryPoint
-                                let launcherNamesCore = launcher.AsSpan().IndexOf(marker.AsSpan()) >= 0
-                                if coreMatches && launcherNamesCore then Ok count else refuse "installed-tool-core-refused"
+                                if coreMatches then Ok { EntryCount = count; CorePath = Path.GetFullPath corePath }
+                                else refuse "installed-tool-core-refused"
                         | _ -> refuse "installed-tool-command-refused"
                     | _ -> refuse "installed-tool-command-refused"
                 | _ -> refuse "installed-tool-settings-refused"

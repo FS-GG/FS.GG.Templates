@@ -79,7 +79,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          dotnet restore src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj --locked-mode
+          export DOTNET_HOST_PATH="$DOTNET_ROOT/dotnet"
+          "$DOTNET_HOST_PATH" restore src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj --locked-mode
           tests/composition/fable-game/verify-fable-reference-public.sh \
             --sha256 "$ARCHIVE_SHA256" --descriptor-sha256 "$DESCRIPTOR_SHA256" \
             --source-revision "$SOURCE_REVISION" --tag-revision "$TAG_REVISION" \

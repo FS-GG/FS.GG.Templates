@@ -374,7 +374,7 @@ let main argv =
             let requiredNames = [ "--archive"; "--tool-root"; "--sha256"; "--package-id"; "--version"; "--source-revision"; "--command-name" ]
             let parsed = parseClosedOptions requiredNames tail
             match ReferencePublication.validateInstalledTool parsed.["--archive"] parsed.["--tool-root"] parsed.["--sha256"] parsed.["--package-id"] parsed.["--version"] parsed.["--source-revision"] parsed.["--command-name"] with
-            | Ok count -> printfn "installed tool: valid — %d archive entries" count; 0
+            | Ok tool -> printfn "%s" tool.CorePath; 0
             | Error reason -> fail reason
         | "reference-receiver-check" :: tail ->
             let requiredNames = [ "--archive"; "--receiver"; "--route"; "--lifecycle"; "--sdd-version"; "--product-name" ]

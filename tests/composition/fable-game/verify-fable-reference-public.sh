@@ -33,6 +33,8 @@ done
 [[ "$revision" == "$tag_revision" && "$evidence" = /* ]] || usage
 $preflight && { [[ ! -e "$evidence" ]] || usage; echo 'fable-reference-public: preflight passed; live publication qualification not run'; exit 0; }
 : "${QUINT_BIN:?set QUINT_BIN to qualified Quint 0.32.0}"
+: "${DOTNET_HOST_PATH:?set DOTNET_HOST_PATH to the qualified absolute dotnet host}"
+[[ "$DOTNET_HOST_PATH" = /* && -x "$DOTNET_HOST_PATH" && ! -L "$DOTNET_HOST_PATH" ]] || { echo 'fable-reference-public: dotnet host custody mismatch' >&2; exit 1; }
 [[ -x "$QUINT_BIN" ]] || { echo 'fable-reference-public: Quint executable missing' >&2; exit 1; }
 [[ "$(sha256sum "$QUINT_BIN" | cut -d' ' -f1)" == 939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f ]] || { echo 'fable-reference-public: Quint identity mismatch' >&2; exit 1; }
 [[ "$($QUINT_BIN --version)" == 0.32.0 ]] || { echo 'fable-reference-public: Quint version mismatch' >&2; exit 1; }
@@ -70,26 +72,33 @@ curl --fail --silent --show-error --location "https://api.nuget.org/v3-flatconta
 curl --fail --silent --show-error --location "https://raw.githubusercontent.com/FS-GG/FS.GG.Templates/$revision/providers/fable-game.providers.yml" -o "$descriptor"
 curl --fail --silent --show-error --location "https://api.nuget.org/v3-flatcontainer/fs.gg.sdd.cli/$sdd_version/fs.gg.sdd.cli.$sdd_version.nupkg" -o "$sdd_archive"
 curl --fail --silent --show-error --location "https://api.nuget.org/v3-flatcontainer/fs.gg.newsddworkspace/$wizard_version/fs.gg.newsddworkspace.$wizard_version.nupkg" -o "$wizard_archive"
-validator=(dotnet run --project "$root/src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj" --no-restore --)
+validator=("$DOTNET_HOST_PATH" run --project "$root/src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj" --no-restore --)
 "${validator[@]}" reference-publication-check --archive "$archive" --descriptor "$descriptor" --sha256 "$sha" --source-revision "$revision" --tag-revision "$tag_revision" --descriptor-sha256 "$descriptor_sha"
 "${validator[@]}" published-tool-check --archive "$sdd_archive" --sha256 "$sdd_sha" --package-id FS.GG.SDD.Cli --version "$sdd_version" --source-revision "$sdd_revision"
 "${validator[@]}" published-tool-check --archive "$wizard_archive" --sha256 "$wizard_sha" --package-id FS.GG.NewSddWorkspace --version "$wizard_version" --source-revision "$wizard_revision"
 
-dotnet new install "$archive" --force >"$evidence/template-install.log"
-dotnet tool install FS.GG.SDD.Cli --version "$sdd_version" --tool-path "$evidence/tools/sdd" --configfile "$config" --no-cache
-dotnet tool install FS.GG.NewSddWorkspace --version "$wizard_version" --tool-path "$evidence/tools/wizard" --configfile "$config" --no-cache
-dotnet tool list --tool-path "$evidence/tools/sdd" | awk -v v="$sdd_version" 'tolower($1)=="fs.gg.sdd.cli" && $2==v {ok=1} END{exit !ok}'
-dotnet tool list --tool-path "$evidence/tools/wizard" | awk -v v="$wizard_version" 'tolower($1)=="fs.gg.newsddworkspace" && $2==v {ok=1} END{exit !ok}'
-"${validator[@]}" installed-tool-check --archive "$sdd_archive" --tool-root "$evidence/tools/sdd" --sha256 "$sdd_sha" --package-id FS.GG.SDD.Cli --version "$sdd_version" --source-revision "$sdd_revision" --command-name fsgg-sdd
-"${validator[@]}" installed-tool-check --archive "$wizard_archive" --tool-root "$evidence/tools/wizard" --sha256 "$wizard_sha" --package-id FS.GG.NewSddWorkspace --version "$wizard_version" --source-revision "$wizard_revision" --command-name new-sdd-workspace
+"$DOTNET_HOST_PATH" new install "$archive" --force >"$evidence/template-install.log"
+"$DOTNET_HOST_PATH" tool install FS.GG.SDD.Cli --version "$sdd_version" --tool-path "$evidence/tools/sdd" --configfile "$config" --no-cache
+"$DOTNET_HOST_PATH" tool install FS.GG.NewSddWorkspace --version "$wizard_version" --tool-path "$evidence/tools/wizard" --configfile "$config" --no-cache
+sdd_core="$("${validator[@]}" installed-tool-check --archive "$sdd_archive" --tool-root "$evidence/tools/sdd" --sha256 "$sdd_sha" --package-id FS.GG.SDD.Cli --version "$sdd_version" --source-revision "$sdd_revision" --command-name fsgg-sdd)"
+wizard_core="$("${validator[@]}" installed-tool-check --archive "$wizard_archive" --tool-root "$evidence/tools/wizard" --sha256 "$wizard_sha" --package-id FS.GG.NewSddWorkspace --version "$wizard_version" --source-revision "$wizard_revision" --command-name new-sdd-workspace)"
+[[ "$sdd_core" = "$evidence/tools/sdd/.store/"* && "$wizard_core" = "$evidence/tools/wizard/.store/"* ]] || { echo 'fable-reference-public: admitted tool core escaped owned store' >&2; exit 1; }
+mkdir "$evidence/tools/checked-sdd"
+cat >"$evidence/tools/checked-sdd/fsgg-sdd" <<'ADAPTER'
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$CHECKED_DOTNET_HOST" "$CHECKED_SDD_CORE" "$@"
+ADAPTER
+chmod 700 "$evidence/tools/checked-sdd/fsgg-sdd"
+export CHECKED_DOTNET_HOST="$DOTNET_HOST_PATH" CHECKED_SDD_CORE="$sdd_core"
 
 # Omitted lifecycle must resolve to typed-sdd; explicit none remains none for every public route.
-dotnet new fs-gg-fable-game -n ReferenceDirect -o "$evidence/direct" --bundle complete --lifecycle none
+"$DOTNET_HOST_PATH" new fs-gg-fable-game -n ReferenceDirect -o "$evidence/direct" --bundle complete --lifecycle none
 for receiver in provider provider-none; do mkdir -p "$evidence/$receiver/.fsgg"; cp "$descriptor" "$evidence/$receiver/.fsgg/providers.yml"; done
-"$evidence/tools/sdd/fsgg-sdd" scaffold --root "$evidence/provider" --provider fable-game --param productName=ReferenceProvider --param bundle=complete --no-update --json >"$evidence/provider.json"
-"$evidence/tools/sdd/fsgg-sdd" scaffold --root "$evidence/provider-none" --provider fable-game --param productName=ReferenceProviderNone --param bundle=complete --param lifecycle=none --no-update --json >"$evidence/provider-none.json"
-PATH="$evidence/tools/sdd:$PATH" "$evidence/tools/wizard/new-sdd-workspace" "$evidence/wizard" ReferenceWizard --template fable-game --bundle complete --ref "$tag" --pinned --no-governance --no-coordination >"$evidence/wizard.log"
-PATH="$evidence/tools/sdd:$PATH" "$evidence/tools/wizard/new-sdd-workspace" "$evidence/wizard-none" ReferenceWizardNone --template fable-game --bundle complete --lifecycle none --ref "$tag" --pinned --no-governance --no-coordination >"$evidence/wizard-none.log"
+"$DOTNET_HOST_PATH" "$sdd_core" scaffold --root "$evidence/provider" --provider fable-game --param productName=ReferenceProvider --param bundle=complete --no-update --json >"$evidence/provider.json"
+"$DOTNET_HOST_PATH" "$sdd_core" scaffold --root "$evidence/provider-none" --provider fable-game --param productName=ReferenceProviderNone --param bundle=complete --param lifecycle=none --no-update --json >"$evidence/provider-none.json"
+PATH="$evidence/tools/checked-sdd:$PATH" "$DOTNET_HOST_PATH" "$wizard_core" "$evidence/wizard" ReferenceWizard --template fable-game --bundle complete --ref "$tag" --pinned --no-governance --no-coordination >"$evidence/wizard.log"
+PATH="$evidence/tools/checked-sdd:$PATH" "$DOTNET_HOST_PATH" "$wizard_core" "$evidence/wizard-none" ReferenceWizardNone --template fable-game --bundle complete --lifecycle none --ref "$tag" --pinned --no-governance --no-coordination >"$evidence/wizard-none.log"
 
 "${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/direct" --route direct --lifecycle none --sdd-version "$sdd_version" --product-name ReferenceDirect
 for route in provider wizard; do
