@@ -1,4 +1,4 @@
-import hashlib,json,unittest
+import hashlib,json,os,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 class SourceContract(unittest.TestCase):
@@ -94,4 +94,23 @@ class SourceContract(unittest.TestCase):
   self.assertIn(': "${EXECUTOR:=$COORDINATION_ROOT/',workflow)
   self.assertIn('"$QUALIFICATION_STATE/validation-command.json"',workflow)
   self.assertIn('reason:"validation-input-missing"',workflow)
+ def test_hosted_executor_sdk_probe_uses_the_pinned_build_checkout(self):
+  workflow=(ROOT/'.github/workflows/rust-go-hosted-bind-qualification.yml').read_text()
+  probe='sdk_actual="$(cd "$COORDINATION_ROOT" && dotnet --version)"'
+  self.assertIn(probe,workflow)
+  self.assertNotIn('sdk_actual="$(dotnet --version)"',workflow)
+  self.assertLess(workflow.index(probe),workflow.index('timeout 600 dotnet build'))
+  with tempfile.TemporaryDirectory() as directory:
+   temporary=Path(directory)
+   outer=temporary/'outer'; build=temporary/'coordination'; commands=temporary/'commands'
+   outer.mkdir(); build.mkdir(); commands.mkdir()
+   (outer/'global.json').write_text(json.dumps({'sdk':{'version':'10.0.401'}}))
+   (build/'global.json').write_text(json.dumps({'sdk':{'version':'10.0.400'}}))
+   dotnet=commands/'dotnet'
+   dotnet.write_text('#!/usr/bin/env python3\nimport json\nfrom pathlib import Path\nprint(json.loads((Path.cwd()/"global.json").read_text())["sdk"]["version"])\n')
+   dotnet.chmod(0o755)
+   environment={**os.environ,'PATH':str(commands)+os.pathsep+os.environ['PATH'],'COORDINATION_ROOT':str(build)}
+   shell='outer_actual="$(dotnet --version)"\n'+probe+'\nprintf "%s\\n%s\\n" "$outer_actual" "$sdk_actual"\n'
+   result=subprocess.run(['bash','-c',shell],cwd=outer,env=environment,text=True,capture_output=True,check=True)
+   self.assertEqual(result.stdout,'10.0.401\n10.0.400\n')
 if __name__=='__main__':unittest.main()
