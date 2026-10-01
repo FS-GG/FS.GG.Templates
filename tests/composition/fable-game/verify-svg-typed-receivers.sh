@@ -130,6 +130,12 @@ test ! -e "$out/wizard/SvgFoundation"
 "$root/scripts/apply-svg-foundation-preview.sh" apply "$out/sdd-none" "$out/wizard" \
   "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/wizard-adoption-backup" >"$out/wizard-adoption.log"
 test -f "$out/wizard/SvgFoundation/PreviewDocument.fs"
+test ! -e "$out/wizard/SvgFoundation/build.sh"
+grep -F 'if [[ -f SvgFoundation/SvgFoundation.fsproj && -f SvgFoundation/build.sh ]]; then' \
+  "$out/wizard/build.sh" >/dev/null
+if grep -Fx 'if [[ -f SvgFoundation/SvgFoundation.fsproj ]]; then' "$out/wizard/build.sh" >/dev/null; then
+  fail 'wizard retained an unguarded Preview-A player build route'
+fi
 jq -e '[.effectiveParameters[] | select(.key == "lifecycle" and .value == "none")] | length == 1' \
   "$out/wizard/.fsgg/scaffold-provenance.json" >/dev/null
 jq -e '.status == "pending"' "$out/wizard/.fsgg/workspace-initialization.json" >/dev/null
