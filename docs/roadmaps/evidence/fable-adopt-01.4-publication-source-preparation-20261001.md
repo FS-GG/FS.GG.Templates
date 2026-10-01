@@ -24,3 +24,13 @@ Local source qualification on 2026-10-01:
 - `actionlint` was not installed in the workspace and no repository-provided invocation was present, so no actionlint result is claimed and no convenience install was introduced.
 
 No live feed request, credential read, tag, publication, installation, browser run, push, PR mutation, or registry/progress flip occurred in this source window. Root still owns native dispatch/readback and the time-bounded pre-tag decision.
+
+## Canonical candidate and deadline repair
+
+Independent review of frozen head `23b27026097cac16786274ef5f78dfca206f7f09` identified two bounded defects, recorded in `/tmp/fable-feed-occupancy-source-review-20261001-2100.md` at SHA256 `1104a0b0a58107d0713be4d720c69158520dc005e60bbbe8d8593acf77ff2971`. That reviewed head remains historical and unchanged.
+
+The successor uses absolute `\A`/`\z` ASCII version patterns, so terminal LF/CRLF and other trailing material are refused rather than normalized. The transport now carries the effective cancellation token through asynchronous header, stream, and body reads. Each injected request is timed, the shared acquisition deadline is checked after transport/body completion, and both feed classifiers recheck it immediately before producing a complete verdict. A late final response therefore remains `UNKNOWN` and cannot create false absence.
+
+Focused qualification passed all 92 prior checks plus ten repair controls in 4.20 seconds on the first repair run and 1.51 seconds on the final warm run. The added controls reproduce and close newline candidate false absence, malformed served newline identity, a final response returning after both request and aggregate deadlines, and a body stalled after headers. The stalled-body control uses the production HTTP transport with an injected handler and confirms cancellation reaches the content stream within the bounded control window. The unchanged workflow effect-isolation/preflight assertions passed. Cached actionlint 1.7.12 (`c872d6db8c6bf83a8eaa704fc93999f027d55dffbc63b8a6abdccb47df5f4cd4`) validated the actual workflow with `-shellcheck= -pyflakes=` and no diagnostics.
+
+This repair made no workflow, CLI, project, publication, credential, live-feed, tag, installation, browser, registry, or remote change. Native occupancy and every later release/installed effect remain root-owned and pending.

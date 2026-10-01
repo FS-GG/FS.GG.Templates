@@ -4,9 +4,36 @@ open FsGgTemplates.FeedOccupancy
 open System
 open System.IO
 open System.IO.Compression
+open System.Diagnostics
+open System.Net
+open System.Net.Http
 open System.Security.Cryptography
 open System.Text
+open System.Threading
+open System.Threading.Tasks
 open FsGgTemplates.ProviderTool
+
+type private StallingStream(cancelled: TaskCompletionSource<bool>) =
+    inherit Stream()
+    override _.CanRead = true
+    override _.CanSeek = false
+    override _.CanWrite = false
+    override _.Length = raise (NotSupportedException())
+    override _.Position with get () = raise (NotSupportedException()) and set _ = raise (NotSupportedException())
+    override _.Flush() = ()
+    override _.Read(_, _, _) = Thread.Sleep(600); 0
+    override _.ReadAsync(buffer: Memory<byte>, cancellationToken: CancellationToken) =
+        ValueTask<int>(task {
+            try
+                do! Task.Delay(Timeout.Infinite, cancellationToken)
+                return 0
+            with :? OperationCanceledException as ex ->
+                cancelled.TrySetResult(true) |> ignore
+                return raise ex
+        })
+    override _.Seek(_, _) = raise (NotSupportedException())
+    override _.SetLength(_) = raise (NotSupportedException())
+    override _.Write(_, _, _) = raise (NotSupportedException())
 
 let productName: Parameter = { Key = "productName"; Required = true; Default = None }
 let lifecycle: Parameter = { Key = "lifecycle"; Required = false; Default = Some "sdd" }
@@ -297,6 +324,10 @@ let main _ =
     assertEqual "deleted GitHub version occupies candidate" Verdict.Occupied deletedOccupied.Overall
     let nugetOccupied = inspect (transportFor [] [] [ "0.17.0" ] Map.empty) DefaultLimits
     assertEqual "NuGet version occupies candidate" Verdict.Occupied nugetOccupied.Overall
+    assertEqual "terminal LF candidate is refused absolutely" (Error "candidate-version-refused") (validateCandidate "0.17.0\n")
+    assertEqual "terminal CRLF candidate is refused absolutely" (Error "candidate-version-refused") (validateCandidate "0.17.0\r\n")
+    assertEqual "occupied exact version cannot be queried through newline candidate" (Error "candidate-version-refused")
+        (inspectWith DefaultLimits (transportFor [] [] [ "0.17.0" ] Map.empty) occupancyContext "0.17.0\n")
     let metadataUrl = "https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template"
     for status in [ 302; 401; 403; 404 ] do
         let result = inspect (transportFor [] [] [] (Map.ofList [ metadataUrl, response status Map.empty "{}" ])) DefaultLimits
@@ -323,6 +354,8 @@ let main _ =
     assertEqual "duplicate authoritative JSON field remains unknown" Verdict.Unknown malformed.NuGet.Verdict
     let malformedVersion = inspect (transportFor [] [] [ "not a version" ] Map.empty) DefaultLimits
     assertEqual "malformed served version remains unknown" "malformed-version-identity" malformedVersion.NuGet.Reason
+    let newlineVersion = inspect (transportFor [] [] [ "0.17.0\\n" ] Map.empty) DefaultLimits
+    assertEqual "served version with terminal LF remains unknown" "malformed-version-identity" newlineVersion.NuGet.Reason
     let repeatedIdentity = inspect (transportFor [ versionEntry 9L "0.16.0" ] [ versionEntry 10L "0.16.0" ] [] Map.empty) DefaultLimits
     assertEqual "contradictory GitHub version state remains unknown" "github-version-identity-repeated" repeatedIdentity.GitHub.Reason
     let mutable metadataReads = 0
@@ -334,6 +367,32 @@ let main _ =
     assertEqual "metadata change across census remains unknown" "github-metadata-changed" (inspect changedMetadata DefaultLimits).GitHub.Reason
     let timingOut : Transport = fun _ _ -> raise (TimeoutException())
     assertEqual "transport timeout remains unknown" Verdict.Unknown (inspect timingOut DefaultLimits).Overall
+    let lateLimits = { DefaultLimits with RequestTimeout = TimeSpan.FromMilliseconds 100.0; AcquisitionTimeout = TimeSpan.FromMilliseconds 250.0 }
+    let lateFinal : Transport = fun request timeout ->
+        if request.Uri.AbsoluteUri = "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/index.json" then Thread.Sleep 350
+        (transportFor [] [] [ "0.16.0" ] Map.empty) request timeout
+    let lateClock = Stopwatch.StartNew()
+    let lateResult = inspect lateFinal lateLimits
+    assertEqual "late final response cannot classify absence" Verdict.Unknown lateResult.Overall
+    assertEqual "late final response reports acquisition exhaustion" "acquisition-time-limit" lateResult.NuGet.Reason
+    assertEqual "late final control actually crossed aggregate deadline" true (lateClock.Elapsed >= lateLimits.AcquisitionTimeout)
+    let bodyCancelled = TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously)
+    use stalledHandler =
+        { new HttpMessageHandler() with
+            override _.SendAsync(_, _) =
+                let reply = new HttpResponseMessage(HttpStatusCode.OK)
+                reply.Content <- new StreamContent(new StallingStream(bodyCancelled))
+                Task.FromResult(reply) }
+    let stalledTransport = httpTransportWithHandler "unused" stalledHandler
+    let stalledClock = Stopwatch.StartNew()
+    let stalledCancelled =
+        try
+            stalledTransport { Uri = Uri("https://api.nuget.org/v3/index.json"); Method = "GET"; Authenticated = false } (TimeSpan.FromMilliseconds 75.0) |> ignore
+            false
+        with :? OperationCanceledException -> true
+    assertEqual "stalled response body observes request cancellation" true stalledCancelled
+    assertEqual "cancellation reaches the response body stream" true (bodyCancelled.Task.Wait(TimeSpan.FromSeconds 1.0))
+    assertEqual "stalled response body completes within bounded control window" true (stalledClock.Elapsed < TimeSpan.FromMilliseconds 500.0)
     let tiny = { DefaultLimits with MaxResponseBytes = 2 }
     assertEqual "response size exhaustion remains unknown" Verdict.Unknown (inspect (transportFor [] [] [] Map.empty) tiny).Overall
     let tinyTotal = { DefaultLimits with MaxTotalBytes = 400L }

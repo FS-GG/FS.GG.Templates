@@ -74,8 +74,8 @@ type Receipt = {
     Overall: Verdict
 }
 
-let private stableVersion = Regex("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$", RegexOptions.CultureInvariant)
-let private packageVersion = Regex("^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\.(0|[1-9][0-9]*))?(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$", RegexOptions.CultureInvariant)
+let private stableVersion = Regex("\\A(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\z", RegexOptions.CultureInvariant)
+let private packageVersion = Regex("\\A(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:\\.(0|[1-9][0-9]*))?(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?\\z", RegexOptions.CultureInvariant)
 
 let validateCandidate (value: string) =
     if stableVersion.IsMatch value then Ok value
@@ -149,22 +149,31 @@ let private unknown feed endpoint state pages records reason = {
     ResponseSha256 = List.rev state.Hashes; Complete = false
 }
 
+let private acquisitionExpired limits (state: FetchState) =
+    state.Stopwatch.Elapsed >= limits.AcquisitionTimeout
+
 let private fetch limits transport (state: FetchState) authenticated (uri: Uri) =
     let remaining = limits.AcquisitionTimeout - state.Stopwatch.Elapsed
     if remaining <= TimeSpan.Zero then Error "acquisition-time-limit"
     elif uri.Scheme <> Uri.UriSchemeHttps then Error "non-https-endpoint-refused"
     else
         let timeout = if remaining < limits.RequestTimeout then remaining else limits.RequestTimeout
+        let requestClock = Stopwatch.StartNew()
         try
             let response = transport { Uri = uri; Method = "GET"; Authenticated = authenticated } timeout
-            state.Statuses <- response.Status :: state.Statuses
-            if response.Body.Length > limits.MaxResponseBytes then Error "response-size-limit"
+            if acquisitionExpired limits state then Error "acquisition-time-limit"
+            elif requestClock.Elapsed >= timeout then Error "request-time-limit"
             else
-                state.TotalBytes.Value <- state.TotalBytes.Value + int64 response.Body.Length
-                if state.TotalBytes.Value > limits.MaxTotalBytes then Error "total-size-limit"
+                state.Statuses <- response.Status :: state.Statuses
+                if response.Body.Length > limits.MaxResponseBytes then Error "response-size-limit"
                 else
-                    state.Hashes <- sha256 response.Body :: state.Hashes
-                    if response.Status <> 200 then Error($"http-{response.Status}") else Ok response
+                    state.TotalBytes.Value <- state.TotalBytes.Value + int64 response.Body.Length
+                    if state.TotalBytes.Value > limits.MaxTotalBytes then Error "total-size-limit"
+                    else
+                        state.Hashes <- sha256 response.Body :: state.Hashes
+                        if acquisitionExpired limits state then Error "acquisition-time-limit"
+                        elif response.Status <> 200 then Error($"http-{response.Status}")
+                        else Ok response
         with
         | :? OperationCanceledException -> Error "request-timeout"
         | :? TimeoutException -> Error "request-timeout"
@@ -311,11 +320,14 @@ let private githubEvidence limits transport state candidate =
                     match githubMetadata afterResponse with
                     | Error reason -> unknown "github-packages" endpoint state pages records reason
                     | Ok after when not (sameMetadata before after) -> unknown "github-packages" endpoint state pages records "github-metadata-changed"
-                    | Ok _ -> {
-                        Feed = "github-packages"; Verdict = if occupied then Occupied else Absent
-                        Reason = if occupied then "candidate-version-present" else "complete-active-deleted-census"
-                        Endpoint = endpoint; Statuses = List.rev state.Statuses; Pages = pages; Records = records
-                        ResponseSha256 = List.rev state.Hashes; Complete = true }
+                    | Ok _ when acquisitionExpired limits state -> unknown "github-packages" endpoint state pages records "acquisition-time-limit"
+                    | Ok _ ->
+                        {
+                            Feed = "github-packages"; Verdict = if occupied then Occupied else Absent
+                            Reason = if occupied then "candidate-version-present" else "complete-active-deleted-census"
+                            Endpoint = endpoint; Statuses = List.rev state.Statuses; Pages = pages; Records = records
+                            ResponseSha256 = List.rev state.Hashes; Complete = true
+                        }
 
 let private nugetEvidence limits transport state candidate =
     let endpoint = "https://api.nuget.org/v3/index.json"
@@ -378,11 +390,15 @@ let private nugetEvidence limits transport state candidate =
                                                     | Ok _ -> ()
                                         match failure with
                                         | Some reason -> unknown "nuget.org" indexUri.AbsoluteUri state 1 values.Length reason
-                                        | None -> {
-                                            Feed = "nuget.org"; Verdict = if occupied then Occupied else Absent
-                                            Reason = if occupied then "candidate-version-present" else "complete-version-index"
-                                            Endpoint = indexUri.AbsoluteUri; Statuses = List.rev state.Statuses; Pages = 1; Records = values.Length
-                                            ResponseSha256 = List.rev state.Hashes; Complete = true }
+                                        | None when acquisitionExpired limits state ->
+                                            unknown "nuget.org" indexUri.AbsoluteUri state 1 values.Length "acquisition-time-limit"
+                                        | None ->
+                                            {
+                                                Feed = "nuget.org"; Verdict = if occupied then Occupied else Absent
+                                                Reason = if occupied then "candidate-version-present" else "complete-version-index"
+                                                Endpoint = indexUri.AbsoluteUri; Statuses = List.rev state.Statuses; Pages = 1; Records = values.Length
+                                                ResponseSha256 = List.rev state.Hashes; Complete = true
+                                            }
 
 let inspectWith limits transport context candidate =
     match validateCandidate candidate with
@@ -401,9 +417,8 @@ let inspectWith limits transport context candidate =
         Ok { Package = PackageId; Version = candidate; StartedUtc = started; EndedUtc = DateTimeOffset.UtcNow
              Context = context; GitHub = github; NuGet = nuget; Overall = overall }
 
-let httpTransport token : Transport =
-    let handler = new HttpClientHandler(AllowAutoRedirect = false, AutomaticDecompression = DecompressionMethods.None)
-    let client = new HttpClient(handler, disposeHandler = true)
+let httpTransportWithHandler token (handler: HttpMessageHandler) : Transport =
+    let client = new HttpClient(handler, disposeHandler = false)
     fun request timeout ->
         if request.Method <> "GET" then raise (InvalidOperationException "http-method-refused")
         if request.Authenticated && request.Uri.Host <> "api.github.com" then
@@ -415,20 +430,24 @@ let httpTransport token : Transport =
             message.Headers.Add("X-GitHub-Api-Version", "2022-11-28")
             message.Headers.Authorization <- AuthenticationHeaderValue("Bearer", token)
         use cancellation = new CancellationTokenSource(timeout)
-        use response = client.Send(message, HttpCompletionOption.ResponseHeadersRead, cancellation.Token)
-        use stream = response.Content.ReadAsStream(cancellation.Token)
+        use response = client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellation.Token).GetAwaiter().GetResult()
+        use stream = response.Content.ReadAsStreamAsync(cancellation.Token).GetAwaiter().GetResult()
         use memory = new MemoryStream()
         let buffer = Array.zeroCreate<byte> 81920
-        let mutable read = stream.Read(buffer, 0, buffer.Length)
+        let mutable read = stream.ReadAsync(buffer.AsMemory(), cancellation.Token).AsTask().GetAwaiter().GetResult()
         while read > 0 do
             memory.Write(buffer, 0, read)
             if memory.Length > int64 DefaultLimits.MaxResponseBytes then raise (InvalidDataException "response-size-limit")
-            read <- stream.Read(buffer, 0, buffer.Length)
+            read <- stream.ReadAsync(buffer.AsMemory(), cancellation.Token).AsTask().GetAwaiter().GetResult()
         let headers =
             Seq.append response.Headers response.Content.Headers
             |> Seq.map (fun pair -> pair.Key.ToLowerInvariant(), String.Join(",", pair.Value))
             |> Map.ofSeq
         { Status = int response.StatusCode; Headers = headers; Body = memory.ToArray() }
+
+let httpTransport token : Transport =
+    let handler = new HttpClientHandler(AllowAutoRedirect = false, AutomaticDecompression = DecompressionMethods.None)
+    httpTransportWithHandler token handler
 
 let private evidenceJson (writer: Utf8JsonWriter) evidence =
     writer.WriteStartObject()
