@@ -5,6 +5,7 @@ open System.IO
 open System.IO.Compression
 open System.Security.Cryptography
 open System.Text
+open FsGgTemplates.ProviderTool
 
 let productName: Parameter = { Key = "productName"; Required = true; Default = None }
 let lifecycle: Parameter = { Key = "lifecycle"; Required = false; Default = Some "sdd" }
@@ -29,6 +30,14 @@ let assertEqual name expected actual =
 
 [<EntryPoint>]
 let main _ =
+    assertEqual "closed CLI options accept each known option exactly once"
+        (Map.ofList [ "--archive", "a"; "--sha256", "b" ])
+        (parseClosedOptions [ "--archive"; "--sha256" ] [ "--archive"; "a"; "--sha256"; "b" ])
+    let refuses name action =
+        try action (); failwithf "%s: expected refusal" name
+        with :? InvalidDataException -> printfn "PASS %s" name
+    refuses "closed CLI options refuse duplicates" (fun () -> parseClosedOptions [ "--archive" ] [ "--archive"; "a"; "--archive"; "b" ] |> ignore)
+    refuses "closed CLI options refuse unknowns" (fun () -> parseClosedOptions [ "--archive" ] [ "--archive"; "a"; "--extra"; "b" ] |> ignore)
     let selected = select known known
     assertEqual "two known providers compose" (Ok known) selected
     assertEqual "subset keeps requested identity" (Ok [ beta ]) (select known [ beta ])
@@ -131,7 +140,16 @@ let main _ =
     let archive = Path.Combine(temp, "valid.nupkg")
     makeArchive archive "" false
     let digest path = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes path)).ToLowerInvariant()
-    let request path = { Archive = path; Descriptor = descriptor; ExpectedSha256 = digest path; ExpectedRevision = revision }
+    let parsedProvider: Provider = {
+        Name = "fable-game"; ContractVersion = "1.1.0"; TemplateId = "fs-gg-fable-game"
+        Source = "FS.GG.Workspace.Template::0.17.0"; NameParameter = Some "productName"
+        IdentifierParameter = None; Floor = Some "1.4.0-preview.1"
+        Parameters = [ { Key = "lifecycle"; Required = false; Default = Some "typed-sdd" } ]
+        File = descriptor; Line = 3 }
+    let request path = {
+        Archive = path; Descriptor = descriptor; ExpectedSha256 = digest path
+        ExpectedRevision = revision; ExpectedTagRevision = revision
+        ExpectedDescriptorSha256 = digest descriptor; Provider = parsedProvider }
     match validate (request archive) with | Ok _ -> printfn "PASS exact reference publication archive" | Error x -> failwith x
     let missing = Path.Combine(temp, "missing.nupkg")
     makeArchive missing requiredEntries.Head false
@@ -145,8 +163,47 @@ let main _ =
     append.CreateEntry("../escape") |> ignore
     append.Dispose()
     assertEqual "traversal archive entry refuses" (Error "archive-path-refused") (validate (request traversal))
+    let alias = Path.Combine(temp, "alias.nupkg")
+    makeArchive alias "" false
+    use aliasAppend = ZipFile.Open(alias, ZipArchiveMode.Update)
+    aliasAppend.CreateEntry("content/templates/fs-gg-fable-game/SvgFoundation/./FourDReference.fs") |> ignore
+    aliasAppend.Dispose()
+    assertEqual "lexical dot alias refuses" (Error "archive-path-refused") (validate (request alias))
+    let collision = Path.Combine(temp, "collision.nupkg")
+    makeArchive collision "" false
+    use collisionAppend = ZipFile.Open(collision, ZipArchiveMode.Update)
+    collisionAppend.CreateEntry("collision") |> ignore
+    collisionAppend.CreateEntry("collision/") |> ignore
+    collisionAppend.Dispose()
+    assertEqual "file and directory collision refuses" (Error "archive-duplicate-entry-refused") (validate (request collision))
     assertEqual "changed archive hash refuses" (Error "archive-sha256-refused") (validate { request archive with ExpectedSha256 = String.replicate 64 "0" })
-    File.WriteAllText(descriptor, File.ReadAllText(descriptor).Replace("::0.17.0", "::0.16.0"))
-    assertEqual "stale descriptor pin refuses" (Error "descriptor-source-refused") (validate (request archive))
+    assertEqual "tag revision mismatch refuses" (Error "immutable-tag-revision-refused")
+        (validate { request archive with ExpectedTagRevision = String.replicate 40 "b" })
+    assertEqual "wrong lifecycle parameter refuses" (Error "descriptor-lifecycle-refused")
+        (validate { request archive with Provider = { parsedProvider with Parameters = [ { Key = "different_parameter"; Required = false; Default = Some "typed-sdd" } ] } })
+    assertEqual "stale descriptor pin refuses" (Error "descriptor-source-refused")
+        (validate { request archive with Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::0.16.0" } })
+    let receiver = Path.Combine(temp, "receiver")
+    for name in requiredEntries.Tail do
+        let relative = name.Substring("content/templates/fs-gg-fable-game/".Length)
+        let target = Path.Combine(receiver, relative.Replace('/', Path.DirectorySeparatorChar))
+        Directory.CreateDirectory(Path.GetDirectoryName target) |> ignore
+        File.WriteAllText(target, "fixture")
+    assertEqual "direct none receiver exact package source closes" (Ok ()) (validateReceiver archive receiver "direct" "none" "1.2.3")
+    assertEqual "direct route cannot claim an unobserved lifecycle default" (Error "receiver-lifecycle-refused") (validateReceiver archive receiver "direct" "typed-sdd" "1.2.3")
+    let provenance = Path.Combine(receiver, ".fsgg", "scaffold-provenance.json")
+    Directory.CreateDirectory(Path.GetDirectoryName provenance) |> ignore
+    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","templateRef":"FS.GG.Workspace.Template::0.17.0","effectiveParameters":[{"key":"lifecycle","value":"typed-sdd"}]}""")
+    assertEqual "provider receiver binds generator provider source and omitted default" (Ok ()) (validateReceiver archive receiver "provider" "typed-sdd" "1.2.3")
+    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","providerName":"other","templateRef":"FS.GG.Workspace.Template::0.17.0","effectiveParameters":[{"key":"lifecycle","value":"typed-sdd"}]}""")
+    assertEqual "duplicate receiver provenance field refuses" (Error "receiver-provenance-duplicate-field-refused") (validateReceiver archive receiver "provider" "typed-sdd" "1.2.3")
+    let toolArchive = Path.Combine(temp, "tool.nupkg")
+    use toolZip = ZipFile.Open(toolArchive, ZipArchiveMode.Create)
+    let toolNuspec = toolZip.CreateEntry("FS.GG.SDD.Cli.nuspec")
+    use toolWriter = new StreamWriter(toolNuspec.Open(), UTF8Encoding(false))
+    toolWriter.Write($"<package><metadata><id>FS.GG.SDD.Cli</id><version>1.2.3</version><repository commit=\"{revision}\" /></metadata></package>")
+    toolWriter.Dispose(); toolZip.Dispose()
+    assertEqual "published tool archive identity joins exact source" (Ok 1) (validatePackageIdentity toolArchive (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision)
+    assertEqual "published tool wrong source refuses" (Error "package-source-revision-refused") (validatePackageIdentity toolArchive (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" (String.replicate 40 "b"))
     Directory.Delete(temp, true)
     0

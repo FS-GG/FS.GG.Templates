@@ -48,7 +48,7 @@ let private read path =
     try File.ReadAllText(path, UTF8Encoding(false, true))
     with :? DecoderFallbackException as ex -> fail $"{path}: is not valid UTF-8 ({ex.Message})"
 
-let private parseDescriptor path =
+let parseDescriptor path =
     let lines = (read path).Split('\n')
     let providers = ResizeArray<Provider>()
     let mutable current: Map<string, string> option = None
@@ -319,6 +319,20 @@ let private optionValue name args fallback =
     | Some _ -> fail $"{name} needs a value"
     | None -> fallback
 
+let parseClosedOptions (allowed: string list) (tokens: string list) =
+    let rec loop remaining found =
+        match remaining with
+        | [] -> found
+        | name :: value :: tail when allowed |> List.contains name ->
+            if value = "" || value.StartsWith("--", StringComparison.Ordinal) then fail $"{name} needs a value"
+            elif found |> Map.containsKey name then fail $"duplicate option {name}"
+            else loop tail (found.Add(name, value))
+        | name :: _ when allowed |> List.contains name -> fail $"{name} needs a value"
+        | name :: _ -> fail $"unknown option {name}"
+    let parsed = loop tokens Map.empty
+    allowed |> List.iter (fun name -> if not (parsed.ContainsKey name) then fail $"{name} needs a value")
+    parsed
+
 [<EntryPoint>]
 let main argv =
     try
@@ -335,17 +349,35 @@ let main argv =
         | "workspace-check" :: _ ->
             workspaceCheck providers (optionValue "--workspace" args "") (optionValue "--registry" args registryUrl)
             0
-        | "reference-publication-check" :: _ ->
-            let required name = optionValue name args "" |> fun value -> if value = "" then fail $"{name} needs a value" else value
+        | "reference-publication-check" :: tail ->
+            let requiredNames = [ "--archive"; "--descriptor"; "--sha256"; "--source-revision"; "--tag-revision"; "--descriptor-sha256" ]
+            let parsed = parseClosedOptions requiredNames tail
+            let providers = parseDescriptor parsed.["--descriptor"]
+            if providers.Length <> 1 then fail "descriptor must contain exactly one provider"
             match ReferencePublication.validate {
-                Archive = required "--archive"
-                Descriptor = required "--descriptor"
-                ExpectedSha256 = required "--sha256"
-                ExpectedRevision = required "--source-revision" } with
+                Archive = parsed.["--archive"]
+                Descriptor = parsed.["--descriptor"]
+                ExpectedSha256 = parsed.["--sha256"]
+                ExpectedRevision = parsed.["--source-revision"]
+                ExpectedTagRevision = parsed.["--tag-revision"]
+                ExpectedDescriptorSha256 = parsed.["--descriptor-sha256"]
+                Provider = providers.Head } with
             | Ok count -> printfn "reference publication: valid — %d unique archive entries" count; 0
             | Error reason -> fail reason
+        | "published-tool-check" :: tail ->
+            let requiredNames = [ "--archive"; "--sha256"; "--package-id"; "--version"; "--source-revision" ]
+            let parsed = parseClosedOptions requiredNames tail
+            match ReferencePublication.validatePackageIdentity parsed.["--archive"] parsed.["--sha256"] parsed.["--package-id"] parsed.["--version"] parsed.["--source-revision"] with
+            | Ok count -> printfn "published tool: valid — %d archive entries" count; 0
+            | Error reason -> fail reason
+        | "reference-receiver-check" :: tail ->
+            let requiredNames = [ "--archive"; "--receiver"; "--route"; "--lifecycle"; "--sdd-version" ]
+            let parsed = parseClosedOptions requiredNames tail
+            match ReferencePublication.validateReceiver parsed.["--archive"] parsed.["--receiver"] parsed.["--route"] parsed.["--lifecycle"] parsed.["--sdd-version"] with
+            | Ok () -> printfn "reference receiver: valid — %s %s" parsed.["--route"] parsed.["--lifecycle"]; 0
+            | Error reason -> fail reason
         | _ ->
-            eprintfn "usage: ProviderTool grade ... | effective-check ... | workspace-check ... | reference-publication-check --archive FILE --descriptor FILE --sha256 HEX --source-revision COMMIT"
+            eprintfn "usage: ProviderTool grade ... | effective-check ... | workspace-check ... | reference-publication-check ... | published-tool-check ..."
             2
     with ex ->
         eprintfn "provider-tool: %s" ex.Message
