@@ -1,0 +1,26 @@
+{
+  "profileId": "portable-python-hello-v1",
+  "revision": 1,
+  "workspaceScope": "WORKSPACE_SCOPE",
+  "sourceRevision": "RECEIVER_COMMIT",
+  "qualifiedImage": "QUALIFIED_IMAGE_REFERENCE",
+  "components": [
+    {
+      "id": "python",
+      "language": "python",
+      "workingDirectory": "python",
+      "toolchain": { "id": "cpython", "version": "3.14.0" },
+      "entryPoints": {
+        "build": "python-build",
+        "test": "python-test",
+        "lint": null,
+        "artifact": null
+      }
+    }
+  ],
+  "productBuild": "unsupported-product-build",
+  "productTest": "unsupported-product-test",
+  "productJourney": "unsupported-product-journey",
+  "maximumRuntimeSeconds": 60,
+  "maximumOutputBytes": 262144
+}

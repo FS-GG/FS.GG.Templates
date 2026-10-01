@@ -1,0 +1,23 @@
+{
+  "schema": "fsgg.templates.python-fixture-source/1",
+  "repository": "FS-GG/FS.GG.Coordination",
+  "revision": "b1849256e07d4d5d5e7f901745c4b40a8b8d28f8",
+  "tree": "368ef76790cb6af098e55aae6df162f220d14dad",
+  "files": [
+    {
+      "source": "tests/portable-workspace/image/fixture/python/app.py",
+      "target": "python/app.py",
+      "sha256": "3fef6bef50317388f407c27cee3361b2d1b7e9e4e2eda30d804952e320d0c030"
+    },
+    {
+      "source": "tests/portable-workspace/image/fixture/python/build.py",
+      "target": "python/build.py",
+      "sha256": "f64fb64121b4470a1d7ada581cf9d9cdeb5c61ac776196699bac33534948aeba"
+    },
+    {
+      "source": "tests/portable-workspace/image/fixture/python/test.py",
+      "target": "python/test.py",
+      "sha256": "acd1cf621e8f41d55337f773584551644372cea86137299b981aad020bb6b9c9"
+    }
+  ]
+}
