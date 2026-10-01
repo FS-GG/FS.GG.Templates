@@ -160,7 +160,10 @@ stages/NN-*.sh      one file per stage: 01 pack · 02 install · 03 instantiate 
 
 Each packaged workspace identity owns an isolated lane at `tests/composition/<lane>/run.sh`
 that performs its complete generated-root lifecycle. Today: `web`, `console`,
-`fable-bindings`, `fable-game`.
+`fable-bindings`, `fable-game`, `python`. The Python lane additionally requires the exact
+Coordination fixture checkout selected by `eng/portable-workspace/python-fixture-source.json`;
+it compares the packed projection with that source, executes the real greeting entry point,
+and exercises both direct generation and the generic SDD provider route.
 
 **The lane set is discovered, not listed (#379).** A directory here that carries a `run.sh`
 *is* a lane, and `run.sh`'s default lane set is exactly that discovered set — so adding a lane
@@ -170,7 +173,7 @@ added as complete lifecycle proofs and then executed on no required path at all,
 orchestrator enumerated its lanes by hand and nothing observed the gap.
 
 `COMPOSITION_LANES` still **selects** — a developer running one lane locally must not have to
-run four:
+run every lane:
 
 ```bash
 COMPOSITION_LANES=console tests/composition/run.sh
@@ -178,7 +181,7 @@ COMPOSITION_LANES=console tests/composition/run.sh
 
 What is gated is a *caller* narrowing the set. The `lanes` stage reads the workflow **files**
 on every run — including a narrowed one — and reds naming any discovered lane no caller
-reaches. It grades `.github/workflows/release.yml` too, whose own pinned four-name list is the
+reaches. It grades `.github/workflows/release.yml` too, whose own pinned five-name list is the
 same hand-written enumeration one level over. The only sanctioned exemption is an entry in
 `COMPOSITION_LANE_DEFERRALS`, which must name an issue and must leave the lane reachable by
 some other caller — a deferral is not a deletion. The default lane set is *discovery minus that

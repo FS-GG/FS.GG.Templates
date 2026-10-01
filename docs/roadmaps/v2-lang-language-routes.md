@@ -13,15 +13,17 @@ through the enforced portable executor contract. The
 [bounded evidence readback](evidence/v2-lang-rust-go-native-qualification-20261001.md) joins the protected
 source, fresh-loaded retained OCI identities, real journeys, duplicate delivery, reconstructed recovery,
 observed cancellation, refusal gates and owned cleanup. The TypeScript Todo browser-image source checkpoint
-is prepared; its exact-head strict native image run and source delivery remain pending. Publication, installed
-adoption, the other four routes and complete matrix acceptance remain open. The prospective population below
-does not alter the accepted R5 cohort or its cutoff.
+is prepared; its exact-head strict native image run and source delivery remain pending. The opt-in Python Hello
+template/provider source candidate is locally composed from the canonical Coordination fixture; its package is
+not published and installed native qualification has not run. Publication, installed adoption, the other four
+routes and complete matrix acceptance remain open. The prospective population below does not alter the accepted
+R5 cohort or its cutoff.
 
 ## Declared population
 
 | Route | Selected source and runtime | Native product evidence | Portable disposition |
 |---|---|---|---|
-| Python Hello | Coordination `tests/portable-workspace/image/fixture/python`; CPython 3.14.0 | Invoke the actual greeting entry point as well as build/test operations | Await enforced P2 and qualified image |
+| Python Hello | Coordination `tests/portable-workspace/image/fixture/python`; CPython 3.14.0 | Invoke the actual greeting entry point as well as build/test operations | Opt-in 0.16.0 template/provider candidate prepared; publication, grant-bound native qualification and installed adoption pending |
 | TypeScript Todo | [Fixture](../../examples/language-routes/typescript-todo/README.md); Node 24.8.0, TypeScript 5.9.2, Playwright 1.63.0 | Served compiled entry point: add/edit/complete/filter/delete, reload and malformed retained state | Browser-image source prepared; strict native image qualification, binding and adoption pending |
 | Rust Tic-tac-toe | [Fixture](../../examples/language-routes/rust-tic-tac-toe/README.md); Rust/Cargo 1.98.1 | Built entry point, legal play, both winners, draw, terminal refusal and restart | Hosted BIND qualified on protected source; publication and installed adoption pending |
 | Go Snake | [Fixture](../../examples/language-routes/go-snake/README.md); Go 1.27.1 | Built JSON entry point, input, growth/score, pause, collision, terminal refusal and restart | Hosted BIND qualified on protected source; publication and installed adoption pending |
@@ -112,6 +114,33 @@ or hash the complete output ZIP. This closes the Rust and Go BIND entries. It do
 installed producer/receiver adoption, another route or V2-LANG-01.5 as a whole. The next Rust/Go dependency is
 the coherent P3 producer publication and P4 installed receiver window; the parent remains open until every
 declared route completes BIND and ADOPT.
+
+## Python installed receiver source window
+
+The opt-in `fs-gg-python` candidate projects its product implementation from canonical Coordination commit
+`b1849256e07d4d5d5e7f901745c4b40a8b8d28f8`, tree
+`368ef76790cb6af098e55aae6df162f220d14dad`. Templates pins the three authored fixture paths and hashes,
+reads those blobs from the exact Git object at pack time, and includes a projection receipt beside the generated
+product. The package source contains no second maintained copy. The real greeting entry point, fixed build/test
+behavior and verification bytes remain owned and qualified upstream.
+
+Templates 0.16.0 adds one explicit `python` provider over the existing generic descriptor contract. It accepts
+required `productName` and optional `lifecycle`, whose omitted default remains `sdd`; direct generation writes no
+`.fsgg` content. The profile shipped with the template is inert: installed qualification must copy it outside the
+committed receiver and bind the receiver commit, workspace scope and authorized image. The source candidate does
+not install a grant, enable adoption, change an existing template default, publish a package or establish native
+runtime support.
+
+Pipeline preflight is a static exact-source projection before SDK, Node and authenticated CLI setup. The ordinary
+composition job, release candidate pack and release gate check out only the three canonical files at the pinned
+Coordination commit, then verify commit, tree, paths and hashes before costly composition or package creation. A
+manual release replay reuses its already immutable package and therefore skips source projection in the pack job;
+the release gate still projects the exact source before grading that package. Missing or changed source refuses,
+while the valid source proceeds to the existing package and receiver gates. The workflow remains a linear candidate
+pack plus existing immutable-artifact release gate; no new retry, fan-out, cache, evidence reuse or publication state
+was added, so a new state model would duplicate the execution plan. Reassess if these interactions change. Full
+native installed qualification still requires the external root-owned provider grant and the dedicated runtime-only
+provider workflow; local package composition cannot satisfy that gate.
 
 ## Dependency-ready windows
 

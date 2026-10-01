@@ -164,6 +164,8 @@ jobs:
   pack:
     needs: route
     runs-on: ubuntu-latest
+    env:
+      FSGG_PYTHON_COORDINATION_ROOT: ${{ github.workspace }}/.tmp/python-fixture-coordination
     outputs:
       package-version: ${{ steps.version.outputs.package-version }}
       package-id: ${{ steps.version.outputs.package-id }}
@@ -175,6 +177,26 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.route.outputs.source-ref }}
+      - name: Check out exact canonical Python fixture source
+        if: github.event_name != 'workflow_dispatch'
+        uses: actions/checkout@v7
+        with:
+          repository: FS-GG/FS.GG.Coordination
+          ref: b1849256e07d4d5d5e7f901745c4b40a8b8d28f8
+          path: .tmp/python-fixture-coordination
+          persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout: |
+            tests/portable-workspace/image/fixture/python/app.py
+            tests/portable-workspace/image/fixture/python/build.py
+            tests/portable-workspace/image/fixture/python/test.py
+          sparse-checkout-cone-mode: false
+      - name: Verify canonical Python fixture source
+        if: github.event_name != 'workflow_dispatch'
+        run: |
+          eng/portable-workspace/project-python-fixture.py \
+            --coordination-root "$FSGG_PYTHON_COORDINATION_ROOT" \
+            --output "${{ runner.temp }}/python-fixture-preflight"
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.x'
@@ -300,6 +322,8 @@ jobs:
     name: release-route
     needs: [route, pack]
     runs-on: ubuntu-latest
+    env:
+      FSGG_PYTHON_COORDINATION_ROOT: ${{ github.workspace }}/.tmp/python-fixture-coordination
     permissions:
       contents: read
       packages: read   # pull the published FS-GG CLIs from the org feed (as composition.yml)
@@ -307,6 +331,24 @@ jobs:
       - uses: actions/checkout@v7
         with:
           ref: ${{ needs.route.outputs.source-ref }}
+      - name: Check out exact canonical Python fixture source
+        uses: actions/checkout@v7
+        with:
+          repository: FS-GG/FS.GG.Coordination
+          ref: b1849256e07d4d5d5e7f901745c4b40a8b8d28f8
+          path: .tmp/python-fixture-coordination
+          persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout: |
+            tests/portable-workspace/image/fixture/python/app.py
+            tests/portable-workspace/image/fixture/python/build.py
+            tests/portable-workspace/image/fixture/python/test.py
+          sparse-checkout-cone-mode: false
+      - name: Verify canonical Python fixture source
+        run: |
+          eng/portable-workspace/project-python-fixture.py \
+            --coordination-root "$FSGG_PYTHON_COORDINATION_ROOT" \
+            --output "${{ runner.temp }}/python-fixture-preflight"
       - uses: actions/setup-dotnet@v6
         with:
           # Composition invokes one generated-product build from the checkout root, where the
@@ -411,13 +453,10 @@ jobs:
       # The generated-product gate: install the downloaded archive → instantiate →
       # scaffold/build → verify pins/links + governance enforcement.
       #
-      # COMPOSITION_LANES NAMES ALL FOUR WORKSPACE IDENTITIES, and the release gate is the
-      # place that owes that (FS.GG.Templates#349 acceptance: "All four identities install and
-      # instantiate through the packed artifact outside the producer checkout"). `run.sh`
-      # defaults to the two lanes the required `composition` check can afford inside its
-      # `timeout-minutes: 30`; whether that default should grow is measured work owned by
-      # FS.GG.Templates#379 and is deliberately NOT decided here. This job has no such budget
-      # (no timeout-minutes → the 360-minute default), so it names the complete set. A lane
+      # COMPOSITION_LANES NAMES EVERY WORKSPACE IDENTITY, and the release gate is the
+      # place that owes every identity installing and instantiating through the packed artifact
+      # outside the producer checkout (FS.GG.Templates#349). `run.sh` discovers the required
+      # composition set; this release job also names the complete set explicitly. A lane
       # named here that cannot run FAILS — `run.sh` has no skip arm for a named lane.
       #
       # Every lane installs FSGG_TEMPLATES_NUPKG — the downloaded, checksum-verified archive —
@@ -428,7 +467,7 @@ jobs:
         if: needs.route.outputs.publish == 'true'
         env:
           FSGG_TEMPLATES_NUPKG: ${{ github.workspace }}/artifacts/${{ needs.pack.outputs.package-file }}
-          COMPOSITION_LANES: console web fable-bindings fable-game
+          COMPOSITION_LANES: console web fable-bindings fable-game python
         run: tests/composition/run.sh
 
   publish:

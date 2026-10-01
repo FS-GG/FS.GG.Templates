@@ -28,6 +28,8 @@ concurrency:
 jobs:
   composition:
     runs-on: ubuntu-latest
+    env:
+      FSGG_PYTHON_COORDINATION_ROOT: ${{ github.workspace }}/.tmp/python-fixture-coordination
     # A hung feed/scaffold/build must not hold a runner for the 6-hour default; a healthy full run
     # is well under this.
     #
@@ -149,6 +151,29 @@ jobs:
           fi
       - uses: actions/checkout@v7
         if: steps.scope.outputs.run == 'true'
+      - name: Check out exact canonical Python fixture source
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/checkout@v7
+        with:
+          repository: FS-GG/FS.GG.Coordination
+          ref: b1849256e07d4d5d5e7f901745c4b40a8b8d28f8
+          path: .tmp/python-fixture-coordination
+          persist-credentials: false
+          fetch-depth: 1
+          sparse-checkout: |
+            tests/portable-workspace/image/fixture/python/app.py
+            tests/portable-workspace/image/fixture/python/build.py
+            tests/portable-workspace/image/fixture/python/test.py
+          sparse-checkout-cone-mode: false
+      # Cheap static/source preflight before SDK, Node and authenticated CLI setup. The projector
+      # verifies the exact Coordination commit, tree and three blob hashes and refuses a missing,
+      # moved or changed checkout; a green projection is preparation only, never runtime evidence.
+      - name: Verify canonical Python fixture source
+        if: steps.scope.outputs.run == 'true'
+        run: |
+          eng/portable-workspace/project-python-fixture.py \
+            --coordination-root "$FSGG_PYTHON_COORDINATION_ROOT" \
+            --output "${{ runner.temp }}/python-fixture-preflight"
       - uses: actions/setup-dotnet@v6
         if: steps.scope.outputs.run == 'true'
         with:
@@ -170,13 +195,13 @@ jobs:
       # ── EVERY provider floor, graded against the live org registry (FS.GG.Templates#383) ──────
       #
       # This step used to live INSIDE the CLI install below, and it read exactly one descriptor:
-      # `PROVIDER_DESCRIPTOR='providers/rendering.providers.yml'`. `providers/` holds five
-      # descriptors and all five declare a `minimumFsggSdd` floor, so four of them were read by
+      # `PROVIDER_DESCRIPTOR='providers/rendering.providers.yml'`. `providers/` holds six
+      # descriptors and all six declare a `minimumFsggSdd` floor, so five of them were read by
       # NOTHING — they could be wrong, stale, or entirely absent while every required check stayed
       # green. That is not a hypothetical: `providers/web.providers.yml` shipped with no floor block
       # at all until FS.GG.Templates#381's round-1 repair, and nothing detected it for the whole life
       # of the descriptor. The old reader even carried a note asking whoever added a second
-      # floor-declaring provider to "widen it here in the same change"; four were added by three
+      # floor-declaring provider to "widen it here in the same change"; five were added by four
       # items and the widening never happened. That note is gone, because the checker enumerates
       # `providers/*.providers.yml` and a sixth descriptor is graded with no edit and nobody to
       # remember — the same lesson the lane-set budget above records for lane discovery (#379).
@@ -288,7 +313,7 @@ jobs:
       #    step summary. The floor stops being decorative and a red names a VERSION.
       #    WHICH descriptors is not a detail this block gets to leave vague any more: when #317
       #    wrote "declared in providers/rendering.providers.yml" it was describing the only
-      #    descriptor that existed, and the assertion stayed scoped to that one file while four more
+      #    descriptor that existed, and the assertion stayed scoped to that one file while five more
       #    descriptors grew their own floors. #383 replaced the hand-named file with enumeration —
       #    see the `floors` step's block above.
       #
@@ -511,7 +536,7 @@ jobs:
   # 4. THE TRIGGER IS ARMED OVER THE SCAFFOLD'S IN-REPO INPUTS — no `.github#332`/`#334`/`#880`
   #    fail-open. Every in-repo input to the scaffolded tree is outside the docs-only exemption above
   #    and so fires this workflow: providers/** (every descriptor — the FS.GG.UI.Template pin in
-  #    rendering.providers.yml and the `minimumFsggSdd` floor in all five, #383), templates/**, and
+  #    rendering.providers.yml and the `minimumFsggSdd` floor in all six, #383), templates/**, and
   #    tests/composition/** (which carries SKILL_ASSERT_REF). Both of those pins are frozen to a
   #    version/SHA, so neither can move without a commit here.
   #

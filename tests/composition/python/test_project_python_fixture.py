@@ -60,6 +60,7 @@ class PythonFixtureProjectionTests(unittest.TestCase):
         self.assertEqual(profile["productJourney"], "unsupported-product-journey")
         self.assertIn('    contractVersion: "1.1.0"', provider)
         self.assertIn("    templateId: fs-gg-python", provider)
+        self.assertIn("    source: FS.GG.Workspace.Template::0.16.0", provider)
         self.assertIn("    nameParameter: productName", provider)
         self.assertEqual(provider.count("      - key:"), 2)
         self.assertNotIn("adoption:", provider)
@@ -152,6 +153,41 @@ class PythonFixtureProjectionTests(unittest.TestCase):
             result = self.run_projector(repository, traversal, root / "traversal-output")
             self.assertEqual(result.returncode, 2)
             self.assertIn("fixture-source-path-refused", result.stdout)
+
+    def test_refuses_missing_checkout_and_changed_tree(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            missing = self.run_projector(root / "missing", ROOT / "eng/portable-workspace/python-fixture-source.json", root / "missing-output")
+            self.assertEqual(missing.returncode, 2)
+
+            repository = root / "coordination"
+            repository.mkdir()
+            revision, tree = self.repository(repository)
+            manifest = root / "wrong-tree.json"
+            self.manifest(manifest, revision, tree, lambda value: value.__setitem__("tree", "0" * 40))
+            changed = self.run_projector(repository, manifest, root / "wrong-tree-output")
+            self.assertEqual(changed.returncode, 2)
+            self.assertIn("fixture-source-tree-refused", changed.stdout)
+
+    def test_pack_and_workflow_bind_projection_before_costly_composition(self):
+        project = (ROOT / "FS.GG.Templates.csproj").read_text()
+        composition = (ROOT / ".github/workflows/composition.yml").read_text()
+        release = (ROOT / ".github/workflows/release.yml").read_text()
+        self.assertIn("<Version>0.16.0</Version>", project)
+        self.assertIn("obj/$(Configuration)/$(TargetFramework)/portable-python-fixture/", project)
+        self.assertIn('BeforeTargets="GenerateNuspec"', project)
+        self.assertIn("FSGG_PYTHON_COORDINATION_ROOT must name", project)
+        for target in ("python/app.py", "python/build.py", "python/test.py", "python-fixture-source.json"):
+            self.assertIn(f"content/templates/fs-gg-python/{target}", project)
+
+        checkout = "ref: b1849256e07d4d5d5e7f901745c4b40a8b8d28f8"
+        self.assertEqual(composition.count(checkout), 1)
+        self.assertEqual(release.count(checkout), 2)
+        self.assertIn("repository: FS-GG/FS.GG.Coordination", composition)
+        self.assertEqual(release.count("repository: FS-GG/FS.GG.Coordination"), 2)
+        self.assertLess(composition.index("Verify canonical Python fixture source"), composition.index("actions/setup-dotnet@v6"))
+        self.assertLess(release.index("Verify canonical Python fixture source"), release.index("actions/setup-dotnet@v6"))
+        self.assertIn("COMPOSITION_LANES: console web fable-bindings fable-game python", release)
 
 
 if __name__ == "__main__":

@@ -1,13 +1,11 @@
-# Opt-in Python Hello provider candidate. The integrator must advance `source` to the coherent
-# package version that first carries fs-gg-python before delivery; 0.15.0 is the protected base
-# pin and does not contain this template. Candidate composition rewrites it to the exact local
-# archive, and no registry/default/adoption setting selects this descriptor automatically.
+# Opt-in Python Hello provider. Candidate composition rewrites `source` to the exact local archive;
+# no registry/default/adoption setting selects this descriptor automatically.
 schemaVersion: 1
 providers:
   - name: python
     contractVersion: "1.1.0"
     templateId: fs-gg-python
-    source: FS.GG.Workspace.Template::0.15.0
+    source: FS.GG.Workspace.Template::0.16.0
     nameParameter: productName
     minimumFsggSdd:
       version: "1.4.0-preview.1"
