@@ -4,6 +4,9 @@ root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 out="${1:?empty output directory required}"
 [[ ! -e "$out" ]]
 mkdir -p "$out/feed"
+# shellcheck source=tests/composition/fable-game/svg-source-python-fixture.sh
+. "$root/tests/composition/fable-game/svg-source-python-fixture.sh"
+prepare_svg_source_python_fixture "$root" "$out"
 dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/feed" -p:ContinuousIntegrationBuild=true >/dev/null
 mapfile -t templates < <(find "$out/feed" -maxdepth 1 -type f -name 'FS.GG.Workspace.Template.*.nupkg' -print)
 [[ "${#templates[@]}" == 1 ]] || { echo "expected exactly one packed Templates candidate, found ${#templates[@]}" >&2; exit 1; }

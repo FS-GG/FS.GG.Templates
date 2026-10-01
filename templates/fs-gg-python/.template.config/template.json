@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "FS-GG",
+  "classifications": [ "Python", "SDD", "Workspace" ],
+  "identity": "FS.GG.Workspace.Python",
+  "name": "FS.GG Python workspace",
+  "shortName": "fs-gg-python",
+  "preferNameDirectory": true,
+  "sources": [
+    {
+      "source": "./",
+      "target": "./",
+      "exclude": [
+        "**/[Bb]in/**",
+        "**/[Oo]bj/**",
+        "**/.template.config/**",
+        "**/*.filelist",
+        "**/*.user",
+        "**/node_modules/**",
+        "**/.nuget/**",
+        "**/__pycache__/**",
+        "**/*.pyc",
+        "**/output/**"
+      ]
+    }
+  ],
+  "symbols": {
+    "lifecycle": {
+      "type": "parameter",
+      "datatype": "choice",
+      "defaultValue": "sdd",
+      "description": "Lifecycle lane forwarded by fsgg-sdd; the orchestrator owns lifecycle artifacts.",
+      "choices": [
+        { "choice": "none", "description": "Product files only; no active SDD work." },
+        { "choice": "sdd", "description": "Standard SDD lifecycle (default)." },
+        { "choice": "typed-sdd", "description": "Standard SDD plus the Typed Protocol Kernel." },
+        { "choice": "spec-kit", "description": "Legacy Spec Kit lifecycle (retiring; compatibility only)." }
+      ]
+    },
+    "productName": {
+      "type": "parameter",
+      "datatype": "text",
+      "defaultValue": "",
+      "description": "Product name. When omitted, --name supplies it."
+    },
+    "productNameTrimmed": {
+      "type": "generated",
+      "generator": "regex",
+      "dataType": "string",
+      "parameters": { "source": "productName", "steps": [ { "regex": "^\\s+|\\s+$", "replacement": "" } ] }
+    },
+    "effectiveName": {
+      "type": "generated",
+      "generator": "coalesce",
+      "parameters": { "sourceVariableName": "productNameTrimmed", "fallbackVariableName": "name" },
+      "replaces": "PythonProduct"
+    }
+  }
+}
