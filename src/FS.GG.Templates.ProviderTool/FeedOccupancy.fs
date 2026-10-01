@@ -18,6 +18,18 @@ let Repository = "FS-GG/FS.GG.Templates"
 
 type Verdict = Absent | Occupied | Unknown
 
+type PermissionTerm = { Name: string; Level: string }
+
+type FailureDiagnostic = {
+    Phase: string
+    Page: int option
+    HttpStatus: int
+    ErrorClass: string
+    AcceptedPermissionsState: string
+    AcceptedPermissionSets: PermissionTerm list list
+    RequiredScopes: string list
+}
+
 type Request = { Uri: Uri; Method: string; Authenticated: bool }
 type Response = { Status: int; Headers: Map<string, string>; Body: byte[] }
 type Transport = Request -> TimeSpan -> Response
@@ -50,6 +62,7 @@ type FeedEvidence = {
     Records: int
     ResponseSha256: string list
     Complete: bool
+    FailureDiagnostic: FailureDiagnostic option
 }
 
 type Context = {
@@ -93,6 +106,11 @@ let private normalized value =
 
 let private verdictText = function Absent -> "ABSENT" | Occupied -> "OCCUPIED" | Unknown -> "UNKNOWN"
 let private sha256 (bytes: byte[]) = Convert.ToHexString(SHA256.HashData bytes).ToLowerInvariant()
+let private diagnosticBodyLimit = 16 * 1024
+let private acceptedPermissionsLimit = 1024
+let private permissionName = Regex("\\A(packages|contents|metadata)\\z", RegexOptions.CultureInvariant)
+let private permissionLevel = Regex("\\A(read|write|admin)\\z", RegexOptions.CultureInvariant)
+let private scopeMessage = Regex("\\AYour token has not been granted the required scopes to execute this request\\. The '(read:packages|write:packages|delete:packages)' scope is required\\.\\z", RegexOptions.CultureInvariant)
 
 let private validateNoDuplicateKeys (body: byte[]) =
     try
@@ -136,23 +154,120 @@ let private int64Property element name =
         if value.TryGetInt64(&number) then Ok number else Error($"missing-or-invalid-{name}")
     | Error reason -> Error reason
 
+let private header (headers: Map<string, string>) name =
+    headers |> Map.toSeq |> Seq.tryPick (fun (key, value) ->
+        if String.Equals(key, name, StringComparison.OrdinalIgnoreCase) then Some value else None)
+
+let parseAcceptedPermissions (raw: string option) =
+    match raw with
+    | None -> "absent", []
+    | Some value when value.Length > acceptedPermissionsLimit -> "oversized", []
+    | Some value when value = "" || value |> Seq.exists Char.IsControl -> "malformed", []
+    | Some value ->
+        let alternatives = value.Split(';')
+        if alternatives.Length = 0 || alternatives.Length > 4 || alternatives |> Array.exists (fun item -> item.Trim() = "") then
+            "malformed", []
+        else
+            let mutable state = "valid"
+            let parsed = ResizeArray<PermissionTerm list>()
+            let normalizedAlternatives = HashSet<string>(StringComparer.Ordinal)
+            for alternative in alternatives do
+                let terms = alternative.Split(',')
+                if terms.Length = 0 || terms.Length > 8 || terms |> Array.exists (fun item -> item.Trim() = "") then
+                    state <- "malformed"
+                else
+                    let seen = Dictionary<string, string>(StringComparer.Ordinal)
+                    let parsedTerms = ResizeArray<PermissionTerm>()
+                    for rawTerm in terms do
+                        let pieces = rawTerm.Trim().Split('=')
+                        if pieces.Length <> 2 || pieces.[0] <> pieces.[0].Trim() || pieces.[1] <> pieces.[1].Trim() then
+                            state <- "malformed"
+                        else
+                            let name, level = pieces.[0], pieces.[1]
+                            if not (permissionName.IsMatch name) || not (permissionLevel.IsMatch level) then
+                                if state = "valid" then state <- "unrecognized"
+                            elif seen.ContainsKey name then
+                                state <- "malformed"
+                            else
+                                seen.Add(name, level)
+                                parsedTerms.Add { Name = name; Level = level }
+                    if state = "valid" then
+                        let identity = parsedTerms |> Seq.map (fun term -> term.Name + "=" + term.Level) |> Seq.sort |> String.concat ","
+                        if not (normalizedAlternatives.Add identity) then state <- "malformed"
+                        else parsed.Add(parsedTerms |> Seq.toList)
+            if state = "valid" then state, (parsed |> Seq.toList) else state, []
+
+let private diagnosticMessage (body: byte[]) =
+    if body.Length > diagnosticBodyLimit then Error "oversized"
+    else
+        match parseJson body with
+        | Error _ -> Error "malformed"
+        | Ok document ->
+            use document = document
+            match stringProperty document.RootElement "message" with
+            | Ok message -> Ok message
+            | Error _ -> Error "malformed"
+
+let private failureDiagnostic phase page (response: Response) =
+    let permissionsState, permissionSets =
+        parseAcceptedPermissions (header response.Headers "x-accepted-github-permissions")
+    let rateLimited =
+        response.Status = 429 ||
+        (response.Status = 403 && header response.Headers "x-ratelimit-remaining" = Some "0")
+    let message = diagnosticMessage response.Body
+    let scopes =
+        match message with
+        | Ok value ->
+            let matched = scopeMessage.Match value
+            if matched.Success then [ matched.Groups.[1].Value ] else []
+        | Error _ -> []
+    let hasPackagePermission =
+        permissionSets |> List.exists (List.exists (fun term -> term.Name = "packages"))
+    let everyAlternativeRequiresPackageAdmin =
+        not permissionSets.IsEmpty &&
+        (permissionSets
+         |> List.forall (List.exists (fun term -> term.Name = "packages" && term.Level = "admin")))
+    let errorClass =
+        if rateLimited then "rate-limited"
+        elif permissionsState = "malformed" || permissionsState = "oversized" then "malformed-error"
+        elif Result.isError message then "malformed-error"
+        elif message = Ok "You must have admin access to this package." || everyAlternativeRequiresPackageAdmin then
+            "package-admin-required"
+        elif not scopes.IsEmpty then "package-scope-required"
+        elif message = Ok "Resource not accessible by integration" || hasPackagePermission then
+            "integration-permission-denied"
+        elif response.Status = 403 then
+            match message with Error _ -> "malformed-error" | Ok _ -> "unclassified-forbidden"
+        else "other-http-error"
+    {
+        Phase = phase
+        Page = page
+        HttpStatus = response.Status
+        ErrorClass = errorClass
+        AcceptedPermissionsState = permissionsState
+        AcceptedPermissionSets = permissionSets
+        RequiredScopes = scopes
+    }
+
 type private FetchState = {
     Stopwatch: Stopwatch
     TotalBytes: int64 ref
     mutable Statuses: int list
     mutable Hashes: string list
+    mutable FailureDiagnostic: FailureDiagnostic option
 }
 
 let private unknown feed endpoint state pages records reason = {
     Feed = feed; Verdict = Unknown; Reason = reason; Endpoint = endpoint
     Statuses = List.rev state.Statuses; Pages = pages; Records = records
     ResponseSha256 = List.rev state.Hashes; Complete = false
+    FailureDiagnostic = state.FailureDiagnostic
 }
 
 let private acquisitionExpired limits (state: FetchState) =
     state.Stopwatch.Elapsed >= limits.AcquisitionTimeout
 
-let private fetch limits transport (state: FetchState) authenticated (uri: Uri) =
+let private fetch limits transport (state: FetchState) authenticated diagnosticSite (uri: Uri) =
     let remaining = limits.AcquisitionTimeout - state.Stopwatch.Elapsed
     if remaining <= TimeSpan.Zero then Error "acquisition-time-limit"
     elif uri.Scheme <> Uri.UriSchemeHttps then Error "non-https-endpoint-refused"
@@ -172,7 +287,11 @@ let private fetch limits transport (state: FetchState) authenticated (uri: Uri) 
                     else
                         state.Hashes <- sha256 response.Body :: state.Hashes
                         if acquisitionExpired limits state then Error "acquisition-time-limit"
-                        elif response.Status <> 200 then Error($"http-{response.Status}")
+                        elif response.Status <> 200 then
+                            match diagnosticSite with
+                            | Some(phase, page) -> state.FailureDiagnostic <- Some(failureDiagnostic phase page response)
+                            | None -> ()
+                            Error($"http-{response.Status}")
                         else Ok response
         with
         | :? OperationCanceledException -> Error "request-timeout"
@@ -263,7 +382,7 @@ let private githubVersions limits transport state candidate =
                 let uri = next.Value
                 if not (validPageUri packageState page uri) || not (seenPages.Add(uri.AbsoluteUri)) then failure <- Some "github-pagination-refused"
                 else
-                    match fetch limits transport state true uri with
+                    match fetch limits transport state true (Some(packageState, Some page)) uri with
                     | Error reason -> failure <- Some reason
                     | Ok response ->
                         pages <- pages + 1
@@ -304,7 +423,7 @@ let private githubVersions limits transport state candidate =
 
 let private githubEvidence limits transport state candidate =
     let endpoint = $"https://api.github.com/orgs/FS-GG/packages/nuget/{PackageId}"
-    match fetch limits transport state true (Uri endpoint) with
+    match fetch limits transport state true (Some("metadata-before", None)) (Uri endpoint) with
     | Error reason -> unknown "github-packages" endpoint state 0 0 reason
     | Ok beforeResponse ->
         match githubMetadata beforeResponse with
@@ -314,7 +433,7 @@ let private githubEvidence limits transport state candidate =
             match failure with
             | Some reason -> unknown "github-packages" endpoint state pages records reason
             | None ->
-                match fetch limits transport state true (Uri endpoint) with
+                match fetch limits transport state true (Some("metadata-after", None)) (Uri endpoint) with
                 | Error reason -> unknown "github-packages" endpoint state pages records reason
                 | Ok afterResponse ->
                     match githubMetadata afterResponse with
@@ -326,12 +445,12 @@ let private githubEvidence limits transport state candidate =
                             Feed = "github-packages"; Verdict = if occupied then Occupied else Absent
                             Reason = if occupied then "candidate-version-present" else "complete-active-deleted-census"
                             Endpoint = endpoint; Statuses = List.rev state.Statuses; Pages = pages; Records = records
-                            ResponseSha256 = List.rev state.Hashes; Complete = true
+                            ResponseSha256 = List.rev state.Hashes; Complete = true; FailureDiagnostic = None
                         }
 
 let private nugetEvidence limits transport state candidate =
     let endpoint = "https://api.nuget.org/v3/index.json"
-    match fetch limits transport state false (Uri endpoint) with
+    match fetch limits transport state false None (Uri endpoint) with
     | Error reason -> unknown "nuget.org" endpoint state 0 0 reason
     | Ok service ->
         match parseJson service.Body with
@@ -364,7 +483,7 @@ let private nugetEvidence limits transport state candidate =
                         let indexUri = Uri(normalizedBase, PackageId.ToLowerInvariant() + "/index.json")
                         if indexUri.Host <> "api.nuget.org" then unknown "nuget.org" endpoint state 0 0 "nuget-package-endpoint-refused"
                         else
-                            match fetch limits transport state false indexUri with
+                            match fetch limits transport state false None indexUri with
                             | Error reason -> unknown "nuget.org" indexUri.AbsoluteUri state 0 0 reason
                             | Ok index ->
                                 match parseJson index.Body with
@@ -397,7 +516,7 @@ let private nugetEvidence limits transport state candidate =
                                                 Feed = "nuget.org"; Verdict = if occupied then Occupied else Absent
                                                 Reason = if occupied then "candidate-version-present" else "complete-version-index"
                                                 Endpoint = indexUri.AbsoluteUri; Statuses = List.rev state.Statuses; Pages = 1; Records = values.Length
-                                                ResponseSha256 = List.rev state.Hashes; Complete = true
+                                                ResponseSha256 = List.rev state.Hashes; Complete = true; FailureDiagnostic = None
                                             }
 
 let inspectWith limits transport context candidate =
@@ -407,7 +526,7 @@ let inspectWith limits transport context candidate =
         let started = DateTimeOffset.UtcNow
         let stopwatch = Stopwatch.StartNew()
         let totalBytes = ref 0L
-        let newState () = { Stopwatch = stopwatch; TotalBytes = totalBytes; Statuses = []; Hashes = [] }
+        let newState () = { Stopwatch = stopwatch; TotalBytes = totalBytes; Statuses = []; Hashes = []; FailureDiagnostic = None }
         let github = githubEvidence limits transport (newState ()) candidate
         let nuget = nugetEvidence limits transport (newState ()) candidate
         let overall =
@@ -449,6 +568,29 @@ let httpTransport token : Transport =
     let handler = new HttpClientHandler(AllowAutoRedirect = false, AutomaticDecompression = DecompressionMethods.None)
     httpTransportWithHandler token handler
 
+let private failureDiagnosticJson (writer: Utf8JsonWriter) diagnostic =
+    writer.WriteStartObject()
+    writer.WriteString("phase", diagnostic.Phase)
+    diagnostic.Page |> Option.iter (fun page -> writer.WriteNumber("page", page))
+    writer.WriteNumber("httpStatus", diagnostic.HttpStatus)
+    writer.WriteString("errorClass", diagnostic.ErrorClass)
+    writer.WriteString("acceptedPermissionsState", diagnostic.AcceptedPermissionsState)
+    writer.WriteStartArray("acceptedPermissionSets")
+    for alternative in diagnostic.AcceptedPermissionSets do
+        writer.WriteStartArray()
+        for term in alternative do
+            writer.WriteStartObject()
+            writer.WriteString("name", term.Name)
+            writer.WriteString("level", term.Level)
+            writer.WriteEndObject()
+        writer.WriteEndArray()
+    writer.WriteEndArray()
+    if not diagnostic.RequiredScopes.IsEmpty then
+        writer.WriteStartArray("requiredScopes")
+        diagnostic.RequiredScopes |> List.iter writer.WriteStringValue
+        writer.WriteEndArray()
+    writer.WriteEndObject()
+
 let private evidenceJson (writer: Utf8JsonWriter) evidence =
     writer.WriteStartObject()
     writer.WriteString("verdict", verdictText evidence.Verdict)
@@ -459,6 +601,9 @@ let private evidenceJson (writer: Utf8JsonWriter) evidence =
     writer.WriteBoolean("complete", evidence.Complete)
     writer.WriteStartArray("statuses"); evidence.Statuses |> List.iter writer.WriteNumberValue; writer.WriteEndArray()
     writer.WriteStartArray("responseSha256"); evidence.ResponseSha256 |> List.iter writer.WriteStringValue; writer.WriteEndArray()
+    match evidence.FailureDiagnostic with
+    | Some diagnostic -> writer.WritePropertyName("failureDiagnostic"); failureDiagnosticJson writer diagnostic
+    | None -> ()
     writer.WriteEndObject()
 
 let receiptJson receipt =
