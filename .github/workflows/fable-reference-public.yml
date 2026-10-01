@@ -32,9 +32,13 @@ jobs:
       WIZARD_VERSION: ${{ inputs.wizard_version }}
       WIZARD_ARCHIVE_SHA256: ${{ inputs.wizard_archive_sha256 }}
       WIZARD_SOURCE_REVISION: ${{ inputs.wizard_source_revision }}
-      EVIDENCE_DIR: ${{ runner.temp }}/fable-reference-public
-      QUINT_BIN: ${{ runner.temp }}/fable-reference-tools/quint
     steps:
+      - name: Resolve runner qualification paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'EVIDENCE_DIR=%s/fable-reference-public\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          printf 'QUINT_BIN=%s/fable-reference-tools/quint\n' "$RUNNER_TEMP" >> "$GITHUB_ENV"
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
         with:
