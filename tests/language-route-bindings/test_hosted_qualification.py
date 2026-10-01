@@ -21,6 +21,26 @@ class HostedQualificationTests(unittest.TestCase):
   with tempfile.TemporaryDirectory() as allowed,tempfile.TemporaryDirectory() as outside:
    with self.assertRaisesRegex(HOSTED.Refusal,"cleanup-root-refused"): HOSTED.cleanup(SimpleNamespace(state=outside,allowed_root=allowed,podman="podman"))
 
+ def test_cleanup_returns_mapped_ownership_and_permissions_in_each_scoped_store(self):
+  with tempfile.TemporaryDirectory() as allowed:
+   state=Path(allowed)/"state";store=state/"rust-store";runroot=state/"rust-runroot"
+   protected=store/"vfs/dir/rootfs";protected.mkdir(parents=True);runroot.mkdir();(protected/"content").write_text("mapped")
+   protected.chmod(0o555);calls=[];original=HOSTED.run
+   def run(argv,env=None):
+    calls.append(argv)
+    if "chmod" in argv: protected.chmod(0o700)
+    return ""
+   HOSTED.run=run
+   try: result=HOSTED.cleanup(SimpleNamespace(state=str(state),allowed_root=allowed,podman="/usr/bin/podman"))
+   finally: HOSTED.run=original
+   self.assertEqual(result["namespacesRemoved"],["preflight","rust","go"]);self.assertFalse(store.exists());self.assertFalse(runroot.exists())
+   chown=next(argv for argv in calls if "chown" in argv);chmod=next(argv for argv in calls if "chmod" in argv)
+   for command in (chown,chmod):
+    self.assertEqual(command[:6],["/usr/bin/podman","--storage-driver=vfs","--root",str(store),"--runroot",str(runroot)])
+    self.assertEqual(command[6],"unshare")
+   self.assertEqual(chown[-6:], ["chown","-R","0:0","--",str(store),str(runroot)])
+   self.assertEqual(chmod[-6:], ["chmod","-R","u+rwX","--",str(store),str(runroot)])
+
  def test_failed_preflight_removes_its_namespaces(self):
   with tempfile.TemporaryDirectory() as folder:
    store=Path(folder)/"preflight-store";runroot=Path(folder)/"preflight-runroot";original=HOSTED.run
