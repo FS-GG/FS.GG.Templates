@@ -84,6 +84,13 @@ let command = PortableWorkspaceContract.parseCommand commandBytes |> Result.defa
 let canonicalCommand = PortableWorkspaceContract.commandBytes command |> Result.defaultWith invalidOp
 if not (canonicalCommand.AsSpan().SequenceEqual(commandBytes.AsSpan())) then invalidOp "portable-command-noncanonical"
 if command.SourceRevision<>sourceRevision || command.Operation<>"test" || command.ComponentId<>Some componentId then invalidOp "binding-command-mismatch"
+let shaBytes (bytes:byte array) = SHA256.HashData bytes |> Convert.ToHexString |> _.ToLowerInvariant()
+let commandSha = shaBytes commandBytes
+let bindingDigest =
+    String.concat "\n" [shaBytes profileBytes;commandSha;recipeSha]
+    |> System.Text.Encoding.UTF8.GetBytes
+    |> shaBytes
+let containerName = "fsgg-portable-"+bindingDigest[..23]
 let effectiveProfile, effectiveCommand =
     match options |> Map.tryFind "refusal-probe" with
     | None -> profile, command
@@ -98,17 +105,66 @@ let effectiveProfile, effectiveCommand =
 let runner=PortableWorkspacePodmanRunner(runtime):>IPortableProcessRunner
 let executor=PortableWorkspaceExecutor.Executor(policy,runner,now)
 let cancellation = new CancellationTokenSource()
-match options |> Map.tryFind "cancel-after-ms" with
-| Some value -> cancellation.CancelAfter(Int32.Parse value)
-| None -> ()
-let outcome = if options.ContainsKey "recover" then executor.RecoverAsync(effectiveProfile,effectiveCommand,cancellation.Token).Result else executor.ExecuteAsync(authority,effectiveProfile,effectiveCommand,cancellation.Token).Result
+let inspectRunning () =
+    use child=new Process()
+    child.StartInfo<-ProcessStartInfo(podman,RedirectStandardOutput=true,RedirectStandardError=true,UseShellExecute=false)
+    for argument in ["--storage-driver=vfs";"--root";storeRoot;"--runroot";runRoot;"container";"inspect";"--format";"{{.State.Status}}|{{.Id}}";containerName] do child.StartInfo.ArgumentList.Add argument
+    if not(child.Start()) then None
+    elif not(child.WaitForExit(2000)) then child.Kill true;None
+    elif child.ExitCode<>0 then None
+    else
+        match child.StandardOutput.ReadToEnd().Trim().Split('|',2) with
+        | [|"running";identity|] when identity.Length=64 && identity |> Seq.forall Uri.IsHexDigit -> Some identity
+        | _ -> None
+let mutable runningCancellationObservation:Dictionary<string,obj> option=None
+let mutable cancellationCleanupRecovery=false
+let outcome =
+    if options.ContainsKey "recover" then executor.RecoverAsync(effectiveProfile,effectiveCommand,cancellation.Token).Result
+    else
+        match options |> Map.tryFind "cancel-running-timeout-ms" with
+        | None -> executor.ExecuteAsync(authority,effectiveProfile,effectiveCommand,cancellation.Token).Result
+        | Some value ->
+            let timeout=Int32.Parse value
+            if timeout<1 || timeout>30000 then invalidArg "cancel-running-timeout-ms" "must be between 1 and 30000"
+            let execution=executor.ExecuteAsync(authority,effectiveProfile,effectiveCommand,cancellation.Token)
+            let limit=DateTimeOffset.UtcNow.AddMilliseconds(float timeout)
+            while runningCancellationObservation.IsNone && not execution.IsCompleted && DateTimeOffset.UtcNow<limit do
+                match inspectRunning() with
+                | Some identity ->
+                    let observedAt=DateTimeOffset.UtcNow
+                    cancellation.Cancel()
+                    let requestedAt=DateTimeOffset.UtcNow
+                    let observation=Dictionary<string,obj>()
+                    observation["schema"] <- "fsgg.language-route.running-cancellation/1"
+                    observation["commandSha256"] <- commandSha
+                    observation["bindingDigest"] <- bindingDigest
+                    observation["containerName"] <- containerName
+                    observation["containerIdentity"] <- identity.ToLowerInvariant()
+                    observation["state"] <- "running"
+                    observation["observedAt"] <- observedAt.ToString("O")
+                    observation["requestedAt"] <- requestedAt.ToString("O")
+                    observation["observationOrdinal"] <- 1
+                    observation["requestOrdinal"] <- 2
+                    runningCancellationObservation<-Some observation
+                | None -> Thread.Sleep 50
+            let original=execution.Result
+            match runningCancellationObservation,original with
+            | Some _,Completed receipt when receipt.TerminationObserved && not receipt.CleanupCompleted ->
+                match executor.RecoverAsync(effectiveProfile,effectiveCommand,CancellationToken.None).Result with
+                | Duplicate recovered when recovered.CleanupCompleted ->
+                    cancellationCleanupRecovery<-true
+                    Completed recovered
+                | other -> other
+            | _ -> original
 printfn "%A" outcome
 let evidence = Dictionary<string,obj>()
 evidence["schema"] <- "fsgg.language-route.hosted-execution/1"
 evidence["kind"] <- kind
 evidence["mode"] <- (if options.ContainsKey "recover" then "recover" else "execute")
-evidence["commandSha256"] <- (SHA256.HashData commandBytes |> Convert.ToHexString |> _.ToLowerInvariant())
+evidence["commandSha256"] <- commandSha
 evidence["refusalProbe"] <- (options |> Map.tryFind "refusal-probe" |> Option.toObj)
+evidence["runningCancellationObservation"] <- (runningCancellationObservation |> Option.toObj)
+evidence["cancellationCleanupRecovery"] <- cancellationCleanupRecovery
 let receiptFields disposition (receipt:PortableExecutionReceipt) =
     evidence["disposition"] <- disposition
     evidence["commandId"] <- receipt.Result.CommandId.ToString("D")
@@ -123,6 +179,7 @@ let receiptFields disposition (receipt:PortableExecutionReceipt) =
     evidence["runtimeIdentity"] <- Option.toObj receipt.RuntimeIdentity
     evidence["containerIdentity"] <- Option.toObj receipt.ContainerIdentity
     evidence["verificationSha256"] <- receipt.VerificationSha256
+    evidence["verificationIdentity"] <- receipt.VerificationIdentity
     evidence["verificationOutputSha256"] <-
         (receipt.VerificationOutput |> Option.map (SHA256.HashData >> Convert.ToHexString >> _.ToLowerInvariant()) |> Option.toObj)
     evidence["outputSha256"] <- receipt.OutputSha256

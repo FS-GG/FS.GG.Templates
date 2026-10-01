@@ -106,7 +106,9 @@ dotnet fsi \
 ```
 
 Repeat with `--kind go`. For cancellation, add
-`--cancel-after-ms <bounded-ms>`; for reconstruction, start a fresh FSI process with the same inputs and
+`--cancel-running-timeout-ms <bounded-ms>`; the wrapper observes the exact
+command-derived container in `running` state before requesting cancellation.
+For reconstruction, start a fresh FSI process with the same inputs and
 add `--recover true`. Repeating the original idempotency key must return the P2
 duplicate disposition. A pending duplicate or an operation whose termination
 or cleanup is unproved stays pending/unknown and cannot satisfy the native gate.
@@ -135,9 +137,12 @@ observed, cleanup completed, the verification succeeded, and reconstructed
 calls retained the exact command hash and container identity. Cancellation is
 `unknown` unless the receipt proves the process started, cancellation was
 requested, termination was observed, cleanup completed, and recovery returned
-the settled duplicate. Helper exit flags, source preparation and OCI load alone
-cannot set `accepted`. The cleanup phase removes all containers and both owned
-VFS namespaces before final validation. The retained artifact contains the
+the same settled receipt and container identity. The running observation is
+joined to the exact command, derived container name and receipt identity, and
+must precede the cancellation request. Helper exit flags, a timer expiring
+after natural exit, source preparation and OCI load alone cannot set
+`accepted`. The cleanup phase removes all containers and all three owned VFS
+namespaces, including preflight, before final validation. The retained artifact contains the
 exact downloaded ZIP and bounded JSON evidence for 14 days; it publishes or
 activates nothing.
 

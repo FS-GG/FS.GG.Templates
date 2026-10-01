@@ -172,7 +172,7 @@ jobs:
         run: |
           set -uo pipefail
           common=(--binding "$QUALIFICATION_STATE/binding/binding.json" --kind rust --command "$QUALIFICATION_STATE/commands/cancellation.json" --source-root "$GITHUB_WORKSPACE" --source-revision "$EXPECTED_HEAD" --state-root "$QUALIFICATION_STATE/rust-state" --store-root "$QUALIFICATION_STATE/rust-store" --runroot "$QUALIFICATION_STATE/rust-runroot" --podman /usr/bin/podman --git /usr/bin/git --tar /usr/bin/tar)
-          dotnet fsi --reference:"$AKKA" --reference:"$EXECUTOR" eng/language-route-bindings/execute.fsx -- "${common[@]}" --cancel-after-ms 2000 --output "$QUALIFICATION_STATE/executions/cancellation-first.json"
+          dotnet fsi --reference:"$AKKA" --reference:"$EXECUTOR" eng/language-route-bindings/execute.fsx -- "${common[@]}" --cancel-running-timeout-ms 30000 --output "$QUALIFICATION_STATE/executions/cancellation-first.json"
           dotnet fsi --reference:"$AKKA" --reference:"$EXECUTOR" eng/language-route-bindings/execute.fsx -- "${common[@]}" --recover true --output "$QUALIFICATION_STATE/executions/cancellation-recovered.json"
 
       - name: Prove wrong toolchain reference and source refusal
