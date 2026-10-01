@@ -14,9 +14,12 @@ sha() { sha256sum "$1" | cut -d' ' -f1; }
 [[ -x "$LMT_BIN" && "$(sha "$LMT_BIN")" == 37e0b0365c2641edce40b48605471f61fa12e97c3e2376152f0e849abdc31f10 ]] || fail 'lmt object mismatch'
 config="$out/NuGet.Config"
 printf '%s\n' '<configuration><packageSources><clear/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>' >"$config"
+# shellcheck source=tests/composition/fable-game/svg-source-python-fixture.sh
+. "$root/tests/composition/fable-game/svg-source-python-fixture.sh"
+prepare_svg_source_python_fixture "$root" "$out"
 dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/feed" >"$out/pack.log"
-package="$out/feed/FS.GG.Workspace.Template.0.15.0.nupkg"
-[[ -f "$package" ]] || fail '0.15.0 source candidate missing'
+package="$out/feed/FS.GG.Workspace.Template.0.16.0.nupkg"
+[[ -f "$package" ]] || fail '0.16.0 source candidate missing'
 python3 - "$package" <<'PY'
 from pathlib import Path
 from zipfile import ZipFile
@@ -26,7 +29,7 @@ with ZipFile(archive) as z:
     nuspec=next(x for x in z.namelist() if x.endswith('.nuspec'))
     metadata=next(x for x in ET.fromstring(z.read(nuspec)) if x.tag.rsplit('}',1)[-1]=='metadata')
     fields={x.tag.rsplit('}',1)[-1]:x.text for x in metadata}
-    assert fields['id']=='FS.GG.Workspace.Template' and fields['version']=='0.15.0'
+    assert fields['id']=='FS.GG.Workspace.Template' and fields['version']=='0.16.0'
     entries={p:json.loads(z.read(p)) for p in z.namelist() if p.endswith('fs-gg-fable-game/.template.config/template.json') or p.endswith('fs-gg-fable-game-legacy/.template.config/template.json')}
     assert len(entries)==2, entries.keys()
     for path,data in entries.items():
@@ -85,7 +88,7 @@ test -f "$out/complete/SvgFoundation/Examples/Arcade/scene.json"
 test ! -e "$out/omitted/SvgFoundation/Studio"
 
 # The retained selector still creates its non-SVG product under this new
-# package. Provider defaults are unconditional: 0.15.0 records typed-sdd for
+# package. Provider defaults are unconditional: 0.16.0 records typed-sdd for
 # omitted lifecycle even when svgFoundation=false, while explicit sdd wins.
 legacy_scaffold() {
   local name="$1" lifecycle="$2" destination
@@ -156,7 +159,7 @@ archive,report=map(Path,sys.argv[1:])
 report.write_text(json.dumps({
   'schema':'fsgg.svg-release-d5.source-candidate/v1',
   'status':'source-candidate-only',
-  'templates':{'version':'0.15.0','candidateSha256':sha256(archive.read_bytes()).hexdigest(),'publication':'pending'},
+  'templates':{'version':'0.16.0','candidateSha256':sha256(archive.read_bytes()).hexdigest(),'publication':'pending'},
   'sdd':{'version':'2.0.2','source':'nuget.org','omittedBackend':'quint-specification-v1'},
   'newFableGameOmission':'typed-sdd',
   'rawPlayer':'passed',
