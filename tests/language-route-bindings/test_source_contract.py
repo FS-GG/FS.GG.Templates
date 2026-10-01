@@ -1,4 +1,4 @@
-import hashlib,json,unittest
+import hashlib,json,os,subprocess,tempfile,unittest
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 class SourceContract(unittest.TestCase):
@@ -94,4 +94,27 @@ class SourceContract(unittest.TestCase):
   self.assertIn(': "${EXECUTOR:=$COORDINATION_ROOT/',workflow)
   self.assertIn('"$QUALIFICATION_STATE/validation-command.json"',workflow)
   self.assertIn('reason:"validation-input-missing"',workflow)
+ def test_hosted_executor_sdk_probe_uses_the_pinned_build_checkout(self):
+  workflow=(ROOT/'.github/workflows/rust-go-hosted-bind-qualification.yml').read_text()
+  probe='sdk_actual="$(cd "$COORDINATION_ROOT" && dotnet --version)"'
+  build_command='(cd "$COORDINATION_ROOT" && timeout 600 dotnet build src/FS.GG.Coordination.Orchestration.Execution/FS.GG.Coordination.Orchestration.Execution.fsproj -c Release --nologo)'
+  self.assertIn(probe,workflow)
+  self.assertIn(build_command,workflow)
+  self.assertNotIn('sdk_actual="$(dotnet --version)"',workflow)
+  self.assertLess(workflow.index(probe),workflow.index(build_command))
+  with tempfile.TemporaryDirectory() as directory:
+   temporary=Path(directory)
+   outer=temporary/'outer'; build=temporary/'coordination'; commands=temporary/'commands'
+   outer.mkdir(); build.mkdir(); commands.mkdir()
+   (outer/'global.json').write_text(json.dumps({'sdk':{'version':'10.0.401'}}))
+   (build/'global.json').write_text(json.dumps({'sdk':{'version':'10.0.400'}}))
+   dotnet=commands/'dotnet'
+   invocations=temporary/'dotnet-invocations'
+   dotnet.write_text('#!/usr/bin/env python3\nimport json,os,sys\nfrom pathlib import Path\ncwd=Path.cwd()\nversion=json.loads((cwd/"global.json").read_text())["sdk"]["version"]\nwith Path(os.environ["DOTNET_INVOCATIONS"]).open("a") as output: output.write(f"{sys.argv[1]}|{cwd}|{version}\\n")\nif sys.argv[1:] == ["--version"]: print(version)\n')
+   dotnet.chmod(0o755)
+   environment={**os.environ,'PATH':str(commands)+os.pathsep+os.environ['PATH'],'COORDINATION_ROOT':str(build),'DOTNET_INVOCATIONS':str(invocations)}
+   shell='outer_actual="$(dotnet --version)"\n'+probe+'\n'+build_command+'\nprintf "%s\\n%s\\n" "$outer_actual" "$sdk_actual"\n'
+   result=subprocess.run(['bash','-c',shell],cwd=outer,env=environment,text=True,capture_output=True,check=True)
+   self.assertEqual(result.stdout,'10.0.401\n10.0.400\n')
+   self.assertEqual(invocations.read_text(),f'--version|{outer}|10.0.401\n--version|{build}|10.0.400\nbuild|{build}|10.0.400\n')
 if __name__=='__main__':unittest.main()
