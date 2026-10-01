@@ -24,13 +24,25 @@ on:
   # out the tag's source, while this workflow definition comes from main.
   workflow_dispatch:
     inputs:
+      operation:
+        description: Read-only feed occupancy check or failed-tag replay
+        required: true
+        default: replay
+        type: choice
+        options:
+          - replay
+          - feed-occupancy
       release_tag:
         description: Existing fs-gg-templates/v* tag to replay
-        required: true
+        required: false
         type: string
       source_run_id:
         description: Failed release run whose checksum-bound artifact must be resumed
-        required: true
+        required: false
+        type: string
+      candidate_version:
+        description: Canonical stable version to inspect with feed-occupancy
+        required: false
         type: string
   # release.yml is otherwise tag-only, so a broken prerequisite could not be exercised
   # before the tag became immutable. This path-scoped run packs the PR artifact and executes
@@ -40,6 +52,8 @@ on:
       - '.github/workflows/release.yml'
       - 'FS.GG.Templates.csproj'
       - 'providers/**'
+      - 'src/FS.GG.Templates.ProviderTool/**'
+      - 'tests/ProviderComposition.Tests/**'
       - 'templates/**'
       - 'tests/composition/**'
 
@@ -48,6 +62,7 @@ permissions:
 
 jobs:
   route:
+    if: github.event_name != 'workflow_dispatch' || inputs.operation != 'feed-occupancy'
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -67,6 +82,8 @@ jobs:
           PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           REQUESTED_TAG: ${{ inputs.release_tag }}
           SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+          REQUESTED_OPERATION: ${{ inputs.operation }}
+          CANDIDATE_VERSION: ${{ inputs.candidate_version }}
           REPOSITORY_ID: ${{ github.repository_id }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -78,6 +95,14 @@ jobs:
               publish=true
               ;;
             workflow_dispatch)
+              if [ "$REQUESTED_OPERATION" != replay ]; then
+                echo "::error::unknown manual release operation '${REQUESTED_OPERATION:-<nothing>}'"
+                exit 1
+              fi
+              if [ -n "$CANDIDATE_VERSION" ]; then
+                echo "::error::release replay refuses candidate_version"
+                exit 1
+              fi
               if [[ ! "$SOURCE_RUN_ID" =~ ^[0-9]+$ ]]; then
                 echo "::error::release replay requires the numeric failed source run id; got '${SOURCE_RUN_ID:-<nothing>}'"
                 exit 1
@@ -161,8 +186,53 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "release route: event=$EVENT_NAME source=$source_ref publish=$publish"
 
+  occupancy:
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'feed-occupancy'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.401'
+      - name: Bind actual checkout and temporary receipt path
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          echo "FSGG_CHECKOUT_TREE=$(git rev-parse HEAD^{tree})" >> "$GITHUB_ENV"
+          echo "FSGG_OCCUPANCY_RECEIPT=$RUNNER_TEMP/feed-occupancy.json" >> "$GITHUB_ENV"
+      - name: Inspect bounded feed occupancy
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CANDIDATE_VERSION: ${{ inputs.candidate_version }}
+          REQUESTED_TAG: ${{ inputs.release_tag }}
+          SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+        run: |
+          set -euo pipefail
+          if [ -n "$REQUESTED_TAG" ] || [ -n "$SOURCE_RUN_ID" ]; then
+            echo "::error::feed-occupancy refuses replay inputs"
+            exit 2
+          fi
+          dotnet run --project src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj \
+            -c Release -- feed-occupancy --version "$CANDIDATE_VERSION"
+      - name: Retain sanitized occupancy receipt
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: feed-occupancy-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/feed-occupancy.json
+          if-no-files-found: warn
+          retention-days: 30
+
   pack:
     needs: route
+    if: github.event_name != 'workflow_dispatch' || inputs.operation == 'replay'
     runs-on: ubuntu-latest
     env:
       FSGG_PYTHON_COORDINATION_ROOT: ${{ github.workspace }}/.tmp/python-fixture-coordination
@@ -200,6 +270,10 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.401'
+
+      - name: Run focused ProviderTool tests before candidate packing
+        if: github.event_name == 'pull_request'
+        run: dotnet run --project tests/ProviderComposition.Tests/ProviderComposition.Tests.fsproj -c Release
 
       # The cheapest, most load-bearing gate: the tag's version must equal <Version> in the
       # csproj we are about to pack. Without this the feed could advertise a version the
@@ -321,6 +395,7 @@ jobs:
   gate:
     name: release-route
     needs: [route, pack]
+    if: github.event_name != 'workflow_dispatch' || inputs.operation == 'replay'
     runs-on: ubuntu-latest
     env:
       FSGG_PYTHON_COORDINATION_ROOT: ${{ github.workspace }}/.tmp/python-fixture-coordination
@@ -474,7 +549,7 @@ jobs:
     # `needs.pack.outputs.*` below is available only when `pack` is a direct dependency. The gate also
     # depends on pack, but GitHub does not expose transitive `needs` contexts to this job.
     needs: [route, pack, gate]
-    if: needs.route.outputs.publish == 'true'
+    if: (github.event_name != 'workflow_dispatch' || inputs.operation == 'replay') && needs.route.outputs.publish == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write   # create the GitHub Release

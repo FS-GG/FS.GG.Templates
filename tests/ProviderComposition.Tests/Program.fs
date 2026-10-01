@@ -1,5 +1,6 @@
 open FsGgTemplates.ProviderComposition
 open FsGgTemplates.ReferencePublication
+open FsGgTemplates.FeedOccupancy
 open System
 open System.IO
 open System.IO.Compression
@@ -38,6 +39,8 @@ let main _ =
         with :? InvalidDataException -> printfn "PASS %s" name
     refuses "closed CLI options refuse duplicates" (fun () -> parseClosedOptions [ "--archive" ] [ "--archive"; "a"; "--archive"; "b" ] |> ignore)
     refuses "closed CLI options refuse unknowns" (fun () -> parseClosedOptions [ "--archive" ] [ "--archive"; "a"; "--extra"; "b" ] |> ignore)
+    refuses "feed occupancy CLI refuses duplicate version option" (fun () -> parseClosedOptions [ "--version" ] [ "--version"; "0.17.0"; "--version"; "0.18.0" ] |> ignore)
+    refuses "feed occupancy CLI refuses unknown option" (fun () -> parseClosedOptions [ "--version" ] [ "--candidate"; "0.17.0" ] |> ignore)
     let selected = select known known
     assertEqual "two known providers compose" (Ok known) selected
     assertEqual "subset keeps requested identity" (Ok [ beta ]) (select known [ beta ])
@@ -251,5 +254,109 @@ let main _ =
     File.AppendAllText(Path.Combine(installedRoot, "fs.gg.sdd.cli.1.2.3.nupkg"), "changed")
     assertEqual "changed installed tool archive refuses" (Error "installed-tool-archive-refused")
         (validateInstalledTool toolArchive toolRoot (digest toolArchive) "FS.GG.SDD.Cli" "1.2.3" revision "fsgg-sdd")
+
+    let occupancyContext: Context = {
+        Repository = "FS-GG/FS.GG.Templates"; Workflow = "release"
+        WorkflowRef = "FS-GG/FS.GG.Templates/.github/workflows/release.yml@refs/heads/main"
+        EventName = "workflow_dispatch"; RunId = "42"; RunAttempt = "1"
+        CheckoutSha = revision; CheckoutTree = String.replicate 40 "c" }
+    let utf8 (value: string) = Encoding.UTF8.GetBytes value
+    let response status headers (body: string) = { Status = status; Headers = headers; Body = utf8 body }
+    let metadata repository =
+        $"{{\"name\":\"FS.GG.Workspace.Template\",\"package_type\":\"nuget\",\"owner\":{{\"login\":\"FS-GG\"}},\"repository\":{{\"full_name\":\"{repository}\"}},\"url\":\"https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template\",\"version_count\":0,\"updated_at\":\"2026-10-01T00:00:00Z\"}}"
+    let versionEntry id version =
+        $"{{\"id\":{id},\"name\":\"{version}\",\"url\":\"https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template/versions/{id}\"}}"
+    let serviceIndex = "{\"resources\":[{\"@id\":\"https://api.nuget.org/v3-flatcontainer/\",\"@type\":\"PackageBaseAddress/3.0.0\"}]}"
+    let mutable observedRequests: Request list = []
+    let transportFor (active: string list) (deleted: string list) (nuget: string list) overrides : Transport =
+        fun request _ ->
+            observedRequests <- request :: observedRequests
+            match overrides |> Map.tryFind request.Uri.AbsoluteUri with
+            | Some value -> value
+            | None when request.Uri.AbsoluteUri = "https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template" ->
+                response 200 Map.empty (metadata "FS-GG/FS.GG.Templates")
+            | None when request.Uri.Query.Contains("state=active") -> response 200 Map.empty ("[" + String.Join(",", active) + "]")
+            | None when request.Uri.Query.Contains("state=deleted") -> response 200 Map.empty ("[" + String.Join(",", deleted) + "]")
+            | None when request.Uri.AbsoluteUri = "https://api.nuget.org/v3/index.json" -> response 200 Map.empty serviceIndex
+            | None when request.Uri.AbsoluteUri = "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/index.json" ->
+                response 200 Map.empty ("{\"versions\":[" + (nuget |> List.map (sprintf "\"%s\"") |> String.concat ",") + "]}")
+            | None -> response 500 Map.empty "{}"
+    let inspect transport limits =
+        match inspectWith limits transport occupancyContext "0.17.0" with
+        | Ok value -> value
+        | Error reason -> failwith reason
+    observedRequests <- []
+    let absent = inspect (transportFor [] [] [ "0.16.0" ] Map.empty) DefaultLimits
+    assertEqual "complete feed censuses prove absence" Verdict.Absent absent.Overall
+    assertEqual "public feed requests carry no GitHub credential marker" true
+        (observedRequests |> List.filter (fun request -> request.Uri.Host = "api.nuget.org") |> List.forall (fun request -> not request.Authenticated))
+    assertEqual "every occupancy request is GET" true (observedRequests |> List.forall (fun request -> request.Method = "GET"))
+    let githubOccupied = inspect (transportFor [ versionEntry 1L "0.17.0" ] [] [] Map.empty) DefaultLimits
+    assertEqual "active GitHub version occupies candidate" Verdict.Occupied githubOccupied.Overall
+    let deletedOccupied = inspect (transportFor [] [ versionEntry 2L "0.17.0" ] [] Map.empty) DefaultLimits
+    assertEqual "deleted GitHub version occupies candidate" Verdict.Occupied deletedOccupied.Overall
+    let nugetOccupied = inspect (transportFor [] [] [ "0.17.0" ] Map.empty) DefaultLimits
+    assertEqual "NuGet version occupies candidate" Verdict.Occupied nugetOccupied.Overall
+    let metadataUrl = "https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template"
+    for status in [ 302; 401; 403; 404 ] do
+        let result = inspect (transportFor [] [] [] (Map.ofList [ metadataUrl, response status Map.empty "{}" ])) DefaultLimits
+        assertEqual $"GitHub {status} remains unknown" Verdict.Unknown result.GitHub.Verdict
+    let wrongRepository = inspect (transportFor [] [] [] (Map.ofList [ metadataUrl, response 200 Map.empty (metadata "FS-GG/Other") ])) DefaultLimits
+    assertEqual "wrong package repository remains unknown" Verdict.Unknown wrongRepository.GitHub.Verdict
+    let wrongPackageBody = (metadata "FS-GG/FS.GG.Templates").Replace("\"name\":\"FS.GG.Workspace.Template\"", "\"name\":\"FS.GG.Other\"")
+    let wrongPackage = inspect (transportFor [] [] [] (Map.ofList [ metadataUrl, response 200 Map.empty wrongPackageBody ])) DefaultLimits
+    assertEqual "wrong package name remains unknown" Verdict.Unknown wrongPackage.GitHub.Verdict
+    let activePage1 = "https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template/versions?per_page=100&page=1&state=active"
+    let activePage2 = "https://api.github.com/orgs/FS-GG/packages/nuget/FS.GG.Workspace.Template/versions?per_page=100&page=2&state=active"
+    let later = transportFor [] [] [] (Map.ofList [
+        activePage1, response 200 (Map.ofList [ "link", $"<{activePage2}>; rel=\"next\"" ]) "[]"
+        activePage2, response 200 Map.empty ("[" + versionEntry 3L "0.17.0" + "]") ])
+    assertEqual "target on later GitHub page occupies candidate" Verdict.Occupied (inspect later DefaultLimits).Overall
+    let offHost = transportFor [] [] [] (Map.ofList [ activePage1, response 200 (Map.ofList [ "link", "<https://evil.example/page=2>; rel=\"next\"" ]) "[]" ])
+    assertEqual "off-host pagination remains unknown" Verdict.Unknown (inspect offHost DefaultLimits).GitHub.Verdict
+    let repeated = transportFor [] [] [] (Map.ofList [ activePage1, response 200 (Map.ofList [ "link", $"<{activePage1}>; rel=\"next\"" ]) "[]" ])
+    assertEqual "repeated pagination remains unknown" Verdict.Unknown (inspect repeated DefaultLimits).GitHub.Verdict
+    let unfinished = transportFor [] [] [] (Map.ofList [ activePage1, response 200 (Map.ofList [ "link", "malformed" ]) "[]" ])
+    assertEqual "unfinished pagination remains unknown" Verdict.Unknown (inspect unfinished DefaultLimits).GitHub.Verdict
+    let duplicateJson = response 200 Map.empty "{\"versions\":[],\"versions\":[]}"
+    let malformed = inspect (transportFor [] [] [] (Map.ofList [ "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/index.json", duplicateJson ])) DefaultLimits
+    assertEqual "duplicate authoritative JSON field remains unknown" Verdict.Unknown malformed.NuGet.Verdict
+    let malformedVersion = inspect (transportFor [] [] [ "not a version" ] Map.empty) DefaultLimits
+    assertEqual "malformed served version remains unknown" "malformed-version-identity" malformedVersion.NuGet.Reason
+    let repeatedIdentity = inspect (transportFor [ versionEntry 9L "0.16.0" ] [ versionEntry 10L "0.16.0" ] [] Map.empty) DefaultLimits
+    assertEqual "contradictory GitHub version state remains unknown" "github-version-identity-repeated" repeatedIdentity.GitHub.Reason
+    let mutable metadataReads = 0
+    let changedMetadata : Transport = fun request timeout ->
+        if request.Uri.AbsoluteUri = metadataUrl then
+            metadataReads <- metadataReads + 1
+            response 200 Map.empty ((metadata "FS-GG/FS.GG.Templates").Replace("2026-10-01T00:00:00Z", if metadataReads = 1 then "2026-10-01T00:00:00Z" else "2026-10-01T00:00:01Z"))
+        else (transportFor [] [] [] Map.empty) request timeout
+    assertEqual "metadata change across census remains unknown" "github-metadata-changed" (inspect changedMetadata DefaultLimits).GitHub.Reason
+    let timingOut : Transport = fun _ _ -> raise (TimeoutException())
+    assertEqual "transport timeout remains unknown" Verdict.Unknown (inspect timingOut DefaultLimits).Overall
+    let tiny = { DefaultLimits with MaxResponseBytes = 2 }
+    assertEqual "response size exhaustion remains unknown" Verdict.Unknown (inspect (transportFor [] [] [] Map.empty) tiny).Overall
+    let tinyTotal = { DefaultLimits with MaxTotalBytes = 400L }
+    let totalLimited = inspect (transportFor [] [] [] Map.empty) tinyTotal
+    assertEqual "overall byte exhaustion remains unknown" true
+        (totalLimited.GitHub.Reason = "total-size-limit" || totalLimited.NuGet.Reason = "total-size-limit")
+    let onePage = { DefaultLimits with MaxGitHubPages = 1 }
+    assertEqual "GitHub page bound cannot look absent" Verdict.Unknown (inspect (transportFor [] [] [] Map.empty) onePage).GitHub.Verdict
+    let noItems = { DefaultLimits with MaxItemsPerPage = 0 }
+    assertEqual "GitHub item bound cannot look complete" "github-page-item-limit"
+        (inspect (transportFor [ versionEntry 11L "0.16.0" ] [] [] Map.empty) noItems).GitHub.Reason
+    let nugetIndexUrl = "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/index.json"
+    let nugetNotFound = inspect (transportFor [] [] [] (Map.ofList [ nugetIndexUrl, response 404 Map.empty "{}" ])) DefaultLimits
+    assertEqual "NuGet 404 remains unknown" Verdict.Unknown nugetNotFound.NuGet.Verdict
+    let aliasOccupied = inspect (transportFor [] [] [ "0.17.0.0+repository" ] Map.empty) DefaultLimits
+    assertEqual "NuGet zero-fourth/build alias occupies candidate" Verdict.Occupied aliasOccupied.Overall
+    let prereleaseAbsent = inspect (transportFor [] [] [ "0.17.0-rc.1" ] Map.empty) DefaultLimits
+    assertEqual "prerelease remains a different identity" Verdict.Absent prereleaseAbsent.Overall
+    let ambiguousAlias = inspect (transportFor [] [] [ "0.17.0"; "0.17.0.0" ] Map.empty) DefaultLimits
+    assertEqual "duplicate normalized NuGet aliases remain unknown" Verdict.Unknown ambiguousAlias.NuGet.Verdict
+    assertEqual "canonical stable candidate accepted" (Ok "0.17.0") (validateCandidate "0.17.0")
+    assertEqual "prerelease candidate refused" (Error "candidate-version-refused") (validateCandidate "0.17.0-rc.1")
+    let sanitized = receiptJson absent
+    assertEqual "receipt contains hashes rather than raw censuses" false (sanitized.Contains("0.16.0", StringComparison.Ordinal))
     Directory.Delete(temp, true)
     0
