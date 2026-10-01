@@ -97,7 +97,7 @@ jobs:
           git -C "$COORDINATION_ROOT" checkout --detach FETCH_HEAD
           test "$(git -C "$COORDINATION_ROOT" rev-parse HEAD)" = "$EXECUTOR_REVISION"
           sdk_actual="$(cd "$COORDINATION_ROOT" && dotnet --version)"
-          timeout 600 dotnet build "$COORDINATION_ROOT/src/FS.GG.Coordination.Orchestration.Execution/FS.GG.Coordination.Orchestration.Execution.fsproj" -c Release --nologo
+          (cd "$COORDINATION_ROOT" && timeout 600 dotnet build src/FS.GG.Coordination.Orchestration.Execution/FS.GG.Coordination.Orchestration.Execution.fsproj -c Release --nologo)
           EXECUTOR="$COORDINATION_ROOT/src/FS.GG.Coordination.Orchestration.Execution/bin/Release/net10.0/FS.GG.Coordination.Orchestration.Execution.dll"
           AKKA="$HOME/.nuget/packages/akka/1.5.71/lib/net6.0/Akka.dll"
           printf 'EXECUTOR=%s\nAKKA=%s\n' "$EXECUTOR" "$AKKA" >> "$GITHUB_ENV"
