@@ -11,7 +11,13 @@
       "source": "./",
       "target": "./",
       "exclude": [
+        "**/[Bb]in/**",
+        "**/[Oo]bj/**",
         "**/.template.config/**",
+        "**/*.filelist",
+        "**/*.user",
+        "**/node_modules/**",
+        "**/.nuget/**",
         "**/__pycache__/**",
         "**/*.pyc",
         "**/output/**"

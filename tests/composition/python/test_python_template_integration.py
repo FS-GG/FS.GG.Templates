@@ -1,3 +1,4 @@
+import json
 import subprocess
 import tempfile
 import unittest
@@ -31,12 +32,26 @@ class PythonTemplateIntegrationTests(unittest.TestCase):
         composition = (ROOT / ".github/workflows/composition.yml").read_text()
         release = (ROOT / ".github/workflows/release.yml").read_text()
         provider = (ROOT / "providers/python.providers.yml").read_text()
+        template = json.loads(
+            (ROOT / "templates/fs-gg-python/.template.config/template.json").read_text()
+        )
 
         self.assertIn("<Version>0.16.0</Version>", project)
         self.assertIn("obj/$(Configuration)/$(TargetFramework)/portable-python-fixture/", project)
         self.assertIn('BeforeTargets="GenerateNuspec"', project)
         self.assertIn("FSGG_PYTHON_COORDINATION_ROOT must name", project)
         self.assertIn("    source: FS.GG.Workspace.Template::0.16.0", provider)
+        exclusions = set(template["sources"][0]["exclude"])
+        self.assertTrue({
+            "**/[Bb]in/**",
+            "**/[Oo]bj/**",
+            "**/.template.config/**",
+            "**/*.filelist",
+            "**/*.user",
+            "**/node_modules/**",
+            "**/.nuget/**",
+        }.issubset(exclusions))
+        self.assertNotIn("**/*.lock.json", exclusions)
         for target in ("python/app.py", "python/build.py", "python/test.py", "python-fixture-source.json"):
             self.assertIn(f"content/templates/fs-gg-python/{target}", project)
 
