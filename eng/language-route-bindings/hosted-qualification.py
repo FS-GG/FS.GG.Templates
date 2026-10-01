@@ -68,15 +68,23 @@ def metadata(args):
     return {"schema":"fsgg.language-route.artifact-metadata/1","id":ARTIFACT["id"],"runId":ARTIFACT["run"],"expired":False,"expectedZipSha256":ARTIFACT["sha"]}
 
 def cleanup(args):
-    state=Path(args.state).resolve(); owned=[]
+    requested=Path(args.state)
+    require(not requested.is_symlink(),"cleanup-root-refused")
+    state=requested.resolve(); owned=[]
     require(state.is_dir() and str(state).startswith(str(Path(args.allowed_root).resolve())+os.sep),"cleanup-root-refused")
     for kind in ("preflight","rust","go"):
         store=state/(kind+"-store"); runroot=state/(kind+"-runroot")
         if store.exists() or runroot.exists():
+            require(store.is_dir() and runroot.is_dir() and not store.is_symlink() and not runroot.is_symlink(),"cleanup-namespace-refused")
+            require(store.stat().st_uid==os.getuid() and runroot.stat().st_uid==os.getuid(),"cleanup-namespace-owner-refused")
             ids=run([args.podman,"--storage-driver=vfs","--root",str(store),"--runroot",str(runroot),"container","ps","--all","--quiet"]).splitlines()
             for container in ids: run([args.podman,"--storage-driver=vfs","--root",str(store),"--runroot",str(runroot),"container","rm","--force",container])
             require(run([args.podman,"--storage-driver=vfs","--root",str(store),"--runroot",str(runroot),"container","ps","--all","--quiet"])=="","container-cleanup-unproved")
-        shutil.rmtree(store,ignore_errors=True); shutil.rmtree(runroot,ignore_errors=True)
+            prefix=[args.podman,"--storage-driver=vfs","--root",str(store),"--runroot",str(runroot),"unshare"]
+            run(prefix+["chown","-R","0:0","--",str(store),str(runroot)])
+            run(prefix+["chmod","-R","u+rwX","--",str(store),str(runroot)])
+        if store.exists(): shutil.rmtree(store)
+        if runroot.exists(): shutil.rmtree(runroot)
         require(not store.exists() and not runroot.exists(),"namespace-cleanup-unproved")
         owned.append(kind)
     return {"schema":"fsgg.language-route.hosted-cleanup/1","containersAbsent":True,"namespacesRemoved":owned}

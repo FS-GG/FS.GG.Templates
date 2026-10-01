@@ -19,6 +19,12 @@ def load_argv(podman, store, runroot, archive):
 def podman_argv(podman, store, runroot, *arguments):
     return [str(podman),"--storage-driver=vfs","--root",str(store),"--runroot",str(runroot),*arguments]
 
+def canonical_config_digest(value):
+    require(isinstance(value,str),"loaded-config-identity-invalid")
+    if len(value)==64 and set(value)<=DERIVE.HEX: value="sha256:"+value
+    require(len(value)==71 and value.startswith("sha256:") and set(value[7:])<=DERIVE.HEX,"loaded-config-identity-invalid")
+    return value
+
 def run(argv, maximum=1024*1024):
     result=subprocess.run(argv,stdout=subprocess.PIPE,stderr=subprocess.PIPE,check=False,env={"HOME":"/tmp","PATH":"/usr/local/bin:/usr/bin:/bin","LANG":"C.UTF-8"})
     require(len(result.stdout)+len(result.stderr)<=maximum,"podman-output-limit-refused")
@@ -47,9 +53,10 @@ def load(args):
     inspected=json.loads(run(podman_argv(podman,store,runroot,"image","inspect",policy["importReference"])))
     require(isinstance(inspected,list) and len(inspected)==1,"loaded-image-count-refused")
     image=inspected[0]
-    require(image.get("Id")==policy["derived"]["configDigest"],"loaded-config-identity-mismatch")
+    config_digest=canonical_config_digest(image.get("Id"))
+    require(config_digest==policy["derived"]["configDigest"],"loaded-config-identity-mismatch")
     require(image.get("Digest")==policy["derived"]["manifestDigest"],"loaded-manifest-identity-mismatch")
-    result={"schema":"fsgg.language-route-derived-oci-load/1","acceptedNativeExecution":False,"kind":kind,"source":{"revision":args.source_revision,"tree":tree},"archiveSha256":identity["archiveSha256"],"reference":policy["importReference"],"manifestDigest":image["Digest"],"configDigest":image["Id"],"storeFresh":True}
+    result={"schema":"fsgg.language-route-derived-oci-load/1","acceptedNativeExecution":False,"kind":kind,"source":{"revision":args.source_revision,"tree":tree},"archiveSha256":identity["archiveSha256"],"reference":policy["importReference"],"manifestDigest":image["Digest"],"configDigest":config_digest,"inspectedConfigId":image["Id"],"storeFresh":True}
     output.parent.mkdir(parents=True,exist_ok=True)
     with output.open("xb") as stream: stream.write(DERIVE.canonical(result)); stream.flush(); os.fsync(stream.fileno())
     os.chmod(output,0o600)

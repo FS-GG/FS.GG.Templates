@@ -74,5 +74,11 @@ class DerivedImportTests(unittest.TestCase):
         argv=LOADER.load_argv(Path("/usr/bin/podman"),Path("/private/store"),Path("/private/runroot"),Path("/private/rust.oci.tar"))
         self.assertEqual(argv,["/usr/bin/podman","--storage-driver=vfs","--root","/private/store","--runroot","/private/runroot","load","--input","/private/rust.oci.tar"])
         self.assertNotIn("sh",argv);self.assertNotIn("run",argv)
+    def test_loader_canonicalizes_only_exact_bare_or_prefixed_config_digests(self):
+        digest="a"*64
+        self.assertEqual(LOADER.canonical_config_digest(digest),"sha256:"+digest)
+        self.assertEqual(LOADER.canonical_config_digest("sha256:"+digest),"sha256:"+digest)
+        for invalid in (None,"A"*64,"sha512:"+digest,"a"*63,"g"*64):
+            with self.subTest(invalid=invalid),self.assertRaisesRegex(LOADER.Refusal,"loaded-config-identity-invalid"): LOADER.canonical_config_digest(invalid)
 
 if __name__=="__main__": unittest.main()
