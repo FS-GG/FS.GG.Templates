@@ -77,9 +77,21 @@ class SourceContract(unittest.TestCase):
   self.assertLessEqual(contexts,{'github','needs','strategy','matrix','vars','secrets','inputs'})
   self.assertNotIn('runner.',job_environment)
   self.assertIn('QUALIFICATION_STATE: /tmp/r-${{ github.run_id }}-${{ github.run_attempt }}',job_environment)
-  self.assertIn('COORDINATION_ROOT: /tmp/c-${{ github.run_id }}-${{ github.run_attempt }}',job_environment)
+  self.assertIn('COORDINATION_ROOT: /tmp/coord-c069-bind-build',job_environment)
   actual_state='/tmp/r-36795096369-1'
   for suffix in ('preflight-runroot','rust-runroot','go-runroot'):
    self.assertLess(len((actual_state+'/'+suffix).encode()),50)
   self.assertIn('--state "$QUALIFICATION_STATE" --allowed-root /tmp',workflow)
+ def test_hosted_executor_build_is_path_bound_and_failure_evidence_is_retained(self):
+  workflow=(ROOT/'.github/workflows/rust-go-hosted-bind-qualification.yml').read_text()
+  self.assertIn('test ! -e "$COORDINATION_ROOT"',workflow)
+  self.assertIn('"$QUALIFICATION_STATE/executor-build.json"',workflow)
+  self.assertIn('--arg buildRoot "$COORDINATION_ROOT"',workflow)
+  self.assertIn('test "$sdk_actual" = 10.0.400',workflow)
+  self.assertIn('test "$executor_actual" = "$EXECUTOR_SHA256"',workflow)
+  self.assertIn('test "$akka_actual" = "$AKKA_SHA256"',workflow)
+  self.assertLess(workflow.index("printf 'EXECUTOR=%s\\nAKKA=%s\\n'"),workflow.index('test "$executor_actual"'))
+  self.assertIn(': "${EXECUTOR:=$COORDINATION_ROOT/',workflow)
+  self.assertIn('"$QUALIFICATION_STATE/validation-command.json"',workflow)
+  self.assertIn('reason:"validation-input-missing"',workflow)
 if __name__=='__main__':unittest.main()

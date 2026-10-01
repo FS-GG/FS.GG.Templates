@@ -24,10 +24,13 @@ jobs:
     env:
       EXPECTED_HEAD: ${{ inputs.expected_head }}
       QUALIFICATION_STATE: /tmp/r-${{ github.run_id }}-${{ github.run_attempt }}
-      COORDINATION_ROOT: /tmp/c-${{ github.run_id }}-${{ github.run_attempt }}
+      # The F# DLL retains its absolute CompilationMapping source path; this reviewed root is part of its byte provenance.
+      COORDINATION_ROOT: /tmp/coord-c069-bind-build
       ARTIFACT_ID: '11112465308'
       ARTIFACT_SHA256: d3ede2552d45357e505de41f34603adb458a815a20fc43dedae13f1650a56027
       EXECUTOR_REVISION: c069263c3e9e8780b1596eee82d2f6c017daa8df
+      EXECUTOR_SHA256: 6395cdf3feb6ee114685920d9ba8b48b624df01bb1d38b922b12da0bffa89daf
+      AKKA_SHA256: 1ef266d80a923b25db758987a15e4db99acaa05863a236871bac4dbd6315c5b7
     steps:
       - name: Check out the exact protected main source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -87,6 +90,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          test ! -e "$COORDINATION_ROOT"
           git init "$COORDINATION_ROOT"
           git -C "$COORDINATION_ROOT" remote add origin https://github.com/FS-GG/FS.GG.Coordination.git
           timeout 300 git -C "$COORDINATION_ROOT" fetch --depth=1 origin "$EXECUTOR_REVISION"
@@ -95,9 +99,20 @@ jobs:
           timeout 600 dotnet build "$COORDINATION_ROOT/src/FS.GG.Coordination.Orchestration.Execution/FS.GG.Coordination.Orchestration.Execution.fsproj" -c Release --nologo
           EXECUTOR="$COORDINATION_ROOT/src/FS.GG.Coordination.Orchestration.Execution/bin/Release/net10.0/FS.GG.Coordination.Orchestration.Execution.dll"
           AKKA="$HOME/.nuget/packages/akka/1.5.71/lib/net6.0/Akka.dll"
-          test "$(sha256sum "$EXECUTOR" | cut -d' ' -f1)" = 6395cdf3feb6ee114685920d9ba8b48b624df01bb1d38b922b12da0bffa89daf
-          test "$(sha256sum "$AKKA" | cut -d' ' -f1)" = 1ef266d80a923b25db758987a15e4db99acaa05863a236871bac4dbd6315c5b7
           printf 'EXECUTOR=%s\nAKKA=%s\n' "$EXECUTOR" "$AKKA" >> "$GITHUB_ENV"
+          sdk_actual="$(dotnet --version)"
+          executor_actual="$(sha256sum "$EXECUTOR" | cut -d' ' -f1)"
+          akka_actual="$(sha256sum "$AKKA" | cut -d' ' -f1)"
+          umask 077
+          jq -n --arg sourceRevision "$EXECUTOR_REVISION" --arg buildRoot "$COORDINATION_ROOT" \
+            --arg sdkExpected 10.0.400 --arg sdkActual "$sdk_actual" \
+            --arg executorExpected "$EXECUTOR_SHA256" --arg executorActual "$executor_actual" \
+            --arg akkaExpected "$AKKA_SHA256" --arg akkaActual "$akka_actual" \
+            '{schema:"fsgg.language-route.executor-build/1",sourceRevision:$sourceRevision,buildRoot:$buildRoot,sdk:{expected:$sdkExpected,actual:$sdkActual},executor:{expectedSha256:$executorExpected,actualSha256:$executorActual},akka:{expectedSha256:$akkaExpected,actualSha256:$akkaActual}}' \
+            > "$QUALIFICATION_STATE/executor-build.json"
+          test "$sdk_actual" = 10.0.400
+          test "$executor_actual" = "$EXECUTOR_SHA256"
+          test "$akka_actual" = "$AKKA_SHA256"
 
       - name: Prepare original and derived policy-bound archives
         shell: bash
@@ -205,9 +220,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          install -d -m 0700 "$QUALIFICATION_STATE"
+          : "${EXECUTOR:=$COORDINATION_ROOT/src/FS.GG.Coordination.Orchestration.Execution/bin/Release/net10.0/FS.GG.Coordination.Orchestration.Execution.dll}"
+          : "${AKKA:=$HOME/.nuget/packages/akka/1.5.71/lib/net6.0/Akka.dll}"
+          executor_present=false; akka_present=false
+          test -f "$EXECUTOR" && executor_present=true
+          test -f "$AKKA" && akka_present=true
+          if [[ "$executor_present" != true || "$akka_present" != true ]]; then
+            umask 077
+            jq -n --argjson executorPresent "$executor_present" --argjson akkaPresent "$akka_present" \
+              '{accepted:false,reason:"validation-input-missing",executorPresent:$executorPresent,akkaPresent:$akkaPresent}' \
+              > "$QUALIFICATION_STATE/validation-command.json"
+            exit 1
+          fi
           python3 eng/language-route-bindings/hosted-qualification.py validate \
             --state "$QUALIFICATION_STATE" --source-root "$GITHUB_WORKSPACE" --expected-head "$EXPECTED_HEAD" \
-            --executor "$EXECUTOR" --akka "$AKKA" --output "$QUALIFICATION_STATE/qualification.json"
+            --executor "$EXECUTOR" --akka "$AKKA" --output "$QUALIFICATION_STATE/qualification.json" \
+            > "$QUALIFICATION_STATE/validation-command.json"
 
       - name: Retain exact download bytes and bounded native evidence
         if: always()
