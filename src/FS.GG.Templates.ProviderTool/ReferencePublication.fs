@@ -29,6 +29,8 @@ let private hex64 = Regex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)
 let private hex40 = Regex("^[0-9a-f]{40}$", RegexOptions.CultureInvariant)
 let private required =
     [ "content/templates/fs-gg-fable-game/.template.config/template.json"
+      "content/templates/fs-gg-fable-game/SvgFoundation/ExternalAuthorityReference.fs"
+      "content/templates/fs-gg-fable-game/SvgFoundation/Examples/ExternalAuthority/reference.json"
       "content/templates/fs-gg-fable-game/SvgFoundation/FourDReference.fs"
       "content/templates/fs-gg-fable-game/SvgFoundation/Examples/FourD/reference.json"
       "content/templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj"
@@ -170,10 +172,12 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
                 && identifierFallback.GetString() = "effectiveName"
             if not templateContract then raise (InvalidDataException "template transform contract refused")
             let invariant =
-                [ "content/templates/fs-gg-fable-game/SvgFoundation/Examples/FourD/reference.json"
+                [ "content/templates/fs-gg-fable-game/SvgFoundation/Examples/ExternalAuthority/reference.json"
+                  "content/templates/fs-gg-fable-game/SvgFoundation/Examples/FourD/reference.json"
                   "content/templates/fs-gg-fable-game/SvgFoundation/build.sh" ]
             let transformed =
-                [ "content/templates/fs-gg-fable-game/SvgFoundation/FourDReference.fs"
+                [ "content/templates/fs-gg-fable-game/SvgFoundation/ExternalAuthorityReference.fs"
+                  "content/templates/fs-gg-fable-game/SvgFoundation/FourDReference.fs"
                   "content/templates/fs-gg-fable-game/Browser.Tests/two-client.spec.ts" ]
             let exact name expected =
                 let entry = package.GetEntry name

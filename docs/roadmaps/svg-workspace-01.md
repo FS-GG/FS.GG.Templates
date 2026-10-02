@@ -490,3 +490,28 @@ only once that real durable path exists; describe Release C as complete only aft
 Add a §9.9 workspace row reflecting the boundaries above. After each native Closed/Done milestone,
 project the result into unified §0 immediately/asynchronously before selecting the next item. Link
 actual draft branch while unmerged and then its durable main path; do not create a broken future link.
+
+## FABLE-ADOPT-01.3-E1 external authority reference source
+
+- [ ] Compose the accepted Rendering external presentation API into the opt-in complete-bundle
+  deterministic reference and qualify its generated receiver through packed producer source.
+
+The source lane adds the sample gateway, explicit mount/connect controls, captured epoch/revision
+snapshots, ordered command correlations and independent accepted/rejected receipts. It reuses
+`SvgExternalSessionHost`, `SvgInputHost` and retained SVG; it does not add another lifecycle model.
+Focused browser scenarios cover coalescing, fencing, reconnect, replacement, failure recovery,
+terminal disposal and native editing/IME. The existing local FourD reference remains in the same
+bundle; omitted/player and typed-sdd defaults remain the established selections.
+
+Evidence: [source-window report](../reports/2026-10-02-external-authority-reference-source.md).
+Native transport uses an immutable Rendering-owned reusable-workflow call; default preflight
+does not qualify the reference. The historical App422 is retained and full three-family evidence
+for the exact Templates head remains required.
+Local delivered-source Fable, ProviderComposition and Chromium/Firefox checks pass. WebKit on the
+Arch host lacks compatible fallback ABI libraries; the source workflow qualifies all three families
+on Ubuntu against the authenticated protected Rendering 730 candidate. Completion requires the
+exact committed candidate's fresh packed-source qualification and native merge readback. Broader .3 WASM composition, .4 public publication/installed receivers, .5 FourD and .6
+BAR/SC2 remain open. The source-only `FsGgExternalReferenceCandidate` defaults to `false` with published Rendering
+`0.31.0`; the candidate runner enables it with actual packed successor source. The .4 installed
+join enables the default only with delivered successor pins and locks. Publication pins and
+version metadata join through the integrator's qualified producer packet and retain their separate operation authority.

@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 
@@ -9,6 +9,10 @@ const hasSvgPlayer = hasAnySvgPlayer && !isLegacySvgPreview;
 const hasStudio = existsSync("../SvgFoundation/Studio/Studio.fsproj") && !isLegacySvgPreview;
 const hasTacticalExample = existsSync("../SvgFoundation/Examples/Tactical/scene.json") && !isLegacySvgPreview;
 const hasArcadeExample = existsSync("../SvgFoundation/Examples/Arcade/scene.json") && !isLegacySvgPreview;
+const hasExternalAuthorityReference = existsSync("../SvgFoundation/Examples/ExternalAuthority/reference.json")
+  && !isLegacySvgPreview
+  && (process.env.FsGgExternalReferenceCandidate === "true"
+    || readFileSync("../SvgFoundation/SvgFoundation.fsproj", "utf8").includes(">true</FsGgExternalReferenceCandidate>"));
 const hasFourDReference = existsSync("../SvgFoundation/Examples/FourD/reference.json") && !isLegacySvgPreview;
 
 type BrowserDiagnostic = { kind: "console" | "pageerror" | "requestfailed"; detail: string };
@@ -903,7 +907,9 @@ test("FourD reference composes local session, normalized input, transformed hit 
   await destination.scrollIntoViewIfNeeded();
   const bounds = await destination.boundingBox();
   expect(bounds).not.toBeNull();
-  await page.mouse.click((bounds?.x ?? 0) + (bounds?.width ?? 0) / 2, (bounds?.y ?? 0) + (bounds?.height ?? 0) / 2);
+  // Let Playwright wait for browser scroll/compositor actionability before delivering
+  // the same production pointer observation to the transformed retained object.
+  await destination.click();
   await expect(reference).toHaveAttribute("data-agent-full-cell", "0:0:0:0");
   await expect(reference).toHaveAttribute("data-last-command-destination", "1:1:1:1");
   await expect(reference).toHaveAttribute("data-command-order", "1");
@@ -1029,4 +1035,133 @@ test("legacy non-SVG client retains its V1 authoritative journey", async ({ brow
     await contextA.close();
     await contextB.close();
   }
+});
+
+test("external authority reference fences captured snapshots and settles commands independently", async ({ page }, testInfo) => {
+  test.skip(!hasExternalAuthorityReference,
+    "selected composition has no external authority reference");
+  await page.goto("/");
+  await testInfo.attach("external-reference-browser", {
+    body: JSON.stringify({ family: testInfo.project.name, loadedVersion: page.context().browser()?.version() }),
+    contentType: "application/json"
+  });
+  await expect(page.locator("#external-authority-reference")).toHaveCount(0);
+  await page.getByRole("button", { name: "Mount external authority reference", exact: true }).click();
+  const reference = page.locator("#external-authority-reference");
+  const press = (name: string) => reference.getByRole("button", { name, exact: true }).and(reference.locator(":scope > button")).click();
+  await expect(reference).toHaveAttribute("data-status", "Disconnected");
+  await press("Connect sample authority");
+  await press("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-applied-epoch", "epoch-A");
+  await expect(reference).toHaveAttribute("data-applied-revision", "1");
+  await press("Increment external value"); // capture rev2
+  await press("Reject sample command"); // queue presentation, preserve rejected receipt
+  await press("Request external burst");
+  await expect(reference).toHaveAttribute("data-gateway-owned", "1");
+  await expect(reference).toHaveAttribute("data-queued", "true");
+  await expect(reference).toHaveAttribute("data-request-count", "2");
+  await press("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-applied-revision", "2");
+  await expect(reference).toHaveAttribute("data-request-count", "3");
+  await press("Increment external value"); // queued capture remains rev2, authority is now rev3
+  await press("Complete current external snapshot"); // duplicate releases slot, drains rev3 demand
+  await expect(reference).toHaveAttribute("data-request-count", "4");
+  await expect(reference).toHaveAttribute("data-applied-revision", "2");
+  await press("Complete oldest external snapshot"); // old acquisition must not paint
+  await expect(reference).toHaveAttribute("data-applied-revision", "2");
+  await press("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-applied-revision", "3");
+  await expect(reference).toHaveAttribute("data-command-order", "sample:1:external.increment,sample:2:external.reject,sample:3:external.increment");
+  await expect(reference).toHaveAttribute("data-receipt-order", "sample:1:accepted,sample:2:rejected,sample:3:accepted");
+  await press("Disconnect sample authority");
+  await press("Connect sample authority");
+  await expect(reference).toHaveAttribute("data-preserved-baseline", "true");
+  await press("Complete current external snapshot"); // same authority rev3 rejected
+  await expect(reference).toHaveAttribute("data-pending", "false");
+  await press("Request cached external snapshot"); // genuine captured rev1 on a current acquisition
+  await press("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-applied-revision", "3");
+  await expect(reference).toHaveAttribute("data-pending", "false");
+  await press("Increment external value");
+  await press("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-applied-revision", "4");
+  await press("Request external burst");
+  await press("Replace sample authority");
+  await press("Complete oldest external snapshot"); // old epoch/generation
+  await expect(reference).toHaveAttribute("data-applied-epoch", "epoch-A");
+  await press("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-applied-epoch", "epoch-B");
+  await expect(reference).toHaveAttribute("data-applied-revision", "1");
+  await expect(reference).toHaveAttribute("data-receipt-order", "sample:1:accepted,sample:2:rejected,sample:3:accepted,sample:4:accepted");
+});
+
+test("external authority reference recovers failures and disposes owned resources terminally", async ({ page }) => {
+  test.skip(!hasExternalAuthorityReference,
+    "selected composition has no external authority reference");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Mount external authority reference", exact: true }).click();
+  const reference = page.locator("#external-authority-reference");
+  const press = (name: string) => reference.getByRole("button", { name, exact: true }).and(reference.locator(":scope > button")).click();
+  await press("Connect sample authority");
+  for (const failure of ["Lose external acquisition", "Cancel external acquisition", "Fail external acquisition"]) {
+    await press("Request external burst");
+    await press(failure);
+    await expect(reference).toHaveAttribute("data-gateway-owned", "1");
+  }
+  await press("Fail next external presentation");
+  await press("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-callback-failure", "true");
+  await press("Increment external value");
+  await press("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-applied-revision", "2");
+  await press("Request external burst");
+  await reference.evaluate(element => {
+    (window as any).__externalButtons = [...element.querySelectorAll<HTMLButtonElement>("button")];
+    (window as any).__externalReceipts = element.getAttribute("data-receipt-order");
+  });
+  await press("Dispose external reference");
+  await expect(reference).toHaveAttribute("data-disposed", "true");
+  for (const field of ["input", "host", "gateway", "button", "svg"]) {
+    await expect(reference).toHaveAttribute(`data-${field}-owned`, "0");
+  }
+  await expect(reference).toHaveAttribute("data-cancellation-unknown", "false");
+  await expect(reference.locator("svg")).toHaveCount(0);
+  await page.evaluate(() => (window as any).__externalButtons.forEach((button: HTMLButtonElement) => button.click()));
+  await expect(reference).toHaveAttribute("data-disposed", "true");
+  await expect(reference).toHaveAttribute("data-receipt-order", await page.evaluate(() => (window as any).__externalReceipts));
+});
+
+test("external authority reference uses production keyboard pointer editing and IME input", async ({ page }) => {
+  test.skip(!hasExternalAuthorityReference,
+    "selected composition has no external authority reference");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Mount external authority reference", exact: true }).click();
+  const reference = page.locator("#external-authority-reference");
+  await reference.getByRole("button", { name: "Connect sample authority", exact: true }).click();
+  await reference.focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("r");
+  await expect(reference).toHaveAttribute("data-receipt-order", "sample:1:accepted,sample:2:rejected");
+  const note = reference.getByRole("textbox", { name: "External reference note" });
+  await note.fill("editable");
+  await note.press("Enter");
+  await expect(reference).toHaveAttribute("data-command-order", "sample:1:external.increment,sample:2:external.reject");
+  await reference.focus();
+  await reference.dispatchEvent("compositionstart");
+  await page.keyboard.press("Enter");
+  await reference.dispatchEvent("compositionend");
+  await expect(reference).toHaveAttribute("data-command-order", "sample:1:external.increment,sample:2:external.reject");
+  const target = reference.locator('[data-scene-object-id="external.increment"]');
+  await target.scrollIntoViewIfNeeded();
+  const bounds = await target.boundingBox();
+  expect(bounds).not.toBeNull();
+  // Production retained SVG hit testing inverts the camera pan and zoom.
+  await page.mouse.click(bounds!.x + bounds!.width / 2, bounds!.y + bounds!.height / 2);
+  await expect(reference).toHaveAttribute("data-command-order", "sample:1:external.increment,sample:2:external.reject,sample:3:external.increment");
+  const revision = await reference.getAttribute("data-authority-revision");
+  await page.evaluate(() => {
+    window.dispatchEvent(new Event("blur"));
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(reference).toHaveAttribute("data-authority-revision", revision!);
 });
