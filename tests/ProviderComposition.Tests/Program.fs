@@ -153,6 +153,8 @@ let main _ =
     let revision = String.replicate 40 "a"
     let requiredEntries =
         [ "content/templates/fs-gg-fable-game/.template.config/template.json"
+          "content/templates/fs-gg-fable-game/SvgFoundation/ExternalAuthorityReference.fs"
+          "content/templates/fs-gg-fable-game/SvgFoundation/Examples/ExternalAuthority/reference.json"
           "content/templates/fs-gg-fable-game/SvgFoundation/FourDReference.fs"
           "content/templates/fs-gg-fable-game/SvgFoundation/Examples/FourD/reference.json"
           "content/templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj"
@@ -169,6 +171,7 @@ let main _ =
         requiredEntries |> List.filter ((<>) omit) |> List.iter (fun name ->
             let body =
                 if name.EndsWith("template.json") then """{"symbols":{"effectiveName":{"replaces":"FableGameWorkspace","fileRename":"FableGameWorkspace","parameters":{"sourceVariableName":"productNameTrimmed","fallbackVariableName":"name"}},"effectiveIdentifier":{"replaces":"FableGameWorkspaceNamespace","parameters":{"sourceVariableName":"rootNamespaceTrimmed","fallbackVariableName":"effectiveName"}}}}"""
+                elif name.EndsWith("ExternalAuthorityReference.fs") then "module FableGameWorkspaceNamespace.SvgFoundation.ExternalAuthorityReference"
                 elif name.EndsWith("FourDReference.fs") then "module FableGameWorkspaceNamespace.SvgFoundation.FourDReference"
                 elif name.EndsWith("two-client.spec.ts") then "const db = 'FableGameWorkspaceNamespace-svg-studio';"
                 else "fixture"
@@ -191,6 +194,9 @@ let main _ =
     let missing = Path.Combine(temp, "missing.nupkg")
     makeArchive missing requiredEntries.Head false
     assertEqual "missing reference member refuses" (Error "reference-member-missing") (validate (request missing))
+    let missingExternal = Path.Combine(temp, "missing-external.nupkg")
+    makeArchive missingExternal "content/templates/fs-gg-fable-game/SvgFoundation/ExternalAuthorityReference.fs" false
+    assertEqual "missing external source refuses" (Error "reference-member-missing") (validate (request missingExternal))
     let duplicate = Path.Combine(temp, "duplicate.nupkg")
     makeArchive duplicate "" true
     assertEqual "duplicate archive entry refuses" (Error "archive-duplicate-entry-refused") (validate (request duplicate))
@@ -237,6 +243,11 @@ let main _ =
     File.AppendAllText(fourDOutput, "x")
     assertEqual "one-byte transformed source mutation refuses" (Error "receiver-source-closure-refused") (validateReceiver archive receiver "direct" "none" "1.2.3" "ReferenceDirect")
     File.WriteAllBytes(fourDOutput, fourDBytes)
+    let externalOutput = Path.Combine(receiver, "SvgFoundation", "ExternalAuthorityReference.fs")
+    let externalBytes = File.ReadAllBytes externalOutput
+    File.AppendAllText(externalOutput, "x")
+    assertEqual "external transformed source mutation refuses" (Error "receiver-source-closure-refused") (validateReceiver archive receiver "direct" "none" "1.2.3" "ReferenceDirect")
+    File.WriteAllBytes(externalOutput, externalBytes)
     assertEqual "wrong trusted product name refuses" (Error "receiver-product-name-refused") (validateReceiver archive receiver "direct" "none" "1.2.3" "OtherName")
     assertEqual "direct route cannot claim an unobserved lifecycle default" (Error "receiver-lifecycle-refused") (validateReceiver archive receiver "direct" "typed-sdd" "1.2.3" "ReferenceDirect")
     let provenance = Path.Combine(receiver, ".fsgg", "scaffold-provenance.json")

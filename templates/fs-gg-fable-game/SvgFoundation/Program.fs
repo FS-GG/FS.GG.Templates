@@ -34,6 +34,9 @@ module ArcadeExample = FableGameWorkspaceNamespace.SvgFoundation.ArcadeExample
 #if TACTICAL_EXAMPLE
 module TacticalExample = FableGameWorkspaceNamespace.SvgFoundation.TacticalExample
 #endif
+#if EXTERNAL_AUTHORITY_REFERENCE
+module ExternalAuthorityReference = FableGameWorkspaceNamespace.SvgFoundation.ExternalAuthorityReference
+#endif
 #if FOURD_REFERENCE
 module FourDReference = FableGameWorkspaceNamespace.SvgFoundation.FourDReference
 #endif
@@ -105,6 +108,9 @@ let private arcadeExample = ArcadeExample.mount ()
 #endif
 #if TACTICAL_EXAMPLE
 do TacticalExample.mount ()
+#endif
+#if EXTERNAL_AUTHORITY_REFERENCE
+let private externalAuthorityReference = ExternalAuthorityReference.install ()
 #endif
 #if FOURD_REFERENCE
 let private fourDReference = FourDReference.mount ()

@@ -75,3 +75,39 @@ The browser journey demonstrates gesture unlock, asset readiness, one-shot dispa
 seek, reduced-motion settling, successful autosave and reload, quota failure with the prior save preserved,
 recovery through a later valid edit, and archive replacement. Closing the page disposes the frame clock,
 audio graph, IndexedDB connection, input host, session host, and retained SVG hosts.
+
+## Deterministic external authority reference
+
+The `complete` bundle adds [ExternalAuthorityReference.fs](ExternalAuthorityReference.fs) and its
+[fixture marker](Examples/ExternalAuthority/reference.json). Click **Mount external authority
+reference**, then **Connect sample authority**. The sample gateway supplies epoch `epoch-A`, revision
+1 and a small counter projection. Increment commands advance its revision; rejected commands leave
+that revision unchanged. An explicit authority replacement creates a different epoch that may start
+at revision 1. Disconnecting and reconnecting preserves the same authority epoch and accepted revision.
+
+The gateway captures each snapshot's epoch, revision and value when `SvgExternalSessionHost` requests
+it. Completion controls can return that captured envelope later; they never generate revisions or
+substitute the mount generation for an epoch. The retained SVG host presents accepted projections.
+`SvgInputHost` resolves keyboard input; retained SVG hit testing and ordinary invoke buttons submit
+semantic commands to the same gateway. Normal editing and IME keep their native input behavior.
+
+Commands receive increasing `sample:N` correlations. Each command settles one accepted or rejected
+receipt in admission order, before presentation demand. `data-command-order` and `data-receipt-order`
+expose this gateway ledger independently of rendered state. Snapshot acquisition permits one pending
+request and one replaceable presentation demand. Coalescing, cancellation, old replies and authority
+replacement affect presentation only. The sample contains no transport, engine identity verification,
+authentication, authority clock, pause or reset operation.
+
+The loss, cancellation and callback failure controls exercise recovery. Disposal releases input,
+external host, retained SVG, button listeners and sample acquisition ownership. The visible terminal
+section reports ownership and `CancellationSettlementUnknown`; an unknown cancellation is not
+reported as successful zero-resource settlement. The `player` bundle omits the marker, so it neither
+compiles nor mounts this module. The existing FourD reference stays available in `complete`.
+
+Source qualification uses `tests/composition/fable-game/verify-external-reference-candidate.sh` from
+the Templates repository with an exact Rendering checkout and its packed candidate feed. It compares
+the packaged external-host and input files to that source, compiles delivered Fable files through an
+isolated package cache, and runs the generated complete receiver in Chromium, Firefox and WebKit.
+The external API requires the qualified successor Rendering package; public `0.31.0` cannot supply
+it. Candidate qualification does not establish public installed acceptance, actual screen-reader
+behavior, FourD engine adoption or BAR/SC2 adoption.
