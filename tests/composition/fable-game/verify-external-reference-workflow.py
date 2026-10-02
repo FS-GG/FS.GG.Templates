@@ -100,3 +100,33 @@ with tempfile.TemporaryDirectory() as directory:
     state.write_text('11.19.1')
     assert subprocess.run(['bash','-euo','pipefail','-c',provision.replace('npm install --global npm@12.1.0','true')],env=env,check=False).returncode!=0
 print('PASS pinned npm provision: actual shell upgrades bundled11.19.1 fixture to12.1.0; missing/floating provision refused')
+
+# The actual native Provider command must exit successfully before its exact-count assertion.
+provider_match=re.search(r"          python3 - <<'PYPROVIDER'\n(.*?)\n          PYPROVIDER",text,re.S)
+assert provider_match and not re.search(r'\brg\s',text)
+provider_code='\n'.join(line[10:] for line in provider_match[1].splitlines())
+ast.parse(provider_code)
+qualify_match=re.search(r'      - name: Qualify exact generated candidate and existing publication validator\n.*?        run: \|\n(.*?)(?=\n      - )',text,re.S)
+assert qualify_match
+qualification='\n'.join(line[10:] for line in qualify_match[1].splitlines())
+provider_prefix=qualification.split('bash tests/composition/fable-game/verify-external-reference-candidate.sh',1)[0]
+assert provider_prefix.startswith('set -euo pipefail\n') and provider_prefix.index('dotnet run') < provider_prefix.index('PYPROVIDER')
+with tempfile.TemporaryDirectory() as directory:
+    path=Path(directory);log=path/'provider-composition.log'
+    previous=os.environ.copy();os.environ['RUNNER_TEMP']=directory
+    try:
+        for count in [180,179,181,0]:
+            log.write_text('build diagnostics\n'+'PASS assertion\n'*count+' PASS indented\nPASS\twrong delimiter\n')
+            try: exec(compile(provider_code,'actual-provider-count','exec'),{})
+            except AssertionError: assert count!=180
+            else: assert count==180
+        log.unlink()
+        try: exec(compile(provider_code,'actual-provider-count','exec'),{})
+        except FileNotFoundError: pass
+        else: raise AssertionError('missing Provider evidence accepted')
+        binary=path/'dotnet';binary.write_text('#!/usr/bin/env bash\nexit 7\n');binary.chmod(0o700)
+        env={**os.environ,'PATH':directory+os.pathsep+os.environ['PATH']}
+        result=subprocess.run(['bash','-euo','pipefail','-c',provider_prefix],env=env,text=True,capture_output=True)
+        assert result.returncode==7 and 'ProviderComposition: verified' not in result.stdout, 'failed Provider command must stop before count'
+    finally: os.environ.clear();os.environ.update(previous)
+print('PASS actual stdlib Provider count180;179/181/empty/missing evidence refused; native command exit7 preserved')

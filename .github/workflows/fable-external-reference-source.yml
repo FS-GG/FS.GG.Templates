@@ -178,7 +178,14 @@ jobs:
           set -euo pipefail
           dotnet run --project tests/ProviderComposition.Tests/ProviderComposition.Tests.fsproj -c Release \
             --disable-build-servers -p:UseSharedCompilation=false -m:1 > "$RUNNER_TEMP/provider-composition.log" 2>&1
-          test "$(rg -c '^PASS ' "$RUNNER_TEMP/provider-composition.log")" = 180
+          python3 - <<'PYPROVIDER'
+          import os
+          from pathlib import Path
+          with (Path(os.environ['RUNNER_TEMP'])/'provider-composition.log').open(encoding='utf-8') as log:
+              count=sum(1 for line in log if line.startswith('PASS '))
+          assert count==180, f'ProviderComposition requires exactly180 PASS lines; observed{count}'
+          print(f'ProviderComposition: verified{count} PASS lines after successful command exit')
+          PYPROVIDER
           bash tests/composition/fable-game/verify-external-reference-candidate.sh \
             "$GITHUB_WORKSPACE/templates/.tmp/rendering-source" "$RUNNER_TEMP/rendering-packet" \
             0.32.0 "$RUNNER_TEMP/external-reference" "$PRODUCER_SOURCE"
