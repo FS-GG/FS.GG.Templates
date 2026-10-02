@@ -907,7 +907,9 @@ test("FourD reference composes local session, normalized input, transformed hit 
   await destination.scrollIntoViewIfNeeded();
   const bounds = await destination.boundingBox();
   expect(bounds).not.toBeNull();
-  await page.mouse.click((bounds?.x ?? 0) + (bounds?.width ?? 0) / 2, (bounds?.y ?? 0) + (bounds?.height ?? 0) / 2);
+  // Let Playwright wait for browser scroll/compositor actionability before delivering
+  // the same production pointer observation to the transformed retained object.
+  await destination.click();
   await expect(reference).toHaveAttribute("data-agent-full-cell", "0:0:0:0");
   await expect(reference).toHaveAttribute("data-last-command-destination", "1:1:1:1");
   await expect(reference).toHaveAttribute("data-command-order", "1");
@@ -1046,7 +1048,7 @@ test("external authority reference fences captured snapshots and settles command
   await expect(page.locator("#external-authority-reference")).toHaveCount(0);
   await page.getByRole("button", { name: "Mount external authority reference", exact: true }).click();
   const reference = page.locator("#external-authority-reference");
-  const press = (name: string) => reference.getByRole("button", { name, exact: true }).click();
+  const press = (name: string) => reference.getByRole("button", { name, exact: true }).and(reference.locator(":scope > button")).click();
   await expect(reference).toHaveAttribute("data-status", "Disconnected");
   await press("Connect sample authority");
   await press("Complete current external snapshot");
@@ -1099,7 +1101,7 @@ test("external authority reference recovers failures and disposes owned resource
   await page.goto("/");
   await page.getByRole("button", { name: "Mount external authority reference", exact: true }).click();
   const reference = page.locator("#external-authority-reference");
-  const press = (name: string) => reference.getByRole("button", { name, exact: true }).click();
+  const press = (name: string) => reference.getByRole("button", { name, exact: true }).and(reference.locator(":scope > button")).click();
   await press("Connect sample authority");
   for (const failure of ["Lose external acquisition", "Cancel external acquisition", "Fail external acquisition"]) {
     await press("Request external burst");

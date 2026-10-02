@@ -55,13 +55,13 @@ dotnet new fs-gg-fable-game -n DefaultPlayer -o "$out/player" >"$out/player-gene
 grep -F 'ExternalAuthorityReference.install ()' "$out/complete/SvgFoundation/Program.fs" >/dev/null
 # Only this isolated generated receiver gets candidate resolution/locks. Public 0.31.0 and
 # checked-in published lockfiles are never overwritten or inserted into an ambient cache.
-cp "$out/NuGet.Config" "$out/complete/NuGet.Config"
+cp "$out/NuGet.Config" "$out/complete/NuGet.config"
 export FsGgSvgInputVersion="$version" FsGgExternalReferenceCandidate=true
 # Generated Directory.Build.props owns the receiver-private package root. Match it
 # rather than assuming the environment overrides that explicit project property.
 export NUGET_PACKAGES="$out/complete/.nuget/packages"
 dotnet restore "$out/complete/SvgFoundation/SvgFoundation.fsproj" --force-evaluate -p:RestoreLockedMode=false --configfile "$out/NuGet.Config" -p:FsGgSvgInputVersion="$version" >"$out/receiver-restore.log" 2>&1
-(cd "$out/complete" && dotnet tool restore && dotnet fable SvgFoundation/SvgFoundation.fsproj --outDir SvgFoundation/output --noCache) >"$out/fable-build.log" 2>&1
+(cd "$out/complete" && dotnet tool restore --configfile "$out/NuGet.Config" && dotnet fable SvgFoundation/SvgFoundation.fsproj --outDir SvgFoundation/output --noCache) >"$out/fable-build.log" 2>&1
 (cd "$out/complete" && dotnet fable --version) >"$out/fable-version.log" 2>&1
 (cd "$out/complete/Client" && npm ci) >"$out/npm-client.log" 2>&1
 (cd "$out/complete" && ./Client/node_modules/.bin/vite build --config SvgFoundation/vite.config.js) >"$out/vite-build.log" 2>&1
@@ -73,13 +73,15 @@ assets=json.loads((root/'complete/SvgFoundation/obj/project.assets.json').read_t
 for id in ('FS.GG.UI.Scene','FS.GG.UI.Scene.SvgBrowser','FS.GG.UI.KeyboardInput'):
     assert assets['libraries'][id+'/'+version]['type']=='package', id
 assert all(value['type']!='project' for key,value in assets['libraries'].items() if key.startswith('FS.GG.UI.'))
-assert str(root/'complete/.nuget/packages')+'/' in ''.join(assets['packageFolders'])
+assert {Path(value).resolve() for value in assets['packageFolders']}=={(root/'complete/.nuget/packages').resolve()}
 assert 'SvgExternalSessionHost' in (root/'complete/.nuget/packages/fs.gg.ui.scene.svgbrowser'/version/'fable/SvgExternalSessionHost.fs').read_text()
-assert any((root/'complete/SvgFoundation/output').rglob('SvgExternalSessionHost.js')), 'external host missing from delivered Fable output'
+assert any((root/'complete/SvgFoundation/output').rglob('SvgExternalSessionHost.fs.js')), 'external host missing from delivered Fable output'
 PY
 dotnet restore "$out/complete/Server/Server.fsproj" --locked-mode --configfile "$out/NuGet.Config" >"$out/server-restore.log" 2>&1
 dotnet publish "$out/complete/Server/Server.fsproj" -c Release --no-restore -m:1 -p:UseSharedCompilation=false -o "$out/complete/artifacts/authority-server" >"$out/server-publish.log" 2>&1
 (cd "$out/complete/Browser.Tests" && npm ci) >"$out/npm-browser.log" 2>&1
+export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-$out/browsers}"
+(cd "$out/complete/Browser.Tests" && npx playwright install chromium firefox webkit) >"$out/browser-install.log" 2>&1
 for family in chromium firefox webkit; do
   (cd "$out/complete/Browser.Tests" && PLAYWRIGHT_BROWSER_FAMILY="$family" npm test -- --grep 'external authority reference|FourD reference' --workers=1) >"$out/$family-browser.log" 2>&1
   cp "$out/complete/Browser.Tests/test-results/browser.json" "$out/$family-browser.json"
@@ -89,13 +91,13 @@ report=json.load(open(sys.argv[1])); stats=report['stats']
 assert stats['expected']==4 and stats['unexpected']==0 and stats['skipped']==0 and stats['flaky']==0, stats
 PY
 done
-python3 - "$root" "$producer" "$out" "$version" <<'PY'
+python3 - "$root" "$producer" "$out" "$version" "$producer_feed" <<'PY'
 from pathlib import Path
 import hashlib,json,subprocess,sys
 root,producer,out=map(Path,sys.argv[1:4]); version=sys.argv[4]
 def git(path,field): return subprocess.check_output(['git','-C',str(path),'rev-parse',field],text=True).strip()
 def hashes(path): return [{'path':p.relative_to(path).as_posix(),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(path.rglob('*')) if p.is_file() and 'node_modules' not in p.parts and 'obj' not in p.parts and 'bin' not in p.parts]
-packet={'schema':'fsgg.external-reference-source-qualification/1','disposition':'passed','templates':{'revision':git(root,'HEAD'),'tree':git(root,'HEAD^{tree}')},'producer':{'revision':git(producer,'HEAD'),'tree':git(producer,'HEAD^{tree}'),'candidateVersion':version,'archives':json.loads((out/'producer-archives.json').read_text()),'sourceEntries':json.loads((out/'producer-source-entries.json').read_text())},'environment':{'dotnet':subprocess.check_output(['dotnet','--info'],text=True),'node':subprocess.check_output(['node','--version'],text=True).strip(),'npm':subprocess.check_output(['npm','--version'],text=True).strip(),'fableLoadedVersion':(out/'fable-version.log').read_text().strip(),'fableLogSha256':hashlib.sha256((out/'fable-build.log').read_bytes()).hexdigest()},'receiver':hashes(out/'complete/SvgFoundation'),'browserFamilies':['chromium','firefox','webkit'],'browserReports':hashes(out/'complete/Browser.Tests/test-results'),'browserReportSha256':{family:hashlib.sha256((out/(family+'-browser.json')).read_bytes()).hexdigest() for family in ['chromium','firefox','webkit']},'passedPerFamily':4,'skipped':0,'domAutomation':True,'actualScreenReader':'not-observed','publication':False,'installedAcceptance':False}
+packet={'schema':'fsgg.external-reference-source-qualification/1','disposition':'passed','templates':{'revision':git(root,'HEAD'),'tree':git(root,'HEAD^{tree}')},'producer':{'inputCustody':json.loads((Path(sys.argv[5])/'ROOT-CUSTODY.json').read_text()) if (Path(sys.argv[5])/'ROOT-CUSTODY.json').exists() else None,'custodyManifestSha256':hashlib.sha256((Path(sys.argv[5])/'release-custody.json').read_bytes()).hexdigest() if (Path(sys.argv[5])/'release-custody.json').exists() else None,'revision':git(producer,'HEAD'),'tree':git(producer,'HEAD^{tree}'),'candidateVersion':version,'archives':json.loads((out/'producer-archives.json').read_text()),'sourceEntries':json.loads((out/'producer-source-entries.json').read_text())},'environment':{'dotnet':subprocess.check_output(['dotnet','--info'],text=True),'node':subprocess.check_output(['node','--version'],text=True).strip(),'npm':subprocess.check_output(['npm','--version'],text=True).strip(),'fableLoadedVersion':(out/'fable-version.log').read_text().strip(),'fableLogSha256':hashlib.sha256((out/'fable-build.log').read_bytes()).hexdigest()},'receiver':hashes(out/'complete/SvgFoundation'),'browserFamilies':['chromium','firefox','webkit'],'browserReports':hashes(out/'complete/Browser.Tests/test-results'),'browserReportSha256':{family:hashlib.sha256((out/(family+'-browser.json')).read_bytes()).hexdigest() for family in ['chromium','firefox','webkit']},'passedPerFamily':4,'skipped':0,'domAutomation':True,'actualScreenReader':'not-observed','publication':False,'installedAcceptance':False}
 (out/'qualification.json').write_text(json.dumps(packet,indent=2)+'\n')
 PY
 printf 'external-reference-candidate: passed; evidence=%s/qualification.json\n' "$out"

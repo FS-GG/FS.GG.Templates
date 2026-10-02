@@ -1,0 +1,134 @@
+name: Fable external reference source
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'templates/fs-gg-fable-game/SvgFoundation/**'
+      - 'templates/fs-gg-fable-game/Browser.Tests/**'
+      - 'templates/fs-gg-fable-game/.template.config/template.json'
+      - 'src/FS.GG.Templates.ProviderTool/ReferencePublication.fs'
+      - 'tests/ProviderComposition.Tests/**'
+      - 'tests/composition/fable-game/verify-external-reference-candidate.sh'
+      - '.github/workflows/fable-external-reference-source.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fable-external-reference-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  candidate:
+    name: Packed external authority reference source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      PRODUCER_SOURCE: 730923fe9d27174e879566f21dab14a1b03d761a
+      PRODUCER_RUN: '37046893526'
+      PRODUCER_ARTIFACT: '11244853996'
+      PRODUCER_ARCHIVE_SHA256: 58a80ec49db26b36b3f873694053df1e0eb4c3fb5bac503c8905ac2547bdb4d7
+      PRODUCER_CUSTODY_SHA256: 35d4c23fbd811c810987277aa1e28d2b35e605f0c9106e5385f1cb7080dc1ad9
+      DOTNET_PROCESSOR_COUNT: '1'
+      MSBUILDDISABLENODEREUSE: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: FS-GG/FS.GG.Rendering
+          ref: ${{ env.PRODUCER_SOURCE }}
+          path: .tmp/rendering-source
+          persist-credentials: false
+      - name: Mint existing App token for producer artifact read only
+        id: producer-token
+        uses: actions/create-github-app-token@v3
+        with:
+          app-id: ${{ secrets.FSGG_DISPATCH_APP_ID }}
+          private-key: ${{ secrets.FSGG_DISPATCH_APP_PRIVATE_KEY }}
+          owner: FS-GG
+          repositories: FS.GG.Rendering
+          permission-actions: read
+          permission-contents: read
+      - name: Verify native producer run and authenticated archive before compilation
+        env:
+          GH_TOKEN: ${{ steps.producer-token.outputs.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tests/composition/fable-game/verify-external-reference-candidate.sh
+          mkdir -p "$RUNNER_TEMP/rendering-packet"
+          gh api "repos/FS-GG/FS.GG.Rendering/actions/runs/$PRODUCER_RUN" > "$RUNNER_TEMP/rendering-run.json"
+          gh api "repos/FS-GG/FS.GG.Rendering/actions/artifacts/$PRODUCER_ARTIFACT" > "$RUNNER_TEMP/rendering-artifact.json"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])
+          run=json.loads((root/'rendering-run.json').read_text())
+          artifact=json.loads((root/'rendering-artifact.json').read_text())
+          assert run['id']==int(os.environ['PRODUCER_RUN']) and run['head_sha']==os.environ['PRODUCER_SOURCE']
+          assert run['conclusion']=='success' and run['path']=='.github/workflows/release.yml'
+          assert artifact['id']==int(os.environ['PRODUCER_ARTIFACT']) and not artifact['expired']
+          assert artifact['workflow_run']['id']==run['id'] and artifact['workflow_run']['head_sha']==run['head_sha']
+          assert artifact['name']=='rendering-source-candidate-'+run['head_sha']+'-0.32.0'
+          PY
+          gh api "repos/FS-GG/FS.GG.Rendering/actions/artifacts/$PRODUCER_ARTIFACT/zip" > "$RUNNER_TEMP/rendering-packet.zip"
+          printf '%s  %s\n' "$PRODUCER_ARCHIVE_SHA256" "$RUNNER_TEMP/rendering-packet.zip" | sha256sum --check --strict
+          python3 - <<'PY'
+          import hashlib, os
+          from pathlib import Path
+          from zipfile import ZipFile
+          root=Path(os.environ['RUNNER_TEMP'])
+          with ZipFile(root/'rendering-packet.zip') as archive:
+              names=[name for name in archive.namelist() if name.endswith('.nupkg') or Path(name).name=='release-custody.json']
+              assert len(names)==20 and len({Path(name).name for name in names})==20
+              for name in names:
+                  (root/'rendering-packet'/Path(name).name).write_bytes(archive.read(name))
+          assert hashlib.sha256((root/'rendering-packet/release-custody.json').read_bytes()).hexdigest()==os.environ['PRODUCER_CUSTODY_SHA256']
+          PY
+          python3 .tmp/rendering-source/scripts/release-custody.py verify \
+            --plan .tmp/rendering-source/eng/release/svg-external-authority-0.32.0.json \
+            --archives "$RUNNER_TEMP/rendering-packet" --manifest "$RUNNER_TEMP/rendering-packet/release-custody.json" \
+            --source-sha "$PRODUCER_SOURCE"
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.401'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '26.10.0'
+      - name: Verify loaded toolchain and provision normal browser hosts
+        run: |
+          set -euo pipefail
+          test "$(dotnet --version)" = 10.0.401
+          test "$(node --version)" = v26.10.0
+          test "$(npm --version)" = 12.1.0
+          cd templates/fs-gg-fable-game/Browser.Tests
+          npm ci
+          npx playwright install-deps chromium firefox webkit
+      - name: Qualify exact generated candidate and existing publication validator
+        run: |
+          set -euo pipefail
+          dotnet run --project tests/ProviderComposition.Tests/ProviderComposition.Tests.fsproj -c Release \
+            --disable-build-servers -p:UseSharedCompilation=false -m:1 > "$RUNNER_TEMP/provider-composition.log" 2>&1
+          bash tests/composition/fable-game/verify-external-reference-candidate.sh \
+            "$GITHUB_WORKSPACE/.tmp/rendering-source" "$RUNNER_TEMP/rendering-packet" \
+            0.32.0 "$RUNNER_TEMP/external-reference" "$PRODUCER_SOURCE"
+      - name: Upload source qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: external-reference-source-${{ github.sha }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/external-reference/qualification.json
+            ${{ runner.temp }}/external-reference/*-browser.json
+            ${{ runner.temp }}/external-reference/*-browser.log
+            ${{ runner.temp }}/external-reference/*-build.log
+            ${{ runner.temp }}/external-reference/*-restore.log
+            ${{ runner.temp }}/external-reference/producer-*.json
+            ${{ runner.temp }}/provider-composition.log
+            ${{ runner.temp }}/rendering-run.json
+            ${{ runner.temp }}/rendering-artifact.json
