@@ -84,8 +84,11 @@ ABI libraries were preserved; validation was not suppressed. The
 [bounded Ubuntu source workflow](../../.github/workflows/fable-external-reference-source.yml)
 verifies the exact successful producer run, artifact, outer digest and 19-archive custody before
 compilation, then builds a fresh complete receiver and runs all three families with normal browser
-hosts. It requests only Rendering contents/actions read through the existing App and uploads source
-qualification evidence. It performs no publication, tag or pin activation. Missing artifact-read
+hosts. A Rendering-owned caller uses its ordinary read-only contents/actions repository token;
+the reusable workflow explicitly checks out the exact reviewed Templates SHA. No App token or
+credential input is used. Preflight defaults to true and stops before tool installation or CLR/browser
+execution, with `preflight-passed; qualification-not-run` evidence. Full qualification requires an
+explicit false switch and records both caller and tested Templates identities. It performs no publication, tag or pin activation. Missing artifact-read
 permission or expired evidence refuses the affected input boundary.
 
 Pipeline preflight is static: YAML/shell/embedded Python, read-only token scope, literal ordering and
@@ -97,3 +100,19 @@ runner savings are unmeasured. Required native workflows and ADR-0084 coherent v
 The owning roadmap stays open until the final candidate's three-family native qualification and
 protected merge readback. Broader .3 WASM, .4 publication/installed acceptance, .5 FourD and .6
 BAR/SC2 remain open.
+
+## Producer-owned transport repair
+
+Historical Templates run 37052030437 remains failed: the existing App refused its requested combined
+Rendering read permissions with HTTP 422. Artifact acquisition and compilation did not run; the
+individual unavailable permission is unknown. The reusable route preserves that evidence and moves
+artifact reading to its owner. It requires Rendering as caller, a literal reviewed Templates SHA, and
+the original source730/run37046893526/artifact11244853996 tuple, including native digest,14,790,371-byte
+size, outer digest, custody digest and all19 archive verification before compilation.
+
+The direct PR workflow runs static controls only. It does not satisfy the external native gate.
+The Rendering wrapper pins the workflow and checkout to the same immutable Templates commit.
+Successful preflight alone cannot close .3-E1; actual Ubuntu full qualification must retain180
+ProviderComposition assertions and4 cases per Chromium, Firefox and WebKit with zero skips/flaky
+or unexpected results, followed by independent root readback and ordinary Templates native gates.
+Publication and installed acceptance remain false. No local CLR or browser ran during this repair.

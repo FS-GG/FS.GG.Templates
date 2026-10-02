@@ -504,6 +504,9 @@ terminal disposal and native editing/IME. The existing local FourD reference rem
 bundle; omitted/player and typed-sdd defaults remain the established selections.
 
 Evidence: [source-window report](../reports/2026-10-02-external-authority-reference-source.md).
+Native transport uses an immutable Rendering-owned reusable-workflow call; default preflight
+does not qualify the reference. The historical App422 is retained and full three-family evidence
+for the exact Templates head remains required.
 Local delivered-source Fable, ProviderComposition and Chromium/Firefox checks pass. WebKit on the
 Arch host lacks compatible fallback ABI libraries; the source workflow qualifies all three families
 on Ubuntu against the authenticated protected Rendering 730 candidate. Completion requires the
