@@ -76,6 +76,7 @@ let mount () : IDisposable =
     let listeners = ResizeArray<HTMLElement * (Event -> unit)>()
     let mutable disposed = false
     let mutable failApply = false
+    let mutable cachedSnapshot: Projection option = None
     let mutable selected: string option = None
     let mutable invoke: string -> unit = ignore
     let svg =
@@ -109,7 +110,9 @@ let mount () : IDisposable =
             { RequestPresentation = fun generation id epoch ->
                 // Capture the genuine fixture envelope now, before asynchronous completion.
                 if epoch <> authority.Epoch then failwith "gateway epoch mismatch"
-                acquisitions.Add { Generation = generation; Id = id; Snapshot = authority; Settled = false }
+                let snapshot = cachedSnapshot |> Option.defaultValue authority
+                cachedSnapshot <- None
+                acquisitions.Add { Generation = generation; Id = id; Snapshot = snapshot; Settled = false }
               ApplyPresentation = fun epoch revision projection ->
                 if failApply then
                     failApply <- false
@@ -184,6 +187,9 @@ let mount () : IDisposable =
     button "Increment external value" (fun () -> invoke "external.increment")
     button "Reject sample command" (fun () -> invoke "external.reject")
     button "Request external burst" (fun () -> host.DemandPresentation(); host.DemandPresentation(); host.DemandPresentation())
+    button "Request cached external snapshot" (fun () ->
+        cachedSnapshot <- acquisitions |> Seq.tryFind (fun a -> a.Snapshot.Epoch = authority.Epoch) |> Option.map _.Snapshot
+        host.DemandPresentation())
     button "Complete current external snapshot" (fun () -> current () |> Option.iter complete)
     button "Complete oldest external snapshot" (fun () -> acquisitions |> Seq.tryHead |> Option.iter complete)
     for label, failure in

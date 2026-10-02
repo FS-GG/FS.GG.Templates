@@ -1072,6 +1072,10 @@ test("external authority reference fences captured snapshots and settles command
   await expect(reference).toHaveAttribute("data-preserved-baseline", "true");
   await press("Complete current external snapshot"); // same authority rev3 rejected
   await expect(reference).toHaveAttribute("data-pending", "false");
+  await press("Request cached external snapshot"); // genuine captured rev1 on a current acquisition
+  await press("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-applied-revision", "3");
+  await expect(reference).toHaveAttribute("data-pending", "false");
   await press("Increment external value");
   await press("Complete current external snapshot");
   await expect(reference).toHaveAttribute("data-applied-revision", "4");
