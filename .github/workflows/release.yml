@@ -192,7 +192,9 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      packages: read
+      # Request package-management capability for the deleted-version census.
+      # The occupancy transport remains GET-only and cannot select publication.
+      packages: write
     steps:
       - uses: actions/checkout@v7
         with:
