@@ -20,6 +20,12 @@ type Verdict = Absent | Occupied | Unknown
 
 type PermissionTerm = { Name: string; Level: string }
 
+type AcceptedPermissionsObservation = {
+    SyntaxState: string
+    UnrecognizedComponents: string list
+    Alternatives: PermissionTerm list list
+}
+
 type FailureDiagnostic = {
     Phase: string
     Page: int option
@@ -27,6 +33,7 @@ type FailureDiagnostic = {
     ErrorClass: string
     AcceptedPermissionsState: string
     AcceptedPermissionSets: PermissionTerm list list
+    AcceptedPermissionsObservation: AcceptedPermissionsObservation option
     RequiredScopes: string list
 }
 
@@ -197,6 +204,65 @@ let parseAcceptedPermissions (raw: string option) =
                         else parsed.Add(parsedTerms |> Seq.toList)
             if state = "valid" then state, (parsed |> Seq.toList) else state, []
 
+let private observedPermissionName = function
+    | "packages" | "contents" | "metadata" | "organization_packages" | "administration" as value -> value
+    | _ -> "other"
+
+let private observedPermissionLevel = function
+    | "read" | "write" | "admin" | "delete" | "none" as value -> value
+    | _ -> "other"
+
+let private observeUnrecognizedAcceptedPermissions (value: string) =
+    let malformed () = {
+        SyntaxState = "malformed"
+        UnrecognizedComponents = []
+        Alternatives = []
+    }
+    if value.Length > acceptedPermissionsLimit || value = "" || value |> Seq.exists Char.IsControl then malformed ()
+    else
+        let rawAlternatives = value.Split(';')
+        if rawAlternatives.Length = 0 || rawAlternatives.Length > 4 || rawAlternatives |> Array.exists (fun item -> item.Trim() = "") then malformed ()
+        else
+            let alternatives = ResizeArray<PermissionTerm list>()
+            let alternativeIdentities = HashSet<string>(StringComparer.Ordinal)
+            let unrecognizedComponents = ResizeArray<string>()
+            let seenComponents = HashSet<string>(StringComparer.Ordinal)
+            let mutable valid = true
+            let note kind = if seenComponents.Add kind then unrecognizedComponents.Add kind
+            for rawAlternative in rawAlternatives do
+                let rawTerms = rawAlternative.Split(',')
+                if rawTerms.Length = 0 || rawTerms.Length > 8 || rawTerms |> Array.exists (fun item -> item.Trim() = "") then valid <- false
+                else
+                    let seenNames = Dictionary<string, string>(StringComparer.Ordinal)
+                    let identityTerms = ResizeArray<string>()
+                    let projectedTerms = ResizeArray<PermissionTerm>()
+                    for rawTerm in rawTerms do
+                        let term = rawTerm.Trim()
+                        let pieces = term.Split('=')
+                        if pieces.Length <> 2 || pieces.[0] = "" || pieces.[1] = "" ||
+                           pieces.[0] <> pieces.[0].Trim() || pieces.[1] <> pieces.[1].Trim() ||
+                           pieces.[0] |> Seq.exists Char.IsWhiteSpace || pieces.[1] |> Seq.exists Char.IsWhiteSpace then
+                            valid <- false
+                        else
+                            let name, level = pieces.[0], pieces.[1]
+                            if seenNames.ContainsKey name then valid <- false
+                            else
+                                seenNames.Add(name, level)
+                                identityTerms.Add(name + "=" + level)
+                                if not (permissionName.IsMatch name) then note "name"
+                                if not (permissionLevel.IsMatch level) then note "level"
+                                projectedTerms.Add { Name = observedPermissionName name; Level = observedPermissionLevel level }
+                    if valid then
+                        let identity = identityTerms |> Seq.sort |> String.concat ","
+                        if not (alternativeIdentities.Add identity) then valid <- false
+                        else alternatives.Add(projectedTerms |> Seq.toList)
+            if not valid then malformed ()
+            else {
+                SyntaxState = "valid"
+                UnrecognizedComponents = unrecognizedComponents |> Seq.toList
+                Alternatives = alternatives |> Seq.toList
+            }
+
 let private diagnosticMessage (body: byte[]) =
     if body.Length > diagnosticBodyLimit then Error "oversized"
     else
@@ -209,8 +275,12 @@ let private diagnosticMessage (body: byte[]) =
             | Error _ -> Error "malformed"
 
 let private failureDiagnostic phase page (response: Response) =
-    let permissionsState, permissionSets =
-        parseAcceptedPermissions (header response.Headers "x-accepted-github-permissions")
+    let acceptedPermissions = header response.Headers "x-accepted-github-permissions"
+    let permissionsState, permissionSets = parseAcceptedPermissions acceptedPermissions
+    let permissionsObservation =
+        match permissionsState, acceptedPermissions with
+        | "unrecognized", Some value -> Some(observeUnrecognizedAcceptedPermissions value)
+        | _ -> None
     let rateLimited =
         response.Status = 429 ||
         (response.Status = 403 && header response.Headers "x-ratelimit-remaining" = Some "0")
@@ -246,6 +316,7 @@ let private failureDiagnostic phase page (response: Response) =
         ErrorClass = errorClass
         AcceptedPermissionsState = permissionsState
         AcceptedPermissionSets = permissionSets
+        AcceptedPermissionsObservation = permissionsObservation
         RequiredScopes = scopes
     }
 
@@ -585,6 +656,25 @@ let private failureDiagnosticJson (writer: Utf8JsonWriter) diagnostic =
             writer.WriteEndObject()
         writer.WriteEndArray()
     writer.WriteEndArray()
+    match diagnostic.AcceptedPermissionsObservation with
+    | Some observation ->
+        writer.WriteStartObject("acceptedPermissionsObservation")
+        writer.WriteString("syntaxState", observation.SyntaxState)
+        writer.WriteStartArray("unrecognizedComponents")
+        observation.UnrecognizedComponents |> List.iter writer.WriteStringValue
+        writer.WriteEndArray()
+        writer.WriteStartArray("alternatives")
+        for alternative in observation.Alternatives do
+            writer.WriteStartArray()
+            for term in alternative do
+                writer.WriteStartObject()
+                writer.WriteString("name", term.Name)
+                writer.WriteString("level", term.Level)
+                writer.WriteEndObject()
+            writer.WriteEndArray()
+        writer.WriteEndArray()
+        writer.WriteEndObject()
+    | None -> ()
     if not diagnostic.RequiredScopes.IsEmpty then
         writer.WriteStartArray("requiredScopes")
         diagnostic.RequiredScopes |> List.iter writer.WriteStringValue

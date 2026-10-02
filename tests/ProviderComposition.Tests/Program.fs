@@ -421,6 +421,120 @@ let main _ =
                   occupancyContext "0.17.0" with
         | Ok value -> value
         | Error reason -> failwith reason
+    let inspectUnrecognized header =
+        inspect (transportFor activeTwelve [] [ "0.16.0" ]
+                    (Map.ofList [ deletedPage1, response 403 (Map.ofList [ "x-accepted-github-permissions", header ]) forbiddenBody ]))
+                    DefaultLimits
+    let observation header = inspectUnrecognized header |> fun result -> result.GitHub.FailureDiagnostic.Value.AcceptedPermissionsObservation.Value
+
+    assertEqual "recognized packages write baseline has no unrecognized observation" None
+        observedDiagnostic.AcceptedPermissionsObservation
+    let liveShape = inspectUnrecognized "organization_packages=read"
+    let liveShapeDiagnostic = liveShape.GitHub.FailureDiagnostic.Value
+    assertEqual "200/200/403 with unrecognized header remains incomplete unknown and NuGet absent"
+        (Verdict.Unknown, Verdict.Unknown, false, [ 200; 200; 403 ], 1, 12, Verdict.Absent,
+         "deleted", Some 1, 403, "integration-permission-denied", "unrecognized", [])
+        (liveShape.Overall, liveShape.GitHub.Verdict, liveShape.GitHub.Complete, liveShape.GitHub.Statuses,
+         liveShape.GitHub.Pages, liveShape.GitHub.Records, liveShape.NuGet.Verdict,
+         liveShapeDiagnostic.Phase, liveShapeDiagnostic.Page, liveShapeDiagnostic.HttpStatus,
+         liveShapeDiagnostic.ErrorClass, liveShapeDiagnostic.AcceptedPermissionsState,
+         liveShapeDiagnostic.AcceptedPermissionSets)
+    assertEqual "name-only unrecognized component is closed and exact known diagnostic name survives"
+        { SyntaxState = "valid"; UnrecognizedComponents = [ "name" ]
+          Alternatives = [ [ { Name = "organization_packages"; Level = "read" } ] ] }
+        liveShapeDiagnostic.AcceptedPermissionsObservation.Value
+
+    for label, header, components, expected in
+        [ "administration name", "administration=write", [ "name" ], { Name = "administration"; Level = "write" }
+          "delete level", "packages=delete", [ "level" ], { Name = "packages"; Level = "delete" }
+          "none level", "packages=none", [ "level" ], { Name = "packages"; Level = "none" }
+          "unknown name", "credential_sentinel=read", [ "name" ], { Name = "other"; Level = "read" }
+          "unknown level", "packages=credential_sentinel", [ "level" ], { Name = "packages"; Level = "other" }
+          "case changed name", "Organization_packages=read", [ "name" ], { Name = "other"; Level = "read" }
+          "case changed level", "packages=Read", [ "level" ], { Name = "packages"; Level = "other" }
+          "combined unknown", "credential_sentinel=value_sentinel", [ "name"; "level" ], { Name = "other"; Level = "other" } ] do
+        let observed = observation header
+        assertEqual $"{label} maps only to fixed diagnostic vocabulary"
+            ("valid", components, [ [ expected ] ])
+            (observed.SyntaxState, observed.UnrecognizedComponents, observed.Alternatives)
+
+    let mixedObservation = observation "packages=read,organization_packages=delete; administration=none,opaque=opaque"
+    assertEqual "mixed AND OR observation preserves every ordered term and alternative"
+        ("valid", [ "name"; "level" ],
+         [ [ { Name = "packages"; Level = "read" }; { Name = "organization_packages"; Level = "delete" } ]
+           [ { Name = "administration"; Level = "none" }; { Name = "other"; Level = "other" } ] ])
+        (mixedObservation.SyntaxState, mixedObservation.UnrecognizedComponents, mixedObservation.Alternatives)
+    let distinctUnknownAlternatives = observation "first_unknown=read;second_unknown=read"
+    assertEqual "distinct raw unknown alternatives are not coalesced after closed projection" 2
+        distinctUnknownAlternatives.Alternatives.Length
+    let fourAlternatives = observation "a=read;b=read;c=read;d=read"
+    let eightTerms = observation "a=read,b=read,c=read,d=read,e=read,f=read,g=read,h=read"
+    assertEqual "exact alternative and term bounds retain complete observations" (4, 8)
+        (fourAlternatives.Alternatives.Length, eightTerms.Alternatives.Head.Length)
+
+    for label, header in
+        [ "duplicate unknown", "unknown=read,unknown=read"
+          "conflicting unknown", "unknown=read,unknown=write"
+          "empty name", "=read"
+          "empty level", "unknown="
+          "whitespace in name", "unknown name=read"
+          "whitespace in level", "unknown=read level"
+          "permuted duplicate alternative", "packages=read,unknown=write;unknown=write,packages=read" ] do
+        let observed = observation header
+        assertEqual $"{label} exposes only an empty malformed observation"
+            ("malformed", [], [])
+            (observed.SyntaxState, observed.UnrecognizedComponents, observed.Alternatives)
+
+    for label, header in
+        [ "extra equals", "unknown=read=tail"
+          "control", "unknown=read\n"
+          "oversized", String.replicate 1025 "x"
+          "too many alternatives", "unknown=read;a=read;b=read;c=read;d=read"
+          "too many terms", "unknown=read,a=read,b=read,c=read,d=read,e=read,f=read,g=read,h=read" ] do
+        let result = inspectUnrecognized header
+        assertEqual $"{label} retains original closed state without observation" None
+            result.GitHub.FailureDiagnostic.Value.AcceptedPermissionsObservation
+
+    let observationSentinel = "RAW_DIAGNOSTIC_SENTINEL_91c4"
+    let sentinelResult = inspectUnrecognized $"{observationSentinel}=read;packages={observationSentinel}"
+    let sentinelReceipt = receiptJson sentinelResult
+    assertEqual "unrecognized observation serialization contains only fixed fields and enums" true
+        (sentinelReceipt.Contains("\"acceptedPermissionsObservation\"", StringComparison.Ordinal) &&
+         sentinelReceipt.Contains("\"name\": \"other\"", StringComparison.Ordinal) &&
+         sentinelReceipt.Contains("\"level\": \"other\"", StringComparison.Ordinal) &&
+         not (sentinelReceipt.Contains(observationSentinel, StringComparison.Ordinal)) &&
+         not ((summary sentinelResult).Contains(observationSentinel, StringComparison.Ordinal)))
+    assertEqual "unrecognized observation preserves original forbidden response hash"
+        (Convert.ToHexString(SHA256.HashData(utf8 forbiddenBody)).ToLowerInvariant())
+        sentinelResult.GitHub.ResponseSha256.[2]
+
+    use diagnosticHeaderHandler =
+        { new HttpMessageHandler() with
+            override _.SendAsync(request, _) =
+                let status, body =
+                    if request.RequestUri.AbsoluteUri = metadataUrl then HttpStatusCode.OK, metadata "FS-GG/FS.GG.Templates"
+                    elif request.RequestUri.Query.Contains("state=active") then HttpStatusCode.OK, "[" + String.Join(",", activeTwelve) + "]"
+                    elif request.RequestUri.Query.Contains("state=deleted") then HttpStatusCode.Forbidden, forbiddenBody
+                    elif request.RequestUri.AbsoluteUri = "https://api.nuget.org/v3/index.json" then HttpStatusCode.OK, serviceIndex
+                    elif request.RequestUri.AbsoluteUri = "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/index.json" then HttpStatusCode.OK, "{\"versions\":[\"0.16.0\"]}"
+                    else HttpStatusCode.InternalServerError, "{}"
+                let reply = new HttpResponseMessage(status)
+                reply.Content <- new StringContent(body, Encoding.UTF8, "application/json")
+                if status = HttpStatusCode.Forbidden then
+                    reply.Headers.TryAddWithoutValidation("X-Accepted-GitHub-Permissions", "organization_packages=read; packages=delete,opaque=none") |> ignore
+                Task.FromResult(reply) }
+    let handlerBoundaryResult = inspect (httpTransportWithHandler "synthetic-token" diagnosticHeaderHandler) DefaultLimits
+    let handlerBoundaryDiagnostic = handlerBoundaryResult.GitHub.FailureDiagnostic.Value
+    assertEqual "actual HTTP response header reaches closed projection and serialization"
+        (Verdict.Unknown, Verdict.Unknown, Verdict.Absent, "unrecognized", "valid",
+         [ [ { Name = "organization_packages"; Level = "read" } ]
+           [ { Name = "packages"; Level = "delete" }; { Name = "other"; Level = "none" } ] ])
+        (handlerBoundaryResult.Overall, handlerBoundaryResult.GitHub.Verdict, handlerBoundaryResult.NuGet.Verdict,
+         handlerBoundaryDiagnostic.AcceptedPermissionsState,
+         handlerBoundaryDiagnostic.AcceptedPermissionsObservation.Value.SyntaxState,
+         handlerBoundaryDiagnostic.AcceptedPermissionsObservation.Value.Alternatives)
+    assertEqual "actual HTTP response raw unknown token does not serialize" false
+        ((receiptJson handlerBoundaryResult).Contains("opaque", StringComparison.Ordinal))
     let adminOrRead = inspectAlternative "packages=admin;packages=read" "admin-or-read"
     let adminOrReadDiagnostic = adminOrRead.GitHub.FailureDiagnostic.Value
     assertEqual "admin OR read does not claim mandatory package admin"
