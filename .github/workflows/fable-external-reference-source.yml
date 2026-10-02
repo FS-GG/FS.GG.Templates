@@ -157,6 +157,11 @@ jobs:
         if: ${{ !inputs.preflight-only }}
         with:
           node-version: '26.10.0'
+      - name: Install pinned npm for locked toolchain
+        if: ${{ !inputs.preflight-only }}
+        run: |
+          npm install --global npm@12.1.0
+          test "$(npm --version)" = 12.1.0
       - name: Verify loaded toolchain and provision normal browser hosts
         if: ${{ !inputs.preflight-only }}
         run: |

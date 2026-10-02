@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 from zipfile import ZipFile
 
@@ -25,7 +26,7 @@ assert 'contents: read\n  actions: read' in text
 assert not re.search(r'(contents|actions|packages|id-token): write|continue-on-error',text)
 assert text.index('Reject invalid caller') < text.index('repository: FS-GG/FS.GG.Templates')
 assert text.index('release-custody.py verify') < text.index('actions/setup-dotnet')
-for step in ['actions/setup-dotnet@v6','actions/setup-node@v6','Verify loaded toolchain','Qualify exact generated','Bind successful full']:
+for step in ['actions/setup-dotnet@v6','actions/setup-node@v6','Install pinned npm','Verify loaded toolchain','Qualify exact generated','Bind successful full']:
     position=text.index(step)
     section=text[position:text.find('\n      - ',position) if '\n      - ' in text[position:] else len(text)]
     assert 'if: ${{ !inputs.preflight-only }}' in section, step
@@ -75,3 +76,27 @@ with tempfile.TemporaryDirectory() as directory:
     for count,duplicate,tamper in [(18,False,False),(20,False,False),(19,True,False),(19,False,True)]:
         zip_case(count,duplicate,tamper); execute(codes[2],env,False)
 print(f'PASS: {checks} actual workflow assertion fixtures; source/permission/order/phase controls')
+
+# Execute the actual provision shell against a finite npm command fixture. No packages install.
+def npm_provision(candidate):
+    match=re.search(r"      - name: Install pinned npm for locked toolchain\n(.*?)(?=\n      - )",candidate,re.S)
+    assert match and 'if: ${{ !inputs.preflight-only }}' in match[1]
+    assert 'npm install --global npm@12.1.0' in match[1]
+    assert candidate.index('Install pinned npm') < candidate.index('Verify loaded toolchain')
+    shell=match[1].split('        run: |\n',1)[1]
+    return '\n'.join(line[10:] for line in shell.splitlines())
+provision=npm_provision(text)
+for bad in [text.replace('npm install --global npm@12.1.0','npm install --global npm@latest'),text.replace('npm install --global npm@12.1.0','true'),text.replace('      - name: Install pinned npm for locked toolchain\n        if: ${{ !inputs.preflight-only }}','      - name: Install pinned npm for locked toolchain')]:
+    try: npm_provision(bad)
+    except AssertionError: pass
+    else: raise AssertionError('unpinned or missing npm provision accepted')
+with tempfile.TemporaryDirectory() as directory:
+    path=Path(directory); state=path/'npm-version'; state.write_text('11.19.1')
+    binary=path/'npm'
+    binary.write_text("#!/usr/bin/env python3\nimport os,sys\nfrom pathlib import Path\np=Path(os.environ['NPM_FIXTURE_STATE'])\nif sys.argv[1:]==['install','--global','npm@12.1.0']: p.write_text('12.1.0')\nelif sys.argv[1:]==['--version']: print(p.read_text())\nelse: sys.exit(2)\n")
+    binary.chmod(0o700)
+    env={**os.environ,'PATH':directory+os.pathsep+os.environ['PATH'],'NPM_FIXTURE_STATE':str(state)}
+    assert subprocess.run(['bash','-euo','pipefail','-c',provision],env=env,check=False).returncode==0
+    state.write_text('11.19.1')
+    assert subprocess.run(['bash','-euo','pipefail','-c',provision.replace('npm install --global npm@12.1.0','true')],env=env,check=False).returncode!=0
+print('PASS pinned npm provision: actual shell upgrades bundled11.19.1 fixture to12.1.0; missing/floating provision refused')
