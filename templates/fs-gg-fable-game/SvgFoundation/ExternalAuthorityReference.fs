@@ -209,6 +209,8 @@ let mount () : IDisposable =
             (host :> IDisposable).Dispose()
             (svg :> IDisposable).Dispose()
             let observation = input.Observe()
+            let renderingObservation = svg.Observe()
+            root.setAttribute("data-svg-owned", string (renderingObservation.OwnedListenerCount + renderingObservation.ScheduledFrameCount))
             root.setAttribute("data-input-owned", string (observation.OwnedListenerCount + observation.OwnedDeadlineCount + observation.OwnedSourceCount))
             describe ()
             root.setAttribute("data-button-owned", string listeners.Count)

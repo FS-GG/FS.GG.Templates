@@ -1119,10 +1119,11 @@ test("external authority reference recovers failures and disposes owned resource
   });
   await press("Dispose external reference");
   await expect(reference).toHaveAttribute("data-disposed", "true");
-  for (const field of ["input", "host", "gateway", "button"]) {
+  for (const field of ["input", "host", "gateway", "button", "svg"]) {
     await expect(reference).toHaveAttribute(`data-${field}-owned`, "0");
   }
   await expect(reference).toHaveAttribute("data-cancellation-unknown", "false");
+  await expect(reference.locator("svg")).toHaveCount(0);
   await page.evaluate(() => (window as any).__externalButtons.forEach((button: HTMLButtonElement) => button.click()));
   await expect(reference).toHaveAttribute("data-disposed", "true");
   await expect(reference).toHaveAttribute("data-receipt-order", await page.evaluate(() => (window as any).__externalReceipts));
