@@ -506,5 +506,7 @@ bundle; omitted/player and typed-sdd defaults remain the established selections.
 Evidence: [source-window report](../reports/2026-10-02-external-authority-reference-source.md).
 Completion requires the exact committed candidate's packed-source qualification and native merge
 readback. Broader .3 WASM composition, .4 public publication/installed receivers, .5 FourD and .6
-BAR/SC2 remain open. Publication pins and version metadata join through the integrator's qualified
-producer packet and retain their separate operation authority.
+BAR/SC2 remain open. The source-only `FsGgExternalReferenceCandidate` defaults to `false` with published Rendering
+`0.31.0`; the candidate runner enables it with actual packed successor source. The .4 installed
+join enables the default only with delivered successor pins and locks. Publication pins and
+version metadata join through the integrator's qualified producer packet and retain their separate operation authority.

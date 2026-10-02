@@ -17,7 +17,12 @@ reuses the epoch; explicit replacement changes it. Commands settle exactly one c
 in admission order before demanding presentation. Old or coalesced snapshots cannot alter that ledger.
 
 The [template modifier](../../templates/fs-gg-fable-game/.template.config/template.json) includes the
-marker only in `complete`. The generated entry offers an explicit mount action; connection requires
+marker only in `complete`. Compilation and the generated entry additionally require
+`FsGgExternalReferenceCandidate=true`. Its source-only default remains `false` while the published
+pin is `0.31.0`, preserving native complete composition with the existing FourD reference. The
+candidate runner enables it against actual packed `0.32.0` source. The .4 publication join must
+select the delivered successor, update its dependency locks and enable the default before installed
+complete receivers acquire the reference. The enabled generated entry offers an explicit mount action; connection requires
 another action. `SvgInputHost` handles keyboard observations while retained hit testing and invoke
 controls feed the same semantic commands. Editable DOM and IME remain native. Disposal exposes
 listener/request ownership, callback failure and unknown cancellation without inventing an authority

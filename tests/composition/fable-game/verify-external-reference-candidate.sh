@@ -56,7 +56,7 @@ grep -F 'ExternalAuthorityReference.install ()' "$out/complete/SvgFoundation/Pro
 # Only this isolated generated receiver gets candidate resolution/locks. Public 0.31.0 and
 # checked-in published lockfiles are never overwritten or inserted into an ambient cache.
 cp "$out/NuGet.Config" "$out/complete/NuGet.Config"
-export FsGgSvgInputVersion="$version"
+export FsGgSvgInputVersion="$version" FsGgExternalReferenceCandidate=true
 # Generated Directory.Build.props owns the receiver-private package root. Match it
 # rather than assuming the environment overrides that explicit project property.
 export NUGET_PACKAGES="$out/complete/.nuget/packages"

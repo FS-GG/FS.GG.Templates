@@ -1,5 +1,5 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 
@@ -9,6 +9,10 @@ const hasSvgPlayer = hasAnySvgPlayer && !isLegacySvgPreview;
 const hasStudio = existsSync("../SvgFoundation/Studio/Studio.fsproj") && !isLegacySvgPreview;
 const hasTacticalExample = existsSync("../SvgFoundation/Examples/Tactical/scene.json") && !isLegacySvgPreview;
 const hasArcadeExample = existsSync("../SvgFoundation/Examples/Arcade/scene.json") && !isLegacySvgPreview;
+const hasExternalAuthorityReference = existsSync("../SvgFoundation/Examples/ExternalAuthority/reference.json")
+  && !isLegacySvgPreview
+  && (process.env.FsGgExternalReferenceCandidate === "true"
+    || readFileSync("../SvgFoundation/SvgFoundation.fsproj", "utf8").includes(">true</FsGgExternalReferenceCandidate>"));
 const hasFourDReference = existsSync("../SvgFoundation/Examples/FourD/reference.json") && !isLegacySvgPreview;
 
 type BrowserDiagnostic = { kind: "console" | "pageerror" | "requestfailed"; detail: string };
@@ -1032,7 +1036,7 @@ test("legacy non-SVG client retains its V1 authoritative journey", async ({ brow
 });
 
 test("external authority reference fences captured snapshots and settles commands independently", async ({ page }, testInfo) => {
-  test.skip(!existsSync("../SvgFoundation/Examples/ExternalAuthority/reference.json") || isLegacySvgPreview,
+  test.skip(!hasExternalAuthorityReference,
     "selected composition has no external authority reference");
   await page.goto("/");
   await testInfo.attach("external-reference-browser", {
@@ -1090,7 +1094,7 @@ test("external authority reference fences captured snapshots and settles command
 });
 
 test("external authority reference recovers failures and disposes owned resources terminally", async ({ page }) => {
-  test.skip(!existsSync("../SvgFoundation/Examples/ExternalAuthority/reference.json") || isLegacySvgPreview,
+  test.skip(!hasExternalAuthorityReference,
     "selected composition has no external authority reference");
   await page.goto("/");
   await page.getByRole("button", { name: "Mount external authority reference", exact: true }).click();
@@ -1125,7 +1129,7 @@ test("external authority reference recovers failures and disposes owned resource
 });
 
 test("external authority reference uses production keyboard pointer editing and IME input", async ({ page }) => {
-  test.skip(!existsSync("../SvgFoundation/Examples/ExternalAuthority/reference.json") || isLegacySvgPreview,
+  test.skip(!hasExternalAuthorityReference,
     "selected composition has no external authority reference");
   await page.goto("/");
   await page.getByRole("button", { name: "Mount external authority reference", exact: true }).click();

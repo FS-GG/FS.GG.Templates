@@ -79,7 +79,12 @@ audio graph, IndexedDB connection, input host, session host, and retained SVG ho
 ## Deterministic external authority reference
 
 The `complete` bundle adds [ExternalAuthorityReference.fs](ExternalAuthorityReference.fs) and its
-[fixture marker](Examples/ExternalAuthority/reference.json). Click **Mount external authority
+[fixture marker](Examples/ExternalAuthority/reference.json). This source-only window keeps
+`FsGgExternalReferenceCandidate=false` while the published Rendering pin remains `0.31.0`, which
+lacks the external API. The candidate runner explicitly enables the property with actual packed
+`0.32.0` producer archives. The .4 publication/pin join must select the delivered successor and
+enable this default before public installed complete bundles acquire the reference. In that
+qualified composition, click **Mount external authority
 reference**, then **Connect sample authority**. The sample gateway supplies epoch `epoch-A`, revision
 1 and a small counter projection. Increment commands advance its revision; rejected commands leave
 that revision unchanged. An explicit authority replacement creates a different epoch that may start

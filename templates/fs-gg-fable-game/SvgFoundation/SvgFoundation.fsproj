@@ -4,6 +4,8 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <FsGgSvgInputVersion Condition="'$(FsGgSvgInputVersion)' == ''">0.31.0</FsGgSvgInputVersion>
+    <!-- Source-only external reference uses an explicit packed candidate until the public pin joins. -->
+    <FsGgExternalReferenceCandidate Condition="'$(FsGgExternalReferenceCandidate)' == ''">false</FsGgExternalReferenceCandidate>
     <FsGgGameRuntimeVersion Condition="'$(FsGgGameRuntimeVersion)' == ''">0.16.0</FsGgGameRuntimeVersion>
     <FsGgSvgInputCandidate Condition="'$(FsGgSvgInputCandidate)' == ''">true</FsGgSvgInputCandidate>
     <FsGgSvgRuntimeCandidate Condition="'$(FsGgSvgRuntimeCandidate)' == ''">true</FsGgSvgRuntimeCandidate>
@@ -17,7 +19,7 @@
     <DefineConstants Condition="'$(FsGgLegacyPreview)' == 'true'">$(DefineConstants);LEGACY_SVG_PREVIEW</DefineConstants>
     <DefineConstants Condition="Exists('Examples/Arcade/scene.json') and '$(FsGgSvgPresentCandidate)' == 'true'">$(DefineConstants);ARCADE_EXAMPLE</DefineConstants>
     <DefineConstants Condition="Exists('Examples/Tactical/scene.json')">$(DefineConstants);TACTICAL_EXAMPLE</DefineConstants>
-    <DefineConstants Condition="Exists('Examples/ExternalAuthority/reference.json')">$(DefineConstants);EXTERNAL_AUTHORITY_REFERENCE</DefineConstants>
+    <DefineConstants Condition="Exists('Examples/ExternalAuthority/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true'">$(DefineConstants);EXTERNAL_AUTHORITY_REFERENCE</DefineConstants>
     <DefineConstants Condition="Exists('Examples/FourD/reference.json')">$(DefineConstants);FOURD_REFERENCE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
@@ -38,7 +40,7 @@
     <Compile Include="PresentationPlayer.fs" Condition="'$(FsGgSvgPresentCandidate)' == 'true'" />
     <Compile Include="ArcadeExample.fs" Condition="Exists('Examples/Arcade/scene.json') and '$(FsGgSvgPresentCandidate)' == 'true'" />
     <Compile Include="TacticalExample.fs" Condition="Exists('Examples/Tactical/scene.json')" />
-    <Compile Include="ExternalAuthorityReference.fs" Condition="Exists('Examples/ExternalAuthority/reference.json')" />
+    <Compile Include="ExternalAuthorityReference.fs" Condition="Exists('Examples/ExternalAuthority/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true'" />
     <Compile Include="FourDReference.fs" Condition="Exists('Examples/FourD/reference.json')" />
     <Compile Include="SvgAuthority.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="ScalePlayer.fs" Condition="'$(FsGgSvgScaleCandidate)' == 'true'" />
