@@ -254,3 +254,20 @@ Focused causal controls and narrow actual Standard SDD completion do not qualify
 provider/lifecycle/build matrix. Hosted exact-head coherent checks, fresh archive custody and
 public successor adoption remain required. No original Rendering payload, lifecycle default,
 historical tuple, fixture content, provider pin, model subject or frozen D/D.5 asset changes.
+
+#### Native8526 co-producer checker and bindings diagnostic repair
+
+Native composition at `8526d05` completed all provider lifecycle matrices, including the isolated
+Rendering.31 tests, but finished117 passed/two failed. The Fable game provider assertion rejected
+actual SDD2.1 owner-channel manifest rows whose supplier paths overlap Templates' namespace or
+whose normalized Game rows omit suppliers. Its checker now independently reads the same installed
+Commands assembly's owner resources, verifies selected predicates, complete resource/file digests,
+exact row fields and provenance ownership, and admits only those proven rows. Direct Templates
+catalog assertions retain their existing semantics. The generated product manifest is unchanged.
+
+The second failure stopped later at the Fable bindings generated `npm run test:lifecycle`.
+Native8526 did not retain its redirected phase JSON, so the failing command inside that script is
+currently unknown. The bindings lane now retains bounded actual SDD reports and original child
+status before cleanup, including blocked/error reports on stderr. This prepares truthful next-head
+diagnosis without changing product scripts, fixture content, lifecycle defaults or terminal gates.
+Exact-head hosted qualification and archive custody remain pending.

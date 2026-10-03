@@ -415,3 +415,48 @@ It retained original refresh exit1, all subsequent phase exit0, real foreground 
 initial commit/tracked durable evidence and report JSON. The earlier final probe remains unchanged
 as proof of earlier helper SHA `f243d7edf10ec927d2dfb084dcbd3f500dae49af72b9212750a183918d5d6ef1`.
 This is a bounded console Standard SDD completion proof, not a new archive/full native matrix proof.
+
+### Native8526 co-producer refusal and missing bindings diagnostics
+
+Run `37127354348` at `8526d05a3562cc5f95f7e53a1c77cb0dcb75ecd6` finished117 passed/two
+failed. Its retained artifact `11276405096` was authenticated-read and verified against server ZIP
+SHA `71ae6bd136f0c84841b74073480ed3fefb7f14f93b4fdd3205d663ea5999f65c`.
+All four provider lifecycle matrices passed, as did the Rendering.31 test matrix. Current C run
+`37127354346` also passed at the same head; neither outcome qualifies a successor source head.
+
+The Fable game failure was the existing product-skill checker refusing eleven newly materialized
+owner rows and six unsupported owner predicates. Fresh single-provider creation from original
+native8526 archive SHA `acef62c06d67630422ad21833d7bb3b1583c8140846619ffff59b54af7c36749`
+confirmed the actual merged document. The installed genuine public2.1 Commands assembly SHA
+`8fc8b47e451e32745d05638088fa600a655f853dbd823237dce8a805c7991a71` independently
+supplies GameSkill, RenderingSkill and AudioSkill manifests and complete embedded files. This is
+owner-channel attribution, rather than a change to original Rendering.31 payloads or Template rows.
+The optional checker input binds to the same installed apphost's observed-version directory.
+Only selected, resource-verified, fully delivered rows with exact normalized fields and matching
+provenance ownership are admitted; unknown or forged rows remain refusals. Producer predicates
+are evaluated completely, so unreadable arms cannot be hidden by an earlier matching arm.
+
+A private401 FSI metadata probe verified actually loaded Core SHA
+`7516a966abc789eab916e95d429bf3a49e996257069d97f7f3eb5d47373fa72b` before extraction and
+single-product checks. Eleven causal resource/ownership/delivery/predicate controls, the actual
+co-producer positive assertion and eighteen existing catalog/assertion controls passed on the
+prepared source. Final-source checker validation is recorded separately; no full local provider
+matrix, compiler restore, product build or source pack was run in this repair window.
+
+The bindings child log proves the separate failure occurred after clean JUnit generation at
+`npm run test:lifecycle`. Its internal phase reports were lost at cleanup; an exact inner cause
+cannot be inferred from that log alone. Bounded retention now copies only existing SDD JSON before
+cleanup and records original child status, exposing actual blocked/error JSON without changing
+product API semantics. Three pure cleanup/resolver controls prove successful and failing child
+statuses, exact report bytes, unsafe-report refusal and installed-version source selection.
+New-head native qualification/public archive custody remain pending. Attempt
+`TYPED-SDD/TEMPLATES-H2` is root-bound to the actual native worker;
+usage coverage remains Unknown. No public18 admission is claimed.
+
+Final prepared checker bytes passed a separately admitted bounded private401 validation: eleven
+co-producer controls, the actual positive provider assertion and eighteen existing catalog controls.
+The initial metadata-only extraction compiler diagnostic and subsequent corrected metadata result
+are retained as distinct actual outputs. Source-only diagnostic/helper additions passed Bash syntax,
+Python compilation, three pure controls and existing composition actionlint. CPU2 was released after
+all admitted native checker processes terminated. Bindings inner-cause qualification is still owed;
+no additional provider runtime or full matrix was attempted.
