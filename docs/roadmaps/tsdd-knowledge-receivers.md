@@ -207,3 +207,26 @@ manage this bounded merge-to-publication interval as unavailable creation on the
 Publication and clean public adoption remain required; a source merge alone cannot claim them.
 Wizard's retained exact-0.15.0 omitted-Fable rule and direct-provider Typed SDD omission remain
 distinct. Rendering stays original 0.31.0 until its separately admitted adoption.
+
+
+## Exact-head native composition follow-up
+
+At `21da806de75ee8e66ad5023c178f24a20063d952`, repaired historical public C
+(`37122916270`), current-source C (`37122916331`) and typed receivers (`37122916253`)
+passed native qualification. Composition `37122916287` passed 114 checks but failed the
+console, bindings, Fable game and web lifecycle lanes. Their shared matrix still required the
+historical `1.4.0-preview.1` provenance floor even though the selected current descriptors
+require `2.1.0`. Python uses a separate route and passed.
+
+The current repair compares provenance exactly with the descriptor actually selected, using the
+existing canonical floor parser. It preserves live registry equality, historical descriptor floors
+and all lifecycle/default/package pins. Pure controls exercise current and historical positives,
+both directions of floor drift, unreadable/ambiguous subjects and the real first-loop failure
+boundary. Parent composition now keeps child output and selected descriptor/provenance reports
+before child temporary roots disappear. The old native artifact did not retain those child reports;
+source diagnosis and pure causal controls remain distinct from native evidence.
+
+This new source head still owes hosted exact-head composition and applicable coherent checks,
+fresh native artifact custody and the protected release/public-adoption joins. Earlier 21da or
+75afb2f archives cannot qualify it. The root retains publication and the explicitly managed
+main-descriptor merge-to-publication interval.

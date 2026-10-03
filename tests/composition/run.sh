@@ -156,6 +156,14 @@ else
   bad "lifecycle provider/template contract failed"
 fi
 
+step "lifecycle — selected descriptor/provenance floor and child-failure controls"
+if python3 "$COMPOSITION_DIR/lib/test-provenance-floor.py" >"$WORKDIR/provenance-floor-controls.log" 2>&1; then
+  ok "lifecycle provenance equality and retained child failure controls hold"
+else
+  bad "lifecycle provenance equality controls failed"
+  cat "$WORKDIR/provenance-floor-controls.log"
+fi
+
 step "SVG workspace — immutable owner skills and bundle predicates (SVG-WORKSPACE-01.1)"
 if python3 "$REPO_ROOT/tests/svg-workspace-owner-skills/verify.py" "$WORKDIR/owner-skills"; then
   ok "SVG workspace owner skill archives and selections hold"
@@ -282,7 +290,10 @@ for lane in $COMPOSITION_LANES; do
     bad "$lane: COMPOSITION_LANES names this lane but $lane_script does not exist — a named lane FAILS rather than skipping"
     continue
   fi
-  if bash "$lane_script"; then
+  # Child lanes own temporary roots and clean them on exit. Keep their actual selected
+  # descriptor/provenance and full output in the parent before those roots disappear.
+  export FSGG_COMPOSITION_DIAGNOSTICS="$WORKDIR/lane-diagnostics/$lane"
+  if bash "$lane_script" 2>&1 | tee "$WORKDIR/$lane-lifecycle.log"; then
     ok "$lane template lifecycle passes"
   else
     bad "$lane template lifecycle failed"

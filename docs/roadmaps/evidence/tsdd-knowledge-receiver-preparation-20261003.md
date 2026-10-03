@@ -308,3 +308,41 @@ source delivery is not deferred runtime selection merely because registry packag
 Telemetry attempt `templates-public21-historical-fixture-repair-20261003` is not configured and
 usage remains Unknown. No registry equality, lifecycle default, historical public tuple or
 publication authority changed in this source repair.
+
+
+## Native composition provenance-floor repair
+
+Native composition [37122916287](https://github.com/FS-GG/FS.GG.Templates/actions/runs/37122916287)
+bound `21da806de75ee8e66ad5023c178f24a20063d952` and completed with 114 passes/four
+failed lifecycle lanes: console, Fable bindings, Fable game and web. Python passed. Native
+current C [37122916331](https://github.com/FS-GG/FS.GG.Templates/actions/runs/37122916331),
+historical public C [37122916270](https://github.com/FS-GG/FS.GG.Templates/actions/runs/37122916270)
+and typed receivers [37122916253](https://github.com/FS-GG/FS.GG.Templates/actions/runs/37122916253)
+passed at that exact head, superseding their earlier pending native-qualification boundary.
+
+The downloaded failure artifact `11274376979`, server digest
+`acccb842e335b75df30013a945ee3ee0c219be2d810a5ec21892f703e68d9147`, retained parent
+logs but no child lifecycle provenance: child traps removed their roots, and the workflow's
+artifact glob covered only parent-root logs. The four lanes failed immediately after installation,
+before completion output. The shared shell's first loop compared the actual recorded floor to the
+obsolete literal `1.4.0-preview.1`. The unchanged current descriptors declare `2.1.0`; retained
+actual public-2.1 bootstrap provenance records `2.1.0`. This source/retained-input diagnosis is
+not a claim that the missing native child reports were recovered.
+
+[The focused assertion](../../../tests/composition/lib/provenance-floor.py) reuses the existing
+strict descriptor parser and requires exact selected-floor/provenance equality. It does not fetch
+or modify registry authority. [Seven pure controls](../../../tests/composition/lib/test-provenance-floor.py)
+accept current and retained historical floors, reject behind/ahead/missing/ambiguous observations,
+and execute the real shell's first clean-create boundary with a stopped second scaffold. Across
+the four affected providers, current provenance advances to that intentional stop and historical
+provenance fails before it. They also prove copied original reports and parent-pipeline child
+failure/stderr retention; no local compiler or complete native matrix runs.
+
+The parent now tees actual child stdout/stderr into retained logs without losing pipe failure,
+and keeps only bounded selected descriptors, scaffold JSON and provenance JSON before child
+cleanup. The failure artifact includes these reports. The seven controls run on the native
+composition path. Native qualification of this repair remains pending root-controlled hosted CI;
+new native archives must identify its real new head. The eight frozen public D/D.5 files,
+all six descriptors, lifecycle defaults, model subjects, original Rendering.31 and historical
+1.7/public tuple routes remain unchanged. The private public18 custody wrapper is unchanged.
+Telemetry is not configured; usage Unknown. No registry, push, tag or publication effect occurred.

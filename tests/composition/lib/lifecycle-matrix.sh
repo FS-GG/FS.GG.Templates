@@ -200,7 +200,20 @@ assert_provider_lifecycle_matrix() {
         echo "lifecycle matrix: $provider/$lane recorded '$actual', expected '$expected_lane'" >&2
         return 1
       }
-      jq -e '.requiredMinimumCliVersion == "1.4.0-preview.1"' "$root/.fsgg/scaffold-provenance.json" >/dev/null
+      # The descriptor used for this scaffold owns the floor. A retained v1 descriptor may
+      # legitimately differ from the current v2 descriptor; never freeze yesterday's value here.
+      if [[ -n "${FSGG_COMPOSITION_DIAGNOSTICS:-}" ]]; then
+        mkdir -p "$FSGG_COMPOSITION_DIAGNOSTICS"
+        cp "$descriptor" "$FSGG_COMPOSITION_DIAGNOSTICS/$lane.providers.yml"
+        cp "$report" "$FSGG_COMPOSITION_DIAGNOSTICS/$lane.scaffold.json"
+        cp "$root/.fsgg/scaffold-provenance.json" "$FSGG_COMPOSITION_DIAGNOSTICS/$lane.provenance.json"
+      fi
+      if ! python3 "$LANE_REPO_ROOT/tests/composition/lib/provenance-floor.py" \
+        --repo "$LANE_REPO_ROOT" --provider "$provider" --descriptor "$descriptor" \
+        --provenance "$root/.fsgg/scaffold-provenance.json"; then
+        cat "$root/.fsgg/scaffold-provenance.json" >&2
+        return 1
+      fi
     fi
 
     if [[ "$lane" == "$default_lane" ]]; then
