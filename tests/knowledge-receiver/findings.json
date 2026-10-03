@@ -1,0 +1,16 @@
+{
+  "schema": "fsgg.knowledge-receiver-fixtures/1",
+  "scope": "Synthetic receiver qualification; no production finding is asserted",
+  "findings": [
+    {"id": "architecture-decision", "kind": "decision", "state": "accepted", "finding": "Keep provider composition generic; the provider owns product files and SDD owns lifecycle initialization.", "evidence": {"path": "docs/design.md", "basis": "inspected receiver architecture", "revision": "908da309c9a52490cf914c3f2d5ce1eaf1188b2e"}},
+    {"id": "diagnostic-lesson", "kind": "diagnostic", "state": "observed", "finding": "An installed producer without the required capture capability cannot qualify a knowledge receiver. A version label alone does not establish that capability.", "evidence": {"path": "tests/knowledge-receiver/test_inventory.py", "basis": "negative command fixture", "run": "synthetic-receiver"}},
+    {"id": "failed-experiment", "kind": "experiment", "state": "observed", "finding": "The synthetic source-cache experiment added no useful context. This negative result applies only to the receiver fixture and does not assess a real source index.", "evidence": {"path": "tests/knowledge-receiver/findings.json", "basis": "synthetic negative outcome", "run": "synthetic-receiver"}},
+    {"id": "bug-cause-fix", "kind": "bug-fix", "state": "observed", "finding": "Synthetic cause: an ignore rule hid knowledge files from Git. Fix: qualify normal Git inclusion on both initial and later commits.", "evidence": {"path": "tests/knowledge-receiver/test_inventory.py", "basis": "ignore-rule control", "run": "synthetic-receiver"}}
+  ],
+  "excludedInputs": [
+    {"id": "copied-source", "kind": "source-code", "finding": "namespace Product\nmodule App =\n    let main () = 0\n"},
+    {"id": "raw-log", "kind": "raw-log", "finding": "[2026-10-03T00:00:00Z] stdout: synthetic output\n"},
+    {"id": "document-dump", "kind": "document-dump", "finding": "A copied document body is an excluded input even when it fits the byte limit."}
+  ],
+  "requiredChecks": ["normal-initial-git-inclusion", "later-git-update", "cacheless-clone-retrieval", "shared-cli-library-access", "evidence-links", "git-history", "lossless-export-restore", "guide-no-clobber", "product-and-lifecycle-preserved", "accept-at-10485760-bytes", "refuse-above-10485760-bytes", "refuse-source-log-document-dumps", "private-reference-boundary", "insufficient-producer-refusal"]
+}

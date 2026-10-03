@@ -9,6 +9,8 @@ on:
       - 'scripts/svg-foundation-preview-baseline.manifest'
       - 'templates/fs-gg-fable-game/**'
       - 'tests/composition/fable-game/verify-svg-typed-receivers.sh'
+      - 'tests/composition/fable-game/historical-provider.py'
+      - 'tests/composition/fable-game/test-historical-provider.py'
       - 'tests/composition/fable-game/svg-preview-observe.mjs'
       - 'docs/reports/2026-09-12-svg-scene-02-preview-a-handoff.md'
       - '.github/workflows/svg-typed-receivers.yml'
@@ -20,6 +22,8 @@ on:
       - 'scripts/svg-foundation-preview-baseline.manifest'
       - 'templates/fs-gg-fable-game/**'
       - 'tests/composition/fable-game/verify-svg-typed-receivers.sh'
+      - 'tests/composition/fable-game/historical-provider.py'
+      - 'tests/composition/fable-game/test-historical-provider.py'
       - 'tests/composition/fable-game/svg-preview-observe.mjs'
       - 'docs/reports/2026-09-12-svg-scene-02-preview-a-handoff.md'
       - '.github/workflows/svg-typed-receivers.yml'
@@ -41,6 +45,8 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
+      - name: Check historical custody and source refusal controls
+        run: python3 tests/composition/fable-game/test-historical-provider.py
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:

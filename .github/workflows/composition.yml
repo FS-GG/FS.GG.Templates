@@ -475,13 +475,17 @@ jobs:
           mkdir -p "$TMPDIR"
           tests/composition/run.sh
       # Red runs otherwise leave only inline log tails; ship the full log set wholesale so a failure
-      # is diagnosable without a re-run. Scoped to *.log to skip the built app tree.
+      # is diagnosable without a re-run. Retain logs and the bounded selected descriptor/provenance
+      # reports copied from child lanes before their temporary roots are removed.
       - name: Upload composition diagnostics on failure
         if: failure()
         uses: actions/upload-artifact@v7
         with:
           name: composition-logs-${{ github.run_id }}
-          path: ${{ runner.temp }}/composition/fsgg-composition.*/**/*.log
+          path: |
+            ${{ runner.temp }}/composition/fsgg-composition.*/**/*.log
+            ${{ runner.temp }}/composition/fsgg-composition.*/lane-diagnostics/**/*.json
+            ${{ runner.temp }}/composition/fsgg-composition.*/lane-diagnostics/**/*.yml
           if-no-files-found: warn
           retention-days: 7
 

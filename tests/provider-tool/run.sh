@@ -106,12 +106,12 @@ expect_fail 'duplicate root providers key is rejected' 'repeats providers' \
   grade --providers "$work/providers" --registry "$registry"
 
 cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
-sed -i 's/version: "1.4.0-preview.1"/version: 1.4.0-preview.1 garbage/' "$work/providers/web.providers.yml"
+sed -i '/^      version:/ {s/"//g; s/$/ garbage/;}' "$work/providers/web.providers.yml"
 expect_fail 'unquoted floor with trailing YAML tokens is rejected' 'unsupported text after scalar value' \
   grade --providers "$work/providers" --registry "$registry"
 
 cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
-sed -i 's/source: FS.GG.Workspace.Template::0.13.0/source: FS.GG.Workspace.Template::0.13.0 garbage/' "$work/providers/web.providers.yml"
+sed -i '/^    source:/s/$/ garbage/' "$work/providers/web.providers.yml"
 expect_fail 'unquoted provider source with trailing YAML tokens is rejected' 'unsupported text after scalar value' \
   grade --providers "$work/providers" --registry "$registry"
 
@@ -169,10 +169,17 @@ provider = Path(sys.argv[2]).read_text()
 floor = re.search(r'minimumFsggSdd:\s*\n\s+version: "([^"]+)"', provider)
 if floor is None:
     raise SystemExit('fixture provider floor shape changed')
-needle = f'minimum-fsgg-sdd:\n      version: "{floor.group(1)}"'
-if needle not in source:
+contract = re.search(r'^  - id: fs-gg-ui-template\s*$', source, re.MULTILINE)
+if contract is None:
+    raise SystemExit('fixture registry contract shape changed')
+next_contract = re.search(r'^  - id:', source[contract.end():], re.MULTILINE)
+end = contract.end() + next_contract.start() if next_contract else len(source)
+block = source[contract.start():end]
+pattern = r'(minimum-fsgg-sdd:[ \t]*\n(?:[ \t]*#[^\n]*\n)*[ \t]*version: )' + r'(?:"' + re.escape(floor.group(1)) + r'"|' + re.escape(floor.group(1)) + r')(?=\s*(?:#|$))'
+changed, count = re.subn(pattern, lambda match: match[1] + '"9.9.9"', block, count=1, flags=re.MULTILINE)
+if count != 1:
     raise SystemExit('fixture registry shape changed')
-Path(sys.argv[3]).write_text(source.replace(needle, 'minimum-fsgg-sdd:\n      version: "9.9.9"', 1))
+Path(sys.argv[3]).write_text(source[:contract.start()] + changed + source[end:])
 PY
 expect_fail 'live-registry drift fails mirrored descriptors' 'registry pin 9.9.9' \
   grade --providers "$work/providers" --registry "$work/drift.yml"

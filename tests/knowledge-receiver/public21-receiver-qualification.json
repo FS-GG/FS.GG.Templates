@@ -1,0 +1,949 @@
+{
+  "schema": "fsgg.templates.public21-receiver-qualification/1",
+  "attempt": "templates-public21-receiver-qualification-20261003",
+  "telemetry": {
+    "begin": "not-configured",
+    "usage": "Unknown"
+  },
+  "outcome": "passed-ready-window",
+  "sourceCandidate": "6a05c52258748526d483f7be3a33f0ad86d17c6b",
+  "publishedProducer": true,
+  "publishedTemplates": false,
+  "protectedActivation": false,
+  "producer": {
+    "version": "2.1.0",
+    "source": "518517f6b90330a6e99f90bbce68faa0a891287f",
+    "freshPublicArchives": [
+      {
+        "package": "fs.gg.sdd.artifacts",
+        "url": "https://api.nuget.org/v3-flatcontainer/fs.gg.sdd.artifacts/2.1.0/fs.gg.sdd.artifacts.2.1.0.nupkg",
+        "rawSha256": "d14f737ae13ed2101992033c3578419dca141de4a78707a1c620827705cd80d8",
+        "sourceRevision": "518517f6b90330a6e99f90bbce68faa0a891287f"
+      },
+      {
+        "package": "fs.gg.sdd.cli",
+        "url": "https://api.nuget.org/v3-flatcontainer/fs.gg.sdd.cli/2.1.0/fs.gg.sdd.cli.2.1.0.nupkg",
+        "rawSha256": "18af7f13259babce00f58131100697e643e957e944e45a7baa43c011098afcf8",
+        "sourceRevision": "518517f6b90330a6e99f90bbce68faa0a891287f"
+      },
+      {
+        "package": "fs.gg.sdd.knowledge",
+        "url": "https://api.nuget.org/v3-flatcontainer/fs.gg.sdd.knowledge/2.1.0/fs.gg.sdd.knowledge.2.1.0.nupkg",
+        "rawSha256": "4a840ebe4450725d907d9d63649d29bbc5e140f9559887e28d7131a3f380f4af",
+        "sourceRevision": "518517f6b90330a6e99f90bbce68faa0a891287f"
+      }
+    ],
+    "installedCliSha256": "54d561e27c27042bfb3ae893ea7e92941a5f70f4abe5aab2595f7819807d3cc8",
+    "core": {
+      "url": "https://api.nuget.org/v3-flatcontainer/fsharp.core/10.1.401/fsharp.core.10.1.401.nupkg",
+      "archiveSha256": "cf1f4e69fc2d1351af9fa9923ac90ed466088730a00867cbe0eb1b3b2c68963e",
+      "assets": {
+        "lib/netstandard2.0/FSharp.Core.dll": "7516a966abc789eab916e95d429bf3a49e996257069d97f7f3eb5d47373fa72b",
+        "lib/netstandard2.1/FSharp.Core.dll": "39b0b7f06c11bedd93f94b6f101fffd645f1c4437a5a6d3ee79259f855aeb11a"
+      }
+    },
+    "installedRuntimeCoreSha256": "39b0b7f06c11bedd93f94b6f101fffd645f1c4437a5a6d3ee79259f855aeb11a"
+  },
+  "currentD5": {
+    "schema": "fsgg.svg-release-d5.source-candidate/v1",
+    "status": "source-candidate-only",
+    "templates": {
+      "version": "0.18.0",
+      "candidateSha256": "eba2cbe451fb933e74e28f686c69f58afea64ee9c47135674982b501cc2fbf88",
+      "publication": "pending"
+    },
+    "sdd": {
+      "version": "2.1.0",
+      "source": "nuget.org",
+      "omittedBackend": "quint-specification-v1"
+    },
+    "newFableGameOmission": "typed-sdd",
+    "rawPlayer": "passed",
+    "provider": {
+      "omitted": "typed-sdd",
+      "explicit": [
+        "none",
+        "sdd",
+        "typed-sdd",
+        "spec-kit"
+      ],
+      "completeBundle": "passed",
+      "authorInspect": "passed",
+      "refusal": "passed",
+      "lockedBuild": "passed",
+      "legacyFalseOmitted": "typed-sdd-non-svg-locked-build-passed",
+      "legacyFalseExplicitSdd": "passed"
+    },
+    "otherProviders": "sdd",
+    "wizard": "pending-owner-package-and-public-receiver",
+    "defaultActivation": "pending-public-composition-and-registry-readback"
+  },
+  "receiverRows": [
+    {
+      "family": "console",
+      "variant": "default",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "descriptorPath": "providers/console.providers.yml",
+      "descriptorSha256": "cd648bdeb264ca395297255d9328384a8cb0b6d1649eab83bc0d77efc7b6aa11",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "probe": {
+        "initialCommit": "50a083d0c0d4259629bc29c98760f43a68752c1e",
+        "findingsCommit": "f59a0845ebd4dde321e3dc150f68c2ffa46eaa77",
+        "updatedCommit": "7aaca6ab0a8a1b22c29947fd350f5c25fc70b0fb",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "ordinaryLocalToolCi": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": false
+      },
+      "outcome": "passed"
+    },
+    {
+      "family": "web",
+      "variant": "default",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "descriptorPath": "providers/web.providers.yml",
+      "descriptorSha256": "89d0fb9172b906b3c0b94017d952561c7d62e0cfde01b6a6c439e881ccef4cbe",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "probe": {
+        "initialCommit": "c0418752748e778f27b0044e2f1a27dfa4a8b450",
+        "findingsCommit": "cd1cdc7b6046b349116d03756a366f3dba90cc0c",
+        "updatedCommit": "61b0beeb4756207bb411110c13a2a1e6a797402b",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "ordinaryLocalToolCi": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": false
+      },
+      "outcome": "passed"
+    },
+    {
+      "family": "fable-bindings",
+      "variant": "default",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "descriptorPath": "providers/fable-bindings.providers.yml",
+      "descriptorSha256": "dd96e75dca42c08a6e838e2d004397757ac2fd91bf6e1057fcb0c149aaf28a39",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "probe": {
+        "initialCommit": "195a43ca1e56d42f243b5b7191f5afe00d5ac24d",
+        "findingsCommit": "999041f0da017bab151c55cc433b4d86e0627121",
+        "updatedCommit": "28a5bf5d87df37876bdd95ef9af6506492309e02",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "ordinaryLocalToolCi": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": false
+      },
+      "outcome": "passed"
+    },
+    {
+      "family": "python",
+      "variant": "default",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "descriptorPath": "providers/python.providers.yml",
+      "descriptorSha256": "f817b5c42cce22dae53ddc16cec075ed1387d1dfc7226eeaae85b3db2cb475f0",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "probe": {
+        "initialCommit": "bedb9af990b81db803816fc758705253e48c6758",
+        "findingsCommit": "2a7e0e2804deda29d0d4828a9a847ad6bd677376",
+        "updatedCommit": "6f4a4686abcacfda2dffb1446b033b1340cf9744",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "ordinaryLocalToolCi": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": false
+      },
+      "outcome": "passed"
+    },
+    {
+      "family": "fable-game",
+      "variant": "player",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "descriptorPath": "providers/fable-game.providers.yml",
+      "descriptorSha256": "16037b2727d32203afc24513db2a2b24dac9ae35db9af42817f02623cb620816",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "probe": {
+        "initialCommit": "c87734ae4b2bd15624622a9cd47d682ef5ef3afa",
+        "findingsCommit": "4250570f6afdb8d394e2d7edd9008b78649d3c92",
+        "updatedCommit": "324b8525e71c17fd95ac1c746c6d4ec774bdeae4",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "ordinaryLocalToolCi": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": false
+      },
+      "outcome": "passed"
+    },
+    {
+      "family": "fable-game",
+      "variant": "complete",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "descriptorPath": "providers/fable-game.providers.yml",
+      "descriptorSha256": "16037b2727d32203afc24513db2a2b24dac9ae35db9af42817f02623cb620816",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "probe": {
+        "initialCommit": "ca00a8fe118b7efbff5077ae198cb2dca331aebb",
+        "findingsCommit": "377459d333ede9095bd73d57c26157e9d8061328",
+        "updatedCommit": "c36d33785188a63976303067f2606f769cc68af8",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "ordinaryLocalToolCi": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": false
+      },
+      "outcome": "passed"
+    },
+    {
+      "family": "fable-game",
+      "variant": "legacy",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "descriptorPath": "providers/fable-game.providers.yml",
+      "descriptorSha256": "16037b2727d32203afc24513db2a2b24dac9ae35db9af42817f02623cb620816",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "probe": {
+        "initialCommit": "56016a1f68a85b164cc199104e2394986e89c494",
+        "findingsCommit": "2efab456d7eeb49b70ea4e2120da567206f5e591",
+        "updatedCommit": "69b0c6fe13b30773b634f4580deca46dab726b55",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "ordinaryLocalToolCi": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": false
+      },
+      "outcome": "passed"
+    },
+    {
+      "family": "rendering",
+      "variant": "app",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "descriptorPath": "providers/rendering.providers.yml",
+      "descriptorSha256": "78bd8de8975e0422cfa0e4560634b584dc4047880e6e67237a452c9a201e45db",
+      "descriptorSource": "FS.GG.UI.Template::0.31.0",
+      "externalOriginalBytesPreserved": true,
+      "probe": {
+        "initialCommit": "431ee5f3391b4a76772af1577d27dca6e1a3bb96",
+        "findingsCommit": "1e390887366fb4edbe9f606d8717331ac6c21c76",
+        "updatedCommit": "e16692736206e27bca3ec0b9312dd31fc44c5c19",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "ordinaryLocalToolCi": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": false
+      },
+      "outcome": "passed"
+    },
+    {
+      "family": "rendering",
+      "variant": "game",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "descriptorPath": "providers/rendering.providers.yml",
+      "descriptorSha256": "78bd8de8975e0422cfa0e4560634b584dc4047880e6e67237a452c9a201e45db",
+      "descriptorSource": "FS.GG.UI.Template::0.31.0",
+      "externalOriginalBytesPreserved": true,
+      "probe": {
+        "initialCommit": "c6d98de92d991a2d113763463aaf280a5d878de6",
+        "findingsCommit": "4cfce7addf911be8f571d8d9ca5b622bb273f8e9",
+        "updatedCommit": "61592d81d6d7c62e28bb48ad8abd578a77e59966",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "ordinaryLocalToolCi": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": false
+      },
+      "outcome": "passed"
+    },
+    {
+      "family": "console",
+      "variant": "default",
+      "selection": "omitted",
+      "effectiveLifecycle": "sdd",
+      "descriptorPath": "providers/console.providers.yml",
+      "descriptorSha256": "cd648bdeb264ca395297255d9328384a8cb0b6d1649eab83bc0d77efc7b6aa11",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "outcome": "passed"
+    },
+    {
+      "family": "web",
+      "variant": "default",
+      "selection": "omitted",
+      "effectiveLifecycle": "sdd",
+      "descriptorPath": "providers/web.providers.yml",
+      "descriptorSha256": "89d0fb9172b906b3c0b94017d952561c7d62e0cfde01b6a6c439e881ccef4cbe",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "outcome": "passed"
+    },
+    {
+      "family": "fable-bindings",
+      "variant": "default",
+      "selection": "omitted",
+      "effectiveLifecycle": "sdd",
+      "descriptorPath": "providers/fable-bindings.providers.yml",
+      "descriptorSha256": "dd96e75dca42c08a6e838e2d004397757ac2fd91bf6e1057fcb0c149aaf28a39",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "outcome": "passed"
+    },
+    {
+      "family": "python",
+      "variant": "default",
+      "selection": "omitted",
+      "effectiveLifecycle": "sdd",
+      "descriptorPath": "providers/python.providers.yml",
+      "descriptorSha256": "f817b5c42cce22dae53ddc16cec075ed1387d1dfc7226eeaae85b3db2cb475f0",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "outcome": "passed"
+    },
+    {
+      "family": "fable-game",
+      "variant": "player",
+      "selection": "omitted",
+      "effectiveLifecycle": "typed-sdd",
+      "descriptorPath": "providers/fable-game.providers.yml",
+      "descriptorSha256": "16037b2727d32203afc24513db2a2b24dac9ae35db9af42817f02623cb620816",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "probe": {
+        "initialCommit": "211050386c2db3ddb04d5429fde2720a9f322fbb",
+        "findingsCommit": "3e602664820b50e7d204cc9c1dfc2095b53821d7",
+        "updatedCommit": "a6def3f1a6f5915cadf924dd21aee9392ccdbf08",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "ordinaryLocalToolCi": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": false
+      },
+      "outcome": "passed"
+    },
+    {
+      "family": "fable-game",
+      "variant": "complete",
+      "selection": "omitted",
+      "effectiveLifecycle": "typed-sdd",
+      "descriptorPath": "providers/fable-game.providers.yml",
+      "descriptorSha256": "16037b2727d32203afc24513db2a2b24dac9ae35db9af42817f02623cb620816",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "probe": {
+        "initialCommit": "2f5026d99095143a0e3b9f5e26dd8db104fafa23",
+        "findingsCommit": "ae29fb1ea6a2a90d5cdb9f39c0f7538c5bc76843",
+        "updatedCommit": "643cde688e2e4a39659173626d9cb853fa66fd6d",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "ordinaryLocalToolCi": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": false
+      },
+      "outcome": "passed"
+    },
+    {
+      "family": "fable-game",
+      "variant": "legacy",
+      "selection": "omitted",
+      "effectiveLifecycle": "typed-sdd",
+      "descriptorPath": "providers/fable-game.providers.yml",
+      "descriptorSha256": "16037b2727d32203afc24513db2a2b24dac9ae35db9af42817f02623cb620816",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "probe": {
+        "initialCommit": "e53d7c58a14f94f46fb3767a6f967de384391162",
+        "findingsCommit": "3e0d75503c253eabe8e2f26cae304ddffb69bf4f",
+        "updatedCommit": "47a0466c80577760ab6ead9c5b6f4539d6d2c043",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "ordinaryLocalToolCi": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": false
+      },
+      "outcome": "passed"
+    },
+    {
+      "family": "rendering",
+      "variant": "app",
+      "selection": "omitted",
+      "effectiveLifecycle": "sdd",
+      "descriptorPath": "providers/rendering.providers.yml",
+      "descriptorSha256": "78bd8de8975e0422cfa0e4560634b584dc4047880e6e67237a452c9a201e45db",
+      "descriptorSource": "FS.GG.UI.Template::0.31.0",
+      "outcome": "passed"
+    },
+    {
+      "family": "rendering",
+      "variant": "game",
+      "selection": "omitted",
+      "effectiveLifecycle": "sdd",
+      "descriptorPath": "providers/rendering.providers.yml",
+      "descriptorSha256": "78bd8de8975e0422cfa0e4560634b584dc4047880e6e67237a452c9a201e45db",
+      "descriptorSource": "FS.GG.UI.Template::0.31.0",
+      "outcome": "passed"
+    }
+  ],
+  "ordinaryLocalToolBudget": {
+    "exactLimit": {
+      "outcome": "passed",
+      "pinnedVersion": "2.1.0",
+      "bytes": 10485760,
+      "limit": 10485760,
+      "sourceCandidateOverride": false
+    },
+    "oneByteOverExit": 1
+  },
+  "sourcePackageCi": {
+    "archiveSha256": "eba2cbe451fb933e74e28f686c69f58afea64ee9c47135674982b501cc2fbf88",
+    "emission": [
+      {
+        "family": "console",
+        "selection": "none",
+        "effectiveLifecycle": "none",
+        "emitted": false
+      },
+      {
+        "family": "console",
+        "selection": "sdd",
+        "effectiveLifecycle": "sdd",
+        "emitted": false
+      },
+      {
+        "family": "console",
+        "selection": "typed-sdd",
+        "effectiveLifecycle": "typed-sdd",
+        "emitted": true
+      },
+      {
+        "family": "console",
+        "selection": "spec-kit",
+        "effectiveLifecycle": "spec-kit",
+        "emitted": false
+      },
+      {
+        "family": "console",
+        "selection": "omitted",
+        "effectiveLifecycle": "sdd",
+        "emitted": false
+      },
+      {
+        "family": "web",
+        "selection": "none",
+        "effectiveLifecycle": "none",
+        "emitted": false
+      },
+      {
+        "family": "web",
+        "selection": "sdd",
+        "effectiveLifecycle": "sdd",
+        "emitted": false
+      },
+      {
+        "family": "web",
+        "selection": "typed-sdd",
+        "effectiveLifecycle": "typed-sdd",
+        "emitted": true
+      },
+      {
+        "family": "web",
+        "selection": "spec-kit",
+        "effectiveLifecycle": "spec-kit",
+        "emitted": false
+      },
+      {
+        "family": "web",
+        "selection": "omitted",
+        "effectiveLifecycle": "sdd",
+        "emitted": false
+      },
+      {
+        "family": "fable-bindings",
+        "selection": "none",
+        "effectiveLifecycle": "none",
+        "emitted": false
+      },
+      {
+        "family": "fable-bindings",
+        "selection": "sdd",
+        "effectiveLifecycle": "sdd",
+        "emitted": false
+      },
+      {
+        "family": "fable-bindings",
+        "selection": "typed-sdd",
+        "effectiveLifecycle": "typed-sdd",
+        "emitted": true
+      },
+      {
+        "family": "fable-bindings",
+        "selection": "spec-kit",
+        "effectiveLifecycle": "spec-kit",
+        "emitted": false
+      },
+      {
+        "family": "fable-bindings",
+        "selection": "omitted",
+        "effectiveLifecycle": "sdd",
+        "emitted": false
+      },
+      {
+        "family": "python",
+        "selection": "none",
+        "effectiveLifecycle": "none",
+        "emitted": false
+      },
+      {
+        "family": "python",
+        "selection": "sdd",
+        "effectiveLifecycle": "sdd",
+        "emitted": false
+      },
+      {
+        "family": "python",
+        "selection": "typed-sdd",
+        "effectiveLifecycle": "typed-sdd",
+        "emitted": true
+      },
+      {
+        "family": "python",
+        "selection": "spec-kit",
+        "effectiveLifecycle": "spec-kit",
+        "emitted": false
+      },
+      {
+        "family": "python",
+        "selection": "omitted",
+        "effectiveLifecycle": "sdd",
+        "emitted": false
+      },
+      {
+        "family": "fable-game",
+        "selection": "none",
+        "effectiveLifecycle": "none",
+        "emitted": false
+      },
+      {
+        "family": "fable-game",
+        "selection": "sdd",
+        "effectiveLifecycle": "sdd",
+        "emitted": false
+      },
+      {
+        "family": "fable-game",
+        "selection": "typed-sdd",
+        "effectiveLifecycle": "typed-sdd",
+        "emitted": true
+      },
+      {
+        "family": "fable-game",
+        "selection": "spec-kit",
+        "effectiveLifecycle": "spec-kit",
+        "emitted": false
+      },
+      {
+        "family": "fable-game",
+        "selection": "omitted",
+        "effectiveLifecycle": "typed-sdd",
+        "emitted": true
+      },
+      {
+        "family": "fable-game-legacy",
+        "selection": "none",
+        "effectiveLifecycle": "none",
+        "emitted": false
+      },
+      {
+        "family": "fable-game-legacy",
+        "selection": "sdd",
+        "effectiveLifecycle": "sdd",
+        "emitted": false
+      },
+      {
+        "family": "fable-game-legacy",
+        "selection": "typed-sdd",
+        "effectiveLifecycle": "typed-sdd",
+        "emitted": true
+      },
+      {
+        "family": "fable-game-legacy",
+        "selection": "spec-kit",
+        "effectiveLifecycle": "spec-kit",
+        "emitted": false
+      },
+      {
+        "family": "fable-game-legacy",
+        "selection": "omitted",
+        "effectiveLifecycle": "sdd",
+        "emitted": false
+      }
+    ],
+    "overlay": [
+      {
+        "selection": "none",
+        "emitted": false,
+        "originalProductBytesPreserved": true
+      },
+      {
+        "selection": "sdd",
+        "emitted": false,
+        "originalProductBytesPreserved": true
+      },
+      {
+        "selection": "typed-sdd",
+        "emitted": true,
+        "originalProductBytesPreserved": true
+      },
+      {
+        "selection": "spec-kit",
+        "emitted": false,
+        "originalProductBytesPreserved": true
+      },
+      {
+        "selection": "omitted",
+        "emitted": false,
+        "originalProductBytesPreserved": true
+      },
+      {
+        "case": "authored-workflow-no-force-refusal",
+        "exit": 73,
+        "allOwnerBytesPreserved": true
+      },
+      {
+        "case": "actual-external-product-provider-rendering-app",
+        "originalFileCount": 273,
+        "addedPaths": [
+          ".github/workflows/project-knowledge.yml",
+          "scripts/check-project-knowledge.py"
+        ],
+        "allOriginalOwnerBytesPreserved": true,
+        "authoredConflictExit": 73
+      },
+      {
+        "case": "actual-external-product-provider-rendering-game",
+        "originalFileCount": 312,
+        "addedPaths": [
+          ".github/workflows/project-knowledge.yml",
+          "scripts/check-project-knowledge.py"
+        ],
+        "allOriginalOwnerBytesPreserved": true,
+        "authoredConflictExit": 73
+      }
+    ],
+    "entry": [
+      {
+        "case": "incapable-or-prerelease-manifest-2.0.3",
+        "exit": 1
+      },
+      {
+        "case": "incapable-or-prerelease-manifest-2.1.0-preview.1",
+        "exit": 1
+      },
+      {
+        "case": "actual-generated-product-valid",
+        "result": {
+          "outcome": "passed",
+          "pinnedVersion": "2.1.0",
+          "bytes": 5200,
+          "limit": 10485760,
+          "sourceCandidateOverride": true
+        },
+        "elapsedMilliseconds": 114
+      },
+      {
+        "case": "disk-bypass-exact-limit",
+        "result": {
+          "outcome": "passed",
+          "pinnedVersion": "2.1.0",
+          "bytes": 10485760,
+          "limit": 10485760,
+          "sourceCandidateOverride": true
+        }
+      },
+      {
+        "case": "disk-bypass-over-limit",
+        "exit": 1
+      },
+      {
+        "case": "actual-public-2.0.3-incapable",
+        "exit": 1
+      },
+      {
+        "case": "missing-capture-guide",
+        "exit": 1
+      },
+      {
+        "case": "missing-canonical-schema",
+        "exit": 1
+      },
+      {
+        "case": "missing-local-tool-pin",
+        "exit": 1
+      }
+    ],
+    "commandBinding": "Explicit downloaded public SDD 2.1.0 argv; historical fixture manifestOverride/sourceCandidate labels remain source-archive scope. Ordinary local-tool proof is separate in receiverRows.",
+    "historicalNegativeProducer": "Actual public 2.0.3 apphost retained from the archive bound by provider-v2-public203-refusal-receipt.json"
+  },
+  "focusedCompiledChecks": {
+    "provider-tool": {
+      "passed": 29,
+      "logSha256": "15959134c4fc6a7dff47b5872fd8ddd8ed88901fe48493eb0c37d0aecb9d7ac1"
+    },
+    "provider-foreign-field": {
+      "passed": 3,
+      "logSha256": "b3c0bd0cfd597fbc450b353d0bb0aeb48fd86530673bc8556c294db820b78cc3"
+    },
+    "provider-foreign-json-line": {
+      "passed": 4,
+      "logSha256": "afc82a77479d48a9dcd0b809dea1b5772fed848f972a087f03e3a76163098048"
+    },
+    "provider-floor-json-line": {
+      "passed": 4,
+      "logSha256": "c82e268f79d0d8cd6725d8e415dd80b00433270c9d410564a0bac17003b6de8b"
+    },
+    "provider-scalar-tail": {
+      "passed": 6,
+      "logSha256": "24e97e4359ebd6e7639ef0c1714631f732a0ee1fca12c747b498f5cacd9b21ce"
+    }
+  },
+  "providerToolAssemblySha256": "0d6c8f6ff732e153d1d827f6078de03e718bfe16fd21816c3295b53a3b4440e4",
+  "qualificationInputs": {
+    "tests/knowledge-receiver/public21.py": {
+      "sha256": "20ef736fb5bfe57c042c5f8c4a9232e91b0e85bec768be26a244461f476c77e4",
+      "gitBlob": "eb631a3ef656d513b336e70ac9a843a0d548b5e0"
+    },
+    "tests/knowledge-receiver/ci_projection.py": {
+      "sha256": "5ae9d9dd36572260faa26af0a6a78525b500cf51dc2741f947b9e003791c119c",
+      "gitBlob": "5218228a169334e815ad23b78707f33df94df38d"
+    },
+    "tests/composition/fable-game/verify-svg-release-d5-source.sh": {
+      "sha256": "eb1f233ee78579962be142721cf9f1c4579b7164b2f905cd771592894cf85086",
+      "gitBlob": "c6084093af88635d7251603ec3c8ebdeddaa8757"
+    },
+    "providers/console.providers.yml": {
+      "sha256": "cd648bdeb264ca395297255d9328384a8cb0b6d1649eab83bc0d77efc7b6aa11",
+      "gitBlob": "30a087faa5a60964853083044f8396604e4d34f2"
+    },
+    "providers/fable-bindings.providers.yml": {
+      "sha256": "dd96e75dca42c08a6e838e2d004397757ac2fd91bf6e1057fcb0c149aaf28a39",
+      "gitBlob": "199f3278dc2276ff90170c0808f209d67b40fd55"
+    },
+    "providers/fable-game.providers.yml": {
+      "sha256": "16037b2727d32203afc24513db2a2b24dac9ae35db9af42817f02623cb620816",
+      "gitBlob": "d326cd3d5d9c91e6577585700d9bac253d718b0c"
+    },
+    "providers/python.providers.yml": {
+      "sha256": "f817b5c42cce22dae53ddc16cec075ed1387d1dfc7226eeaae85b3db2cb475f0",
+      "gitBlob": "bfe22fef6faa14204c7a797a32db84be0989045b"
+    },
+    "providers/rendering.providers.yml": {
+      "sha256": "78bd8de8975e0422cfa0e4560634b584dc4047880e6e67237a452c9a201e45db",
+      "gitBlob": "d418c0b0648418a558f5f974278e6d6fcdf5a1cd"
+    },
+    "providers/web.providers.yml": {
+      "sha256": "89d0fb9172b906b3c0b94017d952561c7d62e0cfde01b6a6c439e881ccef4cbe",
+      "gitBlob": "71e303ecbf67b2a33884f636fabf75be832e0409"
+    }
+  },
+  "frozenPublicAssets": [
+    {
+      "path": "tests/composition/fable-game/d5-public-pins.py",
+      "sha256": "482c481b681d5ba053c9d9a9927e7020ccee1b71d58b89a3f5e82965e2358cc2",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": "tests/composition/fable-game/test-d5-public-pins.py",
+      "sha256": "ab32fc8cb591e9d35865434294a92c23aeec7a26556ac12ecb3de3fec260033b",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": "tests/composition/fable-game/verify-svg-release-d5-public-default.sh",
+      "sha256": "4e2bf501b55f2c65cf1401564db3a49a37e732b471b9aadb2ea837722165514b",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": "tests/composition/fable-game/verify-svg-release-d5-receiver.sh",
+      "sha256": "b5ec08e6745467110fa64271a84787ebad200c9928162f05fbaaf617f7f97592",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": ".github/workflows/svg-release-d5-source.yml",
+      "sha256": "e184ae8c29b55cad8ab7aa99f7fc39ee59d1ef23fff029236dfe3134eefb852a",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": ".github/workflows/svg-release-d5-public-default.yml",
+      "sha256": "0504f9c067bb4727a257ef69af932133b404d4e991b6eb5ba19738d5aac74429",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": ".github/workflows/svg-release-d-public.yml",
+      "sha256": "e8c545cfa84cece3b51ed1aafe1f992d5c13190ec865fa6905c49c90dc468c0a",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": "docs/reports/2026-09-28-svg-release-d5-source-candidate.md",
+      "sha256": "74dd0ec3ae11b85ab12db8aa9fa709b8a538cac71f32c79f3d018cea12c92701",
+      "byteExactToReceiverBase": true
+    }
+  ],
+  "privateEvidence": {
+    "directory": "/tmp/templates-public21-receiver-qualification-20261003",
+    "receipts": {
+      "fresh-public-readback.json": "6190789f8ee00e740a72372e4ed4621008ff323082ea420099945cbec40746d2",
+      "bootstrap/receipt.json": "0765c2a36b3c730a024ffb551afa1da11968abaa24984d68b2dfe36b347dcbfb",
+      "ci/receipt.json": "41f50d2ae5b55423043ec970d481d1642a2424de99f28b38de64c9f3a6f1ca21",
+      "current-d5/qualification.json": "2fa3c2496336fec2735dba9641d74863f6bfc928242e009bc2a906831c0540e5",
+      "dotnet-commands.jsonl": "c3c29c31871f152c324775184d63d5a30a9929e8078b216389383f52615771ac"
+    },
+    "compilerShimSha256": "60f1004b36b375eae57b37b8271137f0a91f9d65d73a2b0106e4e48e3ec80128"
+  },
+  "pending": [
+    "Templates 0.18.0 source admission, coherent publication and clean public Templates adoption",
+    "Wizard 0.13.0 owning source/package and public installed composition",
+    "Separate Rendering 0.32.0 pin/overlay adoption under root ownership",
+    "Protected registry/bootstrap activation"
+  ]
+}

@@ -1,0 +1,55 @@
+{
+  "schema": "fsgg.knowledge-provider-v2-adoption-validation/1",
+  "publishedPositiveAcceptance": false,
+  "protectedAdoption": false,
+  "dotnetProcessorCount": 1,
+  "registryFixture": {
+    "path": "/home/developer/projects/worktrees/knowledge-floor-registry-20261003/registry/dependencies.yml",
+    "sha256": "d859b016c12052bf49efc6f1a8c91370a7a4c1d6250c709e83a250d66bd34a57",
+    "floor": "2.1.0",
+    "protected": false
+  },
+  "providerToolAssemblySha256": "eddd0da00bcfe293639416d9a0621fda7c1e376a3ec75e2f0a2e64ffce17e924",
+  "providerToolSourceSha256": {
+    "src/FS.GG.Templates.ProviderTool/Composition.fs": "2fae9e5783701b56e0915dba4a7c30c3b30d236d9fc8fbe83d5f2b2ada6fb24f",
+    "src/FS.GG.Templates.ProviderTool/Program.fs": "d09e01296b5ccb16392e372f30a913ef34cc8c314a94fe7a3dacf96eaeae07eb",
+    "src/FS.GG.Templates.ProviderTool/FeedOccupancy.fs": "bb95090729caa34352966e949bc45f535dc9e270d6cdd2c618bd361a3d1c81fa",
+    "src/FS.GG.Templates.ProviderTool/ReferencePublication.fs": "9409c7858c3eb2164336eb64c9e6dde3d99967098d26f45de420b0225b17db34"
+  },
+  "tests": [
+    {
+      "path": "tests/provider-tool/run.sh",
+      "sha256": "ad1f2b66b3791a02669c3267b7ad1d5737e85177ffd022d119a39f74e60a390c",
+      "controlsPassed": 29,
+      "registryMode": "explicit staged registry"
+    },
+    {
+      "path": "tests/provider-foreign-field/run.py",
+      "sha256": "d45cb55ed9eb9796518a0637520050f628096e8e81b69ecdf6454ab7d4537a38",
+      "controlsPassed": 3,
+      "registryMode": "explicit staged registry"
+    },
+    {
+      "path": "tests/provider-foreign-json-line/run.py",
+      "sha256": "598ec0c443231bd8727ad5aa177c1064be1fe9d60d3a50b19bf2da536b63bdd8",
+      "controlsPassed": 4,
+      "registryMode": "explicit staged registry"
+    },
+    {
+      "path": "tests/provider-floor-json-line/run.py",
+      "sha256": "a907df1912761b5ab832bfbf99d14a2bed19e6defb92ad7374ec73d61b055ff6",
+      "controlsPassed": 4,
+      "registryMode": "explicit staged registry"
+    },
+    {
+      "path": "tests/provider-scalar-tail/run.py",
+      "sha256": "dcf8fba891540d0e35d0e52933c3054686ed075145dc85220d7bb8c53d74f17b",
+      "controlsPassed": 6,
+      "registryMode": "controlled scalar registry fixture derived from actual descriptor floor"
+    }
+  ],
+  "focusedControlsPassed": 46,
+  "closedFieldsPreserved": true,
+  "literalFloorEqualityPreserved": true,
+  "historicalReferencePublicationBindingChanged": false
+}

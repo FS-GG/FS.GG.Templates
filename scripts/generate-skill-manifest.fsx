@@ -1,3 +1,4 @@
+#load "sdd-owner-skills.fsx"
 // Owner of the generic Fable product-skill catalog: it GENERATES the producer manifest, CHECKS that
 // the manifest and the package items in FS.GG.Templates.csproj still agree with the catalog, and
 // ASSERTS that a packed-and-instantiated product actually received what the manifest promised.
@@ -34,7 +35,8 @@
 // this catalog renders must appear in the product's manifest carrying EXACTLY the fields this
 // catalog declares, with the same values — no field missing, none added. Every row must also carry
 // a `scope`, because that is the field the ownership half is decided on. A product-scoped row
-// outside this catalog is foreign only when `supplied-by` is a valid path outside this producer's
+// outside this catalog is foreign when exact installed SDD owner resources and provenance admit it,
+// or `supplied-by` is a valid path outside this producer's
 // `template/product-skills` namespace. Public SDD 1.2.5 preserves that producer attribution when
 // it adds Rendering-owned rows such as `fs-gg-feedback-report`. This keeps the whole of what
 // byte-equality was protecting — "its digests describe THIS catalog" — while permitting rows that
@@ -52,6 +54,7 @@
 //   dotnet fsi scripts/generate-skill-manifest.fsx --check               catalog <-> manifest <-> csproj
 //   dotnet fsi scripts/generate-skill-manifest.fsx --assert-product <dir> --template <templateId>
 //                                                 [--co-tenants "<glob> <glob> …"]
+//                                                 [--sdd-commands <installed Commands.dll>]
 open System
 open System.IO
 open System.Security.Cryptography
@@ -316,6 +319,10 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
         let productRows = parseRows productText
         let productById = productRows |> Map.ofList
         let supplierOwnership = supplierOwnershipById productText
+        let admittedOwners =
+            match flagValue "--sdd-commands" with
+            | None -> Set.empty
+            | Some commands -> SddOwnerSkills.admit commands productDir templateId
 
         for (id, n) in productRows |> List.countBy fst |> List.filter (fun (_, n) -> n > 1) do
             bad
@@ -367,7 +374,7 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
                             manifestRel
 
         for (id, fields) in productRows do
-            if fields.TryFind "scope" = Some "product" && not (canonicalById.ContainsKey id) then
+            if fields.TryFind "scope" = Some "product" && not (canonicalById.ContainsKey id) && not (admittedOwners.Contains id) then
                 match supplierOwnership.TryFind id with
                 | Some Foreign -> ()
                 | Some TemplatesOwned ->
@@ -448,7 +455,7 @@ let assertProduct (productDir: string) (templateId: string) (coTenants: string l
             let file = Path.Combine(skillsDir, id, "SKILL.md")
             let ownedHere = canonicalById.ContainsKey id
 
-            match selects when_ with
+            match (if admittedOwners.Contains id then Ok true else selects when_) with
             | Error w ->
                 bad
                     "UNREADABLE: '%s' declares materializes-when '%s', which is neither 'always' nor 'template in [...]' — this assertion cannot decide whether it belongs in %s, so it reds rather than grading the row as 'not selected'"

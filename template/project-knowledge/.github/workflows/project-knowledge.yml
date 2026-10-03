@@ -1,0 +1,28 @@
+name: Project knowledge
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  project-knowledge:
+    name: project-knowledge
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check initialization and exact local tool pin before restore
+        run: python3 scripts/check-project-knowledge.py --preflight
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.401
+      - name: Restore the project-pinned tools
+        run: dotnet tool restore --tool-manifest .config/dotnet-tools.json
+      - name: Enforce current knowledge schema and 10 MiB budget
+        run: python3 scripts/check-project-knowledge.py

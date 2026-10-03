@@ -2,6 +2,8 @@
 """Offline foreign provider-field controls for both grade readers."""
 
 from pathlib import Path
+import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -9,9 +11,9 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT / "src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj"
 CHECKER = ROOT / "scripts/check-provider-floors.py"
-REGISTRY = ROOT.parent / ".github/registry/dependencies.yml"
+REGISTRY = Path(os.environ.get("FSC05_REGISTRY", str(ROOT.parent / ".github/registry/dependencies.yml")))
 WEB = (ROOT / "providers/web.providers.yml").read_text(encoding="utf-8")
-NEEDLE = "    source: FS.GG.Workspace.Template::0.13.0\n"
+NEEDLE = re.search(r"^    source: \S+\n", WEB, re.MULTILINE).group(0)
 assert WEB.count(NEEDLE) == 1, "live web provider fixture shape changed"
 
 subprocess.run(["dotnet", "build", str(PROJECT), "-c", "Release", "--nologo"],

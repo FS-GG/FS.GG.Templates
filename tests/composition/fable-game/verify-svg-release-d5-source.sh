@@ -3,6 +3,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 out="${1:?empty output directory required}"
+sdd_version=2.1.0
 : "${QUINT_BIN:?set QUINT_BIN to qualified Quint 0.32.0}"
 : "${LMT_BIN:?set LMT_BIN to qualified lmt}"
 [[ ! -e "$out" ]]
@@ -44,10 +45,11 @@ with ZipFile(archive) as z:
         assert [x['choice'] for x in data['symbols']['lifecycle']['choices']]==['none','sdd','typed-sdd','spec-kit']
 PY
 python3 "$root/tests/composition/lib/lifecycle-contract.py" --root "$root" --self-test >"$out/lifecycle-contract.log"
-dotnet tool install FS.GG.SDD.Cli --version 2.0.2 --tool-path "$out/tools/sdd" --configfile "$config" --no-cache >"$out/sdd-install.log"
+dotnet tool install FS.GG.SDD.Cli --version "$sdd_version" --tool-path "$out/tools/sdd" --configfile "$config" --no-cache >"$out/sdd-install.log"
 sdd="$out/tools/sdd/fsgg-sdd"
 "$sdd" --version >"$out/sdd-version.log"
-grep -F '2.0.2' "$out/sdd-version.log" >/dev/null
+installed_sdd_version="$(cat "$out/sdd-version.log")"
+[[ "$installed_sdd_version" == "$sdd_version" ]] || fail "installed SDD version mismatch: expected $sdd_version, observed $installed_sdd_version"
 dotnet new install "$package" --force >"$out/template-install.log"
 
 # Raw dotnet new proves the omitted SVG Player product. The SDD-owned root
@@ -125,8 +127,8 @@ def params(v):
 assert params(a)==params(b), (params(a),params(b))
 PY
 
-# The omitted provider is an actual SDD root. Author against installed SDD
-# 2.0.2 without spelling the backend and inspect its committed v2 authority.
+# The omitted provider is an actual SDD root. Author against the selected installed
+# SDD without spelling the backend and inspect its committed v2 authority.
 # Player intentionally omits Studio models; a receiver can author one from the
 # same candidate's complete-bundle model after clean scaffold.
 mkdir -p "$out/omitted/models"
@@ -158,16 +160,16 @@ test ! -e "$out/omitted/readiness/d5-refused/typed-authority.json"
 (cd "$out/omitted" && dotnet restore D5omitted.slnx --locked-mode --configfile "$config" && dotnet build D5omitted.slnx --no-restore) >"$out/locked-build.log" 2>&1 || { tail -n 80 "$out/locked-build.log" >&2; fail 'omitted locked build'; }
 (cd "$out/legacyOmitted" && dotnet restore D5legacyOmitted.slnx --locked-mode --configfile "$config" && dotnet build D5legacyOmitted.slnx --no-restore) >"$out/legacy-locked-build.log" 2>&1 || { tail -n 80 "$out/legacy-locked-build.log" >&2; fail 'legacy omitted locked build'; }
 
-python3 - "$package" "$package_version" "$out/qualification.json" <<'PY'
+python3 - "$package" "$package_version" "$out/qualification.json" "$installed_sdd_version" <<'PY'
 from pathlib import Path
 from hashlib import sha256
 import json,sys
-archive=Path(sys.argv[1]); version=sys.argv[2]; report=Path(sys.argv[3])
+archive=Path(sys.argv[1]); version=sys.argv[2]; report=Path(sys.argv[3]); sdd_version=sys.argv[4]
 report.write_text(json.dumps({
   'schema':'fsgg.svg-release-d5.source-candidate/v1',
   'status':'source-candidate-only',
   'templates':{'version':version,'candidateSha256':sha256(archive.read_bytes()).hexdigest(),'publication':'pending'},
-  'sdd':{'version':'2.0.2','source':'nuget.org','omittedBackend':'quint-specification-v1'},
+  'sdd':{'version':sdd_version,'source':'nuget.org','omittedBackend':'quint-specification-v1'},
   'newFableGameOmission':'typed-sdd',
   'rawPlayer':'passed',
   'provider':{'omitted':'typed-sdd','explicit':['none','sdd','typed-sdd','spec-kit'],'completeBundle':'passed','authorInspect':'passed','refusal':'passed','lockedBuild':'passed','legacyFalseOmitted':'typed-sdd-non-svg-locked-build-passed','legacyFalseExplicitSdd':'passed'},

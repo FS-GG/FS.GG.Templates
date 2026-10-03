@@ -1,3 +1,4 @@
+# Pending coherent adoption: provider v2 requires published, installed SDD >=2.1.0 before activation.
 # Drop-in `.fsgg/providers.yml` registering the FS.GG.Rendering `fs-gg-ui` template
 # as a provider for `fsgg-sdd scaffold`. Copy this into your project's
 # `.fsgg/providers.yml` (or merge the entry).
@@ -24,7 +25,7 @@
 # BEGIN GENERATED: effective-providers
 # Effective providers — generated; ordered by unique provider name.
 # Review this block for the current selection; the release narrative remains in PIN HISTORY.
-# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.31.0 | contract=1.1.0
+# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.31.0 | contract=2.0.0
 # END GENERATED: effective-providers
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -242,7 +243,7 @@
 schemaVersion: 1
 providers:
   - name: rendering
-    contractVersion: "1.1.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
+    contractVersion: "2.0.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
     source: FS.GG.UI.Template::0.31.0   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
@@ -261,15 +262,13 @@ providers:
     # .fsgg/early-stage-guidance.md (Feature 049). So the coherent set carries a MINIMUM
     # coherent fsgg-sdd version — the oldest CLI that seeds them — recorded here alongside
     # `source` so a scaffold can check the installed CLI against the coherent-set minimum
-    # (fsgg-sdd stamps used+minimum into scaffold-provenance + warns when behind — FS.GG.SDD#49).
+    # (historical v1 warns when behind; v2 refuses an insufficient stable CLI before effects).
     # Mirrors registry `fs-gg-ui-template.minimum-fsgg-sdd` (coherence id
     # `fsgg-sdd-orchestrator-axis`). Bump `version` in lockstep with the registry.
     minimumFsggSdd:
-      version: "1.4.0-preview.1" # PINNED: first published CLI carrying the Typed Protocol Kernel.
-                               # It retains the seeded Standard SDD process surface and adds the
-                               # explicit typed-sdd compiler/model/projection contract consumed by
-                               # this provider set. Mirrors the hub registry coherent floor.
-      requires: "Typed Protocol Kernel lifecycle selection, compilation, provenance, refresh, and diagnostics; plus the existing seeded SDD process surface"
+      version: "2.1.0" # Candidate coherent provider-v2 floor; adopt only after installed publication proof.
+                       # Requires stable capable CLI admission before effects, retaining lifecycle defaults.
+      requires: "Typed Protocol Kernel lifecycle selection, compilation, provenance, refresh, and diagnostics; plus the existing seeded SDD process surface; provider v2 stable CLI admission and concise project knowledge"
       adr: "FS-GG/.github docs/adr/0008-fsgg-sdd-cli-first-class-member-of-coherent-set.md"
       registry: "FS-GG/.github registry/dependencies.yml -> fs-gg-ui-template.minimum-fsgg-sdd"
       tracking: "https://github.com/FS-GG/FS.GG.Templates/issues/99"

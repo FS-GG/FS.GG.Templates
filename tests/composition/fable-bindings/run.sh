@@ -6,7 +6,8 @@ if [[ "${FSGG_FABLE_BINDINGS_PUBLIC_INSTALLED:-0}" == "1" ]]; then
   exec bash "$ROOT/tests/composition/fable-bindings/verify-public-installed.sh" "${FSGG_FABLE_BINDINGS_PUBLIC_OUT:-}"
 fi
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+. "$ROOT/tests/composition/lib/lifecycle-diagnostics.sh"
+trap 'cleanup_lifecycle_product "$WORK" "$?"' EXIT
 export DOTNET_CLI_HOME="$WORK/home" DOTNET_NOLOGO=1 DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1
 mkdir -p "$DOTNET_CLI_HOME"
 
@@ -69,6 +70,7 @@ command -v fsgg-sdd >/dev/null
 command -v fsgg-governance >/dev/null
 dotnet new fs-gg-governance -o "$WORK/product" --appName AcmeBindings --defaultProfile strict --force >/dev/null
 (cd "$WORK/product" && node scripts/lifecycle-evidence.mjs --expect clean --junit reports/bindings.junit.xml --handoff readiness/002-bindings-upstream-review/governance-handoff.json)
+track_bindings_lifecycle_evidence "$WORK/product"
 (cd "$WORK/product" && npm run test:lifecycle >/dev/null)
 # The governance overlay is applied with --force over the SAME directory, so this re-assertion is
 # not a repeat: it proves the overlay does not clobber, truncate, or shadow the producer's skill

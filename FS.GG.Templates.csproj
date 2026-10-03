@@ -8,9 +8,10 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Workspace.Template</PackageId>
-    <!-- 0.17.0 publishes the reviewed complete-bundle FourD reference while preserving
-         every existing template identity, default and lifecycle selection. -->
-    <Version>0.17.0</Version>
+    <!-- 0.18.0 is the provisional additive Typed SDD project-knowledge CI successor.
+         Existing identities, defaults and options remain compatible; publication requires
+         authenticated identity preflight and the capable SDD 2.1.0 coherent release. -->
+    <Version>0.18.0</Version>
     <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new workspace templates for FS.GG.SDD: governance, Python, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</Description>
@@ -171,5 +172,16 @@
     <Error Condition="'@(_FsggOwnerSkill->Count())' != '@(_FsggProjectedSkill->Count())'"
            Text="Owner-sourced product skills on disk (@(_FsggOwnerSkill->Count())) and product-skill package items (@(_FsggProjectedSkill->Count())) disagree. A skill authored under template/product-skills/ with no package item is packed into NO template and silently reaches no product. Reconcile FS.GG.Templates.csproj with scripts/generate-skill-manifest.fsx, then run `dotnet fsi scripts/generate-skill-manifest.fsx --check`." />
   </Target>
+
+  <!-- Typed-only product CI is authored once. Template source modifiers preserve every
+       other lifecycle; local SDD tool pins remain owned by the actual scaffolding producer. -->
+  <ItemGroup>
+    <None Include="template/project-knowledge/.template.config/template.json" Pack="true"
+          PackagePath="content/templates/fs-gg-project-knowledge/.template.config/template.json" />
+    <None Include="template/project-knowledge/.github/workflows/project-knowledge.yml" Pack="true"
+          PackagePath="content/templates/fs-gg-console/.github/workflows/;content/templates/fs-gg-web/.github/workflows/;content/templates/fs-gg-fable-bindings/.github/workflows/;content/templates/fs-gg-python/.github/workflows/;content/templates/fs-gg-fable-game/.github/workflows/;content/templates/fs-gg-fable-game-legacy/.github/workflows/;content/templates/fs-gg-project-knowledge/.github/workflows/" />
+    <None Include="template/project-knowledge/scripts/check-project-knowledge.py" Pack="true"
+          PackagePath="content/templates/fs-gg-console/scripts/;content/templates/fs-gg-web/scripts/;content/templates/fs-gg-fable-bindings/scripts/;content/templates/fs-gg-python/scripts/;content/templates/fs-gg-fable-game/scripts/;content/templates/fs-gg-fable-game-legacy/scripts/;content/templates/fs-gg-project-knowledge/scripts/" />
+  </ItemGroup>
 
 </Project>

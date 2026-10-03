@@ -138,7 +138,12 @@ fi
 # and the five `always` `.github` driver skills (registry/driver-skill-manifest.json) into the same
 # `.agents/skills/`. Those belong to other producers and this manifest must not declare them; a
 # skill belonging to nobody still reds.
-dotnet fsi "$root/scripts/generate-skill-manifest.fsx" --assert-product "$work/sdd" --template fs-gg-fable-game \
+. "$root/tests/composition/lib/sdd-owner-skills.sh"
+sdd_commands="$(sdd_commands_assembly)"
+# Same supplier-relative namespace can belong to multiple packages. The installed Commands
+# resources, selected predicates and provenance supply independent ownership, never an id allowlist.
+dotnet fsi "$root/scripts/generate-skill-manifest.fsx" --assert-product "$work/sdd" --template fs-gg-fable-game --sdd-commands "$sdd_commands" \
   --co-tenants 'fs-gg-sdd-* work-board work-board-best work-board-normal work-roadmap padd-item'
+dotnet fsi "$root/tests/composition/lib/test-sdd-owner-skills.fsx" "$work/sdd" "$sdd_commands"
 
 echo "fable-game composition: generated clean scaffold production lifecycle, including cross-runtime codec proof, the Playwright two-client scenario, and owner-sourced product-skill delivery through both the direct and provider routes"

@@ -38,6 +38,10 @@
       ],
       "modifiers": [
         {
+          "condition": "(lifecycle != \"typed-sdd\")",
+          "exclude": [ ".github/workflows/project-knowledge.yml", "scripts/check-project-knowledge.py" ]
+        },
+        {
           "condition": "(bundle == \"player\")",
           "exclude": [
             "SvgFoundation/Studio/**",

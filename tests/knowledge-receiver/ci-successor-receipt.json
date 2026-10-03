@@ -1,0 +1,342 @@
+{
+  "schema": "fsgg.knowledge-product-ci-source-projection/1",
+  "artifactKind": "actual-source-packed-archive",
+  "packedArchiveQualified": true,
+  "published": false,
+  "archiveSha256": "2d784a28e57d7f91e168800f40f2fe40de7036dff54a3cd63339453d42a6fcbb",
+  "centralAssetCensus": [
+    "content/templates/fs-gg-console/.github/workflows/project-knowledge.yml",
+    "content/templates/fs-gg-web/.github/workflows/project-knowledge.yml",
+    "content/templates/fs-gg-fable-bindings/.github/workflows/project-knowledge.yml",
+    "content/templates/fs-gg-python/.github/workflows/project-knowledge.yml",
+    "content/templates/fs-gg-fable-game/.github/workflows/project-knowledge.yml",
+    "content/templates/fs-gg-fable-game-legacy/.github/workflows/project-knowledge.yml",
+    "content/templates/fs-gg-project-knowledge/.github/workflows/project-knowledge.yml",
+    "content/templates/fs-gg-console/scripts/check-project-knowledge.py",
+    "content/templates/fs-gg-web/scripts/check-project-knowledge.py",
+    "content/templates/fs-gg-fable-bindings/scripts/check-project-knowledge.py",
+    "content/templates/fs-gg-python/scripts/check-project-knowledge.py",
+    "content/templates/fs-gg-fable-game/scripts/check-project-knowledge.py",
+    "content/templates/fs-gg-fable-game-legacy/scripts/check-project-knowledge.py",
+    "content/templates/fs-gg-project-knowledge/scripts/check-project-knowledge.py"
+  ],
+  "projectSha256": "536764e6e50820c9e8de3ff32c4c2a91b1661efe48c49da0ab5fa9c762aded03",
+  "assetSha256": {
+    "template/project-knowledge/.template.config/template.json": "434d67450d9ade3da19ad07991ccbd81783559a2780239ef3e050eaf9bd43947",
+    "template/project-knowledge/scripts/check-project-knowledge.py": "313c4be5bca8397d33260a37948527d216b3f30c4afa383f4218beaba11742ef",
+    "template/project-knowledge/.github/workflows/project-knowledge.yml": "58366f025d26793e7444616477be323466216f26313b7f49408f1db46565915f"
+  },
+  "emission": [
+    {
+      "family": "console",
+      "selection": "none",
+      "effectiveLifecycle": "none",
+      "emitted": false
+    },
+    {
+      "family": "console",
+      "selection": "sdd",
+      "effectiveLifecycle": "sdd",
+      "emitted": false
+    },
+    {
+      "family": "console",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "emitted": true
+    },
+    {
+      "family": "console",
+      "selection": "spec-kit",
+      "effectiveLifecycle": "spec-kit",
+      "emitted": false
+    },
+    {
+      "family": "console",
+      "selection": "omitted",
+      "effectiveLifecycle": "sdd",
+      "emitted": false
+    },
+    {
+      "family": "web",
+      "selection": "none",
+      "effectiveLifecycle": "none",
+      "emitted": false
+    },
+    {
+      "family": "web",
+      "selection": "sdd",
+      "effectiveLifecycle": "sdd",
+      "emitted": false
+    },
+    {
+      "family": "web",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "emitted": true
+    },
+    {
+      "family": "web",
+      "selection": "spec-kit",
+      "effectiveLifecycle": "spec-kit",
+      "emitted": false
+    },
+    {
+      "family": "web",
+      "selection": "omitted",
+      "effectiveLifecycle": "sdd",
+      "emitted": false
+    },
+    {
+      "family": "fable-bindings",
+      "selection": "none",
+      "effectiveLifecycle": "none",
+      "emitted": false
+    },
+    {
+      "family": "fable-bindings",
+      "selection": "sdd",
+      "effectiveLifecycle": "sdd",
+      "emitted": false
+    },
+    {
+      "family": "fable-bindings",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "emitted": true
+    },
+    {
+      "family": "fable-bindings",
+      "selection": "spec-kit",
+      "effectiveLifecycle": "spec-kit",
+      "emitted": false
+    },
+    {
+      "family": "fable-bindings",
+      "selection": "omitted",
+      "effectiveLifecycle": "sdd",
+      "emitted": false
+    },
+    {
+      "family": "python",
+      "selection": "none",
+      "effectiveLifecycle": "none",
+      "emitted": false
+    },
+    {
+      "family": "python",
+      "selection": "sdd",
+      "effectiveLifecycle": "sdd",
+      "emitted": false
+    },
+    {
+      "family": "python",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "emitted": true
+    },
+    {
+      "family": "python",
+      "selection": "spec-kit",
+      "effectiveLifecycle": "spec-kit",
+      "emitted": false
+    },
+    {
+      "family": "python",
+      "selection": "omitted",
+      "effectiveLifecycle": "sdd",
+      "emitted": false
+    },
+    {
+      "family": "fable-game",
+      "selection": "none",
+      "effectiveLifecycle": "none",
+      "emitted": false
+    },
+    {
+      "family": "fable-game",
+      "selection": "sdd",
+      "effectiveLifecycle": "sdd",
+      "emitted": false
+    },
+    {
+      "family": "fable-game",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "emitted": true
+    },
+    {
+      "family": "fable-game",
+      "selection": "spec-kit",
+      "effectiveLifecycle": "spec-kit",
+      "emitted": false
+    },
+    {
+      "family": "fable-game",
+      "selection": "omitted",
+      "effectiveLifecycle": "typed-sdd",
+      "emitted": true
+    },
+    {
+      "family": "fable-game-legacy",
+      "selection": "none",
+      "effectiveLifecycle": "none",
+      "emitted": false
+    },
+    {
+      "family": "fable-game-legacy",
+      "selection": "sdd",
+      "effectiveLifecycle": "sdd",
+      "emitted": false
+    },
+    {
+      "family": "fable-game-legacy",
+      "selection": "typed-sdd",
+      "effectiveLifecycle": "typed-sdd",
+      "emitted": true
+    },
+    {
+      "family": "fable-game-legacy",
+      "selection": "spec-kit",
+      "effectiveLifecycle": "spec-kit",
+      "emitted": false
+    },
+    {
+      "family": "fable-game-legacy",
+      "selection": "omitted",
+      "effectiveLifecycle": "sdd",
+      "emitted": false
+    }
+  ],
+  "entry": [
+    {
+      "case": "incapable-or-prerelease-manifest-2.0.3",
+      "exit": 1
+    },
+    {
+      "case": "incapable-or-prerelease-manifest-2.1.0-preview.1",
+      "exit": 1
+    },
+    {
+      "case": "actual-generated-product-valid",
+      "result": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 5200,
+        "limit": 10485760,
+        "sourceCandidateOverride": true
+      },
+      "elapsedMilliseconds": 125
+    },
+    {
+      "case": "disk-bypass-exact-limit",
+      "result": {
+        "outcome": "passed",
+        "pinnedVersion": "2.1.0",
+        "bytes": 10485760,
+        "limit": 10485760,
+        "sourceCandidateOverride": true
+      }
+    },
+    {
+      "case": "disk-bypass-over-limit",
+      "exit": 1
+    },
+    {
+      "case": "actual-public-2.0.3-incapable",
+      "exit": 1
+    },
+    {
+      "case": "missing-capture-guide",
+      "exit": 1
+    },
+    {
+      "case": "missing-canonical-schema",
+      "exit": 1
+    },
+    {
+      "case": "missing-local-tool-pin",
+      "exit": 1
+    }
+  ],
+  "overlay": [
+    {
+      "selection": "none",
+      "emitted": false,
+      "originalProductBytesPreserved": true
+    },
+    {
+      "selection": "sdd",
+      "emitted": false,
+      "originalProductBytesPreserved": true
+    },
+    {
+      "selection": "typed-sdd",
+      "emitted": true,
+      "originalProductBytesPreserved": true
+    },
+    {
+      "selection": "spec-kit",
+      "emitted": false,
+      "originalProductBytesPreserved": true
+    },
+    {
+      "selection": "omitted",
+      "emitted": false,
+      "originalProductBytesPreserved": true
+    },
+    {
+      "case": "authored-workflow-no-force-refusal",
+      "exit": 73,
+      "allOwnerBytesPreserved": true
+    },
+    {
+      "case": "actual-external-product-provider-rendering-app",
+      "originalFileCount": 273,
+      "addedPaths": [
+        ".github/workflows/project-knowledge.yml",
+        "scripts/check-project-knowledge.py"
+      ],
+      "allOriginalOwnerBytesPreserved": true,
+      "authoredConflictExit": 73
+    },
+    {
+      "case": "actual-external-product-provider-rendering-game",
+      "originalFileCount": 312,
+      "addedPaths": [
+        ".github/workflows/project-knowledge.yml",
+        "scripts/check-project-knowledge.py"
+      ],
+      "allOriginalOwnerBytesPreserved": true,
+      "authoredConflictExit": 73
+    }
+  ],
+  "qualificationManifestOverride": {
+    "pinnedVersion": "2.1.0",
+    "published": false,
+    "purpose": "Explicit stable candidate floor; source prefix supplied separately"
+  },
+  "identityPreflight": {
+    "version": "0.18.0",
+    "publicFlatcontainerIndexStatus": 200,
+    "publicIndexContainsVersion": false,
+    "exactPublicArchiveStatus": 404,
+    "remoteMatchingTags": [],
+    "githubOrgPackageVersionsStatus": 403,
+    "githubOrgFeedIdentityUnusedVerified": false,
+    "reservationOrPublicationAuthorized": false,
+    "versionProvisional": true,
+    "requiredBeforeTagOrFeedWrite": "Protected authenticated collision lookup; choose different identity if occupied"
+  },
+  "semverClassification": {
+    "classification": "minor",
+    "reason": "Adds a template identity and opt-in typed project-knowledge CI capability while preserving product identities, lifecycle defaults, options and external archives; no patch relabeling"
+  },
+  "packQualification": {
+    "compilerInvoked": false,
+    "dotnetProcessorCount": 1,
+    "pythonProjectionManifestSha256": "07ce4d0aad0bbc80500bce45e98be661c41a718ae8d028cef5cca07a864826cc",
+    "pythonCoordinationRevision": "b1849256e07d4d5d5e7f901745c4b40a8b8d28f8",
+    "pythonCoordinationTree": "368ef76790cb6af098e55aae6df162f220d14dad"
+  }
+}
