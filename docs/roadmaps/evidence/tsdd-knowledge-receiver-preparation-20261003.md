@@ -460,3 +460,16 @@ are retained as distinct actual outputs. Source-only diagnostic/helper additions
 Python compilation, three pure controls and existing composition actionlint. CPU2 was released after
 all admitted native checker processes terminated. Bindings inner-cause qualification is still owed;
 no additional provider runtime or full matrix was attempted.
+
+### Final schema and diagnostic input boundaries
+
+The root-reviewed follow-up accepts only product manifest schema1/2 before admitting embedded-owner
+rows; schema3 is an actual causal refusal. Diagnostic retention now lstat-checks each selected path
+as a regular file before copy/read, refusing a real FIFO without opening it. The control verifies
+both an existing child exit23 remains23 and an otherwise successful child becomes failure1.
+Twelve co-producer controls and the actual installed-public2.1 checker positive passed under the
+explicit owned FSI closure with verified Core7516. Four pure diagnostic/resolver controls and
+Bash/Python checks passed. This small follow-up used no product compilation, restore, build, source
+pack or full matrix. Private public18 preparation remains unexecuted and unchanged by this follow-up.
+Attempt `templates-final-schema-diagnostic-repair-20261003` is bound by root to the actual native
+worker; usage coverage remains Unknown. New-head hosted qualification remains owed.

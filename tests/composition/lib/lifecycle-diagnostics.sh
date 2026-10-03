@@ -4,7 +4,7 @@ retain_lifecycle_diagnostics() {
   local product="$1" status="$2" destination="${FSGG_COMPOSITION_DIAGNOSTICS:-}"
   [[ -n "$destination" && -d "$product/reports" ]] || return 0
   python3 - "$product" "$destination" "$status" <<'PY'
-import json, pathlib, shutil, sys
+import json, pathlib, shutil, stat, sys
 product, destination = map(pathlib.Path, sys.argv[1:3])
 status = int(sys.argv[3]); destination = destination / 'product-lifecycle'
 destination.mkdir(parents=True, exist_ok=True)
@@ -13,7 +13,8 @@ if len(reports) > 64:
     raise SystemExit('lifecycle diagnostics exceeded the 64-report bound')
 retained = []
 for source in reports:
-    if source.is_symlink() or source.stat().st_size > 4 * 1024 * 1024:
+    metadata = source.lstat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > 4 * 1024 * 1024:
         raise SystemExit(f'lifecycle diagnostics refused unsafe/oversized report {source.name}')
     shutil.copyfile(source, destination / source.name)
     retained.append(source.name)

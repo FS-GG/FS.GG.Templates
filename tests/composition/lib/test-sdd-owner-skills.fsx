@@ -20,6 +20,11 @@ try
     let selected = SddOwnerSkills.admitResources load names product "fs-gg-fable-game"
     if selected.Count <> 12 then failwith "Wrong actual selected cardinality"
     controls <- controls + 1
+    let unknownSchema = JsonNode.Parse(Encoding.UTF8.GetString(original))
+    unknownSchema.["schemaVersion"] <- JsonValue.Create(3)
+    File.WriteAllText(manifest,unknownSchema.ToJsonString())
+    refuses "unsupported product schema3" (fun () -> admit load)
+    File.WriteAllBytes(manifest,original)
     for field,value in ["supplied-by","template/forged/"; "sha256",String.replicate 64 "0"; "materializes-when","always"] do
         let doc = JsonNode.Parse(Encoding.UTF8.GetString(original))
         let row = doc.["skills"].AsArray() |> Seq.find (fun row -> row.["id"].GetValue<string>() = "fs-gg-browser-audio")

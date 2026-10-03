@@ -30,6 +30,16 @@ class DiagnosticsTests(unittest.TestCase):
             script='. "$1/tests/composition/lib/lifecycle-diagnostics.sh"; export FSGG_COMPOSITION_DIAGNOSTICS="$3"; trap \'cleanup_lifecycle_product "$2" "$?"\' EXIT; exit 0'
             r=subprocess.run(['bash','-c',script,'fixture',str(ROOT),str(work),str(root/'retained')],capture_output=True,text=True)
             self.assertNotEqual(0,r.returncode);self.assertEqual('outside',outside.read_text())
+    def test_fifo_report_refuses_before_any_read_and_preserves_child_status(self):
+        import os
+        for status in (0,23):
+            with tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);work=root/'work';reports=work/'product/reports';reports.mkdir(parents=True)
+                os.mkfifo(reports/'sdd-evidence.json')
+                script=' . "$1/tests/composition/lib/lifecycle-diagnostics.sh"; export FSGG_COMPOSITION_DIAGNOSTICS="$3"; trap \'cleanup_lifecycle_product "$2" "$?"\' EXIT; exit "$4"'
+                r=subprocess.run(['bash','-c',script,'fixture',str(ROOT),str(work),str(root/'retained'),str(status)],capture_output=True,text=True,timeout=5)
+                self.assertEqual(status if status else 1,r.returncode);self.assertIn('unsafe/oversized',r.stderr)
+                self.assertFalse(work.exists());self.assertFalse((root/'retained/product-lifecycle/sdd-evidence.json').exists())
     def test_installed_source_resolver_uses_observed_apphost_version(self):
         import os
         with tempfile.TemporaryDirectory() as temporary:

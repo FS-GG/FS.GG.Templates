@@ -44,6 +44,7 @@ let admitResources (resource: string -> byte array) (names: string array) (produ
     let bundle = parameters |> Seq.tryFind (fun row -> text row "key" = "bundle") |> Option.map (fun row -> text row "value") |> Option.defaultValue ""
     let template = templateId.Replace("fs-gg-", "")
     let product = JsonNode.Parse(File.ReadAllText(Path.Combine(productDir, ".agents/skills/skill-manifest.json")))
+    require ([1; 2] |> List.contains (product.["schemaVersion"].GetValue<int>())) "unsupported product manifest schema"
     let rows = product.["skills"].AsArray() |> Seq.map (fun row -> text row "id", row) |> Seq.toList
     require (rows |> List.map fst |> List.distinct |> List.length = rows.Length) "duplicate product id"
     let productRows = rows |> Map.ofList

@@ -271,3 +271,9 @@ currently unknown. The bindings lane now retains bounded actual SDD reports and 
 status before cleanup, including blocked/error reports on stderr. This prepares truthful next-head
 diagnosis without changing product scripts, fixture content, lifecycle defaults or terminal gates.
 Exact-head hosted qualification and archive custody remain pending.
+
+The final source review tightened two input boundaries: co-producer admission accepts only product
+manifest schema1/2, and diagnostic retention requires an lstat-confirmed regular file before any
+copy/read. Schema3 and an actual FIFO now refuse. Diagnostic failure preserves an existing nonzero
+child status; an otherwise successful child with unsafe diagnostics fails. Hosted new-head checks
+and the bindings inner-phase diagnosis remain pending.
