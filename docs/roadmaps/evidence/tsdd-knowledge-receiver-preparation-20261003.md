@@ -174,3 +174,26 @@ mutation. Each full original snapshot remained unchanged, with no canonical stor
 the isolated CLI home acquired no Template Engine installation directory. No injected version or
 synthetic old client substitutes for this negative installed proof. Positive provider-v2 evidence
 remains owned by the capable producer and wizard join, followed by clean public artifacts.
+
+The matching private root registry fixture at
+`knowledge-floor-registry-20261003/registry/dependencies.yml` has SHA-256
+`d859b016c12052bf49efc6f1a8c91370a7a4c1d6250c709e83a250d66bd34a57`.
+Explicit file grading passed all six literal 2.1.0 floors and all 28 Python demonstration controls;
+this does not represent a protected registry flip. The new-generation lifecycle fixture now requires
+contract 2.0.0/floor 2.1.0 and proves lowered-floor/old-generation mutations while preserving defaults.
+
+[The provider v2 source receipt](../../../tests/knowledge-receiver/provider-v2-source-positive-receipt.json)
+binds the genuine compiled 2.1.0 v2 closure and nine real automatic typed provider routes, using the
+new 0.18.0 Workspace source archive and original 0.31.0 Rendering archive. All nine passed canonical
+initialization, authored guidance/ignore preservation, foreground initial Git inclusion, capture,
+stale-write refusal, Git history, export/restore, private-store separation and cacheless clone checks.
+The producer assemblies are explicitly source-only, not downloaded public 2.1.0 artifacts.
+
+[The compiled adoption validation](../../../tests/knowledge-receiver/provider-v2-adoption-validation.json)
+binds the unchanged ProviderTool source/compiled assembly, exact private registry hash and focused
+test files. The admitted serial compiler lane passed 29 main ProviderTool controls and 17 dual-reader
+foreign-field, JSON-line and scalar controls (46 total). Main/foreign/JSON runs use `FSC05_REGISTRY`
+with the staged file; scalar cases derive controlled registry fixtures from the actual selected floor.
+The drift fixture now targets the `fs-gg-ui-template` contract and accepts valid intervening comments
+and scalar spellings. No production equality/closed-field policy changed. The historical reference
+publication binding remains unchanged. Compiler lane 1 was returned to the producer after checking.

@@ -1,0 +1,317 @@
+{
+  "schema": "fsgg.knowledge-receiver-candidate-matrix/1",
+  "publishedProducer": false,
+  "sourceAcceptance": false,
+  "command": [
+    "/tmp/knowledge-release-cli-v2-2.1.0-c388951ebc1c/FS.GG.SDD.Cli"
+  ],
+  "archives": [
+    {
+      "path": "/tmp/knowledge-receiver-candidate-20261003/packages/FS.GG.UI.Template.0.31.0.nupkg",
+      "sha256": "06ddce126916565595d66896294cc81ba24f59b7e51c5da21acdc58a1dc483ef"
+    },
+    {
+      "path": "/tmp/knowledge-receiver-source018-pack-final-20261003/FS.GG.Workspace.Template.0.18.0.nupkg",
+      "sha256": "2d784a28e57d7f91e168800f40f2fe40de7036dff54a3cd63339453d42a6fcbb"
+    }
+  ],
+  "rows": [
+    {
+      "route": "provider",
+      "family": "console",
+      "variant": "default-product",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "testedArchive": "/tmp/knowledge-receiver-source018-pack-final-20261003/FS.GG.Workspace.Template.0.18.0.nupkg",
+      "receiver": "/tmp/knowledge-provider-v2-source-positive-20261003/receivers/provider-console-default-product",
+      "effectiveSelection": "typed-sdd",
+      "effectiveParameters": {
+        "lifecycle": "typed-sdd",
+        "productName": "KnowledgeReceiver",
+        "rootNamespace": "KnowledgeReceiver"
+      },
+      "automaticTypedKnowledge": true,
+      "probe": {
+        "initialCommit": "56ec280f2da9da190d244c7ac7531e427f2d3cf8",
+        "findingsCommit": "a9023d3a3d78186ce8011a3e0aee90c73e6e6d49",
+        "updatedCommit": "d07729ad159e8a9a55cdcfb3c70b07319c2c1d91",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "disposition": "passed-candidate-probe"
+    },
+    {
+      "route": "provider",
+      "family": "web",
+      "variant": "default-product",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "testedArchive": "/tmp/knowledge-receiver-source018-pack-final-20261003/FS.GG.Workspace.Template.0.18.0.nupkg",
+      "receiver": "/tmp/knowledge-provider-v2-source-positive-20261003/receivers/provider-web-default-product",
+      "effectiveSelection": "typed-sdd",
+      "effectiveParameters": {
+        "lifecycle": "typed-sdd",
+        "productName": "KnowledgeReceiver",
+        "rootNamespace": "KnowledgeReceiver"
+      },
+      "automaticTypedKnowledge": true,
+      "probe": {
+        "initialCommit": "0feb214d3b6c42e5bbf1e845e163618be4f89f24",
+        "findingsCommit": "b838ba7469de9db6258c2e3f5f125168ab1cf893",
+        "updatedCommit": "89b3dd53021d57cb912f25e42acc7a769de23254",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "disposition": "passed-candidate-probe"
+    },
+    {
+      "route": "provider",
+      "family": "fable-bindings",
+      "variant": "default-product",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "testedArchive": "/tmp/knowledge-receiver-source018-pack-final-20261003/FS.GG.Workspace.Template.0.18.0.nupkg",
+      "receiver": "/tmp/knowledge-provider-v2-source-positive-20261003/receivers/provider-fable-bindings-default-product",
+      "effectiveSelection": "typed-sdd",
+      "effectiveParameters": {
+        "lifecycle": "typed-sdd",
+        "productName": "KnowledgeReceiver",
+        "rootNamespace": "KnowledgeReceiver"
+      },
+      "automaticTypedKnowledge": true,
+      "probe": {
+        "initialCommit": "ac4fb25b4e93372cc7535fb6ce4ad23e6c0dcb77",
+        "findingsCommit": "5411b4844a02de20dafc73ae814b64a4f3286f81",
+        "updatedCommit": "e9914cdf1a101f0bebcbb2f19913234e7c9d8ddc",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "disposition": "passed-candidate-probe"
+    },
+    {
+      "route": "provider",
+      "family": "python",
+      "variant": "default-product",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "testedArchive": "/tmp/knowledge-receiver-source018-pack-final-20261003/FS.GG.Workspace.Template.0.18.0.nupkg",
+      "receiver": "/tmp/knowledge-provider-v2-source-positive-20261003/receivers/provider-python-default-product",
+      "effectiveSelection": "typed-sdd",
+      "effectiveParameters": {
+        "lifecycle": "typed-sdd",
+        "productName": "KnowledgeReceiver"
+      },
+      "automaticTypedKnowledge": true,
+      "probe": {
+        "initialCommit": "f5b93ff6e97f69f449e154fba9e47ea743a3f935",
+        "findingsCommit": "2605f6cdf4fd40b93ba86d790f5d58906577979d",
+        "updatedCommit": "d8eb1c7bdbb7bd139590d73c618a5f40198d7dd6",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "disposition": "passed-candidate-probe"
+    },
+    {
+      "route": "provider",
+      "family": "fable-game",
+      "variant": "player",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "testedArchive": "/tmp/knowledge-receiver-source018-pack-final-20261003/FS.GG.Workspace.Template.0.18.0.nupkg",
+      "receiver": "/tmp/knowledge-provider-v2-source-positive-20261003/receivers/provider-fable-game-player",
+      "effectiveSelection": "typed-sdd",
+      "effectiveParameters": {
+        "bundle": "player",
+        "lifecycle": "typed-sdd",
+        "productName": "KnowledgeReceiver",
+        "rootNamespace": "KnowledgeReceiver"
+      },
+      "automaticTypedKnowledge": true,
+      "probe": {
+        "initialCommit": "c84c66c38b32ca19d794ab310cde17a6430b59c5",
+        "findingsCommit": "f92f3067c243c0c63de950fdef1c51828233a809",
+        "updatedCommit": "4732e6bd8954b5a1adfc15947146e805aedbd56d",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "disposition": "passed-candidate-probe"
+    },
+    {
+      "route": "provider",
+      "family": "fable-game",
+      "variant": "complete",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "testedArchive": "/tmp/knowledge-receiver-source018-pack-final-20261003/FS.GG.Workspace.Template.0.18.0.nupkg",
+      "receiver": "/tmp/knowledge-provider-v2-source-positive-20261003/receivers/provider-fable-game-complete",
+      "effectiveSelection": "typed-sdd",
+      "effectiveParameters": {
+        "bundle": "complete",
+        "lifecycle": "typed-sdd",
+        "productName": "KnowledgeReceiver",
+        "rootNamespace": "KnowledgeReceiver"
+      },
+      "automaticTypedKnowledge": true,
+      "probe": {
+        "initialCommit": "69e5344895d03ef471aa0efc87aedb4f4d5b175e",
+        "findingsCommit": "983c5419803529c13857f84bd581bcea53bd622a",
+        "updatedCommit": "1815e745fede032cb198d31ee00b2034ba89a33c",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "disposition": "passed-candidate-probe"
+    },
+    {
+      "route": "provider",
+      "family": "fable-game",
+      "variant": "legacy",
+      "descriptorSource": "FS.GG.Workspace.Template::0.18.0",
+      "testedArchive": "/tmp/knowledge-receiver-source018-pack-final-20261003/FS.GG.Workspace.Template.0.18.0.nupkg",
+      "receiver": "/tmp/knowledge-provider-v2-source-positive-20261003/receivers/provider-fable-game-legacy",
+      "effectiveSelection": "typed-sdd",
+      "effectiveParameters": {
+        "lifecycle": "typed-sdd",
+        "productName": "KnowledgeReceiver",
+        "rootNamespace": "KnowledgeReceiver",
+        "svgFoundation": "false"
+      },
+      "automaticTypedKnowledge": true,
+      "probe": {
+        "initialCommit": "43f555ee332abb02c9d6e86e64a1c34841371c70",
+        "findingsCommit": "af19759b06f87ea59648e4409f679aee31101d60",
+        "updatedCommit": "a3f493f8b098ee43375e54281991cad9ba158979",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "disposition": "passed-candidate-probe"
+    },
+    {
+      "route": "provider",
+      "family": "rendering",
+      "variant": "app",
+      "descriptorSource": "FS.GG.UI.Template::0.31.0",
+      "testedArchive": "/tmp/knowledge-receiver-candidate-20261003/packages/FS.GG.UI.Template.0.31.0.nupkg",
+      "receiver": "/tmp/knowledge-provider-v2-source-positive-20261003/receivers/provider-rendering-app",
+      "effectiveSelection": "typed-sdd",
+      "effectiveParameters": {
+        "designSystem": "wcag",
+        "lifecycle": "typed-sdd",
+        "productName": "KnowledgeReceiver",
+        "profile": "app",
+        "rootNamespace": "KnowledgeReceiver"
+      },
+      "automaticTypedKnowledge": true,
+      "probe": {
+        "initialCommit": "861cf55ad70b5343064724036d305c793c8beaab",
+        "findingsCommit": "3f118a95dc8f4cd1c0d5b1bdc67726ee69fe2092",
+        "updatedCommit": "c42ba6c85ab12a7565665a1a8724368982568ac4",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "disposition": "passed-candidate-probe"
+    },
+    {
+      "route": "provider",
+      "family": "rendering",
+      "variant": "game",
+      "descriptorSource": "FS.GG.UI.Template::0.31.0",
+      "testedArchive": "/tmp/knowledge-receiver-candidate-20261003/packages/FS.GG.UI.Template.0.31.0.nupkg",
+      "receiver": "/tmp/knowledge-provider-v2-source-positive-20261003/receivers/provider-rendering-game",
+      "effectiveSelection": "typed-sdd",
+      "effectiveParameters": {
+        "designSystem": "wcag",
+        "lifecycle": "typed-sdd",
+        "productName": "KnowledgeReceiver",
+        "profile": "game",
+        "rootNamespace": "KnowledgeReceiver"
+      },
+      "automaticTypedKnowledge": true,
+      "probe": {
+        "initialCommit": "18d54a807b83764076b92133c5bed0e3541655eb",
+        "findingsCommit": "f712571598579743ffa8f79f5cbb5c4dd301faf7",
+        "updatedCommit": "0b7bbbfbb37a48520e79c2e25b647ffb4953ce80",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "disposition": "passed-candidate-probe"
+    }
+  ],
+  "producerVersion": "2.1.0",
+  "producerPublished": false,
+  "producerAssemblySha256": {
+    "FS.GG.SDD.Cli": "556389b1bf9b4b371dd9aa1746fe0152f64980055da2e6d6102d91bfc0c88a80",
+    "FS.GG.SDD.Knowledge": "6b90f04aed3ed96c42c5d6da8eddec17c3346cc567e594dcfd1c77164431021b",
+    "FS.GG.SDD.Commands": "c388951ebc1c004eecb6cee526ff02ff1ff0f68c0f9f4055779d5a8c3023f6c2"
+  },
+  "matchingRegistryFixture": {
+    "path": "/home/developer/projects/worktrees/knowledge-floor-registry-20261003/registry/dependencies.yml",
+    "sha256": "d859b016c12052bf49efc6f1a8c91370a7a4c1d6250c709e83a250d66bd34a57",
+    "protectedActivation": false
+  }
+}

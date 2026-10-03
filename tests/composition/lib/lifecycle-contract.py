@@ -24,7 +24,8 @@ LIFECYCLE = re.compile(
     r"^        default:\s*(sdd|typed-sdd)\s*$",
     re.MULTILINE,
 )
-FLOOR = re.compile(r'^      version:\s*"1\.4\.0-preview\.1"', re.MULTILINE)
+FLOOR = re.compile(r'^      version:\s*"2\.1\.0"', re.MULTILINE)
+CONTRACT = re.compile(r'^    contractVersion:\s*"2\.0\.0"', re.MULTILINE)
 
 
 def inspect(root: Path) -> list[str]:
@@ -45,6 +46,8 @@ def inspect(root: Path) -> list[str]:
         lifecycle_match = LIFECYCLE.search(text)
         if not lifecycle_match or lifecycle_match.group(1) != expected_default:
             failures.append(f"lifecycle.parameterMissingOrWrongDefault:{label}")
+        if not CONTRACT.search(text):
+            failures.append(f"lifecycle.providerGenerationWrong:{label}")
         if not FLOOR.search(text):
             failures.append(f"lifecycle.minimumCompilerWrong:{label}")
 
@@ -72,6 +75,8 @@ def inspect(root: Path) -> list[str]:
 
 def self_test(root: Path) -> list[str]:
     cases = (
+        ("wrong-provider-generation", "lifecycle.providerGenerationWrong", lambda p: p.write_text(p.read_text().replace('contractVersion: "2.0.0"', 'contractVersion: "1.1.0"'))),
+        ("wrong-provider-capability-floor", "lifecycle.minimumCompilerWrong", lambda p: p.write_text(p.read_text().replace('version: "2.1.0"', 'version: "2.0.3"'))),
         ("dropped-provider-parameter", "lifecycle.parameterMissingOrWrongDefault", lambda p: p.write_text(p.read_text().replace("      - key: lifecycle", "      - key: dropped"))),
         ("wrong-provider-default", "lifecycle.parameterMissingOrWrongDefault", lambda p: p.write_text(p.read_text().replace("        default: sdd", "        default: none"))),
         ("fable-wrong-provider-default", "lifecycle.parameterMissingOrWrongDefault", lambda p: p.write_text(p.read_text().replace("        default: typed-sdd", "        default: sdd"))),

@@ -2,6 +2,7 @@
 """Compare copied live descriptor/registry scalar refusals in both provider readers."""
 
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import tempfile
@@ -9,7 +10,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 PROJECT = ROOT / "src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj"
 CHECKER = ROOT / "scripts/check-provider-floors.py"
-SELECTED = '      version: "1.4.0-preview.1"'
+SELECTED = re.search(r'^      version: "[^"]+"', (ROOT / "providers/web.providers.yml").read_text(), re.MULTILINE).group(0)
+UNQUOTED = SELECTED.replace('"', '')
 REGISTRY_TEXT = "contracts:\n  - id: fs-gg-ui-template\n    minimum-fsgg-sdd:\n" + SELECTED + "\n"
 
 subprocess.run(["dotnet", "build", str(PROJECT), "-c", "Release", "--nologo"],
@@ -37,9 +39,9 @@ def run(providers: Path, registry: Path, accepted: bool, label: str) -> None:
 for label, replacement, accepted in [
     ("selected quoted", SELECTED, True),
     ("quoted comment", SELECTED + " # selected", True),
-    ("unquoted comment", "      version: 1.4.0-preview.1 # selected", True),
+    ("unquoted comment", UNQUOTED + " # selected", True),
     ("quoted foreign suffix", SELECTED + " foreign", False),
-    ("unquoted foreign suffix", "      version: 1.4.0-preview.1 foreign", False),
+    ("unquoted foreign suffix", UNQUOTED + " foreign", False),
 ]:
     with tempfile.TemporaryDirectory(prefix="fsc05-scalar-tail-") as folder:
         providers = Path(folder) / "providers"
