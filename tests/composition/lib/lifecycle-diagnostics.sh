@@ -36,3 +36,29 @@ cleanup_lifecycle_product() {
   rm -rf "$work"
   exit "$status"
 }
+
+track_bindings_lifecycle_evidence() {
+  local root="$1" relative=reports/bindings.junit.xml top head blob
+  root="$(cd "$root" && pwd)" || return 1
+  [[ -d "$root/.git" && -f "$root/$relative" && ! -L "$root/$relative" ]] || return 1
+  top="$(lifecycle_git -C "$root" rev-parse --show-toplevel)" || return 1
+  [[ "$top" == "$root" ]] || return 1
+  # The generated report is ignored build output until the foreground caller explicitly owns
+  # this one durable evidence artifact. Never stage caches or the whole generated product here.
+  lifecycle_git -C "$root" add --force -- "$relative" || return 1
+  lifecycle_git -C "$root" -c user.name='FS-GG composition fixture' \
+    -c user.email='composition-fixture@fs-gg.invalid' -c commit.gpgsign=false \
+    commit --quiet --only -m 'Record actual bindings lifecycle evidence' -- "$relative" || return 1
+  head="$(lifecycle_git -C "$root" rev-parse HEAD)" || return 1
+  blob="$(lifecycle_git -C "$root" rev-parse "HEAD:$relative")" || return 1
+  [[ "$blob" == "$(lifecycle_git -C "$root" hash-object "$root/$relative")" ]] || return 1
+  if [[ -n "${FSGG_COMPOSITION_DIAGNOSTICS:-}" ]]; then
+    mkdir -p "$FSGG_COMPOSITION_DIAGNOSTICS" || return 1
+    python3 - "$root/$relative" "$head" "$blob" >"$FSGG_COMPOSITION_DIAGNOSTICS/bindings-evidence-git.json" <<'PY'
+import hashlib, json, pathlib, sys
+file = pathlib.Path(sys.argv[1])
+print(json.dumps({'path': 'reports/bindings.junit.xml', 'head': sys.argv[2], 'blob': sys.argv[3],
+                  'sha256': hashlib.sha256(file.read_bytes()).hexdigest()}))
+PY
+  fi
+}

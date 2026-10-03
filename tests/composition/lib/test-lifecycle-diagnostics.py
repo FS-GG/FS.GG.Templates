@@ -40,6 +40,26 @@ class DiagnosticsTests(unittest.TestCase):
                 r=subprocess.run(['bash','-c',script,'fixture',str(ROOT),str(work),str(root/'retained'),str(status)],capture_output=True,text=True,timeout=5)
                 self.assertEqual(status if status else 1,r.returncode);self.assertIn('unsafe/oversized',r.stderr)
                 self.assertFalse(work.exists());self.assertFalse((root/'retained/product-lifecycle/sdd-evidence.json').exists())
+    def test_actual_ignored_junit_becomes_tracked_committed_without_other_staged_inputs(self):
+        import os
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);product=root/'product';product.mkdir();reports=product/'reports';reports.mkdir()
+            artifact=reports/'bindings.junit.xml';body='<testsuite tests="1" failures="0"/>\n';artifact.write_text(body)
+            (product/'.gitignore').write_text('reports/\n');(product/'baseline').write_text('baseline')
+            git=lambda *args: subprocess.run(['git','-C',str(product),*args],capture_output=True,text=True)
+            self.assertEqual(0,git('init','--quiet').returncode)
+            self.assertEqual(0,git('add','--','.gitignore','baseline').returncode)
+            self.assertEqual(0,git('-c','user.name=fixture','-c','user.email=fixture@example.invalid','-c','commit.gpgsign=false','commit','--quiet','-m','baseline').returncode)
+            self.assertNotEqual(0,git('ls-files','--error-unmatch','--','reports/bindings.junit.xml').returncode)
+            (product/'unrelated-staged').write_text('must remain staged');self.assertEqual(0,git('add','--','unrelated-staged').returncode)
+            env=dict(os.environ,FSGG_COMPOSITION_DIAGNOSTICS=str(root/'diagnostics'))
+            script='. "$1/tests/composition/lib/lifecycle-matrix.sh"; . "$1/tests/composition/lib/lifecycle-diagnostics.sh"; if track_bindings_lifecycle_evidence "$2"; then echo TRACKED; else exit 29; fi'
+            r=subprocess.run(['bash','-c',script,'fixture',str(ROOT),str(product)],env=env,capture_output=True,text=True)
+            self.assertEqual(0,r.returncode,r.stderr);self.assertEqual(body,artifact.read_text());self.assertEqual(body,git('show','HEAD:reports/bindings.junit.xml').stdout)
+            self.assertEqual(['reports/bindings.junit.xml'],git('diff-tree','--no-commit-id','--name-only','-r','HEAD').stdout.splitlines())
+            self.assertEqual('unrelated-staged',git('diff','--cached','--name-only').stdout.strip())
+            proof=json.loads((root/'diagnostics/bindings-evidence-git.json').read_text());self.assertEqual(git('rev-parse','HEAD').stdout.strip(),proof['head'])
+            artifact.unlink();r=subprocess.run(['bash','-c',script,'fixture',str(ROOT),str(product)],env=env,capture_output=True,text=True);self.assertNotEqual(0,r.returncode)
     def test_installed_source_resolver_uses_observed_apphost_version(self):
         import os
         with tempfile.TemporaryDirectory() as temporary:

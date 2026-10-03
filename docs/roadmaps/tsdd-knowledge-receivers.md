@@ -277,3 +277,13 @@ manifest schema1/2, and diagnostic retention requires an lstat-confirmed regular
 copy/read. Schema3 and an actual FIFO now refuse. Diagnostic failure preserves an existing nonzero
 child status; an otherwise successful child with unsafe diagnostics fails. Hosted new-head checks
 and the bindings inner-phase diagnosis remain pending.
+
+#### Native55016 durable bindings evidence prerequisite
+
+Run37132193618 at55016 finished118 passed/one failed. Retained bindings phase JSON now identifies
+the exact failure: evidence refused `reports/bindings.junit.xml` as untracked by the Git candidate,
+after analysis reached implementationReady. The foreground test caller now force-adds and commits
+only that exact real generated report before invoking the unchanged product lifecycle. It retains
+actual Git argv/status and the committed blob/digest. A real ignored/untracked report control proves
+tracking/commit, unchanged bytes and exclusion of unrelated staged inputs. Terminal verify/ship
+remain mandatory; new-head hosted qualification is still owed.

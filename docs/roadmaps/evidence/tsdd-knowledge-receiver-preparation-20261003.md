@@ -473,3 +473,28 @@ Bash/Python checks passed. This small follow-up used no product compilation, res
 pack or full matrix. Private public18 preparation remains unexecuted and unchanged by this follow-up.
 Attempt `templates-final-schema-diagnostic-repair-20261003` is bound by root to the actual native
 worker; usage coverage remains Unknown. New-head hosted qualification remains owed.
+
+### Retained native55016 bindings evidence diagnosis
+
+Actual composition run `37132193618` at `55016eb98af7c663668d0dd9a8bbbbe93c182259`
+finished118 passed/one failed. Artifact `11277608475` was authenticated-read, run/head-bound and
+verified against original server ZIP SHA
+`852f680bce435744971e8f8d3c51ef87c4078dca28852b0f3e85b4c9005aad82`.
+Retained `sdd-analyze.json` reached implementationReady; actual `sdd-evidence.json` then blocked
+with needsEvidenceCorrection and sole error `evidence.localArtifactNotTracked`, citing
+`reports/bindings.junit.xml`. All five declarations were invalid; verify/ship were not reached.
+The retained child status was1. This replaces the earlier unknown inner cause with observed proof.
+
+The caller's existing initial Git commit tracked only generated-candidates. Actual clean JUnit
+creation subsequently produced an ignored, untracked report. The minimal repair explicitly stages
+and commits only that exact report in the existing private product repository, before its unchanged
+`npm run test:lifecycle`. Report bytes/path, product API/lifecycle script and original terminal
+assertions are unchanged. Actual Git argv/status and committed blob/content digest are retained.
+A pure real-Git control begins with the ignored/untracked report, proves the committed bytes and
+single-path commit, and proves unrelated staged input remains outside that commit; missing-report
+refusal also fires. All five diagnostic/resolver/Git controls and Bash/Python checks passed.
+No CLR/compiler, product runtime, restore/build/pack or full matrix was run in this minimal window.
+The eight frozen assets and thirty preserved inputs remain unchanged. New-head native qualification
+is pending; the original failed run/artifact/history is retained. Attempt
+`templates667-retained-final-schema-native-failure-repair-20261003` is root-bound to the actual
+native worker; usage coverage remains Unknown. Private public18 preparation is unchanged/unexecuted.
