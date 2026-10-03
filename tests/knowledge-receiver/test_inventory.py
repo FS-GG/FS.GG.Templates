@@ -19,7 +19,7 @@ class InventoryTests(unittest.TestCase):
             self.assertIn('minimumFsggSdd:\n      version: "2.1.0"', descriptor)
         for row in rows.values():
             self.assertIn('contractVersion: "2.0.0"', (ROOT / row["descriptor"]).read_text())
-        self.assertEqual(rows["rendering"]["source"], "FS.GG.UI.Template::0.31.0")
+        self.assertEqual(rows["rendering"]["source"], "FS.GG.UI.Template::0.32.0")
         self.assertEqual([r["provider"] for r in rows.values() if r["external"]], ["rendering"])
 
     def mutate(self, relative, transform):

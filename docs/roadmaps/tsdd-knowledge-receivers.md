@@ -183,6 +183,37 @@ that original archive. Separate Rendering 0.32.0 adoption, Wizard 0.13.0 composi
 0.18.0 publication and protected activation remain root-owned joins. This ready window does
 not mark public Templates adoption or the complete feature delivered.
 
+## Deliberate public Rendering 0.32 provider adoption source window
+
+TSDD-KNOWLEDGE-01.4 selects published `FS.GG.UI.Template::0.32.0` for the
+external Rendering provider, with public acceptance retained under .5. Rendering
+PR #1366 prepared source `730923fe9d27174e879566f21dab14a1b03d761a`;
+protected publisher `37106323610` read back all nineteen original coherent archives
+from both feeds. Workspace.Template remains source/public 0.18.0 and SDD remains
+the capable published 2.1.0 producer. Historical 0.31 receipts and archives retain
+their original subjects and do not qualify this newly selected tuple.
+
+The first workspace effect is the descriptor's merge to main: actual main-descriptor
+callers, including installed Wizard 0.12, then select public Rendering 0.32 for new
+app/game creation. No lifecycle/default selection changes and no existing project
+is rewritten. The separately packed Fable reference keeps its current pins and
+`FsGgExternalReferenceCandidate=false`; its broader adoption belongs to the existing
+FABLE-ADOPT-01.4 installed join. No Workspace.Template successor is selected here.
+
+This bounded source window changes only the descriptor, its current README mirror,
+the current inventory assertion and this owning evidence. Pure inventory and
+effective-provider controls verify the selection while preserving the owned 0.18
+pins, stable 2.1 floor, provider contract and lifecycle choices. Exact-head native
+composition and the root-owned matching registry consumer selection remain pending.
+
+Separate admission must qualify original public 0.32 app/game archives with public
+SDD 2.1 and the unchanged public Workspace 0.18 overlay: preserving initialization,
+ordinary foreground commits, pinned root/clone CI, cacheless retrieval, history and
+recovery, budget enforcement and collision/insufficient-producer refusals. The old
+0.31 installed matrix and Wizard 0.13's original-0.31 qualification remain historical
+evidence. Public Wizard 0.13 qualification/publication is its own join; this source
+selection neither requires nor establishes that outcome, or complete .4/.5 closure.
+
 ## Native fixture repair and live descriptor selection
 
 Same-head native composition and release-route checks refused the six 2.1.0 descriptor floors
