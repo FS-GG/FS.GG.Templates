@@ -197,3 +197,25 @@ with the staged file; scalar cases derive controlled registry fixtures from the 
 The drift fixture now targets the `fs-gg-ui-template` contract and accepts valid intervening comments
 and scalar spellings. No production equality/closed-field policy changed. The historical reference
 publication binding remains unchanged. Compiler lane 1 was returned to the producer after checking.
+
+## Current D.5 source consumer
+
+The live `svg-release-d5-source.yml` caller already packs the current Templates project and reads
+the current Fable provider descriptor through `verify-svg-release-d5-source.sh`. Its historical
+2.0.2 tool selection could not admit the prepared provider v2 contract. The wrapper now selects
+2.1.0 from public NuGet, requires the installed CLI to report that exact version, and records the
+observed version in its existing source-candidate receipt. The workflow needs no change.
+
+[The source-join receipt](../../../tests/knowledge-receiver/current-d5-source-join-receipt.json)
+records two offline behavioral tests: a shell fixture checks exact admission and rejects old or
+malformed identities; the real receipt-emission block retains the candidate digest and pending
+publication/activation scope. Four frozen public-pin tests, shell syntax and whitespace checks
+passed. Eight workflow, public-wrapper, pin-helper and historical-report files are byte-identical
+to the preceding receiver commit. The public D.5 schema-1 tuple remains Templates 0.15.0, SDD 2.0.2
+and Wizard 0.12.0; historical public D and rollback identities also remain unchanged.
+
+This check performed no build, pack, installed-product qualification or publication. The actual
+full current D.5 run still requires genuine coherent SDD 2.1.0 dual-feed readback and an admitted
+compiler/runtime lane. The offline fixture does not establish public tool availability or receiver
+adoption. Existing 0.18.0 source preparation, provider defaults and original Rendering bytes remain
+unchanged.

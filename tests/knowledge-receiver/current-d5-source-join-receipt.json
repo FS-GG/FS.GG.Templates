@@ -1,0 +1,81 @@
+{
+  "schema": "fsgg.knowledge-current-d5-source-join/1",
+  "status": "source-preparation-only",
+  "receiverBase": "dc01285e0e1ae18a7f89a0b2ee3f6b6dc813cc58",
+  "attempt": "knowledge-current-d5-source-join-20261003",
+  "telemetry": {
+    "begin": "not-configured",
+    "usage": "Unknown"
+  },
+  "selectedSddVersion": "2.1.0",
+  "selection": "Exact public NuGet tool install in the live source wrapper; no injected apphost or version override.",
+  "offlineChecks": {
+    "identityBoundary": "passed: 2.1.0 admitted; 2.0.2, 2.1.01 and multiline lookalike refused using a shell fixture, not a published tool",
+    "receiptEmission": "passed: fixture archive digest, observed 2.1.0 and source-candidate/pending scope",
+    "frozenPublicPins": "4 passed",
+    "shellSyntax": "passed",
+    "diffWhitespace": "passed"
+  },
+  "currentInputs": [
+    {
+      "path": "tests/composition/fable-game/verify-svg-release-d5-source.sh",
+      "sha256": "eb1f233ee78579962be142721cf9f1c4579b7164b2f905cd771592894cf85086"
+    },
+    {
+      "path": "tests/knowledge-receiver/test-current-d5-source.py",
+      "sha256": "495688ab559ce5e7fe91f48d3237cf1ca0b1fa26efbb8ca50df3cd3a6c46e6a2"
+    }
+  ],
+  "preserved": [
+    {
+      "path": "tests/composition/fable-game/d5-public-pins.py",
+      "sha256": "482c481b681d5ba053c9d9a9927e7020ccee1b71d58b89a3f5e82965e2358cc2",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": "tests/composition/fable-game/test-d5-public-pins.py",
+      "sha256": "ab32fc8cb591e9d35865434294a92c23aeec7a26556ac12ecb3de3fec260033b",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": "tests/composition/fable-game/verify-svg-release-d5-public-default.sh",
+      "sha256": "4e2bf501b55f2c65cf1401564db3a49a37e732b471b9aadb2ea837722165514b",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": "tests/composition/fable-game/verify-svg-release-d5-receiver.sh",
+      "sha256": "b5ec08e6745467110fa64271a84787ebad200c9928162f05fbaaf617f7f97592",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": ".github/workflows/svg-release-d5-source.yml",
+      "sha256": "e184ae8c29b55cad8ab7aa99f7fc39ee59d1ef23fff029236dfe3134eefb852a",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": ".github/workflows/svg-release-d5-public-default.yml",
+      "sha256": "0504f9c067bb4727a257ef69af932133b404d4e991b6eb5ba19738d5aac74429",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": ".github/workflows/svg-release-d-public.yml",
+      "sha256": "e8c545cfa84cece3b51ed1aafe1f992d5c13190ec865fa6905c49c90dc468c0a",
+      "byteExactToReceiverBase": true
+    },
+    {
+      "path": "docs/reports/2026-09-28-svg-release-d5-source-candidate.md",
+      "sha256": "74dd0ec3ae11b85ab12db8aa9fa709b8a538cac71f32c79f3d018cea12c92701",
+      "byteExactToReceiverBase": true
+    }
+  ],
+  "notExecuted": [
+    "CLR/build/pack",
+    "published SDD 2.1.0 install",
+    "full D.5 source qualification"
+  ],
+  "pending": [
+    "genuine coherent SDD 2.1.0 dual-feed publication/readback",
+    "admitted full source D.5 compiler/runtime qualification"
+  ],
+  "publicAdoptionClaim": false
+}
