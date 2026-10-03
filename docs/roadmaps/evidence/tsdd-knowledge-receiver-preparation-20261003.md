@@ -260,3 +260,51 @@ Lane 2 was released after every compiler/native process completed. Telemetry att
 Templates 0.18.0 publication/public adoption, Wizard 0.13.0 composition, separate Rendering
 0.32.0 adoption and protected activation remain pending. The six-family proof deliberately keeps
 the literal Rendering 0.31.0 descriptor and archive; it does not relabel them as 0.32.0.
+
+## Same-PR native fixture repair
+
+PR 667 at `75afb2f91fa930a2f875ff940e3d6cc9c35be059` passed native current D.5
+(`37119635114`) and release packing. Native composition `37119635130` and release route
+`37119635139` refused all six provider floors against the live earlier registry value. Typed run
+`37119635134` retained `clean-scaffold.json`: actual public 1.7.0 refused today's contract-2
+descriptor with `scaffold.providerVersionUnsupported`. The two Release C runs
+`37119635121`/`37119635133` retained a shell failure but omitted their failing scaffold JSON.
+Narrow actual-public 1.7.0 probes reproduced that same pre-effect refusal for source 0.18.0 and
+public 0.13.0, preserving target bytes. Their preceding raw-template assertions passed. These
+reproductions remain distinct from the missing native reports.
+
+The [historical descriptor selector](../../../tests/composition/fable-game/historical-provider.py)
+now checks exact archive hash, package ID/version and nuspec source before fetching immutable
+owner bytes and checking their descriptor hash. Actual repaired caller commands read public
+0.13.0/0.11.0 archives and retrieved descriptors with hashes
+`e3f3aa1c77af9f9e559c376ffe1ad8131e205c0d68d81b4556f617b796636309` and
+`aada25f0300421ebc10efc79414ce5c697e6a4e31d28b9c45d69c5c01d559660`, respectively.
+Those historical descriptors retain contract 1.1.0, floor 1.4.0-preview.1 and omission `sdd`.
+Earlier narrow positive probes with these exact joined subjects and public 1.7.0 succeeded;
+the complete repaired native gates have not yet run.
+
+Current-source Release C keeps today's descriptor and source package, selects exact public
+2.1.0 and checks observed identity before source preparation, packing and Template Engine effects.
+Only its newly emitted source receipt uses `routes.sdd21` with the observed version. All historical
+receipts remain unchanged. All three repaired scaffold wrappers retain and echo the actual failed
+JSON and return its original status; the two Release C workflows additionally upload the three
+existing SDD reports. Their original Rendering/Game/Net/Audio API and formal/model subjects are
+unchanged, as are the eight frozen public D/D.5 assets and the retained 0.10.0 receiver route.
+
+[Six pure behavioral tests](../../../tests/composition/fable-game/test-historical-provider.py)
+exercise archive/source/hash refusal before network/output, exact immutable retrieval, authored
+output preservation, actual historical selector functions, source-version lookalikes before
+effects, the new source receipt's observed-version boundary, and failed-report/original-status retention.
+Actual selector commands, Bash/Python/YAML
+checks and input-preservation proof qualify source preparation only. Compiler/native gates await
+root scheduling and protected floor readback; no local compiler lane was consumed by this repair.
+The [source repair receipt](../../../tests/knowledge-receiver/historical-fixture-source-repair.json)
+binds the changed callers, custody helper, controls, workflow hashes and unchanged frozen assets.
+
+Installed Wizard 0.12.0 reads Templates `main` directly, independently of the registry minimum.
+The source-pin merge therefore exposes the unpublished 0.18.0 pins immediately to those callers.
+Root owns the prepared release and bounded unavailable-creation interval before publication;
+source delivery is not deferred runtime selection merely because registry package pins stay old.
+Telemetry attempt `templates-public21-historical-fixture-repair-20261003` is not configured and
+usage remains Unknown. No registry equality, lifecycle default, historical public tuple or
+publication authority changed in this source repair.

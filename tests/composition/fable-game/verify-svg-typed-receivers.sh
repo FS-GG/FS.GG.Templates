@@ -53,6 +53,12 @@ for version in "$template_version" "$older_template_version"; do
 done
 [[ "$(sha "$out/feed/FS.GG.Workspace.Template.$template_version.nupkg")" == "$template_public_sha" ]] || fail 'Templates 0.11.0 public archive drifted'
 [[ "$(sha "$out/feed/FS.GG.Workspace.Template.$older_template_version.nupkg")" == "$older_template_public_sha" ]] || fail 'Templates 0.10.0 public archive drifted'
+historical_provider="$out/build/fable-game-${template_version}.providers.yml"
+python3 "$root/tests/composition/fable-game/historical-provider.py" \
+  --archive "$out/feed/FS.GG.Workspace.Template.$template_version.nupkg" --version "$template_version" \
+  --revision "$templates_revision" --archive-sha256 "$template_public_sha" \
+  --descriptor-sha256 aada25f0300421ebc10efc79414ce5c697e6a4e31d28b9c45d69c5c01d559660 \
+  --output "$historical_provider"
 
 cat >"$out/Public.NuGet.Config" <<EOF
 <configuration><packageSources><clear/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>
@@ -102,8 +108,10 @@ scaffold() {
   local params=(--param productName=TypedReceiver --param rootNamespace=TypedReceiver --param lifecycle="$lifecycle")
   [[ "$include_svg" == true ]] && params+=(--param svgFoundation=true)
   pin_provider "$destination" "$package" "$descriptor"
+  local status=0
   DOTNET_CLI_HOME="$out/homes/$receiver_name" "$cli" scaffold --root "$destination" --provider fable-game --no-update --json \
-    "${params[@]}" >"$report"
+    "${params[@]}" >"$report" || status=$?
+  if (( status != 0 )); then cat "$report" >&2; return "$status"; fi
   jq -e '.outcome == "succeeded" and .scaffold.providerInvoked == true' "$report" >/dev/null
   jq -e --arg lifecycle "$lifecycle" '[.effectiveParameters[] | select(.key == "lifecycle" and .value == $lifecycle)] | length == 1' \
     "$destination/.fsgg/scaffold-provenance.json" >/dev/null
@@ -116,9 +124,9 @@ scaffold() {
 
 current_package="$out/feed/FS.GG.Workspace.Template.$template_version.nupkg"
 old_package="$out/feed/FS.GG.Workspace.Template.$older_template_version.nupkg"
-scaffold "$out/clean" "$current_package" "$out/clean-scaffold.json" typed-sdd true "$root/providers/fable-game.providers.yml"
+scaffold "$out/clean" "$current_package" "$out/clean-scaffold.json" typed-sdd true "$historical_provider"
 scaffold "$out/retained" "$old_package" "$out/retained-scaffold.json" typed-sdd false "$out/build/fable-game-${older_template_version}.providers.yml"
-scaffold "$out/sdd-none" "$current_package" "$out/sdd-none-scaffold.json" none true "$root/providers/fable-game.providers.yml"
+scaffold "$out/sdd-none" "$current_package" "$out/sdd-none-scaffold.json" none true "$historical_provider"
 
 wizard_dir="$out/tools/wizard"
 DOTNET_CLI_HOME="$out/homes/tool" dotnet tool install FS.GG.NewSddWorkspace --version "$wizard_version" \

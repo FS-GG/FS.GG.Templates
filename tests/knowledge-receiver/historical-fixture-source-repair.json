@@ -1,0 +1,130 @@
+{
+  "schema": "fsgg.templates.historical-fixture-source-repair/1",
+  "attempt": "templates-public21-historical-fixture-repair-20261003",
+  "base": "75afb2f91fa930a2f875ff940e3d6cc9c35be059",
+  "telemetry": {
+    "begin": "not-configured",
+    "usage": "Unknown"
+  },
+  "status": "source-preparation-qualified-native-pending",
+  "historicalSelectors": [
+    {
+      "caller": "verify-svg-preview-c-public.sh",
+      "archiveSha256": "ab72f74a76d59ad4be6f11f367bbdf1b27f8bdedae7a2e3afecbe0e4b3fac10c",
+      "descriptorSha256": "e3f3aa1c77af9f9e559c376ffe1ad8131e205c0d68d81b4556f617b796636309",
+      "actualSelectorCommandSha256": "d0fe320441f42332c2410ad95a326cf17a3a0e69a0d7e040bf37165cb0586b9d"
+    },
+    {
+      "caller": "verify-svg-typed-receivers.sh",
+      "archiveSha256": "41fa91ba1674a4c1140c4054d4e76cff00cd514462dcdb3d9b3e3cdfa22ba4d9",
+      "descriptorSha256": "aada25f0300421ebc10efc79414ce5c697e6a4e31d28b9c45d69c5c01d559660",
+      "actualSelectorCommandSha256": "55acf719737a44da1c6559e6fd4b29ed87ceee4a59d39db318fce52675e2eb39"
+    }
+  ],
+  "sourceC": {
+    "selectedPublicCli": "2.1.0",
+    "observedVersionGateBefore": "source preparation, pack and Template Engine effects",
+    "newReceiptRoute": "sdd21",
+    "fullNativeRun": "pending"
+  },
+  "pureControls": {
+    "behavioralTests": 6,
+    "sourceVersionRefusals": [
+      "1.7.0",
+      "2.1.00",
+      "2.1.0 with extra line"
+    ],
+    "failedScaffoldOriginalExit": 23,
+    "bashSyntax": "passed",
+    "pythonSyntax": "passed",
+    "workflowActionlint": "1.7.12 passed with external shellcheck/pyflakes disabled"
+  },
+  "inputs": {
+    "tests/composition/fable-game/historical-provider.py": {
+      "sha256": "32c573adea8361100bb18e4d1cd0e9d01620b1a066c3db7f5ac176739a7ab816",
+      "gitBlob": "9f11b0ec7c0c141cd74923cbf56861cc3256d5ba"
+    },
+    "tests/composition/fable-game/test-historical-provider.py": {
+      "sha256": "b4f476ba55ec8c6ebc38770b838e8dc1893b3f090a59c68fcaf2c1b6aee57ed0",
+      "gitBlob": "095c15b507b262b544eb36e023dc7e965bd0a142"
+    },
+    "tests/composition/fable-game/verify-svg-preview-c-public.sh": {
+      "sha256": "f24fc52ec9a2e32c001a2baea7fceb81de91cb278a2272b847bbddb7866d3b30",
+      "gitBlob": "0a78e6feef29212c50bfadf2ecc75cf422e30576"
+    },
+    "tests/composition/fable-game/verify-svg-preview-c-source.sh": {
+      "sha256": "740a9bc0bb3a23e29d80511b308b030715ce4b70803618864b60715f74d2e429",
+      "gitBlob": "bdfa67d5ccd53d38a0b1efd0d401ce0d3ff36e80"
+    },
+    "tests/composition/fable-game/verify-svg-typed-receivers.sh": {
+      "sha256": "df708bd20cf2d6e1ea19f510e0e2afb77ae5c548ff1182878f3d8fe7b66050fb",
+      "gitBlob": "2b0fb95cc91a09f90746c73ba6b85d0f2aa3f311"
+    },
+    ".github/workflows/svg-preview-c.yml": {
+      "sha256": "557eafc57a2f1dc5f69cfe21728c993c2e5cc2206c7fcb4949da092549120082",
+      "gitBlob": "88fc53a6bf6ebad6982406b7ba2a4df6319b738e"
+    },
+    ".github/workflows/svg-preview-c-public.yml": {
+      "sha256": "db4d73df558b852cbe0101fdecaf2f9c5777cab666877fd2d38486752dda47bc",
+      "gitBlob": "137588c6ad3179f73fb24411500c8336ac3631c4"
+    },
+    ".github/workflows/svg-typed-receivers.yml": {
+      "sha256": "d275963ef55a3c49634e797ef73c2cc84f8ff4f8e3c396a2ff14e9822ea55cfb",
+      "gitBlob": "8c2e88e2ef0a434f5e0af44729c2fa016e67fd68"
+    }
+  },
+  "frozenPublicAssets": [
+    {
+      "path": "tests/composition/fable-game/d5-public-pins.py",
+      "sha256": "482c481b681d5ba053c9d9a9927e7020ccee1b71d58b89a3f5e82965e2358cc2",
+      "unchanged": true
+    },
+    {
+      "path": "tests/composition/fable-game/test-d5-public-pins.py",
+      "sha256": "ab32fc8cb591e9d35865434294a92c23aeec7a26556ac12ecb3de3fec260033b",
+      "unchanged": true
+    },
+    {
+      "path": "tests/composition/fable-game/verify-svg-release-d5-public-default.sh",
+      "sha256": "4e2bf501b55f2c65cf1401564db3a49a37e732b471b9aadb2ea837722165514b",
+      "unchanged": true
+    },
+    {
+      "path": "tests/composition/fable-game/verify-svg-release-d5-receiver.sh",
+      "sha256": "b5ec08e6745467110fa64271a84787ebad200c9928162f05fbaaf617f7f97592",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/svg-release-d5-source.yml",
+      "sha256": "e184ae8c29b55cad8ab7aa99f7fc39ee59d1ef23fff029236dfe3134eefb852a",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/svg-release-d5-public-default.yml",
+      "sha256": "0504f9c067bb4727a257ef69af932133b404d4e991b6eb5ba19738d5aac74429",
+      "unchanged": true
+    },
+    {
+      "path": ".github/workflows/svg-release-d-public.yml",
+      "sha256": "e8c545cfa84cece3b51ed1aafe1f992d5c13190ec865fa6905c49c90dc468c0a",
+      "unchanged": true
+    },
+    {
+      "path": "docs/reports/2026-09-28-svg-release-d5-source-candidate.md",
+      "sha256": "74dd0ec3ae11b85ab12db8aa9fa709b8a538cac71f32c79f3d018cea12c92701",
+      "unchanged": true
+    }
+  ],
+  "preserved": [
+    "all provider descriptors and existing 18-row receiver qualification receipt",
+    "SDD1.7 historical tuples, Rendering.31 and original API/formal/model subjects",
+    "all historical JSON receipts",
+    "retained Template.10 receiver selector"
+  ],
+  "pending": [
+    "protected root-owned floor2.1 readback with orchestrator coherent:false",
+    "actual-head repaired C/typed and coherent native gates",
+    "root-managed live-main source-pin/publication interval",
+    "actual protected Template.18 release and clean public adoption"
+  ]
+}

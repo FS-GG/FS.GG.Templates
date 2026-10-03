@@ -2,8 +2,19 @@
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 out="${1:?empty output directory required}"
+sdd_version=2.1.0
 [[ ! -e "$out" ]]
 mkdir -p "$out/feed"
+mkdir -p "$out/home" "$out/packages" "$out/http" "$out/tools"
+export DOTNET_CLI_HOME="$out/home" NUGET_PACKAGES="$out/packages" NUGET_HTTP_CACHE_PATH="$out/http"
+cat >"$out/NuGet.Config" <<EOF
+<configuration><packageSources><clear/><add key="candidate" value="$out/feed"/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>
+EOF
+dotnet tool install FS.GG.SDD.Cli --version "$sdd_version" --tool-path "$out/tools/sdd" --configfile "$out/NuGet.Config" --no-cache >"$out/sdd-install.log"
+sdd="$out/tools/sdd/fsgg-sdd"
+"$sdd" --version >"$out/sdd-version.log"
+installed_sdd_version="$(cat "$out/sdd-version.log")"
+[[ "$installed_sdd_version" == "$sdd_version" ]] || { echo "source Release C requires public SDD $sdd_version; observed $installed_sdd_version" >&2; exit 1; }
 # shellcheck source=tests/composition/fable-game/svg-source-python-fixture.sh
 . "$root/tests/composition/fable-game/svg-source-python-fixture.sh"
 prepare_svg_source_python_fixture "$root" "$out"
@@ -47,11 +58,6 @@ rendering_version=0.31.0
 game_version=0.16.0
 net_version=0.6.0
 audio_version=0.6.0
-mkdir -p "$out/home" "$out/packages" "$out/http" "$out/tools"
-export DOTNET_CLI_HOME="$out/home" NUGET_PACKAGES="$out/packages" NUGET_HTTP_CACHE_PATH="$out/http"
-cat >"$out/NuGet.Config" <<EOF
-<configuration><packageSources><clear/><add key="candidate" value="$out/feed"/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>
-EOF
 # Bind the source qualification to the exact public API mirrors used by Release C.
 for spec in fs.gg.ui.scene:0.31.0 fs.gg.game.core:0.16.0 fs.gg.net.core:0.6.0; do
   id="${spec%:*}"; version="${spec#*:}"
@@ -89,8 +95,6 @@ p=pathlib.Path(sys.argv[1]); data=json.loads(p.read_text()); data['sdk']['versio
 PYSDK
 fi
 
-dotnet tool install FS.GG.SDD.Cli --version 1.7.0 --tool-path "$out/tools/sdd" --configfile "$out/NuGet.Config" --no-cache >/dev/null
-sdd="$out/tools/sdd/fsgg-sdd"
 scaffold() {
   local name="$1" lifecycle="$2" destination="$out/$1"; mkdir -p "$destination/.fsgg"; cp "$root/providers/fable-game.providers.yml" "$destination/.fsgg/providers.yml"
   python3 - "$destination/.fsgg/providers.yml" "$template" <<'PY'
@@ -103,7 +107,9 @@ p.write_text(text)
 PY
   params=(--param productName=PresentReceiver --param rootNamespace=PresentReceiver --param svgFoundation=true)
   [[ "$lifecycle" == omitted ]] || params+=(--param lifecycle="$lifecycle")
-  "$sdd" scaffold --root "$destination" --provider fable-game --no-update --json "${params[@]}" >"$out/$name.json"
+  local status=0
+  "$sdd" scaffold --root "$destination" --provider fable-game --no-update --json "${params[@]}" >"$out/$name.json" || status=$?
+  if (( status != 0 )); then cat "$out/$name.json" >&2; return "$status"; fi
   jq -e '.outcome=="succeeded" and .scaffold.providerInvoked==true' "$out/$name.json" >/dev/null
   test -f "$destination/SvgFoundation/PresentationPlayer.fs"
 }
@@ -197,5 +203,5 @@ for family in chromium firefox webkit; do
   kill "$network_server"; wait "$network_server" 2>/dev/null || true; network_server=''
 done
 browser_evidence_sha="$(cat "$out"/*-present.json "$out"/*-authoring.json "$out"/*-input.json "$out"/*-replay.json "$out"/*-scale.json "$out"/*-network.json | sha256sum | cut -d' ' -f1)"
-jq -n --arg templateVersion "$template_version" --arg templateSha "$(sha256sum "$template" | cut -d' ' -f1)" --arg browserEvidenceSha "$browser_evidence_sha" --slurpfile c "$out/chromium-present.json" --slurpfile f "$out/firefox-present.json" --slurpfile w "$out/webkit-present.json" '{schema:"fsgg.svg-preview-c.source-qualification/v1",template:{version:$templateVersion,sha256:$templateSha},publicProducers:{rendering:"0.31.0",game:"0.16.0",net:"0.6.0",audio:"0.6.0"},routes:{direct:"passed",sdd17:{none:"passed",default:"passed",typed:"passed"},wizard0111Adopter:"passed",retained010to012:"passed"},browser:{chromium:$c[0],firefox:$f[0],webkit:$w[0],authoringInputEvidenceSha256:$browserEvidenceSha},presentation:{animation:"passed",reducedMotion:"passed",gestureAudio:"passed",liveCueSeekPolicy:"passed",autosaveRecovery:"passed",reload:"passed",archive:"passed"},replay:{equality:"passed",divergence:"passed",rules:"passed",studioOnly:"passed"},network:{authority:"passed",twoBrowser:"passed",reconnect:"passed",review:"passed"},scale:{dense:"passed",worldExtent:"passed",responsive:"passed",accessibility:"passed"},apiMirror:{candidateOmissions:0,status:"passed"},adopter:{collision:"refused-without-write",interruption:"rolled-back",rollback:"byte-identical",authoredFiles:"preserved"},publication:false,producerDistribution:"public-nuget-only"}' >"$out/qualification.json"
+jq -n --arg sddVersion "$installed_sdd_version" --arg templateVersion "$template_version" --arg templateSha "$(sha256sum "$template" | cut -d' ' -f1)" --arg browserEvidenceSha "$browser_evidence_sha" --slurpfile c "$out/chromium-present.json" --slurpfile f "$out/firefox-present.json" --slurpfile w "$out/webkit-present.json" '{schema:"fsgg.svg-preview-c.source-qualification/v1",template:{version:$templateVersion,sha256:$templateSha},publicProducers:{rendering:"0.31.0",game:"0.16.0",net:"0.6.0",audio:"0.6.0"},routes:{direct:"passed",sdd21:{version:$sddVersion,source:"nuget.org",none:"passed",default:"passed",typed:"passed"},wizard0111Adopter:"passed",retained010to012:"passed"},browser:{chromium:$c[0],firefox:$f[0],webkit:$w[0],authoringInputEvidenceSha256:$browserEvidenceSha},presentation:{animation:"passed",reducedMotion:"passed",gestureAudio:"passed",liveCueSeekPolicy:"passed",autosaveRecovery:"passed",reload:"passed",archive:"passed"},replay:{equality:"passed",divergence:"passed",rules:"passed",studioOnly:"passed"},network:{authority:"passed",twoBrowser:"passed",reconnect:"passed",review:"passed"},scale:{dense:"passed",worldExtent:"passed",responsive:"passed",accessibility:"passed"},apiMirror:{candidateOmissions:0,status:"passed"},adopter:{collision:"refused-without-write",interruption:"rolled-back",rollback:"byte-identical",authoredFiles:"preserved"},publication:false,producerDistribution:"public-nuget-only"}' >"$out/qualification.json"
 echo "svg-preview-c-source: passed; evidence=$out/qualification.json"

@@ -10,6 +10,13 @@ curl -fsSL --retry 12 --retry-all-errors --retry-delay 10 \
   "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.13.0/fs.gg.workspace.template.0.13.0.nupkg" \
   -o "$template"
 [[ "$(sha256sum "$template" | cut -d' ' -f1)" == "$expected_template_sha" ]]
+historical_provider="$out/fable-game-0.13.0.providers.yml"
+python3 "$root/tests/composition/fable-game/historical-provider.py" \
+  --archive "$template" --version 0.13.0 \
+  --revision 6acdfc5f5da41156db0aeaffcd54885b3b9e66be \
+  --archive-sha256 "$expected_template_sha" \
+  --descriptor-sha256 e3f3aa1c77af9f9e559c376ffe1ad8131e205c0d68d81b4556f617b796636309 \
+  --output "$historical_provider"
 rendering_version=0.31.0
 game_version=0.16.0
 net_version=0.6.0
@@ -107,7 +114,7 @@ fi
 dotnet tool install FS.GG.SDD.Cli --version 1.7.0 --tool-path "$out/tools/sdd" --configfile "$out/NuGet.Config" --no-cache >/dev/null
 sdd="$out/tools/sdd/fsgg-sdd"
 scaffold() {
-  local name="$1" lifecycle="$2" destination="$out/$1"; mkdir -p "$destination/.fsgg"; cp "$root/providers/fable-game.providers.yml" "$destination/.fsgg/providers.yml"
+  local name="$1" lifecycle="$2" destination="$out/$1"; mkdir -p "$destination/.fsgg"; cp "$historical_provider" "$destination/.fsgg/providers.yml"
   python3 - "$destination/.fsgg/providers.yml" "$template" <<'PY'
 from pathlib import Path
 import re, sys
@@ -118,7 +125,9 @@ p.write_text(text)
 PY
   params=(--param productName=PresentReceiver --param rootNamespace=PresentReceiver --param svgFoundation=true)
   [[ "$lifecycle" == omitted ]] || params+=(--param lifecycle="$lifecycle")
-  "$sdd" scaffold --root "$destination" --provider fable-game --no-update --json "${params[@]}" >"$out/$name.json"
+  local status=0
+  "$sdd" scaffold --root "$destination" --provider fable-game --no-update --json "${params[@]}" >"$out/$name.json" || status=$?
+  if (( status != 0 )); then cat "$out/$name.json" >&2; return "$status"; fi
   jq -e '.outcome=="succeeded" and .scaffold.providerInvoked==true' "$out/$name.json" >/dev/null
   test -f "$destination/SvgFoundation/PresentationPlayer.fs"
   if [[ "$lifecycle" == typed-sdd ]]; then

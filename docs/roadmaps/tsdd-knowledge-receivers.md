@@ -182,3 +182,28 @@ Rendering deliberately remains `FS.GG.UI.Template::0.31.0` in
 that original archive. Separate Rendering 0.32.0 adoption, Wizard 0.13.0 composition, Templates
 0.18.0 publication and protected activation remain root-owned joins. This ready window does
 not mark public Templates adoption or the complete feature delivered.
+
+## Native fixture repair and live descriptor selection
+
+Same-head native composition and release-route checks refused the six 2.1.0 descriptor floors
+against the protected registry's earlier 1.4.0-preview.1 mirror. The root owns the producer-first
+floor advance and incomplete orchestrator-coherence projection; this receiver changes neither
+the live equality gate nor registry authority. Exact live grading and repaired native qualification
+remain pending protected floor readback and root-controlled CI.
+
+Historical Release C and typed-receiver fixtures deliberately keep public SDD 1.7.0 and their
+original package/model subjects. Their descriptors now come from the exact archive nuspec source
+revision, with archive identity and descriptor hash checks before use. Public Templates 0.13.0
+joins `6acdfc5f5da41156db0aeaffcd54885b3b9e66be`; public 0.11.0 joins
+`6a66e0a31c33feab4c8f650709b585df6ac3d4c4`. Historical omission remains Standard SDD and the
+separate 0.10.0 retained route is unchanged. Current-source Release C instead requires observed
+public 2.1.0 before packing or template effects and records a new `sdd21` source result.
+
+Source merge has a live creation boundary: installed Wizard 0.12.0 uses `Ref = "main"` and reads
+Templates descriptors directly. It does not wait for a registry package-version update. Merging
+the five 0.18.0 source pins therefore selects that successor for those main-descriptor callers
+before the package is public. Root must prepare the accepted pack-once release and explicitly
+manage this bounded merge-to-publication interval as unavailable creation on the new pins.
+Publication and clean public adoption remain required; a source merge alone cannot claim them.
+Wizard's retained exact-0.15.0 omitted-Fable rule and direct-provider Typed SDD omission remain
+distinct. Rendering stays original 0.31.0 until its separately admitted adoption.
