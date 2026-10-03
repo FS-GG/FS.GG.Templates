@@ -8,6 +8,8 @@ on:
       - 'templates/fs-gg-fable-game/**'
       - 'scripts/apply-svg-foundation-preview.sh'
       - 'scripts/svg-foundation-preview-baseline.manifest'
+      - 'scripts/prepare-svg-quint-evaluator.py'
+      - 'tests/composition/fable-game/test-quint-evaluator-acquisition.py'
       - 'tests/composition/fable-game/svg-*-observe.mjs'
       - 'tests/composition/fable-game/observe-svg-input-orca.sh'
       - 'tests/composition/fable-game/orca-faulthandler.py'
@@ -26,6 +28,8 @@ on:
       - 'templates/fs-gg-fable-game/**'
       - 'scripts/apply-svg-foundation-preview.sh'
       - 'scripts/svg-foundation-preview-baseline.manifest'
+      - 'scripts/prepare-svg-quint-evaluator.py'
+      - 'tests/composition/fable-game/test-quint-evaluator-acquisition.py'
       - 'tests/composition/fable-game/svg-*-observe.mjs'
       - 'tests/composition/fable-game/observe-svg-input-orca.sh'
       - 'tests/composition/fable-game/orca-faulthandler.py'
@@ -47,7 +51,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Check historical custody and source refusal controls
-        run: python3 tests/composition/fable-game/test-historical-provider.py
+        run: |
+          python3 tests/composition/fable-game/test-historical-provider.py
+          python3 tests/composition/fable-game/test-quint-evaluator-acquisition.py
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '10.0.401'
@@ -76,6 +82,18 @@ jobs:
           browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
           PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
             bash tests/composition/fable-game/verify-svg-preview-c-source.sh "$RUNNER_TEMP/svg-preview-c-source"
+      - name: Acquire pinned Rust evaluator for complete workspace
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QUINT_HOME: ${{ runner.temp }}/svg-preview-c-quint-home
+        run: |
+          set -euo pipefail
+          python3 scripts/prepare-svg-quint-evaluator.py \
+            --quint "$RUNNER_TEMP/quint" --quint-home "$QUINT_HOME" \
+            --evidence "$RUNNER_TEMP/svg-preview-c-quint-evaluator" \
+            --runner-temp "$RUNNER_TEMP" --producer "$GITHUB_WORKSPACE"
+          printf 'QUINT_HOME=%s\n' "$QUINT_HOME" >> "$GITHUB_ENV"
       - name: Qualify installed complete workspace across browser families
         shell: bash
         run: |
@@ -137,6 +155,7 @@ jobs:
         with:
           name: svg-preview-c-source-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            ${{ runner.temp }}/svg-preview-c-quint-evaluator/**
             ${{ runner.temp }}/svg-preview-c-source/qualification.json
             ${{ runner.temp }}/svg-preview-c-source/sdd-none.json
             ${{ runner.temp }}/svg-preview-c-source/sdd-default.json

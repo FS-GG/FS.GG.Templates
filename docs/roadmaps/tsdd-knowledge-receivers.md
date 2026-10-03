@@ -214,6 +214,23 @@ recovery, budget enforcement and collision/insufficient-producer refusals. The o
 evidence. Public Wizard 0.13 qualification/publication is its own join; this source
 selection neither requires nor establishes that outcome, or complete .4/.5 closure.
 
+PR 668's native Release C run `37151698025`, job `111286751991`, passed the
+source-package public-producer routes, then failed in the separately generated
+complete-workspace build while Quint 0.32 fetched its Rust evaluator v0.6.0:
+GitHub returned Forbidden. Artifact `11284900110` retains the actual failure in
+`complete-chromium.log`. This path creates a raw Fable complete bundle from the
+packed source archive and does not read the Rendering descriptor. The response
+does not establish whether rate limiting, authentication or another policy caused it.
+
+The same-PR source repair acquires only the exact official release `303596741`,
+asset `385413317`, into fresh job-private `QUINT_HOME` using authenticated read-only
+API requests. It verifies release/asset metadata, archive/member digests and the
+compiled Quint 0.32 identity before creating the supported evaluator cache path.
+Models, backends, bounds, generated product bytes and all qualification commands
+remain unchanged. Pure mocked metadata/archive/cache/redirect refusal controls
+are source evidence; exact-head hosted qualification remains pending. Acquisition
+custody alone is neither a model pass nor Rendering 0.32 installed acceptance.
+
 ## Native fixture repair and live descriptor selection
 
 Same-head native composition and release-route checks refused the six 2.1.0 descriptor floors
