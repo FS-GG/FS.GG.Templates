@@ -180,7 +180,7 @@ jobs:
           # Generated candidate workspaces select 10.0.401 exactly. Public receiver
           # workflows install 10.0.400 as well for earlier published workspaces.
           dotnet-version: '10.0.401'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         if: steps.scope.outputs.run == 'true'
         with:
           node-version: '26.10.0'

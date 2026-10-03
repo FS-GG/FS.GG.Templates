@@ -432,7 +432,7 @@ jobs:
           # product's global.json is not in the SDK resolver search path. Match the exact SDK and
           # FSharp.Core identity carried by the generated workspace lock files.
           dotnet-version: '10.0.401'
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '26.10.0'
       - name: Install exact npm toolchain
