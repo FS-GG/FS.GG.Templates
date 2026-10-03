@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "FS-GG",
+  "classifications": [
+    "FS.GG",
+    "SDD",
+    "Knowledge",
+    "Config"
+  ],
+  "identity": "FS.GG.Templates.ProjectKnowledge",
+  "name": "FS.GG project knowledge CI overlay",
+  "shortName": "fs-gg-project-knowledge",
+  "tags": {
+    "type": "item"
+  },
+  "description": "Adds the shared project-knowledge workflow and checker only for explicit typed-sdd; canonical knowledge initialization and a capable local tool pin remain caller-owned.",
+  "sources": [
+    {
+      "source": "./",
+      "target": "./",
+      "include": [
+        ".github/workflows/project-knowledge.yml",
+        "scripts/check-project-knowledge.py"
+      ],
+      "modifiers": [
+        {
+          "condition": "(lifecycle != \"typed-sdd\")",
+          "exclude": [
+            "**/*"
+          ]
+        }
+      ]
+    }
+  ],
+  "symbols": {
+    "lifecycle": {
+      "type": "parameter",
+      "datatype": "choice",
+      "defaultValue": "none",
+      "description": "Only explicit typed-sdd emits knowledge CI. This overlay does not select or initialize the workspace lifecycle.",
+      "choices": [
+        {
+          "choice": "none"
+        },
+        {
+          "choice": "sdd"
+        },
+        {
+          "choice": "typed-sdd"
+        },
+        {
+          "choice": "spec-kit"
+        }
+      ]
+    }
+  }
+}

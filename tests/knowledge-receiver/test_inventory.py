@@ -11,12 +11,12 @@ from receiver import ROOT, call, inventory
 
 
 class InventoryTests(unittest.TestCase):
-    def test_current_routes_preserve_distinct_package_pins(self):
+    def test_owned_successor_pins_preserve_external_identity_and_defaults(self):
         rows = {r["provider"]: r for r in inventory()}
-        for name in ("console", "web", "fable-bindings"):
-            self.assertEqual(rows[name]["source"], "FS.GG.Workspace.Template::0.13.0")
-        self.assertEqual(rows["python"]["source"], "FS.GG.Workspace.Template::0.16.0")
-        self.assertEqual(rows["fable-game"]["source"], "FS.GG.Workspace.Template::0.17.0")
+        for name in ("console", "web", "fable-bindings", "python", "fable-game"):
+            self.assertEqual(rows[name]["source"], "FS.GG.Workspace.Template::0.18.0")
+            descriptor = (ROOT / rows[name]["descriptor"]).read_text()
+            self.assertIn('minimumFsggSdd:\n      version: "1.4.0-preview.1"', descriptor)
         self.assertEqual(rows["rendering"]["source"], "FS.GG.UI.Template::0.31.0")
         self.assertEqual([r["provider"] for r in rows.values() if r["external"]], ["rendering"])
 

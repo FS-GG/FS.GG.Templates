@@ -9,7 +9,7 @@ The current preparation does not establish generated-project availability.
 
 The inventory reads the real [provider descriptors](../../providers) and template definitions.
 Pins below are the inspected `908da309c9a52490cf914c3f2d5ce1eaf1188b2e` source snapshot,
-not proposed registry updates. Independent existing provider pins remain intact.
+not registry updates. They remain historical evidence; the provisional successor pins are described below.
 
 | Family | Inspected provider source | Provider omission | Product variants |
 |---|---|---|---|
@@ -111,3 +111,27 @@ entry controls, including an exact-budget acceptance and an oversized on-disk by
 Existing pinned template archives do not acquire these new files. Coherent successor publication,
 deliberate provider-pin adoption, root-owned wizard bootstrap, and the externally owned Rendering
 workflow overlay remain separate joins before installed acceptance.
+
+## Provisional coherent successor
+
+The source successor is Workspace.Template 0.18.0: an additive minor that introduces Typed SDD
+knowledge CI and the `fs-gg-project-knowledge` overlay identity. All five owned provider descriptors
+now deliberately select that source candidate. Existing lifecycle defaults and options remain
+unchanged; the external Rendering descriptor and original archives remain untouched. The new
+version is provisional: public index/artifact and remote-tag checks found it absent, but GitHub
+Packages lookup returned 403. A protected authenticated collision check must succeed before any
+reservation, tag or publication; an occupied identity requires a different successor.
+
+The central checker requires an exact stable local SDD pin of at least 2.1.0 and still checks actual
+command capability. That release is a source candidate until dual-feed publication and clean
+installed qualification. The descriptors retain the historical generic 1.4.0-preview.1 floor because
+the existing provider/registry equality contract covers ordinary lifecycle composition. That floor
+does not advertise knowledge capability. Explicit provider-level typed capability enforcement is
+still a join if an old generic producer can scaffold typed files without usable knowledge setup.
+
+External Rendering app/game products use the separately installed overlay without modifying their
+original upstream payload: `dotnet new fs-gg-project-knowledge --lifecycle typed-sdd --output ROOT`,
+without `--force`, from the exact Workspace.Template successor. Omission and other lifecycles emit
+nothing. An authored target workflow causes refusal preserving all owner bytes. The overlay adds
+only the canonical central checker and workflow, not a tool manifest or store. Wizard bootstrap
+owns capable local tool pinning, initialization and the normal initial commit.

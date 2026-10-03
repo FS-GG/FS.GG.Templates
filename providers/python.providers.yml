@@ -1,3 +1,4 @@
+# Provisional knowledge-CI successor source: publication and public installed adoption remain pending.
 # Opt-in Python Hello provider. Candidate composition rewrites `source` to the exact local archive;
 # no registry/default/adoption setting selects this descriptor automatically.
 schemaVersion: 1
@@ -5,7 +6,7 @@ providers:
   - name: python
     contractVersion: "1.1.0"
     templateId: fs-gg-python
-    source: FS.GG.Workspace.Template::0.16.0
+    source: FS.GG.Workspace.Template::0.18.0
     nameParameter: productName
     minimumFsggSdd:
       version: "1.4.0-preview.1"

@@ -30,6 +30,7 @@ def main():
     parser.add_argument("--candidate-command-json", required=True)
     parser.add_argument("--public203-command-json", required=True)
     parser.add_argument("--real-receiver", type=Path, required=True)
+    parser.add_argument("--external-receiver", type=Path, action="append", default=[])
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     out = args.output.resolve()
@@ -48,7 +49,7 @@ def main():
     project = ET.parse(ROOT / "FS.GG.Templates.csproj")
     for item in project.findall(".//None"):
         source = item.attrib.get("Include", "")
-        if source.startswith("template/project-knowledge/"):
+        if source.startswith("template/project-knowledge/") and "/.template.config/" not in source:
             for destination in item.attrib["PackagePath"].split(";"):
                 target = staged / destination / Path(source).name
                 if not packed:
@@ -56,7 +57,7 @@ def main():
                     shutil.copyfile(ROOT / source, target)
                 assert target.read_bytes() == (ROOT / source).read_bytes()
                 projected.append(str(target.relative_to(staged)))
-    assert len(projected) == 12, "CI projection omitted an owned family or legacy member"
+    assert len(projected) == 14, "CI projection omitted an owned family or legacy member"
     configs = [ROOT / f"templates/fs-gg-{x}/.template.config/template.json" for x in ("console", "web", "fable-bindings", "python", "fable-game")]
     configs.append(ROOT / "pack/fs-gg-fable-game-legacy/.template.config/template.json")
     for config in configs:
@@ -65,6 +66,12 @@ def main():
         if not packed:
             shutil.copyfile(config, target)
         assert target.read_bytes() == config.read_bytes()
+    overlay_config = ROOT / "template/project-knowledge/.template.config/template.json"
+    target = staged / "content/templates/fs-gg-project-knowledge/.template.config/template.json"
+    if not packed:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(overlay_config, target)
+    assert target.read_bytes() == overlay_config.read_bytes()
     workflow = (ROOT / "template/project-knowledge/.github/workflows/project-knowledge.yml").read_text()
     # This literal linear workflow has no dependency graph or YAML expressions.
     # Check its actual trigger, permission and call ordering without installing a parser.
@@ -103,11 +110,67 @@ def main():
                     assert (root / path).read_bytes() == (ROOT / "template/project-knowledge" / path).read_bytes()
             assert not (root / ".fsgg/knowledge").exists(), "CI projection must not impersonate SDD initialization"
             receipt["emission"].append({"family": family, "selection": lane, "effectiveLifecycle": effective, "emitted": emitted})
+    receipt["overlay"] = []
+    from receiver import snapshot
+    for lane in ("none", "sdd", "typed-sdd", "spec-kit", "omitted"):
+        root = out / "overlay" / lane
+        root.mkdir(parents=True)
+        (root / "product.txt").write_text("authored external Rendering product bytes\n")
+        before = snapshot(root)
+        command = ["dotnet", "new", "fs-gg-project-knowledge", "-o", str(root)]
+        if lane != "omitted":
+            command += ["--lifecycle", lane]
+        invoke(command)
+        emitted = lane == "typed-sdd"
+        assert all(snapshot(root).get(path) == digest for path, digest in before.items())
+        for path in (".github/workflows/project-knowledge.yml", "scripts/check-project-knowledge.py"):
+            assert (root / path).is_file() == emitted
+            if emitted:
+                assert (root / path).read_bytes() == (ROOT / "template/project-knowledge" / path).read_bytes()
+        receipt["overlay"].append({"selection": lane, "emitted": emitted, "originalProductBytesPreserved": True})
+    conflict = out / "overlay/owner-conflict"
+    (conflict / ".github/workflows").mkdir(parents=True)
+    (conflict / ".github/workflows/project-knowledge.yml").write_text("authored owner workflow\n")
+    (conflict / "product.txt").write_text("authored Rendering bytes\n")
+    before = snapshot(conflict)
+    refused = invoke(["dotnet", "new", "fs-gg-project-knowledge", "-o", str(conflict), "--lifecycle", "typed-sdd"], success=False)
+    assert snapshot(conflict) == before, "Overlay conflict must preserve all owner bytes and add no files"
+    receipt["overlay"].append({"case": "authored-workflow-no-force-refusal", "exit": refused.returncode, "allOwnerBytesPreserved": True})
+    for index, original in enumerate(args.external_receiver):
+        root = out / "external-overlay" / str(index)
+        shutil.copytree(original, root, ignore=shutil.ignore_patterns(".git"))
+        before = snapshot(root)
+        invoke(["dotnet", "new", "fs-gg-project-knowledge", "-o", str(root), "--lifecycle", "typed-sdd"])
+        after = snapshot(root)
+        assert all(after.get(path) == digest for path, digest in before.items())
+        added = set(after) - set(before)
+        assert added == {".github/workflows/project-knowledge.yml", "scripts/check-project-knowledge.py"}
+        for path in added:
+            assert (root / path).read_bytes() == (ROOT / "template/project-knowledge" / path).read_bytes()
+        (root / ".github/workflows/project-knowledge.yml").write_text("authored external workflow\n")
+        authored = snapshot(root)
+        refused = invoke(["dotnet", "new", "fs-gg-project-knowledge", "-o", str(root), "--lifecycle", "typed-sdd"], success=False)
+        assert snapshot(root) == authored
+        receipt["overlay"].append({"case": "actual-external-product-" + original.name, "originalFileCount": len(before), "addedPaths": sorted(added), "allOriginalOwnerBytesPreserved": True, "authoredConflictExit": refused.returncode})
     real = out / "actual-product-entry"
     shutil.copytree(args.real_receiver, real, ignore=shutil.ignore_patterns(".git"))
     script = out / "generated/console-typed-sdd/scripts/check-project-knowledge.py"
     prefix = [sys.executable, str(script), "--root", str(real)]
+    manifest = real / ".config/dotnet-tools.json"
+    original_manifest = manifest.read_bytes()
+    manifest_value = json.loads(original_manifest)
+    manifest_value["tools"]["fs.gg.sdd.cli"]["version"] = "2.1.0"
+    manifest.write_text(json.dumps(manifest_value))
+    receipt["qualificationManifestOverride"] = {"pinnedVersion": "2.1.0", "published": False, "purpose": "Explicit stable candidate floor; source prefix supplied separately"}
     invoke(prefix + ["--preflight"])
+    for version in ("2.0.3", "2.1.0-preview.1"):
+        manifest_value["tools"]["fs.gg.sdd.cli"]["version"] = version
+        manifest.write_text(json.dumps(manifest_value))
+        refused = invoke(prefix + ["--preflight"], success=False)
+        assert "stable knowledge-capable version >= 2.1.0" in refused.stderr
+        receipt["entry"].append({"case": "incapable-or-prerelease-manifest-" + version, "exit": refused.returncode})
+    manifest_value["tools"]["fs.gg.sdd.cli"]["version"] = "2.1.0"
+    manifest.write_text(json.dumps(manifest_value))
     started = time.monotonic()
     good = invoke(prefix + ["--command-json", args.candidate_command_json])
     receipt["entry"].append({"case": "actual-generated-product-valid", "result": json.loads(good.stdout), "elapsedMilliseconds": round((time.monotonic() - started) * 1000)})
@@ -143,9 +206,9 @@ def main():
     missing = invoke(prefix + ["--preflight"], success=False)
     assert "must pin FS.GG.SDD.Cli" in missing.stderr
     receipt["entry"].append({"case": "missing-local-tool-pin", "exit": missing.returncode})
-    manifest.write_bytes(saved_manifest)
+    manifest.write_bytes(original_manifest)
     (out / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
-    print("PASS 30 real template-engine emission cells; actual CI entry valid/exact-limit/over-limit/incapable/missing-guide/missing-schema/missing-tool")
+    print("PASS 30 family emission cells, five overlay lifecycle cells, no-force owner conflict and nine actual CI entry controls")
 
 
 if __name__ == "__main__":

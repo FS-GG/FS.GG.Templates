@@ -29,6 +29,9 @@ def run():
         raise ValueError("The root local tool manifest must pin FS.GG.SDD.Cli with the fsgg-sdd command.")
     if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version):
         raise ValueError("FS.GG.SDD.Cli requires an exact local tool version; floating or absent pins refuse.")
+    core = version.split("-", 1)[0]
+    if "-" in version or tuple(map(int, core.split("."))) < (2, 1, 0):
+        raise ValueError("FS.GG.SDD.Cli must pin a stable knowledge-capable version >= 2.1.0; public 2.0.3 is incapable.")
     if args.preflight:
         print(json.dumps({"outcome": "preflight-passed", "pinnedVersion": version}))
         return
@@ -40,6 +43,8 @@ def run():
     if result.returncode:
         raise ValueError("Producer knowledge check refused: " + (result.stderr or result.stdout).strip())
     size = json.loads(result.stdout)
+    if not isinstance(size, dict):
+        raise ValueError("Producer returned an unsupported knowledge size report.")
     if size.get("Limit") != 10485760 or type(size.get("Bytes")) is not int or not 0 < size["Bytes"] <= size["Limit"]:
         raise ValueError("Producer returned an unsupported or invalid knowledge size report.")
     print(json.dumps({"outcome": "passed", "pinnedVersion": version, "bytes": size["Bytes"], "limit": size["Limit"],

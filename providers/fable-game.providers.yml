@@ -1,3 +1,4 @@
+# Provisional knowledge-CI successor source: publication and public installed adoption remain pending.
 # Drop-in `.fsgg/providers.yml` entry for the server-authoritative Fable game workspace.
 # `source` is an exact package pin: activation is deliberately deferred until this
 # coherent FS.GG.Workspace.Template release is published and independently proved
@@ -28,7 +29,7 @@ providers:
   - name: fable-game
     contractVersion: "1.1.0"
     templateId: fs-gg-fable-game
-    source: FS.GG.Workspace.Template::0.17.0
+    source: FS.GG.Workspace.Template::0.18.0
     nameParameter: productName
     identifierParameter: rootNamespace
     minimumFsggSdd:

@@ -122,3 +122,38 @@ The actual source package still reports 0.17.0 and is unpublished. Existing prov
 unchanged. Generated CI now has a bounded local source proof for owned template families;
 externally owned Rendering overlay, root-owned wizard initialization, producer source admission,
 coherent publication and exact clean public-package adoption remain pending.
+
+## 0.18.0 successor and external overlay
+
+[The successor receipt](../../../tests/knowledge-receiver/ci-successor-receipt.json) binds the actual
+newly packed 0.18.0 archive, fourteen shared CI/checker members and the new overlay configuration.
+The original 0.17.0 qualification archives/receipts remain intact. The successor is an additive
+minor for a new template identity and explicit typed capability, not a relabel of old package bytes.
+Public index read returned 200 with no 0.18.0; exact public archive returned 404 and remote tag
+lookup found no matching tags. Authenticated org package lookup returned 403, so that feed's unused
+identity is unknown. Source preparation is reversible; reservation/publication requires a protected
+authenticated collision check first.
+
+Actual Template Engine tests passed thirty owned family cells plus five overlay lifecycle cells,
+with explicit typed-only emission and default omission unchanged. A no-force authored workflow
+conflict refused without adding files or changing owner bytes. The exact checker required stable
+2.1.0 manifests, refused old 2.0.3 and prerelease pins, and retained the seven earlier real entry
+controls including public 2.0.3 command refusal and exact/over-budget disk checks. Qualification
+injects the frozen source CLI explicitly and records its provisional stable manifest override; this
+is not a published 2.1.0 installed proof.
+
+All owned descriptors deliberately pin the provisional 0.18.0 successor. Their historical generic
+minimum remains 1.4.0-preview.1 under the existing registry equality contract; no ProviderTool or
+registry policy was weakened. Typed provider-specific capability admission remains pending before
+whole .4/.5 acceptance. Existing fixture mutations now derive the live source line, preserving their
+foreign-field/JSON-line/trailing-scalar controls across this intentional pin change. Compiler-based
+fixture execution awaits an admitted source compiler lane.
+
+The overlay additionally ran on both real Rendering app/game provider receivers from the recorded
+public 0.31.0 matrix. It added exactly the two central assets and preserved every original file
+hash. Replacing the workflow with authored content and rerunning without force refused with the
+entire receiver snapshot unchanged. This establishes the Templates overlay seam; it does not claim
+that the later original 0.32.0 archive or root-owned wizard composition has been qualified here.
+The Python provider floor gate and all 28 self-demonstration controls passed with unchanged generic
+floors; the existing lifecycle self-test, ten receiver inventory tests, release mechanism mutation
+controls, Python/shell syntax, generated provider comments and local documentation links passed.

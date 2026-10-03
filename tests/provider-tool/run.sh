@@ -111,7 +111,7 @@ expect_fail 'unquoted floor with trailing YAML tokens is rejected' 'unsupported 
   grade --providers "$work/providers" --registry "$registry"
 
 cp "$root/providers/web.providers.yml" "$work/providers/web.providers.yml"
-sed -i 's/source: FS.GG.Workspace.Template::0.13.0/source: FS.GG.Workspace.Template::0.13.0 garbage/' "$work/providers/web.providers.yml"
+sed -i '/^    source:/s/$/ garbage/' "$work/providers/web.providers.yml"
 expect_fail 'unquoted provider source with trailing YAML tokens is rejected' 'unsupported text after scalar value' \
   grade --providers "$work/providers" --registry "$registry"
 
