@@ -3,7 +3,8 @@
 TSDD-KNOWLEDGE-01.4 prepares Templates composition against the selected
 [Unified requirement](https://github.com/FS-GG/.github/blob/main/docs/2026-09-07-154210-fs-gg-unified-development-roadmap.md#991-project-knowledge-from-typed-sdd-initialization).
 Source preparation is separate from candidate execution and public installed adoption.
-The current preparation does not establish generated-project availability.
+Downloaded public SDD 2.1.0 now qualifies the 0.18.0 Templates source archive; publication
+of that Templates successor and public generated-project adoption remain pending.
 
 ## Supported creation boundaries
 
@@ -103,8 +104,8 @@ The checker requires the capture guide, canonical schema, and an exact local FS.
 pin. It invokes that local tool's real `knowledge check` and requires the 10 MiB contract. A raw
 Typed SDD template caller must establish its local capable tool manifest and explicitly initialize
 knowledge before the ordinary foreground initial commit. Raw template creation emits CI but does
-not impersonate workspace initialization. The provider scaffold owns its tool manifest. The release
-owner will select the capable published identity; current public 2.0.3 cannot qualify this feature.
+not impersonate workspace initialization. The provider scaffold owns its tool manifest. The selected
+capable published identity is SDD 2.1.0; historical public 2.0.3 cannot qualify this feature.
 
 The source package and its actual generated checker passed 30 lifecycle emission cells and seven
 entry controls, including an exact-budget acceptance and an oversized on-disk bypass refusal.
@@ -123,11 +124,11 @@ Packages lookup returned 403. A protected authenticated collision check must suc
 reservation, tag or publication; an occupied identity requires a different successor.
 
 The central checker requires an exact stable local SDD pin of at least 2.1.0 and still checks actual
-command capability. That release is a source candidate until dual-feed publication and clean
-installed qualification. The descriptors retain the historical generic 1.4.0-preview.1 floor because
+command capability. Public SDD 2.1.0 has completed dual-feed publication and clean installed
+qualification. The earlier preparation retained the generic 1.4.0-preview.1 floor because
 the existing provider/registry equality contract covers ordinary lifecycle composition. That floor
-does not advertise knowledge capability. Explicit provider-level typed capability enforcement is
-still a join if an old generic producer can scaffold typed files without usable knowledge setup.
+does not advertise knowledge capability. The separate provider v2 adoption described below
+enforces the capable stable floor before provider effects.
 
 External Rendering app/game products use the separately installed overlay without modifying their
 original upstream payload: `dotnet new fs-gg-project-knowledge --lifecycle typed-sdd --output ROOT`,
@@ -142,7 +143,8 @@ A separate local adoption commit selects provider contract 2.0.0 and minimum sta
 for all six active descriptors, including external Rendering composition. It preserves each source
 pin and lifecycle/parameter choice; no original archive is repacked. The matching registry floor
 must join under the existing literal equality gate. This adoption is not authorized for protected
-activation until capable SDD 2.1.0 has been published and independently installed.
+activation by this source qualification. Capable SDD 2.1.0 is now published and independently
+installed; Templates publication, wizard composition and protected registry adoption remain separate.
 
 Provider v2 uses the existing record shape: the new capable reader enforces the declared stable
 floor and its 2.1.0 baseline before effects. Old major-1 readers reject v2 before initialization,
@@ -150,4 +152,33 @@ which applies to ordinary lifecycle callers too. Historical v1 descriptors/archi
 existing advisory-floor behavior; new-generation acceptance must not rewrite their evidence.
 The actual public 2.0.3 tool refused all six v2 descriptors across all four lifecycle selections,
 with original workspace bytes preserved and no template installation. Capable published positive
-provider and wizard routes remain required before this adoption closes .4/.5.
+provider routes now pass against the source Templates archive. Public Templates and wizard routes
+remain required before this adoption closes .4/.5.
+
+## Public SDD 2.1.0 against the current source successor
+
+[The current qualification receipt](../../tests/knowledge-receiver/public21-receiver-qualification.json)
+binds freshly downloaded public producer archives to source
+`518517f6b90330a6e99f90bbce68faa0a891287f`, literal installed DLL hashes and official
+FSharp.Core assets. Templates source `6a05c52258748526d483f7be3a33f0ad86d17c6b` was packed
+freshly as 0.18.0; it remains unpublished. The unchanged current D.5 source caller passed
+actual public 2.1.0 installation, typed author/inspect/refusal controls and both locked builds.
+
+All six provider families passed explicit typed and omitted-default creation across nine product
+variants (18 rows). Twelve effective typed rows passed foreground initial Git inclusion, concise
+captures, history, selected recovery, cacheless retrieval and the ordinary generated CI checker
+using the restored local public tool without a command override. Six omitted ordinary-SDD rows
+retained their defaults without acquiring a knowledge store or workflow. Ordinary local-tool CI
+accepted exactly 10,485,760 canonical bytes and refused one extra byte.
+
+The actual source package also passed 30 owned and five overlay emission cells, nine CI entry
+controls, and original Rendering app/game preservation and authored-workflow refusal controls.
+All 46 focused ProviderTool controls passed with the staged registry. Serial compilation used
+the private SDK mirror with the verified official Core; global SDK and caches were unchanged.
+The eight frozen public D/D.5 helpers, wrappers, workflows and report remain byte-identical.
+
+Rendering deliberately remains `FS.GG.UI.Template::0.31.0` in
+[its descriptor](../../providers/rendering.providers.yml). The Templates overlay is qualified on
+that original archive. Separate Rendering 0.32.0 adoption, Wizard 0.13.0 composition, Templates
+0.18.0 publication and protected activation remain root-owned joins. This ready window does
+not mark public Templates adoption or the complete feature delivered.

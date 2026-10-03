@@ -219,3 +219,44 @@ full current D.5 run still requires genuine coherent SDD 2.1.0 dual-feed readbac
 compiler/runtime lane. The offline fixture does not establish public tool availability or receiver
 adoption. Existing 0.18.0 source preparation, provider defaults and original Rendering bytes remain
 unchanged.
+
+## Genuine public 2.1.0 source receiver qualification
+
+The later [public-producer receipt](../../../tests/knowledge-receiver/public21-receiver-qualification.json)
+supersedes the pending producer-publication join, while retaining the source-only Templates boundary.
+Fresh public CLI, Artifacts and Knowledge 2.1.0 archives match the root's dual-feed readback and
+producer revision `518517f6b90330a6e99f90bbce68faa0a891287f`. Installed CLI DLL hash is
+`54d561e27c27042bfb3ae893ea7e92941a5f70f4abe5aab2595f7819807d3cc8`.
+Official Core archive hash is `cf1f4e69fc2d1351af9fa9923ac90ed466088730a00867cbe0eb1b3b2c68963e`;
+the private compiler uses its netstandard2.0 asset and the public apphost uses its netstandard2.1
+asset. No global SDK modification or inherited NuGet cache qualifies this run.
+
+The unchanged current D.5 source caller packed source
+`6a05c52258748526d483f7be3a33f0ad86d17c6b` as Workspace.Template 0.18.0, hash
+`eba2cbe451fb933e74e28f686c69f58afea64ee9c47135674982b501cc2fbf88`.
+It installed exact public 2.1.0 before template effects and passed raw/provider creation,
+typed author/inspect/refusal and both locked builds. This is an unpublished Templates candidate;
+the frozen public D.5 schema-1 tuple remains Templates 0.15.0 / SDD 2.0.2 / Wizard 0.12.0.
+All eight previously bound public assets retain their exact hashes.
+
+[The public bootstrap harness](../../../tests/knowledge-receiver/public21.py) passed 18 real provider
+rows: explicit typed and omitted selection across the six families and nine product variants.
+Twelve effective typed rows passed the full concise-record probe and the ordinary generated CI
+checker after actual local public tool restore, with no command override. Six omitted ordinary-SDD
+rows emitted neither a knowledge store nor the workflow. The ordinary local checker also accepted
+exactly 10,485,760 aggregate canonical bytes and refused one byte more.
+
+The packed archive passed all 35 template-engine emission cells and nine CI entry controls,
+including stable-floor refusals, missing prerequisites and exact/over-budget disk controls.
+Original Rendering 0.31.0 app/game products passed overlay preservation and authored-workflow
+refusal. The separate source-projection harness's explicit producer argv is the downloaded public
+2.1.0 tool; its historical manifest-override labels do not replace the ordinary local-tool proof.
+All 46 focused ProviderTool controls passed using the staged registry and serial private-SDK
+compilation. Raw output and command logs remain in the private qualification directory; the
+bounded receipt retains digests, exact source inputs and concise results.
+
+Lane 2 was released after every compiler/native process completed. Telemetry attempt
+`templates-public21-receiver-qualification-20261003` remains not configured, with usage Unknown.
+Templates 0.18.0 publication/public adoption, Wizard 0.13.0 composition, separate Rendering
+0.32.0 adoption and protected activation remain pending. The six-family proof deliberately keeps
+the literal Rendering 0.31.0 descriptor and archive; it does not relabel them as 0.32.0.
