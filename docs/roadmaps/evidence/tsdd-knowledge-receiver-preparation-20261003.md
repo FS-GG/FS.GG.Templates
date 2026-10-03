@@ -346,3 +346,72 @@ new native archives must identify its real new head. The eight frozen public D/D
 all six descriptors, lifecycle defaults, model subjects, original Rendering.31 and historical
 1.7/public tuple routes remain unchanged. The private public18 custody wrapper is unchanged.
 Telemetry is not configured; usage Unknown. No registry, push, tag or publication effect occurred.
+
+## Second native composition diagnosis and canonical replay
+
+Actual composition [37124503296](https://github.com/FS-GG/FS.GG.Templates/actions/runs/37124503296)
+bound `40907b6f3067447f4ce17e24f19ed9f2532baf5d` and completed with115 passes/four
+failed identity lanes. Artifact `11274449451` was downloaded and verified against server ZIP digest
+`4901e65ca2135e847f163473f0f9b707c9097988180fca2638fb71a0084227a5`. It retained all
+five clean scaffold/provenance selections for console, bindings, Fable game and web: each recorded
+its correct current2.1 floor and lifecycle. This confirms the preceding first-loop repair, but not
+full lifecycle completion. Later completion JSON was still missing from the old child retention.
+
+An isolated console Standard SDD probe used original native409 archive SHA
+`af324a5cb27d5f893a84d94f676d57b9a1d5aac3f0c4c057265cd8a94c891212` from run
+`37124503290`/artifact `11273469716`, actual public2.1 CLI DLL `54d561e27c27042bfb3ae893ea7e92941a5f70f4abe5aab2595f7819807d3cc8`
+and official runtime Core `39b0b7f06c11bedd93f94b6f101fffd645f1c4437a5a6d3ee79259f855aeb11a`.
+Its first refresh stopped with exit1/partially-blocked: the work-model updated, but transplanted
+analysis/verify/ship projections and their summary were stale. The old helper explicitly described
+this legitimate initial state while its predicate allowed only a fully ready refresh.
+
+A distinct continuation admitted only the known stale downstream views/diagnostics and the actual
+changed work-model. Analyze reached implementationReady; observed-run sync then correctly refused
+`evidence.localArtifactNotTracked` for the unchanged fixture JUnit. A third distinct probe added
+foreground isolated Git initialization/staging/an initial commit. Observed-run sync, diagnostic-free
+evidence, verify and ship then passed with exit0 and terminal shipReady in4.86seconds. Earlier
+2.33/3.20second failures remain unchanged actual history; no phase was retried in their receivers.
+These probes used no compiler, product build, source pack, browser or full provider matrix.
+
+The helper now retains actual command JSON, argv/status and private initial Git proof before child
+cleanup. It requires exact initial partial-refresh structure and work-model change, then every
+original canonical terminal status/predicate. Git configuration is command-scoped; cache/build/test
+state is excluded from the candidate. No fixture evidence is rewritten to avoid the tracking gate.
+
+The same native log recorded Rendering game sdd/typed/spec-kit/omitted test failure:71 pass,
+one failed first-held-W assertion and one skip, followed by false matrix/parent acceptance. Read-only
+inspection of immutable Rendering.31 source showed a shared `Generated Product` platform settings
+path and a real test that persists a W-to-Q rebind. The cross-lane persisted-state cause is supported
+by exact source and the later-lane pattern; the actual native settings file was not retained.
+Rendering movement/title/rebind assertions and its original archive remain unchanged. Fresh
+absolute XDG data/config homes now isolate each generated-product test invocation while preserving
+within-test persistence. Explicit helper/matrix status checks close the conditional-call Bash
+mask that previously let failed tests reach PASS.
+
+[Fourteen causal controls](../../../tests/composition/lib/test-lifecycle-completion.py) exercise strict
+partial-refresh positives/refusals, canonical command/predicate failures, real private Git tracking
+and cache exclusion, typed migration failure, actual matrix positive/failure paths under if, every
+restore/build/test failure, and per-product persistent-state isolation. They run beside the seven
+provenance controls on the composition path. New-head complete native qualification is still owed;
+these narrow probes/fixtures cannot claim it or public successor acceptance. Root owns all remote,
+publication and main-descriptor interval effects. Attempt
+`templates409-native-composition-repair-20261003` is bound by root to the actual native worker;
+usage coverage remains Unknown. The private public18 wrapper remains unchanged and awaits its
+separately admitted hardening/final-source join.
+
+The final refresh guard also binds the real command status: exit0 requires a valid current report;
+only exact exit1 can admit the known initial partial report with a changed work-model. Current or
+partial JSON paired with a crash exit23 refuses before analyze in conditional-caller controls.
+Earlier narrow probes remain proof of their actual helper bytes, rather than the later guarded helper.
+A separately admitted metadata-only .NET10.0.401 FSI probe directly verified that fresh absolute
+XDG_DATA_HOME and XDG_CONFIG_HOME become LocalApplicationData and ApplicationData respectively.
+Official SDK Core SHA `7516a966abc789eab916e95d429bf3a49e996257069d97f7f3eb5d47373fa72b`
+was verified before that probe; no product compilation or build occurred.
+
+The distinct guarded-final Standard SDD probe passed all canonical terminal phases in4.76seconds
+using the unchanged native409 archive and genuine public2.1 tool above. Its exact executed helper
+SHA is `5b89ec6ddc5787bd79a8f37b9448de9bd6ef2caea3ef33b2e689a4bd58e10cff`.
+It retained original refresh exit1, all subsequent phase exit0, real foreground Git argv/status,
+initial commit/tracked durable evidence and report JSON. The earlier final probe remains unchanged
+as proof of earlier helper SHA `f243d7edf10ec927d2dfb084dcbd3f500dae49af72b9212750a183918d5d6ef1`.
+This is a bounded console Standard SDD completion proof, not a new archive/full native matrix proof.

@@ -157,11 +157,13 @@ else
 fi
 
 step "lifecycle — selected descriptor/provenance floor and child-failure controls"
-if python3 "$COMPOSITION_DIR/lib/test-provenance-floor.py" >"$WORKDIR/provenance-floor-controls.log" 2>&1; then
+if python3 "$COMPOSITION_DIR/lib/test-provenance-floor.py" >"$WORKDIR/provenance-floor-controls.log" 2>&1 \
+  && python3 "$COMPOSITION_DIR/lib/test-lifecycle-completion.py" >"$WORKDIR/lifecycle-completion-controls.log" 2>&1; then
   ok "lifecycle provenance equality and retained child failure controls hold"
 else
   bad "lifecycle provenance equality controls failed"
   cat "$WORKDIR/provenance-floor-controls.log"
+  [[ ! -f "$WORKDIR/lifecycle-completion-controls.log" ]] || cat "$WORKDIR/lifecycle-completion-controls.log"
 fi
 
 step "SVG workspace — immutable owner skills and bundle predicates (SVG-WORKSPACE-01.1)"

@@ -230,3 +230,27 @@ This new source head still owes hosted exact-head composition and applicable coh
 fresh native artifact custody and the protected release/public-adoption joins. Earlier 21da or
 75afb2f archives cannot qualify it. The root retains publication and the explicitly managed
 main-descriptor merge-to-publication interval.
+
+## Canonical completion and isolated product test state
+
+Native composition `37124503296` at `40907b6f3067447f4ce17e24f19ed9f2532baf5d`
+retained all twenty current first-loop scaffold/provenance reports and passed their exact floors.
+The four lifecycle lanes then stopped after Freeform completion. A bounded actual Standard SDD
+probe found the next cause: transplanted terminal views produce an initial partial refresh,
+which the old comment anticipated but the predicate refused. The replay now admits only that
+known stale downstream set, with a real changed work-model; all canonical terminal gates remain
+mandatory. A second probe found a genuine untracked local-evidence refusal. Foreground isolated
+Git initialization, staging and an initial commit now establish that durable fixture candidate.
+The unchanged fixture then reaches analyze/evidence/verify/ship readiness with real public2.1.
+
+The same native run also showed retained Rendering.31 game-test failures followed by a false
+matrix success. The template's persisted shell settings share a platform data path across product
+runs. Exact source and the later-lane failure pattern support this cause; the native settings file
+was not retained. Each product test now has fresh private XDG data/config homes, preserving persistence inside
+that invocation. Explicit status checks throughout the matrix and its helpers ensure a failed
+child command, predicate or test cannot reach matrix success under a conditional caller.
+
+Focused causal controls and narrow actual Standard SDD completion do not qualify the full
+provider/lifecycle/build matrix. Hosted exact-head coherent checks, fresh archive custody and
+public successor adoption remain required. No original Rendering payload, lifecycle default,
+historical tuple, fixture content, provider pin, model subject or frozen D/D.5 asset changes.
