@@ -157,3 +157,20 @@ that the later original 0.32.0 archive or root-owned wizard composition has been
 The Python provider floor gate and all 28 self-demonstration controls passed with unchanged generic
 floors; the existing lifecycle self-test, ten receiver inventory tests, release mechanism mutation
 controls, Python/shell syntax, generated provider comments and local documentation links passed.
+
+## Pending coherent provider v2 window
+
+Root selected the bounded existing-record provider v2 contract after confirming that historical
+v1 minimum CLI floors are advisory. A separate local adoption branch changes all six active
+descriptors to contract 2.0.0 and floor 2.1.0, including Rendering composition without altering its
+archive or source pin. Historical v1 facts and the source successor receipt remain distinct.
+Protected adoption still waits for actual capable producer publication/installed proof and the
+matching root-owned registry floor. Closed fields and exact equality are retained.
+
+[The legacy refusal receipt](../../../tests/knowledge-receiver/provider-v2-public203-refusal-receipt.json)
+binds the actual public 2.0.3 archive and literal current descriptor hashes. Twenty-four actual CLI
+runs (six families times four lifecycle selections) refused unsupported contract before workspace
+mutation. Each full original snapshot remained unchanged, with no canonical store or added paths;
+the isolated CLI home acquired no Template Engine installation directory. No injected version or
+synthetic old client substitutes for this negative installed proof. Positive provider-v2 evidence
+remains owned by the capable producer and wizard join, followed by clean public artifacts.

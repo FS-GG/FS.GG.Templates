@@ -16,7 +16,9 @@ class InventoryTests(unittest.TestCase):
         for name in ("console", "web", "fable-bindings", "python", "fable-game"):
             self.assertEqual(rows[name]["source"], "FS.GG.Workspace.Template::0.18.0")
             descriptor = (ROOT / rows[name]["descriptor"]).read_text()
-            self.assertIn('minimumFsggSdd:\n      version: "1.4.0-preview.1"', descriptor)
+            self.assertIn('minimumFsggSdd:\n      version: "2.1.0"', descriptor)
+        for row in rows.values():
+            self.assertIn('contractVersion: "2.0.0"', (ROOT / row["descriptor"]).read_text())
         self.assertEqual(rows["rendering"]["source"], "FS.GG.UI.Template::0.31.0")
         self.assertEqual([r["provider"] for r in rows.values() if r["external"]], ["rendering"])
 

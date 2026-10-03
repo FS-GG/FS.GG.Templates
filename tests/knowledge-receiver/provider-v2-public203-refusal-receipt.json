@@ -1,0 +1,563 @@
+{
+  "schema": "fsgg.knowledge-provider-v2-legacy-refusal/1",
+  "publishedPositiveAcceptance": false,
+  "actualPublicProducerVersion": "2.0.3",
+  "publicArchiveSha256": "b950bf4fc46a09554a51b6b31f920830c8811bb6580b2724c500b8317bcfa9d7",
+  "command": [
+    "/tmp/knowledge-ci-public203-20261003/tools/fsgg-sdd"
+  ],
+  "rows": [
+    {
+      "provider": "console",
+      "lifecycle": "none",
+      "descriptorSha256": "cd648bdeb264ca395297255d9328384a8cb0b6d1649eab83bc0d77efc7b6aa11",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'console' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "console"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "console",
+      "lifecycle": "sdd",
+      "descriptorSha256": "cd648bdeb264ca395297255d9328384a8cb0b6d1649eab83bc0d77efc7b6aa11",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'console' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "console"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "console",
+      "lifecycle": "typed-sdd",
+      "descriptorSha256": "cd648bdeb264ca395297255d9328384a8cb0b6d1649eab83bc0d77efc7b6aa11",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'console' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "console"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "console",
+      "lifecycle": "spec-kit",
+      "descriptorSha256": "cd648bdeb264ca395297255d9328384a8cb0b6d1649eab83bc0d77efc7b6aa11",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'console' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "console"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "fable-bindings",
+      "lifecycle": "none",
+      "descriptorSha256": "dd96e75dca42c08a6e838e2d004397757ac2fd91bf6e1057fcb0c149aaf28a39",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'fable-bindings' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "fable-bindings"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "fable-bindings",
+      "lifecycle": "sdd",
+      "descriptorSha256": "dd96e75dca42c08a6e838e2d004397757ac2fd91bf6e1057fcb0c149aaf28a39",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'fable-bindings' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "fable-bindings"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "fable-bindings",
+      "lifecycle": "typed-sdd",
+      "descriptorSha256": "dd96e75dca42c08a6e838e2d004397757ac2fd91bf6e1057fcb0c149aaf28a39",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'fable-bindings' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "fable-bindings"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "fable-bindings",
+      "lifecycle": "spec-kit",
+      "descriptorSha256": "dd96e75dca42c08a6e838e2d004397757ac2fd91bf6e1057fcb0c149aaf28a39",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'fable-bindings' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "fable-bindings"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "fable-game",
+      "lifecycle": "none",
+      "descriptorSha256": "16037b2727d32203afc24513db2a2b24dac9ae35db9af42817f02623cb620816",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'fable-game' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "fable-game"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "fable-game",
+      "lifecycle": "sdd",
+      "descriptorSha256": "16037b2727d32203afc24513db2a2b24dac9ae35db9af42817f02623cb620816",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'fable-game' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "fable-game"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "fable-game",
+      "lifecycle": "typed-sdd",
+      "descriptorSha256": "16037b2727d32203afc24513db2a2b24dac9ae35db9af42817f02623cb620816",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'fable-game' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "fable-game"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "fable-game",
+      "lifecycle": "spec-kit",
+      "descriptorSha256": "16037b2727d32203afc24513db2a2b24dac9ae35db9af42817f02623cb620816",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'fable-game' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "fable-game"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "python",
+      "lifecycle": "none",
+      "descriptorSha256": "f817b5c42cce22dae53ddc16cec075ed1387d1dfc7226eeaae85b3db2cb475f0",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'python' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "python"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "python",
+      "lifecycle": "sdd",
+      "descriptorSha256": "f817b5c42cce22dae53ddc16cec075ed1387d1dfc7226eeaae85b3db2cb475f0",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'python' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "python"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "python",
+      "lifecycle": "typed-sdd",
+      "descriptorSha256": "f817b5c42cce22dae53ddc16cec075ed1387d1dfc7226eeaae85b3db2cb475f0",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'python' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "python"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "python",
+      "lifecycle": "spec-kit",
+      "descriptorSha256": "f817b5c42cce22dae53ddc16cec075ed1387d1dfc7226eeaae85b3db2cb475f0",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'python' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "python"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "rendering",
+      "lifecycle": "none",
+      "descriptorSha256": "78bd8de8975e0422cfa0e4560634b584dc4047880e6e67237a452c9a201e45db",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'rendering' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "rendering"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "rendering",
+      "lifecycle": "sdd",
+      "descriptorSha256": "78bd8de8975e0422cfa0e4560634b584dc4047880e6e67237a452c9a201e45db",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'rendering' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "rendering"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "rendering",
+      "lifecycle": "typed-sdd",
+      "descriptorSha256": "78bd8de8975e0422cfa0e4560634b584dc4047880e6e67237a452c9a201e45db",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'rendering' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "rendering"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "rendering",
+      "lifecycle": "spec-kit",
+      "descriptorSha256": "78bd8de8975e0422cfa0e4560634b584dc4047880e6e67237a452c9a201e45db",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'rendering' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "rendering"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "web",
+      "lifecycle": "none",
+      "descriptorSha256": "89d0fb9172b906b3c0b94017d952561c7d62e0cfde01b6a6c439e881ccef4cbe",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'web' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "web"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "web",
+      "lifecycle": "sdd",
+      "descriptorSha256": "89d0fb9172b906b3c0b94017d952561c7d62e0cfde01b6a6c439e881ccef4cbe",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'web' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "web"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "web",
+      "lifecycle": "typed-sdd",
+      "descriptorSha256": "89d0fb9172b906b3c0b94017d952561c7d62e0cfde01b6a6c439e881ccef4cbe",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'web' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "web"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    },
+    {
+      "provider": "web",
+      "lifecycle": "spec-kit",
+      "descriptorSha256": "89d0fb9172b906b3c0b94017d952561c7d62e0cfde01b6a6c439e881ccef4cbe",
+      "exit": 1,
+      "diagnostics": [
+        {
+          "id": "scaffold.providerVersionUnsupported",
+          "severity": "error",
+          "artifact": ".fsgg/providers.yml",
+          "location": null,
+          "message": "Provider 'web' declares contract version '2.0.0'; supported range is '>=1.0.0 <2.0.0'.",
+          "correction": "Upgrade FS.GG.SDD or the provider so the declared contract version falls within the supported range.",
+          "relatedIds": [
+            "2.0.0",
+            ">=1.0.0 <2.0.0",
+            "web"
+          ]
+        }
+      ],
+      "allOriginalBytesPreserved": true,
+      "addedPaths": []
+    }
+  ]
+}

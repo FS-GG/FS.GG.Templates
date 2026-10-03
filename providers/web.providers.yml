@@ -1,8 +1,9 @@
+# Pending coherent adoption: provider v2 requires published, installed SDD >=2.1.0 before activation.
 # Provisional knowledge-CI successor source: publication and public installed adoption remain pending.
 schemaVersion: 1
 providers:
   - name: web
-    contractVersion: "1.1.0"
+    contractVersion: "2.0.0"
     templateId: fs-gg-web
     # This intended release pin is not an activation lead; FS.GG.Templates#349 publishes and independently verifies it.
     source: FS.GG.Workspace.Template::0.18.0
@@ -27,8 +28,8 @@ providers:
     # see tests/composition/web/run.sh. So the floor is the coherent-set minimum, not a web-specific
     # requirement, and it must move only when that registry pin moves.
     minimumFsggSdd:
-      version: "1.4.0-preview.1"
-      requires: "Typed Protocol Kernel lifecycle selection, compilation, provenance, refresh, and diagnostics"
+      version: "2.1.0"
+      requires: "Typed Protocol Kernel lifecycle selection, compilation, provenance, refresh, and diagnostics; provider v2 stable CLI admission and concise project knowledge"
       adr: "FS-GG/.github docs/adr/0071-two-web-workspace-providers-one-template-package.md"
     parameters:
       - key: productName

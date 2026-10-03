@@ -135,3 +135,19 @@ without `--force`, from the exact Workspace.Template successor. Omission and oth
 nothing. An authored target workflow causes refusal preserving all owner bytes. The overlay adds
 only the canonical central checker and workflow, not a tool manifest or store. Wizard bootstrap
 owns capable local tool pinning, initialization and the normal initial commit.
+
+## Pending provider v2 adoption
+
+A separate local adoption commit selects provider contract 2.0.0 and minimum stable SDD 2.1.0
+for all six active descriptors, including external Rendering composition. It preserves each source
+pin and lifecycle/parameter choice; no original archive is repacked. The matching registry floor
+must join under the existing literal equality gate. This adoption is not authorized for protected
+activation until capable SDD 2.1.0 has been published and independently installed.
+
+Provider v2 uses the existing record shape: the new capable reader enforces the declared stable
+floor and its 2.1.0 baseline before effects. Old major-1 readers reject v2 before initialization,
+which applies to ordinary lifecycle callers too. Historical v1 descriptors/archives retain their
+existing advisory-floor behavior; new-generation acceptance must not rewrite their evidence.
+The actual public 2.0.3 tool refused all six v2 descriptors across all four lifecycle selections,
+with original workspace bytes preserved and no template installation. Capable published positive
+provider and wizard routes remain required before this adoption closes .4/.5.

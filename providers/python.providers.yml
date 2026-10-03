@@ -1,16 +1,17 @@
+# Pending coherent adoption: provider v2 requires published, installed SDD >=2.1.0 before activation.
 # Provisional knowledge-CI successor source: publication and public installed adoption remain pending.
 # Opt-in Python Hello provider. Candidate composition rewrites `source` to the exact local archive;
 # no registry/default/adoption setting selects this descriptor automatically.
 schemaVersion: 1
 providers:
   - name: python
-    contractVersion: "1.1.0"
+    contractVersion: "2.0.0"
     templateId: fs-gg-python
     source: FS.GG.Workspace.Template::0.18.0
     nameParameter: productName
     minimumFsggSdd:
-      version: "1.4.0-preview.1"
-      requires: "Generic provider scaffold, lifecycle selection, provenance, refresh, and diagnostics"
+      version: "2.1.0"
+      requires: "Generic provider scaffold, lifecycle selection, provenance, refresh, and diagnostics; provider v2 stable CLI admission and concise project knowledge"
       adr: "FS-GG/.github docs/adr/0084-semantic-reuse-never-cancels-coherent-validation.md"
     parameters:
       - key: productName

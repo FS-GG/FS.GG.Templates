@@ -1,3 +1,4 @@
+# Pending coherent adoption: provider v2 requires published, installed SDD >=2.1.0 before activation.
 # Provisional knowledge-CI successor source: publication and public installed adoption remain pending.
 # Drop-in `.fsgg/providers.yml` entry for the minimal F# console workspace.
 # `source` is an exact package pin: activation is deliberately deferred until this
@@ -5,14 +6,14 @@
 schemaVersion: 1
 providers:
   - name: console
-    contractVersion: "1.1.0"
+    contractVersion: "2.0.0"
     templateId: fs-gg-console
     source: FS.GG.Workspace.Template::0.18.0
     nameParameter: productName
     identifierParameter: rootNamespace
     minimumFsggSdd:
-      version: "1.4.0-preview.1"
-      requires: "Typed Protocol Kernel lifecycle selection, compilation, provenance, refresh, and diagnostics"
+      version: "2.1.0"
+      requires: "Typed Protocol Kernel lifecycle selection, compilation, provenance, refresh, and diagnostics; provider v2 stable CLI admission and concise project knowledge"
       adr: "FS-GG/.github docs/adr/0072-console-and-fable-bindings-are-separate-workspace-providers.md"
     parameters:
       - key: productName
