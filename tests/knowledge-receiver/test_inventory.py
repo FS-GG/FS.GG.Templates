@@ -68,7 +68,7 @@ class InventoryTests(unittest.TestCase):
 
     def test_fixture_covers_concise_findings_and_excluded_inputs(self):
         fixture = json.loads((Path(__file__).parent / "findings.json").read_text())
-        self.assertEqual({x["kind"] for x in fixture["findings"]}, {"decision", "lesson", "experiment", "bug-fix"})
+        self.assertEqual({x["kind"] for x in fixture["findings"]}, {"decision", "diagnostic", "experiment", "bug-fix"})
         for finding in fixture["findings"]:
             self.assertTrue((ROOT / finding["evidence"]["path"]).is_file())
             self.assertLess(len(finding["finding"].encode()), 1024)

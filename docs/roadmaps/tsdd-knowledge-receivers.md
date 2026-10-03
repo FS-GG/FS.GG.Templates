@@ -38,22 +38,22 @@ knowledge store, or a normal initial commit. Raw SVG Fable game omission selects
 while its separately packed legacy template retains raw `sdd` omission. The provider supplies
 `typed-sdd` on omission even when it selects `svgFoundation=false`.
 
-The candidate SDD owner intends successful provider scaffolding with effective `typed-sdd` to
-initialize knowledge. A raw app-only route needs a separately qualified generic SDD initialization
-and typed activation boundary. An explicit generic knowledge initializer, if published, can create
-a store but does not establish the project's typed lifecycle. Those distinctions must remain
-visible in documentation and evidence; no route may claim automatic initialization solely from a
-raw template flag.
+The frozen candidate initializes knowledge after successful provider scaffolding with effective
+`typed-sdd`. Raw app-only products can use the producer-supported explicit `knowledge initialize`
+route to obtain a preserving standalone knowledge store before a normal initial commit. This route
+does not establish a complete SDD skeleton or select the project's typed lifecycle. Generic SDD
+`init` refuses raw Fable game products when their authored `.gitignore` conflicts with its skeleton;
+that expected safety refusal must remain visible. No route may claim automatic initialization
+solely from a raw template flag.
 
 The `.github` owner controls wizard composition, registry activation, and global creation guidance.
 Its actual effective lifecycle and installed producer must join the Templates candidate matrix.
 Wizard qualification is not established by replaying provider commands locally.
 
-The current producer reports Git repository initialization without creating an initial commit.
-Qualification must use the route's real normal initial-commit owner, inspect tracked knowledge at
-that commit, and prove that broader ignore rules do not hide records or schema metadata. The
-knowledge feature must not introduce background commits or pushes. Initial commit ownership
-remains a producer/wizard join, not a receiver-authored automatic commit.
+SDD initializes a Git repository without creating an initial commit. Candidate receiver probes use
+the ordinary foreground `git add .` and initial commit, then verify tracked knowledge at that
+commit and a later finding update. The knowledge feature introduces no background commits or
+pushes. Actual wizard commit ownership remains a separate `.github` join.
 
 ## Candidate and installed acceptance
 
@@ -61,7 +61,9 @@ Use an exact admitted candidate producer and template archive to create each sup
 through its provider. Repeat Fable game player, complete, and retained legacy selection, plus
 Rendering app/game profiles. Qualify explicit `typed-sdd` and the effective omitted defaults.
 Other explicit lifecycles retain their existing behavior and do not acquire a new default.
-Direct and wizard routes need their actual initialization boundaries, separately recorded.
+Direct and wizard routes need their actual initialization boundaries, separately recorded. The
+bounded direct probes establish explicit standalone knowledge initialization; they do not establish
+automatic Typed SDD workspace activation from raw template flags.
 
 Capture the four concise synthetic findings in
 [findings.json](../../tests/knowledge-receiver/findings.json): architecture decision, diagnostic
