@@ -172,4 +172,13 @@
            Text="Owner-sourced product skills on disk (@(_FsggOwnerSkill->Count())) and product-skill package items (@(_FsggProjectedSkill->Count())) disagree. A skill authored under template/product-skills/ with no package item is packed into NO template and silently reaches no product. Reconcile FS.GG.Templates.csproj with scripts/generate-skill-manifest.fsx, then run `dotnet fsi scripts/generate-skill-manifest.fsx --check`." />
   </Target>
 
+  <!-- Typed-only product CI is authored once. Template source modifiers preserve every
+       other lifecycle; local SDD tool pins remain owned by the actual scaffolding producer. -->
+  <ItemGroup>
+    <None Include="template/project-knowledge/.github/workflows/project-knowledge.yml" Pack="true"
+          PackagePath="content/templates/fs-gg-console/.github/workflows/;content/templates/fs-gg-web/.github/workflows/;content/templates/fs-gg-fable-bindings/.github/workflows/;content/templates/fs-gg-python/.github/workflows/;content/templates/fs-gg-fable-game/.github/workflows/;content/templates/fs-gg-fable-game-legacy/.github/workflows/" />
+    <None Include="template/project-knowledge/scripts/check-project-knowledge.py" Pack="true"
+          PackagePath="content/templates/fs-gg-console/scripts/;content/templates/fs-gg-web/scripts/;content/templates/fs-gg-fable-bindings/scripts/;content/templates/fs-gg-python/scripts/;content/templates/fs-gg-fable-game/scripts/;content/templates/fs-gg-fable-game-legacy/scripts/" />
+  </ItemGroup>
+
 </Project>

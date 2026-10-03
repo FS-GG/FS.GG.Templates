@@ -56,7 +56,7 @@ the new capability. Existing descriptor floors remain unchanged in this source p
 
 The replay found two producer ignore-precedence cases: an existing exception block followed by a
 later authored broad ignore, and `.fsgg/**` hiding the capture guide while canonical records were
-visible. The SDD owner repaired both. The final frozen candidate passed 18 bounded source probes:
+visible. The SDD owner repaired both. That historical frozen candidate passed 18 bounded source probes:
 nine successful automatic Typed SDD provider initializations and nine explicit standalone knowledge
 initializations after real raw product creation. Each passed later `.fsgg/**` ignore precedence,
 normal initial Git inclusion of guide/schema/records, unchanged reinitialization, no-clobber authored
@@ -71,7 +71,7 @@ through the raw entry remains unclaimed.
 
 [The candidate receipt](../../../tests/knowledge-receiver/candidate-receipt.json) binds all 18 rows,
 normal initial/update Git commits, exact assembly/archive hashes, current byte measurements and
-run-receipt digests. The final Knowledge assembly hash is
+run-receipt digests. That historical Knowledge assembly hash is
 `358a3985061cc8828631b7695ffbdf0a276ecdd302a7cd27d86f99b0df6871b6`; Commands is
 `31ea65748f78099939098bb3ea0d141dd1da135e7077e141ad0e08374ecc8eca`. The unchanged CLI hash is
 `a387112a771eddb021e35f4c21177d1fe58eaa4dc0eb58648e9250c7adfaf3b5`. Its reported 2.0.3 version
@@ -89,3 +89,36 @@ explicit joins. The bounded receiver replay does not mark .4 or .5 complete.
 
 The bounded replay attempt `knowledge-receiver-candidate-matrix-20261003` began without telemetry
 configuration. Native usage remains unknown.
+
+## Repaired-source replay and actual package CI
+
+The original receipt remains historical. The symlink-preflight repaired closure passed the same
+18 real rows in [its receipt](../../../tests/knowledge-receiver/candidate-receipt-symlink-repair.json).
+The final formatter closure then independently passed all 18 in
+[the formatted-source receipt](../../../tests/knowledge-receiver/candidate-receipt-formatted-repair.json).
+Its CLI hash is `ecea9136def720bb31ada835b1dce7c59b2e39348d358fc1811b0b57e89a0ef4`;
+Knowledge is `a46fb7e34e6939ecc447bec4710d5427657c1620bf68aac48edfa3df289a0bfa`;
+Commands is `5818cb8762992b23c0a523adfef8976506d11180d533bd640a2f2cf353797535`.
+These remain unpublished source closures, irrespective of their reported version.
+
+[The first CI receipt](../../../tests/knowledge-receiver/ci-projection-receipt.json) qualifies a
+manually staged source projection and explicitly makes no actual-package claim. Subsequently,
+locked restore and `dotnet pack --no-build --no-restore` packed the real Templates project with
+its manifest-pinned public Coordination Python projection. The project excludes all Compile items;
+this mechanical pack did not compile source. [The actual package receipt](../../../tests/knowledge-receiver/ci-packed-receipt.json)
+binds the new archive hash, the twelve central workflow/checker package members, source assets,
+and 30 actual template-engine lifecycle emission cells across the six owned template members.
+It verifies asset bytes without substituting staged files into the packed archive.
+
+The emitted checker ran against a real provider-generated receiver and the formatted frozen
+producer. Seven controls passed: valid store, exactly 10,485,760 aggregate bytes, one-byte disk
+bypass refusal, actual public SDD 2.0.3 capability refusal, missing capture guide, missing schema,
+and missing local tool pin. The fresh public 2.0.3 archive hash is
+`b950bf4fc46a09554a51b6b31f920830c8811bb6580b2724c500b8317bcfa9d7`.
+Workflow preflight precedes restore; permissions are read-only; candidate-prefix substitution is
+available only to explicit qualification and absent from the ordinary product workflow.
+
+The actual source package still reports 0.17.0 and is unpublished. Existing provider pins remain
+unchanged. Generated CI now has a bounded local source proof for owned template families;
+externally owned Rendering overlay, root-owned wizard initialization, producer source admission,
+coherent publication and exact clean public-package adoption remain pending.

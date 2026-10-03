@@ -88,5 +88,26 @@ coherent producer publication and a clean downloaded-package matrix.
 ## Preparation evidence
 
 [The preparation report](evidence/tsdd-knowledge-receiver-preparation-20261003.md) records checks
-and pending joins. The tests inventory source contracts and exercise refusal controls; they do not
-claim that the unpublished knowledge producer is installed or that receiver acceptance passed.
+and pending joins. The tests inventory source contracts and exercise refusal controls; they distinguish bounded source candidate qualification from published installed acceptance.
+
+## Typed product CI and bootstrap boundary
+
+The Templates-owned package projects one shared ordinary `pull_request` workflow and checker to
+console, web, Fable bindings, Python, and both Fable game template members. Actual template-engine
+conditions emit them only for effective `typed-sdd`; existing lifecycle defaults and Fable product
+CI remain unchanged. The workflow uses read-only contents permission and performs local canonical
+file/tool-manifest preflight before tool restore. It does not execute the knowledge checker in the
+trusted `pull_request_target` routine gate.
+
+The checker requires the capture guide, canonical schema, and an exact local FS.GG.SDD.Cli tool
+pin. It invokes that local tool's real `knowledge check` and requires the 10 MiB contract. A raw
+Typed SDD template caller must establish its local capable tool manifest and explicitly initialize
+knowledge before the ordinary foreground initial commit. Raw template creation emits CI but does
+not impersonate workspace initialization. The provider scaffold owns its tool manifest. The release
+owner will select the capable published identity; current public 2.0.3 cannot qualify this feature.
+
+The source package and its actual generated checker passed 30 lifecycle emission cells and seven
+entry controls, including an exact-budget acceptance and an oversized on-disk bypass refusal.
+Existing pinned template archives do not acquire these new files. Coherent successor publication,
+deliberate provider-pin adoption, root-owned wizard bootstrap, and the externally owned Rendering
+workflow overlay remain separate joins before installed acceptance.

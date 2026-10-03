@@ -20,6 +20,12 @@
         "**/node_modules/**",
         "**/.nuget/**",
         "**/generated-candidates/xantham/runs/**"
+      ],
+      "modifiers": [
+        {
+          "condition": "(lifecycle != \"typed-sdd\")",
+          "exclude": [ ".github/workflows/project-knowledge.yml", "scripts/check-project-knowledge.py" ]
+        }
       ]
     }
   ],

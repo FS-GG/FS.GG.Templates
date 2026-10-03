@@ -21,6 +21,12 @@
         "**/__pycache__/**",
         "**/*.pyc",
         "**/output/**"
+      ],
+      "modifiers": [
+        {
+          "condition": "(lifecycle != \"typed-sdd\")",
+          "exclude": [ ".github/workflows/project-knowledge.yml", "scripts/check-project-knowledge.py" ]
+        }
       ]
     }
   ],

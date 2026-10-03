@@ -1,0 +1,535 @@
+{
+  "schema": "fsgg.knowledge-receiver-candidate-evidence/1",
+  "disposition": "passed-bounded-symlink-repaired-source-candidate-probes",
+  "producerPublished": false,
+  "producerSourceAdmitted": false,
+  "installedAdoptionAccepted": false,
+  "archives": [
+    {
+      "sha256": "ab72f74a76d59ad4be6f11f367bbdf1b27f8bdedae7a2e3afecbe0e4b3fac10c",
+      "name": "FS.GG.Workspace.Template.0.13.0.nupkg"
+    },
+    {
+      "sha256": "0c0d4ab331ef452ea6129f3c164641bb6df80f7b7d347caf166a550c9932d24b",
+      "name": "FS.GG.Workspace.Template.0.17.0.nupkg"
+    },
+    {
+      "sha256": "06ddce126916565595d66896294cc81ba24f59b7e51c5da21acdc58a1dc483ef",
+      "name": "FS.GG.UI.Template.0.31.0.nupkg"
+    }
+  ],
+  "workspaceCandidateSource": {
+    "revision": "fb4854a14f11ff9b79250e15c579b1ce4dd85afe",
+    "binding": "NuGet nuspec and root-authorized local qualification archive",
+    "published": false,
+    "pythonDescriptorSource": "FS.GG.Workspace.Template::0.16.0",
+    "candidateOverride": "FS.GG.Workspace.Template.0.17.0.nupkg"
+  },
+  "pending": [
+    "root producer .3 source admission",
+    "wizard actual creation and commit-owner join",
+    "supported published producer floor/bootstrap adoption",
+    "producer exact-limit and library qualification join",
+    "public-only coherent .5 installed release matrix"
+  ],
+  "historicalReceipt": "tests/knowledge-receiver/candidate-receipt.json",
+  "producer": {
+    "reportedVersion": "2.0.3",
+    "assemblySha256": {
+      "FS.GG.SDD.Cli.dll": "1ab4c25c4d1bf7052999d201a10960f3363daa416ddcc198a5af66346a30d978",
+      "FS.GG.SDD.Knowledge.dll": "c61cfc5928e9cf347e2c6700ef450ca7bd761ff89e399a705914313e39ce29bd",
+      "FS.GG.SDD.Commands.dll": "ee72998bc1573f3c47b1b83c22f95d86782450fa27e803179d0682f9986ef19e"
+    }
+  },
+  "runReceipts": [
+    {
+      "path": "/tmp/knowledge-receiver-matrix-20261003-symlink-repair/receipt.json",
+      "sha256": "c7ebb50924bc2cfc068dde2246949a8c5567207728003a94118bb2635ab3c52d"
+    }
+  ],
+  "public203Refusal": {
+    "archiveSha256": "b950bf4fc46a09554a51b6b31f920830c8811bb6580b2724c500b8317bcfa9d7",
+    "diagnostic": "unknownCommand",
+    "exitCode": 1,
+    "binding": "producer fresh public archive receiver receipt"
+  },
+  "rows": [
+    {
+      "route": "provider",
+      "family": "console",
+      "variant": "default-product",
+      "descriptorSource": "FS.GG.Workspace.Template::0.13.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": true,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "c361b086410aa3f4439d03044c8cf8298c324583",
+        "findingsCommit": "f0ec3a593b40014626a373fa13985cca2871fd4c",
+        "updatedCommit": "2622d4493aa8adcc768613a43fb53f056b4edeaa",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.13.0.nupkg"
+    },
+    {
+      "route": "provider",
+      "family": "web",
+      "variant": "default-product",
+      "descriptorSource": "FS.GG.Workspace.Template::0.13.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": true,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "5551ddc81aa4a1b5f72cb356437ee8e2dacbfa0f",
+        "findingsCommit": "561aa59ce30c5c33220204a6b58b00f119026026",
+        "updatedCommit": "11943b9fe10d5b70b24a8866c228f7162f45a05b",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.13.0.nupkg"
+    },
+    {
+      "route": "provider",
+      "family": "fable-bindings",
+      "variant": "default-product",
+      "descriptorSource": "FS.GG.Workspace.Template::0.13.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": true,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "6f37c5ab77224c2f7bde59c4f34b325cb4b8119b",
+        "findingsCommit": "c5f00b9b1c024b9de51bdfd9b3af35e2f3011988",
+        "updatedCommit": "f005157c7c290928212f5bacd26dd6b779b95825",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.13.0.nupkg"
+    },
+    {
+      "route": "provider",
+      "family": "python",
+      "variant": "default-product",
+      "descriptorSource": "FS.GG.Workspace.Template::0.16.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": true,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "4a6c3f70e6c50a11bc6812f830b7dcce011e9e7a",
+        "findingsCommit": "e21b6770a9d3a00c983411e55952306a6d96c267",
+        "updatedCommit": "b5b33df90180b7d6b2eefdf9facc91dc501d6bdd",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.17.0.nupkg"
+    },
+    {
+      "route": "provider",
+      "family": "fable-game",
+      "variant": "player",
+      "descriptorSource": "FS.GG.Workspace.Template::0.17.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": true,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "33444b1a40bbc8e0f11f7a75ff78236b09979d2f",
+        "findingsCommit": "8aa06746debcced9b43e5ca8846190a5423c3fe3",
+        "updatedCommit": "251721f98dd86dea4b518c878d050c071a903828",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.17.0.nupkg"
+    },
+    {
+      "route": "provider",
+      "family": "fable-game",
+      "variant": "complete",
+      "descriptorSource": "FS.GG.Workspace.Template::0.17.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": true,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "6377951f928d9fca0912dcfc5133c02fbd6ae687",
+        "findingsCommit": "de7505e12d8bceab29c4943617cbfe5558ab4462",
+        "updatedCommit": "2e6c44ddb4e72884ca6855c8d703f00419c4825e",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.17.0.nupkg"
+    },
+    {
+      "route": "provider",
+      "family": "fable-game",
+      "variant": "legacy",
+      "descriptorSource": "FS.GG.Workspace.Template::0.17.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": true,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "244e1c65fd5698760c834e699d81dfbdd4efedb0",
+        "findingsCommit": "a5b0ddd60834980601ecd18a47a1ac78bb7ffdcf",
+        "updatedCommit": "aadfb3d96eda405d6d94f0cb889a1af7570d8d43",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.17.0.nupkg"
+    },
+    {
+      "route": "provider",
+      "family": "rendering",
+      "variant": "app",
+      "descriptorSource": "FS.GG.UI.Template::0.31.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": true,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "39302da0ffd9e73ae6a5a6c2d47da1a0bb613939",
+        "findingsCommit": "5cea070f0b969abce4ae1b5a8d89eb9664b9f7aa",
+        "updatedCommit": "e2329c6e9d2ad60f35751a1e5cac8ec8c49e9b7b",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.UI.Template.0.31.0.nupkg"
+    },
+    {
+      "route": "provider",
+      "family": "rendering",
+      "variant": "game",
+      "descriptorSource": "FS.GG.UI.Template::0.31.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": true,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "914e501f6939df646dccb51abfe30657ad453e5a",
+        "findingsCommit": "9299d515cee768514db3ef926dc671deaccc26c0",
+        "updatedCommit": "213ada028c6a27f873af0b078de91a3def1bcc46",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.UI.Template.0.31.0.nupkg"
+    },
+    {
+      "route": "direct-plus-generic-initialization",
+      "family": "console",
+      "variant": "default-product",
+      "descriptorSource": "FS.GG.Workspace.Template::0.13.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": false,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "3b2dba02de8ff6d108ec4364e9b365d7f32c8f6d",
+        "findingsCommit": "78d26536f8e5f4e289a175e67af9dc6df8a67374",
+        "updatedCommit": "012874c4c90f178deecf68db6b5644c01429cecf",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.13.0.nupkg",
+      "genericInit": "succeeded",
+      "genericInitAddedPathCount": 0,
+      "typedLifecycleActivation": "not claimed; generic knowledge initialize does not select lifecycle"
+    },
+    {
+      "route": "direct-plus-generic-initialization",
+      "family": "web",
+      "variant": "default-product",
+      "descriptorSource": "FS.GG.Workspace.Template::0.13.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": false,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "bcf04ffea7272e68cee15092a5f82b67c1317700",
+        "findingsCommit": "420c2dd1a0803ef0c0f15840286cf2c305b7f88c",
+        "updatedCommit": "1984f3aaed9a7fc7ca2a1903026886ce850cb57a",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.13.0.nupkg",
+      "genericInit": "succeeded",
+      "genericInitAddedPathCount": 0,
+      "typedLifecycleActivation": "not claimed; generic knowledge initialize does not select lifecycle"
+    },
+    {
+      "route": "direct-plus-generic-initialization",
+      "family": "fable-bindings",
+      "variant": "default-product",
+      "descriptorSource": "FS.GG.Workspace.Template::0.13.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": false,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "c93346a8c87b9943311d6f73b85b8b838d304fc7",
+        "findingsCommit": "53669bd428f827506b635bfb4b34050c7105f60a",
+        "updatedCommit": "f7aaa1e4238c02dfc23af71b04bd36352d6157db",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.13.0.nupkg",
+      "genericInit": "succeeded",
+      "genericInitAddedPathCount": 0,
+      "typedLifecycleActivation": "not claimed; generic knowledge initialize does not select lifecycle"
+    },
+    {
+      "route": "direct-plus-generic-initialization",
+      "family": "python",
+      "variant": "default-product",
+      "descriptorSource": "FS.GG.Workspace.Template::0.16.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": false,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "4427e06d2643bf8e80f5b293e06d88d4077c6598",
+        "findingsCommit": "56b3a30d74e314115513739e74afd59817902e23",
+        "updatedCommit": "ea40c9cc85c992788e923054df0edb7515e26416",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.17.0.nupkg",
+      "genericInit": "succeeded",
+      "genericInitAddedPathCount": 0,
+      "typedLifecycleActivation": "not claimed; generic knowledge initialize does not select lifecycle"
+    },
+    {
+      "route": "direct-plus-generic-initialization",
+      "family": "fable-game",
+      "variant": "player",
+      "descriptorSource": "FS.GG.Workspace.Template::0.17.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": false,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "c4a275a3101704960408e708f4b6e30e96d30538",
+        "findingsCommit": "28e64ccaa2cc49f19f8b26bdee3d9a8d5dfc2c34",
+        "updatedCommit": "39b736d6257993d11bd2555cead02b7b0c87e153",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.17.0.nupkg",
+      "genericInit": "refused product-owned .gitignore; original product bytes preserved",
+      "genericInitAddedPathCount": 52,
+      "typedLifecycleActivation": "not claimed; generic knowledge initialize does not select lifecycle"
+    },
+    {
+      "route": "direct-plus-generic-initialization",
+      "family": "fable-game",
+      "variant": "complete",
+      "descriptorSource": "FS.GG.Workspace.Template::0.17.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": false,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "a4efd42a4212d30aed6a47dd92847a8638c2bbf2",
+        "findingsCommit": "3a800265b956f1d2ea22bfae4fce660846f4c827",
+        "updatedCommit": "0bc79234d9e2aeb4ced133dad622d651968f02bb",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.17.0.nupkg",
+      "genericInit": "refused product-owned .gitignore; original product bytes preserved",
+      "genericInitAddedPathCount": 52,
+      "typedLifecycleActivation": "not claimed; generic knowledge initialize does not select lifecycle"
+    },
+    {
+      "route": "direct-plus-generic-initialization",
+      "family": "fable-game",
+      "variant": "legacy",
+      "descriptorSource": "FS.GG.Workspace.Template::0.17.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": false,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "20763beaeccf9d3c0980dfc0e4e564598747e2c4",
+        "findingsCommit": "e1b93d2c561c6c8e132566c2bfd9abe06a7cbe35",
+        "updatedCommit": "bbbeedbd3774c1ff357b6dab82e770df48df55f5",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.Workspace.Template.0.17.0.nupkg",
+      "genericInit": "refused product-owned .gitignore; original product bytes preserved",
+      "genericInitAddedPathCount": 52,
+      "typedLifecycleActivation": "not claimed; generic knowledge initialize does not select lifecycle"
+    },
+    {
+      "route": "direct-plus-generic-initialization",
+      "family": "rendering",
+      "variant": "app",
+      "descriptorSource": "FS.GG.UI.Template::0.31.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": false,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "0a2b54c2b83c3b812a6b501f7d4c75aaba46b604",
+        "findingsCommit": "5d889eac297ccea2bddbcafa39594c0283eae34a",
+        "updatedCommit": "f8482b55f6bb0ee05e282c7e0f1c5d4b8c462411",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.UI.Template.0.31.0.nupkg",
+      "genericInit": "succeeded",
+      "genericInitAddedPathCount": 0,
+      "typedLifecycleActivation": "not claimed; generic knowledge initialize does not select lifecycle"
+    },
+    {
+      "route": "direct-plus-generic-initialization",
+      "family": "rendering",
+      "variant": "game",
+      "descriptorSource": "FS.GG.UI.Template::0.31.0",
+      "effectiveSelection": "typed-sdd",
+      "automaticTypedKnowledge": false,
+      "disposition": "passed-candidate-probe",
+      "probe": {
+        "initialCommit": "a70c7a9c483678201b158cfc55979d91f79ef30d",
+        "findingsCommit": "6a3a5363bd87988f172f972e55ae9f2d5234e464",
+        "updatedCommit": "cf2ddd501af0423481a55c535405c170b9f0aecc",
+        "findings": 4,
+        "historyVersions": 2,
+        "canonicalFilesTracked": 2,
+        "size": {
+          "Bytes": 5200,
+          "Limit": 10485760,
+          "Growth": 0
+        },
+        "restoreAuthoredNoClobber": true,
+        "explicitPrivateStoreExcludedFromShared": true
+      },
+      "testedArchive": "FS.GG.UI.Template.0.31.0.nupkg",
+      "genericInit": "succeeded",
+      "genericInitAddedPathCount": 0,
+      "typedLifecycleActivation": "not claimed; generic knowledge initialize does not select lifecycle"
+    }
+  ]
+}
