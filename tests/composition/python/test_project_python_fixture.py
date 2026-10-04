@@ -58,11 +58,12 @@ class PythonFixtureProjectionTests(unittest.TestCase):
         self.assertEqual(profile["productBuild"], "unsupported-product-build")
         self.assertEqual(profile["productTest"], "unsupported-product-test")
         self.assertEqual(profile["productJourney"], "unsupported-product-journey")
-        self.assertIn('    contractVersion: "1.1.0"', provider)
+        self.assertIn('    contractVersion: "2.0.0"', provider)
+        self.assertRegex(provider, r'(?m)^    minimumFsggSdd:\n      version: "2\.1\.0"$')
         self.assertIn("    templateId: fs-gg-python", provider)
         self.assertIn("    nameParameter: productName", provider)
         self.assertEqual(provider.count("      - key:"), 2)
-        self.assertNotIn("adoption:", provider)
+        self.assertNotRegex(provider, r"(?m)^\s*adoption\s*:")
 
     def repository(self, root):
         for relative, data in SOURCES.items():
