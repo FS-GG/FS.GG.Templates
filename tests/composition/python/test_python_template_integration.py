@@ -1,7 +1,9 @@
 import json
+import re
 import subprocess
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -36,11 +38,15 @@ class PythonTemplateIntegrationTests(unittest.TestCase):
             (ROOT / "templates/fs-gg-python/.template.config/template.json").read_text()
         )
 
-        self.assertIn("<Version>0.16.0</Version>", project)
+        # These assertions inspect the current source, not the historical 0.16 fixture.
+        versions = ET.fromstring(project).findall("./PropertyGroup/Version")
+        self.assertEqual(len(versions), 1)
+        package_version = versions[0].text
+        self.assertRegex(package_version, r"^[0-9]+\.[0-9]+\.[0-9]+$")
         self.assertIn("obj/$(Configuration)/$(TargetFramework)/portable-python-fixture/", project)
         self.assertIn('BeforeTargets="GenerateNuspec"', project)
         self.assertIn("FSGG_PYTHON_COORDINATION_ROOT must name", project)
-        self.assertIn("    source: FS.GG.Workspace.Template::0.16.0", provider)
+        self.assertIn(f"    source: FS.GG.Workspace.Template::{package_version}\n", provider)
         exclusions = set(template["sources"][0]["exclude"])
         self.assertTrue({
             "**/[Bb]in/**",
@@ -61,7 +67,12 @@ class PythonTemplateIntegrationTests(unittest.TestCase):
         self.assertIn("repository: FS-GG/FS.GG.Coordination", composition)
         self.assertEqual(release.count("repository: FS-GG/FS.GG.Coordination"), 2)
         self.assertLess(composition.index("Verify canonical Python fixture source"), composition.index("actions/setup-dotnet@v6"))
-        self.assertLess(release.index("Verify canonical Python fixture source"), release.index("actions/setup-dotnet@v6"))
+        # Occupancy has its own earlier SDK step; projection protects pack and gate.
+        for job in ("pack", "gate"):
+            match = re.search(rf"(?ms)^  {job}:\n(.*?)(?=^  [a-zA-Z_-]+:|\Z)", release)
+            self.assertIsNotNone(match, job)
+            steps = match.group(1)
+            self.assertLess(steps.index("Verify canonical Python fixture source"), steps.index("actions/setup-dotnet@v6"), job)
         self.assertIn("COMPOSITION_LANES: console web fable-bindings fable-game python", release)
 
 
