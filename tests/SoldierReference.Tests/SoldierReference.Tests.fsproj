@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../templates/fs-gg-fable-game/SvgFoundation/Examples/SoldierReference/SoldierWorkload.fs" Link="SoldierWorkload.fs" />
+    <Compile Include="../../templates/fs-gg-fable-game/SvgFoundation/Examples/SoldierReference/SoldierDocument.fs" Link="SoldierDocument.fs" />
+    <Compile Include="Program.fs" />
+    <PackageReference Update="FSharp.Core" Version="[10.1.401]" />
+    <PackageReference Include="FS.GG.UI.Scene" Version="[0.31.0]" />
+  </ItemGroup>
+</Project>

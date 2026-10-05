@@ -60,7 +60,7 @@
         },
         {
           "condition": "(bundle != \"complete\")",
-          "exclude": [ "SvgFoundation/Examples/FourD/**", "SvgFoundation/Examples/ExternalAuthority/**" ]
+          "exclude": [ "SvgFoundation/Examples/FourD/**", "SvgFoundation/Examples/ExternalAuthority/**", "SvgFoundation/Examples/SoldierReference/**" ]
         },
         {
           "condition": "true",

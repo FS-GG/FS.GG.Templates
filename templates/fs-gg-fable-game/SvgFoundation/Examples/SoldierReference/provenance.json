@@ -1,0 +1,55 @@
+{
+  "schema": "templates.soldier-asset-provenance/1",
+  "assetId": "templates-original-equipped-soldier",
+  "version": "1.0.0",
+  "author": "FS-GG, original geometry authored with Codex on 2026-10-05",
+  "copyright": "Copyright (c) 2026 FS-GG",
+  "license": "MIT",
+  "licenseNotice": "Full repository MIT copyright/permission notice retained below for generated-source redistribution",
+  "source": "SoldierDocument.fs typed Scene paths and rectangles",
+  "origin": "Original coordinate construction from generic equipment concepts. No imported, copied or traced art; no S.I.R. access or geometry.",
+  "normalizedBounds": {
+    "x": 0,
+    "y": 0,
+    "width": 48,
+    "height": 64
+  },
+  "geometryPerSymbol": {
+    "ready": {
+      "paths": 17,
+      "pathCommandsIncludingMoveAndClose": 108,
+      "sceneNodes": 26
+    },
+    "march": {
+      "paths": 17,
+      "pathCommandsIncludingMoveAndClose": 111,
+      "sceneNodes": 26
+    },
+    "kneel": {
+      "paths": 17,
+      "pathCommandsIncludingMoveAndClose": 112,
+      "sceneNodes": 26
+    }
+  },
+  "structure": {
+    "definitionsPerRevision": 6,
+    "geometryLeavesPerSymbol": 1,
+    "referenceDepth": 1,
+    "sceneGraphDepthInsideSymbol": 1,
+    "allDefinitionSceneNodes": 156,
+    "allDefinitionPaths": 102,
+    "allDefinitionPathCommands": 662
+  },
+  "paint": "Explicit per-node faction colors; bounded blue/amber \u00d7 ready/march/kneel definitions. Instance fill overrides are not used.",
+  "visualSelection": {
+    "status": "accepted-by-programme-root",
+    "date": "2026-10-05",
+    "scope": "root accepted actual shared-export six-pose witness, frozen geometry/paint order and explicit48x64instance viewport; no browser/runtime acceptance"
+  },
+  "canonicalHashAlgorithm": "SHA-256 of UTF-8 shared SvgDocument.serialize assetDocument, no trailing newline",
+  "canonicalContentSha256": "3e6e631625a71e3df3dc33940bb23460f9c9568b7d3a84804348b370be18ebd3",
+  "canonicalHashStatus": "qualified by public Scene 0.31.0 shared serializer, focused pure checks passed",
+  "canonicalRevisionTwoSha256": "8bc7540401bb1cf00c960b716a0bca276ebcfbbc2a8a8e06f71b5906a271319d",
+  "standaloneExportSha256": "a8b03e1bf209a9a9c06ddc76c9bb8f89303119f17276888d2c3c0951d47e20a2",
+  "licenseText": "MIT License\n\nCopyright (c) 2026 FS-GG\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n"
+}

@@ -515,3 +515,34 @@ BAR/SC2 remain open. The source-only `FsGgExternalReferenceCandidate` defaults t
 `0.31.0`; the candidate runner enables it with actual packed successor source. The .4 installed
 join enables the default only with delivered successor pins and locks. Publication pins and
 version metadata join through the integrator's qualified producer packet and retain their separate operation authority.
+
+## SVG-COHERENCE-01.5 soldier reference preparation
+
+The [SVG coherence programme](https://github.com/FS-GG/.github/blob/main/docs/2026-09-07-154210-fs-gg-unified-development-roadmap.md#98-feature-parts-and-subroadmap-index)
+owns the single `.5` completion boundary. Its Templates preparation slice adds an
+original MIT equipped-soldier asset, deterministic workload and pure complete-document
+projection under `SvgFoundation/Examples/SoldierReference`, with focused public-package
+tests. This is source preparation, not a second completion ledger or a reachable
+player feature. Root reviewed the actual glyph before freezing its geometry.
+
+[Preparation evidence](evidence/svg-coherence-01.5-reference-preparation.md) records
+the verification state and remaining joins. The next bounded window composes one
+opt-in reference panel at the actual complete-player entry with shared identified
+SVG documents, accessible HTML controls, one local Game session or one external
+session authority, stress/churn/focus/full export and a real-entry bot journey.
+Its shared entry/project/config files are a serialized Templates integration join.
+
+Existing package globs include the preparation files in modern and legacy template
+payloads. The modern non-complete modifier excludes this folder; fresh local
+source-directory generation verified all five files only in complete and their
+absence in omitted/player/studio/tactical/arcade. Legacy `svgFoundation=false`
+excludes all SVG; true retains these uncompiled files. The packed native gate and
+public installed receiver remain distinct from that local generation check.
+Reachable reference gameplay first changes in the later composition window, which
+must preserve complete-only source and compilation boundaries. Public installed
+file presence and runtime behavior follow coherent producer/Templates publication
+and FABLE-ADOPT-01.4 installed readback. Retained upgrades separately
+inventory new managed files and prove owner-edit/save/config preservation and
+interruption/rollback. Existing package pins, player defaults and lifecycle/provider
+selections are unchanged by pure preparation. `.7` remains the single late host batch;
+`.3/.4`, publication and product migrations retain their existing owners.
