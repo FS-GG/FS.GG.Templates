@@ -140,8 +140,9 @@ candidate projects the full scene without spatial filtering; its smaller display
 viewport does not change full-world export. Rejected projection/replacement preserves
 the accepted view and export. `Replace` still validates, serializes, parses and
 reconciles full documents; this reference claims no instance-delta optimization.
-The frozen asset and prior pure evidence are unchanged. The first caller compile failed;
-demonstrated source repairs await requalification. A behavior-preserving ASCII
+The frozen asset and prior pure evidence are unchanged. The repaired caller compiled and
+Vite built successfully in the second isolated attempt; its helper then failed on
+an emitted-filename oracle, corrected in source and pending retained-output review. A behavior-preserving ASCII
 range predicate replaces an unsupported Fable API in workload ID validation.
 Actual-entry browser journeys, stress/lifetime and installed package behavior are unqualified.
 

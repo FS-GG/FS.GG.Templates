@@ -143,8 +143,11 @@ assert all(value['type']!='project' for key,value in assets['libraries'].items()
 assert {Path(value).resolve() for value in assets['packageFolders']}=={(root/'complete/.nuget/packages').resolve()}
 assert 'SvgExternalSessionHost' in (root/'complete/.nuget/packages/fs.gg.ui.scene.svgbrowser'/version/'fable/SvgExternalSessionHost.fs').read_text()
 assert any((root/'complete/SvgFoundation/output').rglob('SvgExternalSessionHost.fs.js')), 'external host missing from delivered Fable output'
-for name in ('SoldierReference.fs.js','SoldierReferenceLocal.fs.js','SoldierReferenceExternal.fs.js','SoldierWorkload.fs.js','SoldierDocument.fs.js'):
-    assert any((root/'complete/SvgFoundation/output').rglob(name)), name
+output=root/'complete/SvgFoundation/output'
+for relative in ('SoldierReference.js','SoldierReferenceLocal.js','SoldierReferenceExternal.js',
+                 'Examples/SoldierReference/SoldierWorkload.js','Examples/SoldierReference/SoldierDocument.js'):
+    assert (output/relative).is_file(), relative
+assert 'from "./SoldierReference.js"' in (output/'Program.js').read_text(), 'actual entry missing reference import'
 PY
 python3 - "$root" "$out" "$expected_source" "$expected_manifest" <<'PY'
 from pathlib import Path

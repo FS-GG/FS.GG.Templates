@@ -69,13 +69,22 @@ and private installation, complete/default generation and receiver restore passe
 It exited naturally with status 1 after 26.58 seconds at Fable compilation: ambiguous
 local failure record type, callback/list/attribute syntax, DOM helper type inference,
 missing binding for `isConnected`, and unsupported workload ASCII API. The caller
-repairs address those diagnostics; they have not been recompiled. Logs and process
+repairs address those diagnostics. Logs and process
 receipts are retained privately. All owned processes retired without signals; only
 the two pre-existing CLR infrastructure processes remained. Browser tests never ran.
 
-Next: root reviews the demonstrated repairs and allocates a fresh existing-fixture profile for a
-bounded delivered-source compile/build window. Stop on its first failure and repair
-the demonstrated cause. After successful compilation, separately allocate one
+The second allocated attempt at source head `4833ffd0b5915caf9245566c18e445c8815ad250`
+compiled the Fable caller without errors and built Vite successfully (131 modules).
+Its helper nevertheless exited 1 after 26.58 seconds: the post-build oracle expected
+application modules ending in `.fs.js`, while Fable emits their actual `.js` paths.
+All five soldier modules and the real entry import exist. The source oracle now
+checks their exact paths; its delivered-package `.fs.js` check remains appropriate.
+The root selected a read-only supplement over the retained output instead of another
+compile. The original exit 1 remains recorded; no original helper pass is claimed.
+Template uninstall was skipped on failure, leaving only isolated CLI-home metadata.
+Owned processes retired without signals and no browser ran.
+
+Next: root reviews the retained compile supplement, then separately allocates one
 focused Chromium screening journey before broader browser/population qualification.
 Full `.5` closure also requires integrated lifetime/stress, package/receiver and
 selected host-suite joins. No runtime command, PR creation or publication is admitted
@@ -87,5 +96,6 @@ fixture artifact `4385c3b3ef8ac9188d6b28c75582cd5eeabff3227b2bb4d8ef88c1ceacb16e
 raw manifest `d496fe3f69d873d7522d19897bc4a2955f670b958133d481a805141299f2fae1`,
 for compile-only qualification. The canonical Python projector can read its pinned
 revision/tree/files from immutable git objects in the existing Coordination checkout.
-The repaired caller has only static source checks and exhaustive ASCII equivalence
-evidence; its requalification still awaits allocation. Telemetry follow-up `0214` also refused `parent-not-started`.
+The ASCII predicate has exhaustive source-level equivalence evidence. Compilation
+and Vite build passed in attempt two; read-only identity supplementation and browser
+qualification remain separate root admissions. Telemetry follow-up `0214` also refused `parent-not-started`.
