@@ -1,0 +1,161 @@
+{
+  "schema": "templates.soldier-reference/1",
+  "version": 1,
+  "seed": 1729,
+  "assetId": "templates-original-equipped-soldier",
+  "assetVersion": "1.0.0",
+  "visibleCounts": [
+    1,
+    100,
+    250,
+    500,
+    1000
+  ],
+  "control": {
+    "worldCount": 2000,
+    "visibleCount": 200
+  },
+  "limits": {
+    "worldCount": 2000,
+    "commandBatch": 128,
+    "idLength": 48,
+    "coordinateMagnitude": 1000000,
+    "healthMin": 0,
+    "healthMax": 100
+  },
+  "initial": {
+    "id": "soldier-%04d",
+    "order": "ascending initial index; spawn appends; remove preserves survivors",
+    "visibleOrigin": [
+      64,
+      64
+    ],
+    "offscreenOrigin": [
+      10000,
+      64
+    ],
+    "columns": 25,
+    "spacing": [
+      64,
+      80
+    ],
+    "faction": "even blue, odd amber",
+    "pose": "ready",
+    "health": "100 - index % 51",
+    "facingDegrees": "(index * 37 + seed) % 360"
+  },
+  "updatePercentages": [
+    10,
+    50,
+    100
+  ],
+  "independentUpdate": {
+    "rank": "fold ID characters: (value * 31 + characterCode) % 100003, initial value seed; sort rank then ID",
+    "population": "floor(worldCount * percentage / 100), from rank order",
+    "translation": [
+      "1 + rankIndex % 7",
+      "1 + rankIndex % 5"
+    ],
+    "rotationDegrees": "3 + rankIndex % 11",
+    "pose": "even rankIndex march, odd rankIndex kneel",
+    "revision": "one authority revision per independent update"
+  },
+  "cameraRoute": [
+    [
+      0,
+      0
+    ],
+    [
+      320,
+      0
+    ],
+    [
+      320,
+      240
+    ],
+    [
+      0,
+      240
+    ],
+    [
+      0,
+      0
+    ]
+  ],
+  "cameraExpectation": "presentation revision only; workload/authority unchanged",
+  "churn": [
+    {
+      "command": "select",
+      "id": "soldier-0000"
+    },
+    {
+      "command": "focus",
+      "id": "soldier-0000"
+    },
+    {
+      "command": "move",
+      "id": "soldier-0000",
+      "position": [
+        12000,
+        40
+      ],
+      "facingDegrees": 90
+    },
+    {
+      "command": "pose",
+      "id": "soldier-0001",
+      "pose": "kneel"
+    },
+    {
+      "command": "appearance",
+      "id": "soldier-0001",
+      "faction": "blue",
+      "health": 25
+    },
+    {
+      "command": "remove",
+      "id": "soldier-0000"
+    },
+    {
+      "command": "spawn",
+      "id": "soldier-spawn-0001",
+      "position": [
+        96,
+        40
+      ],
+      "facingDegrees": 15,
+      "faction": "amber",
+      "pose": "march",
+      "health": 80
+    },
+    {
+      "command": "definitions",
+      "revision": 2
+    }
+  ],
+  "definitionRevisions": [
+    1,
+    2
+  ],
+  "symbolVariantsPerRevision": 6,
+  "offscreenPinExpectation": "selected and focused IDs are unioned with visible IDs; input order retained",
+  "removalExpectation": "clear removed selection; focus first surviving ID, or None for the eventual panel control; announce removal in later browser composition",
+  "exportExpectation": "export the full accepted document, including every offscreen soldier and all six explicit faction/pose definitions; never export the filtered display as the full world",
+  "claims": "pure deterministic source reference; requested counts are data, not performance promises",
+  "viewBox": [
+    0,
+    0,
+    1664,
+    3264
+  ],
+  "canonicalWorkloadOracle": "UTF-8 System.Text.Json writer in focused test, explicit schema/order, no newline",
+  "canonicalInitialWorkloadSha256": {
+    "1/1": "9f0b4c977287038d5a3f0286616fa4ca9e5c55f6ac8ade714689fe38931341c1",
+    "100/100": "704d1cf51840398656725d00244330e3e29eecfa7137bd19456572a1cc969bc2",
+    "250/250": "0cc97105ed42771293d1de3749b24354681a5ef439dd20491c80d0e7eeb6284f",
+    "500/500": "38c0008417aa794669451d79b69613936e4c8f32d564fd44741ece8efb160990",
+    "1000/1000": "aa5904851581e9081ce5434f5f3536dbba8a694c0d6fac98f601429b6176cf20",
+    "200/2000": "c60c4aa40aae7c3341009c3112be53ef07ca5885f00de0b216d6488389b20d7b"
+  },
+  "canonicalChurnWorkloadSha256": "6396547e9b0b695b133e1ae9a779a428420184adcb5b9993e10a269b55e1e0ec"
+}
