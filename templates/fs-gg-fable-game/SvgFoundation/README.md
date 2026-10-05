@@ -143,10 +143,12 @@ reconciles full documents; this reference claims no instance-delta optimization.
 The frozen asset and prior pure evidence are unchanged. New caller compilation,
 actual-entry browser journeys, stress/lifetime and package behavior are unqualified.
 
-The focused candidate helper requires an exact root-admitted producer revision,
-feed, version and custody-manifest digest. It prepares an isolated packed Templates
-receiver and three named soldier journeys per browser family, requiring zero skips
-or flaky results. It does not replace the existing four-case external/FourD helper.
-Runtime execution requires its own bounded allocation. Publication, installed
+The focused candidate helper requires the exact root-admitted producer revision,
+three-package feed and existing fixture-manifest digest for compile-only qualification.
+It preserves that fixture schema and verifies source/package identity before preparing
+an isolated packed Templates receiver. It creates no release-custody claim. The three
+named soldier browser journeys are prepared for later independent allocation and must
+require zero skips or flaky results. The existing four-case external/FourD helper
+remains unchanged. Runtime execution requires its own bounded allocation. Publication, installed
 adoption, retained upgrades, host GPU and physical accessibility observations remain
 separate obligations.

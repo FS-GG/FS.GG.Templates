@@ -55,12 +55,15 @@ The new focused spec defines three actual-entry journeys: local command/input an
 clock equivalence; external epoch/revision/failure/reconnect controls; staged
 population updates, focus/churn/full export and disposal/remount. Its independent
 update oracle reproduces the declared seed/rank algorithm. The candidate helper
-requires exact producer identity/custody, delivered Fable sources and private cache
-resolution, then requires three successful cases per browser family with no skips
-or flakes. Existing external/FourD qualification and its four-case count are intact.
+now supports only the root-selected compile-source profile: the exact three-package
+producer feed and existing `fsgg.svg-coherence.fixture/v1` manifest. It verifies all
+38 delivered Fable sources, source inventory and archive/nuspec identity before private
+receiver resolution. It does not synthesize release custody or claim a 19-package set.
+The three browser journeys remain prepared for later qualification with no skips or
+flakes. Existing external/FourD qualification and its four-case count are intact.
 Neither the helper nor these browser tests has been executed.
 
-Next: root selects producer archives/version and exact custody before allocating a
+Next: root allocates the selected existing-fixture compile profile before a
 bounded delivered-source compile/build window. Stop on its first failure and repair
 the demonstrated cause. After successful compilation, separately allocate one
 focused Chromium screening journey before broader browser/population qualification.
@@ -68,3 +71,11 @@ Full `.5` closure also requires integrated lifetime/stress, package/receiver and
 selected host-suite joins. No runtime command, PR creation or publication is admitted
 by this report. Telemetry attempt `0144` begin refused `parent-not-started`; native
 usage remains unknown.
+
+Root selected producer `237f66bcce46c9e6227a266231342b34367b060c` and existing
+fixture artifact `4385c3b3ef8ac9188d6b28c75582cd5eeabff3227b2bb4d8ef88c1ceacb16ef6`,
+raw manifest `d496fe3f69d873d7522d19897bc4a2955f670b958133d481a805141299f2fae1`,
+for compile-only qualification. The canonical Python projector can read its pinned
+revision/tree/files from immutable git objects in the existing Coordination checkout.
+The helper repair has only static syntax/source checks; its runtime still awaits
+allocation. Telemetry follow-up `0214` also refused `parent-not-started`.
