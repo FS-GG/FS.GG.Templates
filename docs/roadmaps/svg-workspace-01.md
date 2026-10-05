@@ -533,13 +533,15 @@ session authority, stress/churn/focus/full export and a real-entry bot journey.
 Its shared entry/project/config files are a serialized Templates integration join.
 
 Existing package globs include the preparation files in modern and legacy template
-payloads. Current modern bundle modifiers would copy them as uncompiled source in
-all bundles, including `player`; legacy `svgFoundation=false` excludes all SVG.
-This is inspected source behavior, with no new packed/generated receiver claim.
+payloads. The modern non-complete modifier excludes this folder; fresh local
+source-directory generation verified all five files only in complete and their
+absence in omitted/player/studio/tactical/arcade. Legacy `svgFoundation=false`
+excludes all SVG; true retains these uncompiled files. The packed native gate and
+public installed receiver remain distinct from that local generation check.
 Reachable reference gameplay first changes in the later composition window, which
-must qualify complete-only inclusion and player exclusion. Public installed file
-presence and runtime behavior follow coherent producer/Templates publication and
-FABLE-ADOPT-01.4 installed readback. Retained upgrades separately
+must preserve complete-only source and compilation boundaries. Public installed
+file presence and runtime behavior follow coherent producer/Templates publication
+and FABLE-ADOPT-01.4 installed readback. Retained upgrades separately
 inventory new managed files and prove owner-edit/save/config preservation and
 interruption/rollback. Existing package pins, player defaults and lifecycle/provider
 selections are unchanged by pure preparation. `.7` remains the single late host batch;

@@ -6,14 +6,15 @@ state and semantic commands; `SoldierDocument.fs` projects that state with publi
 Scene 0.31.0 identified documents. No DOM, timer, network, runtime flag or package
 pin changes are part of this slice.
 
-Existing package globs include these new source files in both modern and legacy
-Fable template payloads. Current modern bundle modifiers do not exclude this folder,
-so candidate source generation would copy it even for `player`; the legacy
-`svgFoundation=false` route excludes all SVG files. The player project lists compile
-files explicitly and does not compile or mount this reference. These are static
-source observations, not a packed/generated receiver test. Complete-only inclusion
-and player exclusion must join the later template-config/browser window. Public
-installed file presence awaits publication and adoption.
+Existing package globs include these source files in modern and legacy Fable
+payloads. Modern bundle modifiers copy them only for `complete`; the legacy
+`svgFoundation=false` route excludes all SVG files, while true retains them.
+Six fresh source-directory template generations verified all five files in complete
+and absence in omitted/player/studio/tactical/arcade. The player project lists
+compile files explicitly and does not compile or mount this reference. This is a
+local template-engine check; packed public/installed qualification remains separate.
+Public installed file presence awaits publication and adoption. Later browser
+composition must preserve complete-only source and compilation boundaries.
 
 The original MIT soldier has a helmet/visor, backpack, vest/pouches, gloves, rifle
 and boots. Six explicit blue/amber and ready/march/kneel symbols preserve authored

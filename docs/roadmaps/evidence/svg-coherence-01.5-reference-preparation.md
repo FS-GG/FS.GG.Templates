@@ -7,17 +7,19 @@ original/item `SVG-COHERENCE-01.5`. This report covers source preparation only;
 The source is isolated from current main `96b9d01475935ea3f474cfd4ed4dd93b4755f726`
 on `routine/svg-soldier-reference-preparation-20261005`. Touch-set is new
 `templates/fs-gg-fable-game/SvgFoundation/Examples/SoldierReference/**`, new
-`tests/SoldierReference.Tests/**`, this report and its owning-plan subsection.
+`tests/SoldierReference.Tests/**`, this report, its owning-plan subsection and the modern template configuration
+for the demonstrated non-complete bundle exclusion repair.
 The player project uses explicit compile items and does not compile/mount this
 reference. Its runtime, package pins and defaults are unchanged. Existing
 [package content globs](../../../FS.GG.Templates.csproj) include the five new source
-files in modern and legacy template payloads. Current modern
-[bundle modifiers](../../../templates/fs-gg-fable-game/.template.config/template.json)
-do not exclude SoldierReference: candidate source generation would copy these
-uncompiled files even for `player`. Legacy `svgFoundation=false` excludes all SVG;
-legacy true retains them. This is static inspection, not a new packed/clean-generated
-receiver witness. Later composition must qualify complete-only inclusion and player
-exclusion. Public installed file presence awaits publication/adoption.
+files in modern and legacy template payloads. The modern non-complete
+[bundle modifier](../../../templates/fs-gg-fable-game/.template.config/template.json)
+excludes SoldierReference alongside FourD/ExternalAuthority. Six fresh local
+source-directory generations verified complete-only uncompiled source presence and
+absence in omitted/player/studio/tactical/arcade. Legacy `svgFoundation=false`
+excludes all SVG; legacy true retains them. Packed/native/public installed
+qualification remains distinct. Later composition must preserve source and
+compilation boundaries. Public installed file presence awaits publication/adoption.
 
 Root reviewed the actual original soldier preview and accepted its equipped target
 on 2026-10-05 before freezing geometry. MIT notice, authorship, bounds and honest
@@ -78,3 +80,24 @@ unexecuted. Public installed adoption and retaining upgrades require their exist
 FABLE-ADOPT-01 sequence and independent evidence. No `.5` checkbox closes here.
 
 Telemetry begin refused `parent-not-started`; native usage remains unknown.
+
+## Native bundle exclusion repair
+
+PR [#670](https://github.com/FS-GG/FS.GG.Templates/pull/670), initial head
+`dbd691176921b7998c7516f8345da334de87986d`, failed the
+[Release C source job](https://github.com/FS-GG/FS.GG.Templates/actions/runs/37248397644/job/111570812892)
+because the generated omitted bundle unexpectedly contained `SvgFoundation/Examples`.
+The existing validator requires that directory to be absent in omitted/player/studio.
+The new folder was missing from the existing non-complete exclusion.
+
+The repair adds only `SvgFoundation/Examples/SoldierReference/**` to that exclusion.
+The existing native gate is unchanged. One allocated 120-second template-engine
+check used private CLI/package/cache directories and one processor; it naturally
+exited 0 after installing this source directory, generating omitted/player/studio/
+tactical/arcade/complete and uninstalling the private template. All five reference
+files reached complete with expected namespace substitution. SoldierReference was
+absent in every non-complete bundle; omitted/player/studio had no Examples directory;
+no generated project compiled the reference. No pack, network restore, browser or
+provider execution occurred. Owned processes retired before releasing the slot.
+Native packed qualification is pending on the repaired head; no check was skipped
+or broadly rerun. The unchanged pure files retain the 6,222-check evidence above.
