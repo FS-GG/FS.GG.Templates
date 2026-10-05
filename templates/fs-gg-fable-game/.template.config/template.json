@@ -60,7 +60,7 @@
         },
         {
           "condition": "(bundle != \"complete\")",
-          "exclude": [ "SvgFoundation/Examples/FourD/**", "SvgFoundation/Examples/ExternalAuthority/**", "SvgFoundation/Examples/SoldierReference/**" ]
+          "exclude": [ "SvgFoundation/Examples/FourD/**", "SvgFoundation/Examples/ExternalAuthority/**", "SvgFoundation/Examples/SoldierReference/**", "SvgFoundation/SoldierReference.fs", "SvgFoundation/SoldierReferenceLocal.fs", "SvgFoundation/SoldierReferenceExternal.fs", "Browser.Tests/soldier-reference.spec.ts" ]
         },
         {
           "condition": "true",

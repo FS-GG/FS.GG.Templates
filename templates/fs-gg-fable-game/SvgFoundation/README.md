@@ -116,3 +116,42 @@ isolated package cache, and runs the generated complete receiver in Chromium, Fi
 The external API requires the qualified successor Rendering package; public `0.31.0` cannot supply
 it. Candidate qualification does not establish public installed acceptance, actual screen-reader
 behavior, FourD engine adoption or BAR/SC2 adoption.
+
+## Equipped soldier candidate
+
+The complete bundle includes an original MIT equipped-soldier workload. Its player
+composition is source-only pending qualification. With an explicitly admitted packed
+producer successor and `FsGgExternalReferenceCandidate=true`, the actual player entry
+adds **Mount soldier reference**. Public Rendering `0.31.0` and the default false
+property keep these modules uncompiled. Other modern bundles omit the asset folder,
+three composition modules and focused browser spec. Legacy preview does not compile
+the reference. Public pins, locks and ordinary arena rules remain unchanged.
+
+The panel uses one shared identified-document renderer and a keyed native roster.
+Local mode processes workload commands through a Game session and shared session
+clock. External mode uses captured immutable envelopes from a deterministic,
+unauthenticated fixture gateway and the shared external presentation host. Switching
+mode disposes the prior authority and renderer before mounting their replacements.
+Selection, focus and camera are presentation state. Keyboard, SVG paint hit testing
+and native alternatives admit the same product commands through shared input.
+
+Requested populations and independent updates are functional workload data. This
+candidate projects the full scene without spatial filtering; its smaller display
+viewport does not change full-world export. Rejected projection/replacement preserves
+the accepted view and export. `Replace` still validates, serializes, parses and
+reconciles full documents; this reference claims no instance-delta optimization.
+The frozen asset and prior pure evidence are unchanged. The repaired caller compiled and
+Vite built successfully in the second isolated attempt; its helper then failed on
+an emitted-filename oracle, corrected in source and pending retained-output review. A behavior-preserving ASCII
+range predicate replaces an unsupported Fable API in workload ID validation.
+Actual-entry browser journeys, stress/lifetime and installed package behavior are unqualified.
+
+The focused candidate helper requires the exact root-admitted producer revision,
+three-package feed and existing fixture-manifest digest for compile-only qualification.
+It preserves that fixture schema and verifies source/package identity before preparing
+an isolated packed Templates receiver. It creates no release-custody claim. The three
+named soldier browser journeys are prepared for later independent allocation and must
+require zero skips or flaky results. The existing four-case external/FourD helper
+remains unchanged. Runtime execution requires its own bounded allocation. Publication, installed
+adoption, retained upgrades, host GPU and physical accessibility observations remain
+separate obligations.

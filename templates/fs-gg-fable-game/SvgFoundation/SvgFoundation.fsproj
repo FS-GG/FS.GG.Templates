@@ -20,6 +20,7 @@
     <DefineConstants Condition="Exists('Examples/Arcade/scene.json') and '$(FsGgSvgPresentCandidate)' == 'true'">$(DefineConstants);ARCADE_EXAMPLE</DefineConstants>
     <DefineConstants Condition="Exists('Examples/Tactical/scene.json')">$(DefineConstants);TACTICAL_EXAMPLE</DefineConstants>
     <DefineConstants Condition="Exists('Examples/ExternalAuthority/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true'">$(DefineConstants);EXTERNAL_AUTHORITY_REFERENCE</DefineConstants>
+    <DefineConstants Condition="Exists('Examples/SoldierReference/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true' and '$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgSvgInputCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'">$(DefineConstants);SOLDIER_REFERENCE</DefineConstants>
     <DefineConstants Condition="Exists('Examples/FourD/reference.json')">$(DefineConstants);FOURD_REFERENCE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
@@ -44,6 +45,11 @@
     <Compile Include="FourDReference.fs" Condition="Exists('Examples/FourD/reference.json')" />
     <Compile Include="SvgAuthority.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="ScalePlayer.fs" Condition="'$(FsGgSvgScaleCandidate)' == 'true'" />
+    <Compile Include="Examples/SoldierReference/SoldierWorkload.fs" Condition="Exists('Examples/SoldierReference/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true' and '$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgSvgInputCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
+    <Compile Include="Examples/SoldierReference/SoldierDocument.fs" Condition="Exists('Examples/SoldierReference/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true' and '$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgSvgInputCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
+    <Compile Include="SoldierReferenceLocal.fs" Condition="Exists('Examples/SoldierReference/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true' and '$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgSvgInputCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
+    <Compile Include="SoldierReferenceExternal.fs" Condition="Exists('Examples/SoldierReference/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true' and '$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgSvgInputCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
+    <Compile Include="SoldierReference.fs" Condition="Exists('Examples/SoldierReference/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true' and '$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgSvgInputCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
