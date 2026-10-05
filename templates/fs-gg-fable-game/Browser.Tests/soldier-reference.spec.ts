@@ -102,6 +102,7 @@ test("soldier reference external snapshots fence stale replies and preserve fail
   await control(page, "Complete soldier snapshot").click();
   await expect.poll(async () => (await state(page)).revision).toBe(2);
   const baseline = await state(page);
+  const baselineExport = await page.locator("#soldier-reference-export").textContent();
   await control(page, "Request cached soldier snapshot").click();
   await control(page, "Complete soldier snapshot").click();
   expect(await state(page)).toEqual(baseline);
@@ -110,12 +111,24 @@ test("soldier reference external snapshots fence stale replies and preserve fail
   await control(page, "Move selected soldier").click();
   await control(page, "Complete soldier snapshot").click();
   expect(await state(page)).toEqual(baseline);
+  expect(await page.locator("#soldier-reference-export").textContent()).toBe(baselineExport);
   await expect(root).toHaveAttribute("data-callback-failure", "true");
+  // Rendering models/svg-runtime/external-session.md callbackFailureIsExplicit and
+  // ExternalSessionPolicyTests "presentation callback failure retains accepted authority truth"
+  // preserve the authority revision even when its presentation callback fails.
+  // Retrying that same revision must be rejected; accepted panel/export stay at revision 2.
   await control(page, "Request soldier burst").click();
   await control(page, "Complete soldier snapshot").click();
-  await expect.poll(async () => (await state(page)).revision).toBe(3);
-  // Drain the queued duplicate envelope before exercising a distinct replacement failure.
+  expect(await state(page)).toEqual(baseline);
+  expect(await page.locator("#soldier-reference-export").textContent()).toBe(baselineExport);
+  await expect(root).toHaveAttribute("data-last-outcome", /non-increasing-revision:3:3/);
+  // A genuinely newer authority revision recovers after the queued revision-3 reply is drained.
+  await control(page, "Move selected soldier").click();
+  await expect(root).toHaveAttribute("data-receipts", /4:accepted/);
   await control(page, "Complete soldier snapshot").click();
+  expect(await state(page)).toEqual(baseline);
+  await control(page, "Complete soldier snapshot").click();
+  await expect.poll(async () => (await state(page)).revision).toBe(4);
   const accepted = await state(page);
   const exported = await page.locator("#soldier-reference-export").textContent();
   await control(page, "Refuse next soldier replacement").click();
@@ -126,25 +139,29 @@ test("soldier reference external snapshots fence stale replies and preserve fail
   await expect(root).toHaveAttribute("data-refusal", /replacement refused/i);
   await control(page, "Disconnect soldier authority").click();
   await control(page, "Move selected soldier").click();
-  await expect(root).toHaveAttribute("data-receipts", /5:rejected/);
+  await expect(root).toHaveAttribute("data-receipts", /6:rejected/);
   await control(page, "Connect soldier authority").click();
   await control(page, "Complete soldier snapshot").click();
+  // Same-epoch reconnect retains revision 5 even though replacement failed to present it.
+  expect(await state(page)).toEqual(accepted);
+  expect(await page.locator("#soldier-reference-export").textContent()).toBe(exported);
+  await expect(root).toHaveAttribute("data-last-outcome", /non-increasing-revision:5:5/);
   await control(page, "Move selected soldier").click();
   await control(page, "Replace soldier authority").click();
   await control(page, "Complete oldest soldier snapshot").click();
-  expect((await state(page)).revision).toBe(4);
+  expect(await state(page)).toEqual(accepted);
   await control(page, "Complete soldier snapshot").click();
   await expect.poll(async () => (await state(page)).revision).toBe(0);
   await expect(root).toHaveAttribute("data-gateway-epoch", "soldier-epoch-replacement:1");
 });
 
-test("soldier reference bounded population churn focus export and disposal journey", async ({ page }) => {
-  test.skip(!candidate, "requires explicit packed producer candidate");
-  test.setTimeout(60_000);
-  await mount(page);
-  const root = page.locator("#soldier-reference");
-  // Small screening precedes the representative population; requested counts are functional data.
-  for (const count of [1, 100, 250, 500, 1000]) {
+// Each population is an independent reset workload; keep its update oracle within one bounded case.
+for (const count of [1, 100, 250, 500, 1000]) {
+  test(`soldier reference population ${count} independent update oracle`, async ({ page }) => {
+    test.skip(!candidate, "requires explicit packed producer candidate");
+    test.setTimeout(60_000);
+    await mount(page);
+    const root = page.locator("#soldier-reference");
     await control(page, `Load ${count} soldiers`).click();
     await expect(root).toHaveAttribute("data-world-count", String(count));
     for (const percentage of [10, 50, 100]) {
@@ -163,7 +180,14 @@ test("soldier reference bounded population churn focus export and disposal journ
         };
       }));
     }
-  }
+  });
+}
+
+test("soldier reference bounded population churn focus export and disposal journey", async ({ page }) => {
+  test.skip(!candidate, "requires explicit packed producer candidate");
+  test.setTimeout(60_000);
+  await mount(page);
+  const root = page.locator("#soldier-reference");
   await control(page, "Load 2000 world / 200 visible").click();
   await select(page, "soldier-0000");
   await control(page, "Pan to offscreen soldiers").click();

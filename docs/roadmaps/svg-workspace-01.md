@@ -516,42 +516,36 @@ BAR/SC2 remain open. The source-only `FsGgExternalReferenceCandidate` defaults t
 join enables the default only with delivered successor pins and locks. Publication pins and
 version metadata join through the integrator's qualified producer packet and retain their separate operation authority.
 
-## SVG-COHERENCE-01.5 soldier reference preparation
+## SVG-COHERENCE-01.5 integrated soldier reference
 
-The [SVG coherence programme](https://github.com/FS-GG/.github/blob/main/docs/2026-09-07-154210-fs-gg-unified-development-roadmap.md#98-feature-parts-and-subroadmap-index)
-owns the single `.5` completion boundary. Its Templates preparation slice adds an
-original MIT equipped-soldier asset, deterministic workload and pure complete-document
-projection under `SvgFoundation/Examples/SoldierReference`, with focused public-package
-tests. This is source preparation, not a second completion ledger or a reachable
-player feature. Root reviewed the actual glyph before freezing its geometry.
+The [SVG coherence owning plan](https://github.com/FS-GG/.github/blob/main/docs/roadmaps/svg-coherence-and-instancing-01.md)
+retains the single `.5` completion boundary. Templates prepared the original MIT
+equipped-soldier asset and deterministic workload, then composed it at the actual
+complete-player entry with shared identified documents, accessible native controls,
+one local Game/shared-clock or external shared-host authority, and full export.
+[Pure preparation](evidence/svg-coherence-01.5-reference-preparation.md) retains the
+6,222-check evidence; [composition qualification](evidence/svg-coherence-01.5-player-composition.md)
+records the actual compiled fixture, functional case joins and preserved failures.
 
-[Preparation evidence](evidence/svg-coherence-01.5-reference-preparation.md) records
-the verification state and remaining joins. The next bounded window composes one
-opt-in reference panel at the actual complete-player entry with shared identified
-SVG documents, accessible HTML controls, one local Game session or one external
-session authority, stress/churn/focus/full export and a real-entry bot journey.
-Its shared entry/project/config files are a serialized Templates integration join.
+Root accepted the container functional scope on 2026-10-05: local/input/clock and
+external failure/reconnect journeys, independent 10/50/100% update oracles at
+1/100/250/500/1,000 soldiers, and bounded 2,000-world/200-viewport churn/focus/full
+export/disposal/remount. The final two-case screen14 exited naturally 0 in 37.385
+seconds, with no skipped/flaky/unexpected case, complete cleanup and unchanged pins.
+Earlier completed cases retain their exact identities; failed windows are not
+relabeled successful. The product display includes every soldier; these assertions
+do not establish spatial culling, extended leak freedom or a performance budget.
 
-Existing package globs include the preparation files in modern and legacy template
-payloads. The modern non-complete modifier excludes this folder; fresh local
-source-directory generation verified all five files only in complete and their
-absence in omitted/player/studio/tactical/arcade. Legacy `svgFoundation=false`
-excludes all SVG; true retains these uncompiled files. The packed native gate and
-public installed receiver remain distinct from that local generation check.
-Reachable reference gameplay first changes in the later composition window, which
-must preserve complete-only source and compilation boundaries. Public installed
-file presence and runtime behavior follow coherent producer/Templates publication
-and FABLE-ADOPT-01.4 installed readback. Retained upgrades separately
-inventory new managed files and prove owner-edit/save/config preservation and
-interruption/rollback. Existing package pins, player defaults and lifecycle/provider
-selections are unchanged by pure preparation. `.7` remains the single late host batch;
-`.3/.4`, publication and product migrations retain their existing owners.
+The source remains complete-only and opt-in under the existing default-false
+external candidate property, runtime/input flags and non-legacy compile conditions.
+Non-complete modern generation excludes reference source/spec; legacy preview does
+not compile the modules. Existing public package pins, player defaults and
+lifecycle/provider selections are unchanged. Private packed/source/Fable/browser
+qualification does not prove a public installed receiver or retaining upgrade.
 
-The next [player-composition source candidate](evidence/svg-coherence-01.5-player-composition.md)
-adds an opt-in actual-entry panel, a shared identified-document renderer, native
-roster and mutually exclusive local Game/shared-clock or external fixture/shared-host
-authority. Public pins and the frozen preparation sources remain unchanged. The
-complete-only project entries still require the existing explicit external candidate
-flag; no public runtime activation is selected. New caller compilation and actual
-player journeys await exact producer custody and allocated qualification. Whole
-SVG-COHERENCE-01.5 remains open.
+Source PR/merge and the staged host-suite actual-application join remain integration
+gates. The late `.7` host batch, coherent publication, public clean/retained installed
+readback and FABLE-ADOPT-01 migrations retain their owners and separate evidence.
+This closes the scoped container functional qualification, not the entire SVG
+programme or its GPU/publication/adoption boundaries. Shared `.3/.4` optimization
+and product migration work remain separately owned.
