@@ -43,7 +43,8 @@ let private finite value = not (System.Double.IsNaN value || System.Double.IsInf
 let private coordinate value = finite value && abs value <= 1000000.
 let private validId (id: string) =
     not (System.String.IsNullOrEmpty id) && id.Length <= 48
-    && (id |> Seq.forall (fun c -> System.Char.IsAsciiLetterOrDigit c || c = '-'))
+    && (id |> Seq.forall (fun c ->
+        (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c = '-'))
 
 let validateSoldier (soldier: Soldier) =
     [ if not (validId soldier.Id) then "invalid-id"

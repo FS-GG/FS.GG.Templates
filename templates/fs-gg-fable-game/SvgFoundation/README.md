@@ -140,8 +140,10 @@ candidate projects the full scene without spatial filtering; its smaller display
 viewport does not change full-world export. Rejected projection/replacement preserves
 the accepted view and export. `Replace` still validates, serializes, parses and
 reconciles full documents; this reference claims no instance-delta optimization.
-The frozen asset and prior pure evidence are unchanged. New caller compilation,
-actual-entry browser journeys, stress/lifetime and package behavior are unqualified.
+The frozen asset and prior pure evidence are unchanged. The first caller compile failed;
+demonstrated source repairs await requalification. A behavior-preserving ASCII
+range predicate replaces an unsupported Fable API in workload ID validation.
+Actual-entry browser journeys, stress/lifetime and installed package behavior are unqualified.
 
 The focused candidate helper requires the exact root-admitted producer revision,
 three-package feed and existing fixture-manifest digest for compile-only qualification.

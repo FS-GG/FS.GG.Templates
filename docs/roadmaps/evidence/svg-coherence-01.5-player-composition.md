@@ -34,19 +34,21 @@ failure pauses and reports the error; the shared local host has no public callba
 failure observation. External apply failure propagates to the shared host and is
 reported separately from gateway command acceptance.
 
-The frozen original MIT art/pure sources and public `0.31.0` package pins/locks are
-unchanged. The existing default-false external candidate property also gates the
+The frozen original MIT art, workload behavior and public `0.31.0` package pins/locks
+are unchanged. One root-authorized workload source repair replaces the Fable-unsupported
+`Char.IsAsciiLetterOrDigit` with explicit ASCII ranges; the full 65,536-code-unit
+`Char` domain matches the original letters/digits plus hyphen predicate. The existing default-false external candidate property also gates the
 soldier modules and entry constant. Non-complete modern generation excludes their
-source and spec; legacy preview compilation excludes them. These are inspected
-conditions, not generated/build acceptance in this window. Package globs carry the
+source and spec; legacy preview compilation excludes them. Complete/default generation passed in the first compile window; caller compilation
+failed before browser qualification. Package globs carry the
 new source into candidate archives; public installed behavior awaits publication
 and its existing adoption sequence. No upgrade or GPU acceptance is claimed.
 
 ## Verification and next admission
 
-Only non-runtime source checks ran: whitespace, JSON/XML parsing, shell syntax,
+Initial non-runtime source checks covered: whitespace, JSON/XML parsing, shell syntax,
 embedded Python compilation, declared path scope, condition consistency, unchanged
-frozen source/pin/lock comparison and relative evidence links. These do not compile
+asset/pin/lock comparison and relative evidence links. These do not compile
 F# or prove browser semantics. Prior **6,222 focused pure checks** remain evidence
 for unchanged preparation only, including repeated per-instance invariants. All
 failed/superseded preparation attempts remain retained privately.
@@ -61,9 +63,17 @@ producer feed and existing `fsgg.svg-coherence.fixture/v1` manifest. It verifies
 receiver resolution. It does not synthesize release custody or claim a 19-package set.
 The three browser journeys remain prepared for later qualification with no skips or
 flakes. Existing external/FourD qualification and its four-case count are intact.
-Neither the helper nor these browser tests has been executed.
+The helper ran once at source head `43422a81868c84dbbdd97e3140d9774515d39626`.
+Its exact fixture/source/package checks, canonical Python projection, Templates pack
+and private installation, complete/default generation and receiver restore passed.
+It exited naturally with status 1 after 26.58 seconds at Fable compilation: ambiguous
+local failure record type, callback/list/attribute syntax, DOM helper type inference,
+missing binding for `isConnected`, and unsupported workload ASCII API. The caller
+repairs address those diagnostics; they have not been recompiled. Logs and process
+receipts are retained privately. All owned processes retired without signals; only
+the two pre-existing CLR infrastructure processes remained. Browser tests never ran.
 
-Next: root allocates the selected existing-fixture compile profile before a
+Next: root reviews the demonstrated repairs and allocates a fresh existing-fixture profile for a
 bounded delivered-source compile/build window. Stop on its first failure and repair
 the demonstrated cause. After successful compilation, separately allocate one
 focused Chromium screening journey before broader browser/population qualification.
@@ -77,5 +87,5 @@ fixture artifact `4385c3b3ef8ac9188d6b28c75582cd5eeabff3227b2bb4d8ef88c1ceacb16e
 raw manifest `d496fe3f69d873d7522d19897bc4a2955f670b958133d481a805141299f2fae1`,
 for compile-only qualification. The canonical Python projector can read its pinned
 revision/tree/files from immutable git objects in the existing Coordination checkout.
-The helper repair has only static syntax/source checks; its runtime still awaits
-allocation. Telemetry follow-up `0214` also refused `parent-not-started`.
+The repaired caller has only static source checks and exhaustive ASCII equivalence
+evidence; its requalification still awaits allocation. Telemetry follow-up `0214` also refused `parent-not-started`.

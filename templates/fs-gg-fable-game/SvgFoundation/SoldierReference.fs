@@ -32,7 +32,7 @@ let private profile =
     let binding gesture action = { Gesture = gesture; Command = "soldier." + action; Context = "soldier.reference" }
     { Schema = CommandInput.profileSchema; Id = "soldier-reference"
       Defaults =
-        [ for key, action in [ "Enter", "select"; "ArrowDown", "next"; "ArrowUp", "previous"; "ArrowRight", "move"
+        [ for key, action in [ "Enter", "select"; "ArrowDown", "next"; "ArrowUp", "previous"; "ArrowRight", "move";
                               "p", "pose"; "f", "appearance"; "Delete", "remove"; "n", "spawn"; "c", "pan" ] do
               yield binding (InputGesture.KeyChord(InputKeyIdentity.LogicalKey key, CommandInput.noModifiers)) action
           for action, _ in actions do
@@ -43,8 +43,11 @@ let private profile =
 [<Emit("((p) => ({X:p.x,Y:p.y}))(new DOMPoint($1,$2).matrixTransform($0.getScreenCTM().inverse()))")>]
 let private svgPoint (_root: Element) (_clientX: float) (_clientY: float) : Point = jsNative
 
-[<Emit("(function(text){const url=URL.createObjectURL(new Blob([text],{type:'image/svg+xml'}));const a=document.createElement('a');a.href=url;a.download='soldier-world.svg';a.click();URL.revokeObjectURL(url);})($0)">]
+[<Emit("(function(text){const url=URL.createObjectURL(new Blob([text],{type:'image/svg+xml'}));const a=document.createElement('a');a.href=url;a.download='soldier-world.svg';a.click();URL.revokeObjectURL(url);})($0)")>]
 let private download (_svg: string) : unit = jsNative
+
+[<Emit("$0.isConnected")>]
+let private isConnected (_element: Element) : bool = jsNative
 
 let mount () : IDisposable =
     let root = document.createElement "section"
@@ -97,10 +100,10 @@ let mount () : IDisposable =
     let mutable invoke: string -> unit = ignore
     let mutable refresh: unit -> unit = ignore
     let report message = status.textContent <- message; root.setAttribute("data-refusal", message)
-    let listen element event handler =
+    let listen (element: HTMLElement) (event: string) (handler: Event -> unit) =
         element.addEventListener(event, handler)
         listeners.Add(element, event, handler)
-    let button parent label action =
+    let button (parent: HTMLElement) label action =
         let element = document.createElement "button"
         element.textContent <- label
         listen element "click" (fun _ -> if not disposed then action (); refresh ())
@@ -232,7 +235,7 @@ let mount () : IDisposable =
         authority <- None
         renderer |> Option.iter (fun host ->
             (host :> IDisposable).Dispose()
-            root.setAttribute("data-retired-svg-connected", string host.Root.isConnected))
+            root.setAttribute("data-retired-svg-connected", string (isConnected host.Root)))
         renderer <- None
     let start selectedMode =
         retire ()

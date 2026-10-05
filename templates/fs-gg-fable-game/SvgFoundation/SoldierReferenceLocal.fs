@@ -15,7 +15,8 @@ let private sessionId = "soldier-reference-local"
 let private compatibility =
     { ContractVersion = 1; EngineId = sessionId; EngineVersion = "1"
       ProfileId = "soldier-reference"; SchemaId = "soldier-workload"; SchemaVersion = 1 }
-let private failure issues = Error { Code = "soldier-reference.refused"; Message = String.concat "," issues }
+let private failure issues : Result<'value, SessionFailure> =
+    Error { Code = "soldier-reference.refused"; Message = String.concat "," issues }
 let private presentation = { Revision = 0; Camera = SvgAffine.identity; Selected = None; Focused = None }
 
 // Only workload authority enters Game. Selection, focus and camera stay in the product panel.

@@ -46,7 +46,8 @@ let create initial (apply: Workload -> unit) (report: string -> unit) =
               CancelAcquisition = fun generation id ->
                 acquisitions |> Seq.tryFind (fun request -> request.Generation = generation && request.Id = id)
                 |> Option.iter (fun request -> request.Settled <- true)
-              EpochBound = fun _ _ _ -> (); Disconnected = ignore
+              EpochBound = fun _ _ _ -> ()
+              Disconnected = ignore
               Dispose = fun () -> acquisitions |> Seq.iter (fun request -> request.Settled <- true) })
     let admit change =
         if not disposed then
