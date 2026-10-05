@@ -37,6 +37,9 @@ module TacticalExample = FableGameWorkspaceNamespace.SvgFoundation.TacticalExamp
 #if EXTERNAL_AUTHORITY_REFERENCE
 module ExternalAuthorityReference = FableGameWorkspaceNamespace.SvgFoundation.ExternalAuthorityReference
 #endif
+#if SOLDIER_REFERENCE
+module SoldierReference = FableGameWorkspaceNamespace.SvgFoundation.SoldierReference
+#endif
 #if FOURD_REFERENCE
 module FourDReference = FableGameWorkspaceNamespace.SvgFoundation.FourDReference
 #endif
@@ -111,6 +114,9 @@ do TacticalExample.mount ()
 #endif
 #if EXTERNAL_AUTHORITY_REFERENCE
 let private externalAuthorityReference = ExternalAuthorityReference.install ()
+#endif
+#if SOLDIER_REFERENCE
+let private soldierReference = SoldierReference.install ()
 #endif
 #if FOURD_REFERENCE
 let private fourDReference = FourDReference.mount ()
@@ -855,6 +861,9 @@ window.addEventListener ("gamepadconnected", refreshGamepads)
 window.addEventListener (
     "beforeunload",
     fun _ ->
+#if SOLDIER_REFERENCE
+        soldierReference.Dispose()
+#endif
 #if FOURD_REFERENCE
         fourDReference.Dispose()
 #endif

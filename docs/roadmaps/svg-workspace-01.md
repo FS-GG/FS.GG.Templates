@@ -546,3 +546,12 @@ inventory new managed files and prove owner-edit/save/config preservation and
 interruption/rollback. Existing package pins, player defaults and lifecycle/provider
 selections are unchanged by pure preparation. `.7` remains the single late host batch;
 `.3/.4`, publication and product migrations retain their existing owners.
+
+The next [player-composition source candidate](evidence/svg-coherence-01.5-player-composition.md)
+adds an opt-in actual-entry panel, a shared identified-document renderer, native
+roster and mutually exclusive local Game/shared-clock or external fixture/shared-host
+authority. Public pins and the frozen preparation sources remain unchanged. The
+complete-only project entries still require the existing explicit external candidate
+flag; no public runtime activation is selected. New caller compilation and actual
+player journeys await exact producer custody and allocated qualification. Whole
+SVG-COHERENCE-01.5 remains open.
