@@ -252,10 +252,26 @@ let main _ =
     assertEqual "direct route cannot claim an unobserved lifecycle default" (Error "receiver-lifecycle-refused") (validateReceiver archive receiver "direct" "typed-sdd" "1.2.3" "ReferenceDirect")
     let provenance = Path.Combine(receiver, ".fsgg", "scaffold-provenance.json")
     Directory.CreateDirectory(Path.GetDirectoryName provenance) |> ignore
-    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","templateRef":"FS.GG.Workspace.Template::0.18.1","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"typed-sdd"}]}""")
-    assertEqual "provider receiver binds generator provider source namespace and omitted default" (Ok ()) (validateReceiver archive receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
-    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","providerName":"other","templateRef":"FS.GG.Workspace.Template::0.18.1","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"typed-sdd"}]}""")
-    assertEqual "duplicate receiver provenance field refuses" (Error "receiver-provenance-duplicate-field-refused") (validateReceiver archive receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
+    // SDD 2.1 records descriptor.TemplateId, independently of descriptor.Source.
+    let providerProvenance templateRef providerName lifecycle generatorVersion =
+        sprintf """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"%s"},"providerName":"%s","templateRef":"%s","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"%s"}]}""" generatorVersion providerName templateRef lifecycle
+    let checkProvider () = validateReceiver archive receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect"
+    File.WriteAllText(provenance, providerProvenance "fs-gg-fable-game" "fable-game" "typed-sdd" "1.2.3")
+    assertEqual "provider receiver binds descriptor shortname and exact generator lifecycle namespace" (Ok ()) (checkProvider ())
+    File.WriteAllText(provenance, providerProvenance "fs-gg-fable-game" "fable-game" "none" "1.2.3")
+    assertEqual "provider none binds the same descriptor shortname" (Ok ()) (validateReceiver archive receiver "provider" "none" "1.2.3" "ReferenceDirect")
+    File.WriteAllText(provenance, providerProvenance "FS.GG.Workspace.Template::0.18.1" "fable-game" "typed-sdd" "1.2.3")
+    assertEqual "package source is not scaffold template identity" (Error "receiver-provider-source-refused") (checkProvider ())
+    File.WriteAllText(provenance, providerProvenance "fs-gg-other" "fable-game" "typed-sdd" "1.2.3")
+    assertEqual "unrelated descriptor shortname refuses" (Error "receiver-provider-source-refused") (checkProvider ())
+    File.WriteAllText(provenance, providerProvenance "fs-gg-fable-game" "other" "typed-sdd" "1.2.3")
+    assertEqual "wrong provider refuses with correct shortname" (Error "receiver-provider-source-refused") (checkProvider ())
+    File.WriteAllText(provenance, providerProvenance "fs-gg-fable-game" "fable-game" "none" "1.2.3")
+    assertEqual "shortname does not bypass lifecycle" (Error "receiver-lifecycle-refused") (checkProvider ())
+    File.WriteAllText(provenance, providerProvenance "fs-gg-fable-game" "fable-game" "typed-sdd" "other")
+    assertEqual "shortname does not bypass generator" (Error "receiver-generator-refused") (checkProvider ())
+    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","providerName":"other","templateRef":"fs-gg-fable-game","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"typed-sdd"}]}""")
+    assertEqual "duplicate receiver provenance field refuses" (Error "receiver-provenance-duplicate-field-refused") (checkProvider ())
     let toolArchive = Path.Combine(temp, "tool.nupkg")
     use toolZip = ZipFile.Open(toolArchive, ZipArchiveMode.Create)
     let toolNuspec = toolZip.CreateEntry("FS.GG.SDD.Cli.nuspec")

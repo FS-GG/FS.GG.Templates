@@ -118,11 +118,11 @@ with tempfile.TemporaryDirectory() as directory:
     path=Path(directory);log=path/'provider-composition.log'
     previous=os.environ.copy();os.environ['RUNNER_TEMP']=directory
     try:
-        for count in [180,179,181,0]:
+        for count in [186,185,187,0]:
             log.write_text('build diagnostics\n'+'PASS assertion\n'*count+' PASS indented\nPASS\twrong delimiter\n')
             try: exec(compile(provider_code,'actual-provider-count','exec'),{})
-            except AssertionError: assert count!=180
-            else: assert count==180
+            except AssertionError: assert count!=186
+            else: assert count==186
         log.unlink()
         try: exec(compile(provider_code,'actual-provider-count','exec'),{})
         except FileNotFoundError: pass
@@ -132,4 +132,4 @@ with tempfile.TemporaryDirectory() as directory:
         result=subprocess.run(['bash','-euo','pipefail','-c',provider_prefix],env=env,text=True,capture_output=True)
         assert result.returncode==7 and 'ProviderComposition: verified' not in result.stdout, 'failed Provider command must stop before count'
     finally: os.environ.clear();os.environ.update(previous)
-print('PASS actual stdlib Provider count180;179/181/empty/missing evidence refused; native command exit7 preserved')
+print('PASS actual stdlib Provider count186;185/187/empty/missing evidence refused; native command exit7 preserved')
