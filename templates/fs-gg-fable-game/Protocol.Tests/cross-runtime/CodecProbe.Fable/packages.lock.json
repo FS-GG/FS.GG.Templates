@@ -15,7 +15,7 @@
         "type": "Direct",
         "requested": "[0.32.1, 0.32.1]",
         "resolved": "0.32.1",
-        "contentHash": "Y+8qSkG4D4HhI/LlnRTl3BtEG1LOVqSdqKJHudXPPquj7xZVUoeojvyq/PahJ49c2rdAC1RXDvvO3jvVuQLSrQ==",
+        "contentHash": "3oifBGdPvhLfZBXgeJVB8ycJfs7PgJEX9xm6UaDQhqhauVtitr4sj1Bzu0l4rZMXZS6vA+j4/77w/rxNtUdm3w==",
         "dependencies": {
           "FSharp.Core": "10.1.401"
         }

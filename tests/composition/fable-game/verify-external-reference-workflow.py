@@ -53,6 +53,9 @@ def execute(code,env,should_pass):
 source='6c9f766fdd91483c2de6f061e75589e94852a265'
 env={'CALLER_REPOSITORY':'FS-GG/FS.GG.Rendering','TEMPLATES_SOURCE':'a'*40,'PRODUCER_SOURCE':source,'PRODUCER_RUN':'37419955679','PRODUCER_ARTIFACT':'11392773621','PRODUCER_ARCHIVE_SHA256':'486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee'}
 execute(codes[0],env,True)
+execute(codes[0],{**env,'RENDERING_INPUT_SOURCE':'public'},True)
+for mode in ['unknown','public\n','PUBLIC']:
+    execute(codes[0],{**env,'RENDERING_INPUT_SOURCE':mode},False)
 for key,value in [('CALLER_REPOSITORY','FS-GG/FS.GG.Templates'),('CALLER_REPOSITORY','other/repository'),('TEMPLATES_SOURCE','main'),('TEMPLATES_SOURCE','a'*39),('TEMPLATES_SOURCE','A'*40),('TEMPLATES_SOURCE','a'*40+'\n')]:
     execute(codes[0],{**env,key:value},False)
 with tempfile.TemporaryDirectory() as directory:
