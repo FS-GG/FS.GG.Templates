@@ -5,7 +5,7 @@ open System.Text
 open System.Text.Json.Nodes
 
 let product = fsi.CommandLineArgs.[1]
-let load, names = SddOwnerSkills.assemblyResources fsi.CommandLineArgs.[2]
+let load, names, generatorVersion = SddOwnerSkills.assemblyResources fsi.CommandLineArgs.[2]
 let manifest = Path.Combine(product,".agents/skills/skill-manifest.json")
 let original = File.ReadAllBytes manifest
 let mutable controls = 0
@@ -15,9 +15,9 @@ let refuses name action =
     if not refused then failwith ("Unexpected acceptance: " + name)
     controls <- controls + 1
     printfn "PASS refusal: %s" name
-let admit resource = SddOwnerSkills.admitResources resource names product "fs-gg-fable-game" |> ignore
+let admit resource = SddOwnerSkills.admitResources resource names product "fs-gg-fable-game" generatorVersion |> ignore
 try
-    let selected = SddOwnerSkills.admitResources load names product "fs-gg-fable-game"
+    let selected = SddOwnerSkills.admitResources load names product "fs-gg-fable-game" generatorVersion
     if selected.Count <> 12 then failwith "Wrong actual selected cardinality"
     controls <- controls + 1
     let unknownSchema = JsonNode.Parse(Encoding.UTF8.GetString(original))
@@ -55,6 +55,17 @@ try
         File.WriteAllText(prov,doc.ToJsonString())
         refuses "forged provenance owner" (fun () -> admit load)
     finally File.WriteAllBytes(prov,saved)
+    let provenance = Path.Combine(product,".fsgg/scaffold-provenance.json")
+    let originalProvenance = File.ReadAllBytes provenance
+    try
+        let otherVersion = if generatorVersion = "2.1.0" then "2.2.0" else "2.1.0"
+        for field,value in ["id","FS.GG.SDD.Commands"; "version",otherVersion; "version","0.0.0"] do
+            let doc = JsonNode.Parse(Encoding.UTF8.GetString(originalProvenance))
+            doc.["generator"].[field] <- JsonValue.Create(value)
+            File.WriteAllText(provenance,doc.ToJsonString())
+            refuses ("wrong actual generator " + field) (fun () -> admit load)
+            File.WriteAllBytes(provenance,originalProvenance)
+    finally File.WriteAllBytes(provenance,originalProvenance)
     // Same-id unverified bytes cannot hide behind an otherwise legitimate supplier.
     if not (SddOwnerSkills.selects "fable-game" "" "" "profile in [game, sample-pack] or template == fable-game") then failwith "Predicate positive failed"
     if SddOwnerSkills.selects "fable-game" "" "" "template == fable-game and bundle in [tactical, complete]" then failwith "Unselected bundle accepted"

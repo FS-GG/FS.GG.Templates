@@ -9,6 +9,6 @@ sdd_commands_assembly() {
   [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || return 1
   tool_root="$(dirname "$apphost")/.store/fs.gg.sdd.cli/$version/fs.gg.sdd.cli/$version/tools/net10.0/any"
   assembly="$tool_root/FS.GG.SDD.Commands.dll"
-  [[ -f "$assembly" && -f "$tool_root/FS.GG.SDD.Cli.dll" ]] || return 1
+  [[ -f "$assembly" && ! -L "$assembly" && -f "$tool_root/FS.GG.SDD.Artifacts.dll" && ! -L "$tool_root/FS.GG.SDD.Artifacts.dll" && -f "$tool_root/FS.GG.SDD.Cli.dll" ]] || return 1
   printf '%s\n' "$assembly"
 }
