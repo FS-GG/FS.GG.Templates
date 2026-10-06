@@ -19,13 +19,13 @@
 # It left "RE-COUPLE at 0.2.0" untouched beside it, because the sed matched only the full
 # `0.2.0-preview.1` token — a self-contradicting line, and the tell that no human wrote it.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# pin-tag: fs-gg-ui-template/v0.32.0
-# pin-contract: fs-gg-ui-template@0.32.0
+# pin-tag: fs-gg-ui-template/v0.32.1
+# pin-contract: fs-gg-ui-template@0.32.1
 #
 # BEGIN GENERATED: effective-providers
 # Effective providers — generated; ordered by unique provider name.
 # Review this block for the current selection; the release narrative remains in PIN HISTORY.
-# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.32.0 | contract=2.0.0
+# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.32.1 | contract=2.0.0
 # END GENERATED: effective-providers
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -52,6 +52,19 @@
 #
 #
 #
+#
+# 0.32.1 — 2026-10-06. FS.GG.Rendering SVG release, original source
+#   6c9f766fdd91483c2de6f061e75589e94852a265; protected publisher 37461402933/1
+#   (executor 6ea40861d15b581735655fbe7253673bf1cee907). FRAMEWORK + TEMPLATE PATCH:
+#   all nineteen original coherent archives, including FS.GG.UI.Template and the
+#   BOM, were acknowledged and matched on both feeds; the framework pin is 0.32.1.
+#   This selects the published package for new Rendering provider workspaces.
+#   Candidate source-bound receiver 37428584026/1 was already accepted; this pin
+#   update does not claim published-feed installed receiver qualification.
+#   Notification 37470842378/1 failed before either POST because App credentials
+#   were absent. Source adoption proceeds through reviewed PR admission instead.
+#   Lifecycle defaults, the separately packed Fable reference's 0.31.0 input pin,
+#   and existing generated projects remain unchanged.
 # 0.32.0 — 2026-10-03. FS.GG.Rendering PR #1366, source
 #   730923fe9d27174e879566f21dab14a1b03d761a; protected publisher 37106323610.
 #   FRAMEWORK + TEMPLATE MINOR: all nineteen original coherent archives, including
@@ -253,7 +266,7 @@ providers:
   - name: rendering
     contractVersion: "2.0.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.32.0   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
+    source: FS.GG.UI.Template::0.32.1   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the
