@@ -61,8 +61,8 @@ from pathlib import Path
 import re,sys
 from xml.etree import ElementTree as ET
 nodes=ET.parse(Path(sys.argv[1])).findall('.//FsGgSvgInputVersion')
-if len(nodes)!=1 or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', nodes[0].text or ''):
-    raise SystemExit('source qualification requires exactly one stable Rendering default pin')
+if len(nodes)!=1 or nodes[0].text!='0.32.1':
+    raise SystemExit('source qualification requires the reviewed public Rendering0.32.1 default pin')
 print(nodes[0].text)
 PYSOURCEPIN
 )"
@@ -89,6 +89,17 @@ for entry in mirror['entries']:
 PYAPI
 dotnet new install "$template" --force >/dev/null
 dotnet new fs-gg-fable-game -n PresentReceiver -o "$out/direct" --lifecycle none --svgFoundation true >/dev/null
+python3 - "$out/direct/SvgFoundation/SvgFoundation.fsproj" "$rendering_version" <<'PYCURRENTPIN'
+from pathlib import Path
+import sys
+from xml.etree import ElementTree as ET
+root=ET.parse(Path(sys.argv[1])).getroot();version=sys.argv[2]
+assert version=='0.32.1', 'reviewed public Rendering version required'
+nodes=root.findall('.//FsGgSvgInputVersion')
+assert len(nodes)==1 and nodes[0].text==version, 'generated default pin mismatch'
+refs={node.attrib['Include']:node.attrib['Version'] for node in root.findall('.//PackageReference') if node.attrib.get('Include','').startswith('FS.GG.UI.')}
+assert refs=={identity:'[$(FsGgSvgInputVersion)]' for identity in ['FS.GG.UI.Scene','FS.GG.UI.Scene.SvgBrowser','FS.GG.UI.KeyboardInput']}, 'generated UI package references mismatch'
+PYCURRENTPIN
 for expected in "$rendering_version" "$game_version" "$audio_version"; do grep -F "$expected" "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null; done
 grep -F ">$game_version</FsGgGameNetworkVersion>" "$out/direct/Directory.Build.props" >/dev/null
 grep -F ">$net_version</FsGgNetNetworkVersion>" "$out/direct/Directory.Build.props" >/dev/null
