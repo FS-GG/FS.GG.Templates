@@ -48,11 +48,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
-      PRODUCER_SOURCE: 730923fe9d27174e879566f21dab14a1b03d761a
-      PRODUCER_RUN: '37046893526'
-      PRODUCER_ARTIFACT: '11244853996'
-      PRODUCER_ARCHIVE_SHA256: 58a80ec49db26b36b3f873694053df1e0eb4c3fb5bac503c8905ac2547bdb4d7
-      PRODUCER_CUSTODY_SHA256: 35d4c23fbd811c810987277aa1e28d2b35e605f0c9106e5385f1cb7080dc1ad9
+      PRODUCER_SOURCE: 6c9f766fdd91483c2de6f061e75589e94852a265
+      PRODUCER_RUN: '37419955679'
+      PRODUCER_ARTIFACT: '11392773621'
+      PRODUCER_ARCHIVE_SHA256: 486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee
+      PRODUCER_CUSTODY_SHA256: ecd0c5d742fd8d19d5659991e413e92971c1d2cb9aea913faa2bb249f53f577d
       DOTNET_PROCESSOR_COUNT: '1'
       MSBUILDDISABLENODEREUSE: '1'
     defaults:
@@ -111,10 +111,10 @@ jobs:
           assert run['id']==int(os.environ['PRODUCER_RUN']) and run['head_sha']==os.environ['PRODUCER_SOURCE']
           assert run['conclusion']=='success' and run['path']=='.github/workflows/release.yml'
           assert artifact['id']==int(os.environ['PRODUCER_ARTIFACT']) and not artifact['expired']
-          assert artifact['size_in_bytes']==14790371
+          assert artifact['size_in_bytes']==14912688
           assert artifact['digest']=='sha256:'+os.environ['PRODUCER_ARCHIVE_SHA256']
           assert artifact['workflow_run']['id']==run['id'] and artifact['workflow_run']['head_sha']==run['head_sha']
-          assert artifact['name']=='rendering-source-candidate-'+run['head_sha']+'-0.32.0'
+          assert artifact['name']=='rendering-source-candidate-'+run['head_sha']+'-0.32.1'
           PY
           gh api "repos/FS-GG/FS.GG.Rendering/actions/artifacts/$PRODUCER_ARTIFACT/zip" > "$RUNNER_TEMP/rendering-packet.zip"
           printf '%s  %s\n' "$PRODUCER_ARCHIVE_SHA256" "$RUNNER_TEMP/rendering-packet.zip" | sha256sum --check --strict
@@ -131,7 +131,7 @@ jobs:
           assert hashlib.sha256((root/'rendering-packet/release-custody.json').read_bytes()).hexdigest()==os.environ['PRODUCER_CUSTODY_SHA256']
           PY
           python3 .tmp/rendering-source/scripts/release-custody.py verify \
-            --plan .tmp/rendering-source/eng/release/svg-external-authority-0.32.0.json \
+            --plan .tmp/rendering-source/eng/release/svg-export-prefix-0.32.1.json \
             --archives "$RUNNER_TEMP/rendering-packet" --manifest "$RUNNER_TEMP/rendering-packet/release-custody.json" \
             --source-sha "$PRODUCER_SOURCE"
       - name: Record authenticated preflight identity
@@ -146,7 +146,7 @@ jobs:
           python3 - <<'PY'
           import json, os, subprocess
           from pathlib import Path
-          receipt={'schema':'fsgg.external-reference-native-preflight/1','disposition':'preflight-passed','qualification':'not-run','templates':{'revision':os.environ['TEMPLATES_SOURCE'],'tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()},'caller':{key:os.environ[value] for key,value in [('repository','CALLER_REPOSITORY'),('revision','CALLER_SOURCE'),('run','CALLER_RUN'),('attempt','CALLER_ATTEMPT')]},'producer':{key:os.environ[value] for key,value in [('revision','PRODUCER_SOURCE'),('run','PRODUCER_RUN'),('artifact','PRODUCER_ARTIFACT'),('archiveSha256','PRODUCER_ARCHIVE_SHA256'),('custodySha256','PRODUCER_CUSTODY_SHA256')]},'producerTree':subprocess.check_output(['git','-C','.tmp/rendering-source','rev-parse','HEAD^{tree}'],text=True).strip(),'artifactSizeBytes':14790371,'requestedPhase':'preflight' if os.environ['PREFLIGHT_ONLY']=='true' else 'full','publication':False,'installedAcceptance':False}
+          receipt={'schema':'fsgg.external-reference-native-preflight/1','disposition':'preflight-passed','qualification':'not-run','templates':{'revision':os.environ['TEMPLATES_SOURCE'],'tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()},'caller':{key:os.environ[value] for key,value in [('repository','CALLER_REPOSITORY'),('revision','CALLER_SOURCE'),('run','CALLER_RUN'),('attempt','CALLER_ATTEMPT')]},'producer':{key:os.environ[value] for key,value in [('revision','PRODUCER_SOURCE'),('run','PRODUCER_RUN'),('artifact','PRODUCER_ARTIFACT'),('archiveSha256','PRODUCER_ARCHIVE_SHA256'),('custodySha256','PRODUCER_CUSTODY_SHA256')]},'producerTree':subprocess.check_output(['git','-C','.tmp/rendering-source','rev-parse','HEAD^{tree}'],text=True).strip(),'artifactSizeBytes':14912688,'requestedPhase':'preflight' if os.environ['PREFLIGHT_ONLY']=='true' else 'full','publication':False,'installedAcceptance':False}
           (Path(os.environ['RUNNER_TEMP'])/'external-reference-preflight.json').write_text(json.dumps(receipt,indent=2)+'\n')
           PY
       - uses: actions/setup-dotnet@v6
@@ -188,7 +188,7 @@ jobs:
           PYPROVIDER
           bash tests/composition/fable-game/verify-external-reference-candidate.sh \
             "$GITHUB_WORKSPACE/templates/.tmp/rendering-source" "$RUNNER_TEMP/rendering-packet" \
-            0.32.0 "$RUNNER_TEMP/external-reference" "$PRODUCER_SOURCE"
+            0.32.1 "$RUNNER_TEMP/external-reference" "$PRODUCER_SOURCE"
       - name: Bind successful full result to requested Templates source
         if: ${{ !inputs.preflight-only }}
         env:
