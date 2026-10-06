@@ -88,7 +88,7 @@ for project in projects:
     for node in tree.findall('.//PackageReference'):
         if node.attrib.get('Include','').startswith('FS.GG.UI.'):
             assert node.attrib['Version'] in ['[0.32.1]','[$(FsGgSvgInputVersion)]','[$(FsGgSvgAuthoringVersion)]']
-    assert not tree.findall('.//ProjectReference'), project
+    module.validate_project_references(tree, project, root)
     lock=json.loads(path.with_name('packages.lock.json').read_text())
     for deps in lock['dependencies'].values():
         for name,row in deps.items():

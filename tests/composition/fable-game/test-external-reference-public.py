@@ -8,11 +8,60 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 from zipfile import ZipFile
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('public_input', HERE / 'external-reference-public.py')
 public = importlib.util.module_from_spec(spec); spec.loader.exec_module(public)
+
+
+class LocalProjectReferenceTests(unittest.TestCase):
+    def setUp(self):
+        self.root = HERE.parents[2] / 'templates/fs-gg-fable-game'
+        self.project = 'Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj'
+        self.tree = ET.parse(self.root / self.project)
+
+    def test_shipped_five_projects_accept_only_their_local_edges(self):
+        projects = ['SvgFoundation/SvgFoundation.fsproj', 'SvgFoundation/Studio/Studio.fsproj',
+                    'SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fsproj',
+                    self.project, 'Protocol.Tests/cross-runtime/CodecProbe.Fable/CodecProbe.Fable.fsproj']
+        for project in projects:
+            public.validate_project_references(ET.parse(self.root / project), project, self.root)
+
+    def test_local_rendering_reference_cannot_replace_public_packages(self):
+        ET.SubElement(self.tree.getroot(), 'ProjectReference', Include='../../../Rendering/Rendering.fsproj')
+        with self.assertRaisesRegex(ValueError, 'unexpected local'):
+            public.validate_project_references(self.tree, self.project, self.root)
+
+    def test_missing_expected_codec_edge_refused(self):
+        group = self.tree.find('.//ProjectReference/..'); group.remove(group.find('ProjectReference'))
+        with self.assertRaisesRegex(ValueError, 'unexpected local'):
+            public.validate_project_references(self.tree, self.project, self.root)
+
+    def test_conditional_edge_refused(self):
+        self.tree.find('.//ProjectReference').set('Condition', "'$(Alternative)' == 'true'")
+        with self.assertRaisesRegex(ValueError, 'conditional'):
+            public.validate_project_references(self.tree, self.project, self.root)
+
+    def test_conditional_parent_group_refused(self):
+        self.tree.find('.//ProjectReference/..').set('Condition', "'$(Alternative)' == 'true'")
+        with self.assertRaisesRegex(ValueError, 'conditional ancestor'):
+            public.validate_project_references(self.tree, self.project, self.root)
+
+    def test_conditional_project_ancestor_refused(self):
+        self.tree.getroot().set('Condition', "'$(Alternative)' == 'true'")
+        with self.assertRaisesRegex(ValueError, 'conditional ancestor'):
+            public.validate_project_references(self.tree, self.project, self.root)
+
+    def test_svg_project_cannot_borrow_codec_allowlist(self):
+        with self.assertRaisesRegex(ValueError, 'unexpected local'):
+            public.validate_project_references(self.tree, 'SvgFoundation/SvgFoundation.fsproj', self.root)
+
+    def test_missing_local_targets_refused(self):
+        with tempfile.TemporaryDirectory() as empty:
+            with self.assertRaisesRegex(ValueError, 'absent or outside'):
+                public.validate_project_references(self.tree, self.project, Path(empty))
 
 
 class PublicInputTests(unittest.TestCase):
