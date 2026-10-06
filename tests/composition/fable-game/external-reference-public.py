@@ -30,6 +30,37 @@ LOCK_HASH = {
 }
 
 
+
+# Source-local application protocol/domain edges are part of the shipped codec
+# probes. They are not alternative producers for the three public UI packages.
+LOCAL_PROJECT_REFERENCES = {
+    'Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj':
+        ['../../../Protocol/Protocol.fsproj', '../../../Domain/Domain.fsproj'],
+    'Protocol.Tests/cross-runtime/CodecProbe.Fable/CodecProbe.Fable.fsproj':
+        ['../../../Domain/Domain.fsproj'],
+}
+
+
+def validate_project_references(tree, project, root):
+    nodes = tree.findall('.//ProjectReference')
+    expected = LOCAL_PROJECT_REFERENCES.get(project, [])
+    if len(nodes) != len(expected) or sorted(node.attrib.get('Include', '') for node in nodes) != sorted(expected):
+        raise ValueError('unexpected local project reference: ' + project)
+    parents = {child: parent for parent in tree.iter() for child in parent}
+    for node in nodes:
+        ancestor = parents.get(node)
+        while ancestor is not None:
+            if 'Condition' in ancestor.attrib:
+                raise ValueError('conditional ancestor of local project reference: ' + project)
+            ancestor = parents.get(ancestor)
+        if set(node.attrib) != {'Include'} or list(node):
+            raise ValueError('conditional or altered local project reference: ' + project)
+        target = root / Path(project).parent / node.attrib['Include']
+        resolved = target.resolve()
+        if not resolved.is_relative_to(root.resolve()) or target.is_symlink() or not resolved.is_file():
+            raise ValueError('local project target absent or outside generated source: ' + project)
+
+
 def validate_archive(path, identity, expected_raw_hash, custody_row):
     if not stat.S_ISREG(path.lstat().st_mode) or path.is_symlink():
         raise ValueError('regular archive required')
