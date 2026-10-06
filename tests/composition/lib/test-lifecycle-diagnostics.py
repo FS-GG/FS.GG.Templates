@@ -62,15 +62,21 @@ class DiagnosticsTests(unittest.TestCase):
             artifact.unlink();r=subprocess.run(['bash','-c',script,'fixture',str(ROOT),str(product)],env=env,capture_output=True,text=True);self.assertNotEqual(0,r.returncode)
     def test_installed_source_resolver_uses_observed_apphost_version(self):
         import os
-        with tempfile.TemporaryDirectory() as temporary:
-            root=Path(temporary);tool=root/'tools';tool.mkdir();apphost=tool/'fsgg-sdd'
-            apphost.write_text('#!/bin/sh\nprintf "2.1.0\\n"\n');apphost.chmod(0o755)
-            assembly=tool/'.store/fs.gg.sdd.cli/2.1.0/fs.gg.sdd.cli/2.1.0/tools/net10.0/any/FS.GG.SDD.Commands.dll'
-            assembly.parent.mkdir(parents=True);assembly.write_text('fixture');(assembly.parent/'FS.GG.SDD.Cli.dll').write_text('fixture')
-            script='. "$1/tests/composition/lib/sdd-owner-skills.sh"; sdd_commands_assembly'
-            env=dict(os.environ,PATH=str(tool)+os.pathsep+os.environ['PATH'])
-            def run(): return subprocess.run(['bash','-c',script,'fixture',str(ROOT)],env=env,capture_output=True,text=True)
-            r=run();self.assertEqual(0,r.returncode,r.stderr);self.assertEqual(str(assembly),r.stdout.strip())
-            assembly.unlink();self.assertNotEqual(0,run().returncode)
-            apphost.write_text('#!/bin/sh\nprintf "unknown\\n"\n');self.assertNotEqual(0,run().returncode)
+        for version in ('2.1.0', '2.2.0'):
+            with self.subTest(version=version), tempfile.TemporaryDirectory() as temporary:
+                root=Path(temporary);tool=root/'tools';tool.mkdir();apphost=tool/'fsgg-sdd'
+                apphost.write_text('#!/bin/sh\nprintf "'+version+'\\n"\n');apphost.chmod(0o755)
+                assembly=tool/('.store/fs.gg.sdd.cli/'+version+'/fs.gg.sdd.cli/'+version+'/tools/net10.0/any/FS.GG.SDD.Commands.dll')
+                assembly.parent.mkdir(parents=True);assembly.write_text('fixture');(assembly.parent/'FS.GG.SDD.Cli.dll').write_text('fixture')
+                artifacts=assembly.parent/'FS.GG.SDD.Artifacts.dll';artifacts.write_text('fixture')
+                script='. "$1/tests/composition/lib/sdd-owner-skills.sh"; sdd_commands_assembly'
+                env=dict(os.environ,PATH=str(tool)+os.pathsep+os.environ['PATH'])
+                def run(): return subprocess.run(['bash','-c',script,'fixture',str(ROOT)],env=env,capture_output=True,text=True)
+                r=run();self.assertEqual(0,r.returncode,r.stderr);self.assertEqual(str(assembly),r.stdout.strip())
+                artifacts.unlink();self.assertNotEqual(0,run().returncode)
+                outside=root/'other-version-artifacts.dll';outside.write_text('fixture')
+                artifacts.symlink_to(outside);self.assertNotEqual(0,run().returncode)
+                artifacts.unlink();artifacts.write_text('fixture')
+                assembly.unlink();self.assertNotEqual(0,run().returncode)
+                apphost.write_text('#!/bin/sh\nprintf "unknown\\n"\n');self.assertNotEqual(0,run().returncode)
 if __name__=='__main__':unittest.main()

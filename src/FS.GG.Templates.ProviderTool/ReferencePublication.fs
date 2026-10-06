@@ -26,6 +26,7 @@ type InstalledTool = { EntryCount: int; CorePath: string }
 let private packageId = "FS.GG.Workspace.Template"
 let private version = "0.18.1"
 let private source = packageId + "::" + version
+let private templateId = "fs-gg-fable-game"
 let private hex64 = Regex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)
 let private hex40 = Regex("^[0-9a-f]{40}$", RegexOptions.CultureInvariant)
 let private required =
@@ -231,7 +232,7 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
                                     if row.TryGetProperty("key", &actualKey) && row.TryGetProperty("value", &value) && actualKey.GetString() = key then Some(value.GetString()) else None)
                                 |> Seq.toList
                             if not generatorOk || generatorId.GetString() <> "FS.GG.SDD.Artifacts" || generatorVersion.GetString() <> expectedGeneratorVersion then refuse "receiver-generator-refused"
-                            elif providerName.GetString() <> "fable-game" || templateRef.GetString() <> source then refuse "receiver-provider-source-refused"
+                            elif providerName.GetString() <> "fable-game" || templateRef.GetString() <> templateId then refuse "receiver-provider-source-refused"
                             elif lifecycle <> [ expectedLifecycle ] then refuse "receiver-lifecycle-refused"
                             elif parameter "productName" <> [ productName ] then refuse "receiver-product-name-refused"
                             else Ok ()
@@ -245,7 +246,7 @@ let private descriptorCheck (provider: Provider) =
     if provider.Name <> "fable-game" then refuse "descriptor-provider-identity-refused"
     elif provider.ContractVersion <> "2.0.0" then refuse "descriptor-contract-refused"
     elif provider.NameParameter <> Some "productName" || provider.IdentifierParameter <> Some "rootNamespace" || provider.Floor <> Some "2.1.0" then refuse "descriptor-capability-refused"
-    elif provider.TemplateId <> "fs-gg-fable-game" then refuse "descriptor-template-refused"
+    elif provider.TemplateId <> templateId then refuse "descriptor-template-refused"
     elif provider.Source <> source then refuse "descriptor-source-refused"
     elif lifecycle <> [ { Key = "lifecycle"; Required = false; Default = Some "typed-sdd" } ] then refuse "descriptor-lifecycle-refused"
     else Ok ()

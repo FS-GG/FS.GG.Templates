@@ -35,9 +35,10 @@ let selects template profile bundle (predicate: string) =
     // Evaluate every arm, even if an earlier one matches: unsupported syntax always refuses.
     predicate.Split(" or ") |> Array.map (fun arm -> arm.Split(" and ") |> Array.map atom |> Array.forall id) |> Array.exists id
 
-let admitResources (resource: string -> byte array) (names: string array) (productDir: string) (templateId: string) =
+let admitResources (resource: string -> byte array) (names: string array) (productDir: string) (templateId: string) (expectedGeneratorVersion: string) =
     let provenance = JsonNode.Parse(File.ReadAllText(Path.Combine(productDir, ".fsgg/scaffold-provenance.json")))
-    require (text provenance.["generator"] "version" = "2.1.0") "unexpected producer version"
+    require (text provenance.["generator"] "id" = "FS.GG.SDD.Artifacts") "wrong generator identity"
+    require (text provenance.["generator"] "version" = expectedGeneratorVersion) "unexpected producer version"
     require (text provenance "templateRef" = templateId) "wrong selected template provenance"
     let parameters = provenance.["effectiveParameters"].AsArray()
     let profile = parameters |> Seq.tryFind (fun row -> text row "key" = "profile") |> Option.map (fun row -> text row "value") |> Option.defaultValue ""
@@ -100,7 +101,20 @@ let admitResources (resource: string -> byte array) (names: string array) (produ
     admitted
 
 let assemblyResources (commandsPath: string) =
-    let assembly = Assembly.LoadFile(Path.GetFullPath(commandsPath))
+    let commandsPath = Path.GetFullPath(commandsPath)
+    let artifactsPath = Path.Combine(Path.GetDirectoryName(commandsPath), "FS.GG.SDD.Artifacts.dll")
+    for path in [commandsPath; artifactsPath] do
+        require (File.Exists path && (File.GetAttributes path &&& FileAttributes.ReparsePoint) <> FileAttributes.ReparsePoint) "producer assembly custody refused"
+    let artifacts = Assembly.LoadFile artifactsPath
+    require (artifacts.GetName().Name = "FS.GG.SDD.Artifacts") "wrong generator assembly"
+    let informational = artifacts.GetCustomAttributes(typeof<AssemblyInformationalVersionAttribute>, false)
+    require (informational.Length = 1) "missing or duplicate generator informational version"
+    let raw = (informational.[0] :?> AssemblyInformationalVersionAttribute).InformationalVersion
+    require (not (String.IsNullOrWhiteSpace raw)) "empty generator informational version"
+    // The producer itself strips only the source-control suffix from this exact attribute.
+    let core = raw.Trim().Split('+').[0]
+    require (Regex.IsMatch(core, "^[0-9]+\\.[0-9]+\\.[0-9]+$", RegexOptions.CultureInvariant)) "generator version shape refused"
+    let assembly = Assembly.LoadFile commandsPath
     require (assembly.GetName().Name = "FS.GG.SDD.Commands") "wrong producer assembly"
     let names = assembly.GetManifestResourceNames()
     let resource (name: string) =
@@ -110,10 +124,10 @@ let assemblyResources (commandsPath: string) =
         use buffer = new MemoryStream()
         stream.CopyTo(buffer)
         buffer.ToArray()
-    resource, names
+    resource, names, core
 
 let admit (commandsPath: string) (productDir: string) (templateId: string) =
-    let resource, names = assemblyResources commandsPath
-    let admitted = admitResources resource names productDir templateId
+    let resource, names, generatorVersion = assemblyResources commandsPath
+    let admitted = admitResources resource names productDir templateId generatorVersion
     printfn "SDD co-producer: %d exact selected rows, Commands sha256 %s" admitted.Count (sha (File.ReadAllBytes(commandsPath)))
     admitted
