@@ -396,12 +396,13 @@ let main argv =
             workspaceCheck providers (optionValue "--workspace" args "") (optionValue "--registry" args registryUrl)
             0
         | "reference-publication-check" :: tail ->
-            let requiredNames = [ "--archive"; "--descriptor"; "--sha256"; "--source-revision"; "--tag-revision"; "--descriptor-sha256" ]
+            let requiredNames = [ "--archive"; "--descriptor"; "--template-version"; "--sha256"; "--source-revision"; "--tag-revision"; "--descriptor-sha256" ]
             let parsed = parseClosedOptions requiredNames tail
             let providers = parseDescriptor parsed.["--descriptor"]
             if providers.Length <> 1 then fail "descriptor must contain exactly one provider"
             match ReferencePublication.validate {
                 Archive = parsed.["--archive"]
+                ExpectedVersion = parsed.["--template-version"]
                 Descriptor = parsed.["--descriptor"]
                 ExpectedSha256 = parsed.["--sha256"]
                 ExpectedRevision = parsed.["--source-revision"]

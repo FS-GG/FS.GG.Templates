@@ -14,6 +14,7 @@ type Request = {
     Archive: string
     Descriptor: string
     ExpectedSha256: string
+    ExpectedVersion: string
     ExpectedRevision: string
     ExpectedTagRevision: string
     ExpectedDescriptorSha256: string
@@ -23,7 +24,7 @@ type Request = {
 type InstalledTool = { EntryCount: int; CorePath: string }
 
 let private packageId = "FS.GG.Workspace.Template"
-let private version = "0.17.0"
+let private version = "0.18.1"
 let private source = packageId + "::" + version
 let private hex64 = Regex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)
 let private hex40 = Regex("^[0-9a-f]{40}$", RegexOptions.CultureInvariant)
@@ -242,7 +243,8 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
 let private descriptorCheck (provider: Provider) =
     let lifecycle = provider.Parameters |> List.filter (fun p -> p.Key = "lifecycle")
     if provider.Name <> "fable-game" then refuse "descriptor-provider-identity-refused"
-    elif provider.ContractVersion <> "1.1.0" then refuse "descriptor-contract-refused"
+    elif provider.ContractVersion <> "2.0.0" then refuse "descriptor-contract-refused"
+    elif provider.NameParameter <> Some "productName" || provider.IdentifierParameter <> Some "rootNamespace" || provider.Floor <> Some "2.1.0" then refuse "descriptor-capability-refused"
     elif provider.TemplateId <> "fs-gg-fable-game" then refuse "descriptor-template-refused"
     elif provider.Source <> source then refuse "descriptor-source-refused"
     elif lifecycle <> [ { Key = "lifecycle"; Required = false; Default = Some "typed-sdd" } ] then refuse "descriptor-lifecycle-refused"
@@ -262,6 +264,7 @@ let validate request =
     if not (File.Exists request.Archive) || not (File.Exists request.Descriptor) then refuse "input-file-missing"
     elif not (hex64.IsMatch request.ExpectedSha256) || not (hex64.IsMatch request.ExpectedDescriptorSha256)
          || not (hex40.IsMatch request.ExpectedRevision) || not (hex40.IsMatch request.ExpectedTagRevision) then refuse "expected-identity-refused"
+    elif request.ExpectedVersion <> version then refuse "selected-version-refused"
     elif request.ExpectedRevision <> request.ExpectedTagRevision then refuse "immutable-tag-revision-refused"
     elif sha256 request.Archive <> request.ExpectedSha256 then refuse "archive-sha256-refused"
     elif sha256 request.Descriptor <> request.ExpectedDescriptorSha256 then refuse "descriptor-sha256-refused"

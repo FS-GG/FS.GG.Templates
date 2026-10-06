@@ -3,16 +3,23 @@ name: Fable reference public qualification
 on:
   workflow_dispatch:
     inputs:
-      archive_sha256: { description: Exact nuget.org FS.GG.Workspace.Template 0.17.0 archive SHA-256, required: true, type: string }
+      mode:
+        description: Templates-only public proof or full proof including separately qualified Wizard 0.16.0
+        required: true
+        type: choice
+        default: templates
+        options: [templates, full]
+      template_version: { description: Selected FS.GG.Workspace.Template successor 0.18.1, required: true, type: string }
+      archive_sha256: { description: Exact nuget.org FS.GG.Workspace.Template 0.18.1 archive SHA-256, required: true, type: string }
       descriptor_sha256: { description: Exact protected fable-game provider descriptor SHA-256, required: true, type: string }
       source_revision: { description: Exact protected Templates commit carried by the package, required: true, type: string }
-      tag_revision: { description: Peeled immutable fs-gg-templates/v0.17.0 revision, required: true, type: string }
+      tag_revision: { description: Peeled immutable fs-gg-templates/v0.18.1 revision, required: true, type: string }
       sdd_version: { description: Exact published FS.GG.SDD.Cli version, required: true, type: string }
       sdd_archive_sha256: { description: Exact public FS.GG.SDD.Cli archive SHA-256, required: true, type: string }
       sdd_source_revision: { description: Exact FS.GG.SDD.Cli nuspec source revision, required: true, type: string }
-      wizard_version: { description: Exact published FS.GG.NewSddWorkspace version, required: true, type: string }
-      wizard_archive_sha256: { description: Exact public wizard archive SHA-256, required: true, type: string }
-      wizard_source_revision: { description: Exact wizard nuspec source revision, required: true, type: string }
+      wizard_version: { description: Exact published FS.GG.NewSddWorkspace version, required: false, type: string }
+      wizard_archive_sha256: { description: Exact public wizard archive SHA-256, required: false, type: string }
+      wizard_source_revision: { description: Exact wizard nuspec source revision, required: false, type: string }
 
 permissions:
   contents: read
@@ -22,6 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 70
     env:
+      RECEIVER_MODE: ${{ inputs.mode }}
+      TEMPLATE_VERSION: ${{ inputs.template_version }}
       ARCHIVE_SHA256: ${{ inputs.archive_sha256 }}
       DESCRIPTOR_SHA256: ${{ inputs.descriptor_sha256 }}
       SOURCE_REVISION: ${{ inputs.source_revision }}
@@ -51,12 +60,13 @@ jobs:
         run: |
           set -euo pipefail
           bash -n tests/composition/fable-game/verify-fable-reference-public.sh
-          args=(--sha256 "$ARCHIVE_SHA256" --descriptor-sha256 "$DESCRIPTOR_SHA256" --source-revision "$SOURCE_REVISION" --tag-revision "$TAG_REVISION" --sdd-version "$SDD_VERSION" --sdd-sha256 "$SDD_ARCHIVE_SHA256" --sdd-source-revision "$SDD_SOURCE_REVISION" --wizard-version "$WIZARD_VERSION" --wizard-sha256 "$WIZARD_ARCHIVE_SHA256" --wizard-source-revision "$WIZARD_SOURCE_REVISION" --evidence-dir "$RUNNER_TEMP/fable-reference-preflight")
+          python3 tests/composition/fable-game/test-fable-reference-public-preflight.py
+          args=(--mode "$RECEIVER_MODE" --template-version "$TEMPLATE_VERSION" --sha256 "$ARCHIVE_SHA256" --descriptor-sha256 "$DESCRIPTOR_SHA256" --source-revision "$SOURCE_REVISION" --tag-revision "$TAG_REVISION" --sdd-version "$SDD_VERSION" --sdd-sha256 "$SDD_ARCHIVE_SHA256" --sdd-source-revision "$SDD_SOURCE_REVISION" --wizard-version "$WIZARD_VERSION" --wizard-sha256 "$WIZARD_ARCHIVE_SHA256" --wizard-source-revision "$WIZARD_SOURCE_REVISION" --evidence-dir "$RUNNER_TEMP/fable-reference-preflight")
           tests/composition/fable-game/verify-fable-reference-public.sh "${args[@]}" --preflight-only
           marker="$RUNNER_TEMP/fable-reference-input-executed"
           malicious="1.0.0'\$(touch $marker)'"
           if tests/composition/fable-game/verify-fable-reference-public.sh \
-            --sha256 "$ARCHIVE_SHA256" --descriptor-sha256 "$DESCRIPTOR_SHA256" \
+            --mode "$RECEIVER_MODE" --template-version "$TEMPLATE_VERSION" --sha256 "$ARCHIVE_SHA256" --descriptor-sha256 "$DESCRIPTOR_SHA256" \
             --source-revision "$SOURCE_REVISION" --tag-revision "$TAG_REVISION" \
             --sdd-version "$malicious" --sdd-sha256 "$SDD_ARCHIVE_SHA256" --sdd-source-revision "$SDD_SOURCE_REVISION" \
             --wizard-version "$WIZARD_VERSION" --wizard-sha256 "$WIZARD_ARCHIVE_SHA256" --wizard-source-revision "$WIZARD_SOURCE_REVISION" \
@@ -86,7 +96,7 @@ jobs:
           export DOTNET_HOST_PATH="$DOTNET_ROOT/dotnet"
           "$DOTNET_HOST_PATH" restore src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj --locked-mode
           tests/composition/fable-game/verify-fable-reference-public.sh \
-            --sha256 "$ARCHIVE_SHA256" --descriptor-sha256 "$DESCRIPTOR_SHA256" \
+            --mode "$RECEIVER_MODE" --template-version "$TEMPLATE_VERSION" --sha256 "$ARCHIVE_SHA256" --descriptor-sha256 "$DESCRIPTOR_SHA256" \
             --source-revision "$SOURCE_REVISION" --tag-revision "$TAG_REVISION" \
             --sdd-version "$SDD_VERSION" --sdd-sha256 "$SDD_ARCHIVE_SHA256" --sdd-source-revision "$SDD_SOURCE_REVISION" \
             --wizard-version "$WIZARD_VERSION" --wizard-sha256 "$WIZARD_ARCHIVE_SHA256" --wizard-source-revision "$WIZARD_SOURCE_REVISION" \
