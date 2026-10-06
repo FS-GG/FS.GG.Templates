@@ -90,6 +90,27 @@ class PublicInputTests(unittest.TestCase):
             run = subprocess.run(['bash', str(script), '/missing', '/missing', version, str(output), source, mode], capture_output=True, text=True)
             self.assertNotEqual(run.returncode, 0); self.assertFalse(output.exists())
 
+    def test_shipped_builds_pass_current_pin_to_actual_locked_restore(self):
+        import os
+        root = HERE.parents[2]
+        binary = self.root / 'dotnet'
+        capture = self.root / 'restore.json'
+        binary.write_text("#!/usr/bin/env python3\nimport json,os,sys\nfrom pathlib import Path\nPath(os.environ['CAPTURE_RESTORE']).write_text(json.dumps({'args':sys.argv[1:],'input':os.environ.get('FsGgSvgInputVersion'),'authoring':os.environ.get('FsGgSvgAuthoringVersion')}))\nsys.exit(73)\n")
+        binary.chmod(0o700)
+        base = {key: value for key, value in os.environ.items() if key not in ['FSGG_SVG_INPUT_VERSION', 'FSGG_SVG_AUTHORING_VERSION', 'FSGG_SVG_CANDIDATE_FEED', 'FsGgSvgInputVersion', 'FsGgSvgAuthoringVersion']}
+        env = {**base, 'PATH': str(self.root) + os.pathsep + base['PATH'], 'CAPTURE_RESTORE': str(capture)}
+        for path, field, property_name, override in [('templates/fs-gg-fable-game/SvgFoundation/build.sh', 'input', 'FsGgSvgInputVersion', 'FSGG_SVG_INPUT_VERSION'), ('templates/fs-gg-fable-game/SvgFoundation/Studio/build.sh', 'authoring', 'FsGgSvgAuthoringVersion', 'FSGG_SVG_AUTHORING_VERSION')]:
+            for selected in [None, '0.32.1-candidate.test']:
+                current_env = env if selected is None else {**env, override: selected}
+                result = subprocess.run(['bash', str(root / path)], env=current_env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 73)  # actual first command intercepted, no native run
+                value = json.loads(capture.read_text()); version = selected or '0.32.1'
+                self.assertEqual(value[field], version)
+                self.assertEqual(value['args'][0], 'restore')
+                self.assertIn('--locked-mode', value['args'])
+                self.assertIn('-p:' + property_name + '=' + version, value['args'])
+                self.assertNotIn('--force-evaluate', value['args'])
+
     def test_release_c_source_pin_uses_actual_default_and_refuses_ambiguity(self):
         import re
         source = (HERE / 'verify-svg-preview-c-source.sh').read_text()
