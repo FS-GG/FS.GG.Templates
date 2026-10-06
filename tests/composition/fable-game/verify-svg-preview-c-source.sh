@@ -54,7 +54,18 @@ awk -v version="$package_version" '
 bash "$validator" "$template" source \
   >"$out/bundle-matrix.log"
 template_version="$package_version"
-rendering_version=0.31.0
+# Source qualification follows the declared current default. The immutable Release C
+# API mirror below remains its historical public031 reference, not this default.
+rendering_version="$(python3 - "$root/templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj" <<'PYSOURCEPIN'
+from pathlib import Path
+import re,sys
+from xml.etree import ElementTree as ET
+nodes=ET.parse(Path(sys.argv[1])).findall('.//FsGgSvgInputVersion')
+if len(nodes)!=1 or not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', nodes[0].text or ''):
+    raise SystemExit('source qualification requires exactly one stable Rendering default pin')
+print(nodes[0].text)
+PYSOURCEPIN
+)"
 game_version=0.16.0
 net_version=0.6.0
 audio_version=0.6.0

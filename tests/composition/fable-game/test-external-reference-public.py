@@ -90,6 +90,17 @@ class PublicInputTests(unittest.TestCase):
             run = subprocess.run(['bash', str(script), '/missing', '/missing', version, str(output), source, mode], capture_output=True, text=True)
             self.assertNotEqual(run.returncode, 0); self.assertFalse(output.exists())
 
+    def test_release_c_source_pin_uses_actual_default_and_refuses_ambiguity(self):
+        import re
+        source = (HERE / 'verify-svg-preview-c-source.sh').read_text()
+        match = re.search(r"<<'PYSOURCEPIN'\n(.*?)\nPYSOURCEPIN", source, re.S)
+        self.assertIsNotNone(match)
+        for xml, expected in [('<Project><PropertyGroup><FsGgSvgInputVersion>0.32.1</FsGgSvgInputVersion></PropertyGroup></Project>', '0.32.1'), ('<Project><FsGgSvgInputVersion>0.31.0</FsGgSvgInputVersion></Project>', '0.31.0'), ('<Project/>', None), ('<Project><FsGgSvgInputVersion>main</FsGgSvgInputVersion></Project>', None), ('<Project><FsGgSvgInputVersion>0.32.1</FsGgSvgInputVersion><FsGgSvgInputVersion>0.31.0</FsGgSvgInputVersion></Project>', None)]:
+            path = self.root / 'pin.fsproj'; path.write_text(xml)
+            result = subprocess.run(['python3', '-', str(path)], input=match.group(1), text=True, capture_output=True)
+            if expected is None: self.assertNotEqual(result.returncode, 0)
+            else: self.assertEqual((result.returncode, result.stdout.strip()), (0, expected))
+
     def test_public_route_keeps_locked_resolution_and_candidate_branch(self):
         source = (HERE / 'verify-external-reference-candidate.sh').read_text()
         public_block = source.split('if [[ "$input_mode" == public ]]; then\n  python3 -', 1)[1].split('\nelse\n  export FsGgSvgInputVersion', 1)[0]
