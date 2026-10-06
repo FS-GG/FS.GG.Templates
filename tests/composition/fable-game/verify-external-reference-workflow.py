@@ -50,15 +50,15 @@ def execute(code,env,should_pass):
     finally:
         os.environ.clear(); os.environ.update(previous)
 
-source='730923fe9d27174e879566f21dab14a1b03d761a'
-env={'CALLER_REPOSITORY':'FS-GG/FS.GG.Rendering','TEMPLATES_SOURCE':'a'*40,'PRODUCER_SOURCE':source,'PRODUCER_RUN':'37046893526','PRODUCER_ARTIFACT':'11244853996','PRODUCER_ARCHIVE_SHA256':'58a80ec49db26b36b3f873694053df1e0eb4c3fb5bac503c8905ac2547bdb4d7'}
+source='6c9f766fdd91483c2de6f061e75589e94852a265'
+env={'CALLER_REPOSITORY':'FS-GG/FS.GG.Rendering','TEMPLATES_SOURCE':'a'*40,'PRODUCER_SOURCE':source,'PRODUCER_RUN':'37419955679','PRODUCER_ARTIFACT':'11392773621','PRODUCER_ARCHIVE_SHA256':'486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee'}
 execute(codes[0],env,True)
 for key,value in [('CALLER_REPOSITORY','FS-GG/FS.GG.Templates'),('CALLER_REPOSITORY','other/repository'),('TEMPLATES_SOURCE','main'),('TEMPLATES_SOURCE','a'*39),('TEMPLATES_SOURCE','A'*40),('TEMPLATES_SOURCE','a'*40+'\n')]:
     execute(codes[0],{**env,key:value},False)
 with tempfile.TemporaryDirectory() as directory:
     path=Path(directory); env['RUNNER_TEMP']=directory
-    run={'id':37046893526,'head_sha':source,'conclusion':'success','path':'.github/workflows/release.yml'}
-    artifact={'id':11244853996,'expired':False,'size_in_bytes':14790371,'digest':'sha256:'+env['PRODUCER_ARCHIVE_SHA256'],'workflow_run':{'id':run['id'],'head_sha':source},'name':'rendering-source-candidate-'+source+'-0.32.0'}
+    run={'id':37419955679,'head_sha':source,'conclusion':'success','path':'.github/workflows/release.yml'}
+    artifact={'id':11392773621,'expired':False,'size_in_bytes':14912688,'digest':'sha256:'+env['PRODUCER_ARCHIVE_SHA256'],'workflow_run':{'id':run['id'],'head_sha':source},'name':'rendering-source-candidate-'+source+'-0.32.1'}
     def metadata(r,a,success):
         (path/'rendering-run.json').write_text(json.dumps(r)); (path/'rendering-artifact.json').write_text(json.dumps(a)); execute(codes[1],env,success)
     metadata(run,artifact,True)
