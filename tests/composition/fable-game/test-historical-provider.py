@@ -106,12 +106,14 @@ class HistoricalProviderTests(unittest.TestCase):
             (out / "archive.nupkg").write_bytes(b"source receipt fixture")
             for family in ("chromium", "firefox", "webkit"):
                 (out / (family + "-present.json")).write_text("{}")
-            setup = 'set -euo pipefail\nout="$1"\ntemplate="$out/archive.nupkg"\ntemplate_version=0.18.0\ninstalled_sdd_version=2.1.0\nbrowser_evidence_sha=fixture\n'
+            setup = 'set -euo pipefail\nout="$1"\ntemplate="$out/archive.nupkg"\ntemplate_version=0.18.0\nrendering_version=0.32.1\ninstalled_sdd_version=2.1.0\nbrowser_evidence_sha=fixture\n'
             result = subprocess.run(["bash", "-c", setup + receipt_command, "fixture", str(out)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
             receipt = json.loads((out / "qualification.json").read_text())
             self.assertEqual(receipt["routes"]["sdd21"]["version"], "2.1.0")
             self.assertNotIn("sdd17", receipt["routes"])
+            self.assertEqual(receipt["publicProducers"]["rendering"], "0.32.1")
+            self.assertEqual(receipt["apiMirror"]["historicalRenderingVersion"], "0.31.0")
             self.assertFalse(receipt["publication"])
 
 
