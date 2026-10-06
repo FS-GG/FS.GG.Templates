@@ -30,7 +30,7 @@ providers:
   - name: fable-game
     contractVersion: "2.0.0"
     templateId: fs-gg-fable-game
-    source: FS.GG.Workspace.Template::0.18.0
+    source: FS.GG.Workspace.Template::0.18.1
     nameParameter: productName
     identifierParameter: rootNamespace
     minimumFsggSdd:

@@ -149,7 +149,7 @@ let main _ =
     let temp = Path.Combine(Path.GetTempPath(), "fsgg-reference-publication-" + Guid.NewGuid().ToString("N"))
     Directory.CreateDirectory temp |> ignore
     let descriptor = Path.Combine(temp, "fable-game.providers.yml")
-    File.WriteAllText(descriptor, "schemaVersion: 1\nproviders:\n  - name: fable-game\n    contractVersion: \"1.1.0\"\n    templateId: fs-gg-fable-game\n    source: FS.GG.Workspace.Template::0.17.0\n    nameParameter: productName\n    minimumFsggSdd:\n      version: \"1.4.0-preview.1\"\n    parameters:\n      - key: lifecycle\n        required: false\n        default: typed-sdd\n", UTF8Encoding(false))
+    File.WriteAllText(descriptor, "schemaVersion: 1\nproviders:\n  - name: fable-game\n    contractVersion: \"2.0.0\"\n    templateId: fs-gg-fable-game\n    source: FS.GG.Workspace.Template::0.18.1\n    nameParameter: productName\n    identifierParameter: rootNamespace\n    minimumFsggSdd:\n      version: \"2.1.0\"\n    parameters:\n      - key: lifecycle\n        required: false\n        default: typed-sdd\n", UTF8Encoding(false))
     let revision = String.replicate 40 "a"
     let requiredEntries =
         [ "content/templates/fs-gg-fable-game/.template.config/template.json"
@@ -167,7 +167,7 @@ let main _ =
             let entry = zip.CreateEntry(name)
             use writer = new StreamWriter(entry.Open(), UTF8Encoding(false))
             writer.Write(body)
-        add "FS.GG.Workspace.Template.nuspec" $"<package><metadata><id>FS.GG.Workspace.Template</id><version>0.17.0</version><repository commit=\"{revision}\" /></metadata></package>"
+        add "FS.GG.Workspace.Template.nuspec" $"<package><metadata><id>FS.GG.Workspace.Template</id><version>0.18.1</version><repository commit=\"{revision}\" /></metadata></package>"
         requiredEntries |> List.filter ((<>) omit) |> List.iter (fun name ->
             let body =
                 if name.EndsWith("template.json") then """{"symbols":{"effectiveName":{"replaces":"FableGameWorkspace","fileRename":"FableGameWorkspace","parameters":{"sourceVariableName":"productNameTrimmed","fallbackVariableName":"name"}},"effectiveIdentifier":{"replaces":"FableGameWorkspaceNamespace","parameters":{"sourceVariableName":"rootNamespaceTrimmed","fallbackVariableName":"effectiveName"}}}}"""
@@ -181,13 +181,13 @@ let main _ =
     makeArchive archive "" false
     let digest path = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes path)).ToLowerInvariant()
     let parsedProvider: Provider = {
-        Name = "fable-game"; ContractVersion = "1.1.0"; TemplateId = "fs-gg-fable-game"
-        Source = "FS.GG.Workspace.Template::0.17.0"; NameParameter = Some "productName"
-        IdentifierParameter = None; Floor = Some "1.4.0-preview.1"
+        Name = "fable-game"; ContractVersion = "2.0.0"; TemplateId = "fs-gg-fable-game"
+        Source = "FS.GG.Workspace.Template::0.18.1"; NameParameter = Some "productName"
+        IdentifierParameter = Some "rootNamespace"; Floor = Some "2.1.0"
         Parameters = [ { Key = "lifecycle"; Required = false; Default = Some "typed-sdd" } ]
         File = descriptor; Line = 3 }
     let request path = {
-        Archive = path; Descriptor = descriptor; ExpectedSha256 = digest path
+        ExpectedVersion = "0.18.1"; Archive = path; Descriptor = descriptor; ExpectedSha256 = digest path
         ExpectedRevision = revision; ExpectedTagRevision = revision
         ExpectedDescriptorSha256 = digest descriptor; Provider = parsedProvider }
     match validate (request archive) with | Ok _ -> printfn "PASS exact reference publication archive" | Error x -> failwith x
@@ -252,9 +252,9 @@ let main _ =
     assertEqual "direct route cannot claim an unobserved lifecycle default" (Error "receiver-lifecycle-refused") (validateReceiver archive receiver "direct" "typed-sdd" "1.2.3" "ReferenceDirect")
     let provenance = Path.Combine(receiver, ".fsgg", "scaffold-provenance.json")
     Directory.CreateDirectory(Path.GetDirectoryName provenance) |> ignore
-    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","templateRef":"FS.GG.Workspace.Template::0.17.0","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"typed-sdd"}]}""")
+    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","templateRef":"FS.GG.Workspace.Template::0.18.1","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"typed-sdd"}]}""")
     assertEqual "provider receiver binds generator provider source namespace and omitted default" (Ok ()) (validateReceiver archive receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
-    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","providerName":"other","templateRef":"FS.GG.Workspace.Template::0.17.0","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"typed-sdd"}]}""")
+    File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","providerName":"other","templateRef":"FS.GG.Workspace.Template::0.18.1","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"typed-sdd"}]}""")
     assertEqual "duplicate receiver provenance field refuses" (Error "receiver-provenance-duplicate-field-refused") (validateReceiver archive receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
     let toolArchive = Path.Combine(temp, "tool.nupkg")
     use toolZip = ZipFile.Open(toolArchive, ZipArchiveMode.Create)
