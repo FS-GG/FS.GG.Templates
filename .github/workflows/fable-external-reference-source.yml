@@ -7,6 +7,10 @@ on:
         description: Exact reviewed Templates commit
         required: true
         type: string
+      rendering-input-source:
+        description: Finite candidate/public Rendering input route; public binds admitted 0.32.1 bytes
+        type: string
+        default: candidate
       preflight-only:
         description: Verify immutable inputs without compiling or qualifying
         type: boolean
@@ -20,6 +24,8 @@ on:
       - 'tests/ProviderComposition.Tests/**'
       - 'tests/composition/fable-game/verify-external-reference-candidate.sh'
       - 'tests/composition/fable-game/verify-external-reference-workflow.py'
+      - 'tests/composition/fable-game/external-reference-public.py'
+      - 'tests/composition/fable-game/test-external-reference-public.py'
       - '.github/workflows/fable-external-reference-source.yml'
 
 permissions:
@@ -41,7 +47,9 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           persist-credentials: false
-      - run: python3 tests/composition/fable-game/verify-external-reference-workflow.py
+      - run: |
+          python3 tests/composition/fable-game/verify-external-reference-workflow.py
+          python3 tests/composition/fable-game/test-external-reference-public.py
   candidate:
     if: github.repository != 'FS-GG/FS.GG.Templates' || inputs.templates-source != ''
     name: External reference immutable preflight and optional full qualification
@@ -53,6 +61,7 @@ jobs:
       PRODUCER_ARTIFACT: '11392773621'
       PRODUCER_ARCHIVE_SHA256: 486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee
       PRODUCER_CUSTODY_SHA256: ecd0c5d742fd8d19d5659991e413e92971c1d2cb9aea913faa2bb249f53f577d
+      RENDERING_INPUT_SOURCE: ${{ inputs.rendering-input-source || 'candidate' }}
       DOTNET_PROCESSOR_COUNT: '1'
       MSBUILDDISABLENODEREUSE: '1'
     defaults:
@@ -70,6 +79,7 @@ jobs:
           import os, re
           assert os.environ['CALLER_REPOSITORY']=='FS-GG/FS.GG.Rendering', 'Rendering caller required'
           assert re.fullmatch('[0-9a-f]{40}', os.environ['TEMPLATES_SOURCE']), 'Exact Templates SHA required'
+          assert os.environ.get('RENDERING_INPUT_SOURCE','candidate') in ['candidate','public'], 'Finite input source required'
           PYINPUT
       - uses: actions/checkout@v7
         with:
@@ -146,7 +156,7 @@ jobs:
           python3 - <<'PY'
           import json, os, subprocess
           from pathlib import Path
-          receipt={'schema':'fsgg.external-reference-native-preflight/1','disposition':'preflight-passed','qualification':'not-run','templates':{'revision':os.environ['TEMPLATES_SOURCE'],'tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()},'caller':{key:os.environ[value] for key,value in [('repository','CALLER_REPOSITORY'),('revision','CALLER_SOURCE'),('run','CALLER_RUN'),('attempt','CALLER_ATTEMPT')]},'producer':{key:os.environ[value] for key,value in [('revision','PRODUCER_SOURCE'),('run','PRODUCER_RUN'),('artifact','PRODUCER_ARTIFACT'),('archiveSha256','PRODUCER_ARCHIVE_SHA256'),('custodySha256','PRODUCER_CUSTODY_SHA256')]},'producerTree':subprocess.check_output(['git','-C','.tmp/rendering-source','rev-parse','HEAD^{tree}'],text=True).strip(),'artifactSizeBytes':14912688,'requestedPhase':'preflight' if os.environ['PREFLIGHT_ONLY']=='true' else 'full','publication':False,'installedAcceptance':False}
+          receipt={'schema':'fsgg.external-reference-native-preflight/1','disposition':'preflight-passed','qualification':'not-run','templates':{'revision':os.environ['TEMPLATES_SOURCE'],'tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()},'caller':{key:os.environ[value] for key,value in [('repository','CALLER_REPOSITORY'),('revision','CALLER_SOURCE'),('run','CALLER_RUN'),('attempt','CALLER_ATTEMPT')]},'producer':{key:os.environ[value] for key,value in [('revision','PRODUCER_SOURCE'),('run','PRODUCER_RUN'),('artifact','PRODUCER_ARTIFACT'),('archiveSha256','PRODUCER_ARCHIVE_SHA256'),('custodySha256','PRODUCER_CUSTODY_SHA256')]},'producerTree':subprocess.check_output(['git','-C','.tmp/rendering-source','rev-parse','HEAD^{tree}'],text=True).strip(),'artifactSizeBytes':14912688,'requestedPhase':'preflight' if os.environ['PREFLIGHT_ONLY']=='true' else 'full','publication':False,'installedAcceptance':False,'renderingInputSource':os.environ['RENDERING_INPUT_SOURCE']}
           (Path(os.environ['RUNNER_TEMP'])/'external-reference-preflight.json').write_text(json.dumps(receipt,indent=2)+'\n')
           PY
       - uses: actions/setup-dotnet@v6
@@ -188,7 +198,7 @@ jobs:
           PYPROVIDER
           bash tests/composition/fable-game/verify-external-reference-candidate.sh \
             "$GITHUB_WORKSPACE/templates/.tmp/rendering-source" "$RUNNER_TEMP/rendering-packet" \
-            0.32.1 "$RUNNER_TEMP/external-reference" "$PRODUCER_SOURCE"
+            0.32.1 "$RUNNER_TEMP/external-reference" "$PRODUCER_SOURCE" "$RENDERING_INPUT_SOURCE"
       - name: Bind successful full result to requested Templates source
         if: ${{ !inputs.preflight-only }}
         env:
@@ -203,6 +213,9 @@ jobs:
           assert packet['disposition']=='passed'
           assert packet['templates']==preflight['templates'] and packet['templates']['revision']==os.environ['TEMPLATES_SOURCE']
           assert packet['producer']['revision']==os.environ['PRODUCER_SOURCE']
+          assert packet['renderingInputSource']==('nuget.org' if os.environ['RENDERING_INPUT_SOURCE']=='public' else 'candidate')
+          assert packet['templatesInputSource']=='source-built-candidate'
+          assert packet['renderingPublicInputsQualified']==(os.environ['RENDERING_INPUT_SOURCE']=='public')
           assert packet['producer']['custodyManifestSha256']==os.environ['PRODUCER_CUSTODY_SHA256']
           assert packet['browserFamilies']==['chromium','firefox','webkit'] and packet['passedPerFamily']==4 and packet['skipped']==0
           for family in packet['browserFamilies']:
@@ -224,6 +237,7 @@ jobs:
             ${{ runner.temp }}/external-reference/*-build.log
             ${{ runner.temp }}/external-reference/*-restore.log
             ${{ runner.temp }}/external-reference/producer-*.json
+            ${{ runner.temp }}/external-reference/feed/public-readback.json
             ${{ runner.temp }}/provider-composition.log
             ${{ runner.temp }}/rendering-run.json
             ${{ runner.temp }}/rendering-artifact.json

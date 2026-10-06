@@ -2,7 +2,7 @@
 set -euo pipefail
 studio="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workspace="$(cd "$studio/../.." && pwd)"
-version="${FSGG_SVG_AUTHORING_VERSION:-0.31.0}"
+version="${FSGG_SVG_AUTHORING_VERSION:-0.32.1}"
 export FsGgSvgAuthoringVersion="$version"
 game_version="${FSGG_GAME_REPLAY_VERSION:-0.16.0}"
 export FsGgGameReplayVersion="$game_version"

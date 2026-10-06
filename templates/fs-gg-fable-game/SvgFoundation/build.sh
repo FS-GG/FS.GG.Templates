@@ -2,7 +2,7 @@
 set -euo pipefail
 foundation="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 workspace="$(cd "$foundation/.." && pwd)"
-version="${FSGG_SVG_INPUT_VERSION:-0.31.0}"
+version="${FSGG_SVG_INPUT_VERSION:-0.32.1}"
 export FsGgSvgInputVersion="$version"
 scale_candidate="${FSGG_SVG_SCALE_CANDIDATE:-true}"
 export FsGgSvgScaleCandidate="$scale_candidate"

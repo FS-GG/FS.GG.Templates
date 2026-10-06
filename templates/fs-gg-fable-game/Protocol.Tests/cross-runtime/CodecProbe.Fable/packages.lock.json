@@ -13,11 +13,11 @@
       },
       "FS.GG.UI.Scene": {
         "type": "Direct",
-        "requested": "[0.31.0, 0.31.0]",
-        "resolved": "0.31.0",
-        "contentHash": "dVTWndymoCm70yhVNDEejsvHIAKeL122RnOmRKd8wgGFtyskMvruie2dUJgqkdK8e4pobULfgwyFrNJv32zNFA==",
+        "requested": "[0.32.1, 0.32.1]",
+        "resolved": "0.32.1",
+        "contentHash": "3oifBGdPvhLfZBXgeJVB8ycJfs7PgJEX9xm6UaDQhqhauVtitr4sj1Bzu0l4rZMXZS6vA+j4/77w/rxNtUdm3w==",
         "dependencies": {
-          "FSharp.Core": "10.1.302"
+          "FSharp.Core": "10.1.401"
         }
       },
       "FSharp.Core": {

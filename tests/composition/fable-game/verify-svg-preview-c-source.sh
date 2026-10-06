@@ -54,7 +54,18 @@ awk -v version="$package_version" '
 bash "$validator" "$template" source \
   >"$out/bundle-matrix.log"
 template_version="$package_version"
-rendering_version=0.31.0
+# Source qualification follows the declared current default. The immutable Release C
+# API mirror below remains its historical public031 reference, not this default.
+rendering_version="$(python3 - "$root/templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj" <<'PYSOURCEPIN'
+from pathlib import Path
+import re,sys
+from xml.etree import ElementTree as ET
+nodes=ET.parse(Path(sys.argv[1])).findall('.//FsGgSvgInputVersion')
+if len(nodes)!=1 or nodes[0].text!='0.32.1':
+    raise SystemExit('source qualification requires the reviewed public Rendering0.32.1 default pin')
+print(nodes[0].text)
+PYSOURCEPIN
+)"
 game_version=0.16.0
 net_version=0.6.0
 audio_version=0.6.0
@@ -78,6 +89,17 @@ for entry in mirror['entries']:
 PYAPI
 dotnet new install "$template" --force >/dev/null
 dotnet new fs-gg-fable-game -n PresentReceiver -o "$out/direct" --lifecycle none --svgFoundation true >/dev/null
+python3 - "$out/direct/SvgFoundation/SvgFoundation.fsproj" "$rendering_version" <<'PYCURRENTPIN'
+from pathlib import Path
+import sys
+from xml.etree import ElementTree as ET
+root=ET.parse(Path(sys.argv[1])).getroot();version=sys.argv[2]
+assert version=='0.32.1', 'reviewed public Rendering version required'
+nodes=root.findall('.//FsGgSvgInputVersion')
+assert len(nodes)==1 and nodes[0].text==version, 'generated default pin mismatch'
+refs={node.attrib['Include']:node.attrib['Version'] for node in root.findall('.//PackageReference') if node.attrib.get('Include','').startswith('FS.GG.UI.')}
+assert refs=={identity:'[$(FsGgSvgInputVersion)]' for identity in ['FS.GG.UI.Scene','FS.GG.UI.Scene.SvgBrowser','FS.GG.UI.KeyboardInput']}, 'generated UI package references mismatch'
+PYCURRENTPIN
 for expected in "$rendering_version" "$game_version" "$audio_version"; do grep -F "$expected" "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null; done
 grep -F ">$game_version</FsGgGameNetworkVersion>" "$out/direct/Directory.Build.props" >/dev/null
 grep -F ">$net_version</FsGgNetNetworkVersion>" "$out/direct/Directory.Build.props" >/dev/null
@@ -203,5 +225,5 @@ for family in chromium firefox webkit; do
   kill "$network_server"; wait "$network_server" 2>/dev/null || true; network_server=''
 done
 browser_evidence_sha="$(cat "$out"/*-present.json "$out"/*-authoring.json "$out"/*-input.json "$out"/*-replay.json "$out"/*-scale.json "$out"/*-network.json | sha256sum | cut -d' ' -f1)"
-jq -n --arg sddVersion "$installed_sdd_version" --arg templateVersion "$template_version" --arg templateSha "$(sha256sum "$template" | cut -d' ' -f1)" --arg browserEvidenceSha "$browser_evidence_sha" --slurpfile c "$out/chromium-present.json" --slurpfile f "$out/firefox-present.json" --slurpfile w "$out/webkit-present.json" '{schema:"fsgg.svg-preview-c.source-qualification/v1",template:{version:$templateVersion,sha256:$templateSha},publicProducers:{rendering:"0.31.0",game:"0.16.0",net:"0.6.0",audio:"0.6.0"},routes:{direct:"passed",sdd21:{version:$sddVersion,source:"nuget.org",none:"passed",default:"passed",typed:"passed"},wizard0111Adopter:"passed",retained010to012:"passed"},browser:{chromium:$c[0],firefox:$f[0],webkit:$w[0],authoringInputEvidenceSha256:$browserEvidenceSha},presentation:{animation:"passed",reducedMotion:"passed",gestureAudio:"passed",liveCueSeekPolicy:"passed",autosaveRecovery:"passed",reload:"passed",archive:"passed"},replay:{equality:"passed",divergence:"passed",rules:"passed",studioOnly:"passed"},network:{authority:"passed",twoBrowser:"passed",reconnect:"passed",review:"passed"},scale:{dense:"passed",worldExtent:"passed",responsive:"passed",accessibility:"passed"},apiMirror:{candidateOmissions:0,status:"passed"},adopter:{collision:"refused-without-write",interruption:"rolled-back",rollback:"byte-identical",authoredFiles:"preserved"},publication:false,producerDistribution:"public-nuget-only"}' >"$out/qualification.json"
+jq -n --arg renderingVersion "$rendering_version" --arg sddVersion "$installed_sdd_version" --arg templateVersion "$template_version" --arg templateSha "$(sha256sum "$template" | cut -d' ' -f1)" --arg browserEvidenceSha "$browser_evidence_sha" --slurpfile c "$out/chromium-present.json" --slurpfile f "$out/firefox-present.json" --slurpfile w "$out/webkit-present.json" '{schema:"fsgg.svg-preview-c.source-qualification/v1",template:{version:$templateVersion,sha256:$templateSha},publicProducers:{rendering:$renderingVersion,game:"0.16.0",net:"0.6.0",audio:"0.6.0"},routes:{direct:"passed",sdd21:{version:$sddVersion,source:"nuget.org",none:"passed",default:"passed",typed:"passed"},wizard0111Adopter:"passed",retained010to012:"passed"},browser:{chromium:$c[0],firefox:$f[0],webkit:$w[0],authoringInputEvidenceSha256:$browserEvidenceSha},presentation:{animation:"passed",reducedMotion:"passed",gestureAudio:"passed",liveCueSeekPolicy:"passed",autosaveRecovery:"passed",reload:"passed",archive:"passed"},replay:{equality:"passed",divergence:"passed",rules:"passed",studioOnly:"passed"},network:{authority:"passed",twoBrowser:"passed",reconnect:"passed",review:"passed"},scale:{dense:"passed",worldExtent:"passed",responsive:"passed",accessibility:"passed"},apiMirror:{candidateOmissions:0,status:"passed",historicalRenderingVersion:"0.31.0"},adopter:{collision:"refused-without-write",interruption:"rolled-back",rollback:"byte-identical",authoredFiles:"preserved"},publication:false,producerDistribution:"public-nuget-only"}' >"$out/qualification.json"
 echo "svg-preview-c-source: passed; evidence=$out/qualification.json"
