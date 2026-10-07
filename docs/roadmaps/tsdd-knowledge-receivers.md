@@ -91,6 +91,17 @@ coherent producer publication and a clean downloaded-package matrix.
 [The preparation report](evidence/tsdd-knowledge-receiver-preparation-20261003.md) records checks
 and pending joins. The tests inventory source contracts and exercise refusal controls; they distinguish bounded source candidate qualification from published installed acceptance.
 
+### Current source inventory expectations
+
+At protected `c56541c6dbadbc753b500ac5ffc941e8af083854`, the five owned descriptors
+select Workspace.Template 0.18.1 and Rendering selects UI.Template 0.32.1.
+This Tier 2 test-only repair updates the inventory's two exact expectations to
+that selected tuple. The unchanged test suite first failed its stale 0.18.0
+assertion; after repair, all ten controls passed with `python3 -B
+tests/knowledge-receiver/test_inventory.py`. Historical 0.18.0/0.31/0.32.0
+receipts and the accepted Templates-only proof retain their original subjects.
+This local inventory result does not close .4/.5 public cohort acceptance.
+
 ## Typed product CI and bootstrap boundary
 
 The Templates-owned package projects one shared ordinary `pull_request` workflow and checker to
