@@ -40,13 +40,13 @@ jobs:
           for family in firefox webkit; do
             PLAYWRIGHT_BROWSER_FAMILY="$family" npm test
           done
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: product-test-reports
           path: artifacts/test-results
           if-no-files-found: error
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: deployable-product
           path: |
