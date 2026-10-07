@@ -14,12 +14,12 @@ class InventoryTests(unittest.TestCase):
     def test_owned_successor_pins_preserve_external_identity_and_defaults(self):
         rows = {r["provider"]: r for r in inventory()}
         for name in ("console", "web", "fable-bindings", "python", "fable-game"):
-            self.assertEqual(rows[name]["source"], "FS.GG.Workspace.Template::0.18.0")
+            self.assertEqual(rows[name]["source"], "FS.GG.Workspace.Template::0.18.1")
             descriptor = (ROOT / rows[name]["descriptor"]).read_text()
             self.assertIn('minimumFsggSdd:\n      version: "2.1.0"', descriptor)
         for row in rows.values():
             self.assertIn('contractVersion: "2.0.0"', (ROOT / row["descriptor"]).read_text())
-        self.assertEqual(rows["rendering"]["source"], "FS.GG.UI.Template::0.32.0")
+        self.assertEqual(rows["rendering"]["source"], "FS.GG.UI.Template::0.32.1")
         self.assertEqual([r["provider"] for r in rows.values() if r["external"]], ["rendering"])
 
     def mutate(self, relative, transform):
