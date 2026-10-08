@@ -54,7 +54,7 @@ jobs:
             10.0.400
             10.0.401
       - name: Set up Node
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
       - name: Set up exact Go
