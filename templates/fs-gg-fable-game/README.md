@@ -211,3 +211,14 @@ Two settings keep those hashes reproducible, and both are load-bearing (see
 `build.sh` refuses to restore at all if the lock files are missing, because a
 locked-mode restore with no lock on disk does not fail — it quietly writes a new
 lock from whatever the machine resolves, which defeats the entire mechanism.
+
+## Explicit managed portal example
+
+`--portalExample true` includes a separately invoked .NET 10 `PortalExample` project,
+independently of bundle/lifecycle. Omission or false keeps it absent. The legacy
+`--svgFoundation` selector cannot be combined with this option. See
+[PortalExample/README.md](PortalExample/README.md) for exact public pins and the
+explicit `dotnet run --project PortalExample/Consumer.fsproj -- --presentation` command.
+The ordinary solution, server and browser player do not consume this project.
+Candidate source/generation proof, public template installation, provider forwarding
+and preserving retained adoption/removal are separate acceptance boundaries.
