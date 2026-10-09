@@ -24,10 +24,15 @@ passed their syntax checks.
 
 The [four browser cases](../../templates/fs-gg-fable-game/Browser.Tests/external-command-outcomes.spec.ts)
 and [candidate verifier](../../tests/composition/fable-game/verify-external-reference-candidate.sh)
-prepare eight cases per browser family. They have not run for this source window. Complete template
-and Fable compilation, TypeScript typechecking, all 24 browser integration cases, actual
-package-only generation, coherent publication, fresh installed creation and any promised preserving
-upgrade remain pending. Product adoption and SC2/BAR/FourD native acceptance retain their separate
+prepare eight cases per browser family. Hosted run
+[38005778318 attempt 1](https://github.com/FS-GG/FS.GG.Rendering/actions/runs/38005778318)
+compiled the generated Fable composition against the authenticated original producer archive and
+reached Chromium: four existing cases passed, but all four command-outcome cases stopped at an
+ambiguous increment-button locator. Firefox and WebKit did not run. The test helper now scopes
+reference actions to direct child buttons and receipt status to the direct child status element,
+excluding nested scene selection controls. Static checks do not establish browser acceptance.
+All 24 browser integration cases, TypeScript typechecking, coherent publication, fresh installed
+creation and any promised preserving upgrade remain pending. Product adoption and SC2/BAR/FourD native acceptance retain their separate
 owners and evidence. This partial source result closes no feature or installed outcome.
 
 ## Hosted receipt preflight source
@@ -40,7 +45,9 @@ reordered families, skipped tests and incomplete receipts are refused without re
 Reusable calls run these controls after the exact source checkout and before archive acquisition
 or compilation. This checks receipt handling with finite fixtures and runs no browser or package build.
 
-The Rendering caller still needs its separate protected workflow and consumer pin update. A new
-hosted qualification must authenticate the original producer inputs and qualify the exact generated
+The protected Rendering caller used the exact Templates workflow and consumer pin for that failed
+run. A new protected Templates successor, corresponding Rendering caller pin update and programme
+projection must precede any newly admitted hosted attempt. That qualification must authenticate
+the original producer inputs and qualify the exact generated
 consumer before browser acceptance can be recorded. Publication, installed creation, preserving
 upgrades and product-native outcomes remain pending.
