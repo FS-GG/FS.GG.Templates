@@ -29,3 +29,18 @@ and Fable compilation, TypeScript typechecking, all 24 browser integration cases
 package-only generation, coherent publication, fresh installed creation and any promised preserving
 upgrade remain pending. Product adoption and SC2/BAR/FourD native acceptance retain their separate
 owners and evidence. This partial source result closes no feature or installed outcome.
+
+## Hosted receipt preflight source
+
+The reusable [source qualification workflow](../../.github/workflows/fable-external-reference-source.yml)
+requires eight passing cases in each browser family, matching the command-outcomes verifier.
+Its static controls execute the actual final receipt binder: a valid eight-case receipt is accepted;
+the old four-case count, wrong consumer or producer identity, altered report hash, incomplete or
+reordered families, skipped tests and incomplete receipts are refused without rewriting the receipt.
+Reusable calls run these controls after the exact source checkout and before archive acquisition
+or compilation. This checks receipt handling with finite fixtures and runs no browser or package build.
+
+The Rendering caller still needs its separate protected workflow and consumer pin update. A new
+hosted qualification must authenticate the original producer inputs and qualify the exact generated
+consumer before browser acceptance can be recorded. Publication, installed creation, preserving
+upgrades and product-native outcomes remain pending.
