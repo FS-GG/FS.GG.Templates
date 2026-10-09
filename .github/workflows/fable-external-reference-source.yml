@@ -93,6 +93,10 @@ jobs:
           ref: ${{ env.PRODUCER_SOURCE }}
           path: templates/.tmp/rendering-source
           persist-credentials: false
+      - name: Verify existing external reference static controls
+        run: |
+          python3 tests/composition/fable-game/verify-external-reference-workflow.py
+          python3 tests/composition/fable-game/test-external-reference-public.py
       - name: Verify native producer run and authenticated archive before compilation
         env:
           GH_TOKEN: ${{ github.token }}
@@ -217,7 +221,7 @@ jobs:
           assert packet['templatesInputSource']=='source-built-candidate'
           assert packet['renderingPublicInputsQualified']==(os.environ['RENDERING_INPUT_SOURCE']=='public')
           assert packet['producer']['custodyManifestSha256']==os.environ['PRODUCER_CUSTODY_SHA256']
-          assert packet['browserFamilies']==['chromium','firefox','webkit'] and packet['passedPerFamily']==4 and packet['skipped']==0
+          assert packet['browserFamilies']==['chromium','firefox','webkit'] and packet['passedPerFamily']==8 and packet['skipped']==0
           for family in packet['browserFamilies']:
               assert hashlib.sha256((root/'external-reference'/f'{family}-browser.json').read_bytes()).hexdigest()==packet['browserReportSha256'][family]
           packet['nativePreflight']=preflight

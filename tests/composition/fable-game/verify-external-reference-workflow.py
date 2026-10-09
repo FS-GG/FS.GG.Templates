@@ -133,3 +133,69 @@ with tempfile.TemporaryDirectory() as directory:
         assert result.returncode==7 and 'ProviderComposition: verified' not in result.stdout, 'failed Provider command must stop before count'
     finally: os.environ.clear();os.environ.update(previous)
 print('PASS actual stdlib Provider count186;185/187/empty/missing evidence refused; native command exit7 preserved')
+
+# Execute the actual final receipt binder, including its report reads and writeback.
+# A good receipt must describe all eight cases in each of the three families.
+with tempfile.TemporaryDirectory() as directory:
+    path=Path(directory); evidence=path/'external-reference'; evidence.mkdir()
+    templates={'revision':'a'*40,'tree':'b'*40}
+    (path/'external-reference-preflight.json').write_text(json.dumps({'templates':templates}))
+    families=['chromium','firefox','webkit']
+    reports={}
+    for family in families:
+        report=evidence/f'{family}-browser.json'
+        report.write_text(json.dumps({'stats':{'expected':8,'unexpected':0,'skipped':0,'flaky':0}}))
+        reports[family]=hashlib.sha256(report.read_bytes()).hexdigest()
+    custody_digest='d'*64
+    packet={'disposition':'passed','templates':templates,
+            'producer':{'revision':source,'custodyManifestSha256':custody_digest},
+            'renderingInputSource':'nuget.org','templatesInputSource':'source-built-candidate',
+            'renderingPublicInputsQualified':True,'browserFamilies':families,
+            'passedPerFamily':8,'skipped':0,'browserReportSha256':reports}
+    binder_env={'RUNNER_TEMP':directory,'TEMPLATES_SOURCE':templates['revision'],
+                'PRODUCER_SOURCE':source,'PRODUCER_CUSTODY_SHA256':custody_digest,
+                'RENDERING_INPUT_SOURCE':'public'}
+    def bind(candidate,success):
+        receipt=evidence/'qualification.json'
+        receipt.write_text(json.dumps(candidate))
+        before=receipt.read_bytes()
+        execute(codes[4],binder_env,success)
+        if success:
+            bound=json.loads(receipt.read_text())
+            assert bound=={**candidate,'nativePreflight':{'templates':templates}}
+        else:
+            assert receipt.read_bytes()==before, 'refused receipt must not be rewritten'
+    bind(packet,True)
+    negatives=[]
+    def altered(path,value):
+        candidate=copy.deepcopy(packet); target=candidate
+        for key in path[:-1]: target=target[key]
+        target[path[-1]]=value; negatives.append(candidate)
+    altered(['passedPerFamily'],4)
+    altered(['templates','revision'],'c'*40)
+    altered(['templates','tree'],'c'*40)
+    altered(['producer','revision'],'c'*40)
+    altered(['producer','custodyManifestSha256'],'0'*64)
+    altered(['browserReportSha256','chromium'],'0'*64)
+    altered(['browserFamilies'],['firefox','chromium','webkit'])
+    altered(['browserFamilies'],['chromium','firefox'])
+    altered(['skipped'],1)
+    altered(['disposition'],'failed')
+    altered(['renderingInputSource'],'candidate')
+    altered(['renderingPublicInputsQualified'],False)
+    altered(['templatesInputSource'],'published')
+    for candidate in negatives: bind(candidate,False)
+    missing=copy.deepcopy(packet); del missing['browserReportSha256']; bind(missing,False)
+    bind(packet,True)
+    print(f'PASS actual final receipt binder: valid8 per family; {len(negatives)+1} negative receipts refused without writeback')
+
+# Reusable calls bypass the pull-request-only static job, so run these controls
+# from the exact checked-out consumer before archive acquisition or compilation.
+control=text.index('      - name: Verify existing external reference static controls')
+checkout=text.index('repository: FS-GG/FS.GG.Templates\n          ref: ${{ inputs.templates-source }}')
+assert checkout < control < text.index('      - name: Verify native producer run')
+section=text[control:text.index('\n      - ',control+1)]
+assert 'python3 tests/composition/fable-game/verify-external-reference-workflow.py' in section
+assert 'python3 tests/composition/fable-game/test-external-reference-public.py' in section
+assert 'if:' not in section, 'static controls must also run for reusable preflight calls'
+print('PASS reusable static controls run after exact checkout and before expensive qualification')
