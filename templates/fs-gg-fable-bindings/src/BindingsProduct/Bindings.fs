@@ -3,39 +3,48 @@ module Qualification.Babylon
 open Fable.Core
 open Fable.Core.JsInterop
 
-/// Curated, deliberately narrow Fable surface for the qualification slice.
-/// Generated candidates never become this public API without review.
-type Engine = private Engine of obj
-type Scene = private Scene of obj
-type Vector3 = private Vector3 of obj
-type Camera = private Camera of obj
-type Light = private Light of obj
-type Box = private Box of obj
+/// Distinct opaque native objects for the curated qualification slice.
+/// Interfaces have no F# runtime wrapper or implementation to ship as source.
+[<AllowNullLiteral>]
+type Engine = interface end
+[<AllowNullLiteral>]
+type Scene = interface end
+[<AllowNullLiteral>]
+type Vector3 = interface end
+[<AllowNullLiteral>]
+type Camera = interface end
+[<AllowNullLiteral>]
+type Light = interface end
+[<AllowNullLiteral>]
+type Box = interface end
 
-[<Import("NullEngine", "@babylonjs/core/Engines/nullEngine.js")>]
-let private nullEngineConstructor: obj = jsNative
+// Import + Emit metadata is available to a consumer of the compiled binding DLL.
+[<Import("NullEngine", "@babylonjs/core/Engines/nullEngine.js"); EmitConstructor>]
+let nullEngine () : Engine = jsNative
 
-[<Import("Scene", "@babylonjs/core/scene.js")>]
-let private sceneConstructor: obj = jsNative
+[<Import("Scene", "@babylonjs/core/scene.js"); EmitConstructor>]
+let scene (engine: Engine) : Scene = jsNative
 
-[<Import("Vector3", "@babylonjs/core/Maths/math.vector.js")>]
-let private vector3Constructor: obj = jsNative
+[<Import("Vector3", "@babylonjs/core/Maths/math.vector.js"); EmitConstructor>]
+let vector3 (x: float) (y: float) (z: float) : Vector3 = jsNative
 
-[<Import("FreeCamera", "@babylonjs/core/Cameras/freeCamera.js")>]
-let private freeCameraConstructor: obj = jsNative
+[<Import("FreeCamera", "@babylonjs/core/Cameras/freeCamera.js"); EmitConstructor>]
+let freeCamera (name: string) (position: Vector3) (scene: Scene) : Camera = jsNative
 
-[<Import("HemisphericLight", "@babylonjs/core/Lights/hemisphericLight.js")>]
-let private hemisphericLightConstructor: obj = jsNative
+[<Import("HemisphericLight", "@babylonjs/core/Lights/hemisphericLight.js"); EmitConstructor>]
+let hemisphericLight (name: string) (direction: Vector3) (scene: Scene) : Light = jsNative
 
-[<Import("MeshBuilder", "@babylonjs/core/Meshes/meshBuilder.js")>]
-let private meshBuilder: obj = jsNative
+[<Import("MeshBuilder", "@babylonjs/core/Meshes/meshBuilder.js"); Emit("$0.CreateBox($1, {}, $2)")>]
+let box (name: string) (scene: Scene) : Box = jsNative
 
-[<ImportAll("@babylonjs/loaders/glTF/index.js")>]
-let private gltfLoader: obj = jsNative
+// Keep the namespace import as an emitted statement so the glTF registration executes.
+[<ImportAll("@babylonjs/loaders/glTF/index.js"); Emit("void $0", true)>]
+let initialiseLoader () : unit = jsNative
 
-[<Import("SceneLoader", "@babylonjs/core/Loading/sceneLoader.js")>]
-let private sceneLoader: obj = jsNative
+[<Import("SceneLoader", "@babylonjs/core/Loading/sceneLoader.js"); Emit("$0.IsPluginForExtensionAvailable('.gltf')")>]
+let loaderRegistered () : bool = jsNative
 
+// Retain the existing low-level public emitted helpers for explicit constructor interop.
 [<Emit("new $0()")>]
 let createNullEngine (constructor: obj) : obj = jsNative
 
@@ -53,25 +62,3 @@ let createHemisphericLight (constructor: obj) (name: string) (direction: obj) (s
 
 [<Emit("$0.CreateBox($1, {}, $2)")>]
 let createBox (meshBuilder: obj) (name: string) (scene: obj) : obj = jsNative
-
-[<Emit("$0.IsPluginForExtensionAvailable('.gltf')")>]
-let private isGltfRegistered (loader: obj) : bool = jsNative
-
-let nullEngine () =
-    Engine(createNullEngine nullEngineConstructor)
-
-let scene (Engine engine) =
-    Scene(createScene sceneConstructor engine)
-
-let vector3 x y z =
-    Vector3(createVector3 vector3Constructor x y z)
-
-let freeCamera name (Vector3 position) (Scene scene) =
-    Camera(createFreeCamera freeCameraConstructor name position scene)
-
-let hemisphericLight name (Vector3 direction) (Scene scene) =
-    Light(createHemisphericLight hemisphericLightConstructor name direction scene)
-
-let box name (Scene scene) = Box(createBox meshBuilder name scene)
-let initialiseLoader () = gltfLoader |> ignore
-let loaderRegistered () = isGltfRegistered sceneLoader

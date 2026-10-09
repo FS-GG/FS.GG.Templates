@@ -1,5 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><PackageId>BindingsProduct</PackageId><Version>0.1.0</Version><GeneratePackageOnBuild>true</GeneratePackageOnBuild><FablePackageType>library</FablePackageType><PackageTags>fable-javascript;babylon;bindings</PackageTags><PackageReadmeFile>README.md</PackageReadmeFile><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup>
+  <PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><PackageId>BindingsProduct</PackageId><Version>0.1.0</Version><GeneratePackageOnBuild>true</GeneratePackageOnBuild><FablePackageType>binding</FablePackageType><PackageTags>fable-javascript;babylon;bindings</PackageTags><PackageReadmeFile>README.md</PackageReadmeFile><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup>
+  <PropertyGroup>
+    <NpmDependencies>
+      <NpmPackage Name="@babylonjs/core" Version="9.19.0" />
+      <NpmPackage Name="@babylonjs/loaders" Version="9.19.0" />
+    </NpmDependencies>
+  </PropertyGroup>
   <ItemGroup><Compile Include="Bindings.fs" /></ItemGroup>
-  <ItemGroup><PackageReference Include="Fable.Core" /><PackageReference Include="Fable.Package.SDK" /><None Include="README.md" Pack="true" PackagePath="\" /></ItemGroup>
+  <ItemGroup><PackageReference Include="Fable.Core" /><PackageReference Include="Fable.Package.SDK" PrivateAssets="all" IncludeAssets="runtime;build;native;contentfiles;analyzers;buildtransitive" /><None Include="README.md" Pack="true" PackagePath="\" /></ItemGroup>
 </Project>
