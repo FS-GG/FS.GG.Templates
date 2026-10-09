@@ -104,9 +104,9 @@ class TemplatesObservationSourceTests(unittest.TestCase):
         self.assertIn("if: needs.preflight.outputs.activation == 'true'", workflow)
         self.assertIn("environment: ordinary-v2", workflow)
         self.assertIn("dotnet-version: 10.0.400", workflow)
-        self.assertIn("PACKAGE_VERSION: 0.1.6", workflow)
-        self.assertIn("PACKAGE_SHA256: 0f5d92799af84acb8663df0f524dc2ccfe54cfcc0bc6ad2183e867c8cdd47730", workflow)
-        self.assertIn("ordinary-settlement execute", workflow)
+        self.assertIn("PACKAGE_VERSION: 0.3.0", workflow)
+        self.assertIn("PACKAGE_SHA256: a8cd6d602e1203257e1241df0b5dfdb9d867334b46dc406d8cdaa8e6d2b3019c", workflow)
+        self.assertIn("ordinary-settlement execute-main", workflow)
         self.assertNotIn("global-json-file:", workflow)
         for forbidden in (
             "workflow_dispatch:", "repository_dispatch:", "pull_request:",
@@ -133,8 +133,8 @@ class TemplatesObservationSourceTests(unittest.TestCase):
             observation["secretNames"],
         )
         self.assertEqual("published-verified", policy["packagePin"]["status"])
-        self.assertEqual("0.1.6", policy["packagePin"]["version"])
-        self.assertEqual("0f5d92799af84acb8663df0f524dc2ccfe54cfcc0bc6ad2183e867c8cdd47730",
+        self.assertEqual("0.3.0", policy["packagePin"]["version"])
+        self.assertEqual("a8cd6d602e1203257e1241df0b5dfdb9d867334b46dc406d8cdaa8e6d2b3019c",
                          policy["packagePin"]["sha256"])
         self.assertTrue(policy["packagePin"]["servedPackageVerified"])
         self.assertEqual(3, len(policy["credentialInventory"]))
