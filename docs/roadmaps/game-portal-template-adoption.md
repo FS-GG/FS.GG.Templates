@@ -1,7 +1,8 @@
 # GAME-PORTAL-01.P3 — Managed portal example in Fable Game workspaces
 
-Status: T1 source preparation; candidate pack/generation/runtime, provider forwarding,
-publication and preserving retained adoption/removal remain unqualified. Templates owns
+Status: T1 source and local candidate direct generation/runtime qualified; provider
+forwarding, coherent browser gates, publication and preserving retained adoption/removal
+remain unqualified. Whole P3 remains Done: No. Templates owns
 this integration, Game owns canonical example sources, and Rendering owns the public
 scene contract. The programme integrator owns coherent release/admission and roadmap joins.
 
@@ -47,19 +48,19 @@ Game algorithms stay canonical: populate `PortalScene.fs` from Game's exact `exa
 
 ## T1 — Explicit real template source and candidate qualification
 
-- [ ] Add `portalExample`, default false, to the current template and optional provider
+- [x] Add `portalExample`, default false, to the current template and optional provider
   parameter; always exclude it from the legacy selector without advertising the option.
-- [ ] Ship the independent Portal project, canonical producer files/tool, genuine lock,
+- [x] Ship the independent Portal project, canonical producer files/tool, genuine lock,
   immutable source provenance and explicit invocation documentation.
-- [ ] Run cheap source/descriptor/provenance controls before native effects. Then install
+- [x] Run cheap source/descriptor/provenance controls before native effects. Then install
   one actual candidate archive through `FSGG_TEMPLATES_NUPKG`/`lane-package.sh`; never
   pack a substitute in the consumer lane.
-- [ ] Generate omitted/false and explicit true player/complete cases; ordinary generated
+- [x] Generate omitted/false and explicit true player/complete cases; ordinary generated
   paths outside `PortalExample/**` remain byte-identical. Invalid boolean and mixed
   legacy/Portal selections refuse without receiver writes; legacy outputs omit Portal.
-- [ ] Compare the candidate/generated canonical bytes against an independently retained
+- [x] Compare the candidate/generated canonical bytes against an independently retained
   exact Game source archive. Reject linked, missing, foreign or forged-provenance input.
-- [ ] Qualify the actual opted-in generated project: copied verifier before/after
+- [x] Qualify the actual opted-in generated project: copied verifier before/after
   public-only locked restore, byte-identical lock, Release warnings-as-errors build,
   default/presentation/invalid entrypoints 0/0/2. Retain traversal/pose/momentum,
   five snapshots, twelve frames, twenty-four nodes/points and canonical reset/midpoint
@@ -75,6 +76,42 @@ archive and independent canonical Game archive before effects; it retains stage 
 uses new private homes/caches and stops dependent stages on the first failure. Optional
 provider execution requires a separately qualified executable and exact pin. These
 commands are qualification recipes, not publication or effect admission.
+
+The single qualified candidate was packed from clean Templates source
+`61abd772ff8b27241ff2cfa5d825228b3be5a68c`, tree
+`ec9356414f9c1b4c3a1f95e0147e1a98621bf94f`. Actual local archive
+`FS.GG.Workspace.Template.0.18.1.nupkg` is 922,390 bytes, SHA256
+`dd10cf25eb95d1a50e22f3b2daa86280422ca1190cdc45e375e2704310d167e1`;
+its nuspec identifies that source. The exact Coordination fixture projection and all
+three packed file hashes passed. This is a local candidate, not a published successor.
+
+On 2026-10-09, that archive installed into a new private home. Seven real generation
+cases passed: omitted, false, player true, complete false/true, and legacy true/false.
+Default/false and player outside-Portal bytes matched, as did complete false/true.
+Invalid boolean and mixed legacy/Portal selections in both argument orders refused
+without receiver directories. Their actual nonzero exits were checked, but the numeric
+codes were not separately recorded; original CLI logs remain the evidence.
+
+Canonical source/provenance checks passed against the independent Game archive.
+The generated player Portal project restored solely from public nuget.org into fresh
+caches with its committed lock unchanged; assets and nuspec checks established exactly
+the seven declared packages. SDK 10.0.401 / runtime 10.0.12 Linux X64 Release build passed
+with zero warnings/errors. Actual default/presentation/invalid entrypoints returned
+0/0/2; presentation observed five ticks, twelve frames and twenty-four nodes/points.
+The compiled Consumer.dll SHA256 is
+`baf3715b54e1082c4a55e10bbe301a295365a0e118b84a73b6f8dad00681e069`.
+No performance mode or installed SDD/provider was invoked.
+
+Each admitted operation used CPU 1, a 300-second work deadline, bounded identity-based
+cleanup, a 1.5 GiB managed heap limit and sampled 2 GiB aggregate RSS control. Pack and
+receiver sampled peaks were 330,113,024 and 441,397,248 bytes. No signals were required;
+independent terminal group/session/known-identity censuses found no matching live
+processes or zombies. Transient or unobserved detached descendants remain unknown;
+these controls do not establish hard memory containment. Original interrupted receiver
+custody and native acceptance remain unchanged. Provider forwarding, coherent unchanged
+browser artifact gates, public publication and fresh/retained public adoption stay open.
+A docs-only successor preserves every other tracked byte of the qualified source;
+no replacement archive or runtime observation is implied by that successor.
 
 T1 stops at qualified source delivery. Existing coherent template gates and exact-head
 routine eligibility still apply. Broad unchanged Fable/Vite/browser composition may
