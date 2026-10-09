@@ -43,25 +43,134 @@ grep -Fq 'ImportAll("@babylonjs/loaders/glTF/index.js")' "$WORK/product/src/Acme
 grep -Fq 'GENERATED CANDIDATE — NOT COMPILED' "$WORK/product/generated-candidates/BabylonBindings.generated.fs"
 grep -Fq 'declarationMergingCandidates' "$WORK/product/generated-candidates/declaration-analysis.json"
 
+# Check the generated project's publication contract before package/runtime work.
+python3 - "$WORK/product" "$WORK/binding-package-pins.json" <<'PY_BINDING_PROJECT'
+import json, pathlib, re, sys, xml.etree.ElementTree as ET
+product = pathlib.Path(sys.argv[1])
+project = ET.parse(product / 'src/AcmeBindings/AcmeBindings.fsproj').getroot()
+assert project.findtext('./PropertyGroup/FablePackageType') == 'binding', 'binding package type'
+assert 'fable-javascript' in project.findtext('./PropertyGroup/PackageTags', '').split(';'), 'JavaScript target'
+sdk = [e for e in project.findall('./ItemGroup/PackageReference') if e.get('Include') == 'Fable.Package.SDK']
+assert len(sdk) == 1 and sdk[0].get('PrivateAssets') == 'all', 'SDK must be private'
+assert set(sdk[0].get('IncludeAssets', '').split(';')) == {'runtime', 'build', 'native', 'contentfiles', 'analyzers', 'buildtransitive'}, 'SDK build assets'
+npm = project.findall('./PropertyGroup/NpmDependencies/NpmPackage')
+assert len(npm) == 2 and {e.get('Name'): e.get('Version') for e in npm} == {'@babylonjs/core': '9.19.0', '@babylonjs/loaders': '9.19.0'}, 'exact Femto metadata'
+central = ET.parse(product / 'Directory.Packages.props').getroot()
+core = [e.get('Version') for e in central.findall('./ItemGroup/PackageVersion') if e.get('Include') == 'Fable.Core']
+assert len(core) == 1, 'one central Fable.Core selection'
+fable = json.loads((product / '.config/dotnet-tools.json').read_text())['tools']['fable']['version']
+for version in [core[0], fable]:
+    assert isinstance(version, str) and re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?', version), 'exact consumer version'
+pathlib.Path(sys.argv[2]).write_text(json.dumps({'core': core[0], 'fable': fable}) + '\n')
+PY_BINDING_PROJECT
+
 (cd "$WORK/product" && git init -q && git config user.email test@example.invalid && git config user.name test && git add generated-candidates && git commit -qm baseline && npm ci --ignore-scripts >/dev/null && npm run doctor >/dev/null && npm run check:drift >/dev/null && npm run test:side-effect-control >/dev/null && npm run test:imports >/dev/null && dotnet tool restore >/dev/null && npm run compile:fable >/dev/null && npm run test:runtime >/dev/null)
 solution="$(find "$WORK/product" -maxdepth 1 -name '*.slnx' -print -quit)"
 dotnet restore "$solution" --locked-mode
 dotnet build "$solution" --no-restore
-# The generated library must survive the same isolation a real consumer has: a packed nupkg,
-# a fresh local feed, a separately installed npm runtime, Fable emission, and Node execution.
+# The generated binding must survive a packed archive and a genuinely clean consumer.
+# Derive selections from delivered pins instead of the stale independent 5.2.0/5.13.0 pair.
 consumer="$WORK/consumer"; mkdir -p "$consumer/app" "$consumer/feed"
 dotnet build "$WORK/product/src/AcmeBindings/AcmeBindings.fsproj" -c Release >/dev/null
 dotnet pack "$WORK/product/src/AcmeBindings/AcmeBindings.fsproj" -c Release --no-build -o "$consumer/feed" >/dev/null
+python3 - "$consumer/feed/AcmeBindings.0.1.0.nupkg" "$WORK/binding-package-pins.json" "$consumer/app" <<'PY_BINDING_ARCHIVE'
+import io, json, pathlib, re, sys, xml.etree.ElementTree as ET, zipfile
+
+def inspect_binding_package(package):
+    with zipfile.ZipFile(package) as archive:
+        entries = archive.namelist()
+        assert len(entries) == len(set(entries)), 'duplicate package entry'
+        assert 'lib/netstandard2.1/AcmeBindings.dll' in entries, 'compiled binding absent'
+        assert not any(n.lower().startswith('fable/') or n.lower().endswith(('.fs', '.fsi', '.fsx')) for n in entries), 'library source payload'
+        assert not any('node_modules/' in n.lower() or n.lower().endswith(('.js', '.mjs', '.cjs', '.ts')) for n in entries), 'bundled native npm implementation'
+        specs = [n for n in entries if n.lower().endswith('.nuspec')]
+        assert len(specs) == 1, 'one package specification'
+        root = ET.fromstring(archive.read(specs[0]))
+        metadata = next(e for e in root if e.tag.rsplit('}', 1)[-1] == 'metadata')
+        assert next(e.text for e in metadata if e.tag.rsplit('}', 1)[-1] == 'id') == 'AcmeBindings', 'package identity'
+        assert next(e.text for e in metadata if e.tag.rsplit('}', 1)[-1] == 'version') == '0.1.0', 'package version'
+        deps = {e.get('id', '').lower() for e in metadata.iter() if e.tag.rsplit('}', 1)[-1] == 'dependency'}
+        assert 'fable.package.sdk' not in deps, 'SDK consumer dependency'
+        tags = next(e.text or '' for e in metadata if e.tag.rsplit('}', 1)[-1] == 'tags')
+        tags = set(re.split(r'[;\s]+', tags.lower()))
+        assert {'fable', 'fable-binding', 'fable-javascript'} <= tags and 'fable-library' not in tags, 'binding tags'
+
+package = pathlib.Path(sys.argv[1])
+inspect_binding_package(package)
+# The actual inspector must reject both original defect shapes, using mutated archive copies.
+with zipfile.ZipFile(package) as archive:
+    contents = {n: archive.read(n) for n in archive.namelist()}
+for defect in ['library-source', 'sdk-dependency']:
+    mutated = dict(contents)
+    if defect == 'library-source':
+        mutated['fable/Bindings.fs'] = b'// synthetic library payload'
+    else:
+        name = next(n for n in mutated if n.lower().endswith('.nuspec'))
+        root = ET.fromstring(mutated[name])
+        metadata = next(e for e in root if e.tag.rsplit('}', 1)[-1] == 'metadata')
+        ns = metadata.tag.rsplit('}', 1)[0] + '}' if '}' in metadata.tag else ''
+        dependencies = next((e for e in metadata if e.tag.rsplit('}', 1)[-1] == 'dependencies'), None)
+        if dependencies is None:
+            dependencies = ET.SubElement(metadata, ns + 'dependencies')
+        ET.SubElement(dependencies, ns + 'dependency', {'id': 'Fable.Package.SDK', 'version': '1.4.1'})
+        mutated[name] = ET.tostring(root)
+    stream = io.BytesIO()
+    with zipfile.ZipFile(stream, 'w') as archive:
+        for name, body in mutated.items():
+            archive.writestr(name, body)
+    stream.seek(0)
+    try:
+        inspect_binding_package(stream)
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError('package inspector accepted ' + defect)
+
+pins = json.loads(pathlib.Path(sys.argv[2]).read_text())
+app = pathlib.Path(sys.argv[3])
+project = ET.Element('Project', {'Sdk': 'Microsoft.NET.Sdk'})
+properties = ET.SubElement(project, 'PropertyGroup')
+ET.SubElement(properties, 'TargetFramework').text = 'netstandard2.1'
+ET.SubElement(properties, 'RestorePackagesWithLockFile').text = 'true'
+items = ET.SubElement(project, 'ItemGroup')
+ET.SubElement(items, 'Compile', {'Include': 'Program.fs'})
+ET.SubElement(items, 'PackageReference', {'Include': 'AcmeBindings', 'Version': '0.1.0'})
+ET.SubElement(items, 'PackageReference', {'Include': 'Fable.Core', 'Version': pins['core']})
+ET.ElementTree(project).write(app / 'Consumer.fsproj', encoding='unicode')
+(app / 'fable-version.txt').write_text(pins['fable'] + '\n')
+PY_BINDING_ARCHIVE
 printf '%s\n' '<configuration><packageSources><clear /><add key="local" value="'"$consumer"'/feed" /><add key="nuget.org" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>' > "$consumer/app/NuGet.Config"
-printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup><ItemGroup><Compile Include="Program.fs" /><PackageReference Include="AcmeBindings" Version="0.1.0" /><PackageReference Include="Fable.Core" Version="5.2.0" /></ItemGroup></Project>' > "$consumer/app/Consumer.fsproj"
-printf '%s\n' 'open Qualification.Babylon' 'let engine = nullEngine ()' 'let scene = scene engine' 'let _ = box "consumer-box" scene' 'initialiseLoader ()' 'printfn "consumer passed"' > "$consumer/app/Program.fs"
-printf '%s\n' '{"private":true,"type":"module","dependencies":{"@babylonjs/core":"9.19.0","@babylonjs/loaders":"9.19.0"}}' > "$consumer/app/package.json"
-dotnet restore "$consumer/app/Consumer.fsproj" --configfile "$consumer/app/NuGet.Config" >/dev/null
-(cd "$consumer/app" && npm install --ignore-scripts >/dev/null)
-grep -Fq 'sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeGpS/bQ3NzwtApB84GScm9v8w==' "$consumer/app/package-lock.json"
-dotnet tool install Fable --tool-path "$consumer/fable" --version 5.13.0 >/dev/null
-"$consumer/fable/fable" "$consumer/app/Consumer.fsproj" --outDir "$consumer/app/dist" --noCache >/dev/null
-node "$consumer/app/dist/Program.js" | grep -Fq 'consumer passed'
+cat > "$consumer/app/Program.fs" <<'FS_BINDING_CONSUMER'
+open Qualification.Babylon
+
+let engine: Engine = nullEngine ()
+let scene: Scene = scene engine
+let position: Vector3 = vector3 0. 0. 0.
+let direction: Vector3 = vector3 0. 1. 0.
+let camera: Camera = freeCamera "consumer-camera" position scene
+let light: Light = hemisphericLight "consumer-light" direction scene
+let mesh: Box = box "consumer-box" scene
+if isNull engine || isNull scene || isNull position || isNull direction ||
+   isNull camera || isNull light || isNull mesh then
+    failwith "packed binding returned a missing native object"
+initialiseLoader ()
+if not (loaderRegistered ()) then
+    failwith "packed binding glTF loader import did not register the plugin"
+printfn "consumer passed"
+FS_BINDING_CONSUMER
+cp "$WORK/product/package.json" "$WORK/product/package-lock.json" "$consumer/app/"
+# Keep the same fresh package cache through restore, tool installation and Fable's own restore.
+(
+  export NUGET_PACKAGES="$consumer/packages" DOTNET_CLI_HOME="$consumer/home"
+  mkdir -p "$DOTNET_CLI_HOME"
+  dotnet restore "$consumer/app/Consumer.fsproj" --configfile "$consumer/app/NuGet.Config" >/dev/null
+  (cd "$consumer/app" && npm ci --ignore-scripts >/dev/null)
+  grep -Fq 'sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeGpS/bQ3NzwtApB84GScm9v8w==' "$consumer/app/package-lock.json"
+  fable_version="$(cat "$consumer/app/fable-version.txt")"
+  dotnet tool install Fable --tool-path "$consumer/fable" --version "$fable_version" >/dev/null
+  "$consumer/fable/fable" "$consumer/app/Consumer.fsproj" --outDir "$consumer/app/dist" --noCache >/dev/null
+  node "$consumer/app/dist/Program.js" | grep -Fq 'consumer passed'
+)
 
 # Execute the clean scaffold's actual SDD lifecycle, observed test-report import,
 # coherent doctor, provenance, and Governance policy boundary. Governance consumes

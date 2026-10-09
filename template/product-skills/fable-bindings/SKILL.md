@@ -85,11 +85,53 @@ consumer installs the packed NuGet library, separately installs the exact npm ru
 Fable-compiles, bundles/resolves the emitted imports, and runs the same typed journey in applicable
 Node and real-browser targets. Add negative controls for a missing side-effect import and a changed
 transitive declaration. Publish and verify the package artifact before registry/wizard activation.
-The currently qualified reference is Fable 5.13.0/Fable.Core 5.2.0 with exact locks; requalify any
-tool upgrade rather than floating it.
+Read exact Fable and Fable.Core selections from the workspace tool manifest, central package versions
+and locks. The clean package consumer uses those same selections; an older independent consumer
+requires separate compatibility evidence. Requalify upgrades rather than floating versions.
+
+## Binding package and publication contract
+
+Package an npm API wrapper as `FablePackageType=binding` with the concrete `fable-javascript` target.
+Keep `Fable.Package.SDK` build-only with `PrivateAssets=all` and the documented build assets; retain
+its reviewed version and NuGet lock. Binding mode packages the compiled binding rather than the
+`fable/` library source payload. Public calls must be native declarations with import/emission metadata
+and opaque native types, not ordinary F# implementation wrappers that require package source.
+Qualify every curated call through the packed DLL consumer, including side-effect registration.
+Declare native npm requirements using Femto's project metadata:
+
+```xml
+<PropertyGroup>
+  <NpmDependencies>
+    <NpmPackage Name="@babylonjs/core" Version="9.19.0" />
+    <NpmPackage Name="@babylonjs/loaders" Version="9.19.0" />
+  </NpmDependencies>
+</PropertyGroup>
+```
+
+Use the qualified versions and retain the exact `package-lock.json` and declaration lock. Femto
+metadata does not replace those locks or prove automatic discovery from a compiled-only package;
+consumers must separately install the supported npm artifacts.
+
+Before publication, inspect the actual `.nupkg`: require the compiled binding DLL, no `fable/`
+library source payload or loose F# source files, no `Fable.Package.SDK` consumer dependency, and the
+`fable`, `fable-binding` and `fable-javascript` tags. Reject `fable-library` and bundled native npm
+implementation files. Prove a clean consumer with this inspected archive, a fresh NuGet package
+cache used through restore and Fable compilation, separately installed locked npm dependencies,
+emitted-import inspection and runtime execution. Compilation alone does not prove import resolution.
+
+Publish the binding `.nupkg` to NuGet.org or the explicitly selected private NuGet feed, then verify
+the published artifact identity and installation. The JavaScript implementation remains on npm;
+do not bundle or republish it. Fable Packages discovers eligible NuGet publications after indexing;
+there is no second Fable registry upload. Local pack and consumer proof do not establish publication.
 
 ## Sources
 
 - [Fable JavaScript interop](https://fable.io/docs/javascript/)
 - [npm package-lock documentation](https://docs.npmjs.com/cli/v10/configuring-npm/package-lock-json)
 - [NuGet lock files](https://learn.microsoft.com/nuget/consume-packages/package-references-in-project-files#locking-dependencies)
+
+- [Fable library publication](https://fable.io/docs/your-fable-project/author-a-fable-library.html)
+- [Fable package consumption](https://fable.io/docs/your-fable-project/use-a-fable-library.html)
+- [Fable.Package.SDK packaging rules](https://github.com/fable-compiler/Fable.Package.SDK)
+- [Femto npm metadata](https://github.com/Zaid-Ajaj/Femto#library-authors-with-javascript)
+- [NuGet.org publication](https://learn.microsoft.com/nuget/nuget-org/publish-a-package)
