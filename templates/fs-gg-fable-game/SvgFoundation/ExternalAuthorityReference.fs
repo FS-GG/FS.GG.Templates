@@ -16,6 +16,59 @@ type private Projection = { Epoch: string; Revision: uint64; Value: int }
 type private Acquisition =
     { Generation: uint64; Id: uint64; Snapshot: Projection; mutable Settled: bool }
 
+[<RequireQualifiedAccess>]
+type private ReceiptOutcome = Accepted | Rejected | Unknown
+
+type private CommandReceipt =
+    { Correlation: string; Epoch: string; Generation: uint64; Outcome: ReceiptOutcome }
+
+[<RequireQualifiedAccess>]
+type private Recovery = Awaiting | Reconciled | Abandoned | Rearmed
+
+type private CommandState =
+    { Receipts: CommandReceipt list
+      Unknown: CommandReceipt option
+      Recovery: Recovery
+      LoseNextReceipt: bool }
+
+[<RequireQualifiedAccess>]
+type private CommandObservation =
+    | LoseNext
+    | Recorded of CommandReceipt
+    | Reconcile of uint64 * string
+    | Abandon
+    | Rearm
+
+// Receipt evidence is immutable. Recovery annotates the unknown original rather
+// than rewriting it as rejected or reissuing its command.
+let private updateCommands observation state =
+    match observation with
+    | CommandObservation.LoseNext -> { state with LoseNextReceipt = true }
+    | CommandObservation.Recorded receipt ->
+        { state with
+            Receipts = state.Receipts @ [ receipt ]
+            Unknown = if receipt.Outcome = ReceiptOutcome.Unknown then Some receipt else state.Unknown
+            Recovery = if receipt.Outcome = ReceiptOutcome.Unknown then Recovery.Awaiting else state.Recovery
+            LoseNextReceipt = receipt.Outcome = ReceiptOutcome.Rejected && state.LoseNextReceipt }
+    | CommandObservation.Reconcile(generation, epoch) ->
+        match state.Unknown with
+        | Some receipt when state.Recovery = Recovery.Awaiting && receipt.Generation = generation && receipt.Epoch = epoch ->
+            { state with Recovery = Recovery.Reconciled }
+        | _ -> state
+    | CommandObservation.Abandon when state.Recovery = Recovery.Awaiting ->
+        { state with Recovery = Recovery.Abandoned }
+    | CommandObservation.Rearm when state.Recovery = Recovery.Reconciled || state.Recovery = Recovery.Abandoned ->
+        { state with Recovery = Recovery.Rearmed }
+    | _ -> state
+
+let private commandsSuspended state =
+    state.Unknown.IsSome && state.Recovery <> Recovery.Rearmed
+
+let private receiptOutcome = function
+    | ReceiptOutcome.Accepted -> "accepted"
+    | ReceiptOutcome.Rejected -> "rejected"
+    | ReceiptOutcome.Unknown -> "unknown"
+
 let private scene projection =
     { RootId = "external-authority-scene"
       Revision = int projection.Revision
@@ -71,7 +124,14 @@ let mount () : IDisposable =
     let mutable replacement = 0UL
     let mutable sequence = 0UL
     let mutable commands: string list = []
-    let mutable receipts: string list = []
+    let mutable commandState =
+        { Receipts = []; Unknown = None; Recovery = Recovery.Rearmed; LoseNextReceipt = false }
+    let mutable commandGeneration = 0UL
+    let mutable delayedReceipt: CommandReceipt option = None
+    let receiptStatus = document.createElement "p"
+    receiptStatus.setAttribute("role", "status")
+    receiptStatus.setAttribute("aria-live", "polite")
+    root.appendChild receiptStatus |> ignore
     let acquisitions = ResizeArray<Acquisition>()
     let listeners = ResizeArray<HTMLElement * (Event -> unit)>()
     let mutable disposed = false
@@ -93,7 +153,23 @@ let mount () : IDisposable =
         root.setAttribute("data-authority-epoch", authority.Epoch)
         root.setAttribute("data-authority-revision", string authority.Revision)
         root.setAttribute("data-command-order", String.concat "," commands)
-        root.setAttribute("data-receipt-order", String.concat "," receipts)
+        root.setAttribute("data-receipt-order", commandState.Receipts |> List.map (fun receipt -> $"{receipt.Correlation}:{receiptOutcome receipt.Outcome}") |> String.concat ",")
+        root.setAttribute("data-command-suspended", string (commandsSuspended commandState))
+        root.setAttribute("data-command-recovery", string commandState.Recovery)
+        root.setAttribute("data-command-owned", if disposed then "0" else string (delayedReceipt |> Option.map (fun _ -> 1) |> Option.defaultValue 0))
+        commandState.Unknown |> Option.iter (fun receipt ->
+            root.setAttribute("data-unknown-correlation", receipt.Correlation)
+            root.setAttribute("data-unknown-epoch", receipt.Epoch)
+            root.setAttribute("data-unknown-generation", string receipt.Generation))
+        receiptStatus.textContent <-
+            if disposed then "Reference disposed. Command evidence is retained; controls are inactive."
+            else
+                match commandState.Unknown, commandState.Recovery with
+                | Some receipt, Recovery.Awaiting -> $"Command {receipt.Correlation} outcome is unknown. Commands are suspended. Reconcile the original receipt or abandon it before rearming; reconnect never retries it."
+                | Some receipt, Recovery.Reconciled -> $"Original command {receipt.Correlation} was confirmed accepted. Its unknown receipt is retained. Rearm explicitly to send a new command."
+                | Some receipt, Recovery.Abandoned -> $"Original command {receipt.Correlation} remains unknown and was abandoned. Rearm explicitly to send a new command."
+                | _ when commandState.LoseNextReceipt -> "The next accepted command receipt will be lost. Its effect may occur; commands will then wait for explicit recovery."
+                | _ -> "Commands are ready. The sample gateway can lose the next accepted receipt without retrying its command."
         root.setAttribute("data-request-count", string acquisitions.Count)
         root.setAttribute("data-gateway-owned", string (acquisitions |> Seq.filter (fun a -> not a.Settled) |> Seq.length))
         hostOption |> Option.iter (fun host ->
@@ -125,29 +201,39 @@ let mount () : IDisposable =
                 acquisitions |> Seq.tryFind (fun a -> a.Generation = generation && a.Id = id)
                 |> Option.iter (fun a -> a.Settled <- true)
               EpochBound = fun generation epoch preserved ->
+                commandGeneration <- generation
                 root.setAttribute("data-generation", string generation)
                 root.setAttribute("data-preserved-baseline", string preserved)
               Disconnected = ignore
               Dispose = fun () -> acquisitions |> Seq.iter (fun a -> a.Settled <- true) })
     hostOption <- Some host
+    let availableCommands () =
+        if disposed || commandsSuspended commandState then [] else catalog.Commands |> List.map _.Id
     let admit command =
-        if not disposed then
+        if not disposed && not (commandsSuspended commandState) then
             sequence <- sequence + 1UL
             let correlation = $"sample:{sequence}"
             commands <- commands @ [ $"{correlation}:{command}" ]
             let accepted = host.Observe().State.Status = SvgExternalSessionStatus.Connected && command = "external.increment"
             if accepted then
                 authority <- { authority with Revision = authority.Revision + 1UL; Value = authority.Value + 1 }
-            // Every command settles exactly once, synchronously and in gateway admission order.
-            // This ledger is independent of presentation acceptance, cancellation and coalescing.
-            let outcome = if accepted then "accepted" else "rejected"
-            receipts <- receipts @ [ $"{correlation}:{outcome}" ]
+            // This mock applies once before losing a receipt. Presentation cannot
+            // settle the command; only explicit inspection of its original reply can.
+            let outcome =
+                if accepted && commandState.LoseNextReceipt then ReceiptOutcome.Unknown
+                elif accepted then ReceiptOutcome.Accepted
+                else ReceiptOutcome.Rejected
+            let receipt =
+                { Correlation = correlation; Epoch = authority.Epoch
+                  Generation = commandGeneration; Outcome = outcome }
+            commandState <- updateCommands (CommandObservation.Recorded receipt) commandState
+            if outcome = ReceiptOutcome.Unknown then delayedReceipt <- Some receipt
             host.DemandPresentation()
             describe ()
     let effective = CommandInput.compile catalog profile |> Result.defaultWith (fun error -> failwithf "%A" error)
     let input =
         new SvgInputHost(root, catalog, CommandResolver.init [ "external.reference" ] effective,
-            (fun () -> catalog.Commands |> List.map _.Id),
+            availableCommands,
             (function CommandResolverEffect.InvokeCommand invocation -> admit invocation.Command | _ -> ()),
             { SvgInputHost.defaultOptions with PollGamepads = false })
     let mutable observationSequence = 0UL
@@ -160,7 +246,7 @@ let mount () : IDisposable =
                   Gesture = InputGesture.Pointer command
                   Phase = phase; IsRepeat = false; NativeEditable = false
                   HostReserved = false; IsComposing = false
-                  AvailableCommands = catalog.Commands |> List.map _.Id }
+                  AvailableCommands = availableCommands () }
         input.Update(observation InputGesturePhase.Pressed) |> ignore
         input.Update(observation InputGesturePhase.Released) |> ignore
     let button label action =
@@ -186,6 +272,24 @@ let mount () : IDisposable =
         host.DemandPresentation())
     button "Increment external value" (fun () -> invoke "external.increment")
     button "Reject sample command" (fun () -> invoke "external.reject")
+    button "Lose next command receipt" (fun () ->
+        if not disposed && not (commandsSuspended commandState) then
+            commandState <- updateCommands CommandObservation.LoseNext commandState)
+    let reconcile () =
+        commandState <- updateCommands (CommandObservation.Reconcile(commandGeneration, authority.Epoch)) commandState
+        if commandState.Recovery = Recovery.Reconciled then delayedReceipt <- None
+    button "Reconcile unknown command" reconcile
+    button "Abandon unknown command" (fun () ->
+        commandState <- updateCommands CommandObservation.Abandon commandState
+        delayedReceipt <- None)
+    button "Rearm sample commands" (fun () ->
+        commandState <- updateCommands CommandObservation.Rearm commandState)
+    button "Complete delayed command receipt" (fun () ->
+        // The captured reply has no authority to apply a command a second time.
+        // An old generation/epoch cannot resolve current recovery state.
+        delayedReceipt |> Option.iter (fun receipt ->
+            if receipt.Generation = commandGeneration && receipt.Epoch = authority.Epoch then reconcile ()
+            delayedReceipt <- None))
     button "Request external burst" (fun () -> host.DemandPresentation(); host.DemandPresentation(); host.DemandPresentation())
     button "Request cached external snapshot" (fun () ->
         cachedSnapshot <- acquisitions |> Seq.tryFind (fun a -> a.Snapshot.Epoch = authority.Epoch) |> Option.map _.Snapshot
@@ -203,6 +307,7 @@ let mount () : IDisposable =
     let dispose () =
         if not disposed then
             disposed <- true
+            delayedReceipt <- None
             for element, handler in listeners do element.removeEventListener("click", handler)
             listeners.Clear()
             (input :> IDisposable).Dispose()
