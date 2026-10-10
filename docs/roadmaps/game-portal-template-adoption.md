@@ -214,7 +214,35 @@ retried resume04/resume05 custody. These results qualify a local source candidat
 not a published successor, provider invocation, prior public Portal upgrade, browser
 composition or whole P3 closure. T3/T4, provider acceptance and P3 remain open.
 
-- [ ] **P3-T3 — Coherent public template successor — route: routine source; publication separately admitted.** Depends on accepted T1/T2 and existing Templates release gates. Reuse the repository's current pack-once, immutable artifact, dual-feed equality, feed occupancy and public readback paths. Release owner chooses the next genuinely unoccupied Templates version at dispatch (current source is 0.18.1; no successor number is reserved here), aligns the provider descriptor and exact source/archive identities, and verifies the installed artifact contains the opt-in payload/helper/lock. Game and Rendering need no new binary release unless the source owner discovers a producer API defect. A generated example source update does not turn Game 0.17.0 into a new binary release. Keep protected publication credentials, registry activation and Wizard release in their existing owners and custody. Do not repair or retry unrelated unknown publication effects.
+- [ ] **P3-T3 — Coherent public template successor — route: routine source; publication separately admitted.** Depends on accepted T1/T2 and existing Templates release gates. Reuse the repository's current pack-once, immutable artifact, dual-feed equality, feed occupancy and public readback paths. Release owner freshly verifies the source-selected Templates version at the release boundary (source now prepares 0.18.2; publication remains unadmitted), aligns the provider descriptor and exact source/archive identities, and verifies the installed artifact contains the opt-in payload/helper/lock. Game and Rendering need no new binary release unless the source owner discovers a producer API defect. A generated example source update does not turn Game 0.17.0 into a new binary release. Keep protected publication credentials, registry activation and Wizard release in their existing owners and custody. Do not repair or retry unrelated unknown publication effects.
+
+T3 source now selects `0.18.2` in the packaging project and all five Workspace
+provider self-pins. The eight configuration/seven selector inventory and Game/Rendering
+package versions remain unchanged. This source selection follows original native
+occupancy run `38012221923`, attempt 1, at protected Templates source
+`b464cd3678d4dbc49c67397cc81ef8a03110a72a` / tree
+`7d302a454ef28e2a87669e09e22260bbceab1cfd`. Its sanitized receipt reported both feeds
+`ABSENT` for inspection candidate `0.18.2` at `2026-10-10T01:12:18Z`: GitHub's
+complete active/deleted two-page census had 14 records with matching before/after
+metadata; nuget.org's complete version index had 14 records. Original artifact
+`11653183958`, 941 bytes, SHA256
+`45d486b053ef4510cdcceb578bb4428cf81247a093a43d46864c48fad67f7ce7`
+was authenticated; the receipt SHA256 is
+`883a67de4b063a46dd2fd4685d0d0d08acf2dcefd4a78d31ad753dd7bddd620d`.
+Only occupancy ran; pack, gate and publish were skipped. Earlier local active/deleted
+API refusals remain retained and do not supersede that native observation.
+
+This historical absence is not a reservation or a guarantee at a future release.
+Fresh native feed/version checks and explicit effect admission remain necessary before
+a release tag or publication. The source PR route packs its own checksum-bound archive,
+but skips full composition because publication is disabled. A later unique tag release
+must pack its original archive once, run all five coherent composition lanes including
+provider/browser behavior against those bytes, publish the same archive to GitHub
+Packages before nuget.org, and verify both feed payloads before root registry activation.
+Neither local `0.18.1` Portal candidate substitutes for that `0.18.2` release artifact.
+Provider/Wizard activation and public fresh/retained Portal acceptance remain separate
+T4 outcomes. No tag, pack, installation, runtime or publication was run for this source
+version update. T3, T4 and whole P3 remain open.
 
 - [ ] **P3-T4 — Fresh and preserving retained public receivers — route: separately admitted qualification.** After T3 public readback, create new outside-checkout receivers from the actual public template, public dependencies and fresh caches: direct explicit opt-in and default-off; then the qualified provider-v2 route using its exact public descriptor and installed SDD >=2.1.0. Repeat the real project entrypoint and exact graph/lock checks. Before release, the full unchanged Fable/Vite/browser composition remains a coherent artifact gate; retain its evidence separately from this headless Portal runtime. For retained adoption, freshly instantiate the actual public pre-Portal 0.18.1 template into a new owned retained receiver, add authored source/data/skills, record the full inventory, then inventory/apply from the real successor-generated candidate. Observe the Portal entrypoint and byte preservation; add a foreign in-folder sentinel, remove safely while preserving it, and observe ordinary workspace behavior; separately exercise recovery/rollback. Never operate on resume04/resume05 or old /tmp receivers. Report direct template, provider and Wizard boundaries independently. Full Wizard activation is not implied by the direct/provider proof; if it remains part of another v3 row, retain that open outcome there rather than relabel it complete.
 

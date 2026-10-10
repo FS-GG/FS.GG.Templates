@@ -8,11 +8,11 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Workspace.Template</PackageId>
-    <!-- 0.18.1 prepares the published Rendering 0.32.1 provider/Fable pin successor.
-         Existing template identities and options remain unchanged. Publication and fresh
-         installed/default/Wizard acceptance require their own authenticated gates;
-         the accepted source-built public Rendering receiver is separate evidence. -->
-    <Version>0.18.1</Version>
+    <!-- 0.18.2 prepares the coherent Workspace successor with the qualified opt-in
+         managed Portal example and preserving adoption helper. This is source selection,
+         not publication: fresh occupancy, original-archive release gates, both feed
+         readbacks and public installed/provider acceptance remain separate. -->
+    <Version>0.18.2</Version>
     <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new workspace templates for FS.GG.SDD: governance, Python, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</Description>
