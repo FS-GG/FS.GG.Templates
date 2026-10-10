@@ -166,3 +166,65 @@ Another native qualification requires protected source and caller delivery, prog
 and separate fresh admission. Actual reference AT, coherent publication, fresh installed creation,
 preserving upgrades and product-native outcomes remain open; prior browser and limited TypeScript
 qualification remain scoped to their recorded inputs.
+
+The later native attempt `38064291547` used the delivered Templates session-contract source
+and delivered Rendering caller. Its original Orca step failed on custody: Chromium PID 11633
+created a separate session/process group outside the original owned group. The retained archive
+readback preserves that first cause and unresolved historical custody; later empty cleanup does
+not accept the journey. Private accessibility-contract startup and speech preflight passed, and
+the independent 24 browser cases and 186 provider PASS lines remain separate evidence. No actual
+Orca journey, focus/keyboard/speech sequence or contract completion was produced.
+
+The browser topology correction prepares direct foreground launch of the exact locked headed
+Chromium executable within the existing owned session, with a separate owned Node companion.
+A fresh private profile, original Chrome birth, loopback socket inode, endpoint-file identity,
+actual X11 window PID and mapped accessibility library bind browser authority to Chrome. The
+companion uses Playwright's public CDP transport overload and `noDefaults: true`; the selected
+Node 26.10 built-in WebSocket primary source rejects redirects and non-101 HTTP/1 handshakes.
+There is no endpoint URL-overload fallback, reconnect, custody exception or browser adoption.
+The observed DOM and trusted key events remain observational; real X11 and AT-SPI focus are
+required by the original journey. The original 300-second session, 30-second cleanup reserve,
+100ms census, 2GiB sampled RSS and 4MiB log bounds remain unchanged. Application CDP message
+caps do not assert a hard limit on native WebSocket frame allocation or whole-tree containment.
+
+Only an atomic successful inner result published after the complete inner return and final
+health/completion can qualify a later transport event as a post-observation transport outcome.
+The companion captures that record's digest at the event. The final binder still requires exact
+original births and source/journey/completion bindings, actual wrapper exit zero, no earlier
+cause or cancellation, and accepted empty cleanup. Active health refuses every recorded failure;
+missing, stale or malformed success evidence and active protocol/sampling failures remain failures.
+This is not proof that an event occurred during cleanup. An in-flight observation drains within
+the original deadline before the companion's own bounded transport disconnect; uncertain drain
+remains a failure. The original 121 Python controls remain retained, with new topology and
+post-observation refusal cases plus actual inert JavaScript fake-socket/attachment controls.
+The finite local inert successor qualification passed all 234 named Python controls, including
+the retained 121 controls, and all 37 actual JavaScript fake-socket/attachment controls. Native
+browser topology and the actual Orca journey remain unqualified, and the whole FABLE-ADOPT-01 /
+GAME-TEMPLATE-01 outcome stays open.
+
+The companion's bounded original log is also mandatory evidence. A missing failure JSON record
+cannot erase a retained first-cause or report-write-failure marker. A present record must agree
+with the log's original cause and have no reporting failure or distinct-cause contradiction
+before any post-observation outcome is considered. Missing, linked, nonregular, oversized or
+unreadable logs refuse acceptance; raw markers and the original cause remain retained. The
+log digest joins the receipt evidence. The reporting-gap regressions passed in the finite inert
+successor qualification; the earlier browser topology source remains preserved as a predecessor.
+
+The first local browser-topology qualification failed before the assembled fixture returned:
+its offline route fixture had precreated `browser-companion.log`, and the actual inert inner's
+exclusive launch correctly refused it. The original 6364951f source, consumed operation and
+first-cause frames remain preserved; Python and JavaScript completed counts are unknown, with
+no Node phase reached. Cleanup observed an empty owned group and unchanged source/runtime pins.
+The fixture correction removes only its fabricated browser outputs before invoking the actual
+inert inner. The real fresh-profile and endpoint-file readers now run within the fixture; the
+endpoint producer and ready adapter bind current registered Chrome/companion births and source,
+and only synthetic pipe descriptors bypass real close. Existing assembled cases assert browser
+profile, launch, endpoint, readiness, journey and completion ordering and refuse early evidence
+after failed contract readiness. Production exclusivity, freshness and custody guards remain
+unchanged. The 52c212ff fixture successor passed all 234 Python controls, 37 actual inert
+JavaScript controls and six retained/final group markers. The sole Node child reported version
+26.10.0 and 43 mapped objects matching the pinned runtime manifest; network and process APIs
+were refused. Qualification exited zero with observed owned-group custody and empty cleanup,
+within the original 50-second work and 10-second cleanup bounds. All selected source/runtime
+pins and original failed-operation pins remained unchanged. These inert results do not accept
+native browser behavior, whole-tree containment or the Orca journey.
