@@ -1,9 +1,10 @@
 # GAME-PORTAL-01.P3 — Managed portal example in Fable Game workspaces
 
-Status: T1/T2 source and local candidate direct/retained operations qualified; coherent
-0.18.2 release gates and dual-feed publication qualified. Independent public direct,
-retained and installed-provider Portal receivers remain unqualified. Whole P3 remains
-Done: No. Templates owns
+Status: T1/T2 source and candidate operations, coherent 0.18.2 publication, and scoped
+T4 public direct, retained and installed-provider Portal receivers are qualified.
+Ordinary retained workspace tests after removal/recovery also pass. Whole P3 remains
+Done: No; performance release, Portal-to-Portal upgrade and global Wizard outcomes
+remain separate. Templates owns
 this integration, Game owns canonical example sources, and Rendering owns the public
 scene contract. The programme integrator owns coherent release/admission and roadmap joins.
 
@@ -66,9 +67,9 @@ Game algorithms stay canonical: populate `PortalScene.fs` from Game's exact `exa
   default/presentation/invalid entrypoints 0/0/2. Retain traversal/pose/momentum,
   five snapshots, twelve frames, twenty-four nodes/points and canonical reset/midpoint
   correctness evidence. Source mocks are not positive runtime evidence.
-- [ ] Separately qualify provider forwarding using the pinned installed provider-v2 SDD,
-  distinct product/namespace names and actual emitted provenance. If unavailable, leave
-  this portion pending rather than substituting direct template generation.
+- [x] Separately qualify provider forwarding using the pinned installed provider-v2 SDD,
+  distinct product/namespace names and actual emitted provenance. The public SDD 2.1.0
+  receiver below qualifies this independently of direct template generation.
 
 `tests/composition/fable-game/verify-portal-example.py` performs scoped source,
 candidate archive and generated-payload checks. Its synthetic controls label generation
@@ -159,7 +160,8 @@ they are never silently overwritten. Removal only unlinks unchanged owned files.
   no genuine public retained adoption. Independent source controls remain separate.
 - [x] Actual T2 candidate pack, installed management projection and real retained
   adoption/removal/recovery plus public locked package runtime qualified for the
-  exact local candidate below. Public release and broader P3 remain open.
+  exact local candidate below. Later public release/receivers are recorded separately;
+  broader P3 remains open.
 
 The genuine public baseline prerequisite is now observed: public NuGet
 `FS.GG.Workspace.Template 0.18.1`, archive SHA256
@@ -213,7 +215,8 @@ groups, sessions and known descendants; transient or unobserved detached descend
 remain unknown, and sampling is not hard RSS containment. Neither run reused or
 retried resume04/resume05 custody. These results qualify a local source candidate,
 not a published successor, provider invocation, prior public Portal upgrade, browser
-composition or whole P3 closure. T3/T4, provider acceptance and P3 remain open.
+composition or whole P3 closure. At that local candidate boundary, T3/T4 and provider
+acceptance were open; the later public outcomes below are distinct. Whole P3 remains open.
 
 - [x] **P3-T3 — Coherent public template successor — route: routine source; publication separately admitted.** Depends on accepted T1/T2 and existing Templates release gates. Reuse the repository's current pack-once, immutable artifact, dual-feed equality, feed occupancy and public readback paths. Release owner freshly verifies the source-selected Templates version at the release boundary (0.18.2 publication is qualified below), aligns the provider descriptor and exact source/archive identities, and verifies the installed artifact contains the opt-in payload/helper/lock. Game and Rendering need no new binary release unless the source owner discovers a producer API defect. A generated example source update does not turn Game 0.17.0 into a new binary release. Keep protected publication credentials, registry activation and Wizard release in their existing owners and custody. Do not repair or retry unrelated unknown publication effects.
 
@@ -243,8 +246,8 @@ Packages before nuget.org, and verify both feed payloads before root registry ac
 Neither local `0.18.1` Portal candidate substitutes for that `0.18.2` release artifact.
 Provider/Wizard activation and public fresh/retained Portal acceptance remain separate
 T4 outcomes. No tag, pack, installation, runtime or publication was run for this source
-version update. The subsequent separately admitted T3 release is recorded below; T4
-and whole P3 remain open.
+version update. Subsequent separately admitted T3/T4 outcomes are recorded below;
+whole P3 remains open.
 
 The subsequent release boundary used fresh native occupancy run `38014746101`,
 attempt 1, at protected `20c009bc6728302f9ed06fdf49cb2e8bd19e417d` / tree
@@ -275,9 +278,82 @@ Only `.signature.p7s` is excluded from payload equality. GitHub release `4085267
 and its original package asset `626755861` were independently read back; asset bytes
 and SHA256 match the original pack. Native publication/readback is qualified; no
 independent public Portal receiver, new retained receiver or installed public provider
-Portal invocation is claimed here. Root registry reconciliation and T4 remain separate.
+Portal invocation is claimed by that native release receipt. Independent T4 receiver
+outcomes follow below; root registry reconciliation remains separately owned.
 
-- [ ] **P3-T4 — Fresh and preserving retained public receivers — route: separately admitted qualification.** After T3 public readback, create new outside-checkout receivers from the actual public template, public dependencies and fresh caches: direct explicit opt-in and default-off; then the qualified provider-v2 route using its exact public descriptor and installed SDD >=2.1.0. Repeat the real project entrypoint and exact graph/lock checks. Before release, the full unchanged Fable/Vite/browser composition remains a coherent artifact gate; retain its evidence separately from this headless Portal runtime. For retained adoption, freshly instantiate the actual public pre-Portal 0.18.1 template into a new owned retained receiver, add authored source/data/skills, record the full inventory, then inventory/apply from the real successor-generated candidate. Observe the Portal entrypoint and byte preservation; add a foreign in-folder sentinel, remove safely while preserving it, and observe ordinary workspace behavior; separately exercise recovery/rollback. Never operate on resume04/resume05 or old /tmp receivers. Report direct template, provider and Wizard boundaries independently. Full Wizard activation is not implied by the direct/provider proof; if it remains part of another v3 row, retain that open outcome there rather than relabel it complete.
+- [x] **P3-T4 — Fresh and preserving retained public receivers — route: separately admitted qualification.** After T3 public readback, create new outside-checkout receivers from the actual public template, public dependencies and fresh caches: direct explicit opt-in and default-off; then the qualified provider-v2 route using its exact public descriptor and installed SDD >=2.1.0. Repeat the real project entrypoint and exact graph/lock checks. Before release, the full unchanged Fable/Vite/browser composition remains a coherent artifact gate; retain its evidence separately from this headless Portal runtime. For retained adoption, freshly instantiate the actual public pre-Portal 0.18.1 template into a new owned retained receiver, add authored source/data/skills, record the full inventory, then inventory/apply from the real successor-generated candidate. Observe the Portal entrypoint and byte preservation; add a foreign in-folder sentinel, remove safely while preserving it, and observe ordinary workspace behavior; separately exercise recovery/rollback. Never operate on resume04/resume05 or old /tmp receivers. Report direct template, provider and Wizard boundaries independently. Full Wizard activation is not implied by the direct/provider proof; if it remains part of another v3 row, retain that open outcome there rather than relabel it complete.
+
+### Actual public receiver qualification — 2026-10-10
+
+Two fresh public GETs independently authenticated Workspace 0.18.2 and the genuine
+pre-Portal 0.18.1 baseline. The public successor is 964,632 bytes, SHA256
+`496aad0e89496719bc543edc6ffbf829a82307862e630ba4e174e374ac11cc4e`,
+with exact protected `20c009bc` nuspec source and all 480 payload entries matching
+the original release, excluding only its feed signature. The new baseline acquisition
+matches the earlier public `0d9395b0` archive/source; neither local 0.18.1 candidate
+nor an earlier retained receiver was reused.
+
+**Direct public receiver.** Actual archive installation and two identically named
+player/lifecycle-none generations passed: omitted/default excludes Portal, explicit
+true delivers its exact nine files, and outside-Portal bytes match before build outputs.
+Independent canonical source, helper and committed lock checks passed. Public-only
+empty-cache locked restore established the unchanged seven-package graph and lock
+`7769c72f`; Release build and actual default/presentation/invalid entrypoints passed
+0/0/2. Actual assembly SHA256 is
+`368a6fc19f373b275aa3ef85b47e60946e6232f2d39b3b45eec9b032d5752e19`.
+The original first window stopped before installation because the private verifier
+snapshot omitted its implicit producer helper. Its failure remains preserved; the
+separately admitted fresh successor pinned the exact helper and passed.
+
+**Public retained adoption.** A new real public 0.18.1 player/lifecycle-none workspace
+was generated, with all 115 original files/modes recorded before adding the three
+authored source/data/skill sentinels. The sealed 118-file, 152-row inventory has SHA256
+`504dda8ddadacd719209ca32efb9c2588c970fb61edfe1c2ee943af62c2630e7`,
+tree `384b0a79`. Actual public 0.18.2 installation generated an external candidate;
+its projected helper is exact `cf88ae60`. Inventory/apply, preservation, public-only
+locked seven-package restore, Release build and 0/0/2 passed; assembly SHA256 is
+`41bf0d518d30f31bb2681ba664dd14a2370483c950f060e68999ab801d7bca70`.
+Removal and both recoveries passed, with both journals `rolled-back`. All 118 original
+files, 152 rows, modes, root mode and authored sentinels remain exact outside Portal.
+The foreign in-folder sentinel `3d44c3af` survives and nine managed files are absent.
+Known new Portal `bin`, `obj` and that sentinel remain; no recursive cleanup or
+whole-tree equality is claimed.
+
+**Ordinary workspace after recovery.** A separate fresh-cache public locked restore
+and actual `Server.Tests` run passed: 20 executed/passed, zero failures or skips.
+The real TRX SHA256 is `4924817b63d8992eae2a367465bc61ebdccae02d37f7f5de36773cc6a8beb2d0`.
+All original source/configuration/locks/modes, root mode and sentinels remain exact;
+both journals stay rolled back and the managed Portal payload stays absent.
+The 696 newly produced paths are recorded as outputs, not original-file changes.
+SDK remains 10.0.401. Actual generated test runtime configuration requests NETCore
+and ASP.NET 10.0.0; only the test stage uses `LatestPatch`, resolving the prechecked
+highest installed matching patch 10.0.12. Loaded testhost framework paths were not
+separately sampled. SDK identity and restore retain their original runtime controls.
+
+**Installed public provider.** Separately installed public SDD 2.1.0 invoked the
+unchanged `fable-game` descriptor, SHA256
+`7f28c3982e91ac5609b78f7e12e26bc8a511e0231492f712dcf6a2c0f4bc1da9`,
+with public `FS.GG.Workspace.Template::0.18.2`, product `Portal-Provider`, namespace
+`PortalProvider`, explicit Portal true and lifecycle none. Actual provider report and
+scaffold provenance record success/`providerInvoked`; its fresh resolved hive archive
+is the authenticated public `496aad0e` payload. No local-archive descriptor rewrite
+was used. Canonical/generated checks, unchanged seven-package lock, fresh public
+locked restore, Release build and 0/0/2 passed. Assembly SHA256 is
+`0ac89208e9b416e44f709487fe014fcc806750926a03aba63ef118128c3a7d1f`.
+All 52 installed-tool files remain unchanged. The earlier tool-identity window's wrong
+cache-path refusal is preserved separately from its qualified identity successor and
+this successful provider receiver; no scaffold retry occurred.
+
+Direct, retained and ordinary operations used CPUs 1/4 with 300-second work windows,
+30-second identity-bound cleanup, 1.5 GiB managed heaps and practical sampled 2 GiB RSS.
+Observed peaks were 438,910,976, 441,102,336 and 534,974,464 bytes respectively.
+No signals were needed; independent current LIVE and zombie group/session/known-identity
+censuses were empty. The provider's separate CPU 6 operation observed empty owned
+groups after all ten stages, with a 442,212,352-byte peak. Detached/transient descendant
+coverage remains unknown and sampling is not hard containment. Original resume04/05
+and all other held custody remain unchanged. These results complete scoped T4 public
+receivers and ordinary preservation acceptance, without a new performance run,
+Portal-to-Portal upgrade, global Wizard qualification or whole P3 closure.
 
 Later only: a second public Portal successor permits genuine Portal-to-Portal version-upgrade acceptance. Browser simulation/viewport, server authority integration, portal queries, cross-area collision/joints, hidden-solver rollback and cross-platform determinism remain unselected. Do not expand them while implementing these four milestones.
 
