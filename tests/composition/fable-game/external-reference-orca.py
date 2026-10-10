@@ -2,6 +2,7 @@
 """Actual external-reference Orca journey; --self-test runs only pure/static controls."""
 import argparse
 import copy
+import contextlib
 import hashlib
 import json
 import importlib.util
@@ -196,6 +197,62 @@ def cleanup(leader, known, child):
             "remaining": owned, "unknown": unknown + escaped, "signals": signals}
 
 
+@contextlib.contextmanager
+def capture_termination():
+    """Record cancellation without interrupting first-cause reporting or bounded cleanup."""
+    pending = []
+    previous = {sig: signal.getsignal(sig) for sig in [signal.SIGTERM, signal.SIGINT]}
+
+    def record(sig, _frame):
+        if not pending:
+            pending.append("original observer termination: " + signal.Signals(sig).name)
+
+    try:
+        for sig in previous:
+            signal.signal(sig, record)
+        yield pending
+    finally:
+        for sig, handler in previous.items():
+            signal.signal(sig, handler)
+
+
+def owned_server_listener(pid):
+    """Require port5100's listening inode in the original server's live fd population."""
+    sockets = set()
+    try:
+        descriptors = list(Path(f"/proc/{pid}/fd").iterdir())
+    except (FileNotFoundError, ProcessLookupError):
+        return False
+    for descriptor in descriptors:
+        try:
+            target = os.readlink(descriptor)
+        except (FileNotFoundError, ProcessLookupError):
+            continue
+        if target.startswith("socket:["):
+            sockets.add(target[8:-1])
+    return listener_matches(Path("/proc/net/tcp").read_text(), sockets)
+
+
+def listener_matches(tcp, sockets):
+    for row in tcp.splitlines()[1:]:
+        fields = row.split()
+        if fields[1] == "0100007F:13EC" and fields[3] == "0A" and fields[9] in sockets:
+            return True
+    return False
+
+
+def wait_server_ready(child, ready=owned_server_listener, clock=time.monotonic, pause=time.sleep):
+    """Observe one original startup for at most15s; never restart server or retry navigation."""
+    deadline = clock() + 15
+    while clock() < deadline:
+        code = child.poll()
+        require(code is None, "original server exited before readiness: " + str(code) + "; see server.log")
+        if ready(child.pid):
+            return
+        pause(.1)
+    raise RuntimeError("original owned server readiness deadline exceeded; see server.log")
+
+
 def inner(receiver, directory):
     # Private D-Bus, XDG settings, display, Pulse server and speech socket: no user-session replacement.
     os.environ.update(DISPLAY=":97", NO_AT_BRIDGE="0", GTK_MODULES="gail:atk-bridge",
@@ -248,7 +305,8 @@ def inner(receiver, directory):
     orca = launch(["/usr/bin/python3", str(Path(__file__).with_name("orca-faulthandler.py")), "--replace", "--debug",
                    "--debug-file=" + str(directory / "orca-debug.log")], "orca")
     time.sleep(3)
-    launch(["dotnet", "Server.dll", "--urls", "http://127.0.0.1:5100"], "server", receiver / "artifacts/authority-server")
+    server = launch(["dotnet", "Server.dll", "--urls", "http://127.0.0.1:5100"], "server", receiver / "artifacts/authority-server")
+    wait_server_ready(server)
     (directory / "browser.cjs").write_text(BROWSER)
     browser = launch(["node", str(directory / "browser.cjs"), str(receiver), str(directory / "browser-dom.json"), str(directory / "profile")], "browser")
     observe(directory, orca.pid, browser.pid)
@@ -363,7 +421,55 @@ def observe(directory, orca_pid, browser_pid):
           "browser": {"family": "chromium", "pid": actual_browser_pid, "launcherPid": browser_pid}, "actions": actions, "observations": observations})
 
 
-def qualify(out, preflight_path):
+def execute_session(receiver, directory, env, termination):
+    first = None
+    result = None
+    peak = 0
+    require(not termination, termination[0] if termination else "")
+    deadline = time.monotonic() + 300
+    with (directory / "session.log").open("xb") as log:
+        child = subprocess.Popen(["dbus-run-session", "--", "/usr/bin/python3", "-B", str(Path(__file__).resolve()),
+                                  "--inner", str(receiver), str(directory)], env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
+        leader = proc(child.pid)
+        if not leader or leader["sid"] != child.pid:
+            write(directory / "process-result.json", {"exit": child.poll(), "firstCause": "fresh AT session custody unavailable",
+                  "cleanup": {"disposition": "unknown", "unknown": [child.pid]}, "signals": [], "noRetry": True})
+            raise RuntimeError("fresh AT session custody unavailable; original identity observation required")
+        known = {child.pid: leader["start"]}
+        try:
+            while True:
+                require(not termination, termination[0] if termination else "")
+                child.poll()
+                owned, unknown, escaped = census(leader, known)
+                require(not unknown and not escaped, "AT custody uncertainty")
+                peak = max(peak, sum(row["rss"] for row in owned) + proc(os.getpid())["rss"])
+                require(peak <= 2 * 1024**3, "sampled AT RSS budget exceeded")
+                require(all(p.stat().st_size <= 4 * 1024**2 for p in directory.rglob("*.log")), "AT log budget exceeded")
+                require(time.monotonic() < deadline, "original five-minute AT deadline exceeded")
+                if child.poll() is not None:
+                    causal = directory / "inner-result.json"
+                    inner_cause = json.loads(causal.read_text()).get("firstCause") if causal.exists() else None
+                    require(child.returncode == 0, inner_cause or "first original AT exit " + str(child.returncode))
+                    break
+                time.sleep(.1)
+        except BaseException as ex:
+            first = str(ex)
+        finally:
+            try:
+                result = cleanup(leader, known, child)
+            except BaseException as ex:
+                result = {"disposition": "unknown", "unknown": ["cleanup observation failed"], "reportingError": str(ex)}
+            if first is None and termination:
+                first = termination[0]
+            write(directory / "process-result.json", {"leader": leader, "knownStarts": known, "exit": child.returncode,
+                  "firstCause": first, "termination": termination, "cleanup": result, "sampledPeakRss": peak,
+                  "limits": "100ms ancestry/RSS samples, no hard containment; detached unobserved descendants unknown"})
+    require(first is None, first)
+    require(result["disposition"] == "observed-empty", "AT cleanup incomplete")
+    return child.returncode, result
+
+
+def qualify(out, preflight_path, termination):
     packet_path = out / "qualification.json"
     packet = json.loads(packet_path.read_text())
     preflight = json.loads(preflight_path.read_text())
@@ -401,46 +507,7 @@ def qualify(out, preflight_path):
     metadata = out / "orca-host-packages.txt"
     require(metadata.is_file() and metadata.stat().st_size > 0, "actual installed AT package metadata unavailable")
     shutil.copyfile(metadata, directory / "host-packages.txt")
-    first = None
-    result = None
-    peak = 0
-    with (directory / "session.log").open("xb") as log:
-        child = subprocess.Popen(["dbus-run-session", "--", "/usr/bin/python3", "-B", str(Path(__file__).resolve()),
-                                  "--inner", str(receiver), str(directory)], env=env, stdout=log, stderr=subprocess.STDOUT, start_new_session=True)
-        leader = proc(child.pid)
-        if not leader or leader["sid"] != child.pid:
-            write(directory / "process-result.json", {"exit": child.poll(), "firstCause": "fresh AT session custody unavailable",
-                  "cleanup": {"disposition": "unknown", "unknown": [child.pid]}, "signals": [], "noRetry": True})
-            raise RuntimeError("fresh AT session custody unavailable; original identity observation required")
-        known = {child.pid: leader["start"]}
-        deadline = time.monotonic() + 300
-        try:
-            while True:
-                child.poll()
-                owned, unknown, escaped = census(leader, known)
-                require(not unknown and not escaped, "AT custody uncertainty")
-                peak = max(peak, sum(row["rss"] for row in owned) + proc(os.getpid())["rss"])
-                require(peak <= 2 * 1024**3, "sampled AT RSS budget exceeded")
-                require(all(p.stat().st_size <= 4 * 1024**2 for p in directory.rglob("*.log")), "AT log budget exceeded")
-                require(time.monotonic() < deadline, "original five-minute AT deadline exceeded")
-                if child.poll() is not None:
-                    causal = directory / "inner-result.json"
-                    inner_cause = json.loads(causal.read_text()).get("firstCause") if causal.exists() else None
-                    require(child.returncode == 0, inner_cause or "first original AT exit " + str(child.returncode))
-                    break
-                time.sleep(.1)
-        except BaseException as ex:
-            first = str(ex)
-        finally:
-            try:
-                result = cleanup(leader, known, child)
-            except BaseException as ex:
-                result = {"disposition": "unknown", "unknown": ["cleanup observation failed"], "reportingError": str(ex)}
-            write(directory / "process-result.json", {"leader": leader, "knownStarts": known, "exit": child.returncode,
-                  "firstCause": first, "cleanup": result, "sampledPeakRss": peak,
-                  "limits": "100ms ancestry/RSS samples, no hard containment; detached unobserved descendants unknown"})
-    require(first is None, first)
-    require(result["disposition"] == "observed-empty", "AT cleanup incomplete")
+    runtime_exit, result = execute_session(receiver, directory, env, termination)
     require(digest(receiver / "artifacts/authority-server/Server.dll") == served_digest, "served assembly input changed")
     journey = json.loads((directory / "journey.json").read_text())
     receipt = {"schema": SCHEMA, "result": "passed", "templates": packet["templates"], "caller": preflight["caller"],
@@ -452,10 +519,11 @@ def qualify(out, preflight_path):
         validate(receipt, packet, preflight, directory)
     except BaseException as ex:
         write(directory / "bind-result.json", {"exit": 1, "firstCause": type(ex).__name__ + ": " + str(ex),
-              "runtimeExit": child.returncode, "cleanup": result})
+              "runtimeExit": runtime_exit, "cleanup": result})
         raise
-    write(directory / "bind-result.json", {"exit": 0, "firstCause": None, "runtimeExit": child.returncode, "cleanup": result})
+    write(directory / "bind-result.json", {"exit": 0, "firstCause": None, "runtimeExit": runtime_exit, "cleanup": result})
     receipt["evidenceSha256"]["bind-result.json"] = digest(directory / "bind-result.json")
+    require(not termination, termination[0] if termination else "")
     write(directory / "observation.json", receipt)
     # Preserve the candidate result bytes: AT qualification is an additional independently bound receipt.
     print("PASS external-reference actual Orca keyboard/receipt journey; evidence=" + str(directory / "observation.json"))
@@ -566,7 +634,78 @@ def self_test():
             pass
         else:
             raise RuntimeError("unsafe AT workflow accepted")
+    supervision_self_test()
     print("PASS actual AT binder: good receipt, 25 refusal controls; 8 prerequisite refusals and workflow bad controls; no AT/browser launched")
+
+
+def supervision_self_test():
+    # Mocked signal registration exercises cancellation without signalling or launching a process.
+    from unittest.mock import patch
+    handlers = {}
+    previous = {signal.SIGTERM: "term-old", signal.SIGINT: "int-old"}
+    with patch.object(signal, "getsignal", side_effect=lambda sig: previous[sig]), patch.object(signal, "signal", side_effect=lambda sig, fn: handlers.update({sig: fn})):
+        with capture_termination() as pending:
+            handlers[signal.SIGTERM](signal.SIGTERM, None)
+            handlers[signal.SIGINT](signal.SIGINT, None)
+            require(pending == ["original observer termination: SIGTERM"], "termination first cause overwritten")
+        require(handlers == previous, "previous signal handlers not restored")
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary)
+        pending = []
+        class Child:
+            pid = 42
+            returncode = None
+            def poll(self):
+                return self.returncode
+        child = Child()
+        leader = {"pid": 42, "start": 1, "sid": 42, "rss": 100}
+        def observed(*_):
+            pending.append("original observer termination: SIGTERM")
+            return [], [], []
+        def cleaned(*_):
+            child.returncode = -15
+            return {"disposition": "observed-empty", "remaining": [], "unknown": [], "signals": []}
+        with patch.object(subprocess, "Popen", return_value=child), patch.dict(globals(), proc=lambda _: leader, census=observed), patch.object(time, "sleep"), patch.dict(globals(), cleanup=cleaned):
+            try:
+                execute_session(Path("unused-receiver"), directory, {}, pending)
+            except RuntimeError as ex:
+                require(str(ex) == "original observer termination: SIGTERM", "actual supervisor lost termination cause")
+            else:
+                raise RuntimeError("terminated supervisor accepted")
+        result = json.loads((directory / "process-result.json").read_text())
+        require(result["firstCause"] == pending[0] and result["cleanup"]["disposition"] == "observed-empty" and result["exit"] == -15,
+                "actual supervisor skipped original cleanup/result")
+    class Server:
+        pid = 42
+        def __init__(self, code=None):
+            self.code = code
+        def poll(self):
+            return self.code
+    tcp = "header\n0: 0100007F:13EC 00000000:0000 0A 0 0 0 0 0 123 0\n"
+    require(listener_matches(tcp, {"123"}), "owned listener refused")
+    for bad_tcp, sockets in [(tcp, {"999"}), (tcp.replace("13EC", "13ED"), {"123"}), (tcp.replace(" 0A ", " 01 "), {"123"})]:
+        require(not listener_matches(bad_tcp, sockets), "unowned/wrong-port/nonlistening socket accepted")
+    ticks = [0]
+    probes = []
+    def clock():
+        return ticks[0]
+    def pause(_):
+        ticks[0] += 1
+    def ready(pid):
+        probes.append(pid)
+        return len(probes) == 3
+    wait_server_ready(Server(), ready, clock, pause)
+    require(probes == [42, 42, 42], "startup observation changed original server")
+    for child, predicate, message in [(Server(17), lambda _: (_ for _ in ()).throw(RuntimeError("unexpected probe")), "original server exited before readiness: 17"),
+                                       (Server(), lambda _: False, "original owned server readiness deadline exceeded")]:
+        ticks[0] = 0
+        try:
+            wait_server_ready(child, predicate, clock, pause)
+        except RuntimeError as ex:
+            require(message in str(ex), "readiness first cause lost")
+        else:
+            raise RuntimeError("failed/timeout original startup accepted")
+    print("PASS supervision controls: original startup ready/dead/deadline; SIGTERM first cause, cleanup and handler restoration mocked; SIGKILL remains unobservable")
 
 
 def workflow_guard(workflow):
@@ -597,7 +736,8 @@ def main():
             raise
     else:
         require(args.first and args.second, "candidate directory and authenticated preflight required")
-        qualify(Path(args.first).resolve(), Path(args.second).resolve())
+        with capture_termination() as termination:
+            qualify(Path(args.first).resolve(), Path(args.second).resolve(), termination)
 
 
 if __name__ == "__main__":
