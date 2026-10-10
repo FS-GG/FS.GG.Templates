@@ -521,7 +521,27 @@ def service_first_cause(directory, fallback="prior required AT service exited"):
 
 def required_children(children, directory):
     for child in children:
-        if child.poll() is not None:
+        code = child.poll()
+        if code is not None:
+            leaders_path = directory / "resource-leaders.json"
+            leaders = json.loads(leaders_path.read_text()) if leaders_path.exists() else []
+            role = next((v["resource"] for v in leaders if v["pid"] == getattr(child, "pid", None)), None)
+            if role == "browser":
+                raise RuntimeError("original Chrome exited before journey completion: "+str(code))
+            if role == "browser-companion":
+                failure = directory / "browser-companion-failure.json"
+                if failure.exists():
+                    packet = completion_record(failure)
+                    require(any(v["resource"] == role and same_birth(packet["birth"], v) for v in leaders),
+                            "browser failure child identity changed")
+                    raise RuntimeError(packet["firstCause"])
+                log = directory / "browser-companion.log"
+                if log.exists() and log.stat().st_size <= 4*1024**2:
+                    causes = [line.split("BROWSER_COMPANION_FIRST_CAUSE ", 1)[1] for line in log.read_text(errors="replace").splitlines()
+                              if line.startswith("BROWSER_COMPANION_FIRST_CAUSE ")]
+                    if causes:
+                        raise RuntimeError(causes[0])
+                raise RuntimeError("original browser companion exited: "+str(code)+"; specific cause unavailable")
             raise RuntimeError(service_first_cause(directory))
 
 
@@ -1005,6 +1025,7 @@ def route_evidence(directory, packet, receipt):
             all(chain[n]["ppid"] == chain[n+1]["pid"] and chain[n]["sid"] == chain[n+1]["sid"] for n in range(len(chain)-1)) and
             any(v["resource"] == "browser" and same_birth(chain[-1], v) for v in leaders),
             "browser mapping not joined to registered launcher ancestry")
+    browser_evidence(directory, receipt, runtime, leaders)
     return True
 
 
@@ -1050,7 +1071,7 @@ def validate(receipt, packet, preflight, directory):
     activation = json.loads((directory / "activation-provenance.json").read_text())
     route_metadata(activation)
     for name in ["owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf",
-                 "session-contract-state.json", "session-budget.json", "journey.json", *FINISH_FILES]:
+                 "session-contract-state.json", "session-budget.json", "journey.json", *FINISH_FILES, *BROWSER_FILES]:
         require(name in receipt["evidenceSha256"], "owned private route evidence unbound")
     route_evidence(directory, activation, receipt)
     sequences = [e["eventSequence"] for e in receipt["actions"]]
@@ -1092,31 +1113,166 @@ def validate(receipt, packet, preflight, directory):
 
 # The browser companion only records actual state/focus/keys. It never invokes a command.
 BROWSER = r'''
-const fs=require('node:fs'),path=require('node:path');
-const [receiver,out,profile]=process.argv.slice(2);
-const {chromium}=require(path.join(receiver,'Browser.Tests/node_modules/@playwright/test'));
-(async()=>{
- const context=await chromium.launchPersistentContext(profile,{headless:false,args:['--force-renderer-accessibility','--no-sandbox']});
- const page=context.pages()[0]??await context.newPage();
- await page.addInitScript(()=>{window.__externalKeys=[];window.__externalKeySequence=0;document.addEventListener('keydown',e=>{
-  window.__externalKeys.push({sequence:++window.__externalKeySequence,key:e.key,text:e.target.textContent?.trim(),id:e.target.id,parentId:e.target.parentElement?.id});
-  window.__externalKeys=window.__externalKeys.slice(-128);
- },true)});
- await page.goto('http://127.0.0.1:5100/');
- await page.getByRole('button',{name:'Mount external authority reference',exact:true}).waitFor();
- let sequence=0,stopping=false;
- async function sample(){if(stopping)return;const value=await page.evaluate(()=>{
-  const root=document.querySelector('#external-authority-reference'),active=document.activeElement;
-  return {documentHasFocus:document.hasFocus(),active:{text:active?.textContent?.trim(),id:active?.id,parentId:active?.parentElement?.id},
-   reference:root?{...Object.fromEntries([...root.attributes].filter(a=>a.name.startsWith('data-')).map(a=>[a.name.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase()),a.value])),
-     rootCount:document.querySelectorAll('#external-authority-reference').length,statusCount:root.querySelectorAll(':scope > [role="status"]').length,
-     status:root.querySelector(':scope > [role="status"]')?.textContent,
-     directButtons:[...root.querySelectorAll(':scope > button')].map(b=>b.textContent)}:null,keys:window.__externalKeys};
- });fs.writeFileSync(out+'.tmp',JSON.stringify({sequence:++sequence,at:Date.now(),...value}));fs.renameSync(out+'.tmp',out);}
- await sample();const timer=setInterval(()=>sample().catch(e=>{console.error(e);process.exit(1)}),100);
- const stop=async()=>{if(stopping)return;stopping=true;clearInterval(timer);await context.close();process.exit(0)};
- process.on('SIGTERM',stop);process.on('SIGINT',stop);await new Promise(()=>{});
-})().catch(e=>{console.error(e);process.exit(1)});
+'use strict';
+const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto');
+const SCHEMA='fsgg.at-owned-chromium-cdp/1',CAP=4*1024*1024;
+function demand(ok,message){if(!ok)throw Error(message)}
+const hash=raw=>crypto.createHash('sha256').update(raw).digest('hex');
+function deadlineFromBudget(remaining,issued,now=Date.now,clock=()=>performance.now()){
+ const elapsed=now()-issued;
+ demand(Number.isFinite(remaining)&&remaining>0&&Number.isFinite(issued)&&elapsed>=0&&elapsed<remaining,'original companion deadline expired or clock moved');
+ return clock()+remaining-elapsed;
+}
+function endpointIdentity(value){
+ demand(typeof value==='string'&&/^ws:\/\/127\.0\.0\.1:[1-9][0-9]{0,4}\/devtools\/browser\/[A-Za-z0-9-]+$/.test(value),'CDP endpoint identity invalid');
+ demand(new URL(value).port&&Number(new URL(value).port)<=65535,'CDP endpoint port invalid');return value;
+}
+function transportAdapter(endpoint,{Socket=globalThis.WebSocket,deadline,clock=()=>performance.now(),timers={set:setTimeout,clear:clearTimeout},failure=()=>{}}){
+ endpointIdentity(endpoint);demand(typeof Socket==='function','selected Node WebSocket unavailable');
+ let socket,opened=false,closing=false,closed=false,first=null,callback,queued=[],queuedBytes=0,closeCallback;
+ let resolveOpen,rejectOpen,resolveClose;const ready=new Promise((resolve,reject)=>{resolveOpen=resolve;rejectOpen=reject});
+ const done=new Promise(resolve=>resolveClose=resolve);let timer;
+ function finish(reason){if(closed)return;closed=true;timers.clear(timer);resolveClose();if(closeCallback)closeCallback(reason)}
+ function refuse(message,kind='active-failure'){if(first)return;first=message;failure(message,kind);rejectOpen(Error(message));closing=true;try{socket?.close()}catch{}finish(message)}
+ function remaining(){const n=deadline-clock();demand(Number.isFinite(n)&&n>0,'original companion deadline expired');return n}
+ const transport={
+  ready,done,
+  get firstCause(){return first},
+  send(message){try{
+   remaining();demand(!closing&&!closed&&message&&typeof message==='object'&&!Array.isArray(message),'CDP send state or object invalid');
+   demand(message.method!=='Browser.close'&&message.method!=='Emulation.setFocusEmulationEnabled','CDP authority-changing command refused');
+   const body=JSON.stringify(message),size=Buffer.byteLength(body);demand(size<=CAP,'CDP outgoing message oversized');
+   if(opened){demand(socket.bufferedAmount+size<=CAP,'CDP socket buffer exceeded');socket.send(body)}
+   else{demand(queuedBytes+size<=CAP,'CDP pending buffer exceeded');queued.push(body);queuedBytes+=size}
+  }catch(error){refuse(error.message);throw error}},
+  close(){if(closing||closed)return;closing=true;queued=[];queuedBytes=0;timers.clear(timer);timer=timers.set(()=>refuse('CDP close deadline'),Math.min(1000,Math.max(0,deadline-clock())));try{socket.close()}catch(error){refuse('CDP close failed: '+error.message)}},
+  get onmessage(){return callback},set onmessage(value){demand(value===undefined||typeof value==='function','CDP message callback invalid');callback=value},
+  get onclose(){return closeCallback},set onclose(value){demand(value===undefined||typeof value==='function','CDP close callback invalid');closeCallback=value;if(closed&&value)value(first||'CDP transport closed')}
+ };
+ try{
+  const ms=remaining();timer=timers.set(()=>refuse(closing?'CDP close deadline':'original companion deadline expired'),ms);
+  // Node26.10's authenticated built-in WebSocket handshake uses redirect:error; no URL-overload fallback.
+  socket=new Socket(endpoint);socket.binaryType='arraybuffer';
+  socket.addEventListener('open',()=>{if(closing||closed)return;try{remaining();opened=true;for(const body of queued){demand(socket.bufferedAmount+Buffer.byteLength(body)<=CAP,'CDP socket buffer exceeded');socket.send(body)}queued=[];queuedBytes=0;resolveOpen()}catch(error){refuse(error.message)}});
+  socket.addEventListener('message',event=>{try{
+   remaining();demand(opened&&!closing&&!closed&&typeof event.data==='string','CDP message state or text invalid');
+   demand(Buffer.byteLength(event.data)<=CAP,'CDP incoming message oversized');const value=JSON.parse(event.data);
+   demand(value&&typeof value==='object'&&!Array.isArray(value)&&(Number.isInteger(value.id)||typeof value.method==='string'),'CDP message object malformed');
+   demand(typeof callback==='function','unsolicited CDP message before attachment');callback(value);
+  }catch(error){refuse(error.message)}});
+  socket.addEventListener('error',()=>refuse('CDP handshake or transport error (redirect/non101 refused)','transport-error'));
+  socket.addEventListener('close',()=>{if(!closing)refuse('CDP transport closed before completion','transport-close');else finish(first)});
+ }catch(error){refuse(error.message)}
+ return transport;
+}
+function readBirth(pid){
+ const raw=fs.readFileSync('/proc/'+pid+'/stat','utf8'),a=raw.slice(raw.lastIndexOf(')')+2).split(/\s+/);
+ return {pid,start:Number(a[19]),ppid:Number(a[1]),pgid:Number(a[2]),sid:Number(a[3])};
+}
+function sameBirth(a,b){return ['pid','start','ppid','pgid','sid'].every(k=>a[k]===b[k])}
+function atomic(file,value){fs.writeFileSync(file+'.tmp',JSON.stringify(value),{flag:'wx',mode:0o600});fs.renameSync(file+'.tmp',file)}
+function readInnerResult(file){const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);try{const stat=fs.fstatSync(fd);demand(stat.isFile()&&stat.size<=65536,'inner result marker invalid');return fs.readFileSync(fd)}finally{fs.closeSync(fd)}}
+function captureInnerResultDigest(file,read=readInnerResult){try{const raw=read(file);return raw.length<=65536?hash(raw):null}catch{return null}}
+function realKeyRecorder(){window.__externalKeys=[];window.__externalKeySequence=0;document.addEventListener('keydown',e=>{if(!e.isTrusted)return;
+   window.__externalKeys.push({sequence:++window.__externalKeySequence,key:e.key,text:e.target.textContent?.trim(),id:e.target.id,parentId:e.target.parentElement?.id});window.__externalKeys=window.__externalKeys.slice(-128);
+  },true)}
+async function drainSample(pending,{deadline,clock=()=>performance.now(),timers={set:setTimeout,clear:clearTimeout}}){
+ if(!pending)return;const left=Math.min(1000,deadline-clock());demand(left>0,'original sample drain deadline expired');let timer;
+ try{await Promise.race([pending,new Promise((_,reject)=>{timer=timers.set(()=>reject(Error('original sample drain unresolved')),left)})])}finally{timers.clear(timer)}
+}
+async function attachOwnedPage(chromium,transport,remaining,artifactsDir){
+  demand(typeof artifactsDir==='string'&&path.isAbsolute(artifactsDir),'private artifacts directory absent');
+  const browserConnection=await chromium.connectOverCDP(transport,{noDefaults:true,timeout:remaining(),artifactsDir});
+  const contexts=browserConnection.contexts();demand(contexts.length===1,'CDP default context missing or ambiguous');
+  const context=contexts[0];context.setDefaultTimeout(remaining());context.setDefaultNavigationTimeout(remaining());
+  const pages=context.pages();demand(pages.length===1&&pages[0].url()==='about:blank','CDP initial page missing or ambiguous');const page=pages[0];
+  await page.addInitScript(realKeyRecorder);remaining();
+  await page.goto('http://127.0.0.1:5100/',{timeout:remaining()});
+  await page.getByRole('button',{name:'Mount external authority reference',exact:true}).waitFor({timeout:remaining()});
+ return page;
+}
+async function runCompanion(argv,{getChromium,Socket,clock=()=>performance.now(),now=Date.now}={}){
+ demand(process.version==='v26.10.0','selected Node runtime differs');
+ const [receiver,out,launchPath,remainingText,issuedText]=argv,started=clock();
+ const raw=fs.readFileSync(launchPath);demand(raw.length<=65536,'browser launch evidence oversized');const launch=JSON.parse(raw);
+ demand(launch.schema===SCHEMA&&launch.companionSourceSha256===hash(fs.readFileSync(__filename)),'browser companion source changed');
+ const deadline=deadlineFromBudget(Number(remainingText),Number(issuedText),now,clock),left=()=>{const n=deadline-clock();demand(n>0,'original companion deadline expired');return n};
+ const birth=readBirth(process.pid),browser=readBirth(launch.browserBirth.pid);
+ demand(sameBirth(browser,launch.browserBirth)&&birth.ppid===browser.ppid&&birth.sid===browser.sid&&birth.pgid===browser.pgid,'companion/browser original custody differs');
+ const profile=fs.lstatSync(launch.profile.path);demand(profile.isDirectory()&&!profile.isSymbolicLink()&&profile.dev===launch.profile.device&&profile.ino===launch.profile.inode&&profile.uid===launch.profile.uid,'companion profile changed');
+ const endpointFile=path.join(launch.profile.path,'DevToolsActivePort'),endpointStat=fs.lstatSync(endpointFile),endpointRaw=fs.readFileSync(endpointFile);
+ demand(endpointStat.isFile()&&!endpointStat.isSymbolicLink()&&endpointStat.dev===launch.endpoint.file.device&&endpointStat.ino===launch.endpoint.file.inode&&endpointRaw.length===launch.endpoint.file.bytes&&hash(endpointRaw)===launch.endpoint.file.sha256,'companion endpoint file changed');
+ const endpoint=endpointIdentity(launch.endpoint.endpoint);let stopping=false,first=null,timer,transport;
+ const fail=(message,kind='active-failure')=>{if(first)return;first=message;const innerResultSha256AtFailure=captureInnerResultDigest(path.join(path.dirname(out),'inner-result.json'));try{atomic(path.join(path.dirname(out),'browser-companion-failure.json'),{schema:SCHEMA,birth,firstCause:message,kind,launchSha256:hash(raw),innerResultSha256AtFailure})}catch(report){console.error('BROWSER_COMPANION_REPORT_FAILURE '+report.message)}console.error('BROWSER_COMPANION_FIRST_CAUSE '+message)};
+ transport=transportAdapter(endpoint,{Socket,deadline,clock,failure:fail});
+ try{
+  await transport.ready;left();
+  const chromium=getChromium?getChromium():require(path.join(receiver,'Browser.Tests/node_modules/@playwright/test')).chromium;
+  const page=await attachOwnedPage(chromium,transport,left,path.dirname(out));
+  let sequence=0,sampling=false,pendingSample=null;
+  async function sample(){if(stopping||sampling)return;sampling=true;try{left();demand(sameBirth(readBirth(browser.pid),browser),'original browser birth changed during sampling');const value=await page.evaluate(()=>{
+   const root=document.querySelector('#external-authority-reference'),active=document.activeElement;
+   return {documentHasFocus:document.hasFocus(),active:{text:active?.textContent?.trim(),id:active?.id,parentId:active?.parentElement?.id},reference:root?{...Object.fromEntries([...root.attributes].filter(a=>a.name.startsWith('data-')).map(a=>[a.name.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase()),a.value])),rootCount:document.querySelectorAll('#external-authority-reference').length,statusCount:root.querySelectorAll(':scope > [role="status"]').length,status:root.querySelector(':scope > [role="status"]')?.textContent,directButtons:[...root.querySelectorAll(':scope > button')].map(b=>b.textContent)}:null,keys:window.__externalKeys};
+  });left();atomic(out,{sequence:++sequence,at:now(),...value})}finally{sampling=false}}
+  await sample();demand(page.url()==='http://127.0.0.1:5100/','owned server navigation changed');
+  atomic(path.join(path.dirname(out),'browser-companion-ready.json'),{schema:SCHEMA,launchSha256:hash(raw),browserBirth:browser,companionBirth:birth,endpoint,profile:launch.profile,sourceSha256:hash(fs.readFileSync(__filename)),noDefaults:true,contexts:1,initialPages:1,initialURL:'about:blank',pageURL:page.url(),sampleSequence:sequence,setupMilliseconds:clock()-started});
+  timer=setInterval(()=>{if(stopping||sampling)return;pendingSample=sample();pendingSample.catch(error=>{fail(error.message);transport.close();process.exitCode=1})},100);
+  const stop=async()=>{if(stopping)return;stopping=true;clearInterval(timer);await drainSample(pendingSample,{deadline,clock});transport.close();await transport.done;process.exit(first?1:0)};
+  process.on('SIGTERM',()=>stop().catch(error=>{fail(error.message);process.exit(1)}));process.on('SIGINT',()=>stop().catch(error=>{fail(error.message);process.exit(1)}));
+  await transport.done;
+  if(!stopping)throw Error(transport.firstCause||'CDP disconnected before cleanup');
+ }catch(error){fail(error.message);clearInterval(timer);transport.close();throw error}
+}
+async function adapterSelfTest(){
+ demand(process.version==='v26.10.0','selected inert Node runtime differs');
+ const checked=[];function caseName(name,work){work();checked.push(name)}
+ function refused(work){let caught=false;try{work()}catch{caught=true}demand(caught,'invalid adapter state accepted')}
+ class FakeSocket{
+  static all=[];constructor(url){this.url=url;this.listeners={};this.sent=[];this.bufferedAmount=0;this.closeCalls=0;FakeSocket.all.push(this)}
+  addEventListener(name,fn){this.listeners[name]=fn}send(body){this.sent.push(body)}close(){this.closeCalls++;this.listeners.close?.({})}emit(name,value={}){this.listeners[name]?.(value)}
+ }
+ const endpoint='ws://127.0.0.1:1234/devtools/browser/fixture';let callbacks=[];
+ function fixture(){callbacks=[];const failures=[],transport=transportAdapter(endpoint,{Socket:FakeSocket,deadline:100,clock:()=>0,timers:{set:fn=>{callbacks.push(fn);return 1},clear:()=>{}},failure:(message,kind)=>failures.push({message,kind})});transport.ready.catch(()=>{});return {transport,socket:FakeSocket.all.at(-1),failures}}
+ caseName('adapter-event-captures-existing-success-bytes',()=>{const raw=Buffer.from('{"exit":0}');demand(captureInnerResultDigest('/private/result',()=>raw)===hash(raw),'event marker digest drift')});
+ caseName('adapter-event-missing-marker-unknown',()=>demand(captureInnerResultDigest('/private/result',()=>{throw Error('absent')})===null,'missing marker became success'));
+ caseName('adapter-event-oversized-marker-unknown',()=>demand(captureInnerResultDigest('/private/result',()=>Buffer.alloc(65537))===null,'oversized marker became success'));
+ caseName('adapter-budget-subtracts-setup',()=>demand(deadlineFromBudget(100,1000,()=>1030,()=>50)===120,'setup time borrowed'));
+ for(const [name,remaining,issued,now] of [['expired',10,1000,1010],['backward-clock',10,1000,999],['nonfinite',NaN,1000,1000]])caseName('adapter-budget-'+name,()=>refused(()=>deadlineFromBudget(remaining,issued,()=>now,()=>0)));
+ for(const value of ['ws://localhost:1234/devtools/browser/a','wss://127.0.0.1:1234/devtools/browser/a','ws://127.0.0.1:65536/devtools/browser/a','ws://127.0.0.1:1234/devtools/browser/a?redirect=x'])caseName('adapter-endpoint-refusal-'+checked.length,()=>refused(()=>endpointIdentity(value)));
+ caseName('adapter-success-object-forwarding',()=>{const {transport,socket}=fixture();let seen;transport.onmessage=value=>seen=value;transport.send({id:1,method:'Browser.getVersion'});socket.emit('open');socket.emit('message',{data:'{"id":1,"result":{}}'});demand(socket.sent.length===1&&seen.id===1,'adapter forwarding drift');transport.close()});
+ for(const event of ['error','close'])caseName('adapter-'+event+'-no-reconnect',()=>{const before=FakeSocket.all.length,{transport,socket,failures}=fixture();socket.emit(event);demand(failures.length===1&&failures[0].kind==='transport-'+event&&transport.firstCause&&FakeSocket.all.length===before+1,'first cause or one socket drift')});
+ for(const [name,data] of [['invalid-json','{'],['array','[]'],['binary',new ArrayBuffer(2)],['oversized','x'.repeat(CAP+1)],['missing-id-method','{}']])caseName('adapter-message-'+name,()=>{const {socket,failures}=fixture();socket.emit('open');socket.emit('message',{data});demand(failures.length===1&&failures[0].kind==='active-failure','invalid CDP message forwarded')});
+ caseName('adapter-expired-timer',()=>{const {transport,failures}=fixture();callbacks[0]();demand(failures.length===1&&transport.firstCause.includes('deadline'),'deadline first cause drift')});
+ caseName('adapter-close-idempotent-no-browser-close',()=>{const {transport,socket}=fixture();socket.emit('open');transport.close();transport.close();demand(socket.closeCalls===1&&socket.sent.length===0,'transport close used browser command')});
+ for(const method of ['Browser.close','Emulation.setFocusEmulationEnabled'])caseName('adapter-forbidden-'+method,()=>{const {transport}=fixture();refused(()=>transport.send({id:1,method}))});
+ caseName('adapter-public-callback-clear',()=>{const {transport,socket}=fixture();transport.onmessage=()=>{};transport.onclose=()=>{};transport.onmessage=undefined;transport.onclose=undefined;socket.emit('open');transport.close();demand(socket.closeCalls===1,'callback removal broke close')});
+ caseName('adapter-outgoing-cap',()=>{const {transport}=fixture();refused(()=>transport.send({id:1,method:'test',data:'x'.repeat(CAP)}))});
+ caseName('adapter-unsolicited-before-attachment',()=>{const {socket,failures}=fixture();socket.emit('open');socket.emit('message',{data:'{"method":"test"}'});demand(failures.length===1,'unsolicited message accepted')});
+ caseName('adapter-real-key-recorder-observes-trusted-only',()=>{
+  const previousWindow=globalThis.window,previousDocument=globalThis.document;let listener;
+  try{globalThis.window={};globalThis.document={addEventListener:(name,callback,capture)=>{demand(name==='keydown'&&capture===true,'key boundary drift');listener=callback}};
+   realKeyRecorder();const event={key:'Return',target:{textContent:'actual control',id:'id',parentElement:{id:'parent'}}};listener({...event,isTrusted:false});demand(window.__externalKeys.length===0,'synthetic keyboard accepted');listener({...event,isTrusted:true});demand(window.__externalKeys.length===1&&window.__externalKeys[0].sequence===1,'trusted key not observed');
+  }finally{globalThis.window=previousWindow;globalThis.document=previousDocument}
+ });
+ const trace=[];
+ function model(contextCount=1,pageCount=1,url='about:blank'){
+  const page={url:()=>url,addInitScript:async()=>trace.push('instrument'),goto:async(target,options)=>{demand(options.timeout>0,'navigation unbounded');trace.push('navigate');url=target},getByRole:()=>({waitFor:async options=>{demand(options.timeout>0,'readiness unbounded');trace.push('ready')}})};
+  const context={setDefaultTimeout:value=>demand(value>0,'default timeout unbounded'),setDefaultNavigationTimeout:value=>demand(value>0,'navigation timeout unbounded'),pages:()=>Array(pageCount).fill(page)};
+  const chromium={connectOverCDP:async(value,options)=>{demand(typeof value==='object'&&value.send&&options.noDefaults===true&&options.timeout>0&&options.artifactsDir==='/private/fixture','public transport/defaults drift');trace.push('attach');return {contexts:()=>Array(contextCount).fill(context),close:()=>{throw Error('Browser.close must not run')}}}};
+  return chromium;
+ }
+ await drainSample(Promise.resolve(),{deadline:100,clock:()=>0,timers:{set:()=>1,clear:()=>{}}});checked.push('adapter-inflight-sample-drained-before-local-close');
+ for(const [name,pending,deadline] of [['sample-rejected',Promise.reject(Error('original sample failure')),100],['sample-deadline',Promise.resolve(),0]]){let caught=false;try{await drainSample(pending,{deadline,clock:()=>0,timers:{set:()=>1,clear:()=>{}}})}catch{caught=true}demand(caught,'sample drain uncertainty accepted');checked.push('adapter-'+name)}
+ let expire;const unresolved=drainSample(new Promise(()=>{}),{deadline:100,clock:()=>0,timers:{set:fn=>{expire=fn;return 1},clear:()=>{}}});expire();let expired=false;try{await unresolved}catch{expired=true}demand(expired,'pending sample drain accepted');checked.push('adapter-sample-drain-unresolved');
+ const good=fixture();await attachOwnedPage(model(),good.transport,()=>100,'/private/fixture');checked.push('adapter-public-transport-noDefaults-observational-order');demand(trace.join(',')==='attach,instrument,navigate,ready','instrumentation/navigation order drift');good.transport.close();
+ for(const [name,contexts,pages,url] of [['missing-context',0,1,'about:blank'],['extra-context',2,1,'about:blank'],['missing-page',1,0,'about:blank'],['extra-page',1,2,'about:blank'],['wrong-page',1,1,'http://foreign/']]){
+  trace.length=0;const f=fixture();let failed=false;try{await attachOwnedPage(model(contexts,pages,url),f.transport,()=>100,'/private/fixture')}catch{failed=true}demand(failed&&!trace.includes('navigate'),'invalid context/page released navigation');f.transport.close();checked.push('adapter-'+name);
+ }
+ console.log(JSON.stringify({schema:'fsgg.at-browser-adapter-controls/1',names:checked,count:checked.length,network:0,browserLaunches:0}));return checked;
+}
+module.exports={drainSample,attachOwnedPage,transportAdapter,deadlineFromBudget,endpointIdentity,runCompanion,adapterSelfTest};
+if(require.main===module){(process.argv[2]==='--self-test'?adapterSelfTest():runCompanion(process.argv.slice(2))).catch(error=>{console.error('BROWSER_COMPANION_FIRST_CAUSE '+error.message);process.exitCode=1})}
+
 '''
 
 
@@ -1230,6 +1386,347 @@ def wait_server_ready(child, ready=owned_server_listener, clock=time.monotonic, 
     raise RuntimeError("original owned server readiness deadline exceeded; see server.log")
 
 
+# Exact locked Playwright1.63.0 headed defaults; no private API evaluation.
+BROWSER_LOCK_SHA = 'f5ed53b9ee86e12f3053e0378fcd1c6d65e925e86792bd3cd82466141c49e67a'
+BROWSER_LOCK_GRAPH_SHA = '9783d542fb830f416767cb168e6454318ae9483e50e04fbdc63e83b19b0ba245'
+BROWSER_PACKAGE_SHA = 'f061c58427e47e843e26d201f0a57076c734e57c734ecbbd87d4a23b7a20db9b'
+BROWSER_CORE_SHA = '549070af3acabb3efcc4f55bfe6210f9f7c2fcf633cf7eaa59bfe60719969171'
+BROWSER_REGISTRY_SHA = '545d52f8382c391e605562c330e9c1c534a16045898203037a49bb8bd769a946'
+BROWSER_PLAYWRIGHT_SOURCE_SHA = '208593d4e1bcd8f8fe5f869cad1cc332dc7f1d70dc1d58c102dc3ac36e30f26c'
+BROWSER_NODE_SOURCE = '151845ab90d3926ceb36eedf1eade09619c3adc9'
+BROWSER_SCHEMA = 'fsgg.at-owned-chromium-cdp/1'
+BROWSER_FLAGS = ['--disable-field-trial-config', '--disable-background-networking', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-back-forward-cache', '--disable-breakpad', '--disable-client-side-phishing-detection', '--disable-component-extensions-with-background-pages', '--disable-component-update', '--no-default-browser-check', '--disable-default-apps', '--disable-dev-shm-usage', '--disable-edgeupdater', '--disable-extensions', '--disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,BlockOriginHeaderModificationOnRedirect,Translate,AutoDeElevate,OptimizationHints,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion', '--enable-features=CDPScreenshotNewSurface', '--allow-pre-commit-input', '--disable-hang-monitor', '--disable-ipc-flooding-protection', '--disable-popup-blocking', '--disable-prompt-on-repost', '--disable-renderer-backgrounding', '--disable-updater-scheduler', '--force-color-profile=srgb', '--metrics-recording-only', '--no-first-run', '--password-store=basic', '--use-mock-keychain', '--no-service-autorun', '--export-tagged-pdf', '--disable-search-engine-choice-screen', '--unsafely-disable-devtools-self-xss-warnings', '--edge-skip-compat-layer-relaunch', '--disable-infobars', '--disable-search-engine-choice-screen', '--disable-sync', '--enable-unsafe-swiftshader', '--no-sandbox', '--force-renderer-accessibility']
+BROWSER_FILES = ['browser-launch.json', 'browser-companion-ready.json', 'browser.cjs', 'tool-identities.json', 'inner-result.json', 'browser-companion.log']
+BROWSER_RESOLVER = r"const fs=require('node:fs'),path=require('node:path');const root=process.argv[1];const {chromium}=require(path.join(root,'Browser.Tests/node_modules/@playwright/test'));console.log(JSON.stringify({path:chromium.executablePath()}));"
+
+
+def browser_profile_identity(profile):
+    require(not profile.is_symlink() and profile.is_dir() and profile.resolve() == profile.absolute(),
+            'browser profile linked or missing')
+    value = profile.stat()
+    require(stat.S_IMODE(value.st_mode) == 0o700 and value.st_uid == os.getuid(), 'browser profile not privately owned')
+    return {'path': str(profile), 'device': value.st_dev, 'inode': value.st_ino, 'uid': value.st_uid}
+
+
+def fresh_browser_profile(profile):
+    require(not profile.exists() and not profile.is_symlink(), 'browser profile already used')
+    profile.mkdir(mode=0o700)
+    return browser_profile_identity(profile)
+
+
+def browser_argv(executable, profile):
+    return [executable, *BROWSER_FLAGS, '--user-data-dir='+str(profile), '--remote-debugging-port=0', 'about:blank']
+
+
+def check_node_tool(directory):
+    selected = json.loads((directory / 'tool-identities.json').read_text())['node']
+    require(shutil.which('node') == selected['path'] and digest(Path(selected['path']).resolve()) == selected['sha256'],
+            'original Node executable changed')
+    return selected
+
+
+def browser_dependency_lock(dependencies):
+    lock_path = dependencies / 'package-lock.json'
+    package_path = dependencies / 'package.json'
+    for path in [lock_path, package_path]:
+        require(not path.is_symlink() and path.is_file() and path.stat().st_size <= 1048576,
+                'browser dependency metadata missing, linked or oversized')
+    lock = completion_record(lock_path)
+    package = completion_record(package_path)
+    require(package.get('devDependencies', {}) == lock['packages'][''].get('devDependencies', {}) and
+            package.get('dependencies', {}) == lock['packages'][''].get('dependencies', {}), 'generated package dependency declarations changed')
+    name = package['name']
+    require(isinstance(name, str) and name and lock['name'] == lock['packages']['']['name'] == name,
+            'generated browser package name mismatch')
+    # Only the template engine's root project-name projection is excluded; every dependency byte/value remains bound.
+    lock['name'] = lock['packages']['']['name'] = 'fablegameworkspace-browser-tests'
+    graph = hashlib.sha256(json.dumps(lock, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+    require(graph == BROWSER_LOCK_GRAPH_SHA, 'locked browser dependency graph changed')
+    return {'actualLockSha256': digest(lock_path), 'dependencyGraphSha256': graph, 'generatedPackageName': name}
+
+
+def resolve_browser(receiver, deadline, run=None, clock=None, directory=None):
+    clock = time.monotonic if clock is None else clock
+    run = subprocess.run if run is None else run
+    dependencies = receiver / 'Browser.Tests'
+    core = dependencies / 'node_modules/playwright-core'
+    lock_identity = browser_dependency_lock(dependencies)
+    require(digest(core / 'package.json') == BROWSER_PACKAGE_SHA and digest(core / 'browsers.json') == BROWSER_REGISTRY_SHA and
+            digest(core / 'lib/coreBundle.js') == BROWSER_CORE_SHA,
+            'locked browser dependency changed')
+    remaining = deadline-clock()
+    require(remaining > 0, 'original browser resolution deadline expired')
+    result = run(['node', '-e', BROWSER_RESOLVER, str(receiver)], check=False, stdout=subprocess.PIPE,
+                 stderr=subprocess.PIPE, timeout=min(10, remaining))
+    require(len(result.stdout) <= 4096 and len(result.stderr) <= 65536, 'browser resolver report oversized')
+    if directory is not None:
+        write(directory / 'browser-resolver.json', {'exit': result.returncode, 'stdout': result.stdout.decode(errors='replace'), 'stderr': result.stderr.decode(errors='replace')})
+    require(result.returncode == 0, 'original browser resolver failed: '+str(result.returncode)+'; see browser-resolver.json')
+    value = json.loads(result.stdout)
+    require(set(value) == {'path'} and isinstance(value['path'], str), 'browser resolver malformed')
+    selected = Path(value['path'])
+    require(selected.is_absolute() and selected.resolve() == selected and selected.is_file() and
+            not selected.is_symlink() and selected.parts[-3:] == ('chromium-1243', 'chrome-linux64', 'chrome'),
+            'headed locked Chromium installation absent or overridden')
+    info = selected.stat()
+    require(info.st_size > 0 and info.st_mode & stat.S_IXUSR, 'Chromium executable unavailable')
+    return {'path': str(selected), 'bytes': info.st_size, 'sha256': digest(selected),
+            'device': info.st_dev, 'inode': info.st_ino, 'mtimeNs': info.st_mtime_ns, 'version': '153.0.8010.12', 'revision': '1243',
+            'lockSha256': BROWSER_LOCK_SHA, 'packageSha256': BROWSER_PACKAGE_SHA, 'registrySha256': BROWSER_REGISTRY_SHA, 'coreBundleSha256': BROWSER_CORE_SHA, **lock_identity}
+
+
+def check_browser_executable(value, hash_bytes=True):
+    path = Path(value['path'])
+    require(path.resolve() == path and not path.is_symlink() and path.is_file(), 'selected browser executable changed')
+    info = path.stat()
+    require(info.st_size == value['bytes'] and info.st_dev == value['device'] and info.st_ino == value['inode'] and
+            info.st_mtime_ns == value['mtimeNs'] and (not hash_bytes or digest(path) == value['sha256']), 'selected browser executable bytes changed')
+
+
+def browser_endpoint_bytes(raw):
+    require(len(raw) <= 4096, 'browser endpoint record oversized')
+    try:
+        value = raw.decode('ascii')
+    except UnicodeDecodeError as error:
+        raise RuntimeError('browser endpoint not ASCII') from error
+    # Missing or partial startup records are handled by the bounded parent wait, never parsed as success.
+    require(re.fullmatch(r'[1-9][0-9]{0,4}\n/devtools/browser/[A-Za-z0-9-]+\n?', value) is not None,
+            'browser endpoint record malformed')
+    port, path = value.rstrip('\n').split('\n')
+    require(0 < int(port) <= 65535, 'browser endpoint port invalid')
+    return {'port': int(port), 'path': path, 'endpoint': 'ws://127.0.0.1:'+port+path}
+
+
+def browser_listener_rows(tables, port, owned_sockets):
+    listeners = []
+    for family, table in tables.items():
+        for row in table.splitlines()[1:]:
+            fields = row.split()
+            if len(fields) < 10 or fields[3] != '0A':
+                continue
+            address, selected_port = fields[1].split(':')
+            if int(selected_port, 16) != port:
+                continue
+            require((family == 'tcp' and address == '0100007F') or
+                    (family == 'tcp6' and address == '00000000000000000000000001000000'),
+                    'browser listener wildcard or foreign address')
+            require(fields[9] in owned_sockets, 'browser listener foreign process inode')
+            listeners.append({'family': family, 'address': address, 'port': port, 'inode': fields[9]})
+    require(len(listeners) == 1 and listeners[0]['family'] == 'tcp', 'browser loopback listener missing or ambiguous')
+    return listeners[0]
+
+
+def browser_listener(pid, port):
+    sockets = set()
+    for descriptor in Path(f'/proc/{pid}/fd').iterdir():
+        try:
+            target = os.readlink(descriptor)
+        except (FileNotFoundError, ProcessLookupError):
+            continue
+        if target.startswith('socket:['):
+            sockets.add(target[8:-1])
+    return browser_listener_rows({family: Path('/proc/net/'+family).read_text() for family in ['tcp', 'tcp6']}, port, sockets)
+
+
+def browser_active(browser, birth, profile, profile_identity, executable, reader=None):
+    reader = proc if reader is None else reader
+    require(browser.poll() is None, 'original Chrome exited before journey completion')
+    actual = reader(browser.pid)
+    require(same_birth(actual, birth) and actual['pgid'] == birth['pgid'] == birth['sid'],
+            'original Chrome birth/session/group changed')
+    require(browser_profile_identity(profile) == profile_identity, 'original browser profile identity changed')
+    check_browser_executable(executable, hash_bytes=False)
+
+
+def wait_browser_endpoint(browser, birth, profile, identity, executable, deadline, health,
+                          listener=None, clock=None, pause=None):
+    clock = time.monotonic if clock is None else clock
+    pause = time.sleep if pause is None else pause
+    listener = browser_listener if listener is None else listener
+    end = min(deadline, clock()+15)
+    path = profile / 'DevToolsActivePort'
+    while clock() < end:
+        health()
+        browser_active(browser, birth, profile, identity, executable)
+        if path.exists() or path.is_symlink():
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+            with os.fdopen(fd, 'rb') as stream:
+                info = os.fstat(stream.fileno())
+                require(stat.S_ISREG(info.st_mode) and info.st_uid == identity['uid'] and info.st_size <= 4096,
+                        'browser endpoint file custody absent')
+                raw = stream.read(4097)
+            if raw and b'\n/devtools/browser/' in raw:
+                endpoint = browser_endpoint_bytes(raw)
+                endpoint['file'] = {'device': info.st_dev, 'inode': info.st_ino, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
+                endpoint['listener'] = listener(browser.pid, endpoint['port'])
+                browser_active(browser, birth, profile, identity, executable)
+                return endpoint
+        pause(.1)
+    raise RuntimeError('original browser endpoint readiness deadline exceeded')
+
+
+def check_browser_endpoint(profile, endpoint):
+    path = profile / 'DevToolsActivePort'
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(fd, 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        require(stat.S_ISREG(info.st_mode) and info.st_size <= 4096, 'browser endpoint changed type or size')
+        raw = stream.read(4097)
+    observed = {'device': info.st_dev, 'inode': info.st_ino, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()}
+    require(observed == endpoint['file'] and browser_endpoint_bytes(raw) == {k: endpoint[k] for k in ['port', 'path', 'endpoint']},
+            'original browser endpoint file changed')
+
+
+def browser_ready_matches(ready, launch, launch_sha, companion):
+    require(ready['schema'] == BROWSER_SCHEMA and ready['launchSha256'] == launch_sha and
+            ready['browserBirth'] == launch['browserBirth'] and same_birth(ready['companionBirth'], companion) and ready['companionBirth']['pgid'] == companion['pgid'] and
+            ready['companionBirth']['pgid'] == companion['pgid'] == launch['browserBirth']['pgid'] and
+            ready['companionBirth']['pid'] != launch['browserBirth']['pid'] and
+            ready['endpoint'] == launch['endpoint']['endpoint'] and ready['profile'] == launch['profile'] and
+            ready['sourceSha256'] == launch['companionSourceSha256'] and ready['noDefaults'] is True and
+            ready['contexts'] == 1 and ready['initialPages'] == 1 and ready['initialURL'] == 'about:blank' and
+            ready['pageURL'] == 'http://127.0.0.1:5100/' and ready['sampleSequence'] > 0,
+            'browser companion readiness identity differs')
+    return True
+
+
+def record_inner_success(directory):
+    runtime = completion_record(directory / 'owned-bus-runtime.json')
+    leaders = json.loads((directory / 'resource-leaders.json').read_text())
+    contract_evidence(directory, runtime, leaders)
+    launch = completion_record(directory / 'browser-launch.json')
+    browser = next(v for v in leaders if v['resource'] == 'browser')
+    companion = next(v for v in leaders if v['resource'] == 'browser-companion')
+    require(same_birth(proc(browser['pid']), browser) and same_birth(proc(companion['pid']), companion),
+            'original browser resource changed after inner success')
+    browser_active_failure(directory, companion)
+    require(browser_profile_identity(Path(launch['profile']['path'])) == launch['profile'], 'browser profile changed after inner success')
+    check_browser_executable(launch['executable'])
+    check_browser_endpoint(Path(launch['profile']['path']), launch['endpoint'])
+    require(browser_listener(browser['pid'], launch['endpoint']['port']) == launch['endpoint']['listener'], 'browser listener changed after inner success')
+    require(time.monotonic() < launch['absoluteDeadline'], 'original inner success deadline expired')
+    parent = completion_birth(proc(os.getpid()))
+    require(parent == runtime['sessionContract']['completion']['identity']['parentBirth'], 'successful inner parent birth changed')
+    packet = {'schema': 'fsgg.at-inner-result/1', 'exit': 0, 'firstCause': None,
+              'sourceSha256': digest(Path(__file__).resolve()), 'parentBirth': parent,
+              'browserBirth': launch['browserBirth'], 'companionBirth': {k: companion[k] for k in ['pid', 'start', 'ppid', 'pgid', 'sid']},
+              'completionSha256': digest(directory / FINISH_FILES[2]), 'journeySha256': digest(directory / 'journey.json'),
+              'launchSha256': digest(directory / 'browser-launch.json')}
+    atomic_record_once(directory / 'inner-result.json', packet)
+    return packet
+
+
+def browser_companion_log(directory):
+    path = directory / 'browser-companion.log'
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        info = os.fstat(fd)
+        require(stat.S_ISREG(info.st_mode) and info.st_size <= 4 * 1024**2,
+                'original browser companion log missing, nonregular or oversized')
+        raw = bytearray()
+        while len(raw) <= 4 * 1024**2:
+            chunk = os.read(fd, min(65536, 4 * 1024**2 + 1 - len(raw)))
+            if not chunk:
+                break
+            raw.extend(chunk)
+    finally:
+        os.close(fd)
+    require(len(raw) <= 4 * 1024**2, 'original browser companion log grew beyond bound')
+    try:
+        lines = raw.decode('utf8').splitlines()
+    except UnicodeDecodeError as error:
+        raise RuntimeError('original browser companion log unreadable') from error
+    causes = [line[len('BROWSER_COMPANION_FIRST_CAUSE '):] for line in lines
+              if line.startswith('BROWSER_COMPANION_FIRST_CAUSE ')]
+    reports = [line[len('BROWSER_COMPANION_REPORT_FAILURE '):] for line in lines
+               if line.startswith('BROWSER_COMPANION_REPORT_FAILURE ')]
+    require(all(cause.strip() for cause in causes), 'browser companion log original cause missing')
+    return {'sha256': hashlib.sha256(raw).hexdigest(), 'firstCauses': causes, 'reportFailures': reports}
+
+
+def browser_active_failure(directory, companion):
+    failure = directory / 'browser-companion-failure.json'
+    if failure.exists():
+        packet = completion_record(failure)
+        require(same_birth(packet['birth'], companion) and packet['birth']['pgid'] == companion['pgid'], 'browser active failure birth changed')
+        raise RuntimeError(packet['firstCause'])
+    log = browser_companion_log(directory)
+    if log['firstCauses']:
+        raise RuntimeError(log['firstCauses'][0])
+    if log['reportFailures']:
+        raise RuntimeError('browser companion failure reporting failed; original cause unknown: '+log['reportFailures'][0])
+
+
+def browser_transport_outcome(directory, launch, companion):
+    failure = directory / 'browser-companion-failure.json'
+    log = browser_companion_log(directory)
+    if not failure.exists():
+        require(not log['firstCauses'] and not log['reportFailures'],
+                log['firstCauses'][0] if log['firstCauses'] else 'browser companion failure reporting failed; original cause unknown')
+        return {'reported': False, 'stage': 'not-observed'}
+    packet = completion_record(failure)
+    require(isinstance(packet['firstCause'], str) and packet['firstCause'], 'browser companion original cause missing')
+    require(log['firstCauses'] and not log['reportFailures'] and
+            all(cause == packet['firstCause'].splitlines()[0] for cause in log['firstCauses']), packet['firstCause'])
+    success = completion_record(directory / 'inner-result.json')
+    require(packet['schema'] == BROWSER_SCHEMA and packet['kind'] in ['transport-close', 'transport-error'] and same_birth(packet['birth'], companion) and packet['birth']['pgid'] == companion['pgid'] and
+            packet['launchSha256'] == digest(directory / 'browser-launch.json') and
+            packet.get('innerResultSha256AtFailure') == digest(directory / 'inner-result.json') and
+            success['schema'] == 'fsgg.at-inner-result/1' and success['exit'] == 0 and success['firstCause'] is None and
+            success['sourceSha256'] == launch['sourceSha256'] and success['browserBirth'] == launch['browserBirth'] and
+            same_birth(success['companionBirth'], companion) and success['companionBirth']['pgid'] == companion['pgid'] and success['completionSha256'] == digest(directory / FINISH_FILES[2]) and
+            success['parentBirth'] == completion_record(directory / FINISH_FILES[2])['identity']['parentBirth'] and
+            success['parentBirth']['pid'] == launch['browserBirth']['ppid'] == companion['ppid'] and
+            success['journeySha256'] == digest(directory / 'journey.json') and success['launchSha256'] == digest(directory / 'browser-launch.json'),
+            'active or unbound companion transport failure')
+    process = completion_record(directory / 'process-result.json')
+    require(process['leader']['pid'] == process['leader']['pgid'] == process['leader']['sid'] == success['parentBirth']['sid'] and
+            process['exit'] == 0 and process['firstCause'] is None and process['firstGuardCensus'] is None and
+            not process['termination'] and not process['reportingErrors'] and
+            process['cleanup']['disposition'] == 'observed-empty' and not process['cleanup']['remaining'] and not process['cleanup']['unknown'],
+            'post-observation transport outcome lacks original successful wrapper and cleanup')
+    return {'reported': True, 'stage': 'post-observation-transport-outcome', 'firstCause': packet['firstCause'],
+            'failureSha256': digest(failure), 'innerResultSha256': digest(directory / 'inner-result.json')}
+
+
+def browser_evidence(directory, receipt, runtime, leaders):
+    launch = completion_record(directory / 'browser-launch.json')
+    ready = completion_record(directory / 'browser-companion-ready.json')
+    browser = next(v for v in leaders if v['resource'] == 'browser')
+    companion = next(v for v in leaders if v['resource'] == 'browser-companion')
+    require(launch['schema'] == BROWSER_SCHEMA and launch['sourceSha256'] == digest(Path(__file__).resolve()) and
+            launch['playwrightSourceSha256'] == BROWSER_PLAYWRIGHT_SOURCE_SHA and launch['nodeSourceCommit'] == BROWSER_NODE_SOURCE and
+            launch['companionSourceSha256'] == digest(directory / 'browser.cjs') == hashlib.sha256(BROWSER.encode()).hexdigest() and
+            launch['argv'] == browser_argv(launch['executable']['path'], directory / 'profile') and
+            launch['profile']['path'] == str(directory / 'profile') and launch['profile']['uid'] == json.loads((directory / 'owned-bus-route.json').read_text())['uid'] and
+            launch['nodeTool'] == json.loads((directory / 'tool-identities.json').read_text())['node'] and
+            launch['executable']['lockSha256'] == BROWSER_LOCK_SHA and launch['executable']['packageSha256'] == BROWSER_PACKAGE_SHA and
+            launch['executable']['registrySha256'] == BROWSER_REGISTRY_SHA and launch['executable']['coreBundleSha256'] == BROWSER_CORE_SHA and
+            launch['executable']['dependencyGraphSha256'] == BROWSER_LOCK_GRAPH_SHA and
+            re.fullmatch('[0-9a-f]{64}', launch['executable']['actualLockSha256']) is not None and
+            isinstance(launch['executable']['generatedPackageName'], str) and launch['executable']['generatedPackageName'] and launch['executable']['revision'] == '1243' and
+            launch['executable']['version'] == '153.0.8010.12' and launch['browserBirth'] == {k: browser[k] for k in launch['browserBirth']} and
+            browser['pgid'] == browser['sid'] == companion['pgid'] == companion['sid'] and browser['ppid'] == companion['ppid'] and
+            receipt['browser']['pid'] == receipt['browser']['launcherPid'] == browser['pid'] and
+            receipt['browser']['companionPid'] == companion['pid'], 'owned browser launch/receipt binding absent')
+    parsed = browser_endpoint_bytes((str(launch['endpoint']['port'])+'\n'+launch['endpoint']['path']+'\n').encode())
+    require(parsed['endpoint'] == launch['endpoint']['endpoint'] and launch['endpoint']['listener']['port'] == parsed['port'] and
+            launch['endpoint']['listener']['family'] == 'tcp' and launch['endpoint']['listener']['address'] == '0100007F' and
+            launch['endpoint']['listener']['inode'].isdigit(), 'owned browser endpoint evidence absent')
+    browser_ready_matches(ready, launch, digest(directory / 'browser-launch.json'), companion)
+    success = completion_record(directory / 'inner-result.json')
+    require(success['schema'] == 'fsgg.at-inner-result/1' and success['exit'] == 0 and success['firstCause'] is None and
+            success['completionSha256'] == digest(directory / FINISH_FILES[2]) and success['journeySha256'] == digest(directory / 'journey.json') and
+            success['launchSha256'] == digest(directory / 'browser-launch.json') and success['browserBirth'] == launch['browserBirth'] and
+            same_birth(success['companionBirth'], companion) and success['companionBirth']['pgid'] == companion['pgid'] and success['sourceSha256'] == launch['sourceSha256'] and
+            success['parentBirth'] == runtime['sessionContract']['completion']['identity']['parentBirth'] and
+            success['parentBirth']['pid'] == browser['ppid'] == companion['ppid'], 'successful original inner return evidence absent')
+    outcome = browser_transport_outcome(directory, launch, companion)
+    require(receipt['browser'].get('transportOutcome', {'reported': False, 'stage': 'not-observed'}) == outcome, 'browser transport outcome unreported')
+    require(runtime['mappedLibraries']['browser']['birth']['pid'] == browser['pid'], 'actual browser mapping authority swapped')
+    return True
+
+
 def inner(receiver, directory, gio_adapter=None):
     # Private D-Bus, XDG settings, display, Pulse server and speech socket: no user-session replacement.
     os.environ.update(DISPLAY=":97", NO_AT_BRIDGE="0", GTK_MODULES="gail:atk-bridge",
@@ -1238,7 +1735,7 @@ def inner(receiver, directory, gio_adapter=None):
                       XDG_RUNTIME_DIR=str(directory / "runtime"), XDG_DATA_HOME=str(directory / "data"),
                       TMPDIR=str(directory / "tmp"), PULSE_SERVER="unix:" + str(directory / "pulse.sock"),
                       SPEECHD_ADDRESS="unix_socket:" + str(directory / "speech.sock"))
-    for name in ["config", "cache", "runtime", "data", "tmp", "profile", "speech-config/modules", "speech-logs"]:
+    for name in ["config", "cache", "runtime", "data", "tmp", "speech-config/modules", "speech-logs"]:
         (directory / name).mkdir(mode=0o700, parents=True, exist_ok=True)
     children = []
     leaders = []
@@ -1351,17 +1848,67 @@ def inner(receiver, directory, gio_adapter=None):
     prerequisite_health()
     server = launch(["dotnet", "Server.dll", "--urls", "http://127.0.0.1:5100"], "server", receiver / "artifacts/authority-server")
     wait_server_ready(server, absolute_deadline=session_deadline)
+    profile = directory / "profile"
+    profile_identity = fresh_browser_profile(profile)
+    node_tool = check_node_tool(directory)
+    executable = resolve_browser(receiver, session_deadline, directory=directory)
+    check_browser_executable(executable)
+    require(browser_profile_identity(profile) == profile_identity and not list(profile.iterdir()), "fresh browser profile changed before foreground launch")
     (directory / "browser.cjs").write_text(BROWSER)
     prerequisite_health()
-    browser = launch(["node", str(directory / "browser.cjs"), str(receiver), str(directory / "browser-dom.json"), str(directory / "profile")], "browser")
-    prerequisite_health()
-    observe(directory, orca.pid, browser.pid, prerequisite_health)
-    prerequisite_health()
+    argv = browser_argv(executable["path"], profile)
+    browser = launch(argv, "browser")
+    browser_birth = proc(browser.pid)
+    require(browser_birth["pgid"] == browser_birth["sid"] == os.getsid(0), "foreground browser changed original process group")
+    endpoint = wait_browser_endpoint(browser, browser_birth, profile, profile_identity, executable, session_deadline, prerequisite_health)
+    launch_record = {"schema": BROWSER_SCHEMA, "sourceSha256": digest(Path(__file__).resolve()),
+        "playwrightSourceSha256": BROWSER_PLAYWRIGHT_SOURCE_SHA, "nodeSourceCommit": BROWSER_NODE_SOURCE,
+        "executable": executable, "nodeTool": node_tool, "argv": argv, "profile": profile_identity, "endpoint": endpoint,
+        "browserBirth": {k: browser_birth[k] for k in ["pid", "start", "ppid", "sid", "pgid"]},
+        "companionSourceSha256": digest(directory / "browser.cjs"), "absoluteDeadline": session_deadline}
+    write(directory / "browser-launch.json", launch_record)
+    remaining = (session_deadline-time.monotonic())*1000
+    require(remaining > 0, "original companion launch deadline expired")
+    check_node_tool(directory)
+    companion = launch(["node", str(directory / "browser.cjs"), str(receiver), str(directory / "browser-dom.json"),
+                        str(directory / "browser-launch.json"), str(remaining), str(time.time()*1000)], "browser-companion")
+    companion_birth = proc(companion.pid)
+    require(companion_birth["pgid"] == browser_birth["pgid"], "browser companion changed original process group")
+    ready_deadline = min(time.monotonic()+15, session_deadline)
+    while time.monotonic() < ready_deadline:
+        prerequisite_health()
+        browser_active_failure(directory, companion_birth)
+        browser_active(browser, browser_birth, profile, profile_identity, executable)
+        check_browser_endpoint(profile, endpoint)
+        require(browser_listener(browser.pid, endpoint["port"]) == endpoint["listener"], "original browser listener changed")
+        if (directory / "browser-companion-ready.json").exists():
+            ready = completion_record(directory / "browser-companion-ready.json")
+            browser_ready_matches(ready, launch_record, digest(directory / "browser-launch.json"), companion_birth)
+            break
+        time.sleep(.1)
+    else:
+        raise RuntimeError("original browser companion readiness deadline exceeded")
+    check_browser_executable(executable)
+    def browser_health():
+        prerequisite_health()
+        browser_active_failure(directory, companion_birth)
+        browser_active(browser, browser_birth, profile, profile_identity, executable)
+        require(same_birth(proc(companion.pid), companion_birth), "original browser companion birth changed")
+        check_browser_endpoint(profile, endpoint)
+        require(browser_listener(browser.pid, endpoint["port"]) == endpoint["listener"], "original browser listener changed")
+    browser_health()
+    observe(directory, orca.pid, browser.pid, browser_health)
+    browser_health()
     require(all(child.poll() is None for child in children), "required AT/browser service exited")
     parent_birth = proc(os.getpid())
     require(same_birth(parent_birth, runtime["sessionContract"]["parentBirth"]), "original completion parent birth changed")
     def finishing_health():
         required_children([child for child in children if child is not status], directory)
+        browser_active_failure(directory, companion_birth)
+        browser_active(browser, browser_birth, profile, profile_identity, executable)
+        require(same_birth(proc(companion.pid), companion_birth), "original companion birth changed during completion")
+        check_browser_endpoint(profile, endpoint)
+        require(browser_listener(browser.pid, endpoint["port"]) == endpoint["listener"], "original browser listener changed during completion")
         contract_births(runtime, state)
     completion = finish_contract(directory, runtime, status, status_birth, parent_birth, finishing_health)
     runtime = json.loads((directory / "owned-bus-runtime.json").read_text())
@@ -1451,6 +1998,8 @@ def observe(directory, orca_pid, browser_pid, health=lambda: None):
     subprocess.run(["xdotool", "windowactivate", "--sync", windows[0]], check=True, timeout=15)
     actual_browser_pid = int(subprocess.check_output(["xdotool", "getwindowpid", windows[0]], text=True, timeout=5))
     require(proc(actual_browser_pid) and proc(actual_browser_pid)["sid"] == os.getsid(0), "headed browser ownership mismatch")
+    registered_window_browser = next(v for v in json.loads((directory / "resource-leaders.json").read_text()) if v["resource"] == "browser")
+    browser_window_identity(actual_browser_pid, registered_window_browser)
     # Source-version correspondence is not evidence of the client loading that object.
     activation = json.loads((directory / "activation-provenance.json").read_text())
     objects = check_route_files(activation)
@@ -1500,7 +2049,7 @@ def observe(directory, orca_pid, browser_pid, health=lambda: None):
     press("Increment external value")
     observations["retainedInert"] = dom()["reference"]
     write(directory / "journey.json", {"process": {"name": "orca", "pid": orca_pid},
-          "browser": {"family": "chromium", "pid": actual_browser_pid, "launcherPid": browser_pid}, "actions": actions, "observations": observations})
+          "browser": {"family": "chromium", "pid": actual_browser_pid, "launcherPid": browser_pid, "companionPid": next(v["pid"] for v in json.loads((directory / "resource-leaders.json").read_text()) if v["resource"] == "browser-companion")}, "actions": actions, "observations": observations})
 
 
 def activation_packet(manifest, versions, read, resolve, clock=time.monotonic, deadline=None, retained=None):
@@ -1794,11 +2343,13 @@ def qualify(out, preflight_path, termination):
     shutil.rmtree(socket_root)
     require(digest(receiver / "artifacts/authority-server/Server.dll") == served_digest, "served assembly input changed")
     journey = json.loads((directory / "journey.json").read_text())
+    journey["browser"]["transportOutcome"] = browser_transport_outcome(directory, completion_record(directory / "browser-launch.json"),
+         next(v for v in json.loads((directory / "resource-leaders.json").read_text()) if v["resource"] == "browser-companion"))
     receipt = {"schema": SCHEMA, "result": "passed", "templates": packet["templates"], "caller": preflight["caller"],
                "producer": preflight["producer"], **journey, "keyboard": "xdotool-X11", "speechBoundary": "Orca SPEECH OUTPUT",
                "physicalAudioHardware": "not-observed", "cleanup": result, "sourceQualificationSha256": digest(packet_path),
                "servedAssemblySha256": served_digest,
-               "evidenceSha256": {name: digest(directory / name) for name in ["orca-debug.log", "journey.json", "process-result.json", "speech-preflight.json", "tool-identities.json", "source-qualification.json", "host-packages.txt", "resource-leaders.json", "activation-provenance.json", "owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf", "session-contract-state.json", "session-budget.json", *FINISH_FILES]}}
+               "evidenceSha256": {name: digest(directory / name) for name in ["orca-debug.log", "journey.json", "process-result.json", "speech-preflight.json", "tool-identities.json", "source-qualification.json", "host-packages.txt", "resource-leaders.json", "activation-provenance.json", "owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf", "session-contract-state.json", "session-budget.json", *FINISH_FILES, *BROWSER_FILES]}}
     try:
         validate(receipt, packet, preflight, directory)
     except BaseException as ex:
@@ -1850,7 +2401,7 @@ def self_test():
         observations["retainedInert"] = copy.deepcopy(observations["disposed"])
         (directory / "orca-debug.log").write_bytes(raw)
         names = ["Mount external authority reference", "Connect sample authority", "Complete current external snapshot", "Lose next command receipt", "Increment external value", "Disconnect sample authority", "Rearm sample commands", "Reconcile unknown command", "Dispose external reference"]
-        receipt = {"schema": SCHEMA, "result": "passed", **preflight, "process": {"name": "orca", "pid": 1}, "browser": {"family": "chromium", "pid": 2, "launcherPid": 60},
+        receipt = {"schema": SCHEMA, "result": "passed", **preflight, "process": {"name": "orca", "pid": 1}, "browser": {"family": "chromium", "pid": 2, "launcherPid": 2, "companionPid": 60},
                    "keyboard": "xdotool-X11", "speechBoundary": "Orca SPEECH OUTPUT", "physicalAudioHardware": "not-observed",
                    "cleanup": {"disposition": "observed-empty", "unknown": [], "remaining": []}, "sourceQualificationSha256": digest(directory / "source-qualification.json"),
                    "evidenceSha256": {"orca-debug.log": digest(directory / "orca-debug.log")}, "observations": observations,
@@ -1862,7 +2413,7 @@ def self_test():
         write(directory / "activation-provenance.json", activation)
         route_fixture_evidence(directory, activation)
         for name in ["owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf",
-                     "session-contract-state.json", "session-budget.json", "journey.json", *FINISH_FILES]:
+                     "session-contract-state.json", "session-budget.json", "journey.json", *FINISH_FILES, *BROWSER_FILES]:
             receipt["evidenceSha256"][name] = digest(directory / name)
         receipt["evidenceSha256"]["activation-provenance.json"] = digest(directory / "activation-provenance.json")
         require(validate(receipt, packet, preflight, directory), "good AT fixture refused")
@@ -1944,7 +2495,7 @@ def self_test():
     route_self_test()
     contract_controls = contract_self_test()
     print("PASS actual AT binder: good receipt, 25 existing plus 2 diagnostic refusal controls; 8 prerequisite refusals and workflow bad controls; no AT/browser launched")
-    return contract_controls
+    return contract_controls + browser_self_test()
 
 
 
@@ -2016,18 +2567,345 @@ def route_fixture_evidence(directory, activation, uid=1000, complete=True):
     bus = {"pid": 40, "start": 1, "ppid": 42, "sid": 42}
     registry = {"pid": 41, "start": 2, "ppid": 42, "sid": 42}
     selected = route_metadata(activation)
-    browser = {"pid": 2, "start": 10, "ppid": 60, "sid": 42}
-    launcher = {"pid": 60, "start": 9, "ppid": 42, "sid": 42}
-    leaders = [{"resource": "accessibility-bus", **bus}, {"resource": "registry", **registry}, {"resource": "browser", **launcher}]
+    browser = {"pid": 2, "start": 10, "ppid": 42, "sid": 42, "pgid": 42}
+    launcher = {"pid": 60, "start": 9, "ppid": 42, "sid": 42, "pgid": 42}
+    leaders = [{"resource": "accessibility-bus", **bus}, {"resource": "registry", **registry}, {"resource": "browser", **browser}, {"resource": "browser-companion", **launcher}]
     runtime = {"bus": bus, "address": "unix:path="+sockets["accessibility"]+",guid="+"a"*32,
           "sessionBus": {"pid": 43, "start": 3, "ppid": 44, "sid": 42},
           "sessionAddress": "unix:path="+sockets["session"]+",guid="+"b"*32,
           "registry": {"pid": 41, "birth": registry}, "addressSetBeforeAtspiImport": True, "objectIdentities": selected,
           "mappedLibraries": {"observer": {"birth": bus, "object": selected["libatspi.so."]},
-                              "browser": {"birth": browser, "ancestry": [browser, launcher], "object": selected["libatk-bridge-2.0.so."]}}}
+                              "browser": {"birth": browser, "ancestry": [browser], "object": selected["libatk-bridge-2.0.so."]}}}
     contract_fixture_evidence(directory, activation, runtime, leaders, complete=complete)
     write(directory / "resource-leaders.json", leaders)
     write(directory / "owned-bus-runtime.json", runtime)
+    browser_fixture_evidence(directory, browser, launcher, uid, complete)
+
+
+def browser_fixture_executable():
+    return {'path': '/private/chromium-1243/chrome-linux64/chrome', 'bytes': 100, 'sha256': 'e'*64,
+            'device': 1, 'inode': 2, 'mtimeNs': 3, 'version': '153.0.8010.12', 'revision': '1243',
+            'lockSha256': BROWSER_LOCK_SHA, 'packageSha256': BROWSER_PACKAGE_SHA, 'registrySha256': BROWSER_REGISTRY_SHA, 'coreBundleSha256': BROWSER_CORE_SHA,
+            'actualLockSha256': BROWSER_LOCK_SHA, 'dependencyGraphSha256': BROWSER_LOCK_GRAPH_SHA, 'generatedPackageName': 'fablegameworkspace-browser-tests'}
+
+
+def browser_fixture_endpoint():
+    raw = b'1234\n/devtools/browser/fixture\n'
+    return {**browser_endpoint_bytes(raw), 'file': {'device': 1, 'inode': 2, 'bytes': len(raw), 'sha256': hashlib.sha256(raw).hexdigest()},
+            'listener': {'family': 'tcp', 'address': '0100007F', 'port': 1234, 'inode': '987'}}
+
+
+def browser_fixture_ready(launch, launch_sha, companion):
+    return {'schema': BROWSER_SCHEMA, 'launchSha256': launch_sha, 'browserBirth': launch['browserBirth'],
+            'companionBirth': {k: companion[k] for k in ['pid', 'start', 'ppid', 'pgid', 'sid']},
+            'endpoint': launch['endpoint']['endpoint'], 'profile': launch['profile'], 'sourceSha256': launch['companionSourceSha256'],
+            'noDefaults': True, 'contexts': 1, 'initialPages': 1, 'initialURL': 'about:blank',
+            'pageURL': 'http://127.0.0.1:5100/', 'sampleSequence': 1}
+
+
+def browser_fixture_evidence(directory, browser, companion, uid=1000, complete=True):
+    write(directory / 'tool-identities.json', {'node': {'path': '/selected/node', 'sha256': 'a'*64}})
+    (directory / 'browser.cjs').write_text(BROWSER)
+    (directory / 'browser-companion.log').write_text('')
+    value = {'schema': BROWSER_SCHEMA, 'sourceSha256': digest(Path(__file__).resolve()),
+             'playwrightSourceSha256': BROWSER_PLAYWRIGHT_SOURCE_SHA, 'nodeSourceCommit': BROWSER_NODE_SOURCE,
+             'executable': browser_fixture_executable(), 'nodeTool': {'path': '/selected/node', 'sha256': 'a'*64}, 'argv': browser_argv(browser_fixture_executable()['path'], directory / 'profile'),
+             'profile': {'path': str(directory / 'profile'), 'device': 1, 'inode': 2, 'uid': uid},
+             'endpoint': browser_fixture_endpoint(), 'browserBirth': {k: browser[k] for k in ['pid', 'start', 'ppid', 'pgid', 'sid']},
+             'companionSourceSha256': digest(directory / 'browser.cjs'), 'absoluteDeadline': 300}
+    write(directory / 'browser-launch.json', value)
+    write(directory / 'browser-companion-ready.json', browser_fixture_ready(value, digest(directory / 'browser-launch.json'), companion))
+    if complete:
+        runtime = completion_record(directory / 'owned-bus-runtime.json')
+        write(directory / 'inner-result.json', {'schema': 'fsgg.at-inner-result/1', 'exit': 0, 'firstCause': None,
+             'sourceSha256': digest(Path(__file__).resolve()), 'parentBirth': runtime['sessionContract']['completion']['identity']['parentBirth'],
+             'browserBirth': value['browserBirth'], 'companionBirth': {k: companion[k] for k in ['pid', 'start', 'ppid', 'pgid', 'sid']},
+             'completionSha256': digest(directory / FINISH_FILES[2]), 'journeySha256': digest(directory / 'journey.json'),
+             'launchSha256': digest(directory / 'browser-launch.json')})
+
+
+def browser_window_identity(actual_pid, registered, reader=None):
+    reader = proc if reader is None else reader
+    require(actual_pid == registered['pid'] and same_birth(reader(actual_pid), registered) and
+            reader(actual_pid)['pgid'] == registered['pgid'] == registered['sid'],
+            'actual X11 browser PID is not original registered Chrome leader')
+
+
+def browser_self_test():
+    from unittest.mock import patch
+    from types import SimpleNamespace
+    checked = []
+    def case(name, work):
+        work()
+        checked.append(name)
+    def refused(work, phrase=None):
+        try:
+            work()
+        except (RuntimeError, KeyError, ValueError, OSError) as error:
+            require(phrase is None or phrase in str(error), 'browser first cause changed')
+        else:
+            raise RuntimeError('invalid owned browser fixture accepted')
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary); dependencies = root / 'Browser.Tests'; dependencies.mkdir()
+        graph = {'name': 'fablegameworkspace-browser-tests', 'lockfileVersion': 3,
+                 'packages': {'': {'name': 'fablegameworkspace-browser-tests', 'devDependencies': {'@playwright/test': '1.63.0'}}}}
+        graph_sha = hashlib.sha256(json.dumps(graph, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+        package = {'name': 'generated-browser-tests', 'devDependencies': {'@playwright/test': '1.63.0'}}
+        generated = copy.deepcopy(graph); generated['name'] = package['name']; generated['packages']['']['name'] = package['name']
+        write(dependencies / 'package-lock.json', generated); write(dependencies / 'package.json', package)
+        with patch.dict(globals(), BROWSER_LOCK_GRAPH_SHA=graph_sha):
+            case('browser-lock-permits-only-generated-root-name', lambda: require(browser_dependency_lock(dependencies)['generatedPackageName'] ==
+                 package['name'], 'generated lock root projection lost'))
+            wrong = copy.deepcopy(generated); wrong['packages']['']['devDependencies']['@playwright/test'] = '1.62.0'
+            write(dependencies / 'package-lock.json', wrong)
+            case('browser-lock-refuses-dependency-drift', lambda: refused(lambda: browser_dependency_lock(dependencies)))
+            write(dependencies / 'package-lock.json', generated)
+            wrong = copy.deepcopy(generated); wrong['packages']['']['name'] = 'foreign-name'; write(dependencies / 'package-lock.json', wrong)
+            case('browser-lock-refuses-inconsistent-root-name', lambda: refused(lambda: browser_dependency_lock(dependencies)))
+        selected = root / 'chromium-1243/chrome-linux64/chrome'; selected.parent.mkdir(parents=True); selected.write_bytes(b'inert executable fixture'); selected.chmod(0o700)
+        native_digest = digest
+        def dependency_digest(path):
+            name = str(path)
+            if name.endswith('node_modules/playwright-core/package.json'): return BROWSER_PACKAGE_SHA
+            if name.endswith('node_modules/playwright-core/browsers.json'): return BROWSER_REGISTRY_SHA
+            if name.endswith('node_modules/playwright-core/lib/coreBundle.js'): return BROWSER_CORE_SHA
+            return native_digest(path)
+        invocations = []
+        def resolver(stdout=None, exit=0):
+            def run(argv, **options):
+                invocations.append(argv); require(options['timeout'] <= 10 and options['check'] is False, 'resolver budget/check drift')
+                return SimpleNamespace(returncode=exit, stdout=json.dumps({'path': str(selected)}).encode() if stdout is None else stdout, stderr=b'')
+            return run
+        with patch.dict(globals(), browser_dependency_lock=lambda _: {'actualLockSha256': 'a'*64, 'dependencyGraphSha256': BROWSER_LOCK_GRAPH_SHA,
+                         'generatedPackageName': 'inert-fixture'}, digest=dependency_digest):
+            resolved = resolve_browser(root, 10, run=resolver(), clock=lambda: 0)
+            case('browser-resolver-public-selected-path', lambda: require(resolved['path'] == str(selected) and len(invocations) == 1, 'resolver changed selected path'))
+            case('browser-resolver-original-deadline', lambda: refused(lambda: resolve_browser(root, 0, run=resolver(), clock=lambda: 0)))
+            for name, stdout, exit in [('nonzero', b'', 1), ('oversized', b'x'*4097, 0), ('malformed', b'{}', 0),
+                                       ('headless', json.dumps({'path': str(root/'chromium-headless-shell-1243/chrome')}).encode(), 0),
+                                       ('missing-installation', json.dumps({'path': str(root/'chromium-1243/chrome-linux64/absent')}).encode(), 0)]:
+                case('browser-resolver-'+name, lambda stdout=stdout, exit=exit: refused(lambda: resolve_browser(root, 10, run=resolver(stdout, exit), clock=lambda: 0)))
+            with patch.dict(globals(), digest=lambda _: '0'*64):
+                case('browser-resolver-core-source-drift', lambda: refused(lambda: resolve_browser(root, 10, run=resolver(), clock=lambda: 0)))
+        case('browser-selected-executable-positive', lambda: check_browser_executable(resolved))
+        selected.write_bytes(b'changed fixture')
+        case('browser-selected-executable-changed', lambda: refused(lambda: check_browser_executable(resolved)))
+        selected.unlink(); selected.symlink_to(root/'absent')
+        case('browser-selected-executable-symlink', lambda: refused(lambda: check_browser_executable(resolved)))
+    case('browser-valid-endpoint', lambda: require(browser_endpoint_bytes(b'1234\n/devtools/browser/abc-123\n')['endpoint'] ==
+         'ws://127.0.0.1:1234/devtools/browser/abc-123', 'endpoint drift'))
+    for name, raw in [('empty', b''), ('partial', b'1234\n'), ('extra', b'1234\n/devtools/browser/a\nx'),
+                      ('userinfo', b'1234\n/devtools/browser/a@host'), ('query', b'1234\n/devtools/browser/a?b'),
+                      ('fragment', b'1234\n/devtools/browser/a#b'), ('foreign', b'1234\nhttp://foreign/'),
+                      ('oversized', b'x'*4097), ('port-zero', b'0\n/devtools/browser/a'), ('port-large', b'65536\n/devtools/browser/a'),
+                      ('binary', b'1234\n/devtools/browser/\xff')]:
+        case('browser-endpoint-'+name, lambda raw=raw: refused(lambda: browser_endpoint_bytes(raw)))
+    def table(address='0100007F', port='04D2', inode='987'):
+        return 'header\n 0: '+address+':'+port+' 00000000:0000 0A 0:0 0:0 0 1000 0 '+inode+'\n'
+    case('browser-owned-loopback-socket', lambda: require(browser_listener_rows({'tcp': table(), 'tcp6': 'header'}, 1234, {'987'})['inode'] == '987', 'socket drift'))
+    for name, tables, sockets in [('missing', {'tcp': 'header'}, {'987'}), ('foreign-pid', {'tcp': table()}, {'9'}),
+                                  ('wildcard', {'tcp': table('00000000')}, {'987'}), ('foreign-address', {'tcp': table('0100000A')}, {'987'}),
+                                  ('ambiguous', {'tcp': table()+table().split('\n', 1)[1]}, {'987'}),
+                                  ('ipv6-only', {'tcp6': table('00000000000000000000000001000000')}, {'987'}),
+                                  ('port-drift', {'tcp': table(port='04D3')}, {'987'})]:
+        case('browser-socket-'+name, lambda tables=tables, sockets=sockets: refused(lambda: browser_listener_rows(tables, 1234, sockets)))
+    with tempfile.TemporaryDirectory() as temporary:
+        root = Path(temporary)
+        profile = root / 'profile'
+        case('browser-fresh-private-profile', lambda: require(fresh_browser_profile(profile)['uid'] == os.getuid(), 'profile owner drift'))
+        case('browser-used-profile', lambda: refused(lambda: fresh_browser_profile(profile)))
+        case('browser-profile-wrong-uid', lambda: wrong_uid(profile))
+        linked = root / 'linked'; linked.symlink_to(profile, target_is_directory=True)
+        case('browser-linked-profile', lambda: refused(lambda: browser_profile_identity(linked)))
+        profile.chmod(0o755)
+        case('browser-open-profile-mode', lambda: refused(lambda: browser_profile_identity(profile)))
+        profile.chmod(0o700)
+        endpoint = profile / 'DevToolsActivePort'; endpoint.write_bytes(b'1234\n/devtools/browser/fixture\n')
+        info = endpoint.stat(); bound = browser_fixture_endpoint(); bound['file'] = {'device': info.st_dev, 'inode': info.st_ino, 'bytes': info.st_size, 'sha256': digest(endpoint)}
+        case('browser-original-endpoint-file', lambda: check_browser_endpoint(profile, bound))
+        endpoint.write_bytes(b'1235\n/devtools/browser/fixture\n')
+        case('browser-changed-endpoint-file', lambda: refused(lambda: check_browser_endpoint(profile, bound)))
+        endpoint.unlink(); endpoint.symlink_to(root / 'missing')
+        case('browser-symlink-endpoint-file', lambda: refused(lambda: check_browser_endpoint(profile, bound)))
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary); activation = route_fixture(); route_fixture_evidence(directory, activation)
+        runtime = json.loads((directory / 'owned-bus-runtime.json').read_text()); leaders = json.loads((directory / 'resource-leaders.json').read_text())
+        receipt = {'browser': {'pid': 2, 'launcherPid': 2, 'companionPid': 60}}
+        case('browser-direct-authority-binder', lambda: browser_evidence(directory, receipt, runtime, leaders))
+        original = (directory / 'browser-launch.json').read_bytes()
+        mutations = [('wrong-browser-birth', lambda v: v['browserBirth'].update(start=999)), ('detached-group', lambda v: v['browserBirth'].update(pgid=2)),
+                     ('source-drift', lambda v: v.update(sourceSha256='0'*64)), ('dependency-drift', lambda v: v['executable'].update(lockSha256='0'*64)),
+                     ('headless-selection', lambda v: v['executable'].update(revision='headless-shell')), ('argv-drift', lambda v: v['argv'].append('--remote-debugging-pipe')),
+                     ('foreign-profile', lambda v: v['profile'].update(path='/foreign')), ('foreign-endpoint', lambda v: v['endpoint'].update(endpoint='ws://foreign/')),
+                     ('wildcard-evidence', lambda v: v['endpoint']['listener'].update(address='00000000'))]
+        for name, mutate in mutations:
+            value = json.loads(original); mutate(value); write(directory / 'browser-launch.json', value)
+            case('browser-binder-'+name, lambda: refused(lambda: browser_evidence(directory, receipt, runtime, leaders)))
+        (directory / 'browser-launch.json').write_bytes(original)
+        ready_original = (directory / 'browser-companion-ready.json').read_bytes()
+        for name, mutate in [('stale-ready', lambda v: v.update(launchSha256='0'*64)), ('companion-pid-reuse', lambda v: v['companionBirth'].update(start=999)),
+                             ('synthetic-focus', lambda v: v.update(noDefaults=False)), ('missing-context', lambda v: v.update(contexts=0)),
+                             ('ambiguous-page', lambda v: v.update(initialPages=2)), ('unready-sample', lambda v: v.update(sampleSequence=0))]:
+            value = json.loads(ready_original); mutate(value); write(directory / 'browser-companion-ready.json', value)
+            case('browser-ready-'+name, lambda: refused(lambda: browser_evidence(directory, receipt, runtime, leaders)))
+        (directory / 'browser-companion-ready.json').write_bytes(ready_original)
+        bad = copy.deepcopy(receipt); bad['browser'].update(pid=60, launcherPid=60, companionPid=2)
+        case('browser-swapped-node-authority', lambda: refused(lambda: browser_evidence(directory, bad, runtime, leaders)))
+        browser = next(v for v in leaders if v['resource'] == 'browser')
+        case('browser-window-original-leader', lambda: browser_window_identity(2, browser, lambda _: browser))
+        case('browser-window-node-swap', lambda: refused(lambda: browser_window_identity(60, browser, lambda _: browser)))
+        case('browser-window-reused-pid', lambda: refused(lambda: browser_window_identity(2, browser, lambda _: {**browser, 'start': 99})))
+        class Dead:
+            pid = 60
+            def poll(self): return 1
+        failure = {'birth': copy.deepcopy(next(v for v in leaders if v['resource'] == 'browser-companion')), 'firstCause': 'specific original CDP failure'}
+        write(directory / 'browser-companion-failure.json', failure)
+        case('browser-companion-first-cause', lambda: refused(lambda: required_children([Dead()], directory), 'specific original CDP failure'))
+        failure['birth']['start'] = 99; write(directory / 'browser-companion-failure.json', failure)
+        case('browser-companion-stale-failure', lambda: refused(lambda: required_children([Dead()], directory), 'identity'))
+        failure_path = directory / 'browser-companion-failure.json'
+        failure_path.unlink()
+        companion = next(v for v in leaders if v['resource'] == 'browser-companion')
+        launch = completion_record(directory / 'browser-launch.json')
+        marker = (directory / 'inner-result.json').read_bytes()
+        parent = json.loads(marker)['parentBirth']
+        successful_process = {'leader': {'pid': parent['sid'], 'start': 1, 'ppid': 1, 'sid': parent['sid'], 'pgid': parent['sid']},
+            'exit': 0, 'firstCause': None, 'firstGuardCensus': None, 'termination': [], 'reportingErrors': [],
+            'cleanup': {'disposition': 'observed-empty', 'remaining': [], 'unknown': []}}
+        write(directory / 'process-result.json', successful_process)
+        valid_event = {'schema': BROWSER_SCHEMA, 'birth': companion, 'firstCause': 'CDP transport closed before completion',
+            'kind': 'transport-close', 'launchSha256': digest(directory / 'browser-launch.json'),
+            'innerResultSha256AtFailure': digest(directory / 'inner-result.json')}
+        write(failure_path, valid_event)
+        (directory / 'browser-companion.log').write_text('BROWSER_COMPANION_FIRST_CAUSE '+valid_event['firstCause']+'\n')
+        case('browser-post-observation-bound-transport-close', lambda: require(browser_transport_outcome(directory, launch, companion)['stage'] ==
+             'post-observation-transport-outcome', 'post-observation stage mislabeled'))
+        log_path = directory / 'browser-companion.log'
+        valid_log = log_path.read_bytes()
+        failure_path.unlink()
+        case('browser-log-full-authority-missing-json-refuses', lambda: refused(lambda: browser_evidence(directory, receipt, runtime, leaders), valid_event['firstCause']))
+        case('browser-log-missing-json-first-cause-refuses', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion), valid_event['firstCause']))
+        case('browser-log-active-missing-json-first-cause-refuses', lambda: refused(lambda: browser_active_failure(directory, companion), valid_event['firstCause']))
+        log_path.write_text('BROWSER_COMPANION_REPORT_FAILURE original atomic write refused\n')
+        case('browser-log-missing-json-report-failure-refuses', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion), 'original cause unknown'))
+        case('browser-log-active-report-failure-refuses', lambda: refused(lambda: browser_active_failure(directory, companion), 'original cause unknown'))
+        log_path.write_text('')
+        case('browser-log-no-json-clean-original-log', lambda: require(browser_transport_outcome(directory, launch, companion) ==
+             {'reported': False, 'stage': 'not-observed'}, 'clean log fabricated transport outcome'))
+        log_path.unlink()
+        case('browser-log-no-json-missing-log-refuses', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion)))
+        write(failure_path, valid_event)
+        case('browser-log-missing-refuses', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion)))
+        log_path.write_bytes(b'\xff')
+        case('browser-log-invalid-encoding-refuses', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion), 'unreadable'))
+        log_path.write_bytes(b'x' * (4 * 1024**2 + 1))
+        case('browser-log-oversized-refuses', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion), 'oversized'))
+        log_path.unlink(); log_path.mkdir()
+        case('browser-log-nonregular-refuses', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion), 'nonregular'))
+        log_path.rmdir(); os.mkfifo(log_path, mode=0o600)
+        case('browser-log-fifo-refuses-without-blocking', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion), 'nonregular'))
+        log_path.unlink()
+        def closed_on_type_refusal():
+            closed = []
+            with patch.object(os, 'open', return_value=1234), patch.object(os, 'fstat', return_value=SimpleNamespace(st_mode=stat.S_IFDIR, st_size=0)), \
+                    patch.object(os, 'close', side_effect=closed.append):
+                refused(lambda: browser_companion_log(directory), 'nonregular')
+            require(closed == [1234], 'original log descriptor leaked on type refusal')
+        case('browser-log-original-fd-closed-on-refusal', closed_on_type_refusal)
+        target = directory / 'foreign-companion-log'; target.write_bytes(valid_log); log_path.symlink_to(target)
+        case('browser-log-symlink-refuses', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion)))
+        log_path.unlink(); log_path.write_bytes(valid_log)
+        def unreadable_log():
+            with patch.object(os, 'open', side_effect=PermissionError('original log permission denied')):
+                refused(lambda: browser_transport_outcome(directory, launch, companion), 'permission denied')
+        case('browser-log-read-error-refuses', unreadable_log)
+        log_path.write_text('BROWSER_COMPANION_FIRST_CAUSE distinct original failure\n')
+        case('browser-log-json-cause-mismatch-refuses', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion), valid_event['firstCause']))
+        log_path.write_bytes(valid_log+b'BROWSER_COMPANION_REPORT_FAILURE original atomic write refused\n')
+        case('browser-log-json-report-failure-refuses', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion), valid_event['firstCause']))
+        log_path.write_bytes(valid_log+b'BROWSER_COMPANION_FIRST_CAUSE distinct later failure\n')
+        case('browser-log-distinct-cause-contradiction-refuses', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion), valid_event['firstCause']))
+        log_path.write_bytes(valid_log+valid_log)
+        case('browser-log-repeated-exact-first-cause-retained', lambda: require(browser_transport_outcome(directory, launch, companion)['firstCause'] ==
+             valid_event['firstCause'], 'exact duplicate cause changed original'))
+        log_path.write_bytes(valid_log)
+        bound_receipt = copy.deepcopy(receipt); bound_receipt['browser']['transportOutcome'] = browser_transport_outcome(directory, launch, companion)
+        case('browser-log-full-authority-valid-post-observation', lambda: browser_evidence(directory, bound_receipt, runtime, leaders))
+        case('browser-log-valid-post-observation-bound', lambda: require(browser_transport_outcome(directory, launch, companion)['stage'] ==
+             'post-observation-transport-outcome', 'valid post-observation log lost stage'))
+        case('browser-post-observation-active-health-still-refuses', lambda: refused(lambda: browser_active_failure(directory, companion), 'CDP transport closed'))
+        for name, mutate in [('absent-event-marker', lambda v: v.update(innerResultSha256AtFailure=None)),
+                             ('stale-event-marker', lambda v: v.update(innerResultSha256AtFailure='0'*64)),
+                             ('wrong-event-child', lambda v: v['birth'].update(start=999)),
+                             ('wrong-event-group', lambda v: v['birth'].update(pgid=999)),
+                             ('wrong-event-launch', lambda v: v.update(launchSha256='0'*64)),
+                             ('active-protocol-failure', lambda v: v.update(kind='active-failure'))]:
+            value = copy.deepcopy(valid_event); mutate(value); write(failure_path, value)
+            case('browser-post-observation-'+name, lambda: refused(lambda: browser_transport_outcome(directory, launch, companion)))
+        write(failure_path, valid_event)
+        for name, mutate in [('wrapper-nonzero', lambda v: v.update(exit=1)), ('earlier-first-cause', lambda v: v.update(firstCause='earlier original failure')),
+                             ('earlier-custody', lambda v: v.update(firstGuardCensus={'escaped': [1]})),
+                             ('wrong-wrapper-session', lambda v: v['leader'].update(sid=999)),
+                             ('cancellation', lambda v: v.update(termination=['SIGTERM'])),
+                             ('reporting-failure', lambda v: v.update(reportingErrors=['write failed'])),
+                             ('cleanup-unknown', lambda v: v['cleanup'].update(disposition='unknown', unknown=[1])),
+                             ('cleanup-survivor', lambda v: v['cleanup'].update(remaining=[1]))]:
+            value = copy.deepcopy(successful_process); mutate(value); write(directory / 'process-result.json', value)
+            case('browser-post-observation-'+name, lambda: refused(lambda: browser_transport_outcome(directory, launch, companion)))
+        write(directory / 'process-result.json', successful_process)
+        (directory / 'inner-result.json').unlink()
+        case('browser-post-observation-no-inner-success', lambda: refused(lambda: browser_transport_outcome(directory, launch, companion)))
+        (directory / 'inner-result.json').write_bytes(marker)
+        for name, mutate in [('premature-inner-failure', lambda v: v.update(exit=1)), ('wrong-original-parent', lambda v: v['parentBirth'].update(start=999)),
+                             ('wrong-completion', lambda v: v.update(completionSha256='0'*64)), ('wrong-journey', lambda v: v.update(journeySha256='0'*64))]:
+            value = json.loads(marker); mutate(value); write(directory / 'inner-result.json', value)
+            rebound = {**valid_event, 'innerResultSha256AtFailure': digest(directory / 'inner-result.json')}; write(failure_path, rebound)
+            case('browser-post-observation-'+name, lambda: refused(lambda: browser_transport_outcome(directory, launch, companion)))
+        (directory / 'inner-result.json').write_bytes(marker); write(failure_path, valid_event)
+        case('browser-post-observation-repeat-first-cause-unchanged', lambda: require(browser_transport_outcome(directory, launch, companion)['firstCause'] ==
+             valid_event['firstCause'], 'post-observation erased original first cause'))
+    def expired_endpoint():
+        ticks = iter([0, 1]);
+        refused(lambda: wait_browser_endpoint(None, {}, Path('/unused'), {}, {}, 0, lambda: None, clock=lambda: next(ticks)), 'deadline')
+    case('browser-original-endpoint-deadline', expired_endpoint)
+    case('browser-headed-literal-argv', lambda: require('--remote-debugging-port=0' in browser_argv('/selected/chrome', Path('/private/profile')) and
+         '--remote-debugging-pipe' not in browser_argv('/selected/chrome', Path('/private/profile')) and
+         not any('--headless' in v for v in BROWSER_FLAGS), 'foreground headed argv drift'))
+    workflow = (ROOT / '.github/workflows/fable-external-reference-source.yml').read_text()
+    case('browser-workflow-actual-node-controls-retained', lambda: workflow_guard(workflow))
+    marker = 'external-reference-orca.py --browser-self-test'
+    for name, value in [('missing-node-controls', workflow.replace(marker, 'external-reference-orca.py --absent-controls')),
+                        ('duplicate-node-controls', workflow+'\n'+marker),
+                        ('node-controls-before-version', workflow.replace('test "$(node --version)" = v26.10.0', 'removed-version-check')+'\ntest "$(node --version)" = v26.10.0')]:
+        case('browser-workflow-'+name, lambda value=value: refused(lambda: workflow_guard(value)))
+    print('PASS owned browser Python controls: '+str(len(checked))+' named cases; no browser, Node or network launched')
+    return checked
+
+
+def wrong_uid(profile):
+    from unittest.mock import patch
+    with patch.object(os, 'getuid', return_value=profile.stat().st_uid+1):
+        try:
+            browser_profile_identity(profile)
+        except RuntimeError:
+            return
+        raise RuntimeError('foreign profile owner accepted')
+
+
+def browser_js_self_test():
+    # Separate explicit inert mode; no Playwright/browser/service import or network creation.
+    with tempfile.TemporaryDirectory() as temporary:
+        source = Path(temporary) / 'browser.cjs'
+        source.write_text(BROWSER)
+        result = subprocess.run(['node', str(source), '--self-test'], check=True, stdout=subprocess.PIPE,
+                                stderr=subprocess.PIPE, timeout=10)
+        require(len(result.stdout) <= 1024*1024 and len(result.stderr) <= 1024*1024, 'inert JS output exceeded')
+        packet = json.loads(result.stdout)
+        require(packet['schema'] == 'fsgg.at-browser-adapter-controls/1' and packet['count'] == len(packet['names']) and
+                len(set(packet['names'])) == packet['count'] and packet['network'] == packet['browserLaunches'] == 0,
+                'actual inert JS control receipt malformed')
+        print(json.dumps(packet))
+        return packet['names']
 
 
 def route_self_test():
@@ -2120,7 +2998,7 @@ def route_self_test():
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
         route_fixture_evidence(directory, good)
-        require(route_evidence(directory, good, {"browser": {"pid": 2, "launcherPid": 60}}), "good owned route fixture refused")
+        require(route_evidence(directory, good, {"browser": {"pid": 2, "launcherPid": 2, "companionPid": 60}}), "good owned route fixture refused")
         actual = (directory / "owned-bus-runtime.json").read_bytes()
         for change in [lambda p: p.update(addressSetBeforeAtspiImport=False),
                        lambda p: p["registry"].update(pid=99),
@@ -2133,7 +3011,7 @@ def route_self_test():
             change(value)
             write(directory / "owned-bus-runtime.json", value)
             try:
-                route_evidence(directory, good, {"browser": {"pid": 2, "launcherPid": 60}})
+                route_evidence(directory, good, {"browser": {"pid": 2, "launcherPid": 2, "companionPid": 60}})
             except RuntimeError:
                 pass
             else:
@@ -2926,7 +3804,14 @@ def contract_inner_self_test(refuse_ready, fixture_uid=12345):
         activation = route_fixture()
         route_fixture_evidence(directory, activation, uid=fixture_uid, complete=False)
         write(directory / "session-budget.json", {"deadline": 300, "seconds": 300})
-        launched, readiness, observed = [], [], []
+        browser_outputs = ['browser.cjs', 'browser-launch.json', 'browser-companion-ready.json',
+                           'browser-companion.log', 'browser-dom.json', 'inner-result.json']
+        # Offline route fixtures own these fabricated records; actual assembled inner must produce its own.
+        for name in browser_outputs:
+            (directory / name).unlink(missing_ok=True)
+        require(all(not (directory / name).exists() for name in browser_outputs) and not (directory / 'profile').exists(),
+                'assembled browser outputs/profile were precreated')
+        launched, readiness, observed, browser_order = [], [], [], []
         original_ready = contract_ready
         (directory / "speech.sock").touch()
         children, rows = {}, {}
@@ -2936,6 +3821,14 @@ def contract_inner_self_test(refuse_ready, fixture_uid=12345):
                 self.pid = 100+len(launched)
                 self.name = name
             def poll(self):
+                if self.name == "browser-companion" and not (directory / "browser-companion-ready.json").exists():
+                    launch = json.loads((directory / "browser-launch.json").read_text())
+                    registered = json.loads((directory / "resource-leaders.json").read_text())
+                    require(any(v['resource'] == 'browser-companion' and same_birth(v, rows[self.pid]) for v in registered),
+                            'assembled companion ready preceded current birth registration')
+                    browser_order.append('ready')
+                    ready = browser_fixture_ready(launch, digest(directory / "browser-launch.json"), rows[self.pid])
+                    write(directory / "browser-companion-ready.json", ready)
                 if self.name == "session-contract" and (directory / FINISH_FILES[0]).exists():
                     if not (directory / FINISH_FILES[1]).exists():
                         latest = json.loads((directory / "owned-bus-runtime.json").read_text())
@@ -2948,13 +3841,23 @@ def contract_inner_self_test(refuse_ready, fixture_uid=12345):
         def spawn(argv, **kwargs):
             name = Path(kwargs["stdout"].name).stem
             launched.append(name)
+            if name == 'browser':
+                require((directory / 'profile').is_dir() and not list((directory / 'profile').iterdir()),
+                        'assembled foreground browser started without fresh empty profile')
+                browser_order.append('profile')
+            if name == 'browser-companion':
+                require((directory / 'browser-launch.json').exists() and (directory / 'profile/DevToolsActivePort').exists(),
+                        'assembled companion started without original launch/endpoint records')
+                browser_order.append('launch-record')
+            if name in ['browser', 'browser-companion']:
+                browser_order.append(name)
             child = Child(name)
             children[name] = child
-            rows[child.pid] = {"pid": child.pid, "start": child.pid+1000, "ppid": parent, "sid": sid, "state": "S"}
+            rows[child.pid] = {"pid": child.pid, "start": child.pid+1000, "ppid": parent, "sid": sid, "pgid": sid, "state": "S"}
             return child
-        session = {"pid": 90, "start": 900, "ppid": 89, "sid": sid, "state": "S"}
+        session = {"pid": 90, "start": 900, "ppid": 89, "sid": sid, "pgid": sid, "state": "S"}
         rows[90] = session
-        rows[parent] = {"pid": parent, "start": 420, "ppid": 89, "sid": sid, "rss": 100}
+        rows[parent] = {"pid": parent, "start": 420, "ppid": 89, "sid": sid, "pgid": sid, "rss": 100}
         class Reply:
             def unpack(self):
                 return (90,)
@@ -2986,6 +3889,22 @@ def contract_inner_self_test(refuse_ready, fixture_uid=12345):
         def query(connection, deadline, health=lambda: None):
             health()
             return ":1.2", children["session-contract"].pid, os.environ["AT_SPI_BUS_ADDRESS"], {"IsEnabled": True, "ScreenReaderEnabled": True}
+        original_close = os.close
+        def close(fd):
+            if fd not in [901, 902]:
+                original_close(fd)
+        def endpoint_ready(browser, birth, profile, identity, executable, deadline, health):
+            health()
+            require('browser' in launched and 'browser-companion' not in launched and profile.is_dir() and not list(profile.iterdir()),
+                    'assembled endpoint preceded foreground browser or reused profile')
+            endpoint_path = profile / 'DevToolsActivePort'
+            endpoint_path.write_bytes(b'1234\n/devtools/browser/fixture\n')
+            info = endpoint_path.stat()
+            endpoint = browser_fixture_endpoint()
+            endpoint['file'] = {'device': info.st_dev, 'inode': info.st_ino, 'bytes': info.st_size, 'sha256': digest(endpoint_path)}
+            check_browser_endpoint(profile, endpoint)
+            browser_order.append('endpoint')
+            return endpoint
         original_exists = Path.exists
         def exists(path):
             return False if str(path) in ["/tmp/.X97-lock", "/tmp/.X11-unix/X97"] else original_exists(path)
@@ -2997,10 +3916,11 @@ def contract_inner_self_test(refuse_ready, fixture_uid=12345):
         def observation(root, orca, browser, health):
             health()
             observed.append((orca, browser))
+            browser_order.append('journey')
             write(directory / "journey.json", {"inertObservedJourney": True})
         with patch.dict(os.environ, {"DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/fsgg-at-fixture/session.sock,guid="+"b"*32}, clear=True), \
              patch.object(subprocess, "Popen", side_effect=spawn), patch.object(subprocess, "run"), \
-             patch.object(os, "pipe", return_value=(901, 902)), patch.object(os, "close"), \
+             patch.object(os, "pipe", return_value=(901, 902)), patch.object(os, "close", side_effect=close), \
              patch.object(os, "getuid", return_value=fixture_uid), patch.object(os, "getpid", return_value=parent), patch.object(os, "getppid", return_value=89), \
              patch.object(os, "getsid", return_value=sid), patch.object(time, "monotonic", return_value=0), \
              patch.object(time, "sleep"), patch.object(Path, "read_text", read), patch.object(Path, "exists", exists), patch.object(shutil, "copyfile"), \
@@ -3009,6 +3929,12 @@ def contract_inner_self_test(refuse_ready, fixture_uid=12345):
                 read_bus_address=lambda *args, **kwargs: "unix:path=/tmp/fsgg-at-fixture/accessibility.sock,guid="+"a"*32,
                 registry_owner=registry, contract_ready=ready, contract_query=query, wait_server_ready=lambda *args, **kwargs: None,
                 bounded_bus_connection=lambda *_: Connection(),
+                browser_profile_identity=lambda profile: {"path": str(profile), "device": 1, "inode": 2, "uid": fixture_uid},
+                resolve_browser=lambda *_args, **_kwargs: browser_fixture_executable(),
+                check_node_tool=lambda *_: {"path": "/selected/node", "sha256": "a"*64}, check_browser_executable=lambda *_args, **_kwargs: None,
+                browser_active=lambda *_args, **_kwargs: None,
+                browser_listener=lambda *_: browser_fixture_endpoint()["listener"],
+                wait_browser_endpoint=endpoint_ready,
                 observe=observation):
             if refuse_ready:
                 try:
@@ -3019,10 +3945,28 @@ def contract_inner_self_test(refuse_ready, fixture_uid=12345):
                     raise RuntimeError("assembled unready service released workload")
             else:
                 inner(Path("/private/receiver"), directory, (gio, glib))
+                record_inner_success(directory)
+                browser_order.append('completed-inner')
+                launch = completion_record(directory / 'browser-launch.json')
+                companion = rows[children['browser-companion'].pid]
+                browser_ready_matches(completion_record(directory / 'browser-companion-ready.json'), launch,
+                                      digest(directory / 'browser-launch.json'), companion)
+                require(launch['browserBirth']['pid'] == children['browser'].pid and launch['browserBirth']['ppid'] == parent and
+                        launch['profile']['path'] == str(directory / 'profile') and
+                        digest(directory / 'browser.cjs') == launch['companionSourceSha256'] and
+                        not (directory / 'browser-companion.log').read_bytes() and
+                        completion_record(directory / 'inner-result.json')['completionSha256'] == digest(directory / FINISH_FILES[2]),
+                        'assembled browser/completion artifacts retained stale fixture authority')
+                check_browser_endpoint(directory / 'profile', launch['endpoint'])
+                require(browser_order == ['profile', 'browser', 'endpoint', 'launch-record', 'browser-companion', 'ready', 'journey', 'completed-inner'],
+                        'assembled original browser endpoint/launch/ready/journey/completion order drift')
         require(len(readiness) == 1 and readiness[0].index("accessibility-bus") < readiness[0].index("xvfb") <
                 readiness[0].index("registry") < readiness[0].index("session-contract"), "assembled startup order drift")
         if refuse_ready:
-            require(not observed and all(n not in launched for n in ["orca", "server", "browser"]), "failed readiness launched dependent work")
+            require(not observed and all(n not in launched for n in ["orca", "server", "browser", "browser-companion"]), "failed readiness launched dependent work")
+            require(not browser_order and not (directory / 'profile').exists() and
+                    all(not (directory / name).exists() for name in browser_outputs),
+                    'failed original contract readiness left fabricated browser/completion evidence')
         else:
             require(len(observed) == 1 and launched.index("session-contract") < launched.index("orca") <
                     launched.index("server") < launched.index("browser"), "ready startup dependent order drift")
@@ -3089,6 +4033,9 @@ def contract_reporting_self_test(cause="RuntimeError: original contract settings
 
 
 def workflow_guard(workflow):
+    require(workflow.count("external-reference-orca.py --browser-self-test") == 1 and
+            workflow.index('test "$(node --version)" = v26.10.0') < workflow.index("external-reference-orca.py --browser-self-test") <
+            workflow.index("Qualify exact generated"), "actual pinned Node adapter controls missing or misplaced")
     require(workflow.count("external-reference-orca.py --self-test") == 2, "static controls missing from PR/reusable path")
     for name in ["Provision external reference assistive technology", "Observe actual external reference Orca journey"]:
         section = workflow.split("      - name: " + name, 1)[1].split("\n      - ", 1)[0]
@@ -3108,6 +4055,7 @@ def main():
     parser = argparse.ArgumentParser()
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--self-test", action="store_true")
+    modes.add_argument("--browser-self-test", action="store_true")
     modes.add_argument("--inner", action="store_true")
     modes.add_argument("--owned-status", action="store_true")
     modes.add_argument("--capture-activation", action="store_true")
@@ -3116,6 +4064,8 @@ def main():
     args = parser.parse_args()
     if args.self_test:
         self_test()
+    elif args.browser_self_test:
+        browser_js_self_test()
     elif args.owned_status:
         require(args.first and not args.second, "private contract directory required")
         contract_child(Path(args.first))
@@ -3126,6 +4076,7 @@ def main():
         directory = Path(args.second)
         try:
             inner(Path(args.first), directory)
+            record_inner_success(directory)
         except BaseException as ex:
             first = type(ex).__name__ + ": " + str(ex)
             try:

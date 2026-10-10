@@ -186,6 +186,7 @@ jobs:
           set -euo pipefail
           test "$(dotnet --version)" = 10.0.401
           test "$(node --version)" = v26.10.0
+          python3 tests/composition/fable-game/external-reference-orca.py --browser-self-test
           test "$(npm --version)" = 12.1.0
           cd templates/fs-gg-fable-game/Browser.Tests
           npm ci
