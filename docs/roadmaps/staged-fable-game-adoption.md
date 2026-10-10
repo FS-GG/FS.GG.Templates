@@ -94,6 +94,52 @@ Vendor delegation remains unresolved data rather than being declared safe. No ac
 launch, strict disposal, original keyboard/speech journey or complete escaped cleanup is accepted
 by this source preparation; a separately admitted hosted attempt must establish those boundaries.
 
+## Session accessibility contract repair — 2026-10-10
+
+[Rendering run 38045995384 attempt 1](https://github.com/FS-GG/FS.GG.Rendering/actions/runs/38045995384),
+caller `5e1a8edecba8a3dd3db730966989bb5645bbdaf8` and Templates consumer
+`d2bd6e8d3c9cde06d3d200137743ea29a0919fa6`, passed its 24 browser cases and private speech preflight.
+Authenticated artifact `11666703965` has archive SHA-256
+`d262f41155e8052a4b1a9b37ac6c305c228813c680db0bb86e6466ab30e6c6d1`.
+Root accepted the original archive readback only. Orca failed before server/browser startup:
+the closed private session bus had no `org.a11y.Bus` owner for `org.a11y.Status.IsEnabled`.
+The generic prior-service-exited guard was downstream. No actual reference keyboard/speech
+journey was produced; the original failure remains preserved.
+
+The source candidate extends the existing observer with one explicitly owned foreground
+session-contract child. It returns only the original verified accessibility address and exports
+boolean read/write status from actual private keyfile settings. Authenticated upstream
+`at-spi2-core 2.52.0` bus-launcher source establishes the interface contract. A false-to-true
+screen-reader transition enables accessibility; repeating true is a no-op. Setting accessibility
+false retains the screen-reader flag, and disabling the screen reader retains accessibility.
+Initial values remain independent. Notifications describe actual changes. This qualification
+fixture deliberately refuses failed settings writes, readback mismatches and unexplained
+backend/cache disagreement, including external changes; it does not claim the vendor's more
+tolerant persistence behavior. Installed schema/compiled-source, package/Gio mapping and backend
+identities are retained; future native qualification must prove effective installed client behavior.
+
+The existing child launch, birth registration, census and cleanup supervise this contract.
+Readiness verifies the original daemon births/socket ownership, unique service owner and child
+birth, original GetAddress result and typed private settings before Orca. Name conflict/loss,
+connection closure, stale originals, failed registration or settings failures stop dependent work.
+Specific child causes survive reporting failure; existing cleanup is still attempted. Readiness
+supplies infrastructure only and cannot replace real speech, keyboard, disposal or journey evidence.
+The session remains bounded by its original 300-second deadline, 30-second cleanup, 100ms census,
+2GiB sampled RSS and 4MiB logs. Sampling does not establish hard containment or resolve earlier
+custody/escaping histories.
+
+The existing owner prepared and reviewed this three-path source candidate. All 65 named inert
+controls and four retained legacy fixture groups passed; routine exact-head source delivery remains
+pending. A later exact Rendering caller and fresh native admission precede real keyboard/speech
+evidence. No native services or journey, publication or installed adoption are accepted here. Under
+unified §9.9/§9.9.2, this changes an opt-in external-reference qualification
+fixture, without generated payload, provider/lifecycle default or enabled product changes.
+Stage .3 stays source/candidate scope. Stage .4 coherent publication and actual clean scaffold/
+receiver selection remain the installed boundary; any promised preserving upgrade needs separate
+owner-edit/configuration/save/extension and interruption evidence. The whole FABLE-ADOPT-01 /
+GAME-TEMPLATE-01 outcome stays open, including other examples/WASM/full-site semantics and
+product outcomes. Shared programme-index integration remains with its owner after source disposition.
+
 Another native qualification requires protected source and caller delivery, programme projection
 and separate fresh admission. Actual reference AT, coherent publication, fresh installed creation,
 preserving upgrades and product-native outcomes remain open; prior browser and limited TypeScript
