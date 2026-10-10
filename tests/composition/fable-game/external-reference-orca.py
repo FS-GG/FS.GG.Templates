@@ -1919,6 +1919,29 @@ def inner(receiver, directory, gio_adapter=None):
             "required AT/browser service exited after proven contract completion")
 
 
+def initialize_atspi_client(atspi, health):
+    # GI namespace import alone may not load or initialize its native client.
+    # Use the real private-bus client before inspecting that client's maps.
+    health()
+    desktop = atspi.get_desktop(0)
+    require(desktop is not None, "actual AT desktop initialization unavailable")
+    count = desktop.get_child_count()
+    require(type(count) is int and count >= 0, "actual AT desktop initialization read unavailable")
+    health()
+    return desktop
+
+
+def client_library_mapping(pid, object_identity, client):
+    identity = proc(pid)
+    with Path(f"/proc/{pid}/maps").open() as stream:
+        maps = stream.read(4*1024**2+1)
+    require(identity is not None and len(maps.encode()) <= 4*1024**2 and
+            any(line.split()[-1] == object_identity["resolvedPath"] for line in maps.splitlines() if line.split()),
+            "actual AT client library mapping unavailable: " + client)
+    require(same_birth(proc(pid), identity), "actual AT client birth changed during mapping read")
+    return {"birth": identity, "object": object_identity}
+
+
 def observe(directory, orca_pid, browser_pid, health=lambda: None):
     import gi
     gi.require_version("Atspi", "2.0")
@@ -2003,20 +2026,14 @@ def observe(directory, orca_pid, browser_pid, health=lambda: None):
     # Source-version correspondence is not evidence of the client loading that object.
     activation = json.loads((directory / "activation-provenance.json").read_text())
     objects = check_route_files(activation)
+    initialize_atspi_client(Atspi, health)
     mappings = {}
     registered_browser = next(v for v in json.loads((directory / "resource-leaders.json").read_text()) if v["resource"] == "browser")
     for client, pid, prefix in [("observer", os.getpid(), "libatspi.so."),
                                 ("browser", actual_browser_pid, "libatk-bridge-2.0.so.")]:
-        identity = proc(pid)
-        with Path(f"/proc/{pid}/maps").open() as stream:
-            maps = stream.read(4*1024**2+1)
-        require(identity is not None and len(maps.encode()) <= 4*1024**2 and
-                any(line.split()[-1] == objects[prefix]["resolvedPath"] for line in maps.splitlines() if line.split()),
-                "actual AT client library mapping unavailable: " + client)
-        require(same_birth(proc(pid), identity), "actual AT client birth changed during mapping read")
-        mappings[client] = {"birth": identity, "object": objects[prefix]}
+        mappings[client] = client_library_mapping(pid, objects[prefix], client)
         if client == "browser":
-            mappings[client]["ancestry"] = descendant_birth(identity, registered_browser)
+            mappings[client]["ancestry"] = descendant_birth(mappings[client]["birth"], registered_browser)
     runtime = json.loads((directory / "owned-bus-runtime.json").read_text())
     runtime["mappedLibraries"] = mappings
     write(directory / "owned-bus-runtime.json", runtime)
@@ -2632,7 +2649,7 @@ def browser_window_identity(actual_pid, registered, reader=None):
 
 
 def browser_self_test():
-    from unittest.mock import patch
+    from unittest.mock import patch, Mock
     from types import SimpleNamespace
     checked = []
     def case(name, work):
@@ -2878,6 +2895,51 @@ def browser_self_test():
                         ('duplicate-node-controls', workflow+'\n'+marker),
                         ('node-controls-before-version', workflow.replace('test "$(node --version)" = v26.10.0', 'removed-version-check')+'\ntest "$(node --version)" = v26.10.0')]:
         case('browser-workflow-'+name, lambda value=value: refused(lambda: workflow_guard(value)))
+    # Realistic lazy GI fixture: namespace access alone maps no native object;
+    # only get_desktop followed by a desktop read initializes this client.
+    from io import StringIO
+    identity = {'pid': 71, 'start': 19, 'ppid': 70, 'sid': 70, 'pgid': 70}
+    mapped_object = {'resolvedPath': '/selected/libatspi.so.0.0.1', 'sha256': 'a'*64}
+    def initialization_fixture(init_error=None, count=0, maps_after=True, mapping=None, births=None, health_error=None):
+        events = []; loaded = [False]
+        class Desktop:
+            def get_child_count(self):
+                events.append('desktop-read'); loaded[0] = maps_after
+                return count
+        class LazyAtspi:
+            def get_desktop(self, index):
+                require(index == 0, 'real desktop index drift')
+                events.append('get-desktop')
+                if init_error: raise RuntimeError(init_error)
+                return Desktop()
+        def health():
+            events.append('health')
+            if health_error and events.count('health') == health_error[0]: raise RuntimeError(health_error[1])
+        def maps_reader(*_args, **_kwargs):
+            events.append('maps')
+            value = mapping if mapping is not None else ('0000 r-xp 0 0 0 '+mapped_object['resolvedPath']+'\n' if loaded[0] else '')
+            return StringIO(value)
+        with patch.object(Path, 'open', side_effect=maps_reader), patch.dict(globals(), proc=Mock(side_effect=births if births is not None else lambda _: identity.copy())):
+            initialize_atspi_client(LazyAtspi(), health)
+            value = client_library_mapping(71, mapped_object, 'observer')
+        require(events[:4] == ['health', 'get-desktop', 'desktop-read', 'health'] and events[4:] == ['maps'], 'native initialization/map ordering drift')
+        require(value == {'birth': identity, 'object': mapped_object}, 'exact native mapping identity changed')
+    case('atspi-lazy-native-initialization-before-map', initialization_fixture)
+    case('atspi-initialization-original-first-cause', lambda: refused(lambda: initialization_fixture(init_error='original desktop initialization failed'), 'original desktop initialization failed'))
+    case('atspi-initialized-still-unmapped-refuses', lambda: refused(lambda: initialization_fixture(maps_after=False), 'actual AT client library mapping unavailable: observer'))
+    case('atspi-initialization-negative-desktop-read-refuses', lambda: refused(lambda: initialization_fixture(count=-1), 'actual AT desktop initialization read unavailable'))
+    case('atspi-initialization-bool-desktop-read-refuses', lambda: refused(lambda: initialization_fixture(count=True), 'actual AT desktop initialization read unavailable'))
+    case('atspi-initialization-missing-desktop-refuses', lambda: refused(lambda: initialize_atspi_client(SimpleNamespace(get_desktop=lambda _: None), lambda: None), 'actual AT desktop initialization unavailable'))
+    case('atspi-initialization-health-before-refuses', lambda: refused(lambda: initialization_fixture(health_error=(1, 'original pre-init health failed')), 'original pre-init health failed'))
+    case('atspi-initialization-health-after-refuses', lambda: refused(lambda: initialization_fixture(health_error=(2, 'original post-init health failed')), 'original post-init health failed'))
+    case('atspi-map-exact-path-mismatch-refuses', lambda: refused(lambda: initialization_fixture(mapping='0000 r-xp 0 0 0 /other/libatspi.so.0.0.1\n'), 'actual AT client library mapping unavailable: observer'))
+    case('atspi-map-oversized-refuses', lambda: refused(lambda: initialization_fixture(mapping='x'*(4*1024**2+1)), 'actual AT client library mapping unavailable: observer'))
+    case('atspi-map-original-birth-changed-refuses', lambda: refused(lambda: initialization_fixture(births=[identity.copy(), {**identity, 'start': 20}]), 'actual AT client birth changed during mapping read'))
+    case('atspi-map-missing-original-birth-refuses', lambda: refused(lambda: initialization_fixture(births=[None]), 'actual AT client library mapping unavailable: observer'))
+    def browser_mapping_refusal():
+        with patch.object(Path, 'open', return_value=StringIO('')), patch.dict(globals(), proc=lambda _: identity.copy()):
+            refused(lambda: client_library_mapping(71, mapped_object, 'browser'), 'actual AT client library mapping unavailable: browser')
+    case('atspi-map-browser-guard-retained', browser_mapping_refusal)
     print('PASS owned browser Python controls: '+str(len(checked))+' named cases; no browser, Node or network launched')
     return checked
 
