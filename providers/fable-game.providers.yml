@@ -46,6 +46,8 @@ providers:
         required: false
       - key: bundle
         required: false
+      - key: portalExample
+        required: false
       - key: lifecycle
         required: false
         default: typed-sdd

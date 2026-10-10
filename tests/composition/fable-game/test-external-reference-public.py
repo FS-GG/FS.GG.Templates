@@ -197,6 +197,10 @@ class PublicInputTests(unittest.TestCase):
         root = HERE.parents[2] / 'templates/fs-gg-fable-game'
         count = 0
         for path in root.rglob('packages.lock.json'):
+            # The independent Portal closure keeps qualified UI 0.31.0 pins; its
+            # canonical lock and exact seven packages have their own verifier.
+            if path.relative_to(root).parts[0] == 'PortalExample':
+                continue
             for rows in json.loads(path.read_text())['dependencies'].values():
                 for identity, row in rows.items():
                     if identity in public.LOCK_HASH:

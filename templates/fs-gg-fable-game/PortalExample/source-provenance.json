@@ -1,0 +1,76 @@
+{
+  "schema": "fsgg.portal.example-source/1",
+  "feature": "GAME-PORTAL-01",
+  "item": "GAME-PORTAL-01.P3",
+  "templateId": "fs-gg-fable-game",
+  "selection": {
+    "parameter": "portalExample",
+    "default": false,
+    "backend": "independent-managed-dotnet10",
+    "browserPhysics": false,
+    "productionServerIntegration": false
+  },
+  "gameSource": {
+    "repository": "https://github.com/FS-GG/FS.GG.Game",
+    "revision": "49c7f5a74f2470f68e626b68293d5207c2068a93",
+    "tree": "c2aa7259568ddb54f5397ff978ca3baa6d942255"
+  },
+  "canonicalFiles": [
+    {
+      "destination": "Consumer.fsproj",
+      "producerPath": "tests/release/Box2D.PackageConsumer/PresentationConsumer.fsproj",
+      "sha256": "0c9929c2fddab032cb3f0f55ced0df30552a0f9eb9604184e8d0e10940678e70"
+    },
+    {
+      "destination": "PortalScene.fs",
+      "producerPath": "examples/Box2D.Portals/Scene.fs",
+      "sha256": "24c91caaa54c1a09ba342355395b8c9796054aa31619aa2d4a68b425ff5aaf7e"
+    },
+    {
+      "destination": "Presentation.fs",
+      "producerPath": "examples/Box2D.Portals/Presentation.fs",
+      "sha256": "22b29b4670e23d133bdd4cc56b03a09a252b4ebec10f187065a6d4d1e2bd687f"
+    },
+    {
+      "destination": "Program.fs",
+      "producerPath": "examples/Box2D.Portals/Program.fs",
+      "sha256": "dda86d3ea3b4349f98512a5ef6173202abc6268565fe1ba283d7071a0442998f"
+    },
+    {
+      "destination": "verify-package-boundary.py",
+      "producerPath": "tests/release/Box2D.PackageConsumer/verify-package-boundary.py",
+      "sha256": "4ed89d48e403b9e5ab496a52497e4fa926e6259e487061bddebab2fb03e713c8"
+    }
+  ],
+  "lock": {
+    "path": "packages.lock.json",
+    "sha256": "7769c72f28bca3fc4b40e6ce710852c8d5e26098c5e6d5c35cefbe9f7c11f66b",
+    "origin": "Genuinely generated in separately qualified fresh public seven-package consumer; immutable adopted input, not a hand-authored lock."
+  },
+  "templateFiles": [
+    {
+      "path": "README.md",
+      "sha256": "a23df5d8ed09a67a4f9eff29075ec3ccd8da74277bfe41d8cb694b23abcb5d0d"
+    }
+  ],
+  "managedPaths": [
+    "Consumer.fsproj",
+    "PortalScene.fs",
+    "Presentation.fs",
+    "Program.fs",
+    "README.md",
+    "packages.lock.json",
+    "source-provenance.json",
+    "verify-package-boundary.py"
+  ],
+  "packageClosure": {
+    "FS.GG.Game.Core": "0.17.0",
+    "FS.GG.Game.Physics.Box2D": "0.17.0",
+    "FS.GG.Game.Render": "0.17.0",
+    "FS.GG.UI.Scene": "0.31.0",
+    "FS.GG.UI.KeyboardInput": "0.31.0",
+    "Box2D.NET": "3.1.654",
+    "FSharp.Core": "10.1.302"
+  },
+  "qualification": "Source payload only; candidate generation and public installed fresh/retained acceptance require separate evidence."
+}

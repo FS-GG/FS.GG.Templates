@@ -38,6 +38,10 @@
       ],
       "modifiers": [
         {
+          "condition": "(portalExample != true)",
+          "exclude": [ "PortalExample/**" ]
+        },
+        {
           "condition": "(lifecycle != \"typed-sdd\")",
           "exclude": [ ".github/workflows/project-knowledge.yml", "scripts/check-project-knowledge.py" ]
         },
@@ -70,6 +74,12 @@
     }
   ],
   "symbols": {
+    "portalExample": {
+      "type": "parameter",
+      "datatype": "bool",
+      "defaultValue": "false",
+      "description": "Include an independently invoked managed .NET portal scene/presentation example. No browser or production server integration."
+    },
     "bundle": {
       "type": "parameter",
       "datatype": "choice",

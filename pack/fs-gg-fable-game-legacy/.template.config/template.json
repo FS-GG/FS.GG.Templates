@@ -34,7 +34,8 @@
         "SvgFoundation/Studio/dist/**",
         "SvgFoundation/Studio/vendor/**",
         "SvgFoundation/Studio/ArenaContent.js",
-        "artifacts/**"
+        "artifacts/**",
+        "PortalExample/**"
       ],
       "modifiers": [
         {
