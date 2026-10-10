@@ -128,9 +128,31 @@ The session remains bounded by its original 300-second deadline, 30-second clean
 2GiB sampled RSS and 4MiB logs. Sampling does not establish hard containment or resolve earlier
 custody/escaping histories.
 
-The existing owner prepared and reviewed this three-path source candidate. All 65 named inert
-controls and four retained legacy fixture groups passed; routine exact-head source delivery remains
-pending. A later exact Rendering caller and fresh native admission precede real keyboard/speech
+The existing owner's first source candidate passed 65 named inert controls and four retained
+legacy fixture groups locally. [Templates PR 693](https://github.com/FS-GG/FS.GG.Templates/pull/693)
+then failed its hosted static observer controls at exact source
+`6975891cb66e2768112aaafe0e95ca9194322d0e`, run `38056213005`, job `114225169329`:
+`private bus config differs from closed serializer`. The assembled fixture assumed UID 1000
+while the actual inner reads the effective UID; the hosted numeric UID was not retained.
+The correction uses explicit fixture UIDs, including non-1000 cases, and still refuses genuinely
+wrong UID/configuration pairs. The original failed source and hosted evidence remain preserved.
+
+The completion correction also requires the original owned contract child to finish before the
+session wrapper tears down the bus. After the observed journey and final health check, a bounded
+atomic request binds original parent/child births, bus and registry identities, source, address,
+journey digest and the original session deadline. The child checks health and retained first causes,
+unregisters its objects, releases its name and completes its own bounded connection close before
+acknowledging. The parent requires the matching acknowledgment and the original child handle's
+zero exit and reaping before returning. The receipt binds request, acknowledgment and completion
+bytes. Only this proven completed child leaves later active-service polling; its custody record
+remains. Remote or active connection errors, malformed or stale evidence, cancellation, failed
+teardown and uncertain completion remain failures. No new deadline or cleanup reserve is created.
+The finite local inert qualification passed all 121 named controls: the retained 65 contract
+cases and 56 completion/portable UID cases, with four retained legacy fixture groups. The returned
+and retained receipts joined the exact source/runtime pins and observed an empty owned group.
+The additional completion and final contract group markers were retained. Native GLib callback
+ordering, service shutdown and the actual Orca journey remain unqualified; routine exact-head
+delivery of the correction remains pending. A later exact Rendering caller and fresh native admission precede real keyboard/speech
 evidence. No native services or journey, publication or installed adoption are accepted here. Under
 unified §9.9/§9.9.2, this changes an opt-in external-reference qualification
 fixture, without generated payload, provider/lifecycle default or enabled product changes.

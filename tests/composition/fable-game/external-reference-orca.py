@@ -493,15 +493,15 @@ def contract_ready(connection, child, birth, runtime, state, directory, deadline
         require(child.poll() is None and same_birth(reader(pid), birth), service_first_cause(directory))
         require((directory / "session-contract-state.json").stat().st_size <= 65536, "session contract startup evidence oversized")
         snapshot = json.loads((directory / "session-contract-state.json").read_text())
-        require(snapshot["sourceSha256"] == CONTRACT_SOURCE_SHA256 and snapshot["initialValues"] == values and
+        require(snapshot["sourceSha256"] == CONTRACT_SOURCE_SHA256 and snapshot["observerSourceSha256"] == digest(Path(__file__).resolve()) and snapshot["initialValues"] == values and
                 same_birth(snapshot["birth"], birth), "session contract startup evidence mismatch")
         return {"name": "org.a11y.Bus", "uniqueOwner": owner, "pid": pid, "birth": birth,
                 "address": address, "initialValues": values, "settings": snapshot["settings"],
-                "sourceSha256": CONTRACT_SOURCE_SHA256, "readyBeforeOrca": True}
+                "sourceSha256": CONTRACT_SOURCE_SHA256, "observerSourceSha256": snapshot["observerSourceSha256"], "parentBirth": snapshot["parentBirth"], "readyBeforeOrca": True}
     raise RuntimeError("original session contract readiness deadline exceeded")
 
 
-def service_first_cause(directory):
+def service_first_cause(directory, fallback="prior required AT service exited"):
     path = directory / "session-contract-failure.json"
     if path.is_file():
         require(path.stat().st_size <= 65536, "session contract failure evidence oversized")
@@ -516,7 +516,7 @@ def service_first_cause(directory):
                   if line.startswith("SESSION_CONTRACT_FIRST_CAUSE ")]
         if causes:
             return causes[0]
-    return "prior required AT service exited"
+    return fallback
 
 
 def required_children(children, directory):
@@ -557,12 +557,233 @@ def contract_name_health(connection, deadline):
     require(actual_owner == connection.get_unique_name(), "original session contract name lost")
 
 
+# Completion belongs to the original live child, before dbus-run-session ends the bus.
+FINISH_SCHEMA = "fsgg.at-session-contract-finish/1"
+FINISH_FILES = ["session-contract-finish-request.json", "session-contract-finish-ack.json",
+                "session-contract-completion.json"]
+
+
+def atomic_record_once(path, value):
+    raw = (json.dumps(value, sort_keys=True)+"\n").encode()
+    require(len(raw) <= 65536, "session completion record oversized")
+    require(not path.exists() and not path.is_symlink(), "duplicate session completion record")
+    temporary = path.with_name("."+path.name+".pending")
+    first = None
+    try:
+        with temporary.open("xb") as stream:
+            os.chmod(temporary, 0o600)
+            stream.write(raw)
+            stream.flush()
+        # A hard link publishes the complete bytes atomically and refuses an existing destination.
+        os.link(temporary, path)
+    except BaseException as ex:
+        first = ex
+        raise
+    finally:
+        try:
+            temporary.unlink(missing_ok=True)
+        except BaseException:
+            if first is None:
+                raise
+
+
+def completion_record(path):
+    require(path.is_file() and not path.is_symlink() and 0 < path.stat().st_size <= 65536,
+            "session completion evidence missing/oversized/linked")
+    def unique(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, "duplicate session completion field")
+            result[key] = value
+        return result
+    try:
+        value = json.loads(path.read_bytes(), object_pairs_hook=unique)
+    except (ValueError, UnicodeError) as ex:
+        raise RuntimeError("session completion evidence malformed") from ex
+    require(type(value) is dict, "session completion record malformed")
+    return value
+
+
+def completion_birth(birth):
+    require(type(birth) is dict and all(type(birth.get(key)) is int and birth[key] > 0
+            for key in ["pid", "start", "ppid", "sid"]), "session completion birth malformed")
+    return {key: birth[key] for key in ["pid", "start", "ppid", "sid"]}
+
+
+def completion_identity(directory, runtime, parent, child, unique_owner):
+    parent, child = completion_birth(parent), completion_birth(child)
+    require(child["ppid"] == parent["pid"] == runtime["bus"]["ppid"] and
+            parent["sid"] == child["sid"] == runtime["bus"]["sid"] and
+            re.fullmatch(r":\d+\.\d+", unique_owner) is not None, "session completion original custody/owner mismatch")
+    budget = completion_record(directory / "session-budget.json")
+    require(set(budget) == {"deadline", "seconds"} and type(budget["seconds"]) is int and budget["seconds"] == 300 and
+            type(budget["deadline"]) in [int, float] and 0 < budget["deadline"] < float("inf"),
+            "original session completion budget malformed")
+    # No completion is possible before an actual observation wrote its journey evidence.
+    journey = completion_record(directory / "journey.json")
+    require(journey, "session completion journey absent")
+    return {"parentBirth": parent, "childBirth": child,
+            "sessionBusBirth": completion_birth(runtime["sessionBus"]),
+            "accessibilityBusBirth": completion_birth(runtime["bus"]),
+            "registryBirth": completion_birth(runtime["registry"]["birth"]),
+            "sessionAddress": runtime["sessionAddress"], "address": runtime["address"], "uniqueOwner": unique_owner,
+            "sourceContractSha256": CONTRACT_SOURCE_SHA256, "observerSourceSha256": digest(Path(__file__).resolve()),
+            "sessionBudgetSha256": digest(directory / "session-budget.json"), "deadline": budget["deadline"],
+            "journeySha256": digest(directory / "journey.json")}
+
+
+def completion_request(directory, identity):
+    path = directory / FINISH_FILES[0]
+    value = completion_record(path)
+    require(set(value) == {"schema", "phase", "identity"} and value["schema"] == FINISH_SCHEMA and
+            value["phase"] == "request" and value["identity"] == identity,
+            "session finish request identity/phase mismatch")
+    return value, digest(path)
+
+
+def complete_contract_child(directory, identity, health, teardown, first_cause=lambda: None,
+                            clock=None):
+    clock = time.monotonic if clock is None else clock
+    require(first_cause() is None, first_cause())
+    require(clock() < identity["deadline"], "original session completion deadline exhausted")
+    request, request_sha = completion_request(directory, identity)
+    require(not (directory / FINISH_FILES[1]).exists(), "duplicate session completion acknowledgment")
+    health()
+    require(first_cause() is None, first_cause())
+    require(clock() < identity["deadline"], "original session completion deadline exhausted before drain")
+    teardown()
+    require(first_cause() is None, first_cause())
+    require(clock() < identity["deadline"], "original session completion deadline exhausted after drain")
+    require(digest(directory / FINISH_FILES[0]) == request_sha, "session finish request changed during drain")
+    ack = {"schema": FINISH_SCHEMA, "phase": "ack", "identity": identity,
+           "requestSha256": request_sha, "teardown": "completed", "firstCause": None}
+    atomic_record_once(directory / FINISH_FILES[1], ack)
+    return ack
+
+
+def bounded_connection_close(connection, Gio, GLib, deadline, clock=None):
+    clock = time.monotonic if clock is None else clock
+    require(clock() < deadline, "original session close deadline exhausted")
+    loop, cancellable = GLib.MainLoop(), Gio.Cancellable()
+    outcome, timed_out = [], []
+    def done(conn, pending, unused):
+        try:
+            require(connection.close_finish(pending) is True, "session contract close not completed")
+            outcome.append(None)
+        except BaseException as ex:
+            outcome.append(ex)
+        loop.quit()
+    def expired():
+        timed_out.append(True)
+        cancellable.cancel()
+        loop.quit()
+        return False
+    timer = GLib.timeout_add(max(1, int((deadline-clock())*1000)), expired)
+    primary = None
+    try:
+        connection.close(cancellable, done, None)
+        loop.run()
+        require(not timed_out and clock() < deadline, "session contract close deadline/cancellation; completion unknown")
+        require(len(outcome) == 1, "session contract close completion unavailable")
+        if outcome[0] is not None:
+            raise outcome[0]
+    except BaseException as ex:
+        primary = ex
+        raise
+    finally:
+        try:
+            if not timed_out:
+                GLib.source_remove(timer)
+        except BaseException:
+            if primary is None:
+                raise
+
+
+def finish_contract(directory, runtime, child, birth, parent_birth, health,
+                    clock=None, pause=None, reader=None):
+    clock = time.monotonic if clock is None else clock
+    pause = time.sleep if pause is None else pause
+    reader = proc if reader is None else reader
+    deadline = completion_record(directory / "session-budget.json")["deadline"]
+    require(child.poll() is None and same_birth(reader(child.pid), birth), "original session contract exited before finish")
+    require(same_birth(reader(parent_birth["pid"]), parent_birth), "original session finish requester birth changed")
+    health()
+    identity = completion_identity(directory, runtime, parent_birth, birth, runtime["sessionContract"]["uniqueOwner"])
+    require(clock() < deadline, "original session completion deadline exhausted before request")
+    require(service_first_cause(directory, None) is None, service_first_cause(directory))
+    atomic_record_once(directory / FINISH_FILES[0], {"schema": FINISH_SCHEMA, "phase": "request", "identity": identity})
+    request_sha = digest(directory / FINISH_FILES[0])
+    while clock() < deadline:
+        health()
+        require(service_first_cause(directory, None) is None, service_first_cause(directory))
+        code = child.poll()
+        if code is not None:
+            # poll/wait act on the original Popen handle; a file cannot establish exit or reaping.
+            require(type(code) is int and code == 0 and child.wait(timeout=max(.001, deadline-clock())) == 0,
+                    "original session contract completion exit nonzero")
+            ack = completion_record(directory / FINISH_FILES[1])
+            require(set(ack) == {"schema", "phase", "identity", "requestSha256", "teardown", "firstCause"} and
+                    ack["schema"] == FINISH_SCHEMA and ack["phase"] == "ack" and ack["identity"] == identity and
+                    ack["requestSha256"] == request_sha and ack["teardown"] == "completed" and ack["firstCause"] is None,
+                    "session completion acknowledgment mismatch")
+            require(digest(directory / FINISH_FILES[0]) == request_sha, "session finish request changed before reaping")
+            require(clock() < deadline, "original session completion deadline exhausted before evidence")
+            health()
+            result = {"schema": FINISH_SCHEMA, "phase": "reaped", "identity": identity,
+                      "requestSha256": request_sha, "ackSha256": digest(directory / FINISH_FILES[1]),
+                      "childExit": code, "reaped": True, "firstCause": None}
+            atomic_record_once(directory / FINISH_FILES[2], result)
+            return result
+        require(same_birth(reader(child.pid), birth), "original session contract birth changed during finish")
+        pause(min(.1, max(0, deadline-clock())))
+    raise RuntimeError("original session completion deadline exhausted waiting for child")
+
+
+def completion_evidence(directory, runtime, contract):
+    snapshot = completion_record(directory / "session-contract-state.json")
+    identity = completion_identity(directory, runtime, snapshot["parentBirth"], contract["birth"], contract["uniqueOwner"])
+    request, request_sha = completion_request(directory, identity)
+    ack = completion_record(directory / FINISH_FILES[1])
+    result = completion_record(directory / FINISH_FILES[2])
+    require(set(ack) == {"schema", "phase", "identity", "requestSha256", "teardown", "firstCause"} and
+            ack["schema"] == FINISH_SCHEMA and ack["phase"] == "ack" and ack["identity"] == identity and
+            ack["requestSha256"] == request_sha and ack["teardown"] == "completed" and ack["firstCause"] is None,
+            "session completion child acknowledgment unbound")
+    require(set(result) == {"schema", "phase", "identity", "requestSha256", "ackSha256", "childExit", "reaped", "firstCause"} and
+            result["schema"] == FINISH_SCHEMA and result["phase"] == "reaped" and result["identity"] == identity and
+            result["requestSha256"] == request_sha and result["ackSha256"] == digest(directory / FINISH_FILES[1]) and
+            type(result["childExit"]) is int and result["childExit"] == 0 and result["reaped"] is True and
+            result["firstCause"] is None and contract["completion"] == result,
+            "session completion original exit/reap evidence unbound")
+    require(service_first_cause(directory, None) is None, "session contract retained original failure")
+    return True
+
+
+
+def expected_local_close(own_close, remote_peer_vanished, error):
+    return own_close is True and remote_peer_vanished is False and error is None
+
+
+def drain_contract(connection, registrations, deadline, close_started, Gio, GLib):
+    for rid in registrations:
+        require(connection.unregister_object(rid) is True, "session contract object unregister failed")
+    code = contract_call(connection, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
+                         "ReleaseName", ("(s)", ("org.a11y.Bus",)), "(u)", deadline)[0]
+    require(type(code) is int and code == 1, "session contract name release failed")
+    require(not connection.is_closed(), "session contract connection lost before intentional close")
+    close_started()
+    bounded_connection_close(connection, Gio, GLib, deadline)
+
+
 def contract_child(directory):
     import gi
     gi.require_version("Gio", "2.0")
     from gi.repository import Gio, GLib
     first, reporting = None, []
+    observed_source = digest(Path(__file__).resolve())
     birth = proc(os.getpid())
+    parent_birth = proc(os.getppid())
+    finished, draining, own_close = False, False, False
     loop, connection, owner, registrations = None, None, False, []
     try:
         runtime = json.loads((directory / "owned-bus-runtime.json").read_text())
@@ -570,6 +791,7 @@ def contract_child(directory):
         deadline = json.loads((directory / "session-budget.json").read_text())["deadline"]
         contract_births(runtime, state)
         require_birth(birth, os.getppid(), runtime["bus"]["sid"])
+        require(parent_birth is not None and parent_birth["pid"] == birth["ppid"], "session contract parent birth unavailable")
         require(time.monotonic() < deadline, "original session contract deadline exceeded")
         require(os.environ["AT_SPI_BUS_ADDRESS"] == runtime["address"] and
                 os.environ["DBUS_SESSION_BUS_ADDRESS"] == runtime["sessionAddress"], "session contract original addresses changed")
@@ -583,6 +805,7 @@ def contract_child(directory):
             loop.quit()
         def health():
             require(time.monotonic() < deadline, "original session contract deadline exceeded")
+            require(digest(Path(__file__).resolve()) == observed_source, "original observer source changed")
             contract_births(runtime, state)
             require(not connection.is_closed(), "original session contract connection closed")
         def emit(name, value):
@@ -615,7 +838,7 @@ def contract_child(directory):
                 return False
         registrations = register_contract_objects(connection, Gio.DBusNodeInfo.new_for_xml(CONTRACT_XML).interfaces,
                                                    method, get_property, set_property, reporting)
-        startup = {"birth": birth, "sourceSha256": CONTRACT_SOURCE_SHA256,
+        startup = {"birth": birth, "parentBirth": completion_birth(parent_birth), "observerSourceSha256": observed_source, "sourceSha256": CONTRACT_SOURCE_SHA256,
                    "address": runtime["address"], "sessionAddress": runtime["sessionAddress"],
                    "initialValues": dict(model.values), "settings": settings_facts}
         require(len(json.dumps(startup).encode()) <= 65536, "session contract startup evidence oversized")
@@ -629,11 +852,46 @@ def contract_child(directory):
                 except BaseException as ex:
                     fail(ex)
             setting.connect("changed::"+STATUS_KEYS[name][1], changed)
-        connection.connect("closed", lambda *_: fail(RuntimeError("original session contract connection closed")))
+        def closed(conn, remote_peer_vanished, error):
+            # Only the successful locally initiated close is normal. Remote/active errors remain failures.
+            if not expected_local_close(own_close, remote_peer_vanished, error):
+                fail(RuntimeError("original session contract connection closed"))
+        connection.connect("closed", closed)
+        def teardown():
+            nonlocal draining, own_close, owner, registrations
+            draining = True
+            def close_started():
+                nonlocal own_close
+                own_close = True
+            drain_contract(connection, registrations, deadline, close_started, Gio, GLib)
+            registrations = []
+            owner = False
         def monitored():
+            nonlocal finished
+            if draining:
+                return False
             try:
                 model.truthful()
                 contract_name_health(connection, deadline)
+                if (directory / FINISH_FILES[0]).exists():
+                    final_runtime = json.loads((directory / "owned-bus-runtime.json").read_text())
+                    require(final_runtime["address"] == runtime["address"] and
+                            final_runtime["sessionAddress"] == runtime["sessionAddress"] and
+                            all(same_birth(final_runtime[key], runtime[key]) for key in ["bus", "sessionBus"]) and
+                            same_birth(final_runtime["registry"]["birth"], runtime["registry"]["birth"]) and
+                            final_runtime["sessionContract"]["uniqueOwner"] == connection.get_unique_name() and
+                            same_birth(final_runtime["sessionContract"]["birth"], birth),
+                            "original session completion runtime identity changed")
+                    def final_health():
+                        require(same_birth(proc(parent_birth["pid"]), parent_birth), "original completion requester birth changed")
+                        require(same_birth(proc(birth["pid"]), birth), "original completion child birth changed")
+                        model.truthful()
+                        contract_name_health(connection, deadline)
+                    identity = completion_identity(directory, final_runtime, parent_birth, birth, connection.get_unique_name())
+                    complete_contract_child(directory, identity, final_health, teardown, lambda: first)
+                    finished = True
+                    loop.quit()
+                    return False
                 return True
             except BaseException as ex:
                 fail(ex)
@@ -642,19 +900,21 @@ def contract_child(directory):
         require(first is None, first)
         loop.run()
         require(first is None, first)
+        require(finished, "session contract exited without original completion")
     except BaseException as ex:
         if first is None:
             first = type(ex).__name__+": "+str(ex)
     finally:
         # Causal state is already in memory; teardown and reporting cannot replace it or bypass parent cleanup.
         try:
-            if connection is not None and not connection.is_closed():
+            if not finished and connection is not None and not connection.is_closed():
                 for rid in registrations:
                     connection.unregister_object(rid)
                 if owner:
                     contract_call(connection, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                         "ReleaseName", ("(s)", ("org.a11y.Bus",)), "(u)", deadline)
-                connection.close_sync(None)
+                own_close = True
+                bounded_connection_close(connection, Gio, GLib, deadline)
         except BaseException as ex:
             reporting.append("teardown: "+type(ex).__name__+": "+str(ex))
             if first is None:
@@ -706,10 +966,12 @@ def contract_evidence(directory, runtime, leaders):
                 "session contract schema identity malformed")
     snapshot = json.loads((directory / "session-contract-state.json").read_text())
     require(same_birth(snapshot["birth"], birth) and snapshot["sourceSha256"] == CONTRACT_SOURCE_SHA256 and
+            snapshot["observerSourceSha256"] == contract["observerSourceSha256"] == digest(Path(__file__).resolve()) and
             snapshot["address"] == contract["address"] and snapshot["sessionAddress"] == runtime["sessionAddress"] and
             snapshot["initialValues"] == contract["initialValues"] and snapshot["settings"] == settings,
             "session contract startup/runtime evidence mismatch")
-    require(not (directory / "session-contract-failure.json").exists(), "session contract failed during original journey")
+    require(service_first_cause(directory, None) is None, "session contract failed during original journey")
+    completion_evidence(directory, runtime, contract)
     return True
 
 
@@ -788,7 +1050,7 @@ def validate(receipt, packet, preflight, directory):
     activation = json.loads((directory / "activation-provenance.json").read_text())
     route_metadata(activation)
     for name in ["owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf",
-                 "session-contract-state.json", "session-budget.json"]:
+                 "session-contract-state.json", "session-budget.json", "journey.json", *FINISH_FILES]:
         require(name in receipt["evidenceSha256"], "owned private route evidence unbound")
     route_evidence(directory, activation, receipt)
     sequences = [e["eventSequence"] for e in receipt["actions"]]
@@ -1096,6 +1358,18 @@ def inner(receiver, directory, gio_adapter=None):
     observe(directory, orca.pid, browser.pid, prerequisite_health)
     prerequisite_health()
     require(all(child.poll() is None for child in children), "required AT/browser service exited")
+    parent_birth = proc(os.getpid())
+    require(same_birth(parent_birth, runtime["sessionContract"]["parentBirth"]), "original completion parent birth changed")
+    def finishing_health():
+        required_children([child for child in children if child is not status], directory)
+        contract_births(runtime, state)
+    completion = finish_contract(directory, runtime, status, status_birth, parent_birth, finishing_health)
+    runtime = json.loads((directory / "owned-bus-runtime.json").read_text())
+    runtime["sessionContract"]["completion"] = completion
+    write(directory / "owned-bus-runtime.json", runtime)
+    finishing_health()
+    require(status.poll() == 0 and all(child is status or child.poll() is None for child in children),
+            "required AT/browser service exited after proven contract completion")
 
 
 def observe(directory, orca_pid, browser_pid, health=lambda: None):
@@ -1524,7 +1798,7 @@ def qualify(out, preflight_path, termination):
                "producer": preflight["producer"], **journey, "keyboard": "xdotool-X11", "speechBoundary": "Orca SPEECH OUTPUT",
                "physicalAudioHardware": "not-observed", "cleanup": result, "sourceQualificationSha256": digest(packet_path),
                "servedAssemblySha256": served_digest,
-               "evidenceSha256": {name: digest(directory / name) for name in ["orca-debug.log", "journey.json", "process-result.json", "speech-preflight.json", "tool-identities.json", "source-qualification.json", "host-packages.txt", "resource-leaders.json", "activation-provenance.json", "owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf", "session-contract-state.json", "session-budget.json"]}}
+               "evidenceSha256": {name: digest(directory / name) for name in ["orca-debug.log", "journey.json", "process-result.json", "speech-preflight.json", "tool-identities.json", "source-qualification.json", "host-packages.txt", "resource-leaders.json", "activation-provenance.json", "owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf", "session-contract-state.json", "session-budget.json", *FINISH_FILES]}}
     try:
         validate(receipt, packet, preflight, directory)
     except BaseException as ex:
@@ -1583,11 +1857,12 @@ def self_test():
                    "actions": [{"name": name, "key": "Return", "atspiFocused": True, "directReferenceControl": True, "eventSequence": index + 1} for index, name in enumerate(names)]}
         write(directory / "process-result.json", {"exit": 0, "firstCause": None, "cleanup": receipt["cleanup"]})
         receipt["evidenceSha256"]["process-result.json"] = digest(directory / "process-result.json")
+        write(directory / "journey.json", {key: receipt[key] for key in ["process", "browser", "actions", "observations"]})
         activation = route_fixture()
         write(directory / "activation-provenance.json", activation)
         route_fixture_evidence(directory, activation)
         for name in ["owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf",
-                     "session-contract-state.json", "session-budget.json"]:
+                     "session-contract-state.json", "session-budget.json", "journey.json", *FINISH_FILES]:
             receipt["evidenceSha256"][name] = digest(directory / name)
         receipt["evidenceSha256"]["activation-provenance.json"] = digest(directory / "activation-provenance.json")
         require(validate(receipt, packet, preflight, directory), "good AT fixture refused")
@@ -1686,8 +1961,9 @@ def route_fixture():
             "binaries": facts, "packageFileManifest": {v["path"]: v["package"] for v in facts}}
 
 
-def contract_fixture_evidence(directory, activation, runtime, leaders):
+def contract_fixture_evidence(directory, activation, runtime, leaders, parent_birth=None, complete=True):
     birth = {"pid": 61, "start": 11, "ppid": runtime["bus"]["ppid"], "sid": runtime["bus"]["sid"]}
+    parent_birth = parent_birth or {"pid": birth["ppid"], "start": 420, "ppid": 44, "sid": birth["sid"]}
     gio = {"path": "/usr/lib/fixture/libgio-2.0.so.0", "resolvedPath": "/usr/lib/fixture/libgio-2.0.so.0",
            "package": "libglib2.0-0t64", "bytes": 1, "sha256": "a"*64}
     activation["versions"].update({"libglib2.0-0t64": "fixture-glib-version", "gsettings-desktop-schemas": "fixture-schemas-version"})
@@ -1706,25 +1982,37 @@ def contract_fixture_evidence(directory, activation, runtime, leaders):
     values = {"IsEnabled": True, "ScreenReaderEnabled": True}
     contract = {"name": "org.a11y.Bus", "uniqueOwner": ":1.2", "pid": 61, "birth": birth,
                 "address": runtime["address"], "initialValues": values, "settings": settings,
-                "sourceSha256": CONTRACT_SOURCE_SHA256, "readyBeforeOrca": True}
+                "sourceSha256": CONTRACT_SOURCE_SHA256, "observerSourceSha256": digest(Path(__file__).resolve()), "parentBirth": parent_birth, "readyBeforeOrca": True}
     runtime["sessionContract"] = contract
     leaders.append({"resource": "session-contract", **birth})
-    write(directory / "session-contract-state.json", {"birth": birth, "sourceSha256": CONTRACT_SOURCE_SHA256,
+    write(directory / "session-contract-state.json", {"birth": birth, "parentBirth": parent_birth, "observerSourceSha256": digest(Path(__file__).resolve()), "sourceSha256": CONTRACT_SOURCE_SHA256,
           "address": runtime["address"], "sessionAddress": runtime["sessionAddress"], "initialValues": values, "settings": settings})
-    write(directory / "session-budget.json", {"deadline": 300, "seconds": 300})
+    if not (directory / "session-budget.json").exists():
+        write(directory / "session-budget.json", {"deadline": 300, "seconds": 300})
     path = directory / "config/glib-2.0/settings/keyfile"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("[org/gnome/desktop/interface]\ntoolkit-accessibility=true\n\n"
                     "[org/gnome/desktop/a11y/applications]\nscreen-reader-enabled=true\n")
     write(directory / "activation-provenance.json", activation)
+    if complete:
+        if not (directory / "journey.json").exists():
+            write(directory / "journey.json", {"inertFixture": True})
+        identity = completion_identity(directory, runtime, parent_birth, birth, contract["uniqueOwner"])
+        atomic_record_once(directory / FINISH_FILES[0], {"schema": FINISH_SCHEMA, "phase": "request", "identity": identity})
+        complete_contract_child(directory, identity, lambda: None, lambda: None, clock=lambda: 0)
+        result = {"schema": FINISH_SCHEMA, "phase": "reaped", "identity": identity,
+                  "requestSha256": digest(directory / FINISH_FILES[0]), "ackSha256": digest(directory / FINISH_FILES[1]),
+                  "childExit": 0, "reaped": True, "firstCause": None}
+        atomic_record_once(directory / FINISH_FILES[2], result)
+        contract["completion"] = result
     return contract
 
 
-def route_fixture_evidence(directory, activation):
+def route_fixture_evidence(directory, activation, uid=1000, complete=True):
     sockets = {name: "/tmp/fsgg-at-fixture/"+name+".sock" for name in ["session", "accessibility"]}
     for name, socket in sockets.items():
-        (directory / (name+".conf")).write_bytes(closed_bus_config(socket, 1000))
-    write(directory / "owned-bus-route.json", {"sourceProof": SOURCE_PROOF, "uid": 1000, "sockets": sockets})
+        (directory / (name+".conf")).write_bytes(closed_bus_config(socket, uid))
+    write(directory / "owned-bus-route.json", {"sourceProof": SOURCE_PROOF, "uid": uid, "sockets": sockets})
     bus = {"pid": 40, "start": 1, "ppid": 42, "sid": 42}
     registry = {"pid": 41, "start": 2, "ppid": 42, "sid": 42}
     selected = route_metadata(activation)
@@ -1737,7 +2025,7 @@ def route_fixture_evidence(directory, activation):
           "registry": {"pid": 41, "birth": registry}, "addressSetBeforeAtspiImport": True, "objectIdentities": selected,
           "mappedLibraries": {"observer": {"birth": bus, "object": selected["libatspi.so."]},
                               "browser": {"birth": browser, "ancestry": [browser, launcher], "object": selected["libatk-bridge-2.0.so."]}}}
-    contract_fixture_evidence(directory, activation, runtime, leaders)
+    contract_fixture_evidence(directory, activation, runtime, leaders, complete=complete)
     write(directory / "resource-leaders.json", leaders)
     write(directory / "owned-bus-runtime.json", runtime)
 
@@ -2264,7 +2552,7 @@ def contract_self_test():
             return contract["uniqueOwner"], child.pid, runtime["address"], dict(contract["initialValues"])
         def ready(query_fn=query, read=rows.get, listener=lambda *_: True, clock=lambda: 0, candidate=child):
             return contract_ready(None, candidate, birth, runtime, state, directory, 15, query_fn, read, listener, clock, lambda _: None)
-        case("readiness-original-owner-settings", lambda: require(ready() == contract, "ready facts drift"))
+        case("readiness-original-owner-settings", lambda: require(ready() == {k: v for k, v in contract.items() if k != "completion"}, "ready facts drift"))
         case("readiness-owner-conflict", lambda: refused(lambda: ready(lambda *_: (":1.9", 999, runtime["address"], contract["initialValues"])), "different"))
         case("readiness-child-PID-reuse", lambda: refused(lambda: ready(read=lambda p: {**rows[p], "start": 99} if p == child.pid else rows.get(p))))
         case("readiness-original-bus-dead", lambda: refused(lambda: ready(read=lambda p: None if p == runtime["bus"]["pid"] else rows.get(p)), "daemon birth"))
@@ -2286,7 +2574,7 @@ def contract_self_test():
                 if len(calls) == 1:
                     raise RuntimeError("NameHasNoOwner")
                 return query()
-            require(ready(delayed, clock=clock) == contract and len(calls) == 2, "bounded original startup wait failed")
+            require(ready(delayed, clock=clock) == {k: v for k, v in contract.items() if k != "completion"} and len(calls) == 2, "bounded original startup wait failed")
         case("readiness-bounded-name-startup", name_wait)
         case("binder-complete-original", lambda: require(contract_evidence(directory, runtime, leaders), "valid contract evidence refused"))
         for label, mutate in [
@@ -2323,20 +2611,321 @@ def contract_self_test():
     case("assembled-inner-readiness-before-work", lambda: contract_inner_self_test(False))
     case("assembled-inner-readiness-refuses-work", lambda: contract_inner_self_test(True))
     case("specific-inner-report-failure-cleanup", contract_reporting_self_test)
+    checked.extend(completion_self_test())
     print("PASS session contract inert controls: "+str(len(checked))+" named cases; no GI/services/browser/AT launched")
     print("SESSION_CONTRACT_CONTROL_INVENTORY "+json.dumps(checked))
     return checked
 
 
-def contract_inner_self_test(refuse_ready):
+def completion_self_test():
+    """Finite controls exercise real finish/binder helpers with inert process/Gio adapters."""
+    from unittest.mock import patch
+    from types import SimpleNamespace
+    checked = []
+    def case(name, action):
+        action()
+        checked.append(name)
+    def refused(action, phrase=None):
+        try:
+            action()
+        except (RuntimeError, KeyError, ValueError, OSError) as ex:
+            require(phrase is None or phrase in str(ex), "completion first cause lost: "+str(ex))
+        else:
+            raise RuntimeError("invalid session completion accepted")
+    @contextlib.contextmanager
+    def fixture():
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            activation = route_fixture()
+            route_fixture_evidence(directory, activation, uid=12345, complete=False)
+            runtime = json.loads((directory / "owned-bus-runtime.json").read_text())
+            birth = runtime["sessionContract"]["birth"]
+            parent = runtime["sessionContract"]["parentBirth"]
+            rows = {birth["pid"]: birth, parent["pid"]: parent}
+            write(directory / "journey.json", {"inertObservedJourney": True})
+            yield directory, runtime, birth, parent, rows
+    def child_adapter(directory, runtime, birth, parent, mode="ok", mutate=None):
+        events = []
+        class Child:
+            pid = birth["pid"]
+            def poll(self):
+                if mode == "premature":
+                    return 0
+                if not (directory / FINISH_FILES[0]).exists():
+                    return None
+                if mode == "unknown":
+                    return None
+                if mode == "missing-ack":
+                    return 0
+                if not (directory / FINISH_FILES[1]).exists():
+                    identity = completion_identity(directory, runtime, parent, birth, runtime["sessionContract"]["uniqueOwner"])
+                    complete_contract_child(directory, identity, lambda: events.append("final-health"),
+                                            lambda: events.append("drain"), clock=lambda: 0)
+                    if mutate is not None:
+                        value = completion_record(directory / FINISH_FILES[1]);mutate(value)
+                        write(directory / FINISH_FILES[1], value)
+                return 7 if mode == "nonzero" else 0
+            def wait(self, timeout):
+                require(timeout > 0, "completion used renewed/empty wait")
+                events.append("reap")
+                return self.poll()
+        return Child(), events
+    def successful():
+        with fixture() as (directory, runtime, birth, parent, rows):
+            child, events = child_adapter(directory, runtime, birth, parent)
+            result = finish_contract(directory, runtime, child, birth, parent, lambda: None,
+                                     clock=lambda: 0, pause=lambda _: None, reader=rows.get)
+            runtime["sessionContract"]["completion"] = result
+            require(events == ["final-health", "drain", "reap"] and completion_evidence(directory, runtime, runtime["sessionContract"]),
+                    "original completion order/binder drift")
+            # After proven completion/reap, originals may disappear; offline binding retains their identities.
+            rows.clear()
+            require(completion_evidence(directory, runtime, runtime["sessionContract"]), "normal wrapper closure became active failure")
+    case("completion-original-finish-ack-reap-binder", successful)
+    def runtime_default_finish():
+        with fixture() as (directory, runtime, birth, parent, rows):
+            child, _ = child_adapter(directory, runtime, birth, parent)
+            with patch.object(time, "monotonic", return_value=0), patch.object(time, "sleep") as sleeper:
+                result = finish_contract(directory, runtime, child, birth, parent, lambda: None, reader=rows.get)
+            require(result["identity"]["deadline"] == 300 and sleeper.call_count == 0,
+                    "finish retained definition-time host clock/pause")
+    case("completion-runtime-default-finish-clock", runtime_default_finish)
+    def runtime_default_child():
+        with fixture() as (directory, runtime, birth, parent, rows):
+            identity = completion_identity(directory, runtime, parent, birth, ":1.2")
+            atomic_record_once(directory / FINISH_FILES[0], {"schema": FINISH_SCHEMA, "phase": "request", "identity": identity})
+            with patch.object(time, "monotonic", return_value=0):
+                complete_contract_child(directory, identity, lambda: None, lambda: None)
+            require((directory / FINISH_FILES[1]).is_file(), "child retained definition-time host clock")
+    case("completion-runtime-default-child-clock", runtime_default_child)
+    case("completion-assembled-wrapper-cleanup-binder", lambda: contract_inner_self_test(False, 4242))
+    case("completion-portable-non1000-UID", lambda: contract_inner_self_test(False, 67890))
+    case("completion-genuine-wrong-UID-refusal", lambda: refused(lambda: check_closed_config(
+         closed_bus_config("/tmp/fsgg-at-fixture/session.sock", 12345), "/tmp/fsgg-at-fixture/session.sock", 12346), "serializer"))
+    for label, mode in [("completion-child-exit-before-request", "premature"),
+                        ("completion-child-exit-before-ack", "missing-ack"),
+                        ("completion-ack-followed-by-nonzero", "nonzero")]:
+        def exit_case(mode=mode):
+            with fixture() as (directory, runtime, birth, parent, rows):
+                child, _ = child_adapter(directory, runtime, birth, parent, mode)
+                refused(lambda: finish_contract(directory, runtime, child, birth, parent, lambda: None,
+                         clock=lambda: 0, pause=lambda _: None, reader=rows.get))
+                require(not (directory / FINISH_FILES[2]).exists(), "unproven child exit produced completion")
+        case(label, exit_case)
+    for label, mutate in [
+        ("completion-ack-wrong-request", lambda d: d.update(requestSha256="0"*64)),
+        ("completion-ack-wrong-birth", lambda d: d["identity"]["childBirth"].update(start=999)),
+        ("completion-ack-wrong-parent", lambda d: d["identity"]["parentBirth"].update(start=999)),
+        ("completion-ack-wrong-source", lambda d: d["identity"].update(observerSourceSha256="0"*64)),
+        ("completion-ack-wrong-journey", lambda d: d["identity"].update(journeySha256="0"*64)),
+        ("completion-ack-wrong-budget", lambda d: d["identity"].update(sessionBudgetSha256="0"*64)),
+        ("completion-ack-extra-field", lambda d: d.update(unexpected=True)),
+        ("completion-ack-partial", lambda d: d.pop("teardown")),
+        ("completion-ack-earlier-cause", lambda d: d.update(firstCause="original failure"))]:
+        def bad_ack(mutate=mutate):
+            with fixture() as (directory, runtime, birth, parent, rows):
+                child, _ = child_adapter(directory, runtime, birth, parent, mutate=mutate)
+                refused(lambda: finish_contract(directory, runtime, child, birth, parent, lambda: None,
+                         clock=lambda: 0, pause=lambda _: None, reader=rows.get))
+                require(not (directory / FINISH_FILES[2]).exists(), "invalid ack produced completion")
+        case(label, bad_ack)
+    def malformed_ack(kind):
+        with fixture() as (directory, runtime, birth, parent, rows):
+            child, _ = child_adapter(directory, runtime, birth, parent)
+            original_poll = child.poll
+            def poll():
+                code = original_poll()
+                if code is not None:
+                    (directory / FINISH_FILES[1]).write_text('{"phase":' if kind == "malformed" else '{"phase":"ack","phase":"ack"}')
+                return code
+            child.poll = poll
+            refused(lambda: finish_contract(directory, runtime, child, birth, parent, lambda: None,
+                     clock=lambda: 0, pause=lambda _: None, reader=rows.get))
+            require(not (directory / FINISH_FILES[2]).exists(), "malformed/duplicate ack produced completion")
+    for label, kind in [("completion-ack-malformed-JSON", "malformed"), ("completion-ack-duplicate-fields", "duplicate")]:
+        case(label, lambda kind=kind: malformed_ack(kind))
+    def retained_failure():
+        with fixture() as (directory, runtime, birth, parent, rows):
+            write(directory / "session-contract-failure.json", {"birth": birth, "firstCause": "original pre-completion failure"})
+            before = (directory / "session-contract-failure.json").read_bytes()
+            child, _ = child_adapter(directory, runtime, birth, parent)
+            refused(lambda: finish_contract(directory, runtime, child, birth, parent, lambda: None,
+                     clock=lambda: 0, pause=lambda _: None, reader=rows.get), "original pre-completion failure")
+            require((directory / "session-contract-failure.json").read_bytes() == before and
+                    not (directory / FINISH_FILES[0]).exists(), "finish cleared prior cause or issued request")
+    case("completion-retains-prior-child-failure", retained_failure)
+    def bad_request(kind):
+        with fixture() as (directory, runtime, birth, parent, rows):
+            identity = completion_identity(directory, runtime, parent, birth, ":1.2")
+            request = {"schema": FINISH_SCHEMA, "phase": "request", "identity": identity}
+            if kind == "missing":
+                refused(lambda: complete_contract_child(directory, identity, lambda: None, lambda: None, clock=lambda: 0))
+                return
+            atomic_record_once(directory / FINISH_FILES[0], request)
+            if kind == "malformed":
+                (directory / FINISH_FILES[0]).write_text('{"schema":')
+            elif kind == "duplicate":
+                (directory / FINISH_FILES[0]).write_text('{"phase":"request","phase":"request"}')
+            elif kind == "stale":
+                value = copy.deepcopy(request);value["identity"]["childBirth"]["start"] += 1
+                write(directory / FINISH_FILES[0], value)
+            elif kind == "before-journey":
+                (directory / "journey.json").unlink()
+                refused(lambda: completion_identity(directory, runtime, parent, birth, ":1.2"))
+                return
+            refused(lambda: complete_contract_child(directory, identity, lambda: None, lambda: None, clock=lambda: 0))
+            require(not (directory / FINISH_FILES[1]).exists(), "invalid request acknowledged")
+    for label, kind in [("completion-request-missing", "missing"), ("completion-request-malformed", "malformed"),
+                        ("completion-request-duplicate-fields", "duplicate"), ("completion-request-stale", "stale"),
+                        ("completion-request-before-journey", "before-journey")]:
+        case(label, lambda kind=kind: bad_request(kind))
+    def duplicate_ack():
+        with fixture() as (directory, runtime, birth, parent, rows):
+            identity = completion_identity(directory, runtime, parent, birth, ":1.2")
+            atomic_record_once(directory / FINISH_FILES[0], {"schema": FINISH_SCHEMA, "phase": "request", "identity": identity})
+            complete_contract_child(directory, identity, lambda: None, lambda: None, clock=lambda: 0)
+            refused(lambda: complete_contract_child(directory, identity, lambda: None, lambda: None, clock=lambda: 0), "duplicate")
+    case("completion-duplicate-ack-refusal", duplicate_ack)
+    def active_failure(cause, queued=False):
+        with fixture() as (directory, runtime, birth, parent, rows):
+            identity = completion_identity(directory, runtime, parent, birth, ":1.2")
+            atomic_record_once(directory / FINISH_FILES[0], {"schema": FINISH_SCHEMA, "phase": "request", "identity": identity})
+            first, events = [], []
+            def health():
+                if not queued:
+                    raise RuntimeError(cause)
+            def drain():
+                events.append("drain")
+                first.append(cause)
+            refused(lambda: complete_contract_child(directory, identity, health, drain,
+                    lambda: first[0] if first else None, clock=lambda: 0), cause)
+            require(not (directory / FINISH_FILES[1]).exists() and (bool(events) == queued), "failure was cleared by finish")
+    for label, cause in [("completion-active-bus-loss", "original bus loss"),
+                          ("completion-active-name-loss", "original name loss"),
+                          ("completion-active-registry-loss", "original registry loss")]:
+        case(label, lambda cause=cause: active_failure(cause))
+    case("completion-queued-failure-wins", lambda: active_failure("original queued failure", True))
+    def deadline_or_cancel(cancel=False):
+        with fixture() as (directory, runtime, birth, parent, rows):
+            child, _ = child_adapter(directory, runtime, birth, parent, "unknown")
+            ticks, calls = [0], [0]
+            def clock():
+                ticks[0] += 100
+                return ticks[0]
+            def health():
+                calls[0] += 1
+                if cancel and calls[0] >= 2:
+                    raise RuntimeError("original completion cancellation")
+            refused(lambda: finish_contract(directory, runtime, child, birth, parent, health,
+                    clock=clock, pause=lambda _: None, reader=rows.get), "cancellation" if cancel else "deadline")
+            require(not (directory / FINISH_FILES[2]).exists(), "deadline/cancellation produced completion")
+        contract_reporting_self_test("RuntimeError: original completion cancellation" if cancel else "original completion deadline")
+    case("completion-deadline-first-cause-cleanup", deadline_or_cancel)
+    case("completion-cancellation-first-cause-cleanup", lambda: deadline_or_cancel(True))
+    def evidence_failure():
+        with fixture() as (directory, runtime, birth, parent, rows):
+            identity = completion_identity(directory, runtime, parent, birth, ":1.2")
+            atomic_record_once(directory / FINISH_FILES[0], {"schema": FINISH_SCHEMA, "phase": "request", "identity": identity})
+            with patch.object(os, "link", side_effect=OSError("original completion evidence write failed")):
+                refused(lambda: complete_contract_child(directory, identity, lambda: None, lambda: None, clock=lambda: 0), "evidence write")
+            require(not (directory / FINISH_FILES[1]).exists(), "failed ack write accepted")
+        contract_reporting_self_test("RuntimeError: original completion evidence write failed")
+    case("completion-evidence-write-first-cause-cleanup", evidence_failure)
+    def close_fixture(outcome, runtime_default=False):
+        callbacks, timers, canceled = [], [], []
+        class Loop:
+            def run(self):
+                (timers[0] if outcome == "deadline" else lambda: callbacks[0](None, "pending", None))()
+            def quit(self): pass
+        class Connection:
+            def close(self, cancellable, callback, data): callbacks.append(callback)
+            def close_finish(self, pending):
+                require(pending == "pending", "close result identity changed")
+                if outcome == "error": raise RuntimeError("original close failed")
+                return outcome != "false"
+        gio = SimpleNamespace(Cancellable=lambda: SimpleNamespace(cancel=lambda: canceled.append(True)))
+        glib = SimpleNamespace(MainLoop=Loop, timeout_add=lambda timeout, fn: (timers.append(fn) or 1), source_remove=lambda _: True)
+        def action():
+            with patch.object(time, "monotonic", return_value=0):
+                if runtime_default:
+                    bounded_connection_close(Connection(), gio, glib, 300)
+                else:
+                    bounded_connection_close(Connection(), gio, glib, 300, clock=lambda: 0)
+        if outcome == "ok": action()
+        else: refused(action, "deadline" if outcome == "deadline" else "close")
+        require(canceled == ([True] if outcome == "deadline" else []), "close cancellation evidence drift")
+    for label, outcome in [("completion-bounded-local-close", "ok"), ("completion-close-error", "error"),
+                            ("completion-close-incomplete", "false"), ("completion-close-timeout-unknown", "deadline")]:
+        case(label, lambda outcome=outcome: close_fixture(outcome))
+    case("completion-runtime-default-close-clock", lambda: close_fixture("ok", True))
+    case("completion-own-clean-close-only", lambda: require(expected_local_close(True, False, None) and
+         not expected_local_close(False, False, None) and not expected_local_close(True, True, None) and
+         not expected_local_close(True, False, RuntimeError("remote failure")), "unexpected close suppressed"))
+    def drain_fixture(outcome):
+        calls = []
+        class Connection:
+            def unregister_object(self, rid):
+                calls.append("unregister")
+                if outcome == "unregister-error": raise RuntimeError("original unregister failed")
+                return outcome != "unregister-false"
+            def is_closed(self): return outcome == "closed"
+        def release(*_):
+            calls.append("release")
+            if outcome == "release-error": raise RuntimeError("original release failed")
+            return (2 if outcome == "release-false" else 1,)
+        def close(*_):
+            calls.append("close")
+            if outcome == "close-error": raise RuntimeError("original close failed")
+        with patch.dict(globals(), contract_call=release, bounded_connection_close=close):
+            action = lambda: drain_contract(Connection(), [1, 2], 300, lambda: calls.append("own-close"), None, None)
+            if outcome == "ok":
+                action();require(calls == ["unregister", "unregister", "release", "own-close", "close"], "drain ordering drift")
+            else: refused(action)
+    for label, outcome in [("completion-drain-order", "ok"), ("completion-unregister-error", "unregister-error"),
+        ("completion-unregister-false", "unregister-false"), ("completion-release-error", "release-error"),
+        ("completion-release-not-owner", "release-false"), ("completion-remote-close-before-intent", "closed"),
+        ("completion-drain-close-error", "close-error")]:
+        case(label, lambda outcome=outcome: drain_fixture(outcome))
+    def missing_terminal(which):
+        with fixture() as (directory, runtime, birth, parent, rows):
+            child, _ = child_adapter(directory, runtime, birth, parent)
+            result = finish_contract(directory, runtime, child, birth, parent, lambda: None,
+                       clock=lambda: 0, pause=lambda _: None, reader=rows.get)
+            runtime["sessionContract"]["completion"] = result
+            (directory / FINISH_FILES[which]).unlink()
+            refused(lambda: completion_evidence(directory, runtime, runtime["sessionContract"]))
+    for label, which in [("completion-request-alone-insufficient", 1), ("completion-ack-alone-insufficient", 2),
+                         ("completion-missing-request-binder", 0)]:
+        case(label, lambda which=which: missing_terminal(which))
+    def invalid_terminal(mutate):
+        with fixture() as (directory, runtime, birth, parent, rows):
+            child, _ = child_adapter(directory, runtime, birth, parent)
+            result = finish_contract(directory, runtime, child, birth, parent, lambda: None,
+                       clock=lambda: 0, pause=lambda _: None, reader=rows.get)
+            mutate(result)
+            write(directory / FINISH_FILES[2], result)
+            runtime["sessionContract"]["completion"] = result
+            refused(lambda: completion_evidence(directory, runtime, runtime["sessionContract"]))
+    for label, mutate in [("completion-binder-not-reaped", lambda d: d.update(reaped=False)),
+                          ("completion-binder-nonzero-exit", lambda d: d.update(childExit=7)),
+                          ("completion-binder-boolean-exit", lambda d: d.update(childExit=False)),
+                          ("completion-binder-first-cause", lambda d: d.update(firstCause="retained failure")),
+                          ("completion-binder-wrong-ack", lambda d: d.update(ackSha256="0"*64)),
+                          ("completion-binder-stale-child", lambda d: d["identity"]["childBirth"].update(start=999))]:
+        case(label, lambda mutate=mutate: invalid_terminal(mutate))
+    print("PASS completion lifecycle inert controls: "+str(len(checked))+" named cases; native completion remains unobserved")
+    return checked
+
+
+def contract_inner_self_test(refuse_ready, fixture_uid=12345):
     """Actual assembled inner with inert adapters; no GI import, fork, fd, bus or workload."""
     from unittest.mock import patch
     from types import SimpleNamespace
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
         activation = route_fixture()
-        route_fixture_evidence(directory, activation)
-        write(directory / "session-budget.json", {"deadline": 1000, "seconds": 300})
+        route_fixture_evidence(directory, activation, uid=fixture_uid, complete=False)
+        write(directory / "session-budget.json", {"deadline": 300, "seconds": 300})
         launched, readiness, observed = [], [], []
         original_ready = contract_ready
         (directory / "speech.sock").touch()
@@ -2347,7 +2936,15 @@ def contract_inner_self_test(refuse_ready):
                 self.pid = 100+len(launched)
                 self.name = name
             def poll(self):
+                if self.name == "session-contract" and (directory / FINISH_FILES[0]).exists():
+                    if not (directory / FINISH_FILES[1]).exists():
+                        latest = json.loads((directory / "owned-bus-runtime.json").read_text())
+                        identity = completion_identity(directory, latest, rows[parent], rows[self.pid], ":1.2")
+                        complete_contract_child(directory, identity, lambda: None, lambda: None, clock=lambda: 0)
+                    return 0
                 return None
+            def wait(self, timeout):
+                return self.poll()
         def spawn(argv, **kwargs):
             name = Path(kwargs["stdout"].name).stem
             launched.append(name)
@@ -2357,6 +2954,7 @@ def contract_inner_self_test(refuse_ready):
             return child
         session = {"pid": 90, "start": 900, "ppid": 89, "sid": sid, "state": "S"}
         rows[90] = session
+        rows[parent] = {"pid": parent, "start": 420, "ppid": 89, "sid": sid, "rss": 100}
         class Reply:
             def unpack(self):
                 return (90,)
@@ -2377,7 +2975,7 @@ def contract_inner_self_test(refuse_ready):
                 raise RuntimeError("specific original contract readiness failure")
             # Exercise the actual readiness/binder with exact fake original births and settings.
             current_leaders = json.loads((directory / "resource-leaders.json").read_text())
-            contract = contract_fixture_evidence(directory, activation, runtime, current_leaders)
+            contract = contract_fixture_evidence(directory, activation, runtime, current_leaders, parent_birth=rows[parent], complete=False)
             contract.update(pid=child.pid, birth=birth)
             snapshot = json.loads((directory / "session-contract-state.json").read_text())
             snapshot["birth"] = birth
@@ -2399,10 +2997,11 @@ def contract_inner_self_test(refuse_ready):
         def observation(root, orca, browser, health):
             health()
             observed.append((orca, browser))
+            write(directory / "journey.json", {"inertObservedJourney": True})
         with patch.dict(os.environ, {"DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/fsgg-at-fixture/session.sock,guid="+"b"*32}, clear=True), \
              patch.object(subprocess, "Popen", side_effect=spawn), patch.object(subprocess, "run"), \
              patch.object(os, "pipe", return_value=(901, 902)), patch.object(os, "close"), \
-             patch.object(os, "getpid", return_value=parent), patch.object(os, "getppid", return_value=89), \
+             patch.object(os, "getuid", return_value=fixture_uid), patch.object(os, "getpid", return_value=parent), patch.object(os, "getppid", return_value=89), \
              patch.object(os, "getsid", return_value=sid), patch.object(time, "monotonic", return_value=0), \
              patch.object(time, "sleep"), patch.object(Path, "read_text", read), patch.object(Path, "exists", exists), patch.object(shutil, "copyfile"), \
              patch.dict(globals(), check_route_files=lambda p: route_metadata(p), check_launch_object=lambda *_: None,
@@ -2427,13 +3026,35 @@ def contract_inner_self_test(refuse_ready):
         else:
             require(len(observed) == 1 and launched.index("session-contract") < launched.index("orca") <
                     launched.index("server") < launched.index("browser"), "ready startup dependent order drift")
+            class Wrapper:
+                pid = 900
+                returncode = 0
+                def poll(self): return 0
+            wrapper_birth = {"pid": 900, "start": 9000, "sid": 900, "ppid": parent, "rss": 100}
+            cleaned = []
+            def cleanup_wrapper(*_):
+                cleaned.append(True)
+                rows.pop(90, None)
+                rows.pop(children["accessibility-bus"].pid, None)
+                return {"disposition": "observed-empty", "remaining": [], "unknown": [], "signals": []}
+            # Same fake absolute300 deadline; actual outer success/cleanup code runs with no native process.
+            with patch.object(subprocess, "Popen", return_value=Wrapper()), patch.object(time, "monotonic", return_value=0), \
+                 patch.object(os, "getpid", return_value=parent), \
+                 patch.dict(globals(), check_launch_object=lambda *_: None, proc=lambda pid: wrapper_birth if pid == 900 else rows.get(pid),
+                            census=lambda *_: ([], [], []), cleanup=cleanup_wrapper):
+                require(execute_session(Path("/private/receiver"), directory, {}, [])[0] == 0 and cleaned == [True],
+                        "assembled outer cleanup did not follow completed child")
+            latest = json.loads((directory / "owned-bus-runtime.json").read_text())
+            # Simulate wrapper bus closure only after exact child completion/reaping. The final binder is offline.
+            require(90 not in rows and children["accessibility-bus"].pid not in rows, "wrapper originals did not close")
+            require(contract_evidence(directory, latest, json.loads((directory / "resource-leaders.json").read_text())),
+                    "normal wrapper shutdown invalidated completed contract")
 
 
-def contract_reporting_self_test():
+def contract_reporting_self_test(cause="RuntimeError: original contract settings failure"):
     from unittest.mock import patch
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
-        cause = "RuntimeError: original contract settings failure"
         class Child:
             pid = 42
             returncode = 1
