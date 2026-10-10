@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Actual external-reference Orca journey; --self-test runs only pure/static controls."""
 import argparse
+import configparser
+import shlex
 import copy
 import contextlib
 import hashlib
@@ -78,6 +80,11 @@ def validate(receipt, packet, preflight, directory):
         require(Path(name).name == name and digest(directory / name) == sha, "AT evidence hash mismatch")
     execution = json.loads((directory / "process-result.json").read_text())
     require(execution["exit"] == 0 and execution["firstCause"] is None and execution["cleanup"] == receipt["cleanup"], "original AT exit/cause/cleanup mismatch")
+    require(execution.get("firstGuardCensus") is None, "historical custody uncertainty retained")
+    require("activation-provenance.json" in receipt["evidenceSha256"], "activation provenance unbound")
+    activation = json.loads((directory / "activation-provenance.json").read_text())
+    require(activation["schema"] == "fsgg.at-activation-provenance/1" and activation["disposition"] == "complete" and
+            set(activation["services"]) == {"org.a11y.Bus", "org.a11y.atspi.Registry"}, "activation provenance incomplete")
     sequences = [e["eventSequence"] for e in receipt["actions"]]
     require(sequences == sorted(set(sequences)), "keyboard event replay or ordering drift")
     raw = (directory / "orca-debug.log").read_bytes()
@@ -421,10 +428,102 @@ def observe(directory, orca_pid, browser_pid):
           "browser": {"family": "chromium", "pid": actual_browser_pid, "launcherPid": browser_pid}, "actions": actions, "observations": observations})
 
 
+def activation_packet(manifest, versions, read, resolve, clock=time.monotonic, deadline=None, retained=None):
+    """Read only package-owned activation data; service Exec values are never executed."""
+    deadline = clock() + 15 if deadline is None else deadline
+    texts = []
+    binaries = []
+    total = 0
+    services = {}
+    if retained is not None:
+        retained.update(textFiles=texts, binaries=binaries, services=services)
+    def checked_read(path, limit):
+        require(clock() < deadline, "activation provenance deadline exceeded")
+        target = resolve(path)
+        require(target in manifest, "activation path resolves outside package manifest: " + path)
+        data = read(target, limit)
+        require(len(data) <= limit, "activation file size exceeded: " + path)
+        require(clock() < deadline, "activation provenance deadline exceeded")
+        return target, data
+    for path in sorted(manifest):
+        if not (("/dbus-1/" in path or "at-spi" in path or "/systemd/" in path) and
+                Path(path).suffix in [".service", ".conf"]):
+            continue
+        require(len(texts) < 64, "activation text file count exceeded")
+        target, raw = checked_read(path, 256 * 1024)
+        total += len(raw)
+        require(total <= 1024**2, "activation aggregate text budget exceeded")
+        text = raw.decode("utf-8")
+        texts.append({"path": path, "resolvedPath": target, "package": manifest[path],
+                      "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(), "text": text})
+        if "/dbus-1/" in path and path.endswith(".service"):
+            service = configparser.ConfigParser(interpolation=None, strict=True)
+            service.read_string(text)
+            if service.has_section("D-BUS Service"):
+                section = service["D-BUS Service"]
+                name = section.get("Name")
+                if name in ["org.a11y.Bus", "org.a11y.atspi.Registry"]:
+                    require(name not in services, "ambiguous activation service: " + name)
+                    require(not section.get("SystemdService"), "unresolved systemd activation delegation: " + name)
+                    argv = shlex.split(section.get("Exec", ""))
+                    require(argv and Path(argv[0]).is_absolute() and argv[0] in manifest,
+                            "activation executable not package-owned: " + name)
+                    target, binary = checked_read(argv[0], 32 * 1024**2)
+                    binaries.append({"path": argv[0], "resolvedPath": target, "package": manifest[argv[0]],
+                                     "bytes": len(binary), "sha256": hashlib.sha256(binary).hexdigest()})
+                    services[name] = {"servicePath": path, "argvDataOnly": argv, "executableSha256": binaries[-1]["sha256"]}
+    require(set(services) == {"org.a11y.Bus", "org.a11y.atspi.Registry"}, "required activation service unavailable")
+    for path in sorted(manifest):
+        if Path(path).name == "dbus-daemon":
+            target, binary = checked_read(path, 32 * 1024**2)
+            binaries.append({"path": path, "resolvedPath": target, "package": manifest[path],
+                             "bytes": len(binary), "sha256": hashlib.sha256(binary).hexdigest()})
+    require(any(Path(v["path"]).name == "dbus-daemon" for v in binaries), "D-Bus daemon identity unavailable")
+    require(clock() < deadline, "activation provenance deadline exceeded")
+    return {"schema": "fsgg.at-activation-provenance/1", "disposition": "complete",
+            "versions": versions, "packageFileManifest": manifest, "services": services,
+            "textFiles": texts, "binaries": binaries, "limits": "15s;64 texts;256KiB/text;1MiB text aggregate;32MiB/binary",
+            "boundary": "installed activation metadata only; no Exec execution or foreground ownership proof"}
+
+
+def capture_activation(output):
+    deadline = time.monotonic() + 15
+    manifest = {}
+    versions = {}
+    packet = {}
+    try:
+        for package in ["at-spi2-core", "dbus", "dbus-daemon", "dbus-session-bus-common"]:
+            def query(*args):
+                remaining = deadline - time.monotonic()
+                require(remaining > 0, "activation provenance deadline exceeded")
+                result = subprocess.run(["dpkg-query", *args, package], capture_output=True, timeout=remaining, check=True)
+                require(len(result.stdout) <= 1024**2 and len(result.stderr) <= 1024**2, "package metadata output exceeded")
+                return result.stdout.decode("utf-8")
+            versions[package] = query("--show", "--showformat=${Version}").strip()
+            for path in query("--listfiles").splitlines():
+                if Path(path).is_file():
+                    manifest[path] = package
+                    require(len(json.dumps(manifest).encode()) <= 512 * 1024, "package file manifest exceeded")
+        def read(path, limit):
+            with Path(path).open("rb") as stream:
+                return stream.read(limit + 1)
+        packet = activation_packet(manifest, versions, read, lambda p: str(Path(p).resolve()),
+                                   deadline=deadline, retained=packet)
+        require(len(json.dumps(packet).encode()) <= 4 * 1024**2, "activation packet output exceeded")
+        write(output, packet)
+    except BaseException as ex:
+        write(output, {"schema": "fsgg.at-activation-provenance/1", "disposition": "incomplete",
+                       "firstCause": str(ex), "versions": versions, "packageFileManifest": manifest,
+                       "partialEvidence": packet})
+        raise
+
+
 def execute_session(receiver, directory, env, termination):
     first = None
     result = None
     peak = 0
+    first_guard = None
+    reporting_errors = []
     require(not termination, termination[0] if termination else "")
     deadline = time.monotonic() + 300
     with (directory / "session.log").open("xb") as log:
@@ -441,7 +540,22 @@ def execute_session(receiver, directory, env, termination):
                 require(not termination, termination[0] if termination else "")
                 child.poll()
                 owned, unknown, escaped = census(leader, known)
-                require(not unknown and not escaped, "AT custody uncertainty")
+                if unknown or escaped:
+                    # Preserve the actual first rejected sample before cleanup can change it.
+                    first = "AT custody uncertainty"
+                    first_guard = {"stage": "AT session supervision", "monotonic": time.monotonic(),
+                                   "leader": copy.deepcopy(leader), "knownStarts": dict(known),
+                                   "branches": {"unknown": bool(unknown), "escaped": bool(escaped)},
+                                   "counts": {"owned": len(owned), "unknown": len(unknown), "escaped": len(escaped)},
+                                   "rows": {name: copy.deepcopy(rows[:1024]) for name, rows in
+                                            [("owned", owned), ("unknown", unknown), ("escaped", escaped)]},
+                                   "omittedRows": {name: max(0, len(rows) - 1024) for name, rows in
+                                                   [("owned", owned), ("unknown", unknown), ("escaped", escaped)]}}
+                    try:
+                        write(directory / "first-guard-census.json", first_guard)
+                    except BaseException as ex:
+                        reporting_errors.append("first guard write: " + str(ex))
+                    raise RuntimeError(first)
                 peak = max(peak, sum(row["rss"] for row in owned) + proc(os.getpid())["rss"])
                 require(peak <= 2 * 1024**3, "sampled AT RSS budget exceeded")
                 require(all(p.stat().st_size <= 4 * 1024**2 for p in directory.rglob("*.log")), "AT log budget exceeded")
@@ -453,7 +567,8 @@ def execute_session(receiver, directory, env, termination):
                     break
                 time.sleep(.1)
         except BaseException as ex:
-            first = str(ex)
+            if first is None:
+                first = str(ex)
         finally:
             try:
                 result = cleanup(leader, known, child)
@@ -461,9 +576,25 @@ def execute_session(receiver, directory, env, termination):
                 result = {"disposition": "unknown", "unknown": ["cleanup observation failed"], "reportingError": str(ex)}
             if first is None and termination:
                 first = termination[0]
-            write(directory / "process-result.json", {"leader": leader, "knownStarts": known, "exit": child.returncode,
+            process_result = {"leader": leader, "knownStarts": known, "exit": child.returncode,
                   "firstCause": first, "termination": termination, "cleanup": result, "sampledPeakRss": peak,
-                  "limits": "100ms ancestry/RSS samples, no hard containment; detached unobserved descendants unknown"})
+                  "firstGuardCensus": first_guard, "reportingErrors": reporting_errors,
+                  "historicalCustody": "unresolved" if first_guard else "no rejected census observed",
+                  "firstGuardCensusSha256": digest(directory / "first-guard-census.json") if
+                       first_guard and not reporting_errors else None,
+                  "limits": "100ms ancestry/RSS samples, no hard containment; detached unobserved descendants unknown"}
+            try:
+                write(directory / "process-result.json", process_result)
+            except BaseException as ex:
+                reporting_errors.append("process result write: " + str(ex))
+                if first is None:
+                    first = "AT process result reporting failed"
+                # A separate best-effort report is not an operation retry.
+                try:
+                    write(directory / "reporting-failure.json", {"firstCause": first,
+                          "reportingErrors": reporting_errors, "processResult": process_result})
+                except BaseException:
+                    pass
     require(first is None, first)
     require(result["disposition"] == "observed-empty", "AT cleanup incomplete")
     return child.returncode, result
@@ -490,10 +621,14 @@ def qualify(out, preflight_path, termination):
     missing += ["generated input:" + str(path) for path in [receiver / "artifacts/authority-server/Server.dll", receiver / "Browser.Tests/node_modules/@playwright/test/package.json"] if not path.is_file()]
     errors += missing
     require(not errors, "independent AT prerequisites unavailable: " + "; ".join(errors))
+    activation = out / "orca-activation-provenance.json"
+    require(activation.is_file() and activation.stat().st_size <= 5 * 1024**2, "activation provenance unavailable/oversized")
+    require(json.loads(activation.read_text())["disposition"] == "complete", "activation provenance incomplete")
     served_digest = digest(receiver / "artifacts/authority-server/Server.dll")
     directory = out / "orca"
     directory.mkdir(mode=0o700)
     shutil.copyfile(packet_path, directory / "source-qualification.json")
+    shutil.copyfile(activation, directory / "activation-provenance.json")
     write(directory / "tool-identities.json", {name: {"path": shutil.which(name), "sha256": digest(Path(shutil.which(name)).resolve())} for name in TOOLS})
     # No inherited session/audio/display/config credentials enter the isolated AT stage.
     env = {key: os.environ[key] for key in ["HOME", "PATH", "LANG", "PLAYWRIGHT_BROWSERS_PATH"] if key in os.environ}
@@ -514,7 +649,7 @@ def qualify(out, preflight_path, termination):
                "producer": preflight["producer"], **journey, "keyboard": "xdotool-X11", "speechBoundary": "Orca SPEECH OUTPUT",
                "physicalAudioHardware": "not-observed", "cleanup": result, "sourceQualificationSha256": digest(packet_path),
                "servedAssemblySha256": served_digest,
-               "evidenceSha256": {name: digest(directory / name) for name in ["orca-debug.log", "journey.json", "process-result.json", "speech-preflight.json", "tool-identities.json", "source-qualification.json", "host-packages.txt", "resource-leaders.json"]}}
+               "evidenceSha256": {name: digest(directory / name) for name in ["orca-debug.log", "journey.json", "process-result.json", "speech-preflight.json", "tool-identities.json", "source-qualification.json", "host-packages.txt", "resource-leaders.json", "activation-provenance.json"]}}
     try:
         validate(receipt, packet, preflight, directory)
     except BaseException as ex:
@@ -573,7 +708,23 @@ def self_test():
                    "actions": [{"name": name, "key": "Return", "atspiFocused": True, "directReferenceControl": True, "eventSequence": index + 1} for index, name in enumerate(names)]}
         write(directory / "process-result.json", {"exit": 0, "firstCause": None, "cleanup": receipt["cleanup"]})
         receipt["evidenceSha256"]["process-result.json"] = digest(directory / "process-result.json")
+        write(directory / "activation-provenance.json", {"schema": "fsgg.at-activation-provenance/1", "disposition": "complete",
+              "services": {"org.a11y.Bus": {}, "org.a11y.atspi.Registry": {}}})
+        receipt["evidenceSha256"]["activation-provenance.json"] = digest(directory / "activation-provenance.json")
         require(validate(receipt, packet, preflight, directory), "good AT fixture refused")
+        for file, replacement in [("process-result.json", {"exit": 0, "firstCause": None, "cleanup": receipt["cleanup"], "firstGuardCensus": {"unknown": [43]}}),
+                                  ("activation-provenance.json", {"schema": "fsgg.at-activation-provenance/1", "disposition": "incomplete", "services": {}})]:
+            original_bytes = (directory / file).read_bytes()
+            write(directory / file, replacement)
+            bad = copy.deepcopy(receipt)
+            bad["evidenceSha256"][file] = digest(directory / file)
+            try:
+                validate(bad, packet, preflight, directory)
+            except RuntimeError:
+                pass
+            else:
+                raise RuntimeError("historical custody/incomplete provenance accepted")
+            (directory / file).write_bytes(original_bytes)
         changes = [lambda r: r.update(result="not-run"), lambda r: r["templates"].update(revision="wrong"),
                    lambda r: r["caller"].update(run="wrong"), lambda r: r["producer"].update(revision="wrong"),
                    lambda r: r.update(speechBoundary="DOM"), lambda r: r["process"].update(name="mock"),
@@ -627,7 +778,7 @@ def self_test():
             raise RuntimeError("DOM text substituted for Orca speech")
     workflow = (ROOT / ".github/workflows/fable-external-reference-source.yml").read_text()
     workflow_guard(workflow)
-    for bad in [workflow.replace("external-reference-orca.py --self-test", "true"), workflow.replace("if: ${{ !inputs.preflight-only }}", "if: always()"), workflow.replace("external-reference/orca/**", "missing")]:
+    for bad in [workflow.replace("external-reference-orca.py --self-test", "true"), workflow.replace("if: ${{ !inputs.preflight-only }}", "if: always()"), workflow.replace("external-reference/orca/**", "missing"), workflow.replace("--capture-activation", "--missing-capture"), workflow.replace("${{ runner.temp }}/external-reference/orca-activation-provenance.json", "missing")]:
         try:
             workflow_guard(bad)
         except (RuntimeError, IndexError):
@@ -635,7 +786,8 @@ def self_test():
         else:
             raise RuntimeError("unsafe AT workflow accepted")
     supervision_self_test()
-    print("PASS actual AT binder: good receipt, 25 refusal controls; 8 prerequisite refusals and workflow bad controls; no AT/browser launched")
+    diagnostic_self_test()
+    print("PASS actual AT binder: good receipt, 25 existing plus 2 diagnostic refusal controls; 8 prerequisite refusals and workflow bad controls; no AT/browser launched")
 
 
 def supervision_self_test():
@@ -708,6 +860,100 @@ def supervision_self_test():
     print("PASS supervision controls: original startup ready/dead/deadline; SIGTERM first cause, cleanup and handler restoration mocked; SIGKILL remains unobservable")
 
 
+def diagnostic_self_test():
+    from unittest.mock import patch
+    leader = {"pid": 42, "start": 1, "sid": 42, "rss": 100}
+    unknown_row = {"pid": 43, "start": 2, "ppid": 1, "pgid": 42, "sid": 42, "state": "S", "rss": 50}
+    escaped_row = {**unknown_row, "pid": 44, "sid": 44}
+    for unknown, escaped in [([unknown_row], []), ([], [escaped_row]), ([unknown_row], [escaped_row])]:
+        for failure in [None, "snapshot", "cleanup", "result"]:
+            fail_snapshot = failure == "snapshot"
+            with tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                class Child:
+                    pid = 42
+                    returncode = None
+                    def poll(self):
+                        return self.returncode
+                child = Child()
+                clean_calls = []
+                def cleaned(*args):
+                    clean_calls.append(args)
+                    child.returncode = -15
+                    if failure == "cleanup":
+                        raise OSError("mock cleanup observation failure")
+                    return {"disposition": "observed-empty", "remaining": [], "unknown": [], "signals": []}
+                actual_write = write
+                def recorded(path, value):
+                    if failure == "result" and Path(path).name == "process-result.json":
+                        raise OSError("mock process result write failure")
+                    if fail_snapshot and Path(path).name == "first-guard-census.json":
+                        raise OSError("mock snapshot write failure")
+                    actual_write(path, value)
+                with patch.object(subprocess, "Popen", return_value=child), patch.dict(globals(), proc=lambda _: leader,
+                        census=lambda *_: ([leader, *escaped], unknown, escaped), cleanup=cleaned, write=recorded):
+                    try:
+                        execute_session(Path("unused"), directory, {}, [])
+                    except RuntimeError as ex:
+                        require(str(ex) == "AT custody uncertainty", "diagnostic first cause changed")
+                    else:
+                        raise RuntimeError("custody uncertainty accepted")
+                result = json.loads((directory / "reporting-failure.json").read_text())["processResult"] if failure == "result" else json.loads((directory / "process-result.json").read_text())
+                snapshot = result["firstGuardCensus"]
+                require(len(clean_calls) == 1 and result["firstCause"] == "AT custody uncertainty", "diagnostic cleanup skipped")
+                require(snapshot["rows"]["unknown"] == unknown and snapshot["rows"]["escaped"] == escaped,
+                        "first rejected birth census changed")
+                require(snapshot["branches"] == {"unknown": bool(unknown), "escaped": bool(escaped)} and
+                        snapshot["knownStarts"] == {"42": 1}, "rejected branch/known birth lost")
+                require(result["historicalCustody"] == "unresolved" and result["cleanup"]["disposition"] == ("unknown" if failure == "cleanup" else "observed-empty"),
+                        "later cleanup changed historical uncertainty")
+                require(bool(result["reportingErrors"]) == (failure in ["snapshot", "result"]), "snapshot reporting failure lost")
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary)
+        class GoodChild:
+            pid = 42
+            returncode = 0
+            def poll(self):
+                return self.returncode
+        child = GoodChild()
+        empty = {"disposition": "observed-empty", "remaining": [], "unknown": [], "signals": []}
+        with patch.object(subprocess, "Popen", return_value=child), patch.dict(globals(), proc=lambda _: leader,
+                census=lambda *_: ([], [], []), cleanup=lambda *_: empty):
+            code, result = execute_session(Path("unused"), directory, {}, [])
+        require(code == 0 and result == empty and json.loads((directory / "process-result.json").read_text())["firstGuardCensus"] is None,
+                "good owned terminal path refused")
+    files = {
+        "/usr/share/dbus-1/services/org.a11y.Bus.service": b"[D-BUS Service]\nName=org.a11y.Bus\nExec=/usr/libexec/at-spi-bus-launcher\n",
+        "/usr/share/dbus-1/accessibility-services/org.a11y.atspi.Registry.service": b"[D-BUS Service]\nName=org.a11y.atspi.Registry\nExec=/usr/libexec/at-spi2-registryd\n",
+        "/usr/libexec/at-spi-bus-launcher": b"bus fixture",
+        "/usr/libexec/at-spi2-registryd": b"registry fixture",
+        "/usr/bin/dbus-daemon": b"dbus fixture"}
+    manifest = {path: "fixture-package" for path in files}
+    def packet(data=files, paths=manifest, resolve=lambda p: p, clock=lambda: 0):
+        return activation_packet(paths, {"fixture-package": "fixture-version"}, lambda path, _: data[path], resolve, clock)
+    good = packet()
+    require(good["disposition"] == "complete" and len(good["services"]) == 2 and len(good["binaries"]) == 3,
+            "package-owned activation fixture refused")
+    service = "/usr/share/dbus-1/services/org.a11y.Bus.service"
+    controls = [lambda: packet(paths={k: v for k, v in manifest.items() if k != service}),
+                lambda: packet(data={**files, service: files[service].replace(b"/usr/libexec/at-spi-bus-launcher", b"sh -c untrusted")}),
+                lambda: packet(resolve=lambda p: "/unowned/escape"),
+                lambda: packet(data={**files, service: b"x" * (256 * 1024 + 1)}),
+                lambda: packet(data={**files, service: files[service] + b"SystemdService=unresolved.service\n"})]
+    duplicate = "/usr/share/dbus-1/services/duplicate.service"
+    controls.append(lambda: packet(data={**files, duplicate: files[service]}, paths={**manifest, duplicate: "fixture-package"}))
+    ticks = iter([0, 16])
+    controls.append(lambda: packet(clock=lambda: next(ticks)))
+    for control in controls:
+        try:
+            control()
+        except (RuntimeError, ValueError):
+            pass
+        else:
+            raise RuntimeError("incomplete activation provenance accepted")
+    print("PASS diagnostic controls: unknown/escaped/both first census, snapshot/cleanup/result write failures, later empty remains historically unresolved; package activation good and seven refusals; no AT launched")
+
+
 def workflow_guard(workflow):
     require(workflow.count("external-reference-orca.py --self-test") == 2, "static controls missing from PR/reusable path")
     for name in ["Provision external reference assistive technology", "Observe actual external reference Orca journey"]:
@@ -716,17 +962,27 @@ def workflow_guard(workflow):
     require(workflow.index("external-reference-orca.py --self-test") < workflow.index("Verify native producer run"), "AT static controls after acquisition")
     require(workflow.index("Qualify exact generated") < workflow.index("Observe actual external reference") < workflow.index("Bind successful full"), "AT dependency ordering drift")
     require("external-reference/orca/**" in workflow, "AT original failure evidence omitted")
+    capture = 'external-reference-orca.py --capture-activation "$RUNNER_TEMP/external-reference/orca-activation-provenance.json"'
+    require(workflow.count(capture) == 1, "activation capture missing/ambiguous")
+    provision = workflow.split("      - name: Provision external reference assistive technology", 1)[1].split("\n      - ", 1)[0]
+    require(provision.index("apt-get install") < provision.index(capture), "activation readback before installed source")
+    require("${{ runner.temp }}/external-reference/orca-activation-provenance.json" in workflow,
+            "activation original failure evidence omitted")
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--inner", action="store_true")
+    parser.add_argument("--capture-activation", action="store_true")
     parser.add_argument("first", nargs="?")
     parser.add_argument("second", nargs="?")
     args = parser.parse_args()
     if args.self_test:
         self_test()
+    elif args.capture_activation:
+        require(args.first, "activation output path required")
+        capture_activation(Path(args.first))
     elif args.inner:
         directory = Path(args.second)
         try:

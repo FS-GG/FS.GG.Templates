@@ -51,3 +51,30 @@ projection must precede any newly admitted hosted attempt. That qualification mu
 the original producer inputs and qualify the exact generated
 consumer before browser acceptance can be recorded. Publication, installed creation, preserving
 upgrades and product-native outcomes remain pending.
+
+## Actual reference AT first failure — 2026-10-10
+
+[Rendering run 38024897635 attempt 1](https://github.com/FS-GG/FS.GG.Rendering/actions/runs/38024897635)
+qualified the generated Templates `92944277` consumer against the retained original producer:
+eight cases passed once in each of Chromium, Firefox and WebKit, with no skipped, flaky or
+unexpected cases. This browser prerequisite is distinct from actual assistive-technology acceptance.
+The private speech prerequisite passed, but the reference keyboard/Orca journey was not reached.
+The observer refused `AT custody uncertainty`; the supervised session exited `-15`.
+The inner exit and offending PID/branch were not authenticated because the rejected census was
+not retained. Later empty tracked-session observations do not establish escaped-process cleanup.
+The original failed run and artifact `11659493945` remain consumed and preserved.
+
+The observer now preserves the first rejected unknown/escaped census before cleanup, including
+birth identities, branch flags and bounded omitted-row counts. Reporting failures do not replace
+the first cause or bypass cleanup. Historical uncertainty remains separate from the terminal census.
+Existing provisioning also captures package-owned installed AT-SPI activation services, configuration
+and executable hashes; service `Exec` values are data and are never executed by the collector.
+Missing or ambiguous activation provenance refuses dependent AT launch. Pure and mocked controls
+exercise these diagnostics, reporting failures and receipt refusals; they establish source preparation,
+not actual cancellation, AT acceptance or complete process containment. The custody guard, existing
+runtime budgets and activation behavior are unchanged. No foreground-launch architecture is selected.
+
+Another native qualification requires protected source and caller delivery, programme projection
+and separate fresh admission. Actual reference AT, coherent publication, fresh installed creation,
+preserving upgrades and product-native outcomes remain open; prior browser and limited TypeScript
+qualification remain scoped to their recorded inputs.
