@@ -31,8 +31,10 @@ reached Chromium: four existing cases passed, but all four command-outcome cases
 ambiguous increment-button locator. Firefox and WebKit did not run. The test helper now scopes
 reference actions to direct child buttons and receipt status to the direct child status element,
 excluding nested scene selection controls. Static checks do not establish browser acceptance.
-All 24 browser integration cases, TypeScript typechecking, coherent publication, fresh installed
-creation and any promised preserving upgrade remain pending. Product adoption and SC2/BAR/FourD native acceptance retain their separate
+Scoped browser and handwritten TypeScript qualification is recorded in the Rendering owning plan
+and the browser prerequisite below. Actual reference AT, broad full-site qualification, coherent
+publication, fresh installed creation and any promised preserving upgrade remain pending.
+Product adoption and SC2/BAR/FourD native acceptance retain their separate
 owners and evidence. This partial source result closes no feature or installed outcome.
 
 ## Hosted receipt preflight source
