@@ -228,3 +228,26 @@ were refused. Qualification exited zero with observed owned-group custody and em
 within the original 50-second work and 10-second cleanup bounds. All selected source/runtime
 pins and original failed-operation pins remained unchanged. These inert results do not accept
 native browser behavior, whole-tree containment or the Orca journey.
+
+The later original native run `38080394981/a1` used protected Templates `5cfb2dd`
+and Rendering `ab800d5`. Its retained archive records the first failure as
+`actual AT client library mapping unavailable: observer`, before the first journey
+action. The original process maps were not retained, so missing loading and exact
+path disagreement remain distinct unknowns. Independent browser checks passed
+eight cases per family and provider composition recorded 186 PASS markers; the
+private speech preflight passed. Foreground Chrome and its separate companion
+produced readiness and DOM evidence in the original observed session, with no
+rejected census and empty observed cleanup. These scopes do not accept the Orca
+journey or resolve older escaped-process history.
+
+The observer now calls the real private-bus AT-SPI desktop and reads its child
+count under existing health checks before verifying the exact loaded library
+object and unchanged process birth. Namespace import alone cannot qualify a
+mapping. The mapping guard remains mandatory for both observer and browser.
+Thirteen additional inert controls model a lazy native client, failed initialization,
+missing or wrong mappings, changed birth and failed health. The finite local inert
+qualification passed all 247 named Python controls, including the retained 234,
+all 37 actual JavaScript controls and six retained/final groups. The Node 26.10.0
+child's 43 mapped objects matched the pinned runtime, and cleanup observed an
+empty owned group with unchanged source/runtime pins. The source qualification
+remains separate from a future native journey; no new native journey is accepted.
