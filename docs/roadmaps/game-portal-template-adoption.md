@@ -149,11 +149,16 @@ they are never silently overwritten. Removal only unlinks unchanged owned files.
   object bytes/modes before each mutation, preserving late edits and refusing late
   corruption; this is bounded conflict detection, not filesystem locking.
   The first source candidate failed all five focused expansion/race controls; those
-  failures remain retained separately from the repaired passing controls.
+  failures remain retained separately from the repaired passing controls. A later
+  generated-helper import fixture created bytecode inside the exact payload and
+  failed; fixture-local bytecode suppression repaired the ordinary Python runner.
+  That failed log and the correction to its earlier inaccurate pass claim remain
+  preserved; the exact successor has a genuine 25-test passing log.
   Transaction fixtures mock the public-baseline predicate and explicitly establish
   no genuine public retained adoption. Independent source controls remain separate.
-- [ ] Actual T2 candidate pack, installed management projection and real retained
-  adoption/removal/recovery plus public package runtime remain unrun.
+- [x] Actual T2 candidate pack, installed management projection and real retained
+  adoption/removal/recovery plus public locked package runtime qualified for the
+  exact local candidate below. Public release and broader P3 remain open.
 
 The genuine public baseline prerequisite is now observed: public NuGet
 `FS.GG.Workspace.Template 0.18.1`, archive SHA256
@@ -164,19 +169,50 @@ selection. One fresh private direct player/lifecycle-none receiver named
 its 115 original files and modes were recorded before adding three authored source,
 data and skill sentinels. The resulting 118-file inventory tree SHA256 is
 `384b0a7914f1bf81f71bb1323a47e6bd4b3dd8f80fda2153827603f2c42e92d1`.
-Read-only source predicate inspection confirms this exact archive and unchanged
-ordinary project/SDK/cache/lock baseline; no T2 operation has touched that receiver.
+The original full 152-row inventory binds that exact baseline. Actual T2 operations
+below preserve all 118 original files, modes and three authored sentinels; known
+new Portal-only build outputs and a foreign sentinel remain after recovery.
 No restore, build or application runtime was performed for baseline creation.
 
-The prepared retained recipe installs a separately admitted exact T2 candidate into
-another private hive and generates the candidate outside that inventoried receiver.
-It previews/applies only the allowlist, checks all original outside-Portal bytes/modes,
-then separately qualifies public locked restore/build and actual 0/0/2. Removal and
-recovery preserve a new foreign in-folder sentinel and newly produced Portal bin/obj
-outputs; they do not recursively delete the directory or report whole-tree equality
-where those known new foreign files remain. All original generated/authored paths
-must retain their exact bytes and modes. Provider, publication, prior public Portal
-upgrade, unchanged browser composition and P3 closure remain separate and open.
+On 2026-10-10, one separately admitted pack qualified source
+`39d3de839000e98e0bff69fc6fb0243279c2ddf0`, producing the local candidate
+`FS.GG.Workspace.Template 0.18.1`, 951,372 bytes, SHA256
+`97b3c8b70c8e1f5b21e6e4cd91a7db0dbe473f5c931eb3179d263bd35b9085d4`.
+Its nuspec records that exact source. Current and legacy package projections contain
+identical producer helper bytes, SHA256
+`cf88ae6012160c01cc5d5a22089d7515fff8b0b98ec7c5d2a2277cc95aaf92cf`;
+canonical Game source and the genuine seven-package lock remain unchanged. The
+canonical Python fixture projection matches its pinned Coordination revision/tree
+and all three source digests. SDK version/info and pack exited zero; a nonfatal SDK
+workload-verification notice was retained, with no workload update attempted.
+
+One separately admitted direct retained qualification installed that exact archive
+into a fresh private home and generated a player/lifecycle-none opted-in candidate
+outside the genuine public baseline. The actually generated `manage.py` retained
+producer byte identity. Inventory and apply, preservation checks, public-only locked
+seven-package restore, package boundary, Release build and both default/presentation
+entrypoints exited zero. Invalid usage exited two. The original lock SHA256
+`7769c72f28bca3fc4b40e6ce710852c8d5e26098c5e6d5c35cefbe9f7c11f66b`
+was unchanged. The actual assembly SHA256 was
+`5f71513159b2faff9f9be5a1d9139634e6553a32b421ff81ab1de674b6a21163`.
+
+Removal, recovery of removal and recovery of initial adoption all exited zero, and
+both journals reached `rolled-back`. All 118 original files, 152 rows and root mode
+remain exact outside PortalExample. A new foreign in-folder sentinel survived;
+its SHA256 is `3d44c3af4d9479e814622a6188510ec3bf15c82057f9bc282f5745ffc83aafc4`.
+The nine managed payload files are absent after initial recovery; known new Portal
+`bin`, `obj` and that sentinel remain. No recursive cleanup or whole-tree equality
+claim applies to those new outputs.
+
+The actual pack and retained runs used CPU 1, a 300-second work budget, bounded
+30-second cleanup, a practical 2 GiB sampled RSS limit and 1.5 GiB managed heap limit.
+Observed sampled peaks were 332,857,344 and 441,282,560 bytes respectively. No signals
+were needed. Independent terminal LIVE and zombie censuses were empty for observed
+groups, sessions and known descendants; transient or unobserved detached descendants
+remain unknown, and sampling is not hard RSS containment. Neither run reused or
+retried resume04/resume05 custody. These results qualify a local source candidate,
+not a published successor, provider invocation, prior public Portal upgrade, browser
+composition or whole P3 closure. T3/T4, provider acceptance and P3 remain open.
 
 - [ ] **P3-T3 — Coherent public template successor — route: routine source; publication separately admitted.** Depends on accepted T1/T2 and existing Templates release gates. Reuse the repository's current pack-once, immutable artifact, dual-feed equality, feed occupancy and public readback paths. Release owner chooses the next genuinely unoccupied Templates version at dispatch (current source is 0.18.1; no successor number is reserved here), aligns the provider descriptor and exact source/archive identities, and verifies the installed artifact contains the opt-in payload/helper/lock. Game and Rendering need no new binary release unless the source owner discovers a producer API defect. A generated example source update does not turn Game 0.17.0 into a new binary release. Keep protected publication credentials, registry activation and Wizard release in their existing owners and custody. Do not repair or retry unrelated unknown publication effects.
 
