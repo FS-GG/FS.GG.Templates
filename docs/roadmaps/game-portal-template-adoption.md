@@ -1,8 +1,9 @@
 # GAME-PORTAL-01.P3 — Managed portal example in Fable Game workspaces
 
-Status: T1 source and local candidate direct generation/runtime qualified; provider
-forwarding, coherent browser gates, publication and preserving retained adoption/removal
-remain unqualified. Whole P3 remains Done: No. Templates owns
+Status: T1/T2 source and local candidate direct/retained operations qualified; coherent
+0.18.2 release gates and dual-feed publication qualified. Independent public direct,
+retained and installed-provider Portal receivers remain unqualified. Whole P3 remains
+Done: No. Templates owns
 this integration, Game owns canonical example sources, and Rendering owns the public
 scene contract. The programme integrator owns coherent release/admission and roadmap joins.
 
@@ -214,7 +215,7 @@ retried resume04/resume05 custody. These results qualify a local source candidat
 not a published successor, provider invocation, prior public Portal upgrade, browser
 composition or whole P3 closure. T3/T4, provider acceptance and P3 remain open.
 
-- [ ] **P3-T3 — Coherent public template successor — route: routine source; publication separately admitted.** Depends on accepted T1/T2 and existing Templates release gates. Reuse the repository's current pack-once, immutable artifact, dual-feed equality, feed occupancy and public readback paths. Release owner freshly verifies the source-selected Templates version at the release boundary (source now prepares 0.18.2; publication remains unadmitted), aligns the provider descriptor and exact source/archive identities, and verifies the installed artifact contains the opt-in payload/helper/lock. Game and Rendering need no new binary release unless the source owner discovers a producer API defect. A generated example source update does not turn Game 0.17.0 into a new binary release. Keep protected publication credentials, registry activation and Wizard release in their existing owners and custody. Do not repair or retry unrelated unknown publication effects.
+- [x] **P3-T3 — Coherent public template successor — route: routine source; publication separately admitted.** Depends on accepted T1/T2 and existing Templates release gates. Reuse the repository's current pack-once, immutable artifact, dual-feed equality, feed occupancy and public readback paths. Release owner freshly verifies the source-selected Templates version at the release boundary (0.18.2 publication is qualified below), aligns the provider descriptor and exact source/archive identities, and verifies the installed artifact contains the opt-in payload/helper/lock. Game and Rendering need no new binary release unless the source owner discovers a producer API defect. A generated example source update does not turn Game 0.17.0 into a new binary release. Keep protected publication credentials, registry activation and Wizard release in their existing owners and custody. Do not repair or retry unrelated unknown publication effects.
 
 T3 source now selects `0.18.2` in the packaging project and all five Workspace
 provider self-pins. The eight configuration/seven selector inventory and Game/Rendering
@@ -242,7 +243,39 @@ Packages before nuget.org, and verify both feed payloads before root registry ac
 Neither local `0.18.1` Portal candidate substitutes for that `0.18.2` release artifact.
 Provider/Wizard activation and public fresh/retained Portal acceptance remain separate
 T4 outcomes. No tag, pack, installation, runtime or publication was run for this source
-version update. T3, T4 and whole P3 remain open.
+version update. The subsequent separately admitted T3 release is recorded below; T4
+and whole P3 remain open.
+
+The subsequent release boundary used fresh native occupancy run `38014746101`,
+attempt 1, at protected `20c009bc6728302f9ed06fdf49cb2e8bd19e417d` / tree
+`5c1efec2edc47316521633aac8dbac5e0967c248`. Both complete feed censuses reported
+`ABSENT` at `2026-10-10T01:51:13Z`; the authenticated original receipt SHA256 is
+`fe3c1de0e6198e6fc26bd2432c27cb1cd745e50d47b3830705d6efc2ecdf3c8e`.
+This fresh observation preceded the single separately admitted annotated tag
+`fs-gg-templates/v0.18.2`, object `e95de86c118c086086ae9745b95ec9cce9ce4cb2`,
+which peels to that exact protected source.
+
+Original [release run 38014935496](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38014935496),
+attempt 1, packed the release once and completed successfully on 2026-10-10.
+Its original immutable artifact `11655584727` contains the 951,542-byte package,
+SHA256 `789254f599fbb93114e5c9a9381e1e8a8c29529f69e8b804b45fbf232f9e850a`;
+checksum and nuspec id/version/source were verified. The full unchanged coherent
+five-lane composition/provider/browser gate passed with 118 checks and zero failures.
+The gate took 12 minutes 20 seconds; publication took 5 minutes 3 seconds.
+These native jobs had no explicit job timeout; bounded 600-second observation
+windows did not cancel or bound their execution. No rerun, retag or repack occurred.
+
+The native route published that same original archive to GitHub Packages first and
+nuget.org second. Authenticated readback artifact `11656985568`, server ZIP digest
+`a3d8b0cb86d41e95f9593989de90dfe98ffa4e797404122ba0e859ac52ee5386`,
+records 480 payload entries exact on each feed. GitHub archive SHA256 equals the
+original package; the signed public NuGet archive SHA256 is
+`496aad0e89496719bc543edc6ffbf829a82307862e630ba4e174e374ac11cc4e`.
+Only `.signature.p7s` is excluded from payload equality. GitHub release `408526793`
+and its original package asset `626755861` were independently read back; asset bytes
+and SHA256 match the original pack. Native publication/readback is qualified; no
+independent public Portal receiver, new retained receiver or installed public provider
+Portal invocation is claimed here. Root registry reconciliation and T4 remain separate.
 
 - [ ] **P3-T4 — Fresh and preserving retained public receivers — route: separately admitted qualification.** After T3 public readback, create new outside-checkout receivers from the actual public template, public dependencies and fresh caches: direct explicit opt-in and default-off; then the qualified provider-v2 route using its exact public descriptor and installed SDD >=2.1.0. Repeat the real project entrypoint and exact graph/lock checks. Before release, the full unchanged Fable/Vite/browser composition remains a coherent artifact gate; retain its evidence separately from this headless Portal runtime. For retained adoption, freshly instantiate the actual public pre-Portal 0.18.1 template into a new owned retained receiver, add authored source/data/skills, record the full inventory, then inventory/apply from the real successor-generated candidate. Observe the Portal entrypoint and byte preservation; add a foreign in-folder sentinel, remove safely while preserving it, and observe ordinary workspace behavior; separately exercise recovery/rollback. Never operate on resume04/resume05 or old /tmp receivers. Report direct template, provider and Wizard boundaries independently. Full Wizard activation is not implied by the direct/provider proof; if it remains part of another v3 row, retain that open outcome there rather than relabel it complete.
 
