@@ -11,7 +11,9 @@ const selected = existsSync("../SvgFoundation/Examples/ExternalAuthority/referen
 test.describe("external authority reference command outcomes", () => {
   if (!selected) return;
   const reference = (page: Page) => page.locator("#external-authority-reference");
-  const press = (page: Page, name: string) => reference(page).getByRole("button", { name, exact: true }).click();
+  // Reference action buttons are direct children; scene selection controls can share their labels.
+  const press = (page: Page, name: string) => reference(page).getByRole("button", { name, exact: true })
+    .and(reference(page).locator(":scope > button")).click();
   const open = async (page: Page) => {
     await page.goto("/");
     await page.getByRole("button", { name: "Mount external authority reference", exact: true }).click();
@@ -43,7 +45,7 @@ test.describe("external authority reference command outcomes", () => {
     await expect(reference(page)).toHaveAttribute("data-unknown-generation", originalGeneration!);
     await expect(reference(page)).toHaveAttribute("data-authority-revision", "2");
     await expect(reference(page)).toHaveAttribute("data-command-suspended", "true");
-    await expect(reference(page).getByRole("status")).toContainText("reconnect never retries");
+    await expect(reference(page).locator(':scope > [role="status"]')).toContainText("reconnect never retries");
   });
 
   test("explicit reconciliation and rearm retain the original and use a fresh correlation", async ({ page }) => {
