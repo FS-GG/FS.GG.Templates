@@ -1014,6 +1014,7 @@ def route_evidence(directory, packet, receipt):
     require(runtime["sessionBus"]["sid"] == runtime["bus"]["sid"] and
             runtime["sessionAddress"].startswith("unix:path="+state["sockets"]["session"]+",guid="), "session route binding absent")
     contract_evidence(directory, runtime, leaders)
+    orca_logging_evidence(directory, runtime, leaders, receipt)
     for prefix, client in [("libatspi.so.", "observer"), ("libatk-bridge-2.0.so.", "browser")]:
         mapped = runtime["mappedLibraries"][client]
         require(mapped["object"] == selected[prefix] and mapped["birth"]["pid"] > 0, "actual client library mapping absent")
@@ -1727,6 +1728,129 @@ def browser_evidence(directory, receipt, runtime, leaders):
     return True
 
 
+ORCA_INFO_SCHEMA = 'fsgg.orca-info-readiness/1'
+ORCA_DEBUG_SOURCE_SHA = '58c2c01dc8606c5ddd4c19b366a56addc529d9b988591b656a0613107c8d3061'
+ORCA_DEBUG_SOURCE_PATH = '/usr/lib/python3/dist-packages/orca/debug.py'
+
+
+def orca_customization_source(directory):
+    record = str(directory / 'orca-info-ready.json')
+    return "from orca import debug\nimport hashlib, json, os, pathlib, sys\ntry:\n    source = pathlib.Path(__file__).resolve()\n    module = pathlib.Path(debug.__file__).resolve()\n    if str(module) != %r or hashlib.sha256(module.read_bytes()).hexdigest() != %r:\n        raise RuntimeError('original Orca debug source differs from selected Ubuntu46.1 source')\n    if debug.LEVEL_INFO != 800 or debug.debugLevel != debug.LEVEL_ALL or debug.debugFile is None:\n        raise RuntimeError('original Orca CLI logging setup absent')\n    debug.debugLevel = debug.LEVEL_INFO\n    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()\n    debug.printMessage(debug.LEVEL_INFO, 'FS_GG_ORCA_INFO_READY '+source_sha, True)\n    debug.debugFile.flush()\n    tail = pathlib.Path('/proc/self/stat').read_text().rsplit(') ', 1)[1].split()\n    birth = {'pid': os.getpid(), 'start': int(tail[19]), 'ppid': int(tail[1]), 'pgid': int(tail[2]), 'sid': int(tail[3])}\n    packet = {'schema': %r, 'birth': birth, 'level': debug.debugLevel, 'levelName': 'INFO',\n              'sourceSha256': source_sha, 'observerSha256': %r, 'vendorDebugPath': str(module), 'vendorDebugSha256': %r}\n    final = pathlib.Path(%r)\n    temporary = final.with_name(final.name+'.tmp')\n    fd = os.open(temporary, os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW, 0o600)\n    try:\n        body = (json.dumps(packet, sort_keys=True)+'\\n').encode()\n        while body:\n            written = os.write(fd, body)\n            if written <= 0: raise RuntimeError('Orca INFO readiness write incomplete')\n            body = body[written:]\n        os.fsync(fd)\n    finally:\n        os.close(fd)\n    os.link(temporary, final, follow_symlinks=False)\n    temporary.unlink()\nexcept BaseException as error:\n    print('ORCA_INFO_FIRST_CAUSE: '+type(error).__name__+': '+str(error), file=sys.stderr, flush=True)\n    raise\n" % (ORCA_DEBUG_SOURCE_PATH, ORCA_DEBUG_SOURCE_SHA, ORCA_INFO_SCHEMA,
+       digest(Path(__file__).resolve()), ORCA_DEBUG_SOURCE_SHA, record)
+
+
+def prepare_orca_logging(directory):
+    parent = directory / 'data/orca'
+    parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    source = parent / 'orca-customizations.py'
+    require(not parent.is_symlink() and parent.is_dir(), 'Orca INFO customization parent linked or non-directory')
+    require(not source.exists() and not source.is_symlink() and
+            not (directory / 'orca-info-ready.json').exists() and not (directory / 'orca-info-ready.json').is_symlink() and
+            not (directory / 'orca-info-ready.json.tmp').exists() and not (directory / 'orca-info-ready.json.tmp').is_symlink(),
+            'Orca INFO preparation reused original outputs')
+    body = orca_customization_source(directory).encode()
+    fd = os.open(source, os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, 'wb') as stream:
+        stream.write(body)
+        stream.flush()
+        os.fsync(stream.fileno())
+    return hashlib.sha256(body).hexdigest()
+
+
+def orca_logging_record(directory, birth):
+    # Inert fixtures use the same expected schema; no native readiness is asserted.
+    return {'schema': ORCA_INFO_SCHEMA, 'birth': {k: birth[k] for k in ['pid', 'start', 'ppid', 'pgid', 'sid']},
+            'level': 800, 'levelName': 'INFO', 'sourceSha256': digest(directory / 'data/orca/orca-customizations.py'),
+            'observerSha256': digest(Path(__file__).resolve()), 'vendorDebugPath': ORCA_DEBUG_SOURCE_PATH,
+            'vendorDebugSha256': ORCA_DEBUG_SOURCE_SHA}
+
+
+def orca_logging_text(path):
+    fd = os.open(path, os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        info = os.fstat(fd)
+        require(stat.S_ISREG(info.st_mode) and info.st_size <= 4194304, 'Orca INFO evidence log nonregular or over budget')
+        chunks, count = [], 0
+        while True:
+            chunk = os.read(fd, min(65536, 4194305-count))
+            if not chunk: break
+            chunks.append(chunk); count += len(chunk)
+            require(count <= 4194304, 'Orca INFO evidence log over budget')
+        text = b''.join(chunks).decode('utf-8', 'strict')
+    finally:
+        os.close(fd)
+    return text
+
+
+def orca_logging_first_cause(directory):
+    path = directory / 'orca.log'
+    for line in orca_logging_text(path).splitlines():
+        if line.startswith('ORCA_INFO_FIRST_CAUSE: '):
+            cause = line.removeprefix('ORCA_INFO_FIRST_CAUSE: ')
+            require(0 < len(cause) <= 4096, 'Orca INFO original cause record malformed')
+            return cause
+    return None
+
+
+def check_orca_logging(directory, birth, expected_sha):
+    original = orca_logging_first_cause(directory)
+    if original: raise RuntimeError(original)
+    source = directory / 'data/orca/orca-customizations.py'
+    require(digest(source) == expected_sha == hashlib.sha256(orca_customization_source(directory).encode()).hexdigest(),
+            'Orca INFO customization source changed')
+    record = completion_record(directory / 'orca-info-ready.json')
+    expected = orca_logging_record(directory, birth)
+    require(record == expected and all(type(record['birth'][k]) is int for k in ['pid', 'start', 'ppid', 'pgid', 'sid']) and
+            type(record['level']) is int and record['birth']['pid'] > 0 and record['birth']['start'] > 0 and
+            record['birth']['pgid'] == record['birth']['sid'], 'Orca INFO readiness birth/source/level mismatch')
+    text = orca_logging_text(directory / 'orca-debug.log')
+    require('FS_GG_ORCA_INFO_READY '+expected_sha in text, 'original Orca INFO startup marker absent')
+    return {'schema': ORCA_INFO_SCHEMA, 'birth': expected['birth'], 'sourceSha256': expected_sha,
+            'readySha256': digest(directory / 'orca-info-ready.json'), 'vendorDebugSha256': ORCA_DEBUG_SOURCE_SHA, 'level': 800}
+
+
+def orca_logging_health(directory, child, value, health, reader=None):
+    original = orca_logging_first_cause(directory)
+    if original: raise RuntimeError(original)
+    health()
+    reader = proc if reader is None else reader
+    require(same_birth(reader(child.pid), value['birth']) and
+            digest(directory / 'orca-info-ready.json') == value['readySha256'],
+            'original Orca INFO readiness/liveness drift')
+
+
+def wait_orca_logging(directory, child, birth, expected_sha, deadline, health, clock=None, pause=None, reader=None):
+    clock = time.monotonic if clock is None else clock
+    pause = time.sleep if pause is None else pause
+    reader = proc if reader is None else reader
+    while True:
+        original = orca_logging_first_cause(directory)
+        if original: raise RuntimeError(original)
+        require(clock() < deadline, 'original Orca INFO readiness deadline exhausted')
+        health()
+        require(child.poll() is None and same_birth(reader(child.pid), birth), 'original Orca exited or birth changed before INFO readiness')
+        if (directory / 'orca-info-ready.json').exists():
+            return check_orca_logging(directory, birth, expected_sha)
+        pause(min(.1, deadline-clock()))
+
+
+def orca_logging_evidence(directory, runtime, leaders, receipt):
+    original = orca_logging_first_cause(directory)
+    if original: raise RuntimeError(original)
+    require(receipt['evidenceSha256'].get('orca.log') == digest(directory / 'orca.log'),
+            'original Orca cause log unbound')
+    value = runtime['orcaLogging']
+    journey = completion_record(directory / 'journey.json')
+    require(type(receipt['process']['pid']) is int and receipt['process']['pid'] == value['birth']['pid'] == journey['process']['pid'],
+            'Orca INFO original PID/receipt/journey mismatch')
+    require(any(v['resource'] == 'orca' and same_birth(v, value['birth']) and
+                v['ppid'] == value['birth']['ppid'] and v['pgid'] == value['birth']['pgid'] == value['birth']['sid'] for v in leaders),
+            'Orca INFO readiness original birth not registered')
+    require(check_orca_logging(directory, value['birth'], value['sourceSha256']) == value,
+            'Orca INFO runtime/evidence binding changed')
+    return True
+
+
 def inner(receiver, directory, gio_adapter=None):
     # Private D-Bus, XDG settings, display, Pulse server and speech socket: no user-session replacement.
     os.environ.update(DISPLAY=":97", NO_AT_BRIDGE="0", GTK_MODULES="gail:atk-bridge",
@@ -1815,7 +1939,10 @@ def inner(receiver, directory, gio_adapter=None):
                                                min(session_deadline, time.monotonic()+15))
     write(directory / "owned-bus-runtime.json", runtime)
     def prerequisite_health():
-        required_children(children, directory)
+        if 'orcaLogging' in runtime:
+            orca_logging_health(directory, orca, runtime['orcaLogging'], lambda: required_children(children, directory))
+        else:
+            required_children(children, directory)
         contract_births(runtime, state)
         def checked():
             required_children(children, directory)
@@ -1842,8 +1969,12 @@ def inner(receiver, directory, gio_adapter=None):
     require((directory / "speech.sock").exists(), "private speech service unavailable")
     command(["/usr/bin/python3", str(Path(__file__).with_name("speech-dispatcher-preflight.py")), str(directory / "speech-preflight.json")], seconds=30)
     prerequisite_health()
+    orca_logging_source = prepare_orca_logging(directory)
     orca = launch(["/usr/bin/python3", str(Path(__file__).with_name("orca-faulthandler.py")), "--replace", "--debug",
                    "--debug-file=" + str(directory / "orca-debug.log")], "orca")
+    runtime['orcaLogging'] = wait_orca_logging(directory, orca, proc(orca.pid), orca_logging_source,
+                                             min(session_deadline, time.monotonic()+15), prerequisite_health)
+    write(directory / 'owned-bus-runtime.json', runtime)
     time.sleep(3)
     prerequisite_health()
     server = launch(["dotnet", "Server.dll", "--urls", "http://127.0.0.1:5100"], "server", receiver / "artifacts/authority-server")
@@ -1903,7 +2034,8 @@ def inner(receiver, directory, gio_adapter=None):
     parent_birth = proc(os.getpid())
     require(same_birth(parent_birth, runtime["sessionContract"]["parentBirth"]), "original completion parent birth changed")
     def finishing_health():
-        required_children([child for child in children if child is not status], directory)
+        orca_logging_health(directory, orca, runtime['orcaLogging'],
+                            lambda: required_children([child for child in children if child is not status], directory))
         browser_active_failure(directory, companion_birth)
         browser_active(browser, browser_birth, profile, profile_identity, executable)
         require(same_birth(proc(companion.pid), companion_birth), "original companion birth changed during completion")
@@ -2366,7 +2498,7 @@ def qualify(out, preflight_path, termination):
                "producer": preflight["producer"], **journey, "keyboard": "xdotool-X11", "speechBoundary": "Orca SPEECH OUTPUT",
                "physicalAudioHardware": "not-observed", "cleanup": result, "sourceQualificationSha256": digest(packet_path),
                "servedAssemblySha256": served_digest,
-               "evidenceSha256": {name: digest(directory / name) for name in ["orca-debug.log", "journey.json", "process-result.json", "speech-preflight.json", "tool-identities.json", "source-qualification.json", "host-packages.txt", "resource-leaders.json", "activation-provenance.json", "owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf", "session-contract-state.json", "session-budget.json", *FINISH_FILES, *BROWSER_FILES]}}
+               "evidenceSha256": {name: digest(directory / name) for name in ["orca.log", "orca-debug.log", "journey.json", "process-result.json", "speech-preflight.json", "tool-identities.json", "source-qualification.json", "host-packages.txt", "resource-leaders.json", "activation-provenance.json", "owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf", "session-contract-state.json", "session-budget.json", *FINISH_FILES, *BROWSER_FILES]}}
     try:
         validate(receipt, packet, preflight, directory)
     except BaseException as ex:
@@ -2381,7 +2513,7 @@ def qualify(out, preflight_path, termination):
     print("PASS external-reference actual Orca keyboard/receipt journey; evidence=" + str(directory / "observation.json"))
 
 
-def self_test():
+def self_test(logging_controls=True):
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary) / "orca"
         directory.mkdir()
@@ -2418,7 +2550,7 @@ def self_test():
         observations["retainedInert"] = copy.deepcopy(observations["disposed"])
         (directory / "orca-debug.log").write_bytes(raw)
         names = ["Mount external authority reference", "Connect sample authority", "Complete current external snapshot", "Lose next command receipt", "Increment external value", "Disconnect sample authority", "Rearm sample commands", "Reconcile unknown command", "Dispose external reference"]
-        receipt = {"schema": SCHEMA, "result": "passed", **preflight, "process": {"name": "orca", "pid": 1}, "browser": {"family": "chromium", "pid": 2, "launcherPid": 2, "companionPid": 60},
+        receipt = {"schema": SCHEMA, "result": "passed", **preflight, "process": {"name": "orca", "pid": 62}, "browser": {"family": "chromium", "pid": 2, "launcherPid": 2, "companionPid": 60},
                    "keyboard": "xdotool-X11", "speechBoundary": "Orca SPEECH OUTPUT", "physicalAudioHardware": "not-observed",
                    "cleanup": {"disposition": "observed-empty", "unknown": [], "remaining": []}, "sourceQualificationSha256": digest(directory / "source-qualification.json"),
                    "evidenceSha256": {"orca-debug.log": digest(directory / "orca-debug.log")}, "observations": observations,
@@ -2429,6 +2561,8 @@ def self_test():
         activation = route_fixture()
         write(directory / "activation-provenance.json", activation)
         route_fixture_evidence(directory, activation)
+        receipt["evidenceSha256"]["orca-debug.log"] = digest(directory / "orca-debug.log")
+        receipt["evidenceSha256"]["orca.log"] = digest(directory / "orca.log")
         for name in ["owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf",
                      "session-contract-state.json", "session-budget.json", "journey.json", *FINISH_FILES, *BROWSER_FILES]:
             receipt["evidenceSha256"][name] = digest(directory / name)
@@ -2489,7 +2623,7 @@ def self_test():
                 pass
             else:
                 raise RuntimeError("missing actual phase speech accepted")
-        (directory / "orca-debug.log").write_bytes(raw.replace(b"SPEECH OUTPUT:", b"DOM OBSERVED::"))
+        (directory / "orca-debug.log").write_bytes((directory / "orca-debug.log").read_bytes().replace(b"SPEECH OUTPUT:", b"DOM OBSERVED::"))
         bad = copy.deepcopy(receipt)
         bad["evidenceSha256"]["orca-debug.log"] = digest(directory / "orca-debug.log")
         try:
@@ -2512,7 +2646,7 @@ def self_test():
     route_self_test()
     contract_controls = contract_self_test()
     print("PASS actual AT binder: good receipt, 25 existing plus 2 diagnostic refusal controls; 8 prerequisite refusals and workflow bad controls; no AT/browser launched")
-    return contract_controls + browser_self_test()
+    return contract_controls + browser_self_test() + (orca_logging_self_test() if logging_controls else [])
 
 
 
@@ -2564,7 +2698,7 @@ def contract_fixture_evidence(directory, activation, runtime, leaders, parent_bi
     write(directory / "activation-provenance.json", activation)
     if complete:
         if not (directory / "journey.json").exists():
-            write(directory / "journey.json", {"inertFixture": True})
+            write(directory / "journey.json", {"inertFixture": True, "process": {"name": "orca", "pid": 62}})
         identity = completion_identity(directory, runtime, parent_birth, birth, contract["uniqueOwner"])
         atomic_record_once(directory / FINISH_FILES[0], {"schema": FINISH_SCHEMA, "phase": "request", "identity": identity})
         complete_contract_child(directory, identity, lambda: None, lambda: None, clock=lambda: 0)
@@ -2594,6 +2728,15 @@ def route_fixture_evidence(directory, activation, uid=1000, complete=True):
           "mappedLibraries": {"observer": {"birth": bus, "object": selected["libatspi.so."]},
                               "browser": {"birth": browser, "ancestry": [browser], "object": selected["libatk-bridge-2.0.so."]}}}
     contract_fixture_evidence(directory, activation, runtime, leaders, complete=complete)
+    if complete:
+        orca_birth = {'pid': 62, 'start': 12, 'ppid': 42, 'pgid': 42, 'sid': 42}
+        source_sha = prepare_orca_logging(directory)
+        write(directory / 'orca-info-ready.json', orca_logging_record(directory, orca_birth))
+        with (directory / 'orca-debug.log').open('ab') as log:
+            log.write(('FS_GG_ORCA_INFO_READY '+source_sha+'\n').encode())
+        (directory / 'orca.log').write_text('')
+        runtime['orcaLogging'] = check_orca_logging(directory, orca_birth, source_sha)
+        leaders.append({'resource': 'orca', **orca_birth})
     write(directory / "resource-leaders.json", leaders)
     write(directory / "owned-bus-runtime.json", runtime)
     browser_fixture_evidence(directory, browser, launcher, uid, complete)
@@ -2954,6 +3097,182 @@ def wrong_uid(profile):
         raise RuntimeError('foreign profile owner accepted')
 
 
+def orca_logging_self_test():
+    from unittest.mock import patch
+    from types import SimpleNamespace
+    import ast
+    checked = []
+    def case(name, action):
+        action()
+        checked.append('orca-info-'+name)
+    def refused(action, text=None):
+        try: action()
+        except (RuntimeError, FileNotFoundError, OSError, UnicodeError) as error:
+            if text: require(text in str(error), 'Orca INFO refusal first cause changed: '+str(error))
+        else: raise RuntimeError('invalid Orca INFO readiness accepted')
+    def fixture(action):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            birth = {'pid': 100, 'start': 10, 'ppid': 42, 'pgid': 42, 'sid': 42}
+            sha = prepare_orca_logging(directory)
+            (directory / 'orca.log').write_text('')
+            write(directory / 'journey.json', {'process': {'name': 'orca', 'pid': birth['pid']}})
+            write(directory / 'orca-info-ready.json', orca_logging_record(directory, birth))
+            (directory / 'orca-debug.log').write_text('FS_GG_ORCA_INFO_READY '+sha+'\nSPEECH OUTPUT: target\n')
+            return action(directory, birth, sha)
+    def receipt_for(directory, birth):
+        return {'process': {'name': 'orca', 'pid': birth['pid']}, 'evidenceSha256': {'orca.log': digest(directory / 'orca.log')}}
+    def correct(directory, birth, sha):
+        result = check_orca_logging(directory, birth, sha)
+        require(result['level'] == 800 and result['birth'] == birth and result['readySha256'] == digest(directory / 'orca-info-ready.json'),
+                'fresh Orca INFO binding incomplete')
+        child = SimpleNamespace(pid=birth['pid'], poll=lambda: None)
+        require(wait_orca_logging(directory, child, birth, sha, 15, lambda: None,
+                    clock=lambda: 0, pause=lambda _: None, reader=lambda _: birth) == result,
+                'actual Orca INFO readiness path refused')
+        require(orca_logging_evidence(directory, {'orcaLogging': result}, [{'resource': 'orca', **birth}], receipt_for(directory, birth)),
+                'actual final Orca INFO evidence path refused')
+    case('fresh-startup-active-final-binding', lambda: fixture(correct))
+    for label, mutate in [
+        ('stale-birth', lambda r: r['birth'].update(start=11)),
+        ('wrong-PID', lambda r: r['birth'].update(pid=101)),
+        ('wrong-parent', lambda r: r['birth'].update(ppid=43)),
+        ('wrong-group', lambda r: r['birth'].update(pgid=43)),
+        ('wrong-source', lambda r: r.update(sourceSha256='0'*64)),
+        ('wrong-observer', lambda r: r.update(observerSha256='0'*64)),
+        ('wrong-vendor-source', lambda r: r.update(vendorDebugSha256='0'*64)),
+        ('wrong-level', lambda r: r.update(level=0)),
+        ('boolean-level', lambda r: r.update(level=True)),
+        ('wrong-level-name', lambda r: r.update(levelName='ALL'))]:
+        def invalid(directory, birth, sha, mutate=mutate):
+            record = completion_record(directory / 'orca-info-ready.json'); mutate(record)
+            write(directory / 'orca-info-ready.json', record)
+            refused(lambda: check_orca_logging(directory, birth, sha), 'mismatch')
+        case(label, lambda action=invalid: fixture(action))
+    def changed(directory, birth, sha):
+        (directory / 'data/orca/orca-customizations.py').write_text('changed')
+        refused(lambda: check_orca_logging(directory, birth, sha), 'source changed')
+    case('changed-customization', lambda: fixture(changed))
+    def no_marker(directory, birth, sha):
+        (directory / 'orca-debug.log').write_text('SPEECH OUTPUT: target\n')
+        refused(lambda: check_orca_logging(directory, birth, sha), 'marker absent')
+    case('missing-original-marker', lambda: fixture(no_marker))
+    def dead(directory, birth, sha):
+        child = SimpleNamespace(pid=birth['pid'], poll=lambda: 7)
+        refused(lambda: wait_orca_logging(directory, child, birth, sha, 15, lambda: None,
+                 clock=lambda: 0, pause=lambda _: None, reader=lambda _: birth), 'exited')
+    case('original-child-exited', lambda: fixture(dead))
+    def expired(directory, birth, sha):
+        child = SimpleNamespace(pid=birth['pid'], poll=lambda: None)
+        refused(lambda: wait_orca_logging(directory, child, birth, sha, 15, lambda: None,
+                 clock=lambda: 15, pause=lambda _: None, reader=lambda _: birth), 'deadline')
+    case('original-deadline', lambda: fixture(expired))
+    def missing(directory, birth, sha):
+        (directory / 'orca-info-ready.json').unlink()
+        ticks = iter([0, 0, 1, 1, 2, 2, 15])
+        child = SimpleNamespace(pid=birth['pid'], poll=lambda: None)
+        refused(lambda: wait_orca_logging(directory, child, birth, sha, 15, lambda: None,
+                 clock=lambda: next(ticks), pause=lambda _: None, reader=lambda _: birth), 'deadline')
+    case('missing-readiness-finite-wait', lambda: fixture(missing))
+    def unregistered(directory, birth, sha):
+        value = check_orca_logging(directory, birth, sha)
+        refused(lambda: orca_logging_evidence(directory, {'orcaLogging': value}, [], receipt_for(directory, birth)), 'not registered')
+    case('unregistered-final-birth', lambda: fixture(unregistered))
+    def reused(directory, birth, sha):
+        refused(lambda: prepare_orca_logging(directory), 'reused')
+    case('fresh-exclusive-customization', lambda: fixture(reused))
+    def source_contract(directory, birth, sha):
+        body = orca_customization_source(directory)
+        ast.parse(body)
+        require(body.index('debug.debugLevel = debug.LEVEL_INFO') < body.index('debug.printMessage(debug.LEVEL_INFO') <
+                body.index('debug.debugFile.flush()') < body.index('os.link(temporary, final'), 'Orca INFO setup/marker/atomic readiness order drift')
+        require('--debug-level' not in body and 'os.kill' not in body and 'subprocess' not in body,
+                'unsupported flag or new custody effect in customization')
+    case('supported-customization-source-order', lambda: fixture(source_contract))
+    def original_cause(directory, birth, sha):
+        (directory / 'orca-info-ready.json').unlink()
+        (directory / 'orca.log').write_text('ORCA_INFO_FIRST_CAUSE: RuntimeError: actual customization module mismatch\n')
+        child = SimpleNamespace(pid=birth['pid'], poll=lambda: None)
+        refused(lambda: wait_orca_logging(directory, child, birth, sha, 15, lambda: None,
+                  clock=lambda: 0, pause=lambda _: None, reader=lambda _: birth), 'actual customization module mismatch')
+    case('exact-original-customization-first-cause', lambda: fixture(original_cause))
+    def nonregular(directory, birth, sha):
+        path = directory / 'orca-debug.log'; path.unlink(); path.mkdir()
+        refused(lambda: check_orca_logging(directory, birth, sha), 'nonregular')
+    case('nonregular-log-refusal', lambda: fixture(nonregular))
+    def oversized(directory, birth, sha):
+        (directory / 'orca-debug.log').write_bytes(b'x'*4194305)
+        refused(lambda: check_orca_logging(directory, birth, sha), 'over budget')
+    case('unchanged-4MiB-log-guard', lambda: fixture(oversized))
+    def linked(directory, birth, sha):
+        path = directory / 'orca-debug.log'; path.unlink(); path.symlink_to(directory / 'orca-info-ready.json')
+        refused(lambda: check_orca_logging(directory, birth, sha))
+    case('symlink-log-refusal', lambda: fixture(linked))
+    def canceled(directory, birth, sha):
+        child = SimpleNamespace(pid=birth['pid'], poll=lambda: None)
+        def health(): raise RuntimeError('original active prerequisite cancellation')
+        refused(lambda: wait_orca_logging(directory, child, birth, sha, 15, health,
+                    clock=lambda: 0, pause=lambda _: None, reader=lambda _: birth), 'original active prerequisite cancellation')
+    case('active-health-original-cancellation', lambda: fixture(canceled))
+    def late(directory, birth, sha, stage):
+        value = check_orca_logging(directory, birth, sha)
+        receipt = receipt_for(directory, birth)
+        child = SimpleNamespace(pid=birth['pid'], poll=lambda: 7)
+        (directory / 'orca.log').write_text('ORCA_INFO_FIRST_CAUSE: OSError: original readiness temporary unlink failed\n')
+        def generic_exit(): raise RuntimeError('generic original child exited')
+        action = (lambda: orca_logging_health(directory, child, value, generic_exit, reader=lambda _: birth)) if stage in ['active', 'finishing'] else (
+                 (lambda: check_orca_logging(directory, birth, sha)) if stage == 'check' else
+                 (lambda: orca_logging_evidence(directory, {'orcaLogging': value}, [{'resource': 'orca', **birth}], receipt)))
+        refused(action, 'original readiness temporary unlink failed')
+    for stage in ['active', 'finishing', 'check', 'final']:
+        case('late-first-cause-'+stage, lambda stage=stage: fixture(lambda d,b,s: late(d,b,s,stage)))
+    def missing_cause(directory, birth, sha, stage):
+        value = check_orca_logging(directory, birth, sha)
+        receipt = receipt_for(directory, birth)
+        (directory / 'orca.log').unlink()
+        child = SimpleNamespace(pid=birth['pid'], poll=lambda: None)
+        action = (lambda: orca_logging_health(directory, child, value, lambda: None, reader=lambda _: birth)) if stage == 'active' else (
+                 lambda: orca_logging_evidence(directory, {'orcaLogging': value}, [{'resource': 'orca', **birth}], receipt))
+        refused(action)
+    for stage in ['active', 'final']:
+        case('missing-original-cause-log-'+stage, lambda stage=stage: fixture(lambda d,b,s: missing_cause(d,b,s,stage)))
+    def wrong_receipt(directory, birth, sha, mode):
+        value = check_orca_logging(directory, birth, sha); receipt = receipt_for(directory, birth)
+        if mode == 'receipt': receipt['process']['pid'] += 1
+        elif mode == 'journey': write(directory / 'journey.json', {'process': {'name': 'orca', 'pid': birth['pid']+1}})
+        else: receipt['evidenceSha256'].pop('orca.log')
+        refused(lambda: orca_logging_evidence(directory, {'orcaLogging': value}, [{'resource': 'orca', **birth}], receipt),
+                'unbound' if mode == 'log' else 'PID/receipt/journey mismatch')
+    for mode in ['receipt', 'journey', 'log']:
+        case('final-wrong-'+mode+'-binding', lambda mode=mode: fixture(lambda d,b,s: wrong_receipt(d,b,s,mode)))
+    def unsafe_cause_log(directory, birth, sha, mode):
+        value = check_orca_logging(directory, birth, sha); receipt = receipt_for(directory, birth)
+        path = directory / 'orca.log'
+        if mode == 'directory': path.unlink(); path.mkdir()
+        elif mode == 'symlink': path.unlink(); path.symlink_to(directory / 'orca-info-ready.json')
+        elif mode == 'oversized': path.write_bytes(b'x'*4194305)
+        else: path.write_text('later ordinary output\n')
+        refused(lambda: orca_logging_evidence(directory, {'orcaLogging': value}, [{'resource': 'orca', **birth}], receipt))
+    for mode in ['directory', 'symlink', 'oversized', 'changed']:
+        case('final-original-cause-log-'+mode, lambda mode=mode: fixture(lambda d,b,s: unsafe_cause_log(d,b,s,mode)))
+    def composed():
+        # Existing complete speech/hash/action/route binder is the regression oracle.
+        import contextlib, io
+        with contextlib.redirect_stdout(io.StringIO()):
+            self_test(logging_controls=False)
+    case('retained-complete-speech-binder', composed)
+    def source_health_order(directory, birth, sha):
+        body = ast.parse(Path(__file__).read_text())
+        original = next(v for v in body.body if isinstance(v, ast.FunctionDef) and v.name == 'inner')
+        for name in ['prerequisite_health', 'finishing_health']:
+            block = next(v for v in ast.walk(original) if isinstance(v, ast.FunctionDef) and v.name == name)
+            require(any(isinstance(v, ast.Call) and isinstance(v.func, ast.Name) and v.func.id == 'orca_logging_health' for v in ast.walk(block)),
+                    'actual '+name+' bypasses original logging cause health')
+    case('actual-active-finishing-health-cause-join', lambda: fixture(source_health_order))
+    print('PASS Orca INFO logging inert controls: '+str(len(checked))+' named cases; native logging remains unobserved')
+    return checked
+
+
 def browser_js_self_test():
     # Separate explicit inert mode; no Playwright/browser/service import or network creation.
     with tempfile.TemporaryDirectory() as temporary:
@@ -3060,7 +3379,7 @@ def route_self_test():
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
         route_fixture_evidence(directory, good)
-        require(route_evidence(directory, good, {"browser": {"pid": 2, "launcherPid": 2, "companionPid": 60}}), "good owned route fixture refused")
+        require(route_evidence(directory, good, {"process": {"name": "orca", "pid": 62}, "evidenceSha256": {"orca.log": digest(directory / "orca.log")}, "browser": {"pid": 2, "launcherPid": 2, "companionPid": 60}}), "good owned route fixture refused")
         actual = (directory / "owned-bus-runtime.json").read_bytes()
         for change in [lambda p: p.update(addressSetBeforeAtspiImport=False),
                        lambda p: p["registry"].update(pid=99),
@@ -3073,7 +3392,7 @@ def route_self_test():
             change(value)
             write(directory / "owned-bus-runtime.json", value)
             try:
-                route_evidence(directory, good, {"browser": {"pid": 2, "launcherPid": 2, "companionPid": 60}})
+                route_evidence(directory, good, {"process": {"name": "orca", "pid": 62}, "evidenceSha256": {"orca.log": digest(directory / "orca.log")}, "browser": {"pid": 2, "launcherPid": 2, "companionPid": 60}})
             except RuntimeError:
                 pass
             else:
@@ -3916,6 +4235,13 @@ def contract_inner_self_test(refuse_ready, fixture_uid=12345):
             child = Child(name)
             children[name] = child
             rows[child.pid] = {"pid": child.pid, "start": child.pid+1000, "ppid": parent, "sid": sid, "pgid": sid, "state": "S"}
+            if name == 'orca':
+                source = directory / 'data/orca/orca-customizations.py'
+                require(source.exists() and not (directory / 'orca-info-ready.json').exists(),
+                        'assembled Orca INFO source absent or readiness precreated')
+                (directory / 'orca.log').write_text('')
+                write(directory / 'orca-info-ready.json', orca_logging_record(directory, rows[child.pid]))
+                (directory / 'orca-debug.log').write_text('FS_GG_ORCA_INFO_READY '+digest(source)+'\n')
             return child
         session = {"pid": 90, "start": 900, "ppid": 89, "sid": sid, "pgid": sid, "state": "S"}
         rows[90] = session
