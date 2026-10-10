@@ -429,14 +429,18 @@ def observe(directory, orca_pid, browser_pid):
 
 
 def activation_packet(manifest, versions, read, resolve, clock=time.monotonic, deadline=None, retained=None):
-    """Read only package-owned activation data; service Exec values are never executed."""
+    """Read independent package-owned facts; service Exec values are never executed."""
     deadline = clock() + 15 if deadline is None else deadline
-    texts = []
-    binaries = []
+    texts, binaries, errors = [], [], []
     total = 0
     services = {}
+    packet = {"schema": "fsgg.at-activation-provenance/1", "disposition": "incomplete", "versions": versions,
+              "packageFileManifest": manifest, "services": services, "textFiles": texts, "binaries": binaries,
+              "errors": errors, "omittedTextFiles": 0,
+              "limits": "15s;64 texts;256KiB/text;1MiB text aggregate;32MiB/binary",
+              "boundary": "installed activation metadata only; no Exec execution or foreground ownership proof"}
     if retained is not None:
-        retained.update(textFiles=texts, binaries=binaries, services=services)
+        retained.update(packet)
     def checked_read(path, limit):
         require(clock() < deadline, "activation provenance deadline exceeded")
         target = resolve(path)
@@ -445,45 +449,69 @@ def activation_packet(manifest, versions, read, resolve, clock=time.monotonic, d
         require(len(data) <= limit, "activation file size exceeded: " + path)
         require(clock() < deadline, "activation provenance deadline exceeded")
         return target, data
-    for path in sorted(manifest):
-        if not (("/dbus-1/" in path or "at-spi" in path or "/systemd/" in path) and
-                Path(path).suffix in [".service", ".conf"]):
-            continue
-        require(len(texts) < 64, "activation text file count exceeded")
-        target, raw = checked_read(path, 256 * 1024)
-        total += len(raw)
-        require(total <= 1024**2, "activation aggregate text budget exceeded")
-        text = raw.decode("utf-8")
-        texts.append({"path": path, "resolvedPath": target, "package": manifest[path],
-                      "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(), "text": text})
-        if "/dbus-1/" in path and path.endswith(".service"):
-            service = configparser.ConfigParser(interpolation=None, strict=True)
-            service.read_string(text)
-            if service.has_section("D-BUS Service"):
+    def binary_fact(path):
+        if any(v["path"] == path for v in binaries):
+            return next(v for v in binaries if v["path"] == path)
+        require(Path(path).is_absolute() and path in manifest, "activation executable not package-owned: " + path)
+        target, binary = checked_read(path, 32 * 1024**2)
+        fact = {"path": path, "resolvedPath": target, "package": manifest[path], "bytes": len(binary),
+                "sha256": hashlib.sha256(binary).hexdigest()}
+        binaries.append(fact)
+        return fact
+    relevant = [path for path in sorted(manifest) if
+                ("/dbus-1/" in path or "at-spi" in path or "/systemd/" in path) and Path(path).suffix in [".service", ".conf"]]
+    for index, path in enumerate(relevant):
+        if len(texts) >= 64 or clock() >= deadline:
+            errors.append("activation text count/deadline exceeded")
+            packet["omittedTextFiles"] = len(relevant) - index
+            break
+        try:
+            target, raw = checked_read(path, 256 * 1024)
+            require(total + len(raw) <= 1024**2, "activation aggregate text budget exceeded: " + path)
+            total += len(raw)
+            text = raw.decode("utf-8")
+            texts.append({"path": path, "resolvedPath": target, "package": manifest[path],
+                          "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest(), "text": text})
+            if "/dbus-1/" in path and path.endswith(".service"):
+                service = configparser.ConfigParser(interpolation=None, strict=True)
+                service.read_string(text)
+                if not service.has_section("D-BUS Service"):
+                    continue
                 section = service["D-BUS Service"]
                 name = section.get("Name")
-                if name in ["org.a11y.Bus", "org.a11y.atspi.Registry"]:
-                    require(name not in services, "ambiguous activation service: " + name)
-                    require(not section.get("SystemdService"), "unresolved systemd activation delegation: " + name)
-                    argv = shlex.split(section.get("Exec", ""))
-                    require(argv and Path(argv[0]).is_absolute() and argv[0] in manifest,
-                            "activation executable not package-owned: " + name)
-                    target, binary = checked_read(argv[0], 32 * 1024**2)
-                    binaries.append({"path": argv[0], "resolvedPath": target, "package": manifest[argv[0]],
-                                     "bytes": len(binary), "sha256": hashlib.sha256(binary).hexdigest()})
-                    services[name] = {"servicePath": path, "argvDataOnly": argv, "executableSha256": binaries[-1]["sha256"]}
-    require(set(services) == {"org.a11y.Bus", "org.a11y.atspi.Registry"}, "required activation service unavailable")
+                if name not in ["org.a11y.Bus", "org.a11y.atspi.Registry"]:
+                    continue
+                require(name not in services, "ambiguous activation service: " + name)
+                fact = {"servicePath": path, "argvDataOnly": [], "executableSha256": None}
+                services[name] = fact
+                unit = section.get("SystemdService")
+                if unit:
+                    fact["systemdDelegation"] = unit
+                    fact["referencedUnitPaths"] = [p for p in manifest if "/systemd/" in p and Path(p).name == unit]
+                    errors.append("unresolved systemd activation delegation: " + name)
+                    if len(fact["referencedUnitPaths"]) != 1:
+                        errors.append("referenced activation unit missing/ambiguous: " + unit)
+                argv = shlex.split(section.get("Exec", ""))
+                fact["argvDataOnly"] = argv
+                require(argv, "activation executable missing: " + name)
+                fact["executableSha256"] = binary_fact(argv[0])["sha256"]
+        except Exception as ex:
+            errors.append(path + ": " + str(ex))
+    # Independent binary identities remain useful even if one activation service is malformed.
     for path in sorted(manifest):
-        if Path(path).name == "dbus-daemon":
-            target, binary = checked_read(path, 32 * 1024**2)
-            binaries.append({"path": path, "resolvedPath": target, "package": manifest[path],
-                             "bytes": len(binary), "sha256": hashlib.sha256(binary).hexdigest()})
-    require(any(Path(v["path"]).name == "dbus-daemon" for v in binaries), "D-Bus daemon identity unavailable")
-    require(clock() < deadline, "activation provenance deadline exceeded")
-    return {"schema": "fsgg.at-activation-provenance/1", "disposition": "complete",
-            "versions": versions, "packageFileManifest": manifest, "services": services,
-            "textFiles": texts, "binaries": binaries, "limits": "15s;64 texts;256KiB/text;1MiB text aggregate;32MiB/binary",
-            "boundary": "installed activation metadata only; no Exec execution or foreground ownership proof"}
+        if Path(path).name in ["dbus-daemon", "at-spi-bus-launcher", "at-spi2-registryd"]:
+            try:
+                binary_fact(path)
+            except Exception as ex:
+                errors.append(path + ": " + str(ex))
+    if set(services) != {"org.a11y.Bus", "org.a11y.atspi.Registry"}:
+        errors.append("required activation service unavailable")
+    if not any(Path(v["path"]).name == "dbus-daemon" for v in binaries):
+        errors.append("D-Bus daemon identity unavailable")
+    if clock() >= deadline:
+        errors.append("activation provenance deadline exceeded")
+    packet["disposition"] = "incomplete" if errors else "complete"
+    return packet
 
 
 def capture_activation(output):
@@ -491,6 +519,7 @@ def capture_activation(output):
     manifest = {}
     versions = {}
     packet = {}
+    query_errors = []
     try:
         for package in ["at-spi2-core", "dbus", "dbus-daemon", "dbus-session-bus-common"]:
             def query(*args):
@@ -499,22 +528,29 @@ def capture_activation(output):
                 result = subprocess.run(["dpkg-query", *args, package], capture_output=True, timeout=remaining, check=True)
                 require(len(result.stdout) <= 1024**2 and len(result.stderr) <= 1024**2, "package metadata output exceeded")
                 return result.stdout.decode("utf-8")
-            versions[package] = query("--show", "--showformat=${Version}").strip()
-            for path in query("--listfiles").splitlines():
-                if Path(path).is_file():
-                    manifest[path] = package
-                    require(len(json.dumps(manifest).encode()) <= 512 * 1024, "package file manifest exceeded")
+            try:
+                versions[package] = query("--show", "--showformat=${Version}").strip()
+                for path in query("--listfiles").splitlines():
+                    if Path(path).is_file():
+                        manifest[path] = package
+                        require(len(json.dumps(manifest).encode()) <= 512 * 1024, "package file manifest exceeded")
+            except Exception as ex:
+                query_errors.append(package + ": " + str(ex))
         def read(path, limit):
             with Path(path).open("rb") as stream:
                 return stream.read(limit + 1)
         packet = activation_packet(manifest, versions, read, lambda p: str(Path(p).resolve()),
                                    deadline=deadline, retained=packet)
+        if query_errors:
+            packet["errors"].extend(query_errors)
+            packet["disposition"] = "incomplete"
         require(len(json.dumps(packet).encode()) <= 4 * 1024**2, "activation packet output exceeded")
         write(output, packet)
+        require(packet["disposition"] == "complete", "activation provenance incomplete: " + "; ".join(packet["errors"]))
     except BaseException as ex:
-        write(output, {"schema": "fsgg.at-activation-provenance/1", "disposition": "incomplete",
-                       "firstCause": str(ex), "versions": versions, "packageFileManifest": manifest,
-                       "partialEvidence": packet})
+        packet.update(schema="fsgg.at-activation-provenance/1", disposition="incomplete", firstCause=str(ex),
+                      versions=versions, packageFileManifest=manifest)
+        write(output, packet)
         raise
 
 
@@ -576,12 +612,17 @@ def execute_session(receiver, directory, env, termination):
                 result = {"disposition": "unknown", "unknown": ["cleanup observation failed"], "reportingError": str(ex)}
             if first is None and termination:
                 first = termination[0]
+            snapshot_sha = None
+            if first_guard and not reporting_errors:
+                try:
+                    snapshot_sha = digest(directory / "first-guard-census.json")
+                except BaseException as ex:
+                    reporting_errors.append("first guard hash: " + str(ex))
             process_result = {"leader": leader, "knownStarts": known, "exit": child.returncode,
                   "firstCause": first, "termination": termination, "cleanup": result, "sampledPeakRss": peak,
                   "firstGuardCensus": first_guard, "reportingErrors": reporting_errors,
                   "historicalCustody": "unresolved" if first_guard else "no rejected census observed",
-                  "firstGuardCensusSha256": digest(directory / "first-guard-census.json") if
-                       first_guard and not reporting_errors else None,
+                  "firstGuardCensusSha256": snapshot_sha,
                   "limits": "100ms ancestry/RSS samples, no hard containment; detached unobserved descendants unknown"}
             try:
                 write(directory / "process-result.json", process_result)
@@ -866,7 +907,7 @@ def diagnostic_self_test():
     unknown_row = {"pid": 43, "start": 2, "ppid": 1, "pgid": 42, "sid": 42, "state": "S", "rss": 50}
     escaped_row = {**unknown_row, "pid": 44, "sid": 44}
     for unknown, escaped in [([unknown_row], []), ([], [escaped_row]), ([unknown_row], [escaped_row])]:
-        for failure in [None, "snapshot", "cleanup", "result"]:
+        for failure in [None, "snapshot", "hash", "cleanup", "result"]:
             fail_snapshot = failure == "snapshot"
             with tempfile.TemporaryDirectory() as temporary:
                 directory = Path(temporary)
@@ -884,6 +925,11 @@ def diagnostic_self_test():
                         raise OSError("mock cleanup observation failure")
                     return {"disposition": "observed-empty", "remaining": [], "unknown": [], "signals": []}
                 actual_write = write
+                actual_digest = digest
+                def hashed(path):
+                    if failure == "hash" and Path(path).name == "first-guard-census.json":
+                        raise OSError("mock snapshot hash-read failure")
+                    return actual_digest(path)
                 def recorded(path, value):
                     if failure == "result" and Path(path).name == "process-result.json":
                         raise OSError("mock process result write failure")
@@ -891,7 +937,7 @@ def diagnostic_self_test():
                         raise OSError("mock snapshot write failure")
                     actual_write(path, value)
                 with patch.object(subprocess, "Popen", return_value=child), patch.dict(globals(), proc=lambda _: leader,
-                        census=lambda *_: ([leader, *escaped], unknown, escaped), cleanup=cleaned, write=recorded):
+                        census=lambda *_: ([leader, *escaped], unknown, escaped), cleanup=cleaned, write=recorded, digest=hashed):
                     try:
                         execute_session(Path("unused"), directory, {}, [])
                     except RuntimeError as ex:
@@ -907,7 +953,7 @@ def diagnostic_self_test():
                         snapshot["knownStarts"] == {"42": 1}, "rejected branch/known birth lost")
                 require(result["historicalCustody"] == "unresolved" and result["cleanup"]["disposition"] == ("unknown" if failure == "cleanup" else "observed-empty"),
                         "later cleanup changed historical uncertainty")
-                require(bool(result["reportingErrors"]) == (failure in ["snapshot", "result"]), "snapshot reporting failure lost")
+                require(bool(result["reportingErrors"]) == (failure in ["snapshot", "hash", "result"]), "snapshot reporting failure lost")
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
         class GoodChild:
@@ -940,18 +986,26 @@ def diagnostic_self_test():
                 lambda: packet(resolve=lambda p: "/unowned/escape"),
                 lambda: packet(data={**files, service: b"x" * (256 * 1024 + 1)}),
                 lambda: packet(data={**files, service: files[service] + b"SystemdService=unresolved.service\n"})]
+    unit = "/usr/lib/systemd/user/a11y-fixture.service"
+    delegated = packet(data={**files, service: files[service] + b"SystemdService=a11y-fixture.service\n", unit: b"[Service]\nExecStart=/usr/libexec/at-spi-bus-launcher\n"},
+                       paths={**manifest, unit: "fixture-package"})
+    require(delegated["disposition"] == "incomplete" and delegated["services"]["org.a11y.Bus"]["executableSha256"] and
+            any(v["path"] == unit for v in delegated["textFiles"]) and len(delegated["binaries"]) == 3,
+            "delegation suppressed independent activation provenance")
     duplicate = "/usr/share/dbus-1/services/duplicate.service"
     controls.append(lambda: packet(data={**files, duplicate: files[service]}, paths={**manifest, duplicate: "fixture-package"}))
-    ticks = iter([0, 16])
-    controls.append(lambda: packet(clock=lambda: next(ticks)))
+    ticks = [0]
+    def expired_clock():
+        ticks[0] += 1
+        return 0 if ticks[0] == 1 else 16
+    controls.append(lambda: packet(clock=expired_clock))
     for control in controls:
         try:
-            control()
-        except (RuntimeError, ValueError):
+            result = control()
+            require(result["disposition"] == "incomplete", "incomplete activation provenance accepted")
+        except (ValueError, StopIteration):
             pass
-        else:
-            raise RuntimeError("incomplete activation provenance accepted")
-    print("PASS diagnostic controls: unknown/escaped/both first census, snapshot/cleanup/result write failures, later empty remains historically unresolved; package activation good and seven refusals; no AT launched")
+    print("PASS diagnostic controls: unknown/escaped/both first census, snapshot/hash-read/cleanup/result write failures, later empty remains historically unresolved; package activation good and seven refusals; no AT launched")
 
 
 def workflow_guard(workflow):
