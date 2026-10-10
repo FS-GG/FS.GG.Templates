@@ -203,7 +203,9 @@ class Transactions(unittest.TestCase):
             for token,value in sorted(replacements.items(),key=lambda item:len(item[0]),reverse=True):expanded=expanded.replace(token.encode(),value.encode())
             self.assertEqual(expanded,raw,path.name+' must survive actual descriptor replacements')
         spec=importlib.util.spec_from_file_location('generated_adopter',self.candidate/'PortalExample/manage.py')
-        generated=importlib.util.module_from_spec(spec);spec.loader.exec_module(generated)
+        generated=importlib.util.module_from_spec(spec)
+        # Import the projected bytes without adding foreign payload files.
+        with patch.object(sys,'dont_write_bytecode',True):spec.loader.exec_module(generated)
         generated.portal_payload(self.candidate)
         self.assertEqual(generated.canonical_variants(b'GeneratedNamespace.Domain Generated-Product generated-product', 'Generated-Product','GeneratedNamespace'), adopter.canonical_variants(b'GeneratedNamespace.Domain Generated-Product generated-product', 'Generated-Product','GeneratedNamespace'))
 
