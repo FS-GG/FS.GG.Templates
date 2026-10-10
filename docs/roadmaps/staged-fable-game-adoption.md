@@ -74,7 +74,25 @@ and executable hashes; service `Exec` values are data and are never executed by 
 Missing or ambiguous activation provenance refuses dependent AT launch. Pure and mocked controls
 exercise these diagnostics, reporting failures and receipt refusals; they establish source preparation,
 not actual cancellation, AT acceptance or complete process containment. The custody guard, existing
-runtime budgets and activation behavior are unchanged. No foreground-launch architecture is selected.
+runtime budgets remain unchanged.
+
+[Rendering run 38032694850 attempt 1](https://github.com/FS-GG/FS.GG.Rendering/actions/runs/38032694850)
+qualified the `77585388` consumer's same 24 browser cases, but provisioning refused unresolved
+`org.a11y.Bus` systemd activation delegation. Artifact `11662687324` retains package-owned service,
+unit and binary facts. The actual AT stage was skipped; this attempt produced no new AT custody
+or journey result and does not resolve the earlier unknown offending process.
+
+The diagnostic fixture now prepares direct, registered foreground accessibility-bus and registry
+leaders, with closed private session/accessibility configs and no service activation. Authenticated
+Ubuntu `at-spi2-core 2.52.0-1build1` and `dbus 1.14.10-4ubuntu4.1` sources and packaging establish
+this invocation contract; they do not establish bit-reproducible installed binaries or effective
+host configuration. Provisioning binds actual package-owned wrapper, daemon, registry and AT
+library identities. The fresh private address is set before first AT initialization; changing an
+environment variable cannot rebind libatspi's cached connection. Readiness requires owned socket
+and registry-name process identities, and the receipt binds actual client library mappings.
+Vendor delegation remains unresolved data rather than being declared safe. No actual foreground
+launch, strict disposal, original keyboard/speech journey or complete escaped cleanup is accepted
+by this source preparation; a separately admitted hosted attempt must establish those boundaries.
 
 Another native qualification requires protected source and caller delivery, programme projection
 and separate fresh admission. Actual reference AT, coherent publication, fresh installed creation,

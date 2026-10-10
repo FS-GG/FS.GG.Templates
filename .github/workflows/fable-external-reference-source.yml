@@ -213,7 +213,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update
           sudo apt-get install --yes dbus-x11 espeak-ng gettext gir1.2-atspi-2.0 libatspi2.0-dev openbox orca pulseaudio pulseaudio-utils python3-gi python3-speechd speech-dispatcher-espeak-ng x11-utils xdotool xvfb
-          dpkg-query --show --showformat='${Package} ${Version}\n' orca at-spi2-core xvfb openbox speech-dispatcher speech-dispatcher-espeak-ng python3-gi python3-speechd pulseaudio espeak-ng > "$RUNNER_TEMP/external-reference/orca-host-packages.txt"
+          dpkg-query --show --showformat='${Package} ${Version}\n' orca at-spi2-core dbus dbus-daemon dbus-session-bus-common libatspi2.0-0t64 libatk-bridge2.0-0t64 xvfb openbox speech-dispatcher speech-dispatcher-espeak-ng python3-gi python3-speechd pulseaudio espeak-ng > "$RUNNER_TEMP/external-reference/orca-host-packages.txt"
           python3 -B tests/composition/fable-game/external-reference-orca.py --capture-activation "$RUNNER_TEMP/external-reference/orca-activation-provenance.json"
       - name: Observe actual external reference Orca journey
         if: ${{ !inputs.preflight-only }}
