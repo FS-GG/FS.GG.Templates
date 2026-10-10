@@ -121,6 +121,11 @@ def verify_source(root, canonical):
     expected = 'content/templates/fs-gg-fable-game/PortalExample/manage.py;content/templates/fs-gg-fable-game-legacy/PortalExample/manage.py'
     if len(projections)!=1 or projections[0].attrib.get('PackagePath')!=expected or (folder/'manage.py').exists():
         fail('management helper must have one canonical package projection, not a copied source')
+    helper = read_file(root/'scripts/apply-svg-complete-workspace.py')
+    for symbol in current['symbols'].values():
+        token = symbol.get('replaces')
+        if token and token.encode() in helper:
+            fail('projected management helper contains a template replacement token')
     names.append('manage.py')
     verify_payload(lambda name:read_file(root/'scripts/apply-svg-complete-workspace.py') if name=='manage.py' else read_file(folder/name),names,canonical)
 
@@ -215,6 +220,10 @@ def static_controls(root, canonical):
     mutate('edited-lock',lambda t:edit_json(t,payload+'packages.lock.json',lambda d:d['dependencies']['net10.0']['FS.GG.Game.Render'].update(resolved='0.16.0')))
     mutate('missing-helper-projection',lambda t:(t/'FS.GG.Templates.csproj').write_text((t/'FS.GG.Templates.csproj').read_text().replace('Include="scripts/apply-svg-complete-workspace.py"','Include="foreign.py"')))
     mutate('foreign-management-producer',lambda t:(t/'scripts/apply-svg-complete-workspace.py').write_text('foreign helper producer'))
+    def replaceable_helper(t):
+        helper=t/'scripts/apply-svg-complete-workspace.py';helper.write_bytes(helper.read_bytes()+b'\n# FableGameWorkspaceNamespace\n')
+        edit_json(t,payload+'source-provenance.json',lambda d:[r.update(sha256=digest(helper.read_bytes())) for r in d['templateFiles'] if r['path']=='manage.py'])
+    mutate('replaceable-management-producer',replaceable_helper)
     mutate('copied-management-source',lambda t:(t/(payload+'manage.py')).write_text('second authored copy'))
     mutate('ordinary-project-reference',lambda t:(t/(PREFIX+'Server/Server.fsproj')).write_text('PortalExample'))
     return {'kind':'synthetic-source-controls','positiveSourcePassed':True,'negativeControls':results,'actualGeneration':False,'actualRestoreBuildRuntime':False}

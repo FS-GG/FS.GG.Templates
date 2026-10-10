@@ -15,6 +15,10 @@ import stat
 import sys
 import tempfile
 
+TEMPLATE_PRODUCT = "FableGame" + "Workspace"
+TEMPLATE_NAMESPACE = TEMPLATE_PRODUCT + "Namespace"
+TEMPLATE_LOWER = TEMPLATE_PRODUCT.lower()
+
 IGNORED_PARTS = {
     ".git", ".nuget", "artifacts", "bin", "dist", "node_modules", "obj", "output",
     "playwright-report", "test-results", "vendor",
@@ -116,14 +120,14 @@ def canonical_variants(data: bytes, product: str, namespace: str) -> set[str]:
         # A common generated name is both the product and root namespace. The
         # original template distinguishes those tokens, so accept either exact
         # inverse globally; path-specific public hashes decide which is valid.
-        for replacement in ("FableGameWorkspace", "FableGameWorkspaceNamespace"):
-            value = text.replace(product, replacement).replace(product.lower(), "fablegameworkspace")
+        for replacement in (TEMPLATE_PRODUCT, TEMPLATE_NAMESPACE):
+            value = text.replace(product, replacement).replace(product.lower(), TEMPLATE_LOWER)
             variants.add(digest(value.encode("utf-8")))
     else:
         value = text
         for actual, template in sorted(
-            [(namespace, "FableGameWorkspaceNamespace"), (product, "FableGameWorkspace"),
-             (product.lower(), "fablegameworkspace")], key=lambda item: len(item[0]), reverse=True
+            [(namespace, TEMPLATE_NAMESPACE), (product, TEMPLATE_PRODUCT),
+             (product.lower(), TEMPLATE_LOWER)], key=lambda item: len(item[0]), reverse=True
         ):
             if actual:
                 value = value.replace(actual, template)
@@ -132,7 +136,7 @@ def canonical_variants(data: bytes, product: str, namespace: str) -> set[str]:
 
 
 def actual_path(root: Path, logical: str, solution: Path) -> Path:
-    return solution if logical == "FableGameWorkspace.slnx" else root / logical
+    return solution if logical == TEMPLATE_PRODUCT + ".slnx" else root / logical
 
 
 def candidate_path(root: Path, logical: str, solution: Path) -> Path:
@@ -562,25 +566,43 @@ def restore(workspace: Path, backup: Path, portal: bool = False) -> None:
                            else ({before} if status == "rolled-back" else {after}))
         if current not in allowed_current:
             fail(f"rollback refused before writes: managed path changed after adoption: {logical}", 3)
-        plan.append((row, destination, source))
+        plan.append((row, destination, source, current) if portal else (row, destination, source))
     if status == "rolled-back":
         print("complete workspace adoption: rollback already byte-identical")
         return
     journal["status"] = "rolling-back"
     write_json_durable(journal_path, journal)
     restored = 0
-    for row, destination, source in reversed(plan):
+    for entry in reversed(plan):
+        row, destination, source = entry[:3]
+        def recheck_portal_destination():
+            reject_symlink_chain(workspace, destination, "Portal recovery destination")
+            if destination.exists() and not destination.is_file():
+                fail("Portal late recovery destination type conflict", 3)
+            actual = (digest(destination.read_bytes()), file_mode(destination)) if destination.exists() else None
+            if actual != entry[3]:
+                fail(f"Portal late recovery managed conflict: {row['logical']}", 3)
+        if portal:
+            recheck_portal_destination()
         if row["state"] == "present":
             destination.parent.mkdir(parents=True, exist_ok=True)
             descriptor, temporary_name = tempfile.mkstemp(prefix=destination.name + ".fsgg-rollback-", dir=destination.parent)
             os.close(descriptor)
             temporary = Path(temporary_name)
             try:
+                if portal:
+                    portal_regular(backup, "files/" + row["logical"])
                 shutil.copy2(source, temporary)
+                if portal:
+                    if digest(temporary.read_bytes()) != row["sha256"] or file_mode(temporary) != row["mode"]:
+                        fail(f"Portal recovery copied object changed: {row['logical']}")
+                    recheck_portal_destination()
                 os.replace(temporary, destination)
             finally:
                 if temporary.exists(): temporary.unlink()
         elif destination.exists():
+            if portal:
+                recheck_portal_destination()
             destination.unlink()
         restored += 1
         rollback_env = "FSGG_PORTAL_RECOVER_FAIL_AFTER" if portal else "FSGG_SVG_COMPLETE_ROLLBACK_FAIL_AFTER"
@@ -958,19 +980,34 @@ def portal_apply(args: list[str], remove: bool = False) -> None:
     _, payload = portal_payload(candidate)
     backup.mkdir(mode=0o700, parents=True); (backup / "files").mkdir(mode=0o700); (backup / "staged").mkdir(mode=0o700)
     paths = []
+    changes = {row["path"]: row for row in accepted["changes"]}
     try:
-        for logical, (raw, mode) in payload.items():
-            destination = workspace / logical
+        for logical in payload:
+            change = changes[logical]
             row = {"logical": logical, "destination": logical,
-                   "state": "present" if destination.exists() else "absent",
+                   "state": "absent" if change["state"] == "add" else "present",
                    "postState": "absent" if remove else "present"}
-            if destination.exists():
+            if row["state"] == "present":
+                row.update(sha256=change["currentSha256"], mode=change["currentMode"])
+            paths.append(row)
+        # Accepted observations remain the authority; never promote a late edit
+        # or insertion into a trusted backup/before-state.
+        for row in paths:
+            portal_before_state(workspace, row)
+        for row in paths:
+            logical = row["logical"]
+            raw, mode = payload[logical]
+            destination = workspace / logical
+            portal_before_state(workspace, row)
+            if row["state"] == "present":
                 saved = backup / "files" / logical; saved.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(destination, saved); row.update(sha256=digest(saved.read_bytes()), mode=file_mode(saved))
+                shutil.copy2(destination, saved)
+                if digest(saved.read_bytes()) != row["sha256"] or file_mode(saved) != row["mode"]:
+                    fail(f"Portal backup differs from accepted inventory: {logical}", 3)
+                portal_before_state(workspace, row)
             if not remove:
                 staged = backup / "staged" / logical; staged.parent.mkdir(parents=True, exist_ok=True)
                 staged.write_bytes(raw); staged.chmod(mode); row.update(postSha256=digest(raw), postMode=mode)
-            paths.append(row)
         metadata = {"operation": current["operation"], "receiverIdentity": current["receiverIdentity"], "publicBaseline": current["publicBaseline"],
                     "inventorySha256": digest(inventory_path.read_bytes()), "candidateManifestSha256": current["candidateManifestSha256"],
                     "createdDirectories": [] if (workspace / "PortalExample").exists() else ["PortalExample"]}

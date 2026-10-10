@@ -195,6 +195,53 @@ class Transactions(unittest.TestCase):
         with self.assertRaises(SystemExit),contextlib.redirect_stderr(io.StringIO()):adopter.portal_baseline(self.archive,self.workspace)
         self.baseline_patch.start()
 
+    def test_template_token_expansion_keeps_projected_helper_identity(self):
+        descriptor=json.loads((ROOT/'templates/fs-gg-fable-game/.template.config/template.json').read_text())
+        replacements={s['replaces']: ('GeneratedNamespace' if name=='effectiveIdentifier' else 'generated-product' if name=='effectiveNameLower' else 'Generated-Product') for name,s in descriptor['symbols'].items() if 'replaces' in s}
+        for path in (self.candidate/'PortalExample').iterdir():
+            raw=path.read_bytes();expanded=raw
+            for token,value in sorted(replacements.items(),key=lambda item:len(item[0]),reverse=True):expanded=expanded.replace(token.encode(),value.encode())
+            self.assertEqual(expanded,raw,path.name+' must survive actual descriptor replacements')
+        spec=importlib.util.spec_from_file_location('generated_adopter',self.candidate/'PortalExample/manage.py')
+        generated=importlib.util.module_from_spec(spec);spec.loader.exec_module(generated)
+        generated.portal_payload(self.candidate)
+        self.assertEqual(generated.canonical_variants(b'GeneratedNamespace.Domain Generated-Product generated-product', 'Generated-Product','GeneratedNamespace'), adopter.canonical_variants(b'GeneratedNamespace.Domain Generated-Product generated-product', 'Generated-Product','GeneratedNamespace'))
+
+    def test_insert_after_inventory_validation_preserved(self):
+        inventory=self.inventory();original=adopter.portal_classify;late=self.workspace/'PortalExample/Program.fs'
+        def conflict(*args,**kwargs):
+            value=original(*args,**kwargs);late.parent.mkdir(exist_ok=True);late.write_bytes(b'foreign inserted after validation');return value
+        with patch.object(adopter,'portal_classify',side_effect=conflict):self.apply(inventory,code=2)
+        self.assertEqual(late.read_bytes(),b'foreign inserted after validation')
+        self.assertFalse((self.workspace/'PortalExample/Consumer.fsproj').exists())
+
+    def test_remove_edit_after_inventory_validation_preserved(self):
+        self.apply(self.inventory());inventory=self.inventory(remove=True);original=adopter.portal_classify;late=self.workspace/'PortalExample/Program.fs'
+        def conflict(*args,**kwargs):
+            value=original(*args,**kwargs);late.write_bytes(b'foreign edited after validation');return value
+        with patch.object(adopter,'portal_classify',side_effect=conflict):self.apply(inventory,remove=True,code=2)
+        self.assertEqual(late.read_bytes(),b'foreign edited after validation')
+        self.assertTrue((self.workspace/'PortalExample/Consumer.fsproj').exists())
+
+    def test_recovery_late_destination_edit_preserved(self):
+        backup=self.apply(self.inventory());original=adopter.write_json_durable;late=self.workspace/'PortalExample/Program.fs'
+        def conflict(path,value):
+            original(path,value)
+            if value.get('status')=='rolling-back':late.write_bytes(b'foreign recovery edit')
+        with patch.object(adopter,'write_json_durable',side_effect=conflict):self.command('portal-recover',[self.workspace,backup],3)
+        self.assertEqual(late.read_bytes(),b'foreign recovery edit')
+        self.assertEqual(json.loads((backup/'journal.json').read_text())['status'],'rolling-back')
+
+    def test_recovery_late_backup_corruption_refuses(self):
+        self.apply(self.inventory());backup=self.apply(self.inventory(remove=True),remove=True);original=adopter.os.replace
+        late=backup/'files/PortalExample/Program.fs'
+        def corrupt(source,destination):
+            original(source,destination)
+            if Path(destination)==self.workspace/'PortalExample/verify-package-boundary.py':late.write_bytes(b'corrupt after first recovery write')
+        with patch.object(adopter.os,'replace',side_effect=corrupt):self.command('portal-recover',[self.workspace,backup],2)
+        self.assertFalse((self.workspace/'PortalExample/Program.fs').exists())
+        self.assertEqual(json.loads((backup/'journal.json').read_text())['status'],'rolling-back')
+
     def test_candidate_inside_receiver_and_inventory_inside_receiver_refuse(self):
         self.command('portal-inventory',[self.candidate,self.workspace,self.archive,self.workspace/'inventory.json',self.root/'review.diff'],2)
         nested=self.workspace/'candidate';shutil.copytree(self.candidate,nested)

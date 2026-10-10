@@ -138,11 +138,18 @@ can leave an explicitly uncertain journal for manual conflict resolution and rec
 they are never silently overwritten. Removal only unlinks unchanged owned files.
 
 - [x] T2 source selection, projected helper and scoped commands implemented.
-- [x] Twenty synthetic transaction/SVG regression controls pass, including additive
+- [x] Twenty-five synthetic transaction/SVG regression controls pass, including additive
   apply/no-op, fresh owned removal, foreign-file preservation, unowned/edited/linked
   input, stale inventory/modes/review, forged provenance/helper, wrong receiver,
   early/late interruption, interrupted recovery, escaping/duplicate journal scope,
   corrupt late staged/backup object, and conflict before and after the first write.
+  Descriptor token expansion leaves the projected helper byte-identical. Additive
+  insertion and removal edits after inventory validation refuse without promoting
+  those bytes to backups. Recovery rechecks destination observations and copied
+  object bytes/modes before each mutation, preserving late edits and refusing late
+  corruption; this is bounded conflict detection, not filesystem locking.
+  The first source candidate failed all five focused expansion/race controls; those
+  failures remain retained separately from the repaired passing controls.
   Transaction fixtures mock the public-baseline predicate and explicitly establish
   no genuine public retained adoption. Independent source controls remain separate.
 - [ ] Actual T2 candidate pack, installed management projection and real retained
