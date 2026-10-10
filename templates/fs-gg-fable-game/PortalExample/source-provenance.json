@@ -50,7 +50,12 @@
   "templateFiles": [
     {
       "path": "README.md",
-      "sha256": "a23df5d8ed09a67a4f9eff29075ec3ccd8da74277bfe41d8cb694b23abcb5d0d"
+      "sha256": "402d784e0561cb3f4f226667a03bc86cb594f8c0d3a5c54c4c38b2b99aedd7ac"
+    },
+    {
+      "path": "manage.py",
+      "producerPath": "scripts/apply-svg-complete-workspace.py",
+      "sha256": "7b2e01ffe27fbecf99e5768edd459f52c27ff1b1cf8b84f42e12779d29017c8a"
     }
   ],
   "managedPaths": [
@@ -59,6 +64,7 @@
     "Presentation.fs",
     "Program.fs",
     "README.md",
+    "manage.py",
     "packages.lock.json",
     "source-provenance.json",
     "verify-package-boundary.py"
@@ -72,5 +78,5 @@
     "Box2D.NET": "3.1.654",
     "FSharp.Core": "10.1.302"
   },
-  "qualification": "Source payload only; candidate generation and public installed fresh/retained acceptance require separate evidence."
+  "qualification": "Canonical managed example and T1 direct candidate qualified; projected management helper and retained adoption/removal require their separate source/candidate/public receiver evidence."
 }

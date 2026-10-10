@@ -20,7 +20,7 @@ GAME_TREE = 'c2aa7259568ddb54f5397ff978ca3baa6d942255'
 LOCK_SHA256 = '7769c72f28bca3fc4b40e6ce710852c8d5e26098c5e6d5c35cefbe9f7c11f66b'
 CLOSURE = {'FS.GG.Game.Core':'0.17.0','FS.GG.Game.Physics.Box2D':'0.17.0','FS.GG.Game.Render':'0.17.0','FS.GG.UI.Scene':'0.31.0','FS.GG.UI.KeyboardInput':'0.31.0','Box2D.NET':'3.1.654','FSharp.Core':'10.1.302'}
 CANONICAL = {'Consumer.fsproj':'tests/release/Box2D.PackageConsumer/PresentationConsumer.fsproj','PortalScene.fs':'examples/Box2D.Portals/Scene.fs','Presentation.fs':'examples/Box2D.Portals/Presentation.fs','Program.fs':'examples/Box2D.Portals/Program.fs','verify-package-boundary.py':'tests/release/Box2D.PackageConsumer/verify-package-boundary.py'}
-PAYLOAD = set(CANONICAL) | {'packages.lock.json','source-provenance.json','README.md'}
+PAYLOAD = set(CANONICAL) | {'packages.lock.json','source-provenance.json','README.md','manage.py'}
 ORDINARY = ['FableGameWorkspace.slnx','Server/Server.fsproj','Domain/Domain.fsproj','Client/Client.fsproj','SvgFoundation/SvgFoundation.fsproj']
 
 
@@ -86,12 +86,15 @@ def verify_payload(read, names, canonical):
     direct = {name for name,row in lock.items() if row['type']=='Direct'}
     if direct != {'FS.GG.Game.Physics.Box2D','FS.GG.Game.Render','FSharp.Core'}:
         fail('Portal direct dependency roster differs')
-    if provenance['templateFiles'] != [{'path':'README.md','sha256':digest(read('README.md'))}]:
-        fail('template-authored README digest differs')
+    helper = read_file(Path(__file__).resolve().parents[3]/'scripts/apply-svg-complete-workspace.py')
+    if read('manage.py') != helper:
+        fail('projected management helper differs from sole producer')
+    if provenance['templateFiles'] != [{'path':'README.md','sha256':digest(read('README.md'))}, {'path':'manage.py','producerPath':'scripts/apply-svg-complete-workspace.py','sha256':digest(helper)}]:
+        fail('template-authored README/helper provenance differs')
 
 
 def source_files(root):
-    return [PREFIX+'.template.config/template.json','pack/fs-gg-fable-game-legacy/.template.config/template.json','providers/fable-game.providers.yml',*[PREFIX+'PortalExample/'+name for name in PAYLOAD],*[PREFIX+name for name in ORDINARY]]
+    return ['scripts/apply-svg-complete-workspace.py','FS.GG.Templates.csproj',PREFIX+'.template.config/template.json','pack/fs-gg-fable-game-legacy/.template.config/template.json','providers/fable-game.providers.yml',*[PREFIX+'PortalExample/'+name for name in PAYLOAD if name != 'manage.py'],*[PREFIX+name for name in ORDINARY]]
 
 
 def verify_source(root, canonical):
@@ -113,7 +116,13 @@ def verify_source(root, canonical):
             fail('ordinary project/solution references Portal: '+name)
     folder = root/(PREFIX+'PortalExample')
     names = [p.relative_to(folder).as_posix() for p in folder.rglob('*') if p.is_file() or p.is_symlink()]
-    verify_payload(lambda name:read_file(folder/name),names,canonical)
+    project = ET.fromstring(read_file(root/'FS.GG.Templates.csproj'))
+    projections = [row for row in project.iter('None') if row.attrib.get('Include')=='scripts/apply-svg-complete-workspace.py' and row.attrib.get('Pack')=='true']
+    expected = 'content/templates/fs-gg-fable-game/PortalExample/manage.py;content/templates/fs-gg-fable-game-legacy/PortalExample/manage.py'
+    if len(projections)!=1 or projections[0].attrib.get('PackagePath')!=expected or (folder/'manage.py').exists():
+        fail('management helper must have one canonical package projection, not a copied source')
+    names.append('manage.py')
+    verify_payload(lambda name:read_file(root/'scripts/apply-svg-complete-workspace.py') if name=='manage.py' else read_file(folder/name),names,canonical)
 
 
 def verify_archive(path, canonical, archive_sha, templates_source):
@@ -204,6 +213,9 @@ def static_controls(root, canonical):
         path=t/(payload+'Program.fs');path.unlink();path.symlink_to(root/(payload+'Program.fs'))
     mutate('linked-source',linked)
     mutate('edited-lock',lambda t:edit_json(t,payload+'packages.lock.json',lambda d:d['dependencies']['net10.0']['FS.GG.Game.Render'].update(resolved='0.16.0')))
+    mutate('missing-helper-projection',lambda t:(t/'FS.GG.Templates.csproj').write_text((t/'FS.GG.Templates.csproj').read_text().replace('Include="scripts/apply-svg-complete-workspace.py"','Include="foreign.py"')))
+    mutate('foreign-management-producer',lambda t:(t/'scripts/apply-svg-complete-workspace.py').write_text('foreign helper producer'))
+    mutate('copied-management-source',lambda t:(t/(payload+'manage.py')).write_text('second authored copy'))
     mutate('ordinary-project-reference',lambda t:(t/(PREFIX+'Server/Server.fsproj')).write_text('PortalExample'))
     return {'kind':'synthetic-source-controls','positiveSourcePassed':True,'negativeControls':results,'actualGeneration':False,'actualRestoreBuildRuntime':False}
 
