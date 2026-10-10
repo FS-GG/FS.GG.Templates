@@ -7,7 +7,7 @@ providers:
   - name: python
     contractVersion: "2.0.0"
     templateId: fs-gg-python
-    source: FS.GG.Workspace.Template::0.18.1
+    source: FS.GG.Workspace.Template::0.18.2
     nameParameter: productName
     minimumFsggSdd:
       version: "2.1.0"
