@@ -24,6 +24,8 @@ on:
       - 'tests/ProviderComposition.Tests/**'
       - 'tests/composition/fable-game/verify-external-reference-candidate.sh'
       - 'tests/composition/fable-game/verify-external-reference-workflow.py'
+      - 'tests/composition/fable-game/observe-external-reference-orca.sh'
+      - 'tests/composition/fable-game/external-reference-orca.py'
       - 'tests/composition/fable-game/external-reference-public.py'
       - 'tests/composition/fable-game/test-external-reference-public.py'
       - '.github/workflows/fable-external-reference-source.yml'
@@ -50,6 +52,7 @@ jobs:
       - run: |
           python3 tests/composition/fable-game/verify-external-reference-workflow.py
           python3 tests/composition/fable-game/test-external-reference-public.py
+          python3 tests/composition/fable-game/external-reference-orca.py --self-test
   candidate:
     if: github.repository != 'FS-GG/FS.GG.Templates' || inputs.templates-source != ''
     name: External reference immutable preflight and optional full qualification
@@ -97,6 +100,7 @@ jobs:
         run: |
           python3 tests/composition/fable-game/verify-external-reference-workflow.py
           python3 tests/composition/fable-game/test-external-reference-public.py
+          python3 tests/composition/fable-game/external-reference-orca.py --self-test
       - name: Verify native producer run and authenticated archive before compilation
         env:
           GH_TOKEN: ${{ github.token }}
@@ -203,6 +207,20 @@ jobs:
           bash tests/composition/fable-game/verify-external-reference-candidate.sh \
             "$GITHUB_WORKSPACE/templates/.tmp/rendering-source" "$RUNNER_TEMP/rendering-packet" \
             0.32.1 "$RUNNER_TEMP/external-reference" "$PRODUCER_SOURCE" "$RENDERING_INPUT_SOURCE"
+      - name: Provision external reference assistive technology
+        if: ${{ !inputs.preflight-only }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes dbus-x11 espeak-ng gettext gir1.2-atspi-2.0 libatspi2.0-dev openbox orca pulseaudio pulseaudio-utils python3-gi python3-speechd speech-dispatcher-espeak-ng x11-utils xdotool xvfb
+          dpkg-query --show --showformat='${Package} ${Version}\n' orca at-spi2-core xvfb openbox speech-dispatcher speech-dispatcher-espeak-ng python3-gi python3-speechd pulseaudio espeak-ng > "$RUNNER_TEMP/external-reference/orca-host-packages.txt"
+      - name: Observe actual external reference Orca journey
+        if: ${{ !inputs.preflight-only }}
+        run: |
+          set -euo pipefail
+          PLAYWRIGHT_BROWSERS_PATH="$RUNNER_TEMP/external-reference/browsers" \
+            bash tests/composition/fable-game/observe-external-reference-orca.sh \
+            "$RUNNER_TEMP/external-reference" "$RUNNER_TEMP/external-reference-preflight.json"
       - name: Bind successful full result to requested Templates source
         if: ${{ !inputs.preflight-only }}
         env:
@@ -241,6 +259,8 @@ jobs:
             ${{ runner.temp }}/external-reference/*-build.log
             ${{ runner.temp }}/external-reference/*-restore.log
             ${{ runner.temp }}/external-reference/producer-*.json
+            ${{ runner.temp }}/external-reference/orca/**
+            ${{ runner.temp }}/external-reference/orca-host-packages.txt
             ${{ runner.temp }}/external-reference/feed/public-readback.json
             ${{ runner.temp }}/provider-composition.log
             ${{ runner.temp }}/rendering-run.json
