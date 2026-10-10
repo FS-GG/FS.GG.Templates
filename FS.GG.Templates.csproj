@@ -174,6 +174,13 @@
            Text="Owner-sourced product skills on disk (@(_FsggOwnerSkill->Count())) and product-skill package items (@(_FsggProjectedSkill->Count())) disagree. A skill authored under template/product-skills/ with no package item is packed into NO template and silently reaches no product. Reconcile FS.GG.Templates.csproj with scripts/generate-skill-manifest.fsx, then run `dotnet fsi scripts/generate-skill-manifest.fsx --check`." />
   </Target>
 
+  <!-- One transaction-helper producer; generated Portal payloads receive these exact bytes.
+       Legacy members carry the archive projection but always exclude Portal at generation. -->
+  <ItemGroup>
+    <None Include="scripts/apply-svg-complete-workspace.py" Pack="true"
+          PackagePath="content/templates/fs-gg-fable-game/PortalExample/manage.py;content/templates/fs-gg-fable-game-legacy/PortalExample/manage.py" />
+  </ItemGroup>
+
   <!-- Typed-only product CI is authored once. Template source modifiers preserve every
        other lifecycle; local SDD tool pins remain owned by the actual scaffolding producer. -->
   <ItemGroup>

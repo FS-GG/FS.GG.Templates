@@ -125,6 +125,95 @@ alone cannot replace the coherent release obligations. T1 does not close P3.
 
   Initial support is additive adoption into a genuine retained public Templates `0.18.1` Fable Game workspace with PortalExample absent. Record that supported baseline package's actual provenance; do not pretend `dotnet new update` upgrades existing files. Inventory previews the exact Portal paths; apply checks the same candidate and receiver before its first write and changes only those paths. The root solution, build scripts, lifecycle/skills, user source/data and all default locks remain byte-identical. A pre-existing unowned managed destination, changed owned file, symlink, stale inventory, corrupt backup or wrong receiver refuses before writes. Removal only removes manifest-owned unchanged files; foreign files inside the folder survive, so never recursively delete the directory. Fresh opted-in receivers use the shipped provenance to establish the same ownership. Recovery/rollback restores verified before states and reports uncertain cleanup explicitly. Exercise late conflict, interruption and corrupt-late-object controls plus the existing SVG transaction behavior on synthetic trees. Subsequent Portal-to-Portal upgrades accept only authentic supported prior manifest digests; no earlier Portal release exists today, so source fixture upgrade tests do not establish a public prior-version upgrade. T2 can promise only the adoption/removal actually qualified.
 
+T2 source now implements the namespaced commands in the existing transaction helper.
+The package explicitly projects those same bytes as `PortalExample/manage.py`; no
+second authored helper is checked in. The independent payload verifier authenticates
+that projection alongside the unchanged canonical Game source and seven-package lock.
+Portal inventory/journal schemas and the fixed nine-file allowlist are separate from
+SVG's historical release/skill classifier. Both use the durable write/recovery loop;
+Portal checks every staged object and before state before the first write and each
+subsequent destination immediately before mutation. Recovery validates all backup
+objects and destination before/post states before restoring. Concurrent foreign edits
+can leave an explicitly uncertain journal for manual conflict resolution and recovery;
+they are never silently overwritten. Removal only unlinks unchanged owned files.
+
+- [x] T2 source selection, projected helper and scoped commands implemented.
+- [x] Twenty-five synthetic transaction/SVG regression controls pass, including additive
+  apply/no-op, fresh owned removal, foreign-file preservation, unowned/edited/linked
+  input, stale inventory/modes/review, forged provenance/helper, wrong receiver,
+  early/late interruption, interrupted recovery, escaping/duplicate journal scope,
+  corrupt late staged/backup object, and conflict before and after the first write.
+  Descriptor token expansion leaves the projected helper byte-identical. Additive
+  insertion and removal edits after inventory validation refuse without promoting
+  those bytes to backups. Recovery rechecks destination observations and copied
+  object bytes/modes before each mutation, preserving late edits and refusing late
+  corruption; this is bounded conflict detection, not filesystem locking.
+  The first source candidate failed all five focused expansion/race controls; those
+  failures remain retained separately from the repaired passing controls. A later
+  generated-helper import fixture created bytecode inside the exact payload and
+  failed; fixture-local bytecode suppression repaired the ordinary Python runner.
+  That failed log and the correction to its earlier inaccurate pass claim remain
+  preserved; the exact successor has a genuine 25-test passing log.
+  Transaction fixtures mock the public-baseline predicate and explicitly establish
+  no genuine public retained adoption. Independent source controls remain separate.
+- [x] Actual T2 candidate pack, installed management projection and real retained
+  adoption/removal/recovery plus public locked package runtime qualified for the
+  exact local candidate below. Public release and broader P3 remain open.
+
+The genuine public baseline prerequisite is now observed: public NuGet
+`FS.GG.Workspace.Template 0.18.1`, archive SHA256
+`0d9395b028f14b2c06afe1f1de019610217774f0cb8b6a9618f2aed7d51790fe`,
+nuspec source `d9fe65ea8a456f59d663f20c647a38a195e13c2c`, has no Portal content or
+selection. One fresh private direct player/lifecycle-none receiver named
+`Portal-RetainedBaseline`, namespace `PortalRetainedBaseline`, was genuinely generated;
+its 115 original files and modes were recorded before adding three authored source,
+data and skill sentinels. The resulting 118-file inventory tree SHA256 is
+`384b0a7914f1bf81f71bb1323a47e6bd4b3dd8f80fda2153827603f2c42e92d1`.
+The original full 152-row inventory binds that exact baseline. Actual T2 operations
+below preserve all 118 original files, modes and three authored sentinels; known
+new Portal-only build outputs and a foreign sentinel remain after recovery.
+No restore, build or application runtime was performed for baseline creation.
+
+On 2026-10-10, one separately admitted pack qualified source
+`39d3de839000e98e0bff69fc6fb0243279c2ddf0`, producing the local candidate
+`FS.GG.Workspace.Template 0.18.1`, 951,372 bytes, SHA256
+`97b3c8b70c8e1f5b21e6e4cd91a7db0dbe473f5c931eb3179d263bd35b9085d4`.
+Its nuspec records that exact source. Current and legacy package projections contain
+identical producer helper bytes, SHA256
+`cf88ae6012160c01cc5d5a22089d7515fff8b0b98ec7c5d2a2277cc95aaf92cf`;
+canonical Game source and the genuine seven-package lock remain unchanged. The
+canonical Python fixture projection matches its pinned Coordination revision/tree
+and all three source digests. SDK version/info and pack exited zero; a nonfatal SDK
+workload-verification notice was retained, with no workload update attempted.
+
+One separately admitted direct retained qualification installed that exact archive
+into a fresh private home and generated a player/lifecycle-none opted-in candidate
+outside the genuine public baseline. The actually generated `manage.py` retained
+producer byte identity. Inventory and apply, preservation checks, public-only locked
+seven-package restore, package boundary, Release build and both default/presentation
+entrypoints exited zero. Invalid usage exited two. The original lock SHA256
+`7769c72f28bca3fc4b40e6ce710852c8d5e26098c5e6d5c35cefbe9f7c11f66b`
+was unchanged. The actual assembly SHA256 was
+`5f71513159b2faff9f9be5a1d9139634e6553a32b421ff81ab1de674b6a21163`.
+
+Removal, recovery of removal and recovery of initial adoption all exited zero, and
+both journals reached `rolled-back`. All 118 original files, 152 rows and root mode
+remain exact outside PortalExample. A new foreign in-folder sentinel survived;
+its SHA256 is `3d44c3af4d9479e814622a6188510ec3bf15c82057f9bc282f5745ffc83aafc4`.
+The nine managed payload files are absent after initial recovery; known new Portal
+`bin`, `obj` and that sentinel remain. No recursive cleanup or whole-tree equality
+claim applies to those new outputs.
+
+The actual pack and retained runs used CPU 1, a 300-second work budget, bounded
+30-second cleanup, a practical 2 GiB sampled RSS limit and 1.5 GiB managed heap limit.
+Observed sampled peaks were 332,857,344 and 441,282,560 bytes respectively. No signals
+were needed. Independent terminal LIVE and zombie censuses were empty for observed
+groups, sessions and known descendants; transient or unobserved detached descendants
+remain unknown, and sampling is not hard RSS containment. Neither run reused or
+retried resume04/resume05 custody. These results qualify a local source candidate,
+not a published successor, provider invocation, prior public Portal upgrade, browser
+composition or whole P3 closure. T3/T4, provider acceptance and P3 remain open.
+
 - [ ] **P3-T3 — Coherent public template successor — route: routine source; publication separately admitted.** Depends on accepted T1/T2 and existing Templates release gates. Reuse the repository's current pack-once, immutable artifact, dual-feed equality, feed occupancy and public readback paths. Release owner chooses the next genuinely unoccupied Templates version at dispatch (current source is 0.18.1; no successor number is reserved here), aligns the provider descriptor and exact source/archive identities, and verifies the installed artifact contains the opt-in payload/helper/lock. Game and Rendering need no new binary release unless the source owner discovers a producer API defect. A generated example source update does not turn Game 0.17.0 into a new binary release. Keep protected publication credentials, registry activation and Wizard release in their existing owners and custody. Do not repair or retry unrelated unknown publication effects.
 
 - [ ] **P3-T4 — Fresh and preserving retained public receivers — route: separately admitted qualification.** After T3 public readback, create new outside-checkout receivers from the actual public template, public dependencies and fresh caches: direct explicit opt-in and default-off; then the qualified provider-v2 route using its exact public descriptor and installed SDD >=2.1.0. Repeat the real project entrypoint and exact graph/lock checks. Before release, the full unchanged Fable/Vite/browser composition remains a coherent artifact gate; retain its evidence separately from this headless Portal runtime. For retained adoption, freshly instantiate the actual public pre-Portal 0.18.1 template into a new owned retained receiver, add authored source/data/skills, record the full inventory, then inventory/apply from the real successor-generated candidate. Observe the Portal entrypoint and byte preservation; add a foreign in-folder sentinel, remove safely while preserving it, and observe ordinary workspace behavior; separately exercise recovery/rollback. Never operate on resume04/resume05 or old /tmp receivers. Report direct template, provider and Wizard boundaries independently. Full Wizard activation is not implied by the direct/provider proof; if it remains part of another v3 row, retain that open outcome there rather than relabel it complete.
