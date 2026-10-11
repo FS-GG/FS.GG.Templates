@@ -59,12 +59,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
-      PRODUCER_SOURCE: ${{ inputs.rendering-input-source == 'public' && '6c9f766fdd91483c2de6f061e75589e94852a265' || '0f7deec93297bcda67f0e3a1dbd23dcff66a09d5' }}
-      PRODUCER_RUN: ${{ inputs.rendering-input-source == 'public' && '37419955679' || '38102910865' }}
-      PRODUCER_ARTIFACT: ${{ inputs.rendering-input-source == 'public' && '11392773621' || '11688966848' }}
-      PRODUCER_ARCHIVE_SHA256: ${{ inputs.rendering-input-source == 'public' && '486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee' || '7a1592443d6723a76543e7569856154bcf0205d58ddb90347165301750676fef' }}
-      PRODUCER_CUSTODY_SHA256: ${{ inputs.rendering-input-source == 'public' && 'ecd0c5d742fd8d19d5659991e413e92971c1d2cb9aea913faa2bb249f53f577d' || 'fe657ad839ed1740c29f85dc7d2244694722d70007512d6fdb22f86927b3a492' }}
-      PRODUCER_ARCHIVE_SIZE_BYTES: ${{ inputs.rendering-input-source == 'public' && '14912688' || '14993249' }}
+      PRODUCER_SOURCE: ${{ inputs.rendering-input-source == 'public' && '6c9f766fdd91483c2de6f061e75589e94852a265' || '93b19deb5530241bc76055f69f11398bfd22eaa0' }}
+      PRODUCER_RUN: ${{ inputs.rendering-input-source == 'public' && '37419955679' || '38122527072' }}
+      PRODUCER_ARTIFACT: ${{ inputs.rendering-input-source == 'public' && '11392773621' || '11695963316' }}
+      PRODUCER_ARCHIVE_SHA256: ${{ inputs.rendering-input-source == 'public' && '486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee' || 'a437bd14761a7429eb3c166b29cc21630c260cda27a603c280991fe3cb825520' }}
+      PRODUCER_CUSTODY_SHA256: ${{ inputs.rendering-input-source == 'public' && 'ecd0c5d742fd8d19d5659991e413e92971c1d2cb9aea913faa2bb249f53f577d' || '9a7a2ec2c06124544eb861b65f3a8bc6b6e652e46624ec42c6167c8892ce7853' }}
+      PRODUCER_ARCHIVE_SIZE_BYTES: ${{ inputs.rendering-input-source == 'public' && '14912688' || '14999034' }}
       RENDERING_INPUT_SOURCE: ${{ inputs.rendering-input-source || 'candidate' }}
       DOTNET_PROCESSOR_COUNT: '1'
       MSBUILDDISABLENODEREUSE: '1'
