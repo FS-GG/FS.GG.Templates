@@ -2567,6 +2567,7 @@ def execute_session(receiver, directory, env, termination):
     result = None
     peak = 0
     first_guard = None
+    first_rss_guard = None
     reporting_errors = []
     require(not termination, termination[0] if termination else "")
     deadline = time.monotonic() + 300
@@ -2601,7 +2602,27 @@ def execute_session(receiver, directory, env, termination):
                     except BaseException as ex:
                         reporting_errors.append("first guard write: " + str(ex))
                     raise RuntimeError(first)
-                peak = max(peak, sum(row["rss"] for row in owned) + proc(os.getpid())["rss"])
+                supervisor = proc(os.getpid())
+                owned_rss = sum(row["rss"] for row in owned)
+                sampled_rss = owned_rss + supervisor["rss"]
+                peak = max(peak, sampled_rss)
+                if peak > 2 * 1024**3:
+                    # Retain the exact already-authenticated sample; this is a resource refusal,
+                    # independent of the historical unknown/escaped custody guard above.
+                    first = "sampled AT RSS budget exceeded"
+                    first_rss_guard = {"stage": "AT session supervision", "monotonic": time.monotonic(),
+                                       "leader": copy.deepcopy(leader),
+                                       "knownStarts": dict(list(known.items())[:1024]),
+                                       "omittedKnownStarts": max(0, len(known) - 1024),
+                                       "supervisor": copy.deepcopy(supervisor),
+                                       "ownedRssBytes": owned_rss, "aggregateRssBytes": sampled_rss,
+                                       "sampledPeakRssBytes": peak, "capBytes": 2 * 1024**3,
+                                       "ownedCount": len(owned), "owned": copy.deepcopy(owned[:1024]),
+                                       "omittedOwnedRows": max(0, len(owned) - 1024)}
+                    try:
+                        write(directory / "first-rss-budget-census.json", first_rss_guard)
+                    except BaseException as ex:
+                        reporting_errors.append("first RSS budget write: " + str(ex))
                 require(peak <= 2 * 1024**3, "sampled AT RSS budget exceeded")
                 require(all(p.stat().st_size <= 4 * 1024**2 for p in directory.rglob("*.log")), "AT log budget exceeded")
                 require(time.monotonic() < deadline, "original five-minute AT deadline exceeded")
@@ -2633,9 +2654,16 @@ def execute_session(receiver, directory, env, termination):
                     snapshot_sha = digest(directory / "first-guard-census.json")
                 except BaseException as ex:
                     reporting_errors.append("first guard hash: " + str(ex))
+            rss_snapshot_sha = None
+            if first_rss_guard and not reporting_errors:
+                try:
+                    rss_snapshot_sha = digest(directory / "first-rss-budget-census.json")
+                except BaseException as ex:
+                    reporting_errors.append("first RSS budget hash: " + str(ex))
             process_result = {"leader": leader, "knownStarts": known, "exit": child.returncode,
                   "firstCause": first, "termination": termination, "cleanup": result, "sampledPeakRss": peak,
-                  "firstGuardCensus": first_guard, "reportingErrors": reporting_errors,
+                  "firstGuardCensus": first_guard, "firstRssBudgetCensus": first_rss_guard,
+                  "firstRssBudgetCensusSha256": rss_snapshot_sha, "reportingErrors": reporting_errors,
                   "historicalCustody": "unresolved" if first_guard else "no rejected census observed",
                   "firstGuardCensusSha256": snapshot_sha,
                   "limits": "100ms ancestry/RSS samples, no hard containment; detached unobserved descendants unknown"}
@@ -3887,6 +3915,91 @@ def diagnostic_self_test():
                 require(result["historicalCustody"] == "unresolved" and result["cleanup"]["disposition"] == ("unknown" if failure == "cleanup" else "observed-empty"),
                         "later cleanup changed historical uncertainty")
                 require(bool(result["reportingErrors"]) == (failure in ["snapshot", "hash", "result"]), "snapshot reporting failure lost")
+    # Exercise the existing supervisor's real resource guard with inert owned samples.
+    # Reporting failures must not erase the sampled actor rows or change the primary refusal.
+    cap = 2 * 1024**3
+    supervisor = {"pid": 77, "start": 3, "ppid": 1, "pgid": 77, "sid": 77, "state": "R", "rss": 128}
+    owned_rows = [leader, {**unknown_row, "ppid": 42, "rss": cap - leader["rss"]},
+                  *[{**unknown_row, "pid": 100 + n, "start": 10 + n, "ppid": 42, "rss": 0} for n in range(1023)]]
+    for failure in [None, "snapshot", "hash", "cleanup", "result"]:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            class RssChild:
+                pid = 42
+                returncode = None
+                def poll(self):
+                    return self.returncode
+            child = RssChild()
+            clean_calls = []
+            def cleaned(*args):
+                clean_calls.append(args)
+                child.returncode = -15
+                if failure == "cleanup":
+                    raise OSError("mock RSS cleanup observation failure")
+                return {"disposition": "observed-empty", "remaining": [], "unknown": [], "signals": []}
+            actual_write = write
+            actual_digest = digest
+            def recorded(path, value):
+                if failure == "snapshot" and Path(path).name == "first-rss-budget-census.json":
+                    raise OSError("mock RSS snapshot write failure")
+                if failure == "result" and Path(path).name == "process-result.json":
+                    raise OSError("mock RSS process result write failure")
+                actual_write(path, value)
+            def hashed(path):
+                if failure == "hash" and Path(path).name == "first-rss-budget-census.json":
+                    raise OSError("mock RSS snapshot hash-read failure")
+                return actual_digest(path)
+            def sampled(_leader, known):
+                known.update({row["pid"]: row["start"] for row in owned_rows})
+                return copy.deepcopy(owned_rows), [], []
+            with patch.object(subprocess, "Popen", return_value=child), patch.dict(globals(), check_launch_object=lambda *_: None,
+                    proc=lambda pid: leader if pid == 42 else supervisor,
+                    census=sampled, cleanup=cleaned, write=recorded, digest=hashed):
+                try:
+                    execute_session(Path("unused"), directory, {}, [])
+                except RuntimeError as ex:
+                    require(str(ex) == "sampled AT RSS budget exceeded", "RSS primary cause changed")
+                else:
+                    raise RuntimeError("over-cap sampled RSS accepted")
+            result = json.loads((directory / "reporting-failure.json").read_text())["processResult"] if failure == "result" else json.loads((directory / "process-result.json").read_text())
+            snapshot = result["firstRssBudgetCensus"]
+            require(len(clean_calls) == 1 and result["firstCause"] == "sampled AT RSS budget exceeded",
+                    "RSS cleanup or primary failure lost")
+            require(snapshot["supervisor"] == supervisor and snapshot["owned"] == owned_rows[:1024] and
+                    snapshot["ownedCount"] == 1025 and snapshot["omittedOwnedRows"] == 1 and
+                    len(snapshot["knownStarts"]) == 1024 and snapshot["omittedKnownStarts"] == 1,
+                    "RSS birth/actor sample or explicit truncation lost")
+            require(snapshot["ownedRssBytes"] == cap and snapshot["aggregateRssBytes"] == cap + 128 and
+                    snapshot["sampledPeakRssBytes"] == result["sampledPeakRss"] == cap + 128 and snapshot["capBytes"] == cap,
+                    "RSS actor sum, peak or unchanged cap differs")
+            require(result["firstGuardCensus"] is None and result["historicalCustody"] == "no rejected census observed",
+                    "RSS refusal invented custody uncertainty")
+            require(result["cleanup"]["disposition"] == ("unknown" if failure == "cleanup" else "observed-empty") and
+                    bool(result["reportingErrors"]) == (failure in ["snapshot", "hash", "result"]),
+                    "RSS cleanup/reporting failure lost")
+            require((result["firstRssBudgetCensusSha256"] is None) == (failure in ["snapshot", "hash"]),
+                    "RSS snapshot integrity disposition differs")
+            if result["firstRssBudgetCensusSha256"] is not None:
+                require(result["firstRssBudgetCensusSha256"] == actual_digest(directory / "first-rss-budget-census.json"),
+                        "RSS retained snapshot digest differs")
+    for owned_rss in [cap - supervisor["rss"] - 1, cap - supervisor["rss"]]:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            class BoundaryChild:
+                pid = 42
+                returncode = 0
+                def poll(self):
+                    return self.returncode
+            child = BoundaryChild()
+            empty = {"disposition": "observed-empty", "remaining": [], "unknown": [], "signals": []}
+            with patch.object(subprocess, "Popen", return_value=child), patch.dict(globals(), check_launch_object=lambda *_: None,
+                    proc=lambda pid: leader if pid == 42 else supervisor,
+                    census=lambda *_: ([{**leader, "rss": owned_rss}], [], []), cleanup=lambda *_: empty):
+                code, cleanup_result = execute_session(Path("unused"), directory, {}, [])
+            result = json.loads((directory / "process-result.json").read_text())
+            require(code == 0 and cleanup_result == empty and result["firstRssBudgetCensus"] is None and
+                    result["firstRssBudgetCensusSha256"] is None and result["sampledPeakRss"] <= cap,
+                    "at/below-cap terminal path refused or false RSS census emitted")
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary)
         class GoodChild:
