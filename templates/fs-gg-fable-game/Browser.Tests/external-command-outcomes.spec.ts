@@ -46,6 +46,11 @@ test.describe("external authority reference command outcomes", () => {
     await expect(reference(page)).toHaveAttribute("data-authority-revision", "2");
     await expect(reference(page)).toHaveAttribute("data-command-suspended", "true");
     await expect(reference(page).locator(':scope > [role="status"]')).toContainText("reconnect never retries");
+    await press(page, "Reconcile unknown command");
+    await expect(reference(page)).toHaveAttribute("data-command-recovery", "Awaiting");
+    await expect(reference(page)).toHaveAttribute("data-unknown-generation", originalGeneration!);
+    await expect(reference(page)).toHaveAttribute("data-receipt-order", "sample:1:unknown");
+    await expect(reference(page)).toHaveAttribute("data-command-order", "sample:1:external.increment");
   });
 
   test("explicit reconciliation and rearm retain the original and use a fresh correlation", async ({ page }) => {
