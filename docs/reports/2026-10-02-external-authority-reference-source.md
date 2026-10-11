@@ -116,3 +116,24 @@ Successful preflight alone cannot close .3-E1; actual Ubuntu full qualification 
 ProviderComposition assertions and4 cases per Chromium, Firefox and WebKit with zero skips/flaky
 or unexpected results, followed by independent root readback and ordinary Templates native gates.
 Publication and installed acceptance remain false. No local CLR or browser ran during this repair.
+
+## Exact rearm status assertions and current qualification
+
+Native Rendering run `38167767850/a1`, caller `1cba91b` and Templates source
+`25bc7f2`, remains failed. Its authentic Chromium report records strict-mode
+violations at both new rearm assertions: the reference contains two descendant
+status elements. The intended direct-child receipt status already contains the
+complete rearm sentence. Both assertions now use the same direct-child status
+selector as the existing reconnect test and retain the exact full sentence.
+Generation fences, immutable unknown receipts, fresh correlations, suspension,
+and no-replay assertions are unchanged.
+
+The ordinary hosted browser result alone does not qualify these opt-in cases.
+The maintained candidate runner generates the complete receiver, explicitly sets
+`FsGgExternalReferenceCandidate=true`, runs the external-authority and FourD
+cases in Chromium, Firefox and WebKit, and requires exactly eight passes per
+family with zero unexpected, skipped or flaky cases. That genuine qualification
+remains pending for this locator repair. The failed native archive has no inner
+Orca journey result; neither the rearm speech outcome nor native acceptance is
+established. Original failures, resource limits and expired collection deadlines
+remain preserved.
