@@ -2241,7 +2241,106 @@ def reference_navigation_self_test():
     except RuntimeError as error: activate_error=str(error)
     require(len(sent)==240 and sent==['Tab']*240 and 'keyboard focus did not reach' in (activate_error or ''),'original finite navigation limit changed')
     names.append('navigation-240-limit-refused')
+    names.extend(command_recovery_sequence_self_test())
     return names
+
+
+def observe_command_recovery(press, dom, wait, speech, speech_offset, observations):
+    """Exercise the real key/speech route without reconciling an obsolete generation."""
+    press("Mount external authority reference")
+    press("Connect sample authority")
+    press("Complete current external snapshot")
+    press("Lose next command receipt")
+    start = speech_offset()
+    press("Increment external value")
+    wait(lambda d: d["reference"]["receiptOrder"] == "sample:1:unknown")
+    speech("unknown", start)
+    press("Rearm sample commands")
+    press("Increment external value")
+    observations["prematureRearm"] = dom()["reference"]
+    # The fixture fences reconciliation to the original generation and epoch.
+    # Confirm the original receipt before disconnect creates a new generation.
+    start = speech_offset()
+    press("Reconcile unknown command")
+    speech("reconciled", start)
+    press("Disconnect sample authority")
+    press("Connect sample authority")
+    press("Complete current external snapshot")
+    observations["reconnected"] = dom()["reference"]
+    start = speech_offset()
+    press("Rearm sample commands")
+    speech("rearmed", start)
+    press("Increment external value")
+    observations["fresh"] = wait(lambda d: d["reference"]["receiptOrder"] == "sample:1:unknown,sample:2:accepted")["reference"]
+    start = speech_offset()
+    press("Dispose external reference")
+    speech("disposed", start)
+    press("Increment external value")
+    observations["retainedInert"] = dom()["reference"]
+
+
+def command_recovery_sequence_self_test():
+    """Finite contract fixture: the actual observer sequence must honor generation fences."""
+    import copy
+    def fixture():
+        state = {"generation": 0, "unknown": None, "recovery": "Rearmed", "lose": False,
+                 "receipts": [], "commands": [], "actions": [], "disposed": False}
+        def press(name):
+            state["actions"].append(name)
+            if name in ["Connect sample authority", "Disconnect sample authority"]:
+                state["generation"] += 1
+            elif name == "Lose next command receipt": state["lose"] = True
+            elif name == "Increment external value":
+                if state["disposed"] or (state["unknown"] and state["recovery"] != "Rearmed"): return
+                correlation = "sample:" + str(len(state["commands"]) + 1)
+                state["commands"].append(correlation + ":external.increment")
+                outcome = "unknown" if state["lose"] else "accepted"
+                state["receipts"].append(correlation + ":" + outcome)
+                if state["lose"]:
+                    state["unknown"] = {"correlation": correlation, "generation": state["generation"]}
+                    state["recovery"] = "Awaiting"; state["lose"] = False
+            elif name == "Reconcile unknown command":
+                if state["unknown"] and state["recovery"] == "Awaiting" and state["unknown"]["generation"] == state["generation"]:
+                    state["recovery"] = "Reconciled"
+            elif name == "Rearm sample commands":
+                if state["recovery"] in ["Reconciled", "Abandoned"]: state["recovery"] = "Rearmed"
+            elif name == "Dispose external reference": state["disposed"] = True
+        def dom():
+            return {"reference": {"receiptOrder": ",".join(state["receipts"]),
+                    "commandOrder": ",".join(state["commands"]), "commandRecovery": state["recovery"],
+                    "commandSuspended": str(bool(state["unknown"] and state["recovery"] != "Rearmed")).lower(),
+                    "generation": str(state["generation"]),
+                    "unknownGeneration": str(state["unknown"]["generation"]) if state["unknown"] else "",
+                    "disposed": state["disposed"]}}
+        return state, press, dom
+    state, press, dom = fixture(); observations = {}
+    def wait(predicate):
+        value = dom(); require(predicate(value), "actual recovery sequence state unavailable"); return value
+    def speech(phase, start):
+        expected = {"unknown": "Awaiting", "reconciled": "Reconciled", "rearmed": "Rearmed"}
+        value = dom()["reference"]
+        require(value["disposed"] if phase == "disposed" else value["commandRecovery"] == expected[phase],
+                "actual recovery sequence requires unavailable announcement: " + phase)
+        observations[phase] = value
+    observe_command_recovery(press, dom, wait, speech, lambda: 0, observations)
+    require(observations["prematureRearm"]["receiptOrder"] == "sample:1:unknown" and
+            observations["prematureRearm"]["commandSuspended"] == "true", "premature rearm replayed original command")
+    require(observations["reconciled"]["generation"] == observations["unknown"]["unknownGeneration"],
+            "observer reconciled outside original generation")
+    require(observations["reconnected"]["generation"] != observations["unknown"]["unknownGeneration"] and
+            observations["reconnected"]["receiptOrder"] == "sample:1:unknown" and
+            observations["reconnected"]["commandSuspended"] == "true", "reconnect rewrote receipt or rearmed")
+    require(observations["fresh"]["commandOrder"] == "sample:1:external.increment,sample:2:external.increment" and
+            observations["fresh"]["receiptOrder"] == "sample:1:unknown,sample:2:accepted", "fresh command reused original")
+    require(observations["retainedInert"] == observations["disposed"], "disposed route changed retained command")
+    state, press, dom = fixture()
+    for name in ["Connect sample authority", "Lose next command receipt", "Increment external value",
+                 "Disconnect sample authority", "Connect sample authority"]: press(name)
+    before = copy.deepcopy(dom()["reference"])
+    press("Reconcile unknown command")
+    require(dom()["reference"] == before and before["commandRecovery"] == "Awaiting" and
+            before["generation"] != before["unknownGeneration"], "cross-generation reconciliation accepted")
+    return ["actual-observer-recovery-sequence-original-generation", "old-generation-reconciliation-remains-refused"]
 
 
 def observe(directory, orca_pid, browser_pid, health=lambda: None):
@@ -2322,34 +2421,7 @@ def observe(directory, orca_pid, browser_pid, health=lambda: None):
     runtime = json.loads((directory / "owned-bus-runtime.json").read_text())
     runtime["mappedLibraries"] = mappings
     write(directory / "owned-bus-runtime.json", runtime)
-    press("Mount external authority reference")
-    press("Connect sample authority")
-    press("Complete current external snapshot")
-    press("Lose next command receipt")
-    start = speech_offset()
-    press("Increment external value")
-    wait(lambda d: d["reference"]["receiptOrder"] == "sample:1:unknown")
-    speech("unknown", start)
-    press("Disconnect sample authority")
-    press("Connect sample authority")
-    press("Complete current external snapshot")
-    observations["reconnected"] = dom()["reference"]
-    press("Rearm sample commands")
-    press("Increment external value")
-    observations["prematureRearm"] = dom()["reference"]
-    start = speech_offset()
-    press("Reconcile unknown command")
-    speech("reconciled", start)
-    start = speech_offset()
-    press("Rearm sample commands")
-    speech("rearmed", start)
-    press("Increment external value")
-    observations["fresh"] = wait(lambda d: d["reference"]["receiptOrder"] == "sample:1:unknown,sample:2:accepted")["reference"]
-    start = speech_offset()
-    press("Dispose external reference")
-    speech("disposed", start)
-    press("Increment external value")
-    observations["retainedInert"] = dom()["reference"]
+    observe_command_recovery(press, dom, wait, speech, speech_offset, observations)
     write(directory / "journey.json", {"process": {"name": "orca", "pid": orca_pid},
           "browser": {"family": "chromium", "pid": actual_browser_pid, "launcherPid": browser_pid, "companionPid": next(v["pid"] for v in json.loads((directory / "resource-leaders.json").read_text()) if v["resource"] == "browser-companion")}, "actions": actions, "observations": observations})
 
