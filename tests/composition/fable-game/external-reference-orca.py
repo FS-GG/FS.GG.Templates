@@ -2077,6 +2077,173 @@ def client_library_mapping(pid, object_identity, client):
     return {"birth": identity, "object": object_identity}
 
 
+def reference_control_matches(value, name):
+    active = value['active']
+    direct = (name == 'Mount external authority reference' and
+              active['id'] == 'mount-external-authority-reference') or active['parentId'] == 'external-authority-reference'
+    return value['documentHasFocus'] and active['text'] == name and direct
+
+
+def reference_navigation_key(value, name):
+    active = value['active']
+    if name == 'Mount external authority reference':
+        return 'Tab'
+    buttons = value['reference']['directButtons']
+    require(buttons.count(name) == 1, 'direct reference button identity ambiguous or absent')
+    if active['parentId'] == 'external-authority-reference' and active['text'] in buttons:
+        require(buttons.count(active['text']) == 1, 'active direct reference button identity ambiguous')
+        return 'shift+Tab' if buttons.index(name) < buttons.index(active['text']) else 'Tab'
+    return 'Tab'
+
+
+def activate_reference_control(name, dom, focused, actions, clock=None, pause=None, key=None):
+    # Real keyboard navigation only; a matching DOM target is held while AT-SPI settles.
+    clock = time.monotonic if clock is None else clock
+    pause = time.sleep if pause is None else pause
+    if key is None:
+        def key(value):
+            subprocess.run(['xdotool', 'key', '--clearmodifiers', value], check=True, timeout=5)
+    entered = False
+    for _ in range(240):
+        value = dom()
+        active = value['active']
+        entered = entered or active['parentId'] == 'external-authority-reference'
+        require(not entered or value['documentHasFocus'], 'document focus lost after entering reference controls')
+        if reference_control_matches(value, name):
+            if name != 'Mount external authority reference':
+                require(value['reference']['directButtons'].count(name) == 1, 'direct reference button identity ambiguous')
+            settle = clock() + 2
+            while not focused(name):
+                require(clock() < settle, 'bounded AT-SPI focus agreement unavailable for exact reference control: '+name)
+                pause(.1)
+                value = dom()
+                require(reference_control_matches(value, name), 'exact reference DOM focus changed while AT-SPI settled')
+            require(clock() <= settle, 'bounded AT-SPI focus agreement arrived after deadline: '+name)
+            # Synchronous AT-SPI remains overall-owner bounded; refuse a late returned success.
+            # The AT-SPI read can overlap a DOM update. Revalidate before Return.
+            value = dom()
+            require(reference_control_matches(value, name), 'exact reference DOM focus changed before activation')
+            if name != 'Mount external authority reference':
+                require(value['reference']['directButtons'].count(name) == 1, 'direct reference button identity ambiguous before activation')
+            before_key = max([k['sequence'] for k in value['keys']], default=0)
+            key('Return')
+            pause(.3)
+            after = dom()
+            events = [k for k in after['keys'] if k['sequence'] > before_key and k['key'] == 'Enter' and
+                      k['text'] == name and (k['parentId'] == 'external-authority-reference' or
+                                            k['id'] == 'mount-external-authority-reference')]
+            require(len(events) == 1, 'fresh unique activation key absent')
+            actions.append({'name': name, 'key': 'Return', 'atspiFocused': True,
+                            'directReferenceControl': True, 'eventSequence': events[0]['sequence']})
+            return
+        key(reference_navigation_key(value, name))
+        pause(.15)
+    raise RuntimeError('keyboard focus did not reach exact reference control: '+name)
+
+
+def reference_navigation_self_test():
+    import copy
+    names = []
+    # Exact original38138070411 browser-dom directButtons population (data, not native proof).
+    buttons = ['Connect sample authority', 'Disconnect sample authority', 'Replace sample authority', 'Increment external value', 'Reject sample command', 'Lose next command receipt', 'Reconcile unknown command', 'Abandon unknown command', 'Rearm sample commands', 'Complete delayed command receipt', 'Request external burst', 'Request cached external snapshot', 'Complete current external snapshot', 'Complete oldest external snapshot', 'Lose external acquisition', 'Cancel external acquisition', 'Fail external acquisition', 'Fail next external presentation', 'Dispose external reference']
+    def fixture(index=5, target='Increment external value', delay=0, fault=None):
+        state = {'index': index, 'time': 0, 'focusCalls': 0, 'document': True, 'keys': [], 'sent': [], 'actions': []}
+        def dom():
+            if fault == 'original-dom-cause': raise OSError('original DOM health cause')
+            text = buttons[state['index']] if 0 <= state['index'] < len(buttons) else 'Outside reference'
+            value = {'documentHasFocus': state['document'], 'active': {'text': text, 'id': '',
+                     'parentId': 'external-authority-reference' if text in buttons else ''},
+                     'reference': {'directButtons': buttons[:]}, 'keys': copy.deepcopy(state['keys'])}
+            if fault == 'target-duplicate': value['reference']['directButtons'].append(target)
+            if fault == 'target-absent': value['reference']['directButtons'].remove(target)
+            if fault == 'active-duplicate': value['reference']['directButtons'].append(text)
+            if fault == 'document-lost': value['documentHasFocus'] = False
+            return value
+        def focused(name):
+            state['focusCalls'] += 1
+            if fault == 'original-atspi-cause': raise OSError('original AT-SPI read cause')
+            if fault == 'late-atspi-success': state['time'] += 3
+            if fault == 'changed-before-return': state['index'] = 0
+            if fault == 'lost-during-settle': state['document'] = False
+            if fault == 'never-atspi': return False
+            return state['focusCalls'] > delay
+        def key(value):
+            if fault == 'original-key-cause': raise OSError('original keyboard cause')
+            state['sent'].append(value)
+            if value == 'Tab': state['index'] += 1
+            elif value == 'shift+Tab': state['index'] -= 1
+            else:
+                seq=max([k['sequence'] for k in state['keys']],default=0)+1
+                event={'sequence':seq,'key':'Enter','text':target,'id':'','parentId':'external-authority-reference'}
+                if fault == 'stale-activation': event['sequence']=0
+                if fault == 'wrong-activation-name': event['text']='Different original control'
+                if fault == 'wrong-activation-parent': event['parentId']='other-reference'
+                state['keys'].append(event)
+                if fault == 'duplicate-activation': state['keys'].append(dict(event))
+        def pause(seconds): state['time'] += seconds
+        def run(): activate_reference_control(target,dom,focused,state['actions'],lambda:state['time'],pause,key)
+        return state, run
+    def good(name, index, target, expected, delay=0):
+        state,run=fixture(index,target,delay)
+        run()
+        require(state['sent']==expected and len(state['actions'])==1 and state['actions'][0]['name']==target and
+                state['actions'][0]['eventSequence']==1, 'actual navigation ordering/activation differs: '+name)
+        names.append(name)
+    good('reverse-two-direct-controls',5,'Increment external value',['shift+Tab','shift+Tab','Return'])
+    good('forward-three-direct-controls',0,'Increment external value',['Tab','Tab','Tab','Return'])
+    good('target-current-no-extra-tab',3,'Increment external value',['Return'])
+    good('delayed-atspi-holds-dom-target',3,'Increment external value',['Return'],5)
+    good('backward-snapshot-to-lose',12,'Lose next command receipt',['shift+Tab']*7+['Return'])
+    for label, fault, expected, index in [
+        ('never-atspi-no-return','never-atspi','bounded AT-SPI focus agreement',3),
+        ('late-successful-atspi-refused','late-atspi-success','focus agreement arrived after deadline',3),
+        ('document-focus-loss-refused','document-lost','document focus lost',5),
+        ('focus-loss-during-settle','lost-during-settle','DOM focus changed while',3),
+        ('dom-changed-after-atspi','changed-before-return','DOM focus changed before',3),
+        ('duplicate-target-refused','target-duplicate','identity ambiguous',5),
+        ('absent-target-refused','target-absent','identity ambiguous or absent',5),
+        ('ambiguous-active-refused','active-duplicate','active direct reference',5),
+        ('stale-key-does-not-qualify','stale-activation','fresh unique activation',3),
+        ('duplicate-key-does-not-qualify','duplicate-activation','fresh unique activation',3),
+        ('wrong-key-name-refused','wrong-activation-name','fresh unique activation',3),
+        ('wrong-key-parent-refused','wrong-activation-parent','fresh unique activation',3),
+        ('original-dom-cause-retained','original-dom-cause','original DOM health cause',3),
+        ('original-atspi-cause-retained','original-atspi-cause','original AT-SPI read cause',3),
+        ('original-key-cause-retained','original-key-cause','original keyboard cause',3)]:
+        state,run=fixture(index,fault=fault,delay=1 if fault=='lost-during-settle' else 0)
+        try: run()
+        except (RuntimeError,OSError) as error: require(expected in str(error),'actual refusal cause differs: '+label)
+        else: raise RuntimeError('actual navigation accepted invalid case: '+label)
+        require(not state['actions'],'failed activation recorded success: '+label)
+        if fault in ['never-atspi','late-atspi-success','document-lost','lost-during-settle','changed-before-return','target-duplicate','target-absent','active-duplicate']:
+            require('Return' not in state['sent'],'unqualified Return emitted: '+label)
+        names.append(label)
+    # Source-coupled early path: connect, finish initial snapshot, arm lost receipt, then increment.
+    # Real native effects are not modeled or accepted by these fixture-only key/identity checks.
+    for label,index,target,expected in [
+        ('critical-connect-to-snapshot',0,'Complete current external snapshot',['Tab']*12+['Return']),
+        ('critical-snapshot-to-lose',12,'Lose next command receipt',['shift+Tab']*7+['Return']),
+        ('critical-lose-to-increment',5,'Increment external value',['shift+Tab']*2+['Return'])]:
+        good(label,index,target,expected)
+    outside={'documentHasFocus':True,'active':{'text':'other','id':'','parentId':''},'reference':{'directButtons':buttons},'keys':[]}
+    require(reference_navigation_key(outside,'Increment external value')=='Tab','startup forward traversal changed')
+    names.append('startup-outside-group-forward')
+    mount=copy.deepcopy(outside);mount['active']={'text':'Mount external authority reference','id':'mount-external-authority-reference','parentId':''}
+    require(reference_control_matches(mount,'Mount external authority reference') and reference_navigation_key(mount,'Mount external authority reference')=='Tab','original mount identity differs')
+    names.append('mount-original-dom-identity')
+    reordered=copy.deepcopy(outside);reordered['active']={'text':buttons[5],'id':'','parentId':'external-authority-reference'}
+    reordered['reference']['directButtons']=list(reversed(buttons))
+    require(reference_navigation_key(reordered,'Increment external value')=='Tab','current direct ordering ignored')
+    names.append('actual-current-order-recomputed')
+    sent=[];tick=[0];value=copy.deepcopy(outside)
+    activate_error=None
+    try: activate_reference_control('Increment external value',lambda:value,lambda _:False,[],lambda:tick[0],lambda s:tick.__setitem__(0,tick[0]+s),sent.append)
+    except RuntimeError as error: activate_error=str(error)
+    require(len(sent)==240 and sent==['Tab']*240 and 'keyboard focus did not reach' in (activate_error or ''),'original finite navigation limit changed')
+    names.append('navigation-240-limit-refused')
+    return names
+
+
 def observe(directory, orca_pid, browser_pid, health=lambda: None):
     import gi
     gi.require_version("Atspi", "2.0")
@@ -2114,24 +2281,7 @@ def observe(directory, orca_pid, browser_pid, health=lambda: None):
                    for item in walk(Atspi.get_desktop(0)))
 
     def press(name):
-        # Require real Tab focus plus AT-SPI agreement; duplicate nested scene labels cannot qualify.
-        for _ in range(240):
-            value = dom()
-            active = value["active"]
-            direct = (name == "Mount external authority reference" and active["id"] == "mount-external-authority-reference") or active["parentId"] == "external-authority-reference"
-            if value["documentHasFocus"] and active["text"] == name and direct and focused(name):
-                require(name == "Mount external authority reference" or value["reference"]["directButtons"].count(name) == 1, "direct reference button identity ambiguous")
-                before_key = max([k["sequence"] for k in value["keys"]], default=0)
-                subprocess.run(["xdotool", "key", "--clearmodifiers", "Return"], check=True, timeout=5)
-                time.sleep(.3)
-                after = dom()
-                events = [k for k in after["keys"] if k["sequence"] > before_key and k["key"] == "Enter" and k["text"] == name and (k["parentId"] == "external-authority-reference" or k["id"] == "mount-external-authority-reference")]
-                require(len(events) == 1, "fresh unique activation key absent")
-                actions.append({"name": name, "key": "Return", "atspiFocused": True, "directReferenceControl": True, "eventSequence": events[0]["sequence"]})
-                return
-            subprocess.run(["xdotool", "key", "--clearmodifiers", "Tab"], check=True, timeout=5)
-            time.sleep(.15)
-        raise RuntimeError("keyboard focus did not reach exact reference control: " + name)
+        activate_reference_control(name, dom, focused, actions)
 
     def speech_offset():
         return (directory / "orca-debug.log").stat().st_size
@@ -4556,6 +4706,7 @@ def main():
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument("--self-test", action="store_true")
     modes.add_argument("--browser-self-test", action="store_true")
+    modes.add_argument("--reference-navigation-self-test", action="store_true")
     modes.add_argument("--inner", action="store_true")
     modes.add_argument("--owned-status", action="store_true")
     modes.add_argument("--capture-activation", action="store_true")
@@ -4564,6 +4715,9 @@ def main():
     args = parser.parse_args()
     if args.self_test:
         self_test()
+        reference_navigation_self_test()
+    elif args.reference_navigation_self_test:
+        print(json.dumps({"names": reference_navigation_self_test(), "nativeJourney": False}))
     elif args.browser_self_test:
         browser_js_self_test()
     elif args.owned_status:
