@@ -279,3 +279,22 @@ Rendering [PR1425](https://github.com/FS-GG/FS.GG.Rendering/pull/1425) delivered
 The genuine source-only, nonpublishing producer is original run `38122527072/a1`, artifact `11695963316`, archive SHA256 `a437bd14761a7429eb3c166b29cc21630c260cda27a603c280991fe3cb825520` (14,999,034 bytes), custody SHA256 `9a7a2ec2c06124544eb861b65f3a8bc6b6e652e46624ec42c6167c8892ce7853`. Original terminal metadata was accepted. Its terminal-plus-300-second acquisition window was missed; a separately admitted retained read acquired the same immutable ZIP without renewing that window. Whole-archive CRC/hash, all 19 package copies and packed browser source were verified. Stale donor run/artifact fields in the offline report were excluded from acceptance; current descriptor, archive and custody joins establish the identity. No public `0.32.1` package was overwritten or published.
 
 Separate toolchain artifact `11696275965` supplied the original source-custody job's receipt: SDK `10.0.401`, runtime `10.0.12`, F# compiler `15.2.401.0` and FSharp.Core `10.1.0.0`, with producer-reported binary hashes. This verifies receipt data, not rehashed hosted binaries or every producer job's toolchain. The consumer changes only the closed candidate tuple and preserves the public tuple, existing observer and native budgets. Its admitted finite qualification passed all 93 named static workflow controls and four retained groups against this exact successor; original owner cleanup was observed empty with no escapes or post-pin failures. Historical run `38116308308/a1` remains an AT log-budget failure; earlier failures, unknown historical custody and whole adoption outcome remain unresolved. New Templates/Rendering/projection deliveries and a separately admitted native journey remain pending.
+
+
+The original native run `38138070411` used the delivered idempotent producer and
+correctly bound INFO/event-filter settings, but failed the existing AT log budget.
+The retained real-key sequence shows forward-only traversal taking an entire page
+cycle from completing the snapshot to arming lost-receipt behavior; the journey
+and final acknowledgements remain absent. The observer now uses real Shift+Tab
+when the uniquely identified direct target precedes the active direct control,
+holds an exact DOM target while polling AT-SPI agreement, refuses a successful
+AT-SPI response returned after its two-second settle deadline, and refuses document
+focus loss after entering the reference controls during that navigation call.
+Synchronous AT-SPI calls retain the overall owner deadline; polling does not
+preempt a blocked native call. Exact DOM/AT-SPI agreement and
+a fresh activation key remain mandatory. The admitted focused qualification passed all 27 named inert helper controls,
+including returned-late AT-SPI refusal, the three actual control-order sequences,
+activation identity and original failure preservation. Original owner cleanup was
+observed empty with no escapes or post-pin failures. Native delay, log volume and
+completed journey remain unproven. The 4 MiB
+log budget, original deadlines and separate browser/speech evidence are preserved.
