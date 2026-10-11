@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+from unittest.mock import patch
 from zipfile import ZipFile
 
 root=Path(__file__).resolve().parents[3]
@@ -34,7 +35,52 @@ assert "'qualification':'not-run'" in codes[3] and "'disposition':'preflight-pas
 assert "packet['disposition']=='passed'" in codes[4]
 assert "['chromium','firefox','webkit']" in codes[4]
 
+# Read the actual closed GitHub expressions; producer rows are immutable workflow
+# choices, not overridable caller inputs. Keep the published public row intact.
+PRODUCER_ROWS = {
+    'public': {
+        'PRODUCER_SOURCE':'6c9f766fdd91483c2de6f061e75589e94852a265',
+        'PRODUCER_RUN':'37419955679','PRODUCER_ARTIFACT':'11392773621',
+        'PRODUCER_ARCHIVE_SHA256':'486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee',
+        'PRODUCER_CUSTODY_SHA256':'ecd0c5d742fd8d19d5659991e413e92971c1d2cb9aea913faa2bb249f53f577d',
+        'PRODUCER_ARCHIVE_SIZE_BYTES':'14912688',
+    },
+    'candidate': {
+        'PRODUCER_SOURCE':'0f7deec93297bcda67f0e3a1dbd23dcff66a09d5',
+        'PRODUCER_RUN':'38102910865','PRODUCER_ARTIFACT':'11688966848',
+        'PRODUCER_ARCHIVE_SHA256':'7a1592443d6723a76543e7569856154bcf0205d58ddb90347165301750676fef',
+        'PRODUCER_CUSTODY_SHA256':'fe657ad839ed1740c29f85dc7d2244694722d70007512d6fdb22f86927b3a492',
+        'PRODUCER_ARCHIVE_SIZE_BYTES':'14993249',
+    },
+}
+selector_cases=[]
+def selected_producer(candidate, mode):
+    assert mode in PRODUCER_ROWS, 'closed candidate/public route required'
+    result={}
+    for key in PRODUCER_ROWS['public']:
+        values=re.findall(r"^      "+key+r": \$\{\{ inputs\.rendering-input-source == 'public' && '([^']+)' \|\| '([^']+)' \}\}$",candidate,re.M)
+        assert len(values)==1, 'closed producer expression absent/duplicated: '+key
+        public,source_candidate=values[0]
+        assert public==PRODUCER_ROWS['public'][key] and source_candidate==PRODUCER_ROWS['candidate'][key], 'producer row identity differs: '+key
+        result[key]=public if mode=='public' else source_candidate
+    return {**result,'RENDERING_INPUT_SOURCE':mode}
+for mode in ['candidate','public']:
+    assert selected_producer(text,mode)=={**PRODUCER_ROWS[mode],'RENDERING_INPUT_SOURCE':mode}
+    selector_cases.append('selector-good-'+mode)
+for mode in ['unknown','PUBLIC','public\n']:
+    try: selected_producer(text,mode)
+    except AssertionError: pass
+    else: raise AssertionError('unknown producer mode accepted')
+    selector_cases.append('selector-bad-mode-'+repr(mode))
+for key in PRODUCER_ROWS['public']:
+    for mode in ['candidate','public']:
+        changed=text.replace(PRODUCER_ROWS[mode][key], 'altered-'+PRODUCER_ROWS[mode][key])
+        try: selected_producer(changed,mode)
+        except AssertionError: pass
+        else: raise AssertionError('altered producer binding accepted: '+key)
+        selector_cases.append('selector-altered-'+mode+'-'+key)
 checks=0
+assertion_cases=[]
 def execute(code,env,should_pass):
     global checks
     previous=os.environ.copy()
@@ -47,11 +93,12 @@ def execute(code,env,should_pass):
         else:
             assert should_pass, 'bad fixture accepted'
         checks+=1
+        assertion_cases.append("actual-workflow-assertion-"+str(checks))
     finally:
         os.environ.clear(); os.environ.update(previous)
 
-source='6c9f766fdd91483c2de6f061e75589e94852a265'
-env={'CALLER_REPOSITORY':'FS-GG/FS.GG.Rendering','TEMPLATES_SOURCE':'a'*40,'PRODUCER_SOURCE':source,'PRODUCER_RUN':'37419955679','PRODUCER_ARTIFACT':'11392773621','PRODUCER_ARCHIVE_SHA256':'486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee'}
+source=PRODUCER_ROWS['candidate']['PRODUCER_SOURCE']
+env={'CALLER_REPOSITORY':'FS-GG/FS.GG.Rendering','TEMPLATES_SOURCE':'a'*40,**selected_producer(text,'candidate')}
 execute(codes[0],env,True)
 execute(codes[0],{**env,'RENDERING_INPUT_SOURCE':'public'},True)
 for mode in ['unknown','public\n','PUBLIC']:
@@ -60,15 +107,43 @@ for key,value in [('CALLER_REPOSITORY','FS-GG/FS.GG.Templates'),('CALLER_REPOSIT
     execute(codes[0],{**env,key:value},False)
 with tempfile.TemporaryDirectory() as directory:
     path=Path(directory); env['RUNNER_TEMP']=directory
-    run={'id':37419955679,'head_sha':source,'conclusion':'success','path':'.github/workflows/release.yml'}
-    artifact={'id':11392773621,'expired':False,'size_in_bytes':14912688,'digest':'sha256:'+env['PRODUCER_ARCHIVE_SHA256'],'workflow_run':{'id':run['id'],'head_sha':source},'name':'rendering-source-candidate-'+source+'-0.32.1'}
-    def metadata(r,a,success):
-        (path/'rendering-run.json').write_text(json.dumps(r)); (path/'rendering-artifact.json').write_text(json.dumps(a)); execute(codes[1],env,success)
-    metadata(run,artifact,True)
-    for key,value in [('id',0),('head_sha','b'*40),('conclusion','failure'),('path','.github/workflows/other.yml')]:
-        metadata({**run,key:value},artifact,False)
-    for key,value in [('id',0),('expired',True),('size_in_bytes',1),('digest','sha256:'+'0'*64),('name','other'),('workflow_run',{'id':0,'head_sha':source}),('workflow_run',{'id':run['id'],'head_sha':'b'*40})]:
-        metadata(run,{**artifact,key:value},False)
+    for mode in ['candidate','public']:
+        env.update(selected_producer(text,mode))
+        run={'id':int(env['PRODUCER_RUN']),'head_sha':env['PRODUCER_SOURCE'],'conclusion':'success','path':'.github/workflows/release.yml'}
+        artifact={'id':int(env['PRODUCER_ARTIFACT']),'expired':False,'size_in_bytes':int(env['PRODUCER_ARCHIVE_SIZE_BYTES']),'digest':'sha256:'+env['PRODUCER_ARCHIVE_SHA256'],'workflow_run':{'id':run['id'],'head_sha':run['head_sha']},'name':'rendering-source-candidate-'+run['head_sha']+'-0.32.1'}
+        def metadata(r,a,success):
+            (path/'rendering-run.json').write_text(json.dumps(r)); (path/'rendering-artifact.json').write_text(json.dumps(a)); execute(codes[1],env,success)
+        metadata(run,artifact,True)
+        for key,value in [('id',0),('head_sha','b'*40),('conclusion','failure'),('path','.github/workflows/other.yml')]:
+            metadata({**run,key:value},artifact,False)
+        for key,value in [('id',0),('expired',True),('size_in_bytes',1),('digest','sha256:'+'0'*64),('name','other'),('workflow_run',{'id':0,'head_sha':run['head_sha']}),('workflow_run',{'id':run['id'],'head_sha':'b'*40})]:
+            metadata(run,{**artifact,key:value},False)
+        # A complete producer tuple from the other mode must fail the selected route.
+        other='public' if mode=='candidate' else 'candidate'
+        other_row=PRODUCER_ROWS[other]
+        mixed_run={**run,'id':int(other_row['PRODUCER_RUN']),'head_sha':other_row['PRODUCER_SOURCE']}
+        mixed_artifact={**artifact,'id':int(other_row['PRODUCER_ARTIFACT']),'size_in_bytes':int(other_row['PRODUCER_ARCHIVE_SIZE_BYTES']),
+                        'digest':'sha256:'+other_row['PRODUCER_ARCHIVE_SHA256'],
+                        'workflow_run':{'id':mixed_run['id'],'head_sha':mixed_run['head_sha']},
+                        'name':'rendering-source-candidate-'+mixed_run['head_sha']+'-0.32.1'}
+        metadata(mixed_run,mixed_artifact,False)
+        receipt_env={**env,'CALLER_SOURCE':'e'*40,'CALLER_RUN':'123','CALLER_ATTEMPT':'1','PREFLIGHT_ONLY':'true'}
+        calls=[]
+        def git_tree(argv,text):
+            calls.append(argv)
+            assert text is True
+            if argv==['git','rev-parse','HEAD^{tree}']: return 'b'*40+'\n'
+            if argv==['git','-C','.tmp/rendering-source','rev-parse','HEAD^{tree}']: return 'c'*40+'\n'
+            raise AssertionError('unselected preflight subprocess')
+        with patch.object(subprocess,'check_output',side_effect=git_tree):
+            execute(codes[3],receipt_env,True)
+        receipt=json.loads((path/'external-reference-preflight.json').read_text())
+        assert len(calls)==2 and receipt['templates']=={'revision':'a'*40,'tree':'b'*40}
+        assert receipt['producer']=={name:env[key] for name,key in [('revision','PRODUCER_SOURCE'),('run','PRODUCER_RUN'),('artifact','PRODUCER_ARTIFACT'),('archiveSha256','PRODUCER_ARCHIVE_SHA256'),('custodySha256','PRODUCER_CUSTODY_SHA256')]}
+        assert receipt['producerTree']=='c'*40 and receipt['artifactSizeBytes']==int(env['PRODUCER_ARCHIVE_SIZE_BYTES'])
+        assert receipt['renderingInputSource']==mode and receipt['requestedPhase']=='preflight'
+        assert receipt['qualification']=='not-run' and receipt['publication'] is False and receipt['installedAcceptance'] is False
+    env.update(selected_producer(text,'candidate'))
     (path/'rendering-packet').mkdir()
     custody=b'fixture custody'; env['PRODUCER_CUSTODY_SHA256']=hashlib.sha256(custody).hexdigest()
     def zip_case(count,duplicate=False,tamper=False):
@@ -136,58 +211,59 @@ print('PASS actual stdlib Provider count186;185/187/empty/missing evidence refus
 
 # Execute the actual final receipt binder, including its report reads and writeback.
 # A good receipt must describe all eight cases in each of the three families.
-with tempfile.TemporaryDirectory() as directory:
-    path=Path(directory); evidence=path/'external-reference'; evidence.mkdir()
-    templates={'revision':'a'*40,'tree':'b'*40}
-    (path/'external-reference-preflight.json').write_text(json.dumps({'templates':templates}))
-    families=['chromium','firefox','webkit']
-    reports={}
-    for family in families:
-        report=evidence/f'{family}-browser.json'
-        report.write_text(json.dumps({'stats':{'expected':8,'unexpected':0,'skipped':0,'flaky':0}}))
-        reports[family]=hashlib.sha256(report.read_bytes()).hexdigest()
-    custody_digest='d'*64
-    packet={'disposition':'passed','templates':templates,
-            'producer':{'revision':source,'custodyManifestSha256':custody_digest},
-            'renderingInputSource':'nuget.org','templatesInputSource':'source-built-candidate',
-            'renderingPublicInputsQualified':True,'browserFamilies':families,
-            'passedPerFamily':8,'skipped':0,'browserReportSha256':reports}
-    binder_env={'RUNNER_TEMP':directory,'TEMPLATES_SOURCE':templates['revision'],
-                'PRODUCER_SOURCE':source,'PRODUCER_CUSTODY_SHA256':custody_digest,
-                'RENDERING_INPUT_SOURCE':'public'}
-    def bind(candidate,success):
-        receipt=evidence/'qualification.json'
-        receipt.write_text(json.dumps(candidate))
-        before=receipt.read_bytes()
-        execute(codes[4],binder_env,success)
-        if success:
-            bound=json.loads(receipt.read_text())
-            assert bound=={**candidate,'nativePreflight':{'templates':templates}}
-        else:
-            assert receipt.read_bytes()==before, 'refused receipt must not be rewritten'
-    bind(packet,True)
-    negatives=[]
-    def altered(path,value):
-        candidate=copy.deepcopy(packet); target=candidate
-        for key in path[:-1]: target=target[key]
-        target[path[-1]]=value; negatives.append(candidate)
-    altered(['passedPerFamily'],4)
-    altered(['templates','revision'],'c'*40)
-    altered(['templates','tree'],'c'*40)
-    altered(['producer','revision'],'c'*40)
-    altered(['producer','custodyManifestSha256'],'0'*64)
-    altered(['browserReportSha256','chromium'],'0'*64)
-    altered(['browserFamilies'],['firefox','chromium','webkit'])
-    altered(['browserFamilies'],['chromium','firefox'])
-    altered(['skipped'],1)
-    altered(['disposition'],'failed')
-    altered(['renderingInputSource'],'candidate')
-    altered(['renderingPublicInputsQualified'],False)
-    altered(['templatesInputSource'],'published')
-    for candidate in negatives: bind(candidate,False)
-    missing=copy.deepcopy(packet); del missing['browserReportSha256']; bind(missing,False)
-    bind(packet,True)
-    print(f'PASS actual final receipt binder: valid8 per family; {len(negatives)+1} negative receipts refused without writeback')
+for mode in ['candidate','public']:
+    with tempfile.TemporaryDirectory() as directory:
+        path=Path(directory); evidence=path/'external-reference'; evidence.mkdir()
+        templates={'revision':'a'*40,'tree':'b'*40}
+        (path/'external-reference-preflight.json').write_text(json.dumps({'templates':templates}))
+        families=['chromium','firefox','webkit']
+        reports={}
+        for family in families:
+            report=evidence/f'{family}-browser.json'
+            report.write_text(json.dumps({'stats':{'expected':8,'unexpected':0,'skipped':0,'flaky':0}}))
+            reports[family]=hashlib.sha256(report.read_bytes()).hexdigest()
+        custody_digest=PRODUCER_ROWS[mode]['PRODUCER_CUSTODY_SHA256']
+        packet={'disposition':'passed','templates':templates,
+                'producer':{'revision':PRODUCER_ROWS[mode]['PRODUCER_SOURCE'],'custodyManifestSha256':custody_digest},
+                'renderingInputSource':'nuget.org' if mode=='public' else 'candidate','templatesInputSource':'source-built-candidate',
+                'renderingPublicInputsQualified':mode=='public','browserFamilies':families,
+                'passedPerFamily':8,'skipped':0,'browserReportSha256':reports}
+        binder_env={'RUNNER_TEMP':directory,'TEMPLATES_SOURCE':templates['revision'],
+                    'PRODUCER_SOURCE':PRODUCER_ROWS[mode]['PRODUCER_SOURCE'],'PRODUCER_CUSTODY_SHA256':custody_digest,
+                    'RENDERING_INPUT_SOURCE':mode}
+        def bind(candidate,success):
+            receipt=evidence/'qualification.json'
+            receipt.write_text(json.dumps(candidate))
+            before=receipt.read_bytes()
+            execute(codes[4],binder_env,success)
+            if success:
+                bound=json.loads(receipt.read_text())
+                assert bound=={**candidate,'nativePreflight':{'templates':templates}}
+            else:
+                assert receipt.read_bytes()==before, 'refused receipt must not be rewritten'
+        bind(packet,True)
+        negatives=[]
+        def altered(path,value):
+            candidate=copy.deepcopy(packet); target=candidate
+            for key in path[:-1]: target=target[key]
+            target[path[-1]]=value; negatives.append(candidate)
+        altered(['passedPerFamily'],4)
+        altered(['templates','revision'],'c'*40)
+        altered(['templates','tree'],'c'*40)
+        altered(['producer','revision'],'c'*40)
+        altered(['producer','custodyManifestSha256'],'0'*64)
+        altered(['browserReportSha256','chromium'],'0'*64)
+        altered(['browserFamilies'],['firefox','chromium','webkit'])
+        altered(['browserFamilies'],['chromium','firefox'])
+        altered(['skipped'],1)
+        altered(['disposition'],'failed')
+        altered(['renderingInputSource'],'candidate' if mode=='public' else 'nuget.org')
+        altered(['renderingPublicInputsQualified'],mode!='public')
+        altered(['templatesInputSource'],'published')
+        for candidate in negatives: bind(candidate,False)
+        missing=copy.deepcopy(packet); del missing['browserReportSha256']; bind(missing,False)
+        bind(packet,True)
+        print(f'PASS actual final receipt binder: valid8 per family; {len(negatives)+1} negative receipts refused without writeback')
 
 # Reusable calls bypass the pull-request-only static job, so run these controls
 # from the exact checked-out consumer before archive acquisition or compilation.
@@ -199,3 +275,7 @@ assert 'python3 tests/composition/fable-game/verify-external-reference-workflow.
 assert 'python3 tests/composition/fable-game/test-external-reference-public.py' in section
 assert 'if:' not in section, 'static controls must also run for reusable preflight calls'
 print('PASS reusable static controls run after exact checkout and before expensive qualification')
+
+# Names/count are consumed only after the complete module returns.
+qualified_assertion_names=selector_cases+assertion_cases
+assert len(qualified_assertion_names)==len(set(qualified_assertion_names))
