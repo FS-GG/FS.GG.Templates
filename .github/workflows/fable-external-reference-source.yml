@@ -59,11 +59,12 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
-      PRODUCER_SOURCE: 6c9f766fdd91483c2de6f061e75589e94852a265
-      PRODUCER_RUN: '37419955679'
-      PRODUCER_ARTIFACT: '11392773621'
-      PRODUCER_ARCHIVE_SHA256: 486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee
-      PRODUCER_CUSTODY_SHA256: ecd0c5d742fd8d19d5659991e413e92971c1d2cb9aea913faa2bb249f53f577d
+      PRODUCER_SOURCE: ${{ inputs.rendering-input-source == 'public' && '6c9f766fdd91483c2de6f061e75589e94852a265' || '0f7deec93297bcda67f0e3a1dbd23dcff66a09d5' }}
+      PRODUCER_RUN: ${{ inputs.rendering-input-source == 'public' && '37419955679' || '38102910865' }}
+      PRODUCER_ARTIFACT: ${{ inputs.rendering-input-source == 'public' && '11392773621' || '11688966848' }}
+      PRODUCER_ARCHIVE_SHA256: ${{ inputs.rendering-input-source == 'public' && '486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee' || '7a1592443d6723a76543e7569856154bcf0205d58ddb90347165301750676fef' }}
+      PRODUCER_CUSTODY_SHA256: ${{ inputs.rendering-input-source == 'public' && 'ecd0c5d742fd8d19d5659991e413e92971c1d2cb9aea913faa2bb249f53f577d' || 'fe657ad839ed1740c29f85dc7d2244694722d70007512d6fdb22f86927b3a492' }}
+      PRODUCER_ARCHIVE_SIZE_BYTES: ${{ inputs.rendering-input-source == 'public' && '14912688' || '14993249' }}
       RENDERING_INPUT_SOURCE: ${{ inputs.rendering-input-source || 'candidate' }}
       DOTNET_PROCESSOR_COUNT: '1'
       MSBUILDDISABLENODEREUSE: '1'
@@ -129,7 +130,7 @@ jobs:
           assert run['id']==int(os.environ['PRODUCER_RUN']) and run['head_sha']==os.environ['PRODUCER_SOURCE']
           assert run['conclusion']=='success' and run['path']=='.github/workflows/release.yml'
           assert artifact['id']==int(os.environ['PRODUCER_ARTIFACT']) and not artifact['expired']
-          assert artifact['size_in_bytes']==14912688
+          assert artifact['size_in_bytes']==int(os.environ['PRODUCER_ARCHIVE_SIZE_BYTES'])
           assert artifact['digest']=='sha256:'+os.environ['PRODUCER_ARCHIVE_SHA256']
           assert artifact['workflow_run']['id']==run['id'] and artifact['workflow_run']['head_sha']==run['head_sha']
           assert artifact['name']=='rendering-source-candidate-'+run['head_sha']+'-0.32.1'
@@ -164,7 +165,7 @@ jobs:
           python3 - <<'PY'
           import json, os, subprocess
           from pathlib import Path
-          receipt={'schema':'fsgg.external-reference-native-preflight/1','disposition':'preflight-passed','qualification':'not-run','templates':{'revision':os.environ['TEMPLATES_SOURCE'],'tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()},'caller':{key:os.environ[value] for key,value in [('repository','CALLER_REPOSITORY'),('revision','CALLER_SOURCE'),('run','CALLER_RUN'),('attempt','CALLER_ATTEMPT')]},'producer':{key:os.environ[value] for key,value in [('revision','PRODUCER_SOURCE'),('run','PRODUCER_RUN'),('artifact','PRODUCER_ARTIFACT'),('archiveSha256','PRODUCER_ARCHIVE_SHA256'),('custodySha256','PRODUCER_CUSTODY_SHA256')]},'producerTree':subprocess.check_output(['git','-C','.tmp/rendering-source','rev-parse','HEAD^{tree}'],text=True).strip(),'artifactSizeBytes':14912688,'requestedPhase':'preflight' if os.environ['PREFLIGHT_ONLY']=='true' else 'full','publication':False,'installedAcceptance':False,'renderingInputSource':os.environ['RENDERING_INPUT_SOURCE']}
+          receipt={'schema':'fsgg.external-reference-native-preflight/1','disposition':'preflight-passed','qualification':'not-run','templates':{'revision':os.environ['TEMPLATES_SOURCE'],'tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()},'caller':{key:os.environ[value] for key,value in [('repository','CALLER_REPOSITORY'),('revision','CALLER_SOURCE'),('run','CALLER_RUN'),('attempt','CALLER_ATTEMPT')]},'producer':{key:os.environ[value] for key,value in [('revision','PRODUCER_SOURCE'),('run','PRODUCER_RUN'),('artifact','PRODUCER_ARTIFACT'),('archiveSha256','PRODUCER_ARCHIVE_SHA256'),('custodySha256','PRODUCER_CUSTODY_SHA256')]},'producerTree':subprocess.check_output(['git','-C','.tmp/rendering-source','rev-parse','HEAD^{tree}'],text=True).strip(),'artifactSizeBytes':int(os.environ['PRODUCER_ARCHIVE_SIZE_BYTES']),'requestedPhase':'preflight' if os.environ['PREFLIGHT_ONLY']=='true' else 'full','publication':False,'installedAcceptance':False,'renderingInputSource':os.environ['RENDERING_INPUT_SOURCE']}
           (Path(os.environ['RUNNER_TEMP'])/'external-reference-preflight.json').write_text(json.dumps(receipt,indent=2)+'\n')
           PY
       - uses: actions/setup-dotnet@v6
