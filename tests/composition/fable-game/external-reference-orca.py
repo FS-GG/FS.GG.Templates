@@ -34,7 +34,145 @@ TOOLS = ["dbus-run-session", "Xvfb", "openbox", "xdotool", "xprop", "xdpyinfo", 
 
 
 def digest(path):
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+    value = hashlib.sha256()
+    with Path(path).open("rb") as stream:
+        while chunk := stream.read(65536):
+            value.update(chunk)
+    return value.hexdigest()
+
+
+def speech_range(path, start, end=None):
+    """Read one original byte window; growing logs do not expand the selected window."""
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        info = os.fstat(fd)
+        # Same 4 MiB evidence-member limit as the retained original archive route.
+        require(stat.S_ISREG(info.st_mode) and info.st_size <= 4194304,
+                "Orca speech evidence nonregular or over budget")
+        end = info.st_size if end is None else end
+        require(type(start) is int and type(end) is int and 0 <= start <= end <= info.st_size,
+                "Orca speech byte range invalid")
+        os.lseek(fd, start, os.SEEK_SET)
+        remaining, chunks = end-start, []
+        while remaining:
+            chunk = os.read(fd, min(65536, remaining))
+            require(chunk, "Orca speech evidence truncated during read")
+            chunks.append(chunk)
+            remaining -= len(chunk)
+        final = os.fstat(fd)
+        require(end <= final.st_size <= 4194304, "Orca speech evidence truncated or over budget")
+        raw = b"".join(chunks)
+    finally:
+        os.close(fd)
+    spoken = "\n".join(line.split("SPEECH OUTPUT:", 1)[1] for line in
+                       raw.decode(errors="replace").splitlines() if "SPEECH OUTPUT:" in line)
+    return spoken, end
+
+
+def streamed_evidence_self_test():
+    from io import BytesIO
+    from unittest.mock import patch
+    names = []
+    with tempfile.TemporaryDirectory() as temporary:
+        directory = Path(temporary)
+        path = directory / "evidence"
+        for label, body in [("empty", b""), ("boundary", b"a"*65536),
+                            ("multiple", bytes(range(256))*769)]:
+            path.write_bytes(body)
+            require(digest(path) == hashlib.sha256(body).hexdigest(), "stream digest differs: "+label)
+            names.append("stream-digest-"+label)
+        body = b"short reads still hash every original byte"
+        class ShortReads(BytesIO):
+            def read(self, size=-1): return super().read(min(size, 7))
+        with patch.object(Path, "open", return_value=ShortReads(body)):
+            require(digest(path) == hashlib.sha256(body).hexdigest(), "short digest reads lost bytes")
+        names.append("stream-digest-short-reads")
+        class FailedReads(BytesIO):
+            def read(self, size=-1): raise OSError("original hash read failure")
+        with patch.object(Path, "open", return_value=FailedReads(body)):
+            try: digest(path)
+            except OSError as error: require(str(error) == "original hash read failure", "hash cause replaced")
+            else: raise RuntimeError("failed digest read accepted")
+        names.append("stream-digest-original-read-failure")
+        # A real executable under the qualification profile; data hashing only, never execution.
+        executable = Path(sys.executable).resolve()
+        require(digest(executable) == hashlib.sha256(executable.read_bytes()).hexdigest(),
+                "real executable stream digest differs")
+        names.append("stream-digest-real-executable")
+        body = b"prefix\n" + b"x"*(65535-7-15) + b"SPEECH OUTPUT: " + "é Commands are suspended\nSPEECH OUTPUT: reconnect never retries it\r\n".encode() + b"SPEECH OUTPUT: partial\xff"
+        path.write_bytes(body)
+        for start, end in [(0, len(body)), (7, len(body)), (65537, len(body)-1), (len(body), len(body))]:
+            expected = "\n".join(line.split("SPEECH OUTPUT:", 1)[1] for line in body[start:end].decode(errors="replace").splitlines() if "SPEECH OUTPUT:" in line)
+            actual, actual_end = speech_range(path, start, end)
+            require(actual == expected and actual_end == end, "speech window/UTF-8/partial line differs")
+        names.append("speech-window-offset-utf8-partial-line-equivalence")
+        real_read = os.read
+        requested = []
+        def short_read(fd, count):
+            requested.append(count)
+            return real_read(fd, min(count, 127))
+        with patch.object(os, "read", side_effect=short_read):
+            actual, end = speech_range(path, 65535)
+        expected = "\n".join(line.split("SPEECH OUTPUT:", 1)[1] for line in body[65535:].decode(errors="replace").splitlines() if "SPEECH OUTPUT:" in line)
+        require(actual == expected and end == len(body) and max(requested) <= 65536,
+                "short speech reads or bounded byte window differ")
+        names.append("speech-window-short-reads-and-chunk-bound")
+        for start, end in [(-1, 1), (0, len(body)+1), (2, 1), (True, 1)]:
+            try: speech_range(path, start, end)
+            except RuntimeError: pass
+            else: raise RuntimeError("invalid speech offset accepted")
+        names.append("speech-window-invalid-offset-refusal")
+        prefix = b"SPEECH OUTPUT: stale phrase\n"
+        suffix = ("\n".join("SPEECH OUTPUT: "+phrase for phrase in PHRASES.values())+
+                  "\nSPEECH OUTPUT: Commands are suspended; reconnect never retries it").encode()
+        path.write_bytes(prefix+suffix)
+        actual, end = speech_range(path, len(prefix))
+        require(all(phrase in actual for phrase in PHRASES.values()) and "stale phrase" not in actual and
+                "Commands are suspended" in actual and "reconnect never retries it" in actual,
+                "original phrases, warnings or byte-window fence differ")
+        names.append("speech-window-all-original-phrases-and-prefix-fence")
+        try: speech_range(directory, 0)
+        except RuntimeError: pass
+        else: raise RuntimeError("nonregular speech evidence accepted")
+        linked = directory / "linked"
+        linked.symlink_to(path)
+        try: speech_range(linked, 0)
+        except OSError: pass
+        else: raise RuntimeError("linked speech evidence accepted")
+        names.append("speech-window-nonregular-linked-refusal")
+        original = b"prefix" + b"SPEECH OUTPUT: original"
+        path.write_bytes(original)
+        real_read = os.read
+        def append(fd, count):
+            value = real_read(fd, count)
+            with path.open("ab") as stream: stream.write(b"SPEECH OUTPUT: later")
+            return value
+        with patch.object(os, "read", side_effect=append):
+            actual, end = speech_range(path, 6)
+        require(actual == " original" and end == len(original), "concurrent append expanded original window")
+        names.append("speech-window-concurrent-append-snapshot")
+        path.write_bytes(body)
+        def truncated(fd, count):
+            path.write_bytes(b"")
+            return real_read(fd, count)
+        with patch.object(os, "read", side_effect=truncated):
+            try: speech_range(path, 0)
+            except RuntimeError: pass
+            else: raise RuntimeError("truncated original speech accepted")
+        names.append("speech-window-truncation-refusal")
+        path.write_bytes(body)
+        with patch.object(os, "read", side_effect=OSError("original speech read failure")):
+            try: speech_range(path, 0)
+            except OSError as error: require(str(error) == "original speech read failure", "speech cause replaced")
+            else: raise RuntimeError("failed speech read accepted")
+        names.append("speech-window-original-read-failure")
+        path.write_bytes(b"x"*4194305)
+        try: speech_range(path, 0)
+        except RuntimeError: pass
+        else: raise RuntimeError("speech member limit waived")
+        names.append("speech-window-original-member-cap-refusal")
+    return names
+
 
 
 def write(path, value):
@@ -1077,15 +1215,13 @@ def validate(receipt, packet, preflight, directory):
     route_evidence(directory, activation, receipt)
     sequences = [e["eventSequence"] for e in receipt["actions"]]
     require(sequences == sorted(set(sequences)), "keyboard event replay or ordering drift")
-    raw = (directory / "orca-debug.log").read_bytes()
+    speech_path = directory / "orca-debug.log"
     observations = receipt["observations"]
     for phase, phrase in PHRASES.items():
         entry = observations[phase]
         require(entry["rootCount"] == 1 and entry["statusCount"] == 1, "reference/status identity ambiguous")
-        require(entry["speechStart"] < entry["speechEnd"] <= len(raw), "speech range missing")
-        speech = "\n".join(line.split("SPEECH OUTPUT:", 1)[1] for line in
-                           raw[entry["speechStart"]:entry["speechEnd"]].decode(errors="replace").splitlines()
-                           if "SPEECH OUTPUT:" in line)
+        require(entry["speechStart"] < entry["speechEnd"], "speech range missing")
+        speech, _ = speech_range(speech_path, entry["speechStart"], entry["speechEnd"])
         require(phrase in speech, "actual " + phase + " speech absent")
         if phase == "unknown":
             require("Commands are suspended" in speech and "reconnect never retries it" in speech, "suspension/no-replay warning not spoken")
@@ -2389,11 +2525,10 @@ def observe(directory, orca_pid, browser_pid, health=lambda: None):
         end = time.monotonic() + 15
         while time.monotonic() < end:
             health()
-            raw = (directory / "orca-debug.log").read_bytes()
-            spoken = "\n".join(line.split("SPEECH OUTPUT:", 1)[1] for line in raw[start:].decode(errors="replace").splitlines() if "SPEECH OUTPUT:" in line)
+            spoken, speech_end = speech_range(directory / "orca-debug.log", start)
             if PHRASES[phase] in spoken:
                 value = dom()["reference"]
-                value.update(speechStart=start, speechEnd=len(raw))
+                value.update(speechStart=start, speechEnd=speech_end)
                 observations[phase] = value
                 return
             time.sleep(.1)
@@ -2767,6 +2902,7 @@ def qualify(out, preflight_path, termination):
 
 
 def self_test(logging_controls=True):
+    streamed_evidence_self_test()
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(temporary) / "orca"
         directory.mkdir()

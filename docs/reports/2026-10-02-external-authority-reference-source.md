@@ -137,3 +137,48 @@ remains pending for this locator repair. The failed native archive has no inner
 Orca journey result; neither the rearm speech outcome nor native acceptance is
 established. Original failures, resource limits and expired collection deadlines
 remain preserved.
+
+## Bounded evidence reads after original RSS failure
+
+Original native run [38173254808/1](https://github.com/FS-GG/FS.GG.Rendering/actions/runs/38173254808)
+failed with `sampled AT RSS budget exceeded`. Its first failure census records
+2,179,751,936 bytes against the unchanged 2,147,483,648-byte cap, an excess of
+32,268,288 bytes. The Chromium branch accounts for 1,221,115,904 bytes in nine
+rows, the observer for 342,319,104 bytes, the browser companion for 193,536,000
+bytes, and Orca for 119,529,472 bytes. No census rows or known starts were
+omitted. These are one sampled allocation census, not proof of memory growth or
+of the instruction that caused the peak. The authenticated Chromium executable
+is 293,285,184 bytes; the observer's existing digest helper loads that whole
+file to hash it.
+
+The original maintained browser reports each show eight expected cases and zero
+unexpected, skipped, or flaky cases on Chromium, Firefox, and WebKit. Fifteen
+focused actions and session-contract retirement are retained, but the native
+journey remains failed and has no successful inner-result receipt. The browser
+companion also records a CDP transport failure with no inner-result digest; its
+ordering relative to RSS termination is unknown. The original timely artifact
+read refused before network access and its retention window expired. A distinct
+current-retained read acquired the exact artifact for diagnosis; it does not
+claim timely acquisition, continuous custody, or native acceptance.
+
+This source change hashes files in fixed 64 KiB chunks, preserving every byte
+and all existing digest comparisons. Both live speech observation and final
+validation read only the selected original byte window instead of copying the
+whole log prefix. Snapshot endpoints remain fixed across concurrent append;
+invalid offsets, nonregular or oversized evidence, and truncation refuse.
+The original byte-window decoding and speech phrases, all fifteen action
+assertions, generation fences, deadlines, first causes, and 2 GiB cap remain.
+The companion's behavior is unchanged because the retained evidence does not
+establish growth there. Removing these avoidable copies is a repair target,
+not a claim that their removal proves the original RSS cause.
+
+The existing static controls now include streamed hash correspondence for empty,
+boundary, multiple and short reads, original read failures, and a real executable;
+speech controls cover offsets, split UTF-8 and partial lines, short reads,
+concurrent append, truncation, phrases, and the original evidence-member limit.
+Focused source qualification passed all 29 existing navigation controls, the
+diagnostic self-test, and all 15 streamed-evidence controls, including real
+executable digest correspondence. The original returned and retained owner
+receipts match, cleanup is observed empty, and the original process births are
+absent. Hosted exact-head source checks and a fresh native run remain separately
+required; no consumed operation is replayed.
