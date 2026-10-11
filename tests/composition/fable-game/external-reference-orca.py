@@ -26,7 +26,7 @@ SCHEMA = "fsgg.external-reference-orca-observation/1"
 PHRASES = {
     "unknown": "Command sample:1 outcome is unknown.",
     "reconciled": "Original command sample:1 was confirmed accepted.",
-    "rearmed": "Commands are ready.",
+    "rearmed": "Commands are rearmed.",
     "disposed": "Reference disposed. Command evidence is retained; controls are inactive.",
 }
 TOOLS = ["dbus-run-session", "Xvfb", "openbox", "xdotool", "xprop", "xdpyinfo", "gsettings",

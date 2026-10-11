@@ -168,6 +168,7 @@ let mount () : IDisposable =
                 | Some receipt, Recovery.Awaiting -> $"Command {receipt.Correlation} outcome is unknown. Commands are suspended. Reconcile the original receipt or abandon it before rearming; reconnect never retries it."
                 | Some receipt, Recovery.Reconciled -> $"Original command {receipt.Correlation} was confirmed accepted. Its unknown receipt is retained. Rearm explicitly to send a new command."
                 | Some receipt, Recovery.Abandoned -> $"Original command {receipt.Correlation} remains unknown and was abandoned. Rearm explicitly to send a new command."
+                | Some receipt, Recovery.Rearmed when not commandState.LoseNextReceipt -> $"Commands are rearmed. Original command {receipt.Correlation} evidence is retained. New commands use fresh correlations."
                 | _ when commandState.LoseNextReceipt -> "The next accepted command receipt will be lost. Its effect may occur; commands will then wait for explicit recovery."
                 | _ -> "Commands are ready. The sample gateway can lose the next accepted receipt without retrying its command."
         root.setAttribute("data-request-count", string acquisitions.Count)
