@@ -62,6 +62,7 @@ test.describe("external authority reference command outcomes", () => {
     await expect(reference(page)).toHaveAttribute("data-receipt-order", "sample:1:unknown");
     await expect(reference(page)).toHaveAttribute("data-command-suspended", "true");
     await press(page, "Rearm sample commands");
+    await expect(reference(page).getByRole("status")).toHaveText("Commands are rearmed. Original command sample:1 evidence is retained. New commands use fresh correlations.");
     await press(page, "Increment external value");
     await press(page, "Reject sample command");
     await press(page, "Request external burst");
@@ -86,6 +87,7 @@ test.describe("external authority reference command outcomes", () => {
     await press(page, "Increment external value");
     await expect(reference(page)).toHaveAttribute("data-command-order", "sample:1:external.increment");
     await press(page, "Rearm sample commands");
+    await expect(reference(page).getByRole("status")).toHaveText("Commands are rearmed. Original command sample:1 evidence is retained. New commands use fresh correlations.");
     await press(page, "Increment external value");
     await expect(reference(page)).toHaveAttribute("data-receipt-order", "sample:1:unknown,sample:2:accepted");
     await expect(reference(page)).toHaveAttribute("data-authority-revision", "2");
