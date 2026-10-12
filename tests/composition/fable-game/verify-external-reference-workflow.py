@@ -44,13 +44,15 @@ PRODUCER_ROWS = {
         'PRODUCER_ARCHIVE_SHA256':'486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee',
         'PRODUCER_CUSTODY_SHA256':'ecd0c5d742fd8d19d5659991e413e92971c1d2cb9aea913faa2bb249f53f577d',
         'PRODUCER_ARCHIVE_SIZE_BYTES':'14912688',
+        'PRODUCER_VERSION':'0.32.1','PRODUCER_PLAN':'eng/release/svg-export-prefix-0.32.1.json',
     },
     'candidate': {
-        'PRODUCER_SOURCE':'93b19deb5530241bc76055f69f11398bfd22eaa0',
-        'PRODUCER_RUN':'38122527072','PRODUCER_ARTIFACT':'11695963316',
-        'PRODUCER_ARCHIVE_SHA256':'a437bd14761a7429eb3c166b29cc21630c260cda27a603c280991fe3cb825520',
-        'PRODUCER_CUSTODY_SHA256':'9a7a2ec2c06124544eb861b65f3a8bc6b6e652e46624ec42c6167c8892ce7853',
-        'PRODUCER_ARCHIVE_SIZE_BYTES':'14999034',
+        'PRODUCER_SOURCE':'9b73395658d4683a067d150ca9441b04e802c4af',
+        'PRODUCER_RUN':'38200411661','PRODUCER_ARTIFACT':'11725317255',
+        'PRODUCER_ARCHIVE_SHA256':'7b0532caf431cfa41acaf35555016cf126bc495c5a6e13fe7db6b8fbe7478cca',
+        'PRODUCER_CUSTODY_SHA256':'85bb1dcdf0378d05ca536d5878b88dedc301ff1524d39d98966e23888aae0120',
+        'PRODUCER_ARCHIVE_SIZE_BYTES':'15007722',
+        'PRODUCER_VERSION':'0.32.2','PRODUCER_PLAN':'eng/release/external-authority-recovery-0.32.2.json',
     },
 }
 selector_cases=[]
@@ -110,7 +112,7 @@ with tempfile.TemporaryDirectory() as directory:
     for mode in ['candidate','public']:
         env.update(selected_producer(text,mode))
         run={'id':int(env['PRODUCER_RUN']),'head_sha':env['PRODUCER_SOURCE'],'conclusion':'success','path':'.github/workflows/release.yml'}
-        artifact={'id':int(env['PRODUCER_ARTIFACT']),'expired':False,'size_in_bytes':int(env['PRODUCER_ARCHIVE_SIZE_BYTES']),'digest':'sha256:'+env['PRODUCER_ARCHIVE_SHA256'],'workflow_run':{'id':run['id'],'head_sha':run['head_sha']},'name':'rendering-source-candidate-'+run['head_sha']+'-0.32.1'}
+        artifact={'id':int(env['PRODUCER_ARTIFACT']),'expired':False,'size_in_bytes':int(env['PRODUCER_ARCHIVE_SIZE_BYTES']),'digest':'sha256:'+env['PRODUCER_ARCHIVE_SHA256'],'workflow_run':{'id':run['id'],'head_sha':run['head_sha']},'name':'rendering-source-candidate-'+run['head_sha']+'-'+env['PRODUCER_VERSION']}
         def metadata(r,a,success):
             (path/'rendering-run.json').write_text(json.dumps(r)); (path/'rendering-artifact.json').write_text(json.dumps(a)); execute(codes[1],env,success)
         metadata(run,artifact,True)
@@ -125,7 +127,7 @@ with tempfile.TemporaryDirectory() as directory:
         mixed_artifact={**artifact,'id':int(other_row['PRODUCER_ARTIFACT']),'size_in_bytes':int(other_row['PRODUCER_ARCHIVE_SIZE_BYTES']),
                         'digest':'sha256:'+other_row['PRODUCER_ARCHIVE_SHA256'],
                         'workflow_run':{'id':mixed_run['id'],'head_sha':mixed_run['head_sha']},
-                        'name':'rendering-source-candidate-'+mixed_run['head_sha']+'-0.32.1'}
+                        'name':'rendering-source-candidate-'+mixed_run['head_sha']+'-'+other_row['PRODUCER_VERSION']}
         metadata(mixed_run,mixed_artifact,False)
         receipt_env={**env,'CALLER_SOURCE':'e'*40,'CALLER_RUN':'123','CALLER_ATTEMPT':'1','PREFLIGHT_ONLY':'true'}
         calls=[]
