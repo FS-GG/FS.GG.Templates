@@ -7,6 +7,7 @@ import copy
 import contextlib
 import hashlib
 import json
+import math
 import importlib.util
 import os
 from pathlib import Path
@@ -1533,7 +1534,7 @@ BROWSER_PLAYWRIGHT_SOURCE_SHA = '208593d4e1bcd8f8fe5f869cad1cc332dc7f1d70dc1d58c
 BROWSER_NODE_SOURCE = '151845ab90d3926ceb36eedf1eade09619c3adc9'
 BROWSER_SCHEMA = 'fsgg.at-owned-chromium-cdp/1'
 BROWSER_FLAGS = ['--disable-field-trial-config', '--disable-background-networking', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows', '--disable-back-forward-cache', '--disable-breakpad', '--disable-client-side-phishing-detection', '--disable-component-extensions-with-background-pages', '--disable-component-update', '--no-default-browser-check', '--disable-default-apps', '--disable-dev-shm-usage', '--disable-edgeupdater', '--disable-extensions', '--disable-features=AvoidUnnecessaryBeforeUnloadCheckSync,DestroyProfileOnBrowserClose,DialMediaRouteProvider,GlobalMediaControls,HttpsUpgrades,LensOverlay,MediaRouter,PaintHolding,ThirdPartyStoragePartitioning,BlockOriginHeaderModificationOnRedirect,Translate,AutoDeElevate,OptimizationHints,msForceBrowserSignIn,msEdgeUpdateLaunchServicesPreferredVersion', '--enable-features=CDPScreenshotNewSurface', '--allow-pre-commit-input', '--disable-hang-monitor', '--disable-ipc-flooding-protection', '--disable-popup-blocking', '--disable-prompt-on-repost', '--disable-renderer-backgrounding', '--disable-updater-scheduler', '--force-color-profile=srgb', '--metrics-recording-only', '--no-first-run', '--password-store=basic', '--use-mock-keychain', '--no-service-autorun', '--export-tagged-pdf', '--disable-search-engine-choice-screen', '--unsafely-disable-devtools-self-xss-warnings', '--edge-skip-compat-layer-relaunch', '--disable-infobars', '--disable-search-engine-choice-screen', '--disable-sync', '--enable-unsafe-swiftshader', '--no-sandbox', '--force-renderer-accessibility']
-BROWSER_FILES = ['browser-launch.json', 'browser-companion-ready.json', 'browser.cjs', 'tool-identities.json', 'inner-result.json', 'browser-companion.log']
+BROWSER_FILES = ['browser-launch.json', 'browser-companion-ready.json', 'browser.cjs', 'tool-identities.json', 'inner-result.json', 'browser-companion.log', 'browser-companion-stop-intent.json', 'browser-companion-stop-result.json']
 BROWSER_RESOLVER = r"const fs=require('node:fs'),path=require('node:path');const root=process.argv[1];const {chromium}=require(path.join(root,'Browser.Tests/node_modules/@playwright/test'));console.log(JSON.stringify({path:chromium.executablePath()}));"
 
 
@@ -1727,6 +1728,80 @@ def browser_ready_matches(ready, launch, launch_sha, companion):
     return True
 
 
+
+def stop_browser_companion(directory, child):
+    """Drain and reap the original sampler at the proven contract terminal boundary."""
+    runtime = completion_record(directory / 'owned-bus-runtime.json')
+    leaders = json.loads((directory / 'resource-leaders.json').read_text())
+    contract_evidence(directory, runtime, leaders)
+    launch = completion_record(directory / 'browser-launch.json')
+    browser = next(v for v in leaders if v['resource'] == 'browser')
+    companion = next(v for v in leaders if v['resource'] == 'browser-companion')
+    parent = completion_birth(proc(os.getpid()))
+    require(parent == runtime['sessionContract']['completion']['identity']['parentBirth'] and
+            child.pid == companion['pid'] and child.poll() is None and
+            same_birth(proc(companion['pid']), companion) and same_birth(proc(browser['pid']), browser),
+            'original companion stop custody unavailable before terminal request')
+    browser_active_failure(directory, companion)
+    require(launch['schema'] == BROWSER_SCHEMA and launch['sourceSha256'] == digest(Path(__file__).resolve()) and
+            launch['browserBirth'] == {k: browser[k] for k in launch['browserBirth']} and
+            companion['pgid'] == browser['pgid'] == browser['sid'], 'terminal stop launch/source/group identity differs')
+    require(type(launch['absoluteDeadline']) in [int, float] and math.isfinite(launch['absoluteDeadline']),
+            'original companion deadline malformed')
+    started = time.monotonic()
+    end = min(launch['absoluteDeadline'], started + 10)
+    require(time.monotonic() < end, 'original companion stop deadline expired')
+    intent = {'schema': 'fsgg.at-companion-stop/1', 'stage': 'proven-contract-terminal',
+              'parentBirth': parent, 'browserBirth': launch['browserBirth'],
+              'companionBirth': {k: companion[k] for k in ['pid', 'start', 'ppid', 'pgid', 'sid']},
+              'completionSha256': digest(directory / FINISH_FILES[2]),
+              'journeySha256': digest(directory / 'journey.json'),
+              'launchSha256': digest(directory / 'browser-launch.json'),
+              'sourceSha256': digest(Path(__file__).resolve()), 'requestedAtMonotonic': started, 'deadline': end}
+    atomic_record_once(directory / 'browser-companion-stop-intent.json', intent)
+    # The existing Node SIGTERM handler drains its in-flight sample while parent/browser stay live.
+    child.send_signal(signal.SIGTERM)
+    remaining = end - time.monotonic()
+    require(remaining > 0, 'original companion stop deadline expired before reap')
+    code = child.wait(timeout=remaining)
+    browser_active_failure(directory, companion)
+    require(type(code) is int and code == 0 and time.monotonic() < end and
+            same_birth(proc(browser['pid']), browser) and completion_birth(proc(os.getpid())) == parent,
+            'original companion drain/reap failed or live parent/browser changed')
+    actual = proc(companion['pid'])
+    require(actual is None or actual['start'] != companion['start'], 'original companion not reaped')
+    result = {'schema': 'fsgg.at-companion-stop-result/1', 'intentSha256': digest(directory / 'browser-companion-stop-intent.json'),
+              'exit': code, 'reaped': True, 'originalBirthAbsent': True, 'firstCause': None,
+              'reapedAtMonotonic': time.monotonic()}
+    atomic_record_once(directory / 'browser-companion-stop-result.json', result)
+    return result
+
+
+def companion_stop_evidence(directory, runtime, launch, companion):
+    intent = completion_record(directory / 'browser-companion-stop-intent.json')
+    result = completion_record(directory / 'browser-companion-stop-result.json')
+    require(intent['schema'] == 'fsgg.at-companion-stop/1' and intent['stage'] == 'proven-contract-terminal' and
+            intent['parentBirth'] == runtime['sessionContract']['completion']['identity']['parentBirth'] and
+            intent['parentBirth']['pid'] == launch['browserBirth']['ppid'] == companion['ppid'] and
+            intent['browserBirth'] == launch['browserBirth'] and same_birth(intent['companionBirth'], companion) and
+            intent['companionBirth']['pgid'] == companion['pgid'] and intent['sourceSha256'] == launch['sourceSha256'] and
+            intent['completionSha256'] == digest(directory / FINISH_FILES[2]) and
+            intent['journeySha256'] == digest(directory / 'journey.json') and
+            intent['launchSha256'] == digest(directory / 'browser-launch.json') and
+            type(intent['deadline']) in [int, float] and math.isfinite(intent['deadline']) and
+            type(intent['requestedAtMonotonic']) in [int, float] and math.isfinite(intent['requestedAtMonotonic']) and
+            intent['requestedAtMonotonic'] < intent['deadline'] <= min(launch['absoluteDeadline'], intent['requestedAtMonotonic'] + 10),
+            'original companion terminal stop binding changed')
+    require(result['schema'] == 'fsgg.at-companion-stop-result/1' and
+            result['intentSha256'] == digest(directory / 'browser-companion-stop-intent.json') and
+            type(result['exit']) is int and result['exit'] == 0 and result['firstCause'] is None and
+            result['reaped'] is True and result['originalBirthAbsent'] is True and
+            type(result['reapedAtMonotonic']) in [int, float] and math.isfinite(result['reapedAtMonotonic']) and
+            intent['requestedAtMonotonic'] <= result['reapedAtMonotonic'] < intent['deadline'],
+            'original companion positive drain/reap receipt absent')
+    return result
+
+
 def record_inner_success(directory):
     runtime = completion_record(directory / 'owned-bus-runtime.json')
     leaders = json.loads((directory / 'resource-leaders.json').read_text())
@@ -1734,8 +1809,8 @@ def record_inner_success(directory):
     launch = completion_record(directory / 'browser-launch.json')
     browser = next(v for v in leaders if v['resource'] == 'browser')
     companion = next(v for v in leaders if v['resource'] == 'browser-companion')
-    require(same_birth(proc(browser['pid']), browser) and same_birth(proc(companion['pid']), companion),
-            'original browser resource changed after inner success')
+    require(same_birth(proc(browser['pid']), browser), 'original browser changed after terminal companion stop')
+    companion_stop_evidence(directory, runtime, launch, companion)
     browser_active_failure(directory, companion)
     require(browser_profile_identity(Path(launch['profile']['path'])) == launch['profile'], 'browser profile changed after inner success')
     check_browser_executable(launch['executable'])
@@ -1858,6 +1933,7 @@ def browser_evidence(directory, receipt, runtime, leaders):
             same_birth(success['companionBirth'], companion) and success['companionBirth']['pgid'] == companion['pgid'] and success['sourceSha256'] == launch['sourceSha256'] and
             success['parentBirth'] == runtime['sessionContract']['completion']['identity']['parentBirth'] and
             success['parentBirth']['pid'] == browser['ppid'] == companion['ppid'], 'successful original inner return evidence absent')
+    companion_stop_evidence(directory, runtime, launch, companion)
     outcome = browser_transport_outcome(directory, launch, companion)
     require(receipt['browser'].get('transportOutcome', {'reported': False, 'stage': 'not-observed'}) == outcome, 'browser transport outcome unreported')
     require(runtime['mappedLibraries']['browser']['birth']['pid'] == browser['pid'], 'actual browser mapping authority swapped')
@@ -2188,6 +2264,7 @@ def inner(receiver, directory, gio_adapter=None):
     finishing_health()
     require(status.poll() == 0 and all(child is status or child.poll() is None for child in children),
             "required AT/browser service exited after proven contract completion")
+    stop_browser_companion(directory, companion)
 
 
 def initialize_atspi_client(atspi, health):
@@ -3166,11 +3243,93 @@ def browser_fixture_evidence(directory, browser, companion, uid=1000, complete=T
     write(directory / 'browser-companion-ready.json', browser_fixture_ready(value, digest(directory / 'browser-launch.json'), companion))
     if complete:
         runtime = completion_record(directory / 'owned-bus-runtime.json')
+        intent = {'schema': 'fsgg.at-companion-stop/1', 'stage': 'proven-contract-terminal',
+                  'parentBirth': runtime['sessionContract']['completion']['identity']['parentBirth'],
+                  'browserBirth': value['browserBirth'], 'companionBirth': {k: companion[k] for k in ['pid','start','ppid','pgid','sid']},
+                  'completionSha256': digest(directory / FINISH_FILES[2]), 'journeySha256': digest(directory / 'journey.json'),
+                  'launchSha256': digest(directory / 'browser-launch.json'), 'sourceSha256': value['sourceSha256'], 'requestedAtMonotonic':0, 'deadline': 10}
+        write(directory / 'browser-companion-stop-intent.json', intent)
+        write(directory / 'browser-companion-stop-result.json', {'schema':'fsgg.at-companion-stop-result/1',
+              'intentSha256': digest(directory / 'browser-companion-stop-intent.json'), 'exit':0, 'reaped':True,
+              'originalBirthAbsent':True, 'firstCause':None, 'reapedAtMonotonic':1})
         write(directory / 'inner-result.json', {'schema': 'fsgg.at-inner-result/1', 'exit': 0, 'firstCause': None,
              'sourceSha256': digest(Path(__file__).resolve()), 'parentBirth': runtime['sessionContract']['completion']['identity']['parentBirth'],
              'browserBirth': value['browserBirth'], 'companionBirth': {k: companion[k] for k in ['pid', 'start', 'ppid', 'pgid', 'sid']},
              'completionSha256': digest(directory / FINISH_FILES[2]), 'journeySha256': digest(directory / 'journey.json'),
              'launchSha256': digest(directory / 'browser-launch.json')})
+
+
+
+def companion_stop_self_test():
+    from unittest.mock import patch
+    checked = []
+    for mode in ['good', 'parent-changed', 'browser-changed', 'companion-changed', 'already-exited',
+                 'source-changed', 'deadline-expired', 'deadline-boolean', 'deadline-nan',
+                 'wait-nonzero', 'wait-boolean', 'wait-timeout', 'late-reap', 'browser-changed-after',
+                 'parent-changed-after', 'original-still-live']:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            activation = route_fixture(); route_fixture_evidence(directory, activation)
+            for name in ['browser-companion-stop-intent.json', 'browser-companion-stop-result.json']:
+                (directory / name).unlink()
+            leaders = json.loads((directory / 'resource-leaders.json').read_text())
+            browser = next(v for v in leaders if v['resource'] == 'browser')
+            companion = next(v for v in leaders if v['resource'] == 'browser-companion')
+            runtime = completion_record(directory / 'owned-bus-runtime.json')
+            parent = runtime['sessionContract']['completion']['identity']['parentBirth']
+            rows = {v['pid']: copy.deepcopy(v) for v in [parent, browser, companion]}
+            times = [0.0]; signals = []
+            for label, birth in [('parent-changed', parent), ('browser-changed', browser), ('companion-changed', companion)]:
+                if mode == label: rows[birth['pid']]['start'] += 1
+            launch = completion_record(directory / 'browser-launch.json')
+            if mode == 'source-changed': launch['sourceSha256'] = '0'*64
+            if mode.startswith('deadline-'):
+                launch['absoluteDeadline'] = {'deadline-expired':0, 'deadline-boolean':False, 'deadline-nan':float('nan')}[mode]
+            write(directory / 'browser-launch.json', launch)
+            class Child:
+                pid = companion['pid']
+                def poll(self): return 0 if mode == 'already-exited' else None
+                def send_signal(self, value):
+                    require(value == signal.SIGTERM and same_birth(rows.get(parent['pid']), parent) and
+                            same_birth(rows.get(browser['pid']), browser), 'sampler signaled after original live owner retired')
+                    signals.append(value)
+                def wait(self, timeout):
+                    require(signals == [signal.SIGTERM] and 0 < timeout <= 10, 'stop did not use one bounded original request')
+                    if mode == 'wait-timeout': raise subprocess.TimeoutExpired('inert companion', timeout)
+                    if mode != 'original-still-live': rows.pop(companion['pid'])
+                    if mode == 'browser-changed-after': rows[browser['pid']]['start'] += 1
+                    if mode == 'parent-changed-after': rows[parent['pid']]['start'] += 1
+                    if mode == 'late-reap': times[0] = 11
+                    return 7 if mode == 'wait-nonzero' else False if mode == 'wait-boolean' else 0
+            failed = False
+            with patch.dict(globals(), proc=lambda pid: rows.get(pid)), patch.object(os, 'getpid', return_value=parent['pid']), \
+                 patch.object(time, 'monotonic', side_effect=lambda: times[0]):
+                try: stop_browser_companion(directory, Child())
+                except (RuntimeError, subprocess.TimeoutExpired): failed = True
+            require(failed == (mode != 'good'), 'terminal sampler stop accepted '+mode)
+            if mode in ['parent-changed','browser-changed','companion-changed','already-exited','source-changed',
+                        'deadline-expired','deadline-boolean','deadline-nan']:
+                require(not signals and not (directory / 'browser-companion-stop-intent.json').exists(),
+                        'failed live prerequisite signaled original child')
+            require((directory / 'browser-companion-stop-result.json').exists() == (mode == 'good'),
+                    'failed terminal stop left positive reap evidence')
+            checked.append('companion-stop-'+mode)
+    for field, value in [('exit',False), ('exit',7), ('reaped',0), ('originalBirthAbsent',0),
+                         ('firstCause','preserved fault'), ('reapedAtMonotonic',11), ('reapedAtMonotonic',float('nan'))]:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary); activation = route_fixture(); route_fixture_evidence(directory, activation)
+            leaders = json.loads((directory / 'resource-leaders.json').read_text())
+            companion = next(v for v in leaders if v['resource'] == 'browser-companion')
+            runtime = completion_record(directory / 'owned-bus-runtime.json'); launch = completion_record(directory / 'browser-launch.json')
+            result = completion_record(directory / 'browser-companion-stop-result.json'); result[field] = value
+            write(directory / 'browser-companion-stop-result.json', result)
+            failed = False
+            try: companion_stop_evidence(directory, runtime, launch, companion)
+            except RuntimeError: failed = True
+            require(failed, 'unqualified original reap receipt accepted '+field)
+            checked.append('companion-stop-binder-'+field+'-'+str(value))
+    print('PASS companion terminal stop controls: '+str(len(checked))+' named cases; live birth guards retained, no signals/services/browser launched')
+    return checked
 
 
 def browser_window_identity(actual_pid, registered, reader=None):
@@ -3472,6 +3631,7 @@ def browser_self_test():
         with patch.object(Path, 'open', return_value=StringIO('')), patch.dict(globals(), proc=lambda _: identity.copy()):
             refused(lambda: client_library_mapping(71, mapped_object, 'browser'), 'actual AT client library mapping unavailable: browser')
     case('atspi-map-browser-guard-retained', browser_mapping_refusal)
+    checked += companion_stop_self_test()
     print('PASS owned browser Python controls: '+str(len(checked))+' named cases; no browser, Node or network launched')
     return checked
 
@@ -4784,7 +4944,10 @@ def contract_inner_self_test(refuse_ready, fixture_uid=12345):
             def __init__(self, name):
                 self.pid = 100+len(launched)
                 self.name = name
+                self.stopped = False
             def poll(self):
+                if self.stopped:
+                    return 0
                 if self.name == "browser-companion" and not (directory / "browser-companion-ready.json").exists():
                     launch = json.loads((directory / "browser-launch.json").read_text())
                     registered = json.loads((directory / "resource-leaders.json").read_text())
@@ -4800,7 +4963,16 @@ def contract_inner_self_test(refuse_ready, fixture_uid=12345):
                         complete_contract_child(directory, identity, lambda: None, lambda: None, clock=lambda: 0)
                     return 0
                 return None
+            def send_signal(self, value):
+                require(self.name == 'browser-companion' and value == signal.SIGTERM and parent in rows and
+                        children['browser'].pid in rows, 'assembled companion stop after parent/browser retirement')
+                browser_order.append('companion-stop')
+                self.stopped = True
             def wait(self, timeout):
+                if self.name == 'browser-companion' and self.stopped:
+                    rows.pop(self.pid)
+                    browser_order.append('companion-reaped')
+                    return 0
                 return self.poll()
         def spawn(argv, **kwargs):
             name = Path(kwargs["stdout"].name).stem
@@ -4919,7 +5091,7 @@ def contract_inner_self_test(refuse_ready, fixture_uid=12345):
                 record_inner_success(directory)
                 browser_order.append('completed-inner')
                 launch = completion_record(directory / 'browser-launch.json')
-                companion = rows[children['browser-companion'].pid]
+                companion = next(v for v in json.loads((directory / 'resource-leaders.json').read_text()) if v['resource']=='browser-companion')
                 browser_ready_matches(completion_record(directory / 'browser-companion-ready.json'), launch,
                                       digest(directory / 'browser-launch.json'), companion)
                 require(launch['browserBirth']['pid'] == children['browser'].pid and launch['browserBirth']['ppid'] == parent and
@@ -4929,7 +5101,7 @@ def contract_inner_self_test(refuse_ready, fixture_uid=12345):
                         completion_record(directory / 'inner-result.json')['completionSha256'] == digest(directory / FINISH_FILES[2]),
                         'assembled browser/completion artifacts retained stale fixture authority')
                 check_browser_endpoint(directory / 'profile', launch['endpoint'])
-                require(browser_order == ['profile', 'browser', 'endpoint', 'launch-record', 'browser-companion', 'ready', 'journey', 'completed-inner'],
+                require(browser_order == ['profile', 'browser', 'endpoint', 'launch-record', 'browser-companion', 'ready', 'journey', 'companion-stop', 'companion-reaped', 'completed-inner'],
                         'assembled original browser endpoint/launch/ready/journey/completion order drift')
         require(len(readiness) == 1 and readiness[0].index("accessibility-bus") < readiness[0].index("xvfb") <
                 readiness[0].index("registry") < readiness[0].index("session-contract"), "assembled startup order drift")
