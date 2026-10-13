@@ -298,3 +298,17 @@ activation identity and original failure preservation. Original owner cleanup wa
 observed empty with no escapes or post-pin failures. Native delay, log volume and
 completed journey remain unproven. The 4 MiB
 log budget, original deadlines and separate browser/speech evidence are preserved.
+
+
+### Optional WASM source consumer and selected public successor
+
+[PR713](https://github.com/FS-GG/FS.GG.Templates/pull/713) delivered the Complete-only
+opt-in public 0.3.0 host/SDK composition at `09d2f866565c81b1486ff4996d635510ad95acb1`.
+Actual Fable/guest/production and default-off qualification passed; nine browser definitions
+passed in each of three families, with the explicit Firefox compatibility and wrapper-cleanup
+boundaries. [The owning report](../reports/2026-10-13-wasm-template-source-and-public-successor.md)
+retains original failures and separates this source consumer from publication and clean
+installed-template acceptance. Workspace 0.19.0 is the selected coherent source successor;
+public 0.18.2 remains immutable. Its native publisher and actual downloaded direct WASM
+consumer are pending, as are retaining upgrades and the broader reference/AT/product outcomes.
+GAME-TEMPLATE-01 and FABLE-ADOPT-01 remain open.

@@ -25,7 +25,7 @@ type InstalledTool = { EntryCount: int; CorePath: string }
 
 let private packageId = "FS.GG.Workspace.Template"
 let private version = "0.18.1"
-let private source = packageId + "::" + version
+let private supportedVersions = [ version; "0.19.0" ]
 let private templateId = "fs-gg-fable-game"
 let private hex64 = Regex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)
 let private hex40 = Regex("^[0-9a-f]{40}$", RegexOptions.CultureInvariant)
@@ -39,6 +39,28 @@ let private required =
       "content/templates/fs-gg-fable-game/SvgFoundation/Program.fs"
       "content/templates/fs-gg-fable-game/SvgFoundation/build.sh"
       "content/templates/fs-gg-fable-game/Browser.Tests/two-client.spec.ts" ]
+
+// Additional source closure for the selected additive successor. Historical reference
+// membership remains mandatory; neither this closure nor a direct receiver accepts AT.
+let private wasmRelative =
+    [ "SvgFoundation/SvgFoundation.fsproj"
+      "SvgFoundation/Program.fs"
+      "SvgFoundation/build.sh"
+      "SvgFoundation/vite.config.js"
+      "SvgFoundation/packages.lock.json"
+      "SvgFoundation/Examples/Wasm/WasmPolicyExample.fs"
+      "SvgFoundation/Examples/Wasm/WasmPolicyExample.Tests.fs"
+      "SvgFoundation/Examples/Wasm/WasmPolicyBrowser.fs"
+      "SvgFoundation/Examples/Wasm/README.md"
+      "SvgFoundation/Examples/Wasm/materialize-assets.py"
+      "SvgFoundation/Examples/Wasm/build-guests.sh"
+      "SvgFoundation/Examples/Wasm/packages.lock.json"
+      "SvgFoundation/Examples/Wasm/guest/policy.c"
+      "SvgFoundation/Examples/Wasm/guest/rust/Cargo.toml"
+      "SvgFoundation/Examples/Wasm/guest/rust/Cargo.lock"
+      "SvgFoundation/Examples/Wasm/guest/rust/src/lib.rs"
+      "Browser.Tests/wasm-policy.spec.ts"
+      "Browser.Tests/playwright.config.ts" ]
 
 let private refuse message = Error message
 let private sha256 path =
@@ -192,10 +214,29 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
                 let text = UTF8Encoding(false, true).GetString raw
                 if not (text.Contains("FableGameWorkspaceNamespace", StringComparison.Ordinal)) then false
                 else same (UTF8Encoding(false).GetBytes(text.Replace("FableGameWorkspaceNamespace", productName, StringComparison.Ordinal))) actual
+            let successorWasmMismatch, successorRouteMismatch =
+                let nuspecs = package.Entries |> Seq.filter (fun e -> e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase)) |> Seq.toList
+                match nuspecs with
+                | [ nuspec ] ->
+                    use stream = nuspec.Open()
+                    let doc = XDocument.Load stream
+                    let versions = doc.Descendants() |> Seq.filter (fun e -> e.Name.LocalName = "version") |> Seq.map _.Value |> Seq.toList
+                    if versions = [ "0.19.0" ] then
+                        let templateTransform (raw: byte array) (actual: byte array) =
+                            let text = UTF8Encoding(false, true).GetString raw
+                            same (UTF8Encoding(false).GetBytes(text.Replace("FableGameWorkspaceNamespace", productName, StringComparison.Ordinal).Replace("FableGameWorkspace", productName, StringComparison.Ordinal))) actual
+                        let mismatch = wasmRelative |> List.exists (fun name -> not (exact (prefix + name) templateTransform))
+                        mismatch, route <> "direct"
+                    else false, false
+                | _ -> true, false
             let mismatched =
-                (invariant |> List.exists (fun name -> not (exact name same)))
+                successorWasmMismatch
+                || (invariant |> List.exists (fun name -> not (exact name same)))
                 || (transformed |> List.exists (fun name -> not (exact name replaced)))
-            if not (regularFile (Path.Combine(receiver, productName + ".slnx"))) then refuse "receiver-product-name-refused"
+            // 0.19.0's accepted scope is direct-only. A caller cannot relabel this
+            // successor as installed SDD/Wizard success through the generic checker.
+            if successorRouteMismatch then refuse "receiver-successor-route-refused"
+            elif not (regularFile (Path.Combine(receiver, productName + ".slnx"))) then refuse "receiver-product-name-refused"
             elif mismatched then refuse "receiver-source-closure-refused"
             elif route = "direct" then Ok ()
             else
@@ -241,13 +282,13 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
         | :? InvalidDataException as ex when ex.Message = "template transform contract refused" -> refuse "receiver-template-contract-refused"
         | :? InvalidDataException -> refuse "archive-format-refused"
 
-let private descriptorCheck (provider: Provider) =
+let private descriptorCheck selectedVersion (provider: Provider) =
     let lifecycle = provider.Parameters |> List.filter (fun p -> p.Key = "lifecycle")
     if provider.Name <> "fable-game" then refuse "descriptor-provider-identity-refused"
     elif provider.ContractVersion <> "2.0.0" then refuse "descriptor-contract-refused"
     elif provider.NameParameter <> Some "productName" || provider.IdentifierParameter <> Some "rootNamespace" || provider.Floor <> Some "2.1.0" then refuse "descriptor-capability-refused"
     elif provider.TemplateId <> templateId then refuse "descriptor-template-refused"
-    elif provider.Source <> source then refuse "descriptor-source-refused"
+    elif provider.Source <> packageId + "::" + selectedVersion then refuse "descriptor-source-refused"
     elif lifecycle <> [ { Key = "lifecycle"; Required = false; Default = Some "typed-sdd" } ] then refuse "descriptor-lifecycle-refused"
     else Ok ()
 
@@ -265,12 +306,12 @@ let validate request =
     if not (File.Exists request.Archive) || not (File.Exists request.Descriptor) then refuse "input-file-missing"
     elif not (hex64.IsMatch request.ExpectedSha256) || not (hex64.IsMatch request.ExpectedDescriptorSha256)
          || not (hex40.IsMatch request.ExpectedRevision) || not (hex40.IsMatch request.ExpectedTagRevision) then refuse "expected-identity-refused"
-    elif request.ExpectedVersion <> version then refuse "selected-version-refused"
+    elif not (supportedVersions |> List.contains request.ExpectedVersion) then refuse "selected-version-refused"
     elif request.ExpectedRevision <> request.ExpectedTagRevision then refuse "immutable-tag-revision-refused"
     elif sha256 request.Archive <> request.ExpectedSha256 then refuse "archive-sha256-refused"
     elif sha256 request.Descriptor <> request.ExpectedDescriptorSha256 then refuse "descriptor-sha256-refused"
     else
-        match descriptorCheck request.Provider with
+        match descriptorCheck request.ExpectedVersion request.Provider with
         | Error reason -> Error reason
         | Ok () ->
             try
@@ -296,7 +337,10 @@ let validate request =
                     elif duplicate || directoryCollides then refuse "archive-duplicate-entry-refused"
                     elif oversized || total > 128L * 1024L * 1024L then refuse "archive-entry-bound-refused"
                     elif linked then refuse "archive-link-refused"
-                    elif required |> List.exists (fun name -> archive.GetEntry(name) |> Option.ofObj |> Option.forall (fun e -> e.Length = 0L)) then refuse "reference-member-missing"
+                    elif (required @ (if request.ExpectedVersion = "0.19.0" then
+                                          wasmRelative |> List.map (fun name -> "content/templates/fs-gg-fable-game/" + name)
+                                      else []))
+                         |> List.exists (fun name -> archive.GetEntry(name) |> Option.ofObj |> Option.forall (fun e -> e.Length = 0L)) then refuse "reference-member-missing"
                     else
                         let nuspecs = archive.Entries |> Seq.filter (fun e -> e.FullName.EndsWith(".nuspec", StringComparison.OrdinalIgnoreCase)) |> Seq.toList
                         match nuspecs with
@@ -306,7 +350,7 @@ let validate request =
                             let values name = doc.Descendants() |> Seq.filter (fun x -> x.Name.LocalName = name) |> Seq.map _.Value |> Seq.toList
                             let one name expected = values name = [ expected ]
                             let repository = doc.Descendants() |> Seq.filter (fun x -> x.Name.LocalName = "repository") |> Seq.toList
-                            if not (one "id" packageId && one "version" version) then refuse "package-identity-refused"
+                            if not (one "id" packageId && one "version" request.ExpectedVersion) then refuse "package-identity-refused"
                             elif repository.Length <> 1 || isNull (repository.Head.Attribute(XName.Get "commit")) || repository.Head.Attribute(XName.Get "commit").Value <> request.ExpectedRevision then refuse "package-source-revision-refused"
                             else Ok names.Length
                         | _ -> refuse "package-nuspec-census-refused"
