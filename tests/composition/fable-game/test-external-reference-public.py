@@ -195,18 +195,35 @@ class PublicInputTests(unittest.TestCase):
 
     def test_shipped_locks_use_original_content_hashes_and_current_defaults(self):
         root = HERE.parents[2] / 'templates/fs-gg-fable-game'
-        count = 0
+        # Match actual owning closures, rather than a total that changes when a
+        # separately qualified opt-in lock repeats the same public UI inputs.
+        complete = ['FS.GG.UI.KeyboardInput', 'FS.GG.UI.Scene', 'FS.GG.UI.Scene.SvgBrowser']
+        scene_only = ['FS.GG.UI.Scene']
+        expected = {
+            'SvgFoundation/packages.lock.json': complete,
+            'SvgFoundation/Studio/packages.lock.json': complete,
+            'SvgFoundation/Examples/Wasm/packages.lock.json': complete,
+            'Protocol.Tests/cross-runtime/CodecProbe.Net/packages.lock.json': scene_only,
+            'Protocol.Tests/cross-runtime/CodecProbe.Fable/packages.lock.json': scene_only,
+            'SvgFoundation/Examples/Tactical/packages.lock.json': scene_only,
+        }
+        observed = {}
         for path in root.rglob('packages.lock.json'):
+
             # The independent Portal closure keeps qualified UI 0.31.0 pins; its
             # canonical lock and exact seven packages have their own verifier.
             if path.relative_to(root).parts[0] == 'PortalExample':
                 continue
+            identities = []
             for rows in json.loads(path.read_text())['dependencies'].values():
                 for identity, row in rows.items():
                     if identity in public.LOCK_HASH:
                         self.assertEqual(row['resolved'], '0.32.1')
-                        self.assertEqual(row['contentHash'], public.LOCK_HASH[identity]); count += 1
-        self.assertEqual(count, 9)
+                        self.assertEqual(row['contentHash'], public.LOCK_HASH[identity])
+                        identities.append(identity)
+            if identities:
+                observed[path.relative_to(root).as_posix()] = sorted(identities)
+        self.assertEqual(observed, expected)
 
 
 if __name__ == '__main__': unittest.main()
