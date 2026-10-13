@@ -2,6 +2,9 @@
   <Import Project="LegacyPreview.props" Condition="Exists('LegacyPreview.props')" />
   <PropertyGroup>
     <OutputType>Exe</OutputType>
+    <FsGgWasmPolicyExample Condition="'$(FsGgWasmPolicyExample)' == ''">false</FsGgWasmPolicyExample>
+    <NuGetLockFilePath Condition="'$(FsGgWasmPolicyExample)' == 'true'">$(MSBuildProjectDirectory)/Examples/Wasm/packages.lock.json</NuGetLockFilePath>
+    <DefineConstants Condition="'$(FsGgWasmPolicyExample)' == 'true' and Exists('Examples/Wasm/WasmPolicyExample.fs') and '$(FsGgLegacyPreview)' != 'true'">$(DefineConstants);WASM_POLICY_EXAMPLE</DefineConstants>
     <TargetFramework>net10.0</TargetFramework>
     <FsGgSvgInputVersion Condition="'$(FsGgSvgInputVersion)' == ''">0.32.1</FsGgSvgInputVersion>
     <!-- External authority reference requires explicit selection; the default player omits it. -->
@@ -50,10 +53,14 @@
     <Compile Include="SoldierReferenceLocal.fs" Condition="Exists('Examples/SoldierReference/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true' and '$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgSvgInputCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="SoldierReferenceExternal.fs" Condition="Exists('Examples/SoldierReference/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true' and '$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgSvgInputCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="SoldierReference.fs" Condition="Exists('Examples/SoldierReference/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true' and '$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgSvgInputCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
+    <Compile Include="Examples/Wasm/WasmPolicyExample.fs" Condition="'$(FsGgWasmPolicyExample)' == 'true'" />
+    <Compile Include="Examples/Wasm/WasmPolicyBrowser.fs" Condition="'$(FsGgWasmPolicyExample)' == 'true'" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Update="FSharp.Core" Version="[10.1.401]" />
+    <PackageReference Include="FS.GG.Wasm.Contracts" Version="[0.3.0]" Condition="'$(FsGgWasmPolicyExample)' == 'true'" />
+    <PackageReference Include="FS.GG.Wasm.Browser" Version="[0.3.0]" Condition="'$(FsGgWasmPolicyExample)' == 'true'" />
     <PackageReference Include="Fable.Core" Version="[5.3.0]" />
     <PackageReference Include="Fable.Browser.Dom" Version="[2.20.0]" />
     <PackageReference Include="Thoth.Json" Version="[10.5.1]" />
@@ -64,4 +71,21 @@
     <PackageReference Include="FS.GG.Audio.Core" Version="[$(FsGgAudioPresentVersion)]" Condition="'$(FsGgSvgPresentCandidate)' == 'true'" />
     <PackageReference Include="FS.GG.Audio.WebBrowser" Version="[$(FsGgAudioPresentVersion)]" Condition="'$(FsGgSvgPresentCandidate)' == 'true'" />
   </ItemGroup>
+  <Target Name="ValidateWasmPolicySelection" BeforeTargets="CollectPackageReferences;Restore">
+    <Error Condition="'$(FsGgWasmPolicyExample)' != 'false' and '$(FsGgWasmPolicyExample)' != 'true'" Text="FsGgWasmPolicyExample must be true or false." />
+    <Error Condition="'$(FsGgWasmPolicyExample)' == 'true' and ('$(FsGgLegacyPreview)' == 'true' or !Exists('Examples/Wasm/WasmPolicyExample.fs'))" Text="WASM policy requires the nonlegacy Complete bundle." />
+    <Error Condition="'$(FsGgWasmPolicyExample)' == 'true' and !Exists('Examples/Wasm/packages.lock.json') and !('$(FsGgWasmPolicyLockGeneration)' == 'true' and '$(RestoreLockedMode)' == 'false' and '$(RestoreForceEvaluate)' == 'true')" Text="WASM policy lock is missing. Use GenerateWasmPolicyLock, then qualify it before locked restore." />
+    <Error Condition="'$(FsGgWasmPolicyLockGeneration)' == 'true' and ('$(RestoreLockedMode)' != 'false' or '$(RestoreForceEvaluate)' != 'true')" Text="Lock generation requires the explicit unlocked force-evaluated Restore context." />
+  </Target>
+  <!-- Generation performs Restore only; no project/Fable compilation is admitted by this target. -->
+  <Target Name="GenerateWasmPolicyLock">
+    <Error Condition="'$(FsGgWasmPolicyExample)' != 'true' or '$(FsGgLegacyPreview)' == 'true' or !Exists('Examples/Wasm/WasmPolicyExample.fs')" Text="Lock generation requires explicit nonlegacy Complete WASM selection." />
+    <MSBuild Projects="$(MSBuildProjectFullPath)" Targets="Restore" Properties="FsGgWasmPolicyExample=true;FsGgWasmPolicyLockGeneration=true;RestoreLockedMode=false;RestoreForceEvaluate=true;RestorePackagesWithLockFile=true" />
+    <Error Condition="!Exists('Examples/Wasm/packages.lock.json')" Text="Restore did not generate the actual opt-in lock." />
+  </Target>
+  <Target Name="ValidateWasmPolicyBuildLock" BeforeTargets="Build;CollectFableSources;CoreCompile">
+    <Error Condition="'$(FsGgWasmPolicyExample)' != 'false' and '$(FsGgWasmPolicyExample)' != 'true'" Text="FsGgWasmPolicyExample must be true or false." />
+    <Error Condition="'$(FsGgWasmPolicyExample)' == 'true' and ('$(FsGgLegacyPreview)' == 'true' or !Exists('Examples/Wasm/WasmPolicyExample.fs'))" Text="WASM policy requires the nonlegacy Complete bundle." />
+    <Error Condition="'$(FsGgWasmPolicyExample)' == 'true' and !Exists('Examples/Wasm/packages.lock.json')" Text="WASM Build/Fable requires the genuine qualified opt-in lock; generation does not bypass this guard." />
+  </Target>
 </Project>
