@@ -98,6 +98,15 @@ assert_path "$work/LegacyTrue/SvgFoundation/Studio/Studio.fsproj"
 assert_path "$work/LegacyTrue/SvgFoundation/Examples/Tactical/README.md"
 refute_path "$work/LegacyFalse/SvgFoundation"
 
+for product in Omitted Player Studio Tactical Arcade LegacyTrue LegacyFalse; do
+  refute_path "$work/$product/SvgFoundation/Examples/Wasm"
+done
+if [[ "$expectations" == source ]]; then
+  for example in README.md WasmPolicyExample.fs WasmPolicyExample.Tests.fs; do
+    assert_path "$work/Complete/SvgFoundation/Examples/Wasm/$example"
+  done
+fi
+
 for lifecycle in none sdd typed-sdd spec-kit; do
   DOTNET_CLI_HOME="$home" dotnet new fs-gg-fable-game -n "Lifecycle${lifecycle//-/}" \
     -o "$work/Lifecycle${lifecycle//-/}" --bundle player --lifecycle "$lifecycle" >/dev/null
