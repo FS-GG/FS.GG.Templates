@@ -36,7 +36,8 @@
         "SvgFoundation/Studio/ArenaContent.js",
         "artifacts/**",
         "PortalExample/**",
-        "SvgFoundation/Examples/Wasm/**"
+        "SvgFoundation/Examples/Wasm/**",
+        "Browser.Tests/wasm-policy.spec.ts"
       ],
       "modifiers": [
         {

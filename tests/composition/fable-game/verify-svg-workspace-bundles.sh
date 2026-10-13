@@ -100,8 +100,10 @@ refute_path "$work/LegacyFalse/SvgFoundation"
 
 for product in Omitted Player Studio Tactical Arcade LegacyTrue LegacyFalse; do
   refute_path "$work/$product/SvgFoundation/Examples/Wasm"
+  refute_path "$work/$product/Browser.Tests/wasm-policy.spec.ts"
 done
 if [[ "$expectations" == source ]]; then
+  assert_path "$work/Complete/Browser.Tests/wasm-policy.spec.ts"
   for example in README.md WasmPolicyExample.fs WasmPolicyExample.Tests.fs; do
     assert_path "$work/Complete/SvgFoundation/Examples/Wasm/$example"
   done

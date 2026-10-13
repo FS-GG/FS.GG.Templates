@@ -1,0 +1,12 @@
+[package]
+name = "fsgg-template-policy"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+# The build recipe places this independent crate inside the extracted SDK layout.
+[dependencies]
+fsgg-wasm-guest = { path = "../../../../sdk/wasm/rust/fsgg-wasm-guest" }

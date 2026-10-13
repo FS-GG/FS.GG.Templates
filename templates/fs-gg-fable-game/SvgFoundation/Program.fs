@@ -44,6 +44,10 @@ module SoldierReference = FableGameWorkspaceNamespace.SvgFoundation.SoldierRefer
 module FourDReference = FableGameWorkspaceNamespace.SvgFoundation.FourDReference
 #endif
 
+#if WASM_POLICY_EXAMPLE
+let private wasmPolicy = FableGameWorkspaceNamespace.WasmPolicyBrowser.mount ()
+#endif
+
 let private color red green blue =
     {
         Red = red
@@ -861,6 +865,9 @@ window.addEventListener ("gamepadconnected", refreshGamepads)
 window.addEventListener (
     "beforeunload",
     fun _ ->
+#if WASM_POLICY_EXAMPLE
+        wasmPolicy.Dispose()
+#endif
 #if SOLDIER_REFERENCE
         soldierReference.Dispose()
 #endif
