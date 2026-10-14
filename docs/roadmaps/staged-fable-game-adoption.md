@@ -335,3 +335,40 @@ Clean downloaded-template WASM acceptance has not run. Publication and source br
 passes do not close that assertion. Host network capability remains its current blocker;
 retaining upgrades and the broader reference/AT/product outcomes are also pending.
 GAME-TEMPLATE-01 and FABLE-ADOPT-01 remain Done No.
+
+
+### Hosted direct installed-WASM window — 2026-10-14
+
+Continue the existing GAME-TEMPLATE-01 / FABLE-ADOPT-01 installed slice with the
+same accountable `template_wasm_reference` owner. Prepare an automatic same-repository
+PR job in the existing public-reference workflow, fixed to the published 0.19.0
+source/package/descriptor and actual package-owned default/Complete/browser graph.
+Keep the legacy dispatch route separate. The [owning report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#hosted-installed-c-source-preparation--2026-10-14)
+records prepared acquisition/Release-tool/lock controls, actual source identities,
+the revised finite budget and current missing joins.
+
+The installed assertion depends on Coordination's exact reviewed managed-group
+candidate contract and a genuine stock Playwright/browser/Vite custody pilot.
+Source preparation does not qualify that candidate, platform, policy or installed C;
+the checkpoint refuses before acquisition while the contract remains unbound.
+Candidate use requires root review and coherent qualification, with final protected
+source correspondence after the retained PROC publication fence. Genuine downloaded-only
+default/Complete generation, guests/Fable/Vite and nine passed cases in each browser
+remain mandatory. Preserve unreconciled historical reservations, original failed probes and telemetry gaps;
+retaining/provider/Wizard/AT/product assertions remain separate and **Done No**.
+
+
+The selected hosted installed-C profile is ordinary functional acceptance with stock
+Chromium `--no-sandbox`, separately enabled Firefox compatibility and package-selected
+WebKit. The [stock shutdown disposition](../reports/2026-10-13-wasm-template-source-and-public-successor.md#selected-stock-browser-and-shutdown-boundary)
+retains the known Playwright numeric-group-kill residual and distinguishes canonical
+cleanup's own safe-signal contract. No all-transitive-signal, strong isolation or
+sandbox assertion follows. Genuine three-family normal/forced custody proof still
+precedes installed C; reviewed source/metadata controls grant no pilot authority.
+
+The prepared caller pins the five observed browser raw archives before extraction
+or use. WebKit source preparation binds the stock selector, bundled WPE shell
+wrapper and native entry point; host interpreter/support/birth/retirement proof
+and bounded installation remain pending with the canonical candidate/profile
+join. Raw public TLS identity supplies no build/signature or runtime acceptance.
+Original acquisition failures, metadata/timing gaps and unreconciled historical reservations remain.

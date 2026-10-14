@@ -153,3 +153,97 @@ Actual clean downloaded-template WASM acceptance and every promised retaining up
 remain open. The accepted source consumer's twenty-seven browser passes are not installed-C
 results. This report accepts neither an authority/AT journey, product-native adoption nor the
 whole GAME-TEMPLATE-01/FABLE-ADOPT-01 outcome; both remain Done No.
+
+
+## Hosted installed-C source preparation — 2026-10-14
+
+The next selected installed slice uses an automatic, same-repository PR job in the
+existing `fable-reference-public.yml`, preserving the historical dispatch route.
+The current [Unified v3 open index](https://github.com/FS-GG/.github/blob/main/docs/roadmaps/2026-10-07-unified-development-roadmap-v3.md#2-open-work-and-owning-plans)
+and staged owning plan govern this window; archived v2 section 9.8 is lineage only.
+Published source `8952e1c5753b0abc972154c7596ddc8da772b271`, its immutable tag,
+NuGet archive and provider descriptor remain fixed. This source changes no package,
+workspace default or installed receiver.
+
+Source preparation supplies tested inline acquisition, exact PR/workflow source
+fielding, package-owned npm locks, fixed tool identities and a locked public-only
+Release ProviderTool build. It separates provisioning from platform/custody acceptance;
+no path, positive field or Ubuntu selector is platform proof. Required actual inputs
+are SDK 10.0.401/CoreCLR 10.0.12, Fable 5.18.0, Node 24.20.0/npm 11.19.0,
+Rust 1.90.0/WASI 34 and Playwright 1.63.0. Final direct/template application caches
+remain empty until the existing package-only checker materializes them.
+
+Authenticated stock Playwright 1.63.0 deliberately creates detached browser and
+web-server process groups. The strict canonical child owner therefore cannot qualify
+this topology unchanged. Coordination's separately reviewed opt-in managed-group
+capability and a finite actual browser/Vite profile are prerequisite joins. This
+checkpoint refuses before acquisition or installed C until that genuine candidate
+contract is bound; it invents neither an API/policy pin nor a qualified receipt.
+The historical private image/store and unreconciled historical reservations remain held.
+
+The proposed new 40-minute original job budget reserves setup 840+30 seconds,
+stock browser custody 300+30, installed C 900+30, collection 180 and overhead 90.
+Actual phase deadlines clip against the original job and reserve later work; cold
+setup that cannot fit requires review before another attempt. The three-family
+custody pilot must demonstrate genuine startup, Worker/page interaction and normal
+plus controlled abnormal retirement before the package-owned 27-case installed
+journey can run. Actual support/library/network/source/resource and cleanup evidence
+remains unknown. Candidate canonical source is not protected delivery; final native
+candidate-to-protected correspondence follows the retained PROC source fence.
+
+All 19 legacy preflight controls remain. The actual new inline functions have inert
+source, URL/redirect/digest/byte-bound, budget, npm-lock and tool-failure controls;
+these tests establish source behavior only. Acquisition validates each redirect before
+contacting its next closed HTTPS origin, excludes proxy credentials and cookies, and
+uses a finite hop cap. New action dependencies are immutable native-verified commits;
+guards require Python optimization zero and do not depend on assertions. Rust/Cargo
+output literals match the shipped guest builder. Fable output formatting is unproven,
+so compiler qualification binds actual package identity and the reviewed DLL digest
+while preserving raw output, rather than assuming a version-print format.
+Root reviews the actual caller/closure,
+budget and candidate/profile joins before any pilot push. No local CLR, container,
+Node/browser, install or current client qualification ran for this preparation.
+Whole GAME/FABLE, retaining upgrades, provider/Wizard/typed-SDD, AT/product outcomes
+and native Worker-exit acceptance remain open; missing telemetry attribution remains
+unknown.
+
+
+### Selected stock browser and shutdown boundary
+
+Root selected the ordinary functional installed-C profile using unchanged stock
+Chromium headless-shell 1243 with its actual `--no-sandbox` default. This supplies
+no Chromium sandbox, adversarial isolation or strong-security assertion. Firefox
+separately remains `content-sandbox-enabled`; no automatic disabling or system
+browser/channel override is selected. WebKit retains its package-selected script;
+the inspected headless Linux branch forks bundled `minibrowser-wpe/MiniBrowser`
+(`#!/bin/sh`), which execs its own `bin/MiniBrowser` (ELF64 little-endian x86-64).
+The exact selector script, wrapper and native member hashes are source preparation;
+actual host interpreters/helpers, support closure, births and retirement still require proof.
+
+Stock Playwright's graceful-close fallback can send negative-PID group SIGKILL
+without a fresh kernel birth check. Root accepted that exact source-derived residual
+for this bounded ordinary functional profile, including numeric-group reuse or foreign
+membership between observations. Canonical cleanup retains its own birth/pidfd-safe
+signal requirements; its future receipt cannot extend that guarantee over stock
+application signals. Genuine normal and representative forced stock shutdown plus
+fresh canonical retirement observations are required in the custody pilot. A stock
+close promise, source-reviewed fallback or receipt alone cannot prove that runtime
+path was exercised or that unknown members retired.
+
+The prepared caller binds downloaded template config/lock and actual npm launcher
+source bytes, records the selected limits and rejects undeclared browser/profile or
+misleading transitive-signal claims. These are necessary source/selection controls,
+not group admission or successful compatibility. The canonical candidate API/profile,
+actual browser/script/support bytes, ancestry and source/runtime/resource/cleanup
+joins remain unbound; main still refuses before acquisition pending root review.
+
+The caller now binds all five inspected browser archive SHA256 identities: Chromium
+full/headless 1243, Firefox 1543, WebKit 2359 and ffmpeg 1011, with exact observed
+destination URLs and byte counts. Future acquisition must match raw bytes before
+extraction/use; stock CLI downloads cannot bypass this gate. Browser installation
+remains held until bounded extraction/layout and the genuine canonical contract
+are reviewed. These pins establish observed public TLS/raw-byte correspondence,
+not publisher signatures or source-to-build provenance. The original collector
+AttributeError remains the first collection failure; its monotonic start was not
+retained. Fresh Google HEAD CRC32C was validated offline, while fresh MD5 and GET
+metadata remain unknown, rather than a demonstrated MD5 mismatch.

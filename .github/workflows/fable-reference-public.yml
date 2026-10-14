@@ -1,6 +1,11 @@
 name: Fable reference public qualification
 
 on:
+  pull_request:
+    paths:
+      - .github/workflows/fable-reference-public.yml
+      - tests/composition/fable-game/verify-fable-reference-public.sh
+      - tests/composition/fable-game/test-fable-reference-public-preflight.py
   workflow_dispatch:
     inputs:
       mode:
@@ -26,6 +31,7 @@ permissions:
 
 jobs:
   public-reference:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 70
     env:
@@ -115,3 +121,577 @@ jobs:
             ${{ runner.temp }}/fable-reference-public/provider.json
           if-no-files-found: warn
           retention-days: 90
+
+
+  wasm-installed-c:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    permissions:
+      contents: read
+    env:
+      EVENT: ${{ github.event_name }}
+      REPOSITORY: ${{ github.repository }}
+      HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+      PR_HEAD: ${{ github.event.pull_request.head.sha }}
+      WORKFLOW_REF: ${{ github.workflow_ref }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
+      RUN_ID: ${{ github.run_id }}
+      RUN_ATTEMPT: ${{ github.run_attempt }}
+    steps:
+      - name: Check out exact reviewed Templates source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Qualify actual inline hosted input and budget controls
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n tests/composition/fable-game/verify-fable-reference-public.sh
+          python3 tests/composition/fable-game/test-fable-reference-public-preflight.py
+      - name: Prepare closed hosted WASM caller
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'HOSTED_WASM'
+          import contextlib, gzip, signal, struct, threading, base64, hashlib, json, os, pathlib, platform, re, shutil, stat, subprocess, sys, tarfile, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET, zipfile
+          if sys.flags.optimize != 0:
+              raise RuntimeError("hosted admission requires optimization=0")
+          PUBLISHED = "8952e1c5753b0abc972154c7596ddc8da772b271"
+          PACKAGE_SHA = "187c995806bb2f22db67c8a9a67c251f46f339bf6350b8051035935d308b497f"
+          DESCRIPTOR_SHA = "d7207cbde78f2890a63bbebf23c80bbcae8ce7f2405c0ceacf602dc6c185942c"
+          FABLE_SHA = "b586190f1592c3352d7319008a99e1747267dacbc44d6e5bd3753c84390f47a4"
+          TOOLS = {"sdk":"10.0.401", "runtime":"10.0.12", "node":"24.20.0", "npm":"11.19.0", "fable":"5.18.0", "rust":"1.90.0", "wasi":"34.0", "playwright":"1.63.0"}
+          BUDGET = {"job":2400, "setup":840, "custody":300, "installed":900, "cleanup":30, "collection":180, "overhead":90}
+          if BUDGET["setup"] + BUDGET["custody"] + BUDGET["installed"] + 3 * BUDGET["cleanup"] + BUDGET["collection"] + BUDGET["overhead"] != BUDGET["job"]:
+              raise RuntimeError("phase budgets must fit the original job")
+          ENDPOINTS = {
+              "template":("https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.19.0/fs.gg.workspace.template.0.19.0.nupkg", PACKAGE_SHA, 8388608),
+              "descriptor":(f"https://raw.githubusercontent.com/FS-GG/FS.GG.Templates/{PUBLISHED}/providers/fable-game.providers.yml", DESCRIPTOR_SHA, 1048576),
+              "guest":("https://github.com/FS-GG/FS.GG.Game/releases/download/wasm/v0.3.0/fsgg-wasm-sdk-0.3.0.tar.gz", "8091df6824981c0c37131524ffbcbae9bb8b36f672a20edc2efaddd35664f8c8", 2097152),
+              "wasi":("https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz", "b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4", 268435456)}
+          # Observed public TLS/raw archive identity only; no publisher signature or build correspondence.
+          BROWSER_ARCHIVES = {'chromium-full1243': {'url': 'https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chrome-linux64.zip',
+                                 'sha256': '8aac35011c18f6e2d10696154af89a5728ac2ddd6dc6fad24ffdf243c3fcfd5a',
+                                 'bytes': 195836009,
+                                 'selector': 'chromium-1243'},
+           'chromium-headless1243': {'url': 'https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chrome-headless-shell-linux64.zip',
+                                     'sha256': 'a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d',
+                                     'bytes': 119809080,
+                                     'selector': 'chromium_headless_shell-1243'},
+           'firefox1543': {'url': 'https://playwright.download.prss.microsoft.com/dbazure/download/playwright/builds/firefox/1543/firefox-ubuntu-24.04.zip',
+                           'sha256': 'b0905e84427cc162b9a6e4392be14e5e54e0ade911c83639962c8078b273565e',
+                           'bytes': 114822786,
+                           'selector': 'firefox-1543'},
+           'webkit2359': {'url': 'https://playwright.download.prss.microsoft.com/dbazure/download/playwright/builds/webkit/2359/webkit-ubuntu-24.04.zip',
+                          'sha256': '8c129d989a1c48d826ca11b45acbba919039de811623dc3819ccbd95b69eeb62',
+                          'bytes': 107218719,
+                          'selector': 'webkit-2359'},
+           'ffmpeg1011': {'url': 'https://playwright.download.prss.microsoft.com/dbazure/download/playwright/builds/ffmpeg/1011/ffmpeg-linux.zip',
+                          'sha256': 'ebc74fc5b94830176a3c2914ae96bd8bc7f6a91f4f33890230f84a172ee61ccc',
+                          'bytes': 2376500,
+                          'selector': 'ffmpeg-1011'}}
+          HTTPS_HOSTS = {"api.nuget.org", "raw.githubusercontent.com", "github.com", "release-assets.githubusercontent.com", "builds.dotnet.microsoft.com", "dotnetcli.blob.core.windows.net", "ci.dot.net", "nodejs.org", "registry.npmjs.org", "static.rust-lang.org", "storage.googleapis.com", "playwright.download.prss.microsoft.com"}
+
+          def require(value, message):
+              if not value: raise ValueError(message)
+
+          def sha(path):
+              digest = hashlib.sha256()
+              with pathlib.Path(path).open("rb") as source:
+                  for block in iter(lambda: source.read(1048576), b""): digest.update(block)
+              return digest.hexdigest()
+
+          def validate_source(env, head, root):
+              require(env["EVENT"] == "pull_request" and env["REPOSITORY"] == "FS-GG/FS.GG.Templates" and env["HEAD_REPOSITORY"] == env["REPOSITORY"], "ordinary same-repository PR required")
+              require(re.fullmatch(r"[0-9a-f]{40}", env["PR_HEAD"]) and head == env["PR_HEAD"], "exact reviewed checkout required")
+              require(env["WORKFLOW_REF"].startswith("FS-GG/FS.GG.Templates/.github/workflows/fable-reference-public.yml@"), "workflow identity differs")
+              require(re.fullmatch(r"[0-9a-f]{40}", env["WORKFLOW_SHA"]), "workflow evaluation source missing")
+              require(pathlib.Path(root).is_absolute() and not pathlib.Path(root).is_symlink(), "private root must be an absolute nonlink")
+              return {**{k:env[k] for k in ("EVENT","REPOSITORY","PR_HEAD","WORKFLOW_REF","WORKFLOW_SHA","RUN_ID","RUN_ATTEMPT")}, "imageOS":env.get("ImageOS"), "imageVersion":env.get("ImageVersion"), "runnerOS":env.get("RUNNER_OS"), "runnerArch":env.get("RUNNER_ARCH")}
+
+          def phase_deadline(start, phase, now):
+              require(phase in ("setup", "custody", "installed"), "closed phase required")
+              reserved = BUDGET["cleanup"] + BUDGET["collection"] + BUDGET["overhead"]
+              later = {"setup":BUDGET["custody"] + BUDGET["installed"] + 2*BUDGET["cleanup"], "custody":BUDGET["installed"] + BUDGET["cleanup"], "installed":0}[phase]
+              deadline = min(now + BUDGET[phase], start + BUDGET["job"] - reserved - later)
+              require(deadline > now, "original job budget cannot supply this phase")
+              return deadline
+
+          def public_url(url):
+              require(isinstance(url,str) and len(url) <= 16384 and not any(ord(c)<32 or ord(c)==127 for c in url),"URL control or length refused")
+              decoded=urllib.parse.unquote(url)
+              require(not any(ord(c)<32 or ord(c)==127 for c in decoded) and "\\" not in url,"encoded URL control/backslash refused")
+              parsed=urllib.parse.urlsplit(url)
+              require(parsed.scheme=="https" and parsed.hostname in HTTPS_HOSTS and parsed.username is None and parsed.password is None and parsed.port in (None,443) and not parsed.fragment,"public HTTPS origin/port/userinfo differs")
+              require(parsed.netloc.lower() in (parsed.hostname,parsed.hostname+":443"),"noncanonical authority refused")
+              return url
+
+          class ClosedRedirect(urllib.request.HTTPRedirectHandler):
+              # A fresh handler per acquisition bounds the complete redirect chain.
+              def __init__(self): self.hops=0
+              def redirect_request(self,req,fp,code,msg,headers,newurl):
+                  public_url(req.full_url)
+                  public_url(newurl) # validate BEFORE constructing or opening the next request
+                  require(not any(key.lower() in ("authorization","proxy-authorization","cookie") for key in list(req.headers)+list(req.unredirected_hdrs)),"auth-free acquisition required")
+                  self.hops+=1;require(self.hops<=5,"redirect hop cap exceeded")
+                  return super().redirect_request(req,fp,code,msg,headers,newurl)
+
+          def open_public(url,timeout):
+              public_url(url) # urllib must never open an unchecked initial origin
+              # No credential-bearing environment proxy, cookie jar or auth handlers.
+              opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),ClosedRedirect())
+              return opener.open(urllib.request.Request(url,headers={"User-Agent":"fsgg-fixed-public-acquisition/1"}),timeout=timeout)
+
+          @contextlib.contextmanager
+          def original_io_deadline(deadline):
+              # In-process Linux transport bound; qualified hosted behavior still requires an actual pilot.
+              require(threading.current_thread() is threading.main_thread(), "deadline watchdog requires main thread")
+              remaining=deadline-time.monotonic();require(remaining>0, "original acquisition deadline exhausted")
+              require(signal.getitimer(signal.ITIMER_REAL)==(0.0,0.0), "foreign deadline timer occupied")
+              previous=signal.getsignal(signal.SIGALRM)
+              def expired(signum, frame):raise TimeoutError("original acquisition wall deadline exhausted")
+              signal.signal(signal.SIGALRM,expired)
+              try:
+                  signal.setitimer(signal.ITIMER_REAL,remaining)
+                  yield
+                  require(time.monotonic()<deadline, "original acquisition deadline exhausted")
+              finally:
+                  signal.setitimer(signal.ITIMER_REAL,0)
+                  signal.signal(signal.SIGALRM,previous)
+
+          def download(url, destination, maximum, deadline, expected=None, algorithm="sha256", transport=open_public):
+              public_url(url)
+              require(not destination.exists() and not destination.is_symlink(), "download destination occupied")
+              require(0 < maximum <= 536870912 and deadline > time.monotonic(), "download bound invalid or expired")
+              digest=hashlib.new(algorithm); count=0
+              # One timer covers open, all validated redirects, body reads and terminal close; no per-hop renewal.
+              with original_io_deadline(deadline):
+                  with transport(url, timeout=min(30, deadline-time.monotonic())) as response, destination.open("xb") as output:
+                      final=urllib.parse.urlsplit(public_url(response.geturl()))
+                      while True:
+                          require(time.monotonic()<deadline, "original acquisition deadline exhausted")
+                          block=response.read(min(1048576,maximum-count+1))
+                          require(time.monotonic()<deadline, "original acquisition deadline exhausted")
+                          if not block:break
+                          count+=len(block);require(count<=maximum, "download byte cap exceeded")
+                          output.write(block);digest.update(block)
+              require(time.monotonic()<deadline, "original acquisition deadline exhausted")
+              actual=digest.hexdigest();require(expected is None or actual==expected, "download digest differs")
+              return {"url":url,"servedUrlHost":final.hostname,"bytes":count,"algorithm":algorithm,"digest":actual,"observedAt":time.time()}
+
+          def bounded_zip(archive, maximum_members, deadline):
+              # Reject unsupported ZIP64/multidisk and bound central-directory allocation before ZipFile construction.
+              require(time.monotonic()<deadline, "original archive deadline exhausted")
+              size=archive.stat().st_size
+              with archive.open("rb") as raw:
+                  raw.seek(max(0,size-65557));tail=raw.read(65557)
+              require(time.monotonic()<deadline, "original archive deadline exhausted")
+              pos=tail.rfind(b"PK\x05\x06")
+              require(pos>=0 and len(tail)-pos>=22, "ZIP end record absent")
+              _,disk,central_disk,on_disk,count,central_bytes,offset,comment=struct.unpack_from("<4s4H2IH",tail,pos)
+              require(disk==central_disk==0 and on_disk==count and count!=65535 and 0<count<=maximum_members, "ZIP population/disk/ZIP64 refused")
+              require(central_bytes<=16777216 and offset+central_bytes==size-len(tail)+pos and len(tail)-pos==22+comment, "ZIP central directory bound differs")
+              source=zipfile.ZipFile(archive)
+              try:require(len(source.infolist())==count, "ZIP actual population differs")
+              except BaseException:source.close();raise
+              return source
+
+          def unpack_tar(archive, destination, maximum_bytes, deadline, maximum_members=120000):
+              require(not destination.exists() and not destination.is_symlink(), "extraction root occupied")
+              require(0<maximum_members<=120000 and 0<maximum_bytes<=2147483648, "tar bound invalid")
+              def header_bound(value, message):
+                  if not value:raise RuntimeError(message) # tarfile would replace ValueError with an opaque invalid-header error.
+              physical=[0]
+              def inspect_header(member):
+                  physical[0]+=1;header_bound(physical[0]<=maximum_members, "tar header population cap exceeded")
+                  header_bound(time.monotonic()<deadline, "original archive deadline exhausted")
+                  header_bound(member.type in (tarfile.REGTYPE,tarfile.AREGTYPE,tarfile.DIRTYPE,tarfile.SYMTYPE,tarfile.LNKTYPE,tarfile.XHDTYPE,tarfile.XGLTYPE,tarfile.GNUTYPE_LONGNAME,tarfile.GNUTYPE_LONGLINK), "unsupported tar type")
+                  header_bound(0<=member.size<=maximum_bytes, "tar member byte cap exceeded")
+                  if member.type in (tarfile.XHDTYPE,tarfile.XGLTYPE,tarfile.GNUTYPE_LONGNAME,tarfile.GNUTYPE_LONGLINK):header_bound(member.size<=1048576, "tar extended metadata byte cap exceeded")
+                  return member
+              class BoundedTarInfo(tarfile.TarInfo):
+                  @classmethod
+                  def frombuf(cls, buf, encoding, errors):
+                      if hasattr(tarfile.TarInfo,"_frombuf"):return cls._frombuf(buf,encoding,errors)
+                      return inspect_header(super().frombuf(buf,encoding,errors))
+                  @classmethod
+                  def _frombuf(cls, buf, encoding, errors, *, dircheck=True):
+                      # Python3.14's internal recursive PAX/longname route bypasses public frombuf.
+                      return inspect_header(super()._frombuf(buf,encoding,errors,dircheck=dircheck))
+              class BoundedInflated:
+                  def __init__(self, raw):self.raw=raw;self.count=0
+                  def read(self, size):
+                      require(time.monotonic()<deadline and 0<=size<=1048576, "tar read bound invalid or expired")
+                      value=self.raw.read(size);self.count+=len(value)
+                      require(time.monotonic()<deadline and self.count<=maximum_bytes+268435456, "tar inflated byte/deadline cap exceeded")
+                      return value
+              count=0;expanded=0;seen=set()
+              with original_io_deadline(deadline),gzip.open(archive,"rb") as raw,tarfile.open(fileobj=BoundedInflated(raw),mode="r|",tarinfo=BoundedTarInfo) as source:
+                  destination.mkdir(mode=0o700)
+                  for member in source:
+                      count+=1;expanded+=member.size
+                      require(count<=maximum_members and expanded<=maximum_bytes, "tar population/expanded byte cap exceeded")
+                      require(member.name not in seen and not member.name.startswith("/") and ".." not in pathlib.PurePosixPath(member.name).parts and not any(ord(c)<32 or ord(c)==127 for c in member.name), "unsafe/duplicate tar member")
+                      seen.add(member.name)
+                      source.extract(member,destination,filter="data")
+                      source.members.clear() # Streaming extraction never retains a full header population.
+              require(time.monotonic()<deadline, "original archive deadline exhausted")
+              with original_io_deadline(deadline):archive_digest=sha(archive)
+              return {"members":count,"expandedBytes":expanded,"archiveSha256":archive_digest}
+
+          def seed_from_package(archive, destination, deadline):
+              require(not destination.exists(), "npm seed root occupied")
+              with original_io_deadline(deadline),bounded_zip(archive,2047,deadline) as source:
+                  infos=source.infolist();require(sum(x.file_size for x in infos)<=67108864, "template expanded byte cap exceeded")
+                  selected={}
+                  for role in ("Client","Browser.Tests"):
+                      for name in ("package.json","package-lock.json"):
+                          member="content/templates/fs-gg-fable-game/"+role+"/"+name
+                          found=[x for x in infos if x.filename==member]
+                          require(len(found)==1 and 0<found[0].file_size<=1048576 and not found[0].flag_bits & 1, "npm lock byte/population cap exceeded")
+                          selected[(role,name)]=found[0]
+                  destination.mkdir(mode=0o700)
+                  for role,package,version in (("Client","vite","7.3.6"),("Browser.Tests","@playwright/test",TOOLS["playwright"])):
+                      tree=destination/role;tree.mkdir()
+                      for name in ("package.json","package-lock.json"):
+                          with source.open(selected[(role,name)]) as stream:raw=stream.read(1048577)
+                          require(time.monotonic()<deadline and len(raw)==selected[(role,name)].file_size and len(raw)<=1048576, "npm lock byte/deadline cap exceeded")
+                          (tree/name).write_bytes(raw)
+                      lock=json.loads((tree/"package-lock.json").read_bytes())
+                      require(lock["packages"][""]["devDependencies"][package]==version, "package-owned dependency version differs")
+                      for name,row in lock["packages"].items():
+                          if name:require(row.get("resolved","").startswith("https://registry.npmjs.org/") and row.get("integrity","").startswith("sha512-"), "npm lock requires authenticated registry bytes")
+              return destination
+
+          def fixed_checker_argv(workspace, installed):
+              return ["bash",str(workspace/"tests/composition/fable-game/verify-fable-reference-public.sh"),"--mode","wasm","--template-version","0.19.0","--sha256",PACKAGE_SHA,"--descriptor-sha256",DESCRIPTOR_SHA,"--source-revision",PUBLISHED,"--tag-revision",PUBLISHED,"--evidence-dir",str(installed)]
+
+          def prepare_inputs(root, workspace, env, execute, acquire, deadline):
+              tools=root/"tools"; tools.mkdir(mode=0o700)
+              downloads=root/"downloads"; downloads.mkdir(mode=0o700)
+              records=[]
+              def get(name,url,expected,maximum,algorithm="sha256"):
+                  path=downloads/name
+                  try:
+                      records.append(acquire(url,path,maximum,deadline,expected,algorithm))
+                  except Exception as error:
+                      records.append({"url":url,"path":str(path),"status":"failed","firstCause":type(error).__name__+": "+str(error),"observedAt":time.time()})
+                      try:
+                          (root/"input-downloads.json").write_text(json.dumps(records,indent=2)+"\n")
+                      except Exception as reporting:
+                          error.add_note("independent download reporting failure: "+type(reporting).__name__+": "+str(reporting))
+                      raise
+                  (root/"input-downloads.json").write_text(json.dumps(records,indent=2)+"\n")
+                  return path
+              # Metadata and archives have separate retained identities. HTTPS metadata is not a detached signature claim.
+              for name,(url,expected,maximum) in ENDPOINTS.items(): get(name,url,expected,maximum)
+              metadata=get("dotnet-releases.json","https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json",None,8388608)
+              releases=json.loads(metadata.read_bytes())["releases"]
+              sdk=[sdk for release in releases for sdk in release.get("sdks",[release.get("sdk",{})]) if sdk.get("version") == TOOLS["sdk"]]
+              require(len(sdk) >= 1, "fixed SDK absent from authentic release metadata")
+              files={f["url"]:f for value in sdk for f in value["files"] if f["rid"] == "linux-x64" and f["name"].endswith(".tar.gz")}
+              require(len(files) == 1, "fixed Linux SDK archive ambiguous")
+              sdk_file=next(iter(files.values())); sdk_archive=get("dotnet.tar.gz",sdk_file["url"],sdk_file["hash"],536870912,"sha512")
+              unpack_tar(sdk_archive,tools/"dotnet",2147483648,deadline)
+              node_name="node-v"+TOOLS["node"]+"-linux-x64.tar.gz"
+              sums=get("node-SHASUMS256.txt",f"https://nodejs.org/dist/v{TOOLS['node']}/SHASUMS256.txt",None,1048576)
+              hashes=[row.split()[0] for row in sums.read_text().splitlines() if row.split()[-1] == node_name]
+              require(len(hashes)==1 and re.fullmatch(r"[0-9a-f]{64}",hashes[0]),"fixed Node metadata differs")
+              node_archive=get("node.tar.gz",f"https://nodejs.org/dist/v{TOOLS['node']}/{node_name}",hashes[0],134217728)
+              unpack_tar(node_archive,tools/"node-archive",536870912,deadline)
+              node_root=tools/"node-archive"/node_name.removesuffix(".tar.gz")
+              npm_meta=get("npm-metadata.json",f"https://registry.npmjs.org/npm/{TOOLS['npm']}",None,1048576)
+              npm_value=json.loads(npm_meta.read_bytes()); require(npm_value["name"]=="npm" and npm_value["version"]==TOOLS["npm"],"fixed npm metadata differs")
+              require(npm_value["dist"]["tarball"]==f"https://registry.npmjs.org/npm/-/npm-{TOOLS['npm']}.tgz","npm archive endpoint differs")
+              npm_sri=npm_value["dist"]["integrity"]; require(npm_sri.startswith("sha512-"),"npm integrity missing")
+              npm_archive=get("npm.tgz",npm_value["dist"]["tarball"],base64.b64decode(npm_sri[7:]).hex(),16777216,"sha512")
+              unpack_tar(npm_archive,tools/"npm",67108864,deadline)
+              bin_root=tools/"bin";bin_root.mkdir()
+              (bin_root/"npm").write_text('#!/bin/sh\nexec "'+str(node_root/"bin/node")+'" "'+str(tools/"npm/package/bin/npm-cli.js")+'" "$@"\n');(bin_root/"npm").chmod(0o700)
+              rust_hash=get("rustup-init.sha256","https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init.sha256",None,1048576)
+              rust_digest=rust_hash.read_text().split()[0]; require(re.fullmatch(r"[0-9a-f]{64}",rust_digest),"rustup metadata invalid")
+              rustup=get("rustup-init","https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init",rust_digest,33554432);rustup.chmod(0o700)
+              unpack_tar(downloads/"wasi",tools/"wasi",2147483648,deadline)
+              (root/"input-downloads.json").write_text(json.dumps(records,indent=2)+"\n")
+              env.update(PATH=str(bin_root)+":"+str(node_root/"bin")+":"+str(tools/"cargo/bin")+":/usr/bin:/bin",DOTNET_ROOT=str(tools/"dotnet"),DOTNET_HOST_PATH=str(tools/"dotnet/dotnet"),RUSTUP_HOME=str(tools/"rustup"),CARGO_HOME=str(tools/"cargo"),FSGG_WASM_SDK_ARCHIVE=str(downloads/"guest"),FSGG_WASM_WASI_ROOT=str(tools/"wasi/wasi-sdk-34.0-x86_64-linux"),FSGG_WASM_NPM_CACHE=str(root/"npm-cache"),PLAYWRIGHT_BROWSERS_PATH=str(root/"browsers"),FSGG_WASM_FIREFOX_PROFILE="content-sandbox-enabled")
+              config=root/"nuget.config";config.write_text('<configuration><packageSources><clear/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>\n');env["FSGG_WASM_NUGET_CONFIG"]=str(config)
+              execute([str(rustup),"-y","--profile","minimal","--default-toolchain",TOOLS["rust"],"--no-modify-path"],root,env)
+              execute([str(tools/"cargo/bin/rustup"),"target","add","wasm32-unknown-unknown","--toolchain",TOOLS["rust"]],root,env)
+              dotnet=env["DOTNET_HOST_PATH"]
+              execute([dotnet,"--info"],root,env)
+              execute([dotnet,"tool","install","fable","--version",TOOLS["fable"],"--tool-path",str(tools/"fable"),"--configfile",str(config)],root,env)
+              entries=[p for p in (tools/"fable").rglob("*.dll") if sha(p)==FABLE_SHA]; require(len(entries)==1,"actual Fable entrypoint hash differs");env["FSGG_WASM_FABLE_CORE"]=str(entries[0])
+              project=workspace/"src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj"
+              execute([dotnet,"restore",str(project),"--locked-mode","--configfile",str(config),"-p:NuGetAudit=false","-p:DisableImplicitLibraryPacksFolder=true"],workspace,env)
+              execute([dotnet,"build",str(project),"-c","Release","--no-restore","-p:UseSharedCompilation=false","-p:BuildInParallel=false"],workspace,env)
+              output=project.parent/"bin/Release/net10.0/FS.GG.Templates.ProviderTool.dll";require(output.is_file(),"Release ProviderTool output missing")
+              seed=seed_from_package(downloads/"template",root/"npm-seed",deadline)
+              for role in ("Client","Browser.Tests"):
+                  execute([str(bin_root/"npm"),"ci","--ignore-scripts","--no-audit","--no-fund","--cache",env["FSGG_WASM_NPM_CACHE"]],seed/role,env)
+              # Uncontrolled stock CLI downloads cannot bypass reviewed raw archive identity.
+              browser_inputs=browser_archive_inputs(get)
+              (root/"browser-archive-inputs.json").write_text(json.dumps({"archives":browser_inputs,"webkitSourcePreparation":webkit_source_profile()},indent=2)+"\n")
+              # Real executable/library/startup and managed-group policy qualification is the separate custody phase.
+              (root/"provisioned-paths.json").write_text(json.dumps({"paths":{k:v for k,v in env.items() if k.startswith("FSGG_WASM_") or k in ("DOTNET_HOST_PATH","PLAYWRIGHT_BROWSERS_PATH")},"providerToolSha256":sha(output),"state":"provisioned-not-qualified"},indent=2)+"\n")
+              browser_root=root/"browsers";browser_root.mkdir(mode=0o700)
+              extracted=[]
+              for entry in browser_inputs:
+                  extracted.append(extract_browser_archive(entry["asset"],pathlib.Path(entry["path"]),browser_root/entry["selector"],deadline))
+                  (root/"browser-extracted-layouts.json").write_text(json.dumps(extracted,indent=2)+"\n")
+              raise RuntimeError("exact browser data extracted; package registration/support and canonical profile contract not yet bound")
+
+          def browser_archive_inputs(get):
+              # Data acquisition only: raw bytes must match before any extraction or browser use.
+              acquired=[]
+              for name, selected in BROWSER_ARCHIVES.items():
+                  path=get(name+".zip",selected["url"],selected["sha256"],selected["bytes"])
+                  require(path.is_file() and not path.is_symlink() and path.stat().st_size==selected["bytes"] and sha(path)==selected["sha256"],"selected browser archive raw bytes differ")
+                  acquired.append({"asset":name,"path":str(path),**selected,"state":"raw-byte-verified-not-installed-not-qualified"})
+              return acquired
+
+          def webkit_source_profile():
+              # Finite authentic archive/source preparation, not a canonical admission schema.
+              return {"platform":"ubuntu24.04-linux-x64", "archive":"webkit2359",
+                  "phases":[
+                      {"member":"pw_run.sh","sha256":"a85baad3d8c07173ac387a59b41500c382b21ed692afe0964d29aac247ccc63b","format":"#!/usr/bin/env bash","transition":"bash forks selected bundled WPE wrapper; not exec"},
+                      {"member":"minibrowser-wpe/MiniBrowser","sha256":"990aafd77eb05fb166c0ab5ae9765d1e6ea728e1643f3d61773cb19be869e277","format":"#!/bin/sh","transition":"wrapper execs own bin/MiniBrowser"},
+                      {"member":"minibrowser-wpe/bin/MiniBrowser","sha256":"7c71efed38fb0d916f5edb7db9a98cdf218642dd8dce02375730eb9ad5510751","format":"ELF64 little-endian machine62 type3","transition":"actual native descendant and support closure unknown"}],
+                  "selectedBranch":"Linux --headless bundled minibrowser-wpe only; no checkout/HOME or GTK fallback",
+                  "environment":"WEBKIT_FORCE_COMPLEX_TEXT=1; wrapper owns WEBKIT_EXEC_PATH=bin, WEBKIT_INJECTED_BUNDLE_PATH=lib, WEBKIT_INSPECTOR_RESOURCES_PATH=share, LD_LIBRARY_PATH=lib:sys/lib",
+                  "runtimeUnknown":["actual /usr/bin/env, bash, /bin/sh, dirname, readlink, uname bytes and exec/interpreter resolution","fresh browser root, ports, temp paths, source/argv and kernel births","support libraries, native children, normal/forced retirement and original deadline/resources"],
+                  "canonicalContract":"pending; preparation cannot auto-learn authority or produce a qualified receipt"}
+
+          BROWSER_LAYOUTS = {'chromium-full1243': {'members': 308,
+                                 'logicalBytes': 410251304,
+                                 'layoutSha256': '918e80c59fc0ccdbd9a91149cc95142efc5057c28e4c28bc3a9ce291f85c9a0b',
+                                 'symlinks': 0},
+           'chromium-headless1243': {'members': 287,
+                                     'logicalBytes': 272533063,
+                                     'layoutSha256': '60e82d5cda81399e2e2d8d957782247b8870592efef3a6496be423b11d5d1f47',
+                                     'symlinks': 0},
+           'firefox1543': {'members': 54,
+                           'logicalBytes': 320457770,
+                           'layoutSha256': '1c006459f96b2b80bf3117803c80ed4f427dd3926af43a4191b5bc403750c7a7',
+                           'symlinks': 0},
+           'webkit2359': {'members': 60,
+                          'logicalBytes': 307294111,
+                          'layoutSha256': 'fbe1863d67f64821bcf3a243deeb10f8857b7245a3d54b719d3165a738748b75',
+                          'symlinks': 15},
+           'ffmpeg1011': {'members': 2,
+                          'logicalBytes': 5127582,
+                          'layoutSha256': 'b948da0b99ed575a3b8a54664284a39f5c9534919ac9a44d3079dcfdbe644280',
+                          'symlinks': 0}}
+
+          def inspect_browser_layout(source, expected, deadline):
+              require(time.monotonic()<deadline, "original archive deadline exhausted")
+              infos=source.infolist()
+              require(len(infos)==expected["members"] and len(infos)<=64000, "archive cardinality differs")
+              rows=[]; names={}; links={}; logical=0
+              for item in infos:
+                  require(time.monotonic()<deadline, "original archive deadline exhausted")
+                  name=item.filename; mode=item.external_attr>>16; kind=stat.S_IFMT(mode)
+                  require(name and not any(ord(c)<32 or ord(c)==127 for c in name) and "\\" not in name, "unsafe archive name")
+                  path=pathlib.PurePosixPath(name)
+                  require(not path.is_absolute() and all(x not in ("", ".", "..") for x in name.rstrip("/").split("/")) and str(path)==name.rstrip("/"), "archive traversal or noncanonical path")
+                  key=str(path);require(key not in names, "duplicate archive member")
+                  require(kind in (stat.S_IFREG,stat.S_IFDIR,stat.S_IFLNK) and not mode & 0o7000 and not item.flag_bits & 1, "unsupported archive type/mode/encryption")
+                  require(item.is_dir()==(kind==stat.S_IFDIR), "directory mode/name differs")
+                  require(0<=item.file_size<=536870912 and (kind!=stat.S_IFDIR or item.file_size==0), "archive member byte cap")
+                  logical+=item.file_size;require(logical<=2147483648, "archive expanded byte cap")
+                  target=None
+                  if kind==stat.S_IFLNK:
+                      require(0<item.file_size<=4096, "symlink byte cap")
+                      target=source.read(item).decode("utf-8")
+                      require(target and not any(ord(c)<32 or ord(c)==127 for c in target) and "/" not in target and "\\" not in target and target not in (".",".."), "unselected symlink target")
+                      links[key]=str(path.parent/target)
+                  names[key]=(item,kind);rows.append({"name":name,"mode":mode,"bytes":item.file_size,"link":target})
+              require(logical==expected["logicalBytes"] and len(links)==expected["symlinks"], "archive bytes/symlink cardinality differs")
+              digest=hashlib.sha256(json.dumps(rows,sort_keys=True,separators=(",",":")).encode()).hexdigest()
+              require(digest==expected["layoutSha256"], "authentic archive layout differs")
+              for name,(item,kind) in names.items():
+                  for ancestor in pathlib.PurePosixPath(name).parents:
+                      if str(ancestor)==".":continue
+                      require(str(ancestor) not in names or names[str(ancestor)][1]==stat.S_IFDIR, "non-directory archive ancestor")
+              for target in links.values():
+                  require(target in names and names[target][1]==stat.S_IFREG, "symlink target absent or not regular")
+              return infos, rows
+
+          def extract_browser_archive(name, archive, destination, deadline):
+              # Caller-owned fresh private root; concurrent writers and runtime/profile admission are not proven here.
+              selected=BROWSER_ARCHIVES[name];expected=BROWSER_LAYOUTS[name]
+              require(time.monotonic()<deadline, "original archive deadline exhausted")
+              require(archive.is_file() and not archive.is_symlink() and archive.stat().st_size==selected["bytes"], "browser raw archive size/path differs before extraction")
+              digest=hashlib.sha256()
+              with archive.open("rb") as raw:
+                  while True:
+                      require(time.monotonic()<deadline, "original archive deadline exhausted")
+                      block=raw.read(1048576)
+                      require(time.monotonic()<deadline, "original archive deadline exhausted")
+                      if not block:break
+                      digest.update(block)
+              require(digest.hexdigest()==selected["sha256"], "browser raw archive differs before extraction")
+              require(destination.is_absolute() and not destination.exists() and not destination.is_symlink(), "extraction destination occupied or relative")
+              for parent in (destination.parent,*destination.parent.parents):
+                  require(parent.is_dir() and not parent.is_symlink(), "extraction ancestor is not a real directory")
+              with original_io_deadline(deadline),bounded_zip(archive,expected["members"],deadline) as source:
+                  infos,rows=inspect_browser_layout(source,expected,deadline)
+                  require(time.monotonic()<deadline, "original archive deadline exhausted")
+                  destination.mkdir(mode=0o700)
+                  # Links are last, so no archive-controlled link is ever traversed by file writes.
+                  for item in infos:
+                      require(time.monotonic()<deadline, "original archive deadline exhausted")
+                      target=destination/item.filename;mode=item.external_attr>>16
+                      if stat.S_ISLNK(mode):continue
+                      target.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
+                      if stat.S_ISDIR(mode):target.mkdir(mode=0o700,exist_ok=True);continue
+                      count=0
+                      with source.open(item) as stream, os.fdopen(os.open(target,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600),"wb") as output:
+                          while True:
+                              require(time.monotonic()<deadline, "original archive deadline exhausted")
+                              block=stream.read(min(1048576,item.file_size-count+1))
+                              require(time.monotonic()<deadline, "original archive deadline exhausted")
+                              if not block:break
+                              count+=len(block);require(count<=item.file_size, "archive member exceeds declared bytes")
+                              output.write(block)
+                      require(count==item.file_size, "archive member truncated")
+                      target.chmod(stat.S_IMODE(mode))
+                  for row in rows:
+                      require(time.monotonic()<deadline, "original archive deadline exhausted")
+                      if row["link"] is not None:os.symlink(row["link"],destination/row["name"])
+                  for item in sorted(infos,key=lambda i:len(pathlib.PurePosixPath(i.filename).parts),reverse=True):
+                      require(time.monotonic()<deadline, "original archive deadline exhausted")
+                      if stat.S_ISDIR(item.external_attr>>16):(destination/item.filename).chmod(stat.S_IMODE(item.external_attr>>16))
+              require(time.monotonic()<deadline, "original archive deadline exhausted")
+              return {"asset":name,"root":str(destination),"archiveSha256":selected["sha256"],**expected,"state":"extracted-data-not-registered-not-qualified"}
+
+          def qualify_tools(root, env, execute):
+              expected = [([env["DOTNET_HOST_PATH"],"--version"], TOOLS["sdk"]),
+                  (["node","--version"],"v"+TOOLS["node"]),(["npm","--version"],TOOLS["npm"]),
+                  (["rustc","--version"],"rustc 1.90.0 (1159e78c4 2025-09-14)"),
+                  (["cargo","--version"],"cargo 1.90.0 (840b83a10 2025-07-30)")]
+              findings=[]; failures=[]
+              for argv,wanted in expected:
+                  try:
+                      observed=execute(argv,root,env).strip(); require(observed==wanted,"actual tool version differs: "+argv[0])
+                      findings.append({"argv":argv,"actual":observed})
+                  except Exception as error: failures.append(type(error).__name__+": "+str(error))
+              try:
+                  runtimes=execute([env["DOTNET_HOST_PATH"],"--list-runtimes"],root,env)
+                  require(any(row.startswith("Microsoft.NETCore.App "+TOOLS["runtime"]+" [") for row in runtimes.splitlines()),"explicit CoreCLR runtime absent")
+                  findings.append({"argv":[env["DOTNET_HOST_PATH"],"--list-runtimes"],"actual":runtimes})
+                  fable=execute([env["DOTNET_HOST_PATH"],"--fx-version",TOOLS["runtime"],env["FSGG_WASM_FABLE_CORE"],"--version"],root,env).strip()
+                  require(bool(fable),"actual Fable runtime output absent")
+                  # Do not assume an unsupported --version text formatter. Bind the loaded entrypoint
+                  # to its exact compiler package metadata and already reviewed DLL digest instead.
+                  metadata=[]
+                  for path in (root/"tools/fable").rglob("*.nuspec"):
+                      tree=ET.parse(path); row=next((e for e in tree.getroot().iter() if e.tag.split("}")[-1]=="metadata"),None)
+                      if row is not None:
+                          values={e.tag.split("}")[-1]:e.text for e in row}
+                          if values.get("id","").lower()=="fable": metadata.append({"version":values.get("version"),"path":str(path),"sha256":sha(path)})
+                  require(len(metadata)==1 and metadata[0]["version"]==TOOLS["fable"],"actual compiler package identity differs")
+                  require(sha(env["FSGG_WASM_FABLE_CORE"])==FABLE_SHA,"Fable runtime bytes drifted")
+                  target=execute([str(root/"tools/cargo/bin/rustup"),"target","list","--installed","--toolchain",TOOLS["rust"]],root,env)
+                  require("wasm32-unknown-unknown" in target.splitlines(),"Rust guest target absent")
+                  clang=execute([str(pathlib.Path(env["FSGG_WASM_WASI_ROOT"])/"bin/clang"),"--version"],root,env)
+                  require(clang.splitlines()[0]=="clang version 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)","actual WASI compiler differs")
+                  findings.extend([{"actualFableOutput":fable,"compilerPackage":metadata[0]},{"actualRustTargets":target},{"actualClang":clang}])
+              except Exception as error: failures.append(type(error).__name__+": "+str(error))
+              (root/"actual-tool-findings.json").write_text(json.dumps({"observations":findings,"failures":failures},indent=2)+"\n")
+              require(not failures,"tool prerequisites failed: "+"; ".join(failures))
+              # This does not qualify browser startup, custody or the installed consumer.
+              return findings
+
+          def fresh_environment(root, inherited):
+              require(not root.exists() and not root.is_symlink(),"job root occupied")
+              root.mkdir(mode=0o700)
+              for name in ("home","tmp","checker-packages","checker-http","evidence"):(root/name).mkdir(mode=0o700)
+              env={"HOME":str(root/"home"),"TMPDIR":str(root/"tmp"),"PATH":"/usr/bin:/bin","LANG":"C.UTF-8","LC_ALL":"C.UTF-8",
+                  "DOTNET_CLI_HOME":str(root/"home"),"NUGET_PACKAGES":str(root/"checker-packages"),"NUGET_HTTP_CACHE_PATH":str(root/"checker-http"),
+                  "DOTNET_CLI_TELEMETRY_OPTOUT":"1","DOTNET_SKIP_FIRST_TIME_EXPERIENCE":"1","DOTNET_CLI_DO_NOT_USE_MSBUILD_SERVER":"1",
+                  "MSBUILDDISABLENODEREUSE":"1","DOTNET_PROCESSOR_COUNT":"2","CI":"true"}
+              require("MOZ_DISABLE_CONTENT_SANDBOX" not in env and not any(k.startswith(("GH_","GITHUB_TOKEN","ACTIONS_ID_TOKEN")) for k in env),"credential/profile inheritance refused")
+              return env
+
+          STOCK_INPUTS = {
+              "Browser.Tests/playwright.config.ts":"afff7dd20aa2384b4d3ff1c6f71e106614692213c7051d48d6a914c8cabd3a13",
+              "Browser.Tests/package-lock.json":"f5ed53b9ee86e12f3053e0378fcd1c6d65e925e86792bd3cd82466141c49e67a",
+              "SvgFoundation/vite.config.js":"fbc6e64d901fdba27327cd70d852918caff7e4f4908a640d8859061b6c4261d2"}
+          STOCK_LAUNCHER_INPUTS = {
+              "playwright-core/lib/coreBundle.js":"549070af3acabb3efcc4f55bfe6210f9f7c2fcf633cf7eaa59bfe60719969171",
+              "playwright-core/browsers.json":"545d52f8382c391e605562c330e9c1c534a16045898203037a49bb8bd769a946",
+              "playwright/lib/runner/index.js":"7a2e4e1114d3237d61b87723b4d86a37944c9143f3ce2fb0b2e8867e0c612a5e",
+              "playwright/lib/index.js":"54bf5935cf339938408c656bde958047a1217bf77434acdf75a0c717cddaaeae"}
+
+          def stock_boundary_metadata():
+              # Root-selected source disposition, not runtime proof or helper policy/admission.
+              return {"scope":"ordinary functional direct installed C",
+                  "chromiumSelection":"stock headless-shell1243 --no-sandbox",
+                  "firefoxSelection":"content-sandbox-enabled",
+                  "webkitSelection":"stock2359 pw_run.sh -> bundled WPE shell wrapper -> bin/MiniBrowser; runtime transitions unqualified",
+                  "canonicalSignalBoundary":"canonical-cleanup-only; actual candidate contract pending",
+                  "stockShutdownBoundary":"negative-pid-group-SIGKILL; no fresh kernel birth check",
+                  "stockSignalResidual":"numeric-group reuse/foreign membership between observations not prevented",
+                  "claims":"no strong security/isolation or universally birth-safe transitive signalling",
+                  "qualification":"not-run"}
+
+          def validate_stock_boundary_metadata(record):
+              require(record == stock_boundary_metadata(),"unreviewed stock selection or misleading composed-signal claim")
+              return record
+
+          def inspect_stock_sources(template_archive, npm_tree):
+              observations=[]
+              with zipfile.ZipFile(template_archive) as source:
+                  for name,expected in STOCK_INPUTS.items():
+                      raw=source.read("content/templates/fs-gg-fable-game/"+name)
+                      require(hashlib.sha256(raw).hexdigest()==expected,"stock downloaded template/config/lock differs: "+name)
+                      observations.append({"source":name,"sha256":expected})
+              for name,expected in STOCK_LAUNCHER_INPUTS.items():
+                  path=npm_tree/name
+                  require(path.is_file() and not path.is_symlink() and sha(path)==expected,"actual package-owned launcher source differs: "+name)
+                  observations.append({"source":str(path),"sha256":expected})
+              return observations
+
+          def check_stock_launch_selection(family, argv, env):
+              # Necessary selection checks only. Full executable/birth/root/argv admission belongs to
+              # the real canonical candidate/profile, and remains unbound at this checkpoint.
+              require(family in ("chromium","firefox","webkit"),"unselected browser family")
+              require(argv and all(isinstance(arg,str) and not any(ord(c)<32 or ord(c)==127 for c in arg) for arg in argv),"malformed actual browser argv")
+              require(env.get("FSGG_WASM_FIREFOX_PROFILE")=="content-sandbox-enabled" and not env.get("MOZ_DISABLE_CONTENT_SANDBOX"),"Firefox disabling is not selected")
+              require(not any(env.get(key) for key in ("PLAYWRIGHT_EXECUTABLE_PATH","PLAYWRIGHT_BROWSER_CHANNEL","NODE_OPTIONS","NODE_PATH","PW_TEST_CONNECT_WS_ENDPOINT","PLAYWRIGHT_DASHBOARD")),"browser/executable/channel/Node/connection override refused")
+              if family=="chromium":
+                  require(argv.count("--no-sandbox")==1 and "--headless" in argv and "--remote-debugging-pipe" in argv and "--no-startup-window" in argv,"actual stock Chromium selection differs")
+                  require(not any(arg.startswith(("--proxy-server","--remote-debugging-port")) for arg in argv),"unselected Chromium proxy/transport")
+              elif family=="firefox":
+                  require("-headless" in argv and "-juggler-pipe" in argv and "-no-remote" in argv and "-profile" in argv and "-silent" in argv,"actual stock Firefox selection differs")
+              else:
+                  require("--inspector-pipe" in argv and "--headless" in argv and "--no-startup-window" in argv,"actual stock WebKit selection differs")
+              return {"family":family,"observedArgv":argv,"selectedBoundary":stock_boundary_metadata(),"fullCanonicalAdmission":"pending"}
+
+          def main():
+              # This source checkpoint deliberately has no invented candidate pin or managed-group policy.
+              # Root supplies and reviews the real canonical contract before this job can acquire or execute tools.
+              raise RuntimeError("managed-group candidate/profile contract not yet bound; no provisioning or installed C admitted")
+
+          if __name__ == "__main__": main()
+          HOSTED_WASM
+      - name: Retain independent partial installed C evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: fable-wasm-installed-c-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: true
+          path: |
+            ${{ runner.temp }}/fable-wasm-installed-c/evidence/**
+            ${{ runner.temp }}/fable-wasm-installed-c/input-downloads.json
+            ${{ runner.temp }}/fable-wasm-installed-c/browser-archive-inputs.json
+            ${{ runner.temp }}/fable-wasm-installed-c/browser-extracted-layouts.json
+            ${{ runner.temp }}/fable-wasm-installed-c/actual-tool-findings.json
+            ${{ runner.temp }}/fable-wasm-installed-c/provisioned-paths.json
+            ${{ runner.temp }}/fable-wasm-installed-c/phase*.json
+            ${{ runner.temp }}/fable-wasm-installed-c/*.log
+            ${{ runner.temp }}/fable-wasm-installed-c/*.log.result.json
