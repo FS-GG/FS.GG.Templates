@@ -385,3 +385,12 @@ custody pilot or clean installed-WASM assertion is accepted.
 The automatic PR job runs only the static source controls in this window. Caller
 execution and runtime artifact upload have explicit literal false conditions until
 C-J1 review admits the complete canonical profile; the inline refusal also remains.
+
+
+The first full composition of PR718 failed on the unchanged generated game test
+SignalR.Common 10.0.12 dependency. The prepared narrow successor updates only the
+test manifest's SignalR.Client reference and adjacent public-feed lock to 10.0.13;
+fresh source generation, locked restore and all 20 Server.Tests passed. The
+[dependency repair report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#independent-composition-dependency-repair--2026-10-14)
+preserves the original failure and pending full-composition boundary. Published
+0.19.0 and installed-WASM acceptance remain unchanged.

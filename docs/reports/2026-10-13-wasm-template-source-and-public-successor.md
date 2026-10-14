@@ -285,3 +285,31 @@ the inline main refusal remains. A behavioral source control verifies all four
 steps, active static checks, both disabled effects and the unchanged refusal.
 Enabling execution or upload requires the later C-J1 source/profile review. This
 source delivery creates no failed runtime attempt or installed qualification.
+
+
+## Independent composition dependency repair — 2026-10-14
+
+Original source-only PR718 head `ac164f10104258deffcd8ab95d887f31186185e4`
+passed its 62 inert controls, but full composition run
+[38624883014](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38624883014)
+failed with 118 passed and one failed group. Generated game Server.Tests restore
+refused NU1903 for transitive SignalR.Common 10.0.12. The test graph was unchanged
+from protected source. [Microsoft's advisory](https://github.com/dotnet/aspnetcore/security/advisories/GHSA-334f-vvp4-7g6p)
+identifies 10.0.13 as the first patched 10.0.x version.
+
+The narrow repair changes only the source template's direct SignalR.Client reference
+to 10.0.13 and genuinely regenerates its adjacent lock through NuGet.org only.
+Mvc.Testing remains 10.0.12. A fresh private source-template generation passed
+public-only regeneration, locked restore and all 20 real Server.Tests without
+skips. Its generated lock, assets and executable dependency graph select
+SignalR.Common 10.0.13 exclusively. No other generated lock changed. The operation
+used one CPU and remained below its 1GiB sampled RSS bound; known owned groups
+were observed empty. An initial caller receipt-field mismatch stopped reporting
+after successful source-template registration; the completed registration was
+retained and reused without replay under a shortened continuation budget.
+
+Both modern and legacy package content derive this test graph from the same
+source tree. This changes future generated test dependencies; published 0.19.0
+bytes and the installed-WASM assertion remain separate. The original failed run
+is preserved, and a successful focused repair does not replace the required
+successor full composition. Runtime execution/upload remain disabled pending C-J1.
