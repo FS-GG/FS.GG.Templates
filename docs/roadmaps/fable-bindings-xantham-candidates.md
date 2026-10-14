@@ -2,7 +2,7 @@
 
 Feature identity: `FB-XANTHAM-01`  
 Owner: FS.GG.Templates  
-Status: public installed receiver and hosted second-package composition complete; publication pending
+Status: public 0.19.0 second-package receiver source preparation; installed acceptance pending
 Route: routine, one accountable Sol-medium worker  
 Unified part: **Fable bindings candidate generation and upstream integration assessment**  
 Stage: independently executable producer work from section 15; not a v2 prerequisite
@@ -372,3 +372,29 @@ target 5%, ceiling 10%. Count distinct original items cumulatively. Fifteen item
 item above 25% trigger one aggressive intervention. Good items and worker changes do not reset
 the count; only a deployed, verified intervention does. Keep broad overhead and avoidable repeated
 test costs separately visible.
+
+## Public 0.19.0 second-runtime receiver window — 2026-10-14
+
+Reuse the accepted Workspace 0.19.0 publication and detailed signature trust from
+[Templates #715](https://github.com/FS-GG/FS.GG.Templates/pull/715): NuGet raw SHA-256
+`187c995806bb2f22db67c8a9a67c251f46f339bf6350b8051035935d308b497f`, source
+`8952e1c5753b0abc972154c7596ddc8da772b271`. This receiver window changes no
+producer payload or executable alpha.2/compiler/support pins. The reviewed stable
+release remains unqualified because its netstandard2.1 support gap is unchanged.
+
+The existing public hook now selects the exact 28-file delivered Xantham inventory,
+verifies NuGet signatures and source before install, and requires both ANSI and
+strip-ansi generation, deterministic outputs, F# compilation, Fable emission and
+Node witnesses. The same 28-file three-way adopter preserves unrelated README
+edits and refuses managed collisions before writes on public 0.13.0. Historical
+0.14.0 qualification remains evidence; its consumer may omit the later fixture.
+
+Preflight uses existing shell parsing, public archive/source/member byte checks and
+the existing runtime scripts. No new pipeline model or execution framework is
+needed for this linear receiver route. Fresh anonymous archive acquisition matched
+the accepted raw hash and all 28 selected members; this is data inspection only.
+Source delivery, hosted candidate checks, genuine public installed qualification
+and retained adoption remain separate. Both actual downloaded-only witnesses and
+retained collision assertions must pass through an admitted ordinary runtime
+profile before this remaining public receiver outcome can close. No installed
+acceptance, native process custody or savings is asserted by source preparation.
