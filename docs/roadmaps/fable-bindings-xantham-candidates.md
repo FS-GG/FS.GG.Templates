@@ -2,7 +2,7 @@
 
 Feature identity: `FB-XANTHAM-01`  
 Owner: FS.GG.Templates  
-Status: public 0.19.0 second-package receiver source preparation; installed acceptance pending
+Status: public 0.19.0 second-package receiver qualification passed; receiver source delivered in Templates #716
 Route: routine, one accountable Sol-medium worker  
 Unified part: **Fable bindings candidate generation and upstream integration assessment**  
 Stage: independently executable producer work from section 15; not a v2 prerequisite
@@ -393,8 +393,36 @@ Preflight uses existing shell parsing, public archive/source/member byte checks 
 the existing runtime scripts. No new pipeline model or execution framework is
 needed for this linear receiver route. Fresh anonymous archive acquisition matched
 the accepted raw hash and all 28 selected members; this is data inspection only.
-Source delivery, hosted candidate checks, genuine public installed qualification
-and retained adoption remain separate. Both actual downloaded-only witnesses and
-retained collision assertions must pass through an admitted ordinary runtime
-profile before this remaining public receiver outcome can close. No installed
-acceptance, native process custody or savings is asserted by source preparation.
+Source delivery and hosted candidate checks remain separate from the actual public
+installed qualification. On source `59023ac3de8c2c9b6e2179204e33c8dc950c99ad`,
+the fresh public 0.19.0 receiver and the retained public 0.13.0 receiver after
+28-file adoption both passed deterministic ANSI/strip-ansi generation, F#
+compilation, Fable compilation and the actual Node witnesses. Owner README edits
+survived; the edited managed runner was refused before writes. Original wrong-tool,
+conflicting-cache, signature-loss, path-escape, timeout and compile-failure controls
+passed, and the live assessment reported updates-found/unqualified/investigate.
+
+The credential-free ordinary profile used the official Linux/amd64 SDK image
+manifest `0eeb52c76e35a5431ca707ad2bc75e38006a05393045d8532ae44c15d9474523`,
+SDK 10.0.401, installed CoreCLR 10.0.12, Node 26.10.0 and npm 12.1.0. Support packages
+came from an explicit signed Ubuntu snapshot `20261001T000000Z`; Node/npm downloads
+were hash-verified before execution. The installed hook exited zero in 82.467
+seconds within the original 1800+120-second boundary and 2CPU/6GiB profile.
+Scoped disk/RSS/log samples are ordinary limits, not hard aggregate quotas or
+complete helper-birth coverage. The known container was removed, final native
+container population was empty, private migration returned zero, and the subsequent
+read-only host check found no scoped processes, file descriptors, pause files or
+relevant mounts. The base image store and private evidence remain allocated.
+
+The first image build failed at commit because its large layer tar exhausted the
+small tmpfs. The first direct-container bootstrap lacked explicit DOTNET_CLI_HOME;
+both original failures remain recorded. The successful repair used an ephemeral
+container from the pinned SDK image, explicit empty CLI home, and the same verified
+support bootstrap; it does not claim that the payload image build succeeded.
+Private actual receipt SHA-256 is
+`5250e1e68cec9e820e022dc92bc898a19264782b44bee6f9c9c39c37eaafd82d`;
+post-return readback SHA-256 is
+`9ab9bac3f3037bd69da65e76306137f590dedd6222744b3a6baecbe43520d68b`.
+[Templates #716](https://github.com/FS-GG/FS.GG.Templates/pull/716) passed normal
+required source checks and delivered at `a82385a1c0e26eb5cf0d68d69feeac9fdbe87ab3`.
+No savings or broader platform acceptance is inferred from this consumer qualification.
