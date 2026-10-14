@@ -398,10 +398,21 @@ preserves the original failure and pending full-composition boundary. Published
 
 The historical typed receiver requalification now prepares an explicit dependency
 maintenance phase after immutable scaffold/adoption preservation. All four receivers
-must genuinely upgrade their own SignalR.Client 10.0.0 reference and adjacent
+must genuinely upgrade their own SignalR.Client reference and adjacent
 public-feed lock to 10.0.13 before the unchanged audited root/browser/formal gates.
-Version 5 evidence distinguishes original historical scaffolds from maintained
+Version 6 evidence distinguishes original historical scaffolds from maintained
 execution. Focused real restores and all 11 Server.Tests per 0.10/0.11 baseline
 passed; the original public archives and final unrelated lock bytes remain intact.
 The [maintenance report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#historical-typed-receiver-dependency-maintenance--2026-10-14)
 retains the original audit/guard failures and pending complete hosted acceptance.
+
+
+The Wizard receiver is an explicitly distinct compatibility cohort: public Wizard
+0.11.1 + SDD 1.7 + Templates 0.19 **legacy** selector, requested descriptor 0.11,
+`templatePinning=false`. Its original 10.0.12 test client is maintained to 10.0.13;
+clean/sdd-none 0.11 and retained 0.10 keep their exact historical baselines. Strict
+pre-adoption archive/source/config/registry/manifest/lock guards refuse another
+selected package or member. Genuine bounded adoption, audited/locked restores and
+20 Server.Tests passed for the declared legacy cohort; complete hosted acceptance
+remains required. The original hosted manifest refusal and genuine 0.16/0.11
+unsupported-bundle failure remain failures, as detailed in the maintenance report.

@@ -11,6 +11,8 @@ wizard_version=0.11.1
 scene_version=0.29.0
 template_version=0.11.0
 older_template_version=0.10.0
+wizard_template_version=0.19.0
+wizard_template_public_sha=187c995806bb2f22db67c8a9a67c251f46f339bf6350b8051035935d308b497f
 template_public_sha=41fa91ba1674a4c1140c4054d4e76cff00cd514462dcdb3d9b3e3cdfa22ba4d9
 older_template_public_sha=69cbed30447e6bd4d221e0ce78060c8245d2744fc3993b4c27368aeeb48d11c8
 quint_sha=939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f
@@ -46,13 +48,16 @@ for id in FS.GG.UI.Scene FS.GG.UI.KeyboardInput FS.GG.UI.Scene.SvgBrowser; do
     "https://api.nuget.org/v3-flatcontainer/$lower/$scene_version/$lower.$scene_version.nupkg" \
     --output "$out/feed/$id.$scene_version.nupkg"
 done
-for version in "$template_version" "$older_template_version"; do
+for version in "$template_version" "$older_template_version" "$wizard_template_version"; do
   curl --fail --location --retry 3 \
     "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/$version/fs.gg.workspace.template.$version.nupkg" \
     --output "$out/feed/FS.GG.Workspace.Template.$version.nupkg"
 done
 [[ "$(sha "$out/feed/FS.GG.Workspace.Template.$template_version.nupkg")" == "$template_public_sha" ]] || fail 'Templates 0.11.0 public archive drifted'
 [[ "$(sha "$out/feed/FS.GG.Workspace.Template.$older_template_version.nupkg")" == "$older_template_public_sha" ]] || fail 'Templates 0.10.0 public archive drifted'
+wizard_package="$out/feed/FS.GG.Workspace.Template.$wizard_template_version.nupkg"
+[[ "$(sha "$wizard_package")" == "$wizard_template_public_sha" ]] || fail 'Wizard legacy Templates 0.19 public archive drifted'
+dotnet nuget verify "$wizard_package" --all >"$out/wizard-template-signatures.log"
 historical_provider="$out/build/fable-game-${template_version}.providers.yml"
 python3 "$root/tests/composition/fable-game/historical-provider.py" \
   --archive "$out/feed/FS.GG.Workspace.Template.$template_version.nupkg" --version "$template_version" \
@@ -131,9 +136,21 @@ scaffold "$out/sdd-none" "$current_package" "$out/sdd-none-scaffold.json" none t
 wizard_dir="$out/tools/wizard"
 DOTNET_CLI_HOME="$out/homes/tool" dotnet tool install FS.GG.NewSddWorkspace --version "$wizard_version" \
   --tool-path "$wizard_dir" --configfile "$out/Public.NuGet.Config" --no-cache >/dev/null
+wizard_archive="$wizard_dir/.store/fs.gg.newsddworkspace/$wizard_version/fs.gg.newsddworkspace/$wizard_version/fs.gg.newsddworkspace.$wizard_version.nupkg"
+dotnet nuget verify "$wizard_archive" --all >"$out/wizard-tool-signatures.log"
 PATH="$(dirname "$cli"):$PATH" DOTNET_CLI_HOME="$out/homes/wizard" "$wizard_dir/new-sdd-workspace" \
   "$out/wizard" WizardReceiver --template fable-game --lifecycle none \
   --ref "fs-gg-templates/v${template_version}" --pinned --no-governance --no-coordination >"$out/wizard-scaffold.log"
+# Retain originals even if the strict pre-adoption custody guard refuses.
+mkdir -p "$out/wizard-pre-adoption"
+cp "$out/wizard/Server.Tests/Server.Tests.fsproj" "$out/wizard/Server.Tests/packages.lock.json" \
+  "$out/wizard/.fsgg/providers.yml" "$out/wizard/.fsgg/scaffold-provenance.json" \
+  "$out/wizard/.fsgg/workspace-initialization.json" "$out/wizard-pre-adoption/"
+cp "$out/homes/wizard/.templateengine/packages.json" "$out/wizard-pre-adoption/registry.json"
+cp "$wizard_archive" "$out/feed/FS.GG.NewSddWorkspace.$wizard_version.nupkg"
+python3 "$root/tests/composition/fable-game/historical-receiver-maintenance.py" wizard-guard \
+  --receiver "$out/wizard" --archive "$wizard_package" --wizard-archive "$wizard_archive" \
+  --registry "$out/homes/wizard/.templateengine/packages.json" --output "$out/wizard-compatibility.json"
 test ! -e "$out/wizard/SvgFoundation"
 "$root/scripts/apply-svg-foundation-preview.sh" apply "$out/sdd-none" "$out/wizard" \
   "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/wizard-adoption-backup" >"$out/wizard-adoption.log"
@@ -181,12 +198,14 @@ cp -a "$out/retained" "$out/rollback-probe"
 maintain_receiver() {
   local receiver="$1" archive="$current_package" version="$template_version"
   [[ "$receiver" != retained ]] || { archive="$old_package"; version="$older_template_version"; }
+  local cohort_args=()
+  [[ "$receiver" != wizard ]] || { archive="$wizard_package"; version="$wizard_template_version"; cohort_args=(--wizard-evidence "$out/wizard-compatibility.json"); }
   local helper="$root/tests/composition/fable-game/historical-receiver-maintenance.py"
   local state="$out/$receiver-dependency-maintenance-state.json" log="$out/$receiver-dependency-maintenance.log"
   local maintenance_env=()
   [[ "$receiver" != retained ]] || maintenance_env=(FSharpCoreImplicitPackageVersion=10.1.400)
   python3 "$helper" prepare --receiver "$out/$receiver" --archive "$archive" --version "$version" \
-    --config "$out/Public.NuGet.Config" --state "$state" || return
+    --config "$out/Public.NuGet.Config" --state "$state" "${cohort_args[@]}" || return
   if ! (cd "$out/$receiver" && env "${maintenance_env[@]}" dotnet restore Server.Tests/Server.Tests.fsproj \
     --configfile "$out/Public.NuGet.Config" --force-evaluate -p:RestoreLockedMode=false \
     -p:NuGetAudit=true -p:NuGetAuditMode=all -p:TreatWarningsAsErrors=true) >"$log" 2>&1; then
@@ -199,7 +218,7 @@ maintain_receiver() {
   fi
   python3 "$helper" finish --receiver "$out/$receiver" --archive "$archive" --version "$version" \
     --config "$out/Public.NuGet.Config" --state "$state" --restore-log "$log" \
-    --output "$out/$receiver-dependency-maintenance.json" || return
+    --output "$out/$receiver-dependency-maintenance.json" "${cohort_args[@]}" || return
   cp "$out/$receiver/Server.Tests/Server.Tests.fsproj" "$out/$receiver-maintained.Server.Tests.fsproj" || return
   cp "$out/$receiver/Server.Tests/packages.lock.json" "$out/$receiver-maintained.packages.lock.json" || return
 }
@@ -403,6 +422,7 @@ scene_package="$out/feed/FS.GG.UI.Scene.$scene_version.nupkg"
 keyboard_package="$out/feed/FS.GG.UI.KeyboardInput.$scene_version.nupkg"
 browser_package="$out/feed/FS.GG.UI.Scene.SvgBrowser.$scene_version.nupkg"
 [[ "$(sha "$current_package")" == "$template_public_sha" && "$(sha "$old_package")" == "$older_template_public_sha" ]] || fail 'historical archives changed after maintenance'
+[[ "$(sha "$wizard_package")" == "$wizard_template_public_sha" ]] || fail 'legacy compatibility archive changed after maintenance'
 templates_source="$templates_revision"
 jq -n --arg templates "$templates_source" --arg rendering "$rendering_revision" --arg older "$older_templates_revision" \
   --arg scene "$(sha "$scene_package")" --arg keyboard "$(sha "$keyboard_package")" --arg browser "$(sha "$browser_package")" --arg template "$(sha "$current_package")" \
@@ -417,10 +437,11 @@ jq -n --arg templates "$templates_source" --arg rendering "$rendering_revision" 
   --arg cleanCorpus "$(sha "$out/clean/models/svg-foundation/retained-interaction.traces.tsv")" \
   --arg retainedCorpus "$(sha "$out/retained/models/svg-foundation/retained-interaction.traces.tsv")" \
   --arg documentCorpus "$(sha "$out/clean/models/svg-foundation/document-interaction.traces.tsv")" \
+  --slurpfile wizardCompatibility "$out/wizard-compatibility.json" \
   --slurpfile cleanMaintenance "$out/clean-dependency-maintenance.json" --slurpfile retainedMaintenance "$out/retained-dependency-maintenance.json" \
   --slurpfile noneMaintenance "$out/sdd-none-dependency-maintenance.json" --slurpfile wizardMaintenance "$out/wizard-dependency-maintenance.json" \
   --argjson cleanBrowser "$(cat "$out/clean-foundation-browser.json")" --argjson retainedBrowser "$(cat "$out/retained-foundation-browser.json")" \
   --argjson noneBrowser "$(cat "$out/sdd-none-foundation-browser.json")" --argjson wizardBrowser "$(cat "$out/wizard-foundation-browser.json")" \
-  '{schema:"fsgg.svg-typed-receivers/5",sources:{templates:$templates,rendering:$rendering,olderTemplate:$older},sdd:{package:"FS.GG.SDD.Cli",version:"1.7.0",source:"https://api.nuget.org/v3/index.json",backend:"quint-specification-v1",profile:"fsgg-quint-profile/2",authorInspect:"offline-passed"},wizard:{package:"FS.GG.NewSddWorkspace",version:"0.11.1",source:"nuget.org",route:"fable-game none then bounded SVG adopter"},artifacts:{scene:{version:"0.29.0",source:"nuget.org",sha256:$scene,fableApiSha256:$sceneFableApi},keyboardInput:{version:"0.29.0",source:"nuget.org",sha256:$keyboard,fableApiSha256:$keyboardFableApi},svgBrowser:{version:"0.29.0",source:"nuget.org",sha256:$browser,fableApiSha256:$browserFableApi},template:{version:"0.11.0",source:"nuget.org",sha256:$template},olderTemplate:{version:"0.10.0",source:"nuget.org"},distribution:"public-nuget-only",releaseOrder:["FS.GG.UI.Scene","FS.GG.UI.KeyboardInput","FS.GG.UI.Scene.SvgBrowser","FS.GG.Workspace.Template"],archiveRetention:"exact public producer bytes and interface hashes uploaded"},corpora:{retainedTransitions:192,documentTransitions:192,relationship:"retained subject plus additive document-interaction expansion",documentSha256:$documentCorpus},dependencyMaintenance:{clean:$cleanMaintenance[0],retained:$retainedMaintenance[0],sddNone:$noneMaintenance[0],wizard:$wizardMaintenance[0]},historicalScaffold:{templates:"0.11.0",retained:"0.10.0",archives:"unchanged-original-public-bytes",execution:"dependency-maintained-receivers"},journeys:{clean:{selection:"lifecycle=typed-sdd,svgFoundation=true",rootBuildTestBrowser:"passed-after-dependency-maintenance",foundationBrowser:$cleanBrowser,model:{tests:"passed",corpusSha256:$cleanCorpus},authoritySha256:$cleanAuthority,projectionSha256:$cleanProjection,documentProjectionSha256:$cleanDocumentProjection,result:"passed"},retained:{base:"public Templates 0.10.0",adoption:"bounded-package-config-delta",rootBuildTestBrowser:"passed-after-dependency-maintenance",foundationBrowser:$retainedBrowser,semanticChange:"pointer domain 1..2 to 1..3 with refreshed source bindings",model:{tests:"passed",boundedRun:"passed",steps:12,traces:32,seed:"0x0123456789abcdef",deterministic:"passed",newPointerWitness:3,corpusSha256:$retainedCorpus},authoritySha256:$retainedAuthority,projectionSha256:$retainedProjection,documentProjectionSha256:$retainedDocumentProjection,authoredFiles:"unchanged",lifecycle:"typed-sdd-preserved",ownerGuidance:"preserved",installedSkills:"unchanged-no-backfill",result:"passed"},sddNone:{selection:"lifecycle=none,svgFoundation=true",rootBuildTestBrowser:"passed-after-dependency-maintenance",foundationBrowser:$noneBrowser,result:"passed"},wizard:{selection:"fable-game,lifecycle=none",adoption:"released Templates bounded SVG adopter",rootBuildTestBrowser:"passed-after-dependency-maintenance",foundationBrowser:$wizardBrowser,result:"passed"},implementationRepair:"reused-current-semantics-and-replayed",collision:"reported-without-write",interruptedAdoption:"refused-and-byte-identical-rollback",explicitRollback:"byte-identical"},refusals:{wrongTools:"passed",wrongProfile:"passed",staleBindings:"passed"},apiComparison:{assembly:"Rendering 0.29.0 release gates passed",fable:"public producer interface digests retained per package",result:"compatible-public-producer"},authority:{enginePublication:"verified",templatePublication:"verified",installedPublicQualification:"passed-after-dependency-maintenance",defaultActivation:"unchanged"}}' >"$out/svg-typed-receivers.json"
-jq -e '.schema == "fsgg.svg-typed-receivers/5" and ([.dependencyMaintenance[] | .phase == "audited-public-regeneration-and-locked-restore-passed" and .resolvedSignalRCommon == "10.0.13"] | all) and .journeys.clean.result == "passed" and .journeys.retained.result == "passed" and .journeys.sddNone.result == "passed" and .journeys.wizard.result == "passed" and .refusals.wrongTools == "passed" and .artifacts.keyboardInput.version == "0.29.0" and .authority.installedPublicQualification == "passed-after-dependency-maintenance" and .corpora.retainedTransitions == 192 and .corpora.documentTransitions == 192' "$out/svg-typed-receivers.json" >/dev/null
+  '{schema:"fsgg.svg-typed-receivers/6",sources:{templates:$templates,rendering:$rendering,olderTemplate:$older},sdd:{package:"FS.GG.SDD.Cli",version:"1.7.0",source:"https://api.nuget.org/v3/index.json",backend:"quint-specification-v1",profile:"fsgg-quint-profile/2",authorInspect:"offline-passed"},wizard:{package:"FS.GG.NewSddWorkspace",version:"0.11.1",source:"nuget.org",route:"fable-game none then bounded SVG adopter"},artifacts:{scene:{version:"0.29.0",source:"nuget.org",sha256:$scene,fableApiSha256:$sceneFableApi},keyboardInput:{version:"0.29.0",source:"nuget.org",sha256:$keyboard,fableApiSha256:$keyboardFableApi},svgBrowser:{version:"0.29.0",source:"nuget.org",sha256:$browser,fableApiSha256:$browserFableApi},template:{version:"0.11.0",source:"nuget.org",sha256:$template},olderTemplate:{version:"0.10.0",source:"nuget.org"},distribution:"public-nuget-only",releaseOrder:["FS.GG.UI.Scene","FS.GG.UI.KeyboardInput","FS.GG.UI.Scene.SvgBrowser","FS.GG.Workspace.Template"],archiveRetention:"exact public producer bytes and interface hashes uploaded"},corpora:{retainedTransitions:192,documentTransitions:192,relationship:"retained subject plus additive document-interaction expansion",documentSha256:$documentCorpus},dependencyMaintenance:{clean:$cleanMaintenance[0],retained:$retainedMaintenance[0],sddNone:$noneMaintenance[0],wizard:$wizardMaintenance[0]},qualificationScope:"three-historical-and-one-legacy-compatibility-receiver",wizardLegacyCompatibility:$wizardCompatibility[0],preservedFailures:[{run:38629880173,outcome:"original-Wizard-historical-manifest-refusal",observedHostedManifest:"unknown"},{cohort:"Wizard0.16-SDD1.7-Templates0.11",outcome:"authentic-preflight-failed-unsupported-bundle-player"}],historicalScaffold:{clean:"0.11.0",sddNone:"0.11.0",retained:"0.10.0",archives:"unchanged-original-public-bytes",execution:"dependency-maintained-receivers"},journeys:{clean:{selection:"lifecycle=typed-sdd,svgFoundation=true",rootBuildTestBrowser:"passed-after-dependency-maintenance",foundationBrowser:$cleanBrowser,model:{tests:"passed",corpusSha256:$cleanCorpus},authoritySha256:$cleanAuthority,projectionSha256:$cleanProjection,documentProjectionSha256:$cleanDocumentProjection,result:"passed"},retained:{base:"public Templates 0.10.0",adoption:"bounded-package-config-delta",rootBuildTestBrowser:"passed-after-dependency-maintenance",foundationBrowser:$retainedBrowser,semanticChange:"pointer domain 1..2 to 1..3 with refreshed source bindings",model:{tests:"passed",boundedRun:"passed",steps:12,traces:32,seed:"0x0123456789abcdef",deterministic:"passed",newPointerWitness:3,corpusSha256:$retainedCorpus},authoritySha256:$retainedAuthority,projectionSha256:$retainedProjection,documentProjectionSha256:$retainedDocumentProjection,authoredFiles:"unchanged",lifecycle:"typed-sdd-preserved",ownerGuidance:"preserved",installedSkills:"unchanged-no-backfill",result:"passed"},sddNone:{selection:"lifecycle=none,svgFoundation=true",rootBuildTestBrowser:"passed-after-dependency-maintenance",foundationBrowser:$noneBrowser,result:"passed"},wizard:{selection:"public Templates 0.19 legacy selector,lifecycle=none,svgFoundation=false",requestedDescriptor:"0.11.0",actualTemplate:"0.19.0",templatePinning:false,adoption:"released Templates bounded SVG adopter",rootBuildTestBrowser:"passed-after-dependency-maintenance",foundationBrowser:$wizardBrowser,result:"passed"},implementationRepair:"reused-current-semantics-and-replayed",collision:"reported-without-write",interruptedAdoption:"refused-and-byte-identical-rollback",explicitRollback:"byte-identical"},refusals:{wrongTools:"passed",wrongProfile:"passed",staleBindings:"passed"},apiComparison:{assembly:"Rendering 0.29.0 release gates passed",fable:"public producer interface digests retained per package",result:"compatible-public-producer"},authority:{enginePublication:"verified",templatePublication:"verified",installedPublicQualification:"passed-after-dependency-maintenance",defaultActivation:"unchanged"}}' >"$out/svg-typed-receivers.json"
+jq -e '.schema == "fsgg.svg-typed-receivers/6" and .wizardLegacyCompatibility.phase == "exact-original-before-adoption" and .wizardLegacyCompatibility.scaffoldTemplateVersion == "0.19.0" and .wizardLegacyCompatibility.templatePinning == false and .dependencyMaintenance.wizard.cohort == "wizard-legacy-compatibility" and .dependencyMaintenance.wizard.scaffoldTemplateVersion == "0.19.0" and ([.dependencyMaintenance[] | .phase == "audited-public-regeneration-and-locked-restore-passed" and .resolvedSignalRCommon == "10.0.13"] | all) and .journeys.clean.result == "passed" and .journeys.retained.result == "passed" and .journeys.sddNone.result == "passed" and .journeys.wizard.result == "passed" and .refusals.wrongTools == "passed" and .artifacts.keyboardInput.version == "0.29.0" and .authority.installedPublicQualification == "passed-after-dependency-maintenance" and .corpora.retainedTransitions == 192 and .corpora.documentTransitions == 192' "$out/svg-typed-receivers.json" >/dev/null
 echo "svg-typed-receivers: clean=passed retained=passed controls=passed evidence=$out/svg-typed-receivers.json"

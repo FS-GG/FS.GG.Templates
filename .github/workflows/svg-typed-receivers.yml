@@ -102,5 +102,6 @@ jobs:
             ${{ runner.temp }}/svg-typed-receivers/*-maintained.packages.lock.json
             ${{ runner.temp }}/svg-typed-receivers/clean/readiness/svg-qual-01-3/**
             ${{ runner.temp }}/svg-typed-receivers/retained/readiness/svg-qual-01-3/**
+            ${{ runner.temp }}/svg-typed-receivers/wizard-pre-adoption/**
             ${{ runner.temp }}/svg-typed-receivers/*-backup/manifest.tsv
           if-no-files-found: warn

@@ -323,13 +323,13 @@ failed audited restore on SignalR.Common 10.0.0 from immutable public Templates
 0.11.0. Updating the current source template cannot change that historical archive.
 The selected repair preserves the original 0.11.0 and 0.10.0 archives, descriptor/tag
 joins, scaffold provenance and SVG adoption/rollback checks. It then explicitly
-maintains the four generated receivers' test dependency before their original
+maintains the generated receivers' test dependency before their original
 root build, browser and formal journeys. No audit suppression or check removal
 is used.
 
 The [maintenance helper](../../tests/composition/fable-game/historical-receiver-maintenance.py)
 authenticates the original archive, manifest and adjacent lock. It permits exactly
-the SignalR.Client 10.0.0→10.0.13 manifest delta and genuine public-only lock
+the historical SignalR.Client 10.0.0→10.0.13 manifest delta and genuine public-only lock
 regeneration. It snapshots authored source, lifecycle, skills and unrelated locks;
 any undeclared source or dependency drift refuses. Restore runs from each receiver's
 own directory to honor its SDK selection. The retained baseline also keeps its
@@ -341,8 +341,9 @@ other byte, semantic or mode drift still refuses.
 
 All four receivers receive independent maintenance evidence before expensive root
 execution. Failed maintenance blocks the root/build/browser/formal phase. The
-version 5 receipt labels root execution `passed-after-dependency-maintenance`,
-retains the original historical scaffold identities and records each receiver's
+version 6 receipt labels root execution `passed-after-dependency-maintenance`,
+separates the three historical scaffold identities from the explicit Wizard legacy
+compatibility cohort below, and records each receiver's
 original/upgraded manifest/lock hashes, public feed, successful regeneration and
 locked restore. Upgraded files and logs are retained with the existing artifacts.
 This revises current requalification of historical receivers; it does not rewrite
@@ -356,8 +357,8 @@ archives. The first 0.11 guard refused SDK selection from an incorrect working
 directory; after that correction it independently refused final-LF serializer
 drift. Both original refusals remain preserved. The repaired qualification reused
 the original bounded source window, one CPU and less than 1GiB sampled aggregate
-RSS, observing empty known owned groups. Twelve inert controls exercise the actual
-guard, four-path caller and final v5 receipt, including failed restore, stale
+RSS, observing empty known owned groups. Fifteen inert controls exercise the actual
+guard, four-path caller and final v6 receipt, including failed restore, stale
 binding, forbidden mutations and failed receipt evidence; six existing historical
 custody controls and 62 WASM source controls also pass.
 
@@ -365,3 +366,49 @@ These focused source/dependency results do not establish the full SDD/Wizard,
 adoption, browser or formal receiver journeys. The exact successor must still
 pass those existing hosted gates and full composition. The optional installed-WASM
 caller and upload remain disabled pending C-J1; whole GAME/FABLE remains open.
+
+
+### Explicit Wizard legacy compatibility cohort
+
+The original [830d39d typed receiver run](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38629880173)
+refused the Wizard manifest before maintenance. Its uploaded artifact lacks that
+refused manifest, so its exact hosted manifest remains unknown. A separate genuine
+public reproduction established why the descriptor cannot establish the installed
+package: Wizard 0.11.1 `--pinned` prevents CLI self-update, while its SDD 1.7 call
+still performs the default template update. Descriptor 0.11 therefore generated
+the public 0.19 legacy selector. A genuine Wizard 0.16 + SDD 1.7 + Templates 0.11
+preflight correctly pinned 0.11 but failed because Wizard supplies unsupported
+`--bundle player`. Both original failures remain evidence; neither is a pass.
+
+The amended four-receiver contract retains clean/sdd-none 0.11 and retained 0.10.
+Wizard alone now declares **Wizard 0.11.1 + SDD 1.7 + public Templates 0.19 legacy
+compatibility**, requested descriptor 0.11, with `templatePinning=false`. It fails
+closed if the default update selects another package. The required check, all four
+root/build/browser/formal journeys and audit remain intact.
+
+Before adopter or maintenance, the guard authenticates the exact signed public
+0.19 archive (`187c995806bb2f22db67c8a9a67c251f46f339bf6350b8051035935d308b497f`),
+source `8952e1c5753b0abc972154c7596ddc8da772b271`, sole installed registry entry,
+Wizard archive/source, unchanged historical descriptor, original manifest/lock,
+legacy template config and unique required `svgFoundation` parameter match.
+Actual provenance supplies lifecycle `none`, `svgFoundation=false` and no bundle;
+initialization is pending with no initial SvgFoundation directory. Successful SDD
+1.7 reports `providerInvocation:null`: member selection follows the exact configs,
+actual effective parameters and generated bytes; observed child argv is not claimed.
+
+The distinct Wizard maintenance permits only SignalR.Client 10.0.12→10.0.13 and
+genuine audited public lock regeneration. Mvc.Testing 10.0.12, runner 3.1.5,
+SVG_NETWORK_CANDIDATE and other source/dependency rows remain original. Receipt 6
+separates actual scaffold version/member from requested descriptor, records the
+pre-adoption identity and maintained graph, and preserves both failed cohorts.
+Original manifests, locks, descriptor, provenance, initialization and registry
+are uploaded even when the guard refuses.
+
+A fresh bounded native preflight verified public signatures, exact installed
+bytes/registry/legacy member and initial hashes, applied the unchanged bounded SVG
+adopter, regenerated and locked the dependency graph with audit enabled, then
+passed all 20 Server.Tests with zero skips. Common 10.0.13 is the sole version in
+lock/assets/deps; final source preservation passed, including unrelated lock bytes
+and modes. Known owned groups ended empty, sampled peak aggregate RSS 516780032
+bytes under the one-CPU/1GiB profile. This focused result does not establish the
+full hosted receiver journeys, whole Wizard adoption, or installed WASM acceptance.
