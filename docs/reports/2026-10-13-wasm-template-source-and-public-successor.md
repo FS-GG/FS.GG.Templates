@@ -43,7 +43,11 @@ this source delivery neither retires it nor resolves historical unknown holds.
 Workspace **0.19.0** is selected for the additive optional capability. Public **0.18.2** stays
 immutable. The one packable package and all five Workspace provider self-pins move together;
 existing dependency versions, provider contract/floor, defaults and optional source bytes stay
-unchanged. This selection is source preparation, not a feed or tag claim.
+unchanged. [PR714](https://github.com/FS-GG/FS.GG.Templates/pull/714) delivered these coherent source pins
+and the direct installed checker at protected
+`8952e1c5753b0abc972154c7596ddc8da772b271`. Its eleven changed paths matched native
+readback; full composition and all required checks passed. Publication below records the
+subsequent original tag operation separately.
 
 The producer-owned `release.yml` remains the publication route. A new annotated
 `fs-gg-templates/v0.19.0` tag must identify the accepted coherent source; its version must
@@ -93,6 +97,59 @@ first direct fixture's empty legacy `--sdd-version` argument was authentically r
 CLI parser; the direct-only route supplies the literal `not-applicable` to that unused argument,
 while its receipt declares no SDD or Wizard qualification. No public API was changed.
 
-Publication, actual clean downloaded-template WASM acceptance and every promised retaining
-upgrade remain open. This report accepts neither an authority/AT journey, product-native
-adoption nor the whole GAME-TEMPLATE-01/FABLE-ADOPT-01 outcome.
+## Dual publication and signature trust — 2026-10-14
+
+Original [release run 38489621342, attempt 1](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38489621342)
+succeeded from protected `8952e1c5753b0abc972154c7596ddc8da772b271` and the annotated
+`fs-gg-templates/v0.19.0` tag, object `49b52e100bc373ad33647ffac27e41f737a4a33b`.
+The tag is unsigned. One tag creation and one nonforce push were consumed; no publication
+was replayed. The original pack, full downloaded-artifact composition gate and publisher
+passed. This run performed its own successful NuGet OIDC exchange; earlier secret-name
+observations and another repository's policy did not supply that evidence.
+
+The original package SHA-256 is
+`a30bf66afe7a226ff618bb112ed44f20b502fd5dd5c9999e7c8d29feae10631a`.
+GitHub Packages readback and the [release asset](https://github.com/FS-GG/FS.GG.Templates/releases/tag/fs-gg-templates/v0.19.0)
+(release `412229199`, asset `638712056`) matched these original bytes. The actual
+[NuGet 0.19.0 archive](https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.19.0/fs.gg.workspace.template.0.19.0.nupkg)
+SHA-256 is `187c995806bb2f22db67c8a9a67c251f46f339bf6350b8051035935d308b497f`.
+All 504 signature-excluded payload entries matched the original package on both feeds;
+NuGet's added repository signature accounts for the different raw archive. The immutable
+provider descriptor matched the accepted source and coherent version pins.
+
+Fresh detailed NuGet verification of that exact public archive passed all signatures and
+repository/timestamp trust checks using SDK 10.0.401 on explicit CoreCLR 10.0.12.
+The retained workload-verification advisory caused no workload update or extra acquisition.
+Accepted publication evidence digest is
+`4676eb173cd49f674be3daa22ef463ea8ead7ebe24310f49a76fbfcb7b8593a9`;
+accepted signature evidence digest is
+`272c97bd02e15c4808b8afb499238e70a0da6acadcdff613c34d4f5d73a8577d`.
+These establish the scoped publication and trust milestone, not a generated consumer result.
+Public 0.18.2 remains immutable.
+
+## Installed consumer platform and current hold — 2026-10-14
+
+A private immutable Ubuntu image passed ten actual identity/version commands and seven
+shared-library observations with no missing libraries: nonroot UID 1001, Node 24.20.0,
+npm 11.19.0, Python 3.12.3, Git 2.43.0, curl 8.5.0, SDK 10.0.401, Rust/Cargo 1.90.0
+and WASI SDK 34 clang. The mounted SDK host selected CoreCLR 10.0.12 explicitly.
+Read-only tool mounts, no-new-privileges, dropped capabilities and network-none were observed.
+Mapping the owning host user to container UID 1001 resolved traversal of the private tool
+roots without changing their permissions. This is tool compatibility, not installed acceptance
+or a complete platform-security claim. Accepted evidence digest is
+`498c19b32ca0bc6a32624771d0b8012a429019102729a9bb9600a28bbdb0a83d`.
+
+The first admitted public-network probe failed before any in-container command: pasta could
+not open the absent host `/dev/net/tun` or create its namespace tap device. The next
+network-none probe retained a distinct private-directory permission refusal before Rust
+version execution; the corrected mapping passed the subsequent probe. Both original
+failures, operation deadlines and terminal evidence remain preserved. Each known container
+was removed and its known process groups were observed empty. The existing private pause
+and image/store remain held; this does not resolve historical unknown custody or holds.
+No network HEAD, template installation, generated-workspace restore or installed browser
+qualification ran in these probes. Host network capability is the current installed-C blocker.
+
+Actual clean downloaded-template WASM acceptance and every promised retaining upgrade
+remain open. The accepted source consumer's twenty-seven browser passes are not installed-C
+results. This report accepts neither an authority/AT journey, product-native adoption nor the
+whole GAME-TEMPLATE-01/FABLE-ADOPT-01 outcome; both remain Done No.
