@@ -436,11 +436,18 @@ jobs:
               # Real executable/library/startup and managed-group policy qualification is the separate custody phase.
               (root/"provisioned-paths.json").write_text(json.dumps({"paths":{k:v for k,v in env.items() if k.startswith("FSGG_WASM_") or k in ("DOTNET_HOST_PATH","PLAYWRIGHT_BROWSERS_PATH")},"providerToolSha256":sha(output),"state":"provisioned-not-qualified"},indent=2)+"\n")
               browser_root=root/"browsers";browser_root.mkdir(mode=0o700)
-              extracted=[]
+              extracted=[];registered=[]
               for entry in browser_inputs:
-                  extracted.append(extract_browser_archive(entry["asset"],pathlib.Path(entry["path"]),browser_root/entry["selector"],deadline))
+                  staged=browser_root/(".staging-"+entry["asset"])
+                  # Registry names are checked independently of acquisition selectors.
+                  extracted.append(extract_browser_archive(entry["asset"],pathlib.Path(entry["path"]),staged,deadline))
                   (root/"browser-extracted-layouts.json").write_text(json.dumps(extracted,indent=2)+"\n")
-              raise RuntimeError("exact browser data extracted; package registration/support and canonical profile contract not yet bound")
+                  registered.append(register_browser_archive(entry["asset"],pathlib.Path(entry["path"]),extracted[-1],browser_root,deadline))
+                  (root/"browser-registration.json").write_text(json.dumps(registered,indent=2)+"\n")
+              inspect_stock_sources(downloads/"template",seed/"Browser.Tests/node_modules")
+              host_validation=validate_registered_browsers(root,env,registered,execute)
+              (root/"browser-host-validation.json").write_text(json.dumps(host_validation,indent=2)+"\n")
+              raise RuntimeError("registered stock browser validation is not complete support/runtime proof; canonical profile contract not yet bound")
 
           def browser_archive_inputs(get):
               # Data acquisition only: raw bytes must match before any extraction or browser use.
@@ -566,6 +573,79 @@ jobs:
               require(time.monotonic()<deadline, "original archive deadline exhausted")
               return {"asset":name,"root":str(destination),"archiveSha256":selected["sha256"],**expected,"state":"extracted-data-not-registered-not-qualified"}
 
+          BROWSER_REGISTRY = {
+              "chromium-full1243":("chromium","chromium-1243","chrome-linux64/chrome"),
+              "chromium-headless1243":("chromium-headless-shell","chromium_headless_shell-1243","chrome-headless-shell-linux64/chrome-headless-shell"),
+              "firefox1543":("firefox","firefox-1543","firefox/firefox"),
+              "webkit2359":("webkit","webkit-2359","pw_run.sh"),
+              "ffmpeg1011":("ffmpeg","ffmpeg-1011","ffmpeg-linux")}
+
+          def register_browser_archive(name, archive, extracted, registry_root, deadline):
+              # Ordinary caller-owned tree: no concurrent writers; not hostile same-UID isolation.
+              require(time.monotonic()<deadline,"browser registration deadline exhausted")
+              selected=BROWSER_ARCHIVES[name];expected=BROWSER_LAYOUTS[name]
+              package_name,directory,relative=BROWSER_REGISTRY[name]
+              require(extracted == {"asset":name,"root":extracted.get("root"),"archiveSha256":selected["sha256"],**expected,"state":"extracted-data-not-registered-not-qualified"},"extraction receipt differs")
+              staged=pathlib.Path(extracted["root"]);target=registry_root/directory
+              require(registry_root.is_absolute() and registry_root.is_dir() and not registry_root.is_symlink(),"private registry root differs")
+              require(staged.parent==registry_root and staged.name==".staging-"+name and staged.is_dir() and not staged.is_symlink(),"staged browser root differs")
+              require(not target.exists() and not target.is_symlink(),"registry destination occupied")
+              require(not any((staged/marker).exists() or (staged/marker).is_symlink() for marker in ("INSTALLATION_COMPLETE","DEPENDENCIES_VALIDATED")),"preexisting installation/dependency marker refused")
+              executable=staged/relative
+              for part in (executable,*executable.parents):
+                  if part==registry_root:break
+                  require(not part.is_symlink(),"selected executable has symlink ancestor")
+              require(executable.is_file() and stat.S_ISREG(executable.lstat().st_mode),"selected executable is not regular")
+              require(archive.is_file() and not archive.is_symlink() and archive.stat().st_size==selected["bytes"],"registration archive size/path differs")
+              with original_io_deadline(deadline):require(sha(archive)==selected["sha256"],"registration archive identity differs")
+              with original_io_deadline(deadline),bounded_zip(archive,expected["members"],deadline) as source:
+                  matches=[item for item in source.infolist() if item.filename==relative]
+                  require(len(matches)==1,"selected archive executable missing/ambiguous")
+                  item=matches[0];mode=item.external_attr>>16
+                  require(stat.S_ISREG(mode) and stat.S_IMODE(mode)==stat.S_IMODE(executable.stat().st_mode) and mode & 0o111 and not mode & 0o7022,"selected executable mode differs/unsafe")
+                  digest=hashlib.sha256();count=0
+                  with source.open(item) as stream:
+                      while True:
+                          require(time.monotonic()<deadline,"executable comparison deadline exhausted")
+                          raw=stream.read(min(1048576,item.file_size-count+1))
+                          if not raw:break
+                          count+=len(raw);require(count<=item.file_size<=536870912,"selected executable byte cap")
+                          digest.update(raw)
+                  require(count==item.file_size and executable.stat().st_size==count and sha(executable)==digest.hexdigest(),"selected extracted executable bytes differ")
+              require(time.monotonic()<deadline,"browser registration deadline exhausted")
+              staged.rename(target)
+              # This is extraction completion, never host-dependency validation or runtime acceptance.
+              with (target/"INSTALLATION_COMPLETE").open("x") as marker:marker.write("")
+              return {"asset":name,"name":package_name,"directory":str(target),"executable":str(target/relative),"executableSha256":digest.hexdigest(),"mode":stat.S_IMODE(mode),"state":"registered-installation-complete-host-validation-pending"}
+
+          def validate_registered_browsers(root, env, registrations, execute):
+              require([r["asset"] for r in registrations]==list(BROWSER_REGISTRY),"exact registry population/order required")
+              require(not any(key in env for key in ("PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS","PLAYWRIGHT_HOST_PLATFORM_OVERRIDE","PLAYWRIGHT_CHROMIUM_REVISION","PLAYWRIGHT_FIREFOX_REVISION","PLAYWRIGHT_WEBKIT_REVISION","PLAYWRIGHT_EXECUTABLE_PATH","NODE_OPTIONS","NODE_PATH")),"host/registry override refused")
+              for row in registrations:
+                  marker=pathlib.Path(row["directory"])/"DEPENDENCIES_VALIDATED"
+                  require(not marker.exists() and not marker.is_symlink(),"dependency marker must be absent before stock validation")
+              core=root/"npm-seed/Browser.Tests/node_modules/playwright-core/lib/coreBundle.js"
+              metadata=core.parent.parent/"browsers.json"
+              require(metadata.is_file() and not metadata.is_symlink() and sha(metadata)==STOCK_LAUNCHER_INPUTS["playwright-core/browsers.json"],"stock browser registry metadata differs")
+              browser_rows=json.loads(metadata.read_bytes())["browsers"]
+              for name,directory,relative in BROWSER_REGISTRY.values():
+                  rows=[row for row in browser_rows if row["name"]==name]
+                  require(len(rows)==1 and rows[0]["revision"]==directory.rsplit("-",1)[1] and not rows[0].get("revisionOverrides",{}).get("ubuntu24.04-x64"),"stock revision/override differs")
+              require(core.is_file() and not core.is_symlink() and sha(core)==STOCK_LAUNCHER_INPUTS["playwright-core/lib/coreBundle.js"],"stock validation source differs")
+              script="""const fs=require('fs'),path=require('path');
+          const core=require(process.argv[1]),expected=JSON.parse(process.argv[2]);
+          if(core.utils.hostPlatform!=='ubuntu24.04-x64'||!core.utils.isOfficiallySupportedPlatform)throw Error('effective stock platform differs');
+          const registry=core.registry.registry;
+          const actual=expected.map(row=>{const e=registry.findExecutable(row.name);if(!e||e.directory!==row.directory||e.executablePath()!==row.executable)throw Error('stock registry selection differs');return e;});
+          (async()=>{await registry.validateHostRequirementsForExecutablesIfNeeded(actual,'javascript');
+          for(const e of actual){const p=path.join(e.directory,'DEPENDENCIES_VALIDATED');if(!fs.existsSync(p))throw Error('stock dependency validation marker absent');}
+          console.log(JSON.stringify({platform:core.utils.hostPlatform,names:actual.map(e=>e.name),state:'stock-host-validation-passed-runtime-pending'}));})().catch(e=>{console.error(e);process.exitCode=1;});"""
+              result=json.loads(execute([str(root/"tools/node-archive"/('node-v'+TOOLS['node']+'-linux-x64')/"bin/node"),"-e",script,str(core),json.dumps(registrations)],root,env))
+              require(result=={"platform":"ubuntu24.04-x64","names":[row["name"] for row in registrations],"state":"stock-host-validation-passed-runtime-pending"},"stock host validation result differs")
+              # Stock Chromium1.63 scans chrome-linux, but these authentic archives use
+              # chrome-linux64/headless-shell-linux64. Its success cannot prove those libraries.
+              return {**result,"chromiumSupport":"pending-selected-archive-library-validation","runtime":"not-run"}
+
           def qualify_tools(root, env, execute):
               expected = [([env["DOTNET_HOST_PATH"],"--version"], TOOLS["sdk"]),
                   (["node","--version"],"v"+TOOLS["node"]),(["npm","--version"],TOOLS["npm"]),
@@ -689,6 +769,8 @@ jobs:
             ${{ runner.temp }}/fable-wasm-installed-c/evidence/**
             ${{ runner.temp }}/fable-wasm-installed-c/input-downloads.json
             ${{ runner.temp }}/fable-wasm-installed-c/browser-archive-inputs.json
+            ${{ runner.temp }}/fable-wasm-installed-c/browser-registration.json
+            ${{ runner.temp }}/fable-wasm-installed-c/browser-host-validation.json
             ${{ runner.temp }}/fable-wasm-installed-c/browser-extracted-layouts.json
             ${{ runner.temp }}/fable-wasm-installed-c/actual-tool-findings.json
             ${{ runner.temp }}/fable-wasm-installed-c/provisioned-paths.json

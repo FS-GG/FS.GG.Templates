@@ -402,4 +402,85 @@ class HostedWasmCallerTests(unittest.TestCase):
         (self.root/'node_modules'/next(iter(npm_map))).write_bytes(b'changed')
         with self.assertRaisesRegex(ValueError,'launcher source differs'):self.ns['inspect_stock_sources'](template,self.root/'node_modules')
 
+    def registry_fixture(self, asset='chromium-headless1243', mode=0o755):
+        name,directory,relative=self.ns['BROWSER_REGISTRY'][asset]
+        registry=self.root/'browsers';registry.mkdir()
+        staged=registry/('.staging-'+asset);staged.mkdir()
+        executable=staged/relative;executable.parent.mkdir(parents=True,exist_ok=True);executable.write_bytes(b'inert executable bytes');executable.chmod(mode)
+        archive=self.root/'browser.zip'
+        with zipfile.ZipFile(archive,'w') as out:
+            info=zipfile.ZipInfo(relative);info.external_attr=(stat.S_IFREG|mode)<<16
+            out.writestr(info,executable.read_bytes())
+        self.ns['BROWSER_ARCHIVES'][asset]={**self.ns['BROWSER_ARCHIVES'][asset],'bytes':archive.stat().st_size,'sha256':hashlib.sha256(archive.read_bytes()).hexdigest()}
+        receipt={'asset':asset,'root':str(staged),'archiveSha256':self.ns['BROWSER_ARCHIVES'][asset]['sha256'],**self.ns['BROWSER_LAYOUTS'][asset],'state':'extracted-data-not-registered-not-qualified'}
+        return asset,archive,receipt,registry,executable
+
+    def test_actual_registry_mapping_and_extraction_marker_semantics(self):
+        args=self.registry_fixture();result=self.ns['register_browser_archive'](*args[:4],time.monotonic()+10)
+        self.assertEqual(Path(result['directory']).name,'chromium_headless_shell-1243')
+        self.assertEqual(result['state'],'registered-installation-complete-host-validation-pending')
+        self.assertEqual((Path(result['directory'])/'INSTALLATION_COMPLETE').read_bytes(),b'')
+        self.assertFalse((Path(result['directory'])/'DEPENDENCIES_VALIDATED').exists())
+        self.assertEqual(result['executableSha256'],hashlib.sha256(Path(result['executable']).read_bytes()).hexdigest())
+        self.assertFalse(Path(args[2]['root']).exists())
+
+    def test_registration_refuses_changed_executable_before_marker(self):
+        args=self.registry_fixture();args[4].write_bytes(b'drift')
+        with self.assertRaisesRegex(ValueError,'bytes differ'):self.ns['register_browser_archive'](*args[:4],time.monotonic()+10)
+        self.assertFalse((args[4].parents[1]/'INSTALLATION_COMPLETE').exists())
+
+    def test_registration_refuses_nonexecutable_or_unsafe_mode(self):
+        for mode in (0o644,0o777,0o4755):
+            with self.subTest(mode=mode),tempfile.TemporaryDirectory() as temp:
+                self.root=Path(temp);args=self.registry_fixture(mode=mode)
+                with self.assertRaisesRegex(ValueError,'mode'):self.ns['register_browser_archive'](*args[:4],time.monotonic()+10)
+
+    def test_registration_refuses_forged_dependency_and_install_markers(self):
+        for marker in ('DEPENDENCIES_VALIDATED','INSTALLATION_COMPLETE'):
+            with self.subTest(marker=marker),tempfile.TemporaryDirectory() as temp:
+                self.root=Path(temp);args=self.registry_fixture();(Path(args[2]['root'])/marker).write_text('')
+                with self.assertRaisesRegex(ValueError,'marker'):self.ns['register_browser_archive'](*args[:4],time.monotonic()+10)
+
+    def test_registration_refuses_symlink_executable_or_expired_deadline(self):
+        args=self.registry_fixture();args[4].unlink();args[4].symlink_to(self.root/'other')
+        with self.assertRaisesRegex(ValueError,'symlink'):self.ns['register_browser_archive'](*args[:4],time.monotonic()+10)
+        with self.assertRaisesRegex(ValueError,'deadline'):self.ns['register_browser_archive'](*args[:4],time.monotonic()-1)
+
+    def validation_fixture(self):
+        registrations=[]
+        for asset,(name,directory,relative) in self.ns['BROWSER_REGISTRY'].items():
+            tree=self.root/'browsers'/directory;tree.mkdir(parents=True)
+            registrations.append({'asset':asset,'name':name,'directory':str(tree),'executable':str(tree/relative)})
+        core=self.root/'npm-seed/Browser.Tests/node_modules/playwright-core/lib/coreBundle.js';core.parent.mkdir(parents=True);core.write_bytes(b'inert stock module')
+        self.ns['STOCK_LAUNCHER_INPUTS']['playwright-core/lib/coreBundle.js']=hashlib.sha256(core.read_bytes()).hexdigest()
+        metadata=core.parent.parent/'browsers.json';metadata.write_text(json.dumps({'browsers':[{'name':name,'revision':directory.rsplit('-',1)[1]} for name,directory,relative in self.ns['BROWSER_REGISTRY'].values()]}))
+        self.ns['STOCK_LAUNCHER_INPUTS']['playwright-core/browsers.json']=hashlib.sha256(metadata.read_bytes()).hexdigest()
+        return registrations
+
+    def test_host_validation_calls_stock_validator_without_install_or_forged_marker(self):
+        registrations=self.validation_fixture();calls=[]
+        def execute(argv,cwd,env):
+            calls.append(argv);self.assertEqual(argv[1],'-e')
+            script=argv[2];self.assertIn('validateHostRequirementsForExecutablesIfNeeded(actual',script)
+            self.assertNotIn('writeFile',script);self.assertNotIn('registry.install',script)
+            return json.dumps({'platform':'ubuntu24.04-x64','names':[r['name'] for r in registrations],'state':'stock-host-validation-passed-runtime-pending'})
+        result=self.ns['validate_registered_browsers'](self.root,{},registrations,execute)
+        self.assertEqual(len(calls),1);self.assertEqual(result['chromiumSupport'],'pending-selected-archive-library-validation')
+        self.assertEqual(result['runtime'],'not-run')
+        self.assertFalse(any((Path(r['directory'])/'DEPENDENCIES_VALIDATED').exists() for r in registrations))
+
+    def test_host_validation_refuses_skipped_or_cached_validation_before_execute(self):
+        registrations=self.validation_fixture()
+        def execute(*args):raise AssertionError('execute must remain blocked')
+        for key in ('PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS','PLAYWRIGHT_HOST_PLATFORM_OVERRIDE','NODE_OPTIONS'):
+            with self.subTest(key=key),self.assertRaisesRegex(ValueError,'override'):self.ns['validate_registered_browsers'](self.root,{key:'1'},registrations,execute)
+        (Path(registrations[0]['directory'])/'DEPENDENCIES_VALIDATED').write_text('')
+        with self.assertRaisesRegex(ValueError,'absent'):self.ns['validate_registered_browsers'](self.root,{},registrations,execute)
+
+    def test_host_validation_failure_does_not_become_runtime_pass(self):
+        registrations=self.validation_fixture()
+        def execute(*args):raise RuntimeError('actual missing host dependency')
+        with self.assertRaisesRegex(RuntimeError,'missing host dependency'):self.ns['validate_registered_browsers'](self.root,{},registrations,execute)
+        with self.assertRaisesRegex(RuntimeError,'no provisioning or installed C admitted'):self.ns['main']()
+
 if __name__ == '__main__': unittest.main()

@@ -372,3 +372,12 @@ wrapper and native entry point; host interpreter/support/birth/retirement proof
 and bounded installation remain pending with the canonical candidate/profile
 join. Raw public TLS identity supplies no build/signature or runtime acceptance.
 Original acquisition failures, metadata/timing gaps and unreconciled historical reservations remain.
+
+
+Browser registry source preparation now checks selected executable archive bytes
+and modes, installs only into fresh private registry names and keeps extraction
+completion distinct from stock host-dependency validation. The
+[registry preparation report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#browser-registry-preparation--2026-10-14)
+records 61 passing inert controls and the remaining Chromium library-coverage gap.
+The unconditional pre-provisioning refusal remains; no native member/IPC profile,
+custody pilot or clean installed-WASM assertion is accepted.

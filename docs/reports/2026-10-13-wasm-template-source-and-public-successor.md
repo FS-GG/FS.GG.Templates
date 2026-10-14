@@ -247,3 +247,33 @@ not publisher signatures or source-to-build provenance. The original collector
 AttributeError remains the first collection failure; its monotonic start was not
 retained. Fresh Google HEAD CRC32C was validated offline, while fresh MD5 and GET
 metadata remain unknown, rather than a demonstrated MD5 mismatch.
+
+
+## Browser registry preparation — 2026-10-14
+
+The prepared hosted caller now maps the five verified archives to the exact
+Playwright 1.63 registry names. It compares each selected regular executable's
+bytes and executable mode with its verified archive, rejects occupied destinations
+and preexisting completion or dependency markers, and renames each completed
+private staging directory into the registry before creating `INSTALLATION_COMPLETE`.
+That marker records extraction completion only. The caller never writes
+`DEPENDENCIES_VALIDATED`.
+
+The next source stage checks the package-owned browser metadata, effective
+Ubuntu 24.04 x64 platform and exact executable selections, then invokes the genuine
+stock host-dependency validator with its cache marker absent. No install command,
+shared registry garbage collection or host-validation bypass is used. Successful
+stock validation alone remains insufficient: the inspected Chromium validators
+name `chrome-linux`, while the selected verified archives contain `chrome-linux64`
+and `chrome-headless-shell-linux64`. Additional selected-archive library coverage
+is still required; neither a stock marker nor this source preparation proves it.
+
+The actual inline source passed 61 inert controls, including changed executable
+bytes, unsafe modes, symlink/expired registration, forged markers, host overrides
+and validation failure. Fixtures use inert data and execute no browser, native
+toolchain, installation or network operation. The workflow still refuses before
+provisioning and again before any dependent installed assertion. Canonical member,
+resource and runtime profile integration, complete support validation, fresh budget
+admission and the genuine custody pilot remain open. Native descendant argv and
+IPC formats have not been authenticated; source-derived root directory arguments
+cannot authorize them.
