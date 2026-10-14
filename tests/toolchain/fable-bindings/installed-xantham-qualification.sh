@@ -53,6 +53,31 @@ if [[ ! -x "$fable" ]]; then dotnet tool install Fable --version 5.13.0 --tool-p
 grep -Eq '^import [A-Za-z0-9_]+ from "ansi-regex";' "$product/.nuget/xantham-tools/pilot/runtime-dist/Program.js"
 node "$product/.nuget/xantham-tools/pilot/runtime-dist/Program.js" | grep -Fq 'PASS Xantham ANSI candidate default import, omitted options, option constructor, controls and onlyFirst'
 
+# The second fixture is optional only for historical 0.14 consumers. The public
+# 0.19 caller requires this result for both fresh and retained receivers.
+second_evidence=null second_before=
+if [[ -f "$product/xantham/strip-ansi.json" ]]; then
+  test -f "$product/xantham/qualification/StripAnsi.fsproj"
+  test -f "$product/xantham/qualification/StripAnsiProgram.fs"
+  (cd "$product" && node scripts/generate-candidate.mjs --backend xantham --config xantham/strip-ansi.json >/dev/null)
+  second=("$product/generated-candidates/xantham/strip-ansi-proposal/StripAnsi.fs" "$product/generated-candidates/xantham/strip-ansi-proposal/manifest.json" "$product/generated-candidates/xantham/strip-ansi-proposal/symbols.jsonl")
+  second_first="$(sha256sum "${second[@]}")"
+  second_report="$(find "$product/generated-candidates/xantham/runs" -mindepth 2 -maxdepth 2 -name run-report.json -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-)"
+  jq -e '.status == "proposal-ready" and .input.package.name == "strip-ansi" and .input.package.version == "7.1.2" and
+    .verification.imports == "pass" and .verification.selectedSymbols == "pass" and .verification.fsharpCompile == "pass" and
+    .maintainedWorkspace.unchanged == true and .findings.counts.exact == 1 and .findings.counts.ergonomic == 0 and
+    .findings.counts.widened == 0 and .findings.counts.escape == 0 and .process.limitTriggered == null' "$second_report" >/dev/null
+  (cd "$product" && node scripts/generate-candidate.mjs --backend xantham --config xantham/strip-ansi.json >/dev/null)
+  test "$second_first" = "$(sha256sum "${second[@]}")"
+  second_out="$product/.nuget/xantham-tools/pilot/strip-ansi-runtime-dist"
+  "$fable" "$product/xantham/qualification/StripAnsi.fsproj" --outDir "$second_out" --noCache >/dev/null
+  grep -Fq 'from "strip-ansi"' "$second_out/StripAnsiProgram.js"
+  node "$second_out/StripAnsiProgram.js" | grep -Fq 'PASS Xantham strip-ansi ANSI and plain-text runtime witness'
+  test "$maintained_before" = "$(sha256sum "${maintained_files[@]}")"
+  second_before="$(sha256sum "${second[@]}")"
+  second_evidence="$(jq -n --arg candidate "$(sha256sum "${second[0]}" | cut -d' ' -f1)" --arg manifest "$(sha256sum "${second[1]}" | cut -d' ' -f1)" --arg symbols "$(sha256sum "${second[2]}" | cut -d' ' -f1)" '{package:"strip-ansi",version:"7.1.2",repeatBytes:"identical",candidateSha256:$candidate,manifestSha256:$manifest,symbolsSha256:$symbols,fsharp:"passed",fable:"passed",node:"passed"}')"
+fi
+
 proposal_before="$(sha256sum "${proposal[@]}")"
 latest_report() { find "$product/generated-candidates/xantham/runs" -mindepth 2 -maxdepth 2 -name run-report.json -printf '%T@ %p\n' | sort -n | tail -1 | cut -d' ' -f2-; }
 failure_config() { jq "$1" "$product/xantham/ansi-regex.json" >"$product/.nuget/$2.json"; }
@@ -61,6 +86,7 @@ expect_rejected() {
   if (cd "$product" && node scripts/generate-candidate.mjs --backend xantham --config ".nuget/$config.json" >/dev/null 2>&1); then echo "$config fixture unexpectedly passed" >&2; exit 1; fi
   jq -e ".status == \"rejected\" and .maintainedWorkspace.unchanged == true and ($jq_test)" "$(latest_report)" >/dev/null
   test "$proposal_before" = "$(sha256sum "${proposal[@]}")"
+  [[ -z "$second_before" ]] || test "$second_before" = "$(sha256sum "${second[@]}")"
 }
 
 failure_config '.limits.timeoutSeconds = 0.001' timeout
@@ -82,6 +108,7 @@ if (cd "$product" && node scripts/run-xantham.mjs --config xantham/ansi-regex.js
 jq -e '.status == "rejected" and .maintainedWorkspace.unchanged == true and any(.diagnostics[]; contains("CLI assembly fingerprint"))' "$(latest_report)" >/dev/null
 test "$proposal_before" = "$(sha256sum "${proposal[@]}")"
 test "$maintained_before" = "$(sha256sum "${maintained_files[@]}")"
+[[ -z "$second_before" ]] || test "$second_before" = "$(sha256sum "${second[@]}")"
 
 assessment_status=not-run assessment_compatibility=not-run assessment_disposition=not-run
 if [[ "$assessment_mode" == "--live-assessment" ]]; then
@@ -95,9 +122,9 @@ fi
 
 if [[ -n "$evidence" ]]; then
   mkdir -p "$(dirname "$evidence")"
-  jq -n --arg status "$assessment_status" --arg compatibility "$assessment_compatibility" --arg disposition "$assessment_disposition" \
+  jq -n --argjson second "$second_evidence" --arg status "$assessment_status" --arg compatibility "$assessment_compatibility" --arg disposition "$assessment_disposition" \
     --arg candidate "$(sha256sum "${proposal[0]}" | cut -d' ' -f1)" --arg manifest "$(sha256sum "${proposal[1]}" | cut -d' ' -f1)" --arg symbols "$(sha256sum "${proposal[2]}" | cut -d' ' -f1)" \
-    '{schema:"fsgg.fbx-installed-xantham-qualification/1",result:"passed",generation:{status:"proposal-ready",repeatBytes:"identical",candidateSha256:$candidate,manifestSha256:$manifest,symbolsSha256:$symbols,findings:{widened:0,escape:0}},compile:{fsharp:"passed",fable:"passed",node:"passed"},maintainedEvidence:"unchanged",assessment:{status:$status,compatibility:$compatibility,disposition:$disposition},fixtures:{wrongTool:"rejected",conflictingCache:"isolated",signatureLoss:"rejected",pathEscape:"rejected",timeout:"rejected",compileFailure:"rejected"}}' >"$evidence"
+    '{schema:"fsgg.fbx-installed-xantham-qualification/1",result:"passed",generation:{status:"proposal-ready",repeatBytes:"identical",candidateSha256:$candidate,manifestSha256:$manifest,symbolsSha256:$symbols,findings:{widened:0,escape:0}},compile:{fsharp:"passed",fable:"passed",node:"passed"},maintainedEvidence:"unchanged",secondRuntime:$second,assessment:{status:$status,compatibility:$compatibility,disposition:$disposition},fixtures:{wrongTool:"rejected",conflictingCache:"isolated",signatureLoss:"rejected",pathEscape:"rejected",timeout:"rejected",compileFailure:"rejected"}}' >"$evidence"
 fi
 
 echo "PASS installed Xantham proposal-ready, deterministic, compile/Fable/Node executable; negative fixtures rejected"
