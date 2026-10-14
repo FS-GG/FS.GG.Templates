@@ -313,3 +313,55 @@ source tree. This changes future generated test dependencies; published 0.19.0
 bytes and the installed-WASM assertion remain separate. The original failed run
 is preserved, and a successful focused repair does not replace the required
 successor full composition. Runtime execution/upload remain disabled pending C-J1.
+
+
+## Historical typed receiver dependency maintenance — 2026-10-14
+
+The successor's original typed receiver run
+[38627530587](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38627530587)
+failed audited restore on SignalR.Common 10.0.0 from immutable public Templates
+0.11.0. Updating the current source template cannot change that historical archive.
+The selected repair preserves the original 0.11.0 and 0.10.0 archives, descriptor/tag
+joins, scaffold provenance and SVG adoption/rollback checks. It then explicitly
+maintains the four generated receivers' test dependency before their original
+root build, browser and formal journeys. No audit suppression or check removal
+is used.
+
+The [maintenance helper](../../tests/composition/fable-game/historical-receiver-maintenance.py)
+authenticates the original archive, manifest and adjacent lock. It permits exactly
+the SignalR.Client 10.0.0→10.0.13 manifest delta and genuine public-only lock
+regeneration. It snapshots authored source, lifecycle, skills and unrelated locks;
+any undeclared source or dependency drift refuses. Restore runs from each receiver's
+own directory to honor its SDK selection. The retained baseline also keeps its
+explicit FSharp.Core 10.1.400 override. Both original baselines lock that FSharp
+version. NuGet400 can remove an unrelated lock's final LF while preserving its
+whole JSON graph: only exact immutable original bytes minus that one LF may be
+restored to their original bytes, with an explicit serializer observation. Any
+other byte, semantic or mode drift still refuses.
+
+All four receivers receive independent maintenance evidence before expensive root
+execution. Failed maintenance blocks the root/build/browser/formal phase. The
+version 5 receipt labels root execution `passed-after-dependency-maintenance`,
+retains the original historical scaffold identities and records each receiver's
+original/upgraded manifest/lock hashes, public feed, successful regeneration and
+locked restore. Upgraded files and logs are retained with the existing artifacts.
+This revises current requalification of historical receivers; it does not rewrite
+historical receipts or assert untouched vulnerable receivers build successfully.
+
+Focused genuine qualification generated separate workspaces from both exact public
+archives. Audited public regeneration, locked restore and all 11 Server.Tests per
+baseline passed, with zero skips. Generated lock/assets/deps select only
+SignalR.Common 10.0.13; unrelated locks finish byte-identical to the original
+archives. The first 0.11 guard refused SDK selection from an incorrect working
+directory; after that correction it independently refused final-LF serializer
+drift. Both original refusals remain preserved. The repaired qualification reused
+the original bounded source window, one CPU and less than 1GiB sampled aggregate
+RSS, observing empty known owned groups. Twelve inert controls exercise the actual
+guard, four-path caller and final v5 receipt, including failed restore, stale
+binding, forbidden mutations and failed receipt evidence; six existing historical
+custody controls and 62 WASM source controls also pass.
+
+These focused source/dependency results do not establish the full SDD/Wizard,
+adoption, browser or formal receiver journeys. The exact successor must still
+pass those existing hosted gates and full composition. The optional installed-WASM
+caller and upload remain disabled pending C-J1; whole GAME/FABLE remains open.

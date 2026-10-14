@@ -394,3 +394,14 @@ fresh source generation, locked restore and all 20 Server.Tests passed. The
 [dependency repair report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#independent-composition-dependency-repair--2026-10-14)
 preserves the original failure and pending full-composition boundary. Published
 0.19.0 and installed-WASM acceptance remain unchanged.
+
+
+The historical typed receiver requalification now prepares an explicit dependency
+maintenance phase after immutable scaffold/adoption preservation. All four receivers
+must genuinely upgrade their own SignalR.Client 10.0.0 reference and adjacent
+public-feed lock to 10.0.13 before the unchanged audited root/browser/formal gates.
+Version 5 evidence distinguishes original historical scaffolds from maintained
+execution. Focused real restores and all 11 Server.Tests per 0.10/0.11 baseline
+passed; the original public archives and final unrelated lock bytes remain intact.
+The [maintenance report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#historical-typed-receiver-dependency-maintenance--2026-10-14)
+retains the original audit/guard failures and pending complete hosted acceptance.
