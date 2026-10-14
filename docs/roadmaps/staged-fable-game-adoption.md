@@ -309,6 +309,29 @@ passed in each of three families, with the explicit Firefox compatibility and wr
 boundaries. [The owning report](../reports/2026-10-13-wasm-template-source-and-public-successor.md)
 retains original failures and separates this source consumer from publication and clean
 installed-template acceptance. Workspace 0.19.0 is the selected coherent source successor;
-public 0.18.2 remains immutable. Its native publisher and actual downloaded direct WASM
-consumer are pending, as are retaining upgrades and the broader reference/AT/product outcomes.
-GAME-TEMPLATE-01 and FABLE-ADOPT-01 remain open.
+public 0.18.2 remains immutable. [PR714](https://github.com/FS-GG/FS.GG.Templates/pull/714)
+delivered the coherent 0.19.0 source and direct installed checker at
+`8952e1c5753b0abc972154c7596ddc8da772b271`.
+
+### Workspace 0.19.0 publication and installed platform hold — 2026-10-14
+
+Original [release run 38489621342, attempt 1](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38489621342)
+passed original packing, full downloaded-artifact composition and both-feed publication with
+its own successful NuGet OIDC exchange. The annotated 0.19.0 tag identifies the accepted
+source; [release 412229199](https://github.com/FS-GG/FS.GG.Templates/releases/tag/fs-gg-templates/v0.19.0)
+and GitHub Packages matched the original archive. All 504 signature-excluded NuGet payloads
+matched it, and fresh detailed verification of the actual public NuGet archive passed repository
+and timestamp trust. The [owning report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#dual-publication-and-signature-trust--2026-10-14)
+records exact source, tag, raw archive identities and accepted evidence digests.
+
+Ten actual tool identity/version commands and seven shared-library observations passed in
+the private nonroot, read-only, network-none image with the corrected owning-user mapping.
+Public-network qualification stopped before tool execution because the host lacks
+`/dev/net/tun`; the separate private-directory permission failure and both original operation
+records remain preserved. Known containers were removed and known groups observed empty;
+private pause/store custody and historical unknown holds remain separate and held.
+
+Clean downloaded-template WASM acceptance has not run. Publication and source browser
+passes do not close that assertion. Host network capability remains its current blocker;
+retaining upgrades and the broader reference/AT/product outcomes are also pending.
+GAME-TEMPLATE-01 and FABLE-ADOPT-01 remain Done No.
