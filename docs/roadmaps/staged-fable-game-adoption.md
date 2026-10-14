@@ -335,3 +335,84 @@ Clean downloaded-template WASM acceptance has not run. Publication and source br
 passes do not close that assertion. Host network capability remains its current blocker;
 retaining upgrades and the broader reference/AT/product outcomes are also pending.
 GAME-TEMPLATE-01 and FABLE-ADOPT-01 remain Done No.
+
+
+### Hosted direct installed-WASM window — 2026-10-14
+
+Continue the existing GAME-TEMPLATE-01 / FABLE-ADOPT-01 installed slice with the
+same accountable `template_wasm_reference` owner. Prepare an automatic same-repository
+PR job in the existing public-reference workflow, fixed to the published 0.19.0
+source/package/descriptor and actual package-owned default/Complete/browser graph.
+Keep the legacy dispatch route separate. The [owning report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#hosted-installed-c-source-preparation--2026-10-14)
+records prepared acquisition/Release-tool/lock controls, actual source identities,
+the revised finite budget and current missing joins.
+
+The installed assertion depends on Coordination's exact reviewed managed-group
+candidate contract and a genuine stock Playwright/browser/Vite custody pilot.
+Source preparation does not qualify that candidate, platform, policy or installed C;
+the checkpoint refuses before acquisition while the contract remains unbound.
+Candidate use requires root review and coherent qualification, with final protected
+source correspondence after the retained PROC publication fence. Genuine downloaded-only
+default/Complete generation, guests/Fable/Vite and nine passed cases in each browser
+remain mandatory. Preserve unreconciled historical reservations, original failed probes and telemetry gaps;
+retaining/provider/Wizard/AT/product assertions remain separate and **Done No**.
+
+
+The selected hosted installed-C profile is ordinary functional acceptance with stock
+Chromium `--no-sandbox`, separately enabled Firefox compatibility and package-selected
+WebKit. The [stock shutdown disposition](../reports/2026-10-13-wasm-template-source-and-public-successor.md#selected-stock-browser-and-shutdown-boundary)
+retains the known Playwright numeric-group-kill residual and distinguishes canonical
+cleanup's own safe-signal contract. No all-transitive-signal, strong isolation or
+sandbox assertion follows. Genuine three-family normal/forced custody proof still
+precedes installed C; reviewed source/metadata controls grant no pilot authority.
+
+The prepared caller pins the five observed browser raw archives before extraction
+or use. WebKit source preparation binds the stock selector, bundled WPE shell
+wrapper and native entry point; host interpreter/support/birth/retirement proof
+and bounded installation remain pending with the canonical candidate/profile
+join. Raw public TLS identity supplies no build/signature or runtime acceptance.
+Original acquisition failures, metadata/timing gaps and unreconciled historical reservations remain.
+
+
+Browser registry source preparation now checks selected executable archive bytes
+and modes, installs only into fresh private registry names and keeps extraction
+completion distinct from stock host-dependency validation. The
+[registry preparation report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#browser-registry-preparation--2026-10-14)
+records 62 passing inert controls and the remaining Chromium library-coverage gap.
+The unconditional pre-provisioning refusal remains; no native member/IPC profile,
+custody pilot or clean installed-WASM assertion is accepted.
+
+The automatic PR job runs only the static source controls in this window. Caller
+execution and runtime artifact upload have explicit literal false conditions until
+C-J1 review admits the complete canonical profile; the inline refusal also remains.
+
+
+The first full composition of PR718 failed on the unchanged generated game test
+SignalR.Common 10.0.12 dependency. The prepared narrow successor updates only the
+test manifest's SignalR.Client reference and adjacent public-feed lock to 10.0.13;
+fresh source generation, locked restore and all 20 Server.Tests passed. The
+[dependency repair report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#independent-composition-dependency-repair--2026-10-14)
+preserves the original failure and pending full-composition boundary. Published
+0.19.0 and installed-WASM acceptance remain unchanged.
+
+
+The historical typed receiver requalification now prepares an explicit dependency
+maintenance phase after immutable scaffold/adoption preservation. All four receivers
+must genuinely upgrade their own SignalR.Client reference and adjacent
+public-feed lock to 10.0.13 before the unchanged audited root/browser/formal gates.
+Version 6 evidence distinguishes original historical scaffolds from maintained
+execution. Focused real restores and all 11 Server.Tests per 0.10/0.11 baseline
+passed; the original public archives and final unrelated lock bytes remain intact.
+The [maintenance report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#historical-typed-receiver-dependency-maintenance--2026-10-14)
+retains the original audit/guard failures and pending complete hosted acceptance.
+
+
+The Wizard receiver is an explicitly distinct compatibility cohort: public Wizard
+0.11.1 + SDD 1.7 + Templates 0.19 **legacy** selector, requested descriptor 0.11,
+`templatePinning=false`. Its original 10.0.12 test client is maintained to 10.0.13;
+clean/sdd-none 0.11 and retained 0.10 keep their exact historical baselines. Strict
+pre-adoption archive/source/config/registry/manifest/lock guards refuse another
+selected package or member. Genuine bounded adoption, audited/locked restores and
+20 Server.Tests passed for the declared legacy cohort; complete hosted acceptance
+remains required. The original hosted manifest refusal and genuine 0.16/0.11
+unsupported-bundle failure remain failures, as detailed in the maintenance report.

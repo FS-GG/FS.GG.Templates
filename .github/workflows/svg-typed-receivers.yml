@@ -9,6 +9,8 @@ on:
       - 'scripts/svg-foundation-preview-baseline.manifest'
       - 'templates/fs-gg-fable-game/**'
       - 'tests/composition/fable-game/verify-svg-typed-receivers.sh'
+      - 'tests/composition/fable-game/historical-receiver-maintenance.py'
+      - 'tests/composition/fable-game/test-historical-receiver-maintenance.py'
       - 'tests/composition/fable-game/historical-provider.py'
       - 'tests/composition/fable-game/test-historical-provider.py'
       - 'tests/composition/fable-game/svg-preview-observe.mjs'
@@ -22,6 +24,8 @@ on:
       - 'scripts/svg-foundation-preview-baseline.manifest'
       - 'templates/fs-gg-fable-game/**'
       - 'tests/composition/fable-game/verify-svg-typed-receivers.sh'
+      - 'tests/composition/fable-game/historical-receiver-maintenance.py'
+      - 'tests/composition/fable-game/test-historical-receiver-maintenance.py'
       - 'tests/composition/fable-game/historical-provider.py'
       - 'tests/composition/fable-game/test-historical-provider.py'
       - 'tests/composition/fable-game/svg-preview-observe.mjs'
@@ -46,7 +50,9 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
       - name: Check historical custody and source refusal controls
-        run: python3 tests/composition/fable-game/test-historical-provider.py
+        run: |
+          python3 tests/composition/fable-game/test-historical-provider.py
+          python3 tests/composition/fable-game/test-historical-receiver-maintenance.py
       - name: Set up .NET
         uses: actions/setup-dotnet@v6
         with:
@@ -92,7 +98,10 @@ jobs:
             ${{ runner.temp }}/svg-typed-receivers/*.json
             ${{ runner.temp }}/svg-typed-receivers/*.log
             ${{ runner.temp }}/svg-typed-receivers/*.txt
+            ${{ runner.temp }}/svg-typed-receivers/*-maintained.Server.Tests.fsproj
+            ${{ runner.temp }}/svg-typed-receivers/*-maintained.packages.lock.json
             ${{ runner.temp }}/svg-typed-receivers/clean/readiness/svg-qual-01-3/**
             ${{ runner.temp }}/svg-typed-receivers/retained/readiness/svg-qual-01-3/**
+            ${{ runner.temp }}/svg-typed-receivers/wizard-pre-adoption/**
             ${{ runner.temp }}/svg-typed-receivers/*-backup/manifest.tsv
           if-no-files-found: warn

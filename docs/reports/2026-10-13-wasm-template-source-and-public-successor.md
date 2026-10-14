@@ -153,3 +153,262 @@ Actual clean downloaded-template WASM acceptance and every promised retaining up
 remain open. The accepted source consumer's twenty-seven browser passes are not installed-C
 results. This report accepts neither an authority/AT journey, product-native adoption nor the
 whole GAME-TEMPLATE-01/FABLE-ADOPT-01 outcome; both remain Done No.
+
+
+## Hosted installed-C source preparation — 2026-10-14
+
+The next selected installed slice uses an automatic, same-repository PR job in the
+existing `fable-reference-public.yml`, preserving the historical dispatch route.
+The current [Unified v3 open index](https://github.com/FS-GG/.github/blob/main/docs/roadmaps/2026-10-07-unified-development-roadmap-v3.md#2-open-work-and-owning-plans)
+and staged owning plan govern this window; archived v2 section 9.8 is lineage only.
+Published source `8952e1c5753b0abc972154c7596ddc8da772b271`, its immutable tag,
+NuGet archive and provider descriptor remain fixed. This source changes no package,
+workspace default or installed receiver.
+
+Source preparation supplies tested inline acquisition, exact PR/workflow source
+fielding, package-owned npm locks, fixed tool identities and a locked public-only
+Release ProviderTool build. It separates provisioning from platform/custody acceptance;
+no path, positive field or Ubuntu selector is platform proof. Required actual inputs
+are SDK 10.0.401/CoreCLR 10.0.12, Fable 5.18.0, Node 24.20.0/npm 11.19.0,
+Rust 1.90.0/WASI 34 and Playwright 1.63.0. Final direct/template application caches
+remain empty until the existing package-only checker materializes them.
+
+Authenticated stock Playwright 1.63.0 deliberately creates detached browser and
+web-server process groups. The strict canonical child owner therefore cannot qualify
+this topology unchanged. Coordination's separately reviewed opt-in managed-group
+capability and a finite actual browser/Vite profile are prerequisite joins. This
+checkpoint refuses before acquisition or installed C until that genuine candidate
+contract is bound; it invents neither an API/policy pin nor a qualified receipt.
+The historical private image/store and unreconciled historical reservations remain held.
+
+The proposed new 40-minute original job budget reserves setup 840+30 seconds,
+stock browser custody 300+30, installed C 900+30, collection 180 and overhead 90.
+Actual phase deadlines clip against the original job and reserve later work; cold
+setup that cannot fit requires review before another attempt. The three-family
+custody pilot must demonstrate genuine startup, Worker/page interaction and normal
+plus controlled abnormal retirement before the package-owned 27-case installed
+journey can run. Actual support/library/network/source/resource and cleanup evidence
+remains unknown. Candidate canonical source is not protected delivery; final native
+candidate-to-protected correspondence follows the retained PROC source fence.
+
+All 19 legacy preflight controls remain. The actual new inline functions have inert
+source, URL/redirect/digest/byte-bound, budget, npm-lock and tool-failure controls;
+these tests establish source behavior only. Acquisition validates each redirect before
+contacting its next closed HTTPS origin, excludes proxy credentials and cookies, and
+uses a finite hop cap. New action dependencies are immutable native-verified commits;
+guards require Python optimization zero and do not depend on assertions. Rust/Cargo
+output literals match the shipped guest builder. Fable output formatting is unproven,
+so compiler qualification binds actual package identity and the reviewed DLL digest
+while preserving raw output, rather than assuming a version-print format.
+Root reviews the actual caller/closure,
+budget and candidate/profile joins before any pilot push. No local CLR, container,
+Node/browser, install or current client qualification ran for this preparation.
+Whole GAME/FABLE, retaining upgrades, provider/Wizard/typed-SDD, AT/product outcomes
+and native Worker-exit acceptance remain open; missing telemetry attribution remains
+unknown.
+
+
+### Selected stock browser and shutdown boundary
+
+Root selected the ordinary functional installed-C profile using unchanged stock
+Chromium headless-shell 1243 with its actual `--no-sandbox` default. This supplies
+no Chromium sandbox, adversarial isolation or strong-security assertion. Firefox
+separately remains `content-sandbox-enabled`; no automatic disabling or system
+browser/channel override is selected. WebKit retains its package-selected script;
+the inspected headless Linux branch forks bundled `minibrowser-wpe/MiniBrowser`
+(`#!/bin/sh`), which execs its own `bin/MiniBrowser` (ELF64 little-endian x86-64).
+The exact selector script, wrapper and native member hashes are source preparation;
+actual host interpreters/helpers, support closure, births and retirement still require proof.
+
+Stock Playwright's graceful-close fallback can send negative-PID group SIGKILL
+without a fresh kernel birth check. Root accepted that exact source-derived residual
+for this bounded ordinary functional profile, including numeric-group reuse or foreign
+membership between observations. Canonical cleanup retains its own birth/pidfd-safe
+signal requirements; its future receipt cannot extend that guarantee over stock
+application signals. Genuine normal and representative forced stock shutdown plus
+fresh canonical retirement observations are required in the custody pilot. A stock
+close promise, source-reviewed fallback or receipt alone cannot prove that runtime
+path was exercised or that unknown members retired.
+
+The prepared caller binds downloaded template config/lock and actual npm launcher
+source bytes, records the selected limits and rejects undeclared browser/profile or
+misleading transitive-signal claims. These are necessary source/selection controls,
+not group admission or successful compatibility. The canonical candidate API/profile,
+actual browser/script/support bytes, ancestry and source/runtime/resource/cleanup
+joins remain unbound; main still refuses before acquisition pending root review.
+
+The caller now binds all five inspected browser archive SHA256 identities: Chromium
+full/headless 1243, Firefox 1543, WebKit 2359 and ffmpeg 1011, with exact observed
+destination URLs and byte counts. Future acquisition must match raw bytes before
+extraction/use; stock CLI downloads cannot bypass this gate. Browser installation
+remains held until bounded extraction/layout and the genuine canonical contract
+are reviewed. These pins establish observed public TLS/raw-byte correspondence,
+not publisher signatures or source-to-build provenance. The original collector
+AttributeError remains the first collection failure; its monotonic start was not
+retained. Fresh Google HEAD CRC32C was validated offline, while fresh MD5 and GET
+metadata remain unknown, rather than a demonstrated MD5 mismatch.
+
+
+## Browser registry preparation — 2026-10-14
+
+The prepared hosted caller now maps the five verified archives to the exact
+Playwright 1.63 registry names. It compares each selected regular executable's
+bytes and executable mode with its verified archive, rejects occupied destinations
+and preexisting completion or dependency markers, and renames each completed
+private staging directory into the registry before creating `INSTALLATION_COMPLETE`.
+That marker records extraction completion only. The caller never writes
+`DEPENDENCIES_VALIDATED`.
+
+The next source stage checks the package-owned browser metadata, effective
+Ubuntu 24.04 x64 platform and exact executable selections, then invokes the genuine
+stock host-dependency validator with its cache marker absent. No install command,
+shared registry garbage collection or host-validation bypass is used. Successful
+stock validation alone remains insufficient: the inspected Chromium validators
+name `chrome-linux`, while the selected verified archives contain `chrome-linux64`
+and `chrome-headless-shell-linux64`. Additional selected-archive library coverage
+is still required; neither a stock marker nor this source preparation proves it.
+
+The actual inline source passed 62 inert controls, including changed executable
+bytes, unsafe modes, symlink/expired registration, forged markers, host overrides
+and validation failure. Fixtures use inert data and execute no browser, native
+toolchain, installation or network operation. The workflow still refuses before
+provisioning and again before any dependent installed assertion. Canonical member,
+resource and runtime profile integration, complete support validation, fresh budget
+admission and the genuine custody pilot remain open. Native descendant argv and
+IPC formats have not been authenticated; source-derived root directory arguments
+cannot authorize them.
+
+
+The automatic PR job now runs shell syntax and the inert source controls only.
+Literal false conditions disable both caller execution and runtime artifact upload;
+the inline main refusal remains. A behavioral source control verifies all four
+steps, active static checks, both disabled effects and the unchanged refusal.
+Enabling execution or upload requires the later C-J1 source/profile review. This
+source delivery creates no failed runtime attempt or installed qualification.
+
+
+## Independent composition dependency repair — 2026-10-14
+
+Original source-only PR718 head `ac164f10104258deffcd8ab95d887f31186185e4`
+passed its 62 inert controls, but full composition run
+[38624883014](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38624883014)
+failed with 118 passed and one failed group. Generated game Server.Tests restore
+refused NU1903 for transitive SignalR.Common 10.0.12. The test graph was unchanged
+from protected source. [Microsoft's advisory](https://github.com/dotnet/aspnetcore/security/advisories/GHSA-334f-vvp4-7g6p)
+identifies 10.0.13 as the first patched 10.0.x version.
+
+The narrow repair changes only the source template's direct SignalR.Client reference
+to 10.0.13 and genuinely regenerates its adjacent lock through NuGet.org only.
+Mvc.Testing remains 10.0.12. A fresh private source-template generation passed
+public-only regeneration, locked restore and all 20 real Server.Tests without
+skips. Its generated lock, assets and executable dependency graph select
+SignalR.Common 10.0.13 exclusively. No other generated lock changed. The operation
+used one CPU and remained below its 1GiB sampled RSS bound; known owned groups
+were observed empty. An initial caller receipt-field mismatch stopped reporting
+after successful source-template registration; the completed registration was
+retained and reused without replay under a shortened continuation budget.
+
+Both modern and legacy package content derive this test graph from the same
+source tree. This changes future generated test dependencies; published 0.19.0
+bytes and the installed-WASM assertion remain separate. The original failed run
+is preserved, and a successful focused repair does not replace the required
+successor full composition. Runtime execution/upload remain disabled pending C-J1.
+
+
+## Historical typed receiver dependency maintenance — 2026-10-14
+
+The successor's original typed receiver run
+[38627530587](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38627530587)
+failed audited restore on SignalR.Common 10.0.0 from immutable public Templates
+0.11.0. Updating the current source template cannot change that historical archive.
+The selected repair preserves the original 0.11.0 and 0.10.0 archives, descriptor/tag
+joins, scaffold provenance and SVG adoption/rollback checks. It then explicitly
+maintains the generated receivers' test dependency before their original
+root build, browser and formal journeys. No audit suppression or check removal
+is used.
+
+The [maintenance helper](../../tests/composition/fable-game/historical-receiver-maintenance.py)
+authenticates the original archive, manifest and adjacent lock. It permits exactly
+the historical SignalR.Client 10.0.0→10.0.13 manifest delta and genuine public-only lock
+regeneration. It snapshots authored source, lifecycle, skills and unrelated locks;
+any undeclared source or dependency drift refuses. Restore runs from each receiver's
+own directory to honor its SDK selection. The retained baseline also keeps its
+explicit FSharp.Core 10.1.400 override. Both original baselines lock that FSharp
+version. NuGet400 can remove an unrelated lock's final LF while preserving its
+whole JSON graph: only exact immutable original bytes minus that one LF may be
+restored to their original bytes, with an explicit serializer observation. Any
+other byte, semantic or mode drift still refuses.
+
+All four receivers receive independent maintenance evidence before expensive root
+execution. Failed maintenance blocks the root/build/browser/formal phase. The
+version 6 receipt labels root execution `passed-after-dependency-maintenance`,
+separates the three historical scaffold identities from the explicit Wizard legacy
+compatibility cohort below, and records each receiver's
+original/upgraded manifest/lock hashes, public feed, successful regeneration and
+locked restore. Upgraded files and logs are retained with the existing artifacts.
+This revises current requalification of historical receivers; it does not rewrite
+historical receipts or assert untouched vulnerable receivers build successfully.
+
+Focused genuine qualification generated separate workspaces from both exact public
+archives. Audited public regeneration, locked restore and all 11 Server.Tests per
+baseline passed, with zero skips. Generated lock/assets/deps select only
+SignalR.Common 10.0.13; unrelated locks finish byte-identical to the original
+archives. The first 0.11 guard refused SDK selection from an incorrect working
+directory; after that correction it independently refused final-LF serializer
+drift. Both original refusals remain preserved. The repaired qualification reused
+the original bounded source window, one CPU and less than 1GiB sampled aggregate
+RSS, observing empty known owned groups. Fifteen inert controls exercise the actual
+guard, four-path caller and final v6 receipt, including failed restore, stale
+binding, forbidden mutations and failed receipt evidence; six existing historical
+custody controls and 62 WASM source controls also pass.
+
+These focused source/dependency results do not establish the full SDD/Wizard,
+adoption, browser or formal receiver journeys. The exact successor must still
+pass those existing hosted gates and full composition. The optional installed-WASM
+caller and upload remain disabled pending C-J1; whole GAME/FABLE remains open.
+
+
+### Explicit Wizard legacy compatibility cohort
+
+The original [830d39d typed receiver run](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38629880173)
+refused the Wizard manifest before maintenance. Its uploaded artifact lacks that
+refused manifest, so its exact hosted manifest remains unknown. A separate genuine
+public reproduction established why the descriptor cannot establish the installed
+package: Wizard 0.11.1 `--pinned` prevents CLI self-update, while its SDD 1.7 call
+still performs the default template update. Descriptor 0.11 therefore generated
+the public 0.19 legacy selector. A genuine Wizard 0.16 + SDD 1.7 + Templates 0.11
+preflight correctly pinned 0.11 but failed because Wizard supplies unsupported
+`--bundle player`. Both original failures remain evidence; neither is a pass.
+
+The amended four-receiver contract retains clean/sdd-none 0.11 and retained 0.10.
+Wizard alone now declares **Wizard 0.11.1 + SDD 1.7 + public Templates 0.19 legacy
+compatibility**, requested descriptor 0.11, with `templatePinning=false`. It fails
+closed if the default update selects another package. The required check, all four
+root/build/browser/formal journeys and audit remain intact.
+
+Before adopter or maintenance, the guard authenticates the exact signed public
+0.19 archive (`187c995806bb2f22db67c8a9a67c251f46f339bf6350b8051035935d308b497f`),
+source `8952e1c5753b0abc972154c7596ddc8da772b271`, sole installed registry entry,
+Wizard archive/source, unchanged historical descriptor, original manifest/lock,
+legacy template config and unique required `svgFoundation` parameter match.
+Actual provenance supplies lifecycle `none`, `svgFoundation=false` and no bundle;
+initialization is pending with no initial SvgFoundation directory. Successful SDD
+1.7 reports `providerInvocation:null`: member selection follows the exact configs,
+actual effective parameters and generated bytes; observed child argv is not claimed.
+
+The distinct Wizard maintenance permits only SignalR.Client 10.0.12→10.0.13 and
+genuine audited public lock regeneration. Mvc.Testing 10.0.12, runner 3.1.5,
+SVG_NETWORK_CANDIDATE and other source/dependency rows remain original. Receipt 6
+separates actual scaffold version/member from requested descriptor, records the
+pre-adoption identity and maintained graph, and preserves both failed cohorts.
+Original manifests, locks, descriptor, provenance, initialization and registry
+are uploaded even when the guard refuses.
+
+A fresh bounded native preflight verified public signatures, exact installed
+bytes/registry/legacy member and initial hashes, applied the unchanged bounded SVG
+adopter, regenerated and locked the dependency graph with audit enabled, then
+passed all 20 Server.Tests with zero skips. Common 10.0.13 is the sole version in
+lock/assets/deps; final source preservation passed, including unrelated lock bytes
+and modes. Known owned groups ended empty, sampled peak aggregate RSS 516780032
+bytes under the one-CPU/1GiB profile. This focused result does not establish the
+full hosted receiver journeys, whole Wizard adoption, or installed WASM acceptance.
