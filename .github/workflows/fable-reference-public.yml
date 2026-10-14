@@ -124,6 +124,7 @@ jobs:
 
 
   wasm-installed-c:
+    name: WASM caller source preparation (runtime held)
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
@@ -150,7 +151,10 @@ jobs:
           set -euo pipefail
           bash -n tests/composition/fable-game/verify-fable-reference-public.sh
           python3 tests/composition/fable-game/test-fable-reference-public-preflight.py
+      # C-T1 delivers source and inert controls only. C-J1 must explicitly admit
+      # the complete canonical profile before any caller execution is enabled.
       - name: Prepare closed hosted WASM caller
+        if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
@@ -757,8 +761,10 @@ jobs:
 
           if __name__ == "__main__": main()
           HOSTED_WASM
+      # No runtime evidence exists in the source-only window. Keep its upload
+      # disabled with the caller; enabling either requires the C-J1 source review.
       - name: Retain independent partial installed C evidence
-        if: ${{ always() }}
+        if: ${{ false }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: fable-wasm-installed-c-${{ github.run_id }}-${{ github.run_attempt }}

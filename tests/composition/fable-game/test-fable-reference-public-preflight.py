@@ -483,4 +483,27 @@ class HostedWasmCallerTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError,'missing host dependency'):self.ns['validate_registered_browsers'](self.root,{},registrations,execute)
         with self.assertRaisesRegex(RuntimeError,'no provisioning or installed C admitted'):self.ns['main']()
 
+    def test_source_only_pr_job_runs_controls_and_disables_runtime_and_upload(self):
+        job=self.text.split('  wasm-installed-c:',1)[1]
+        self.assertIn('name: WASM caller source preparation (runtime held)',job)
+        steps=re.findall(r'^      - name: (.*?)\n(.*?)(?=^      - name: |\Z)',job,re.S|re.M)
+        self.assertEqual([name for name,body in steps],['Check out exact reviewed Templates source','Qualify actual inline hosted input and budget controls','Prepare closed hosted WASM caller','Retain independent partial installed C evidence'])
+        controls=steps[1][1]
+        self.assertNotIn('        if:',controls)
+        self.assertIn('python3 tests/composition/fable-game/test-fable-reference-public-preflight.py',controls)
+        self.assertIn('bash -n tests/composition/fable-game/verify-fable-reference-public.sh',controls)
+        for name,body in steps[2:]:
+            with self.subTest(step=name):
+                self.assertEqual(re.findall(r'^        if: (.*)$',body,re.M),['${{ false }}'])
+        # The declared source boundary is closed: no additional executable step can
+        # bypass either the static controls or the two literal runtime holds.
+        self.assertEqual(len(steps),4)
+        tree=ast.parse(self.code)
+        main=next(node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=='main')
+        self.assertEqual(len(main.body),1)
+        self.assertIsInstance(main.body[0],ast.Raise)
+        with patch.object(subprocess,'run',side_effect=AssertionError('runtime must stay held')):
+            with self.assertRaisesRegex(RuntimeError,'no provisioning or installed C admitted'):
+                self.ns['main']()
+
 if __name__ == '__main__': unittest.main()

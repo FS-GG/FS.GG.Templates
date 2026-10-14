@@ -378,6 +378,10 @@ Browser registry source preparation now checks selected executable archive bytes
 and modes, installs only into fresh private registry names and keeps extraction
 completion distinct from stock host-dependency validation. The
 [registry preparation report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#browser-registry-preparation--2026-10-14)
-records 61 passing inert controls and the remaining Chromium library-coverage gap.
+records 62 passing inert controls and the remaining Chromium library-coverage gap.
 The unconditional pre-provisioning refusal remains; no native member/IPC profile,
 custody pilot or clean installed-WASM assertion is accepted.
+
+The automatic PR job runs only the static source controls in this window. Caller
+execution and runtime artifact upload have explicit literal false conditions until
+C-J1 review admits the complete canonical profile; the inline refusal also remains.

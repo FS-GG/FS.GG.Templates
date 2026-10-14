@@ -268,7 +268,7 @@ name `chrome-linux`, while the selected verified archives contain `chrome-linux6
 and `chrome-headless-shell-linux64`. Additional selected-archive library coverage
 is still required; neither a stock marker nor this source preparation proves it.
 
-The actual inline source passed 61 inert controls, including changed executable
+The actual inline source passed 62 inert controls, including changed executable
 bytes, unsafe modes, symlink/expired registration, forged markers, host overrides
 and validation failure. Fixtures use inert data and execute no browser, native
 toolchain, installation or network operation. The workflow still refuses before
@@ -277,3 +277,11 @@ resource and runtime profile integration, complete support validation, fresh bud
 admission and the genuine custody pilot remain open. Native descendant argv and
 IPC formats have not been authenticated; source-derived root directory arguments
 cannot authorize them.
+
+
+The automatic PR job now runs shell syntax and the inert source controls only.
+Literal false conditions disable both caller execution and runtime artifact upload;
+the inline main refusal remains. A behavioral source control verifies all four
+steps, active static checks, both disabled effects and the unchanged refusal.
+Enabling execution or upload requires the later C-J1 source/profile review. This
+source delivery creates no failed runtime attempt or installed qualification.
