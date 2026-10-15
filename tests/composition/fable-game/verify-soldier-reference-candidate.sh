@@ -109,10 +109,10 @@ PY
 cat > "$out/NuGet.Config" <<CONFIG
 <configuration><packageSources><clear/><add key="candidate" value="$out/feed"/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources><packageSourceMapping><packageSource key="candidate"><package pattern="FS.GG.UI.Scene"/><package pattern="FS.GG.UI.Scene.SvgBrowser"/><package pattern="FS.GG.UI.KeyboardInput"/></packageSource><packageSource key="public"><package pattern="*"/></packageSource></packageSourceMapping></configuration>
 CONFIG
-[[ -n "${FSGG_PYTHON_COORDINATION_ROOT:-}" ]]
 # Reuse the canonical checked Python projection for a fresh complete Templates archive.
 . "$root/tests/composition/fable-game/svg-source-python-fixture.sh"
 prepare_svg_source_python_fixture "$root" "$out"
+[[ -n "${FSGG_PYTHON_COORDINATION_ROOT:-}" ]]
 dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/template" --disable-build-servers -m:1 -p:UseSharedCompilation=false -p:BuildInParallel=false >"$out/templates-pack.log" 2>&1
 mapfile -t archives < <(find "$out/template" -maxdepth 1 -name '*.nupkg' -type f)
 [[ "${#archives[@]}" == 1 ]]

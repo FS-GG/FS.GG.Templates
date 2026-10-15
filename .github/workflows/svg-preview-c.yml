@@ -191,8 +191,6 @@ jobs:
           PYLOCAL
       - name: Build immutable producer fixture and qualify actual soldier page route
         shell: bash
-        env:
-          FSGG_PYTHON_COORDINATION_ROOT: ${{ runner.temp }}/soldier-staged-python-fixture
         run: |
           set -euo pipefail
           producer="$GITHUB_WORKSPACE/.tmp/soldier-staged-rendering"

@@ -105,10 +105,12 @@ class StagedInputTests(unittest.TestCase):
             self.assertEqual(workflow.count("      - 'tests/composition/fable-game/"+path+"'"), 2)
 
         self.assertLess(workflow.index('Preflight soldier staged source'),workflow.index('Install browser hosts'))
+        self.assertNotIn('FSGG_PYTHON_COORDINATION_ROOT:', workflow)
         self.assertIn('timeout-minutes: 90',workflow)
         self.assertIn('10m ',workflow); self.assertIn('50m ',workflow)
         self.assertIn('soldier-staged-consumer/*.world.svg',workflow)
         source=(Path(__file__).parent/'verify-soldier-reference-candidate.sh').read_text()
+        self.assertLess(source.index('prepare_svg_source_python_fixture "$root" "$out"'), source.index('[[ -n "${FSGG_PYTHON_COORDINATION_ROOT:-}" ]]'))
         self.assertIn('--base /soldier-player/',source)
         self.assertIn('--urls http://127.0.0.1:0 --webroot "$sealed"',source)
         self.assertIn('env -i PATH=',source)
