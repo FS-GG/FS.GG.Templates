@@ -115,19 +115,20 @@ let run () =
     require (Replay.validate { later.Recording with Events = reordered } |> List.isEmpty |> not)
         "Reordered semantic sequence passed producer validation."
 
-    let checked = checkpoint later |> unwrap
-    completed 2UL later.Runtime.Current checked.Recording
-    completed 1UL once.Runtime.Current checked.Recording
-    let point = List.exactlyOne checked.Recording.Checkpoints
-    match replay 2UL { checked.Recording with Checkpoints = [ { point with StateDigest = "altered" } ] } with
+    let withCheckpoint = checkpoint later |> unwrap
+    completed 2UL later.Runtime.Current withCheckpoint.Recording
+    completed 1UL once.Runtime.Current withCheckpoint.Recording
+    let point = List.exactlyOne withCheckpoint.Recording.Checkpoints
+    match replay 2UL { withCheckpoint.Recording with Checkpoints = [ { point with StateDigest = "altered" } ] } with
     | Ok(ReplayRunOutcome.Diverged divergence) ->
         require (divergence.EventIndex = 2UL) "Checkpoint divergence cursor differs."
     | Error issues -> require (not issues.IsEmpty) "Empty checkpoint refusal."
     | other -> failwithf "Altered checkpoint digest accepted: %A" other
-    let incompatiblePoint =
-        { point with Snapshot =
-            { point.Snapshot with Compatibility = { compatibility with SchemaVersion = 2 } } }
-    match replay 2UL { checked.Recording with Checkpoints = [ incompatiblePoint ] } with
+    let incompatibleSnapshot =
+        { point.Snapshot with
+            Compatibility = { compatibility with SchemaVersion = 2 } }
+    let incompatiblePoint = { point with Snapshot = incompatibleSnapshot }
+    match replay 2UL { withCheckpoint.Recording with Checkpoints = [ incompatiblePoint ] } with
     | Error issues ->
         require (issues |> List.exists (function ReplayIssue.IncompatibleSnapshot _ -> true | _ -> false))
             "Wrong checkpoint compatibility refusal."
@@ -136,12 +137,12 @@ let run () =
     // Payload alteration with an unchanged digest is not silently accepted by checkpoint seek.
     let changedPayload = { point.Snapshot.Value with Agent = { origin with D = 90 } }
     let alteredPoint = { point with Snapshot = { point.Snapshot with Value = changedPayload } }
-    match replay 2UL { checked.Recording with Checkpoints = [ alteredPoint ] } with
+    match replay 2UL { withCheckpoint.Recording with Checkpoints = [ alteredPoint ] } with
     | Ok(ReplayRunOutcome.Diverged _) -> ()
     | other -> failwithf "Altered payload accepted: %A" other
 
     // Producer checkpoint admission refuses index zero and duplicate checkpoint positions.
     require (match checkpoint initial with Error(RecordingRefused _) -> true | _ -> false)
         "Checkpoint at zero events accepted."
-    require (match checkpoint checked with Error(RecordingRefused _) -> true | _ -> false)
+    require (match checkpoint withCheckpoint with Error(RecordingRefused _) -> true | _ -> false)
         "Duplicate checkpoint position accepted."
