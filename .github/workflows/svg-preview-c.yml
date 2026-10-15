@@ -18,6 +18,9 @@ on:
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'tests/composition/fable-game/svg-preview-c-public-api.json'
       - 'tests/composition/fable-game/verify-svg-preview-c-source.sh'
+      - 'tests/composition/fable-game/verify-soldier-reference-candidate.sh'
+      - 'tests/composition/fable-game/soldier-staged-journey.js'
+      - 'tests/composition/fable-game/test-soldier-staged-fixture.py'
       - 'tests/composition/fable-game/test-historical-provider.py'
       - '.github/workflows/svg-preview-c.yml'
   push:
@@ -38,6 +41,9 @@ on:
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'tests/composition/fable-game/svg-preview-c-public-api.json'
       - 'tests/composition/fable-game/verify-svg-preview-c-source.sh'
+      - 'tests/composition/fable-game/verify-soldier-reference-candidate.sh'
+      - 'tests/composition/fable-game/soldier-staged-journey.js'
+      - 'tests/composition/fable-game/test-soldier-staged-fixture.py'
       - 'tests/composition/fable-game/test-historical-provider.py'
       - '.github/workflows/svg-preview-c.yml'
 
@@ -60,6 +66,20 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
+      - name: Check out immutable soldier staged harness candidate
+        uses: actions/checkout@v7
+        with:
+          repository: FS-GG/FS.GG.Rendering
+          ref: c921eb13963864609d36545ef45d1b4b50bc3b52
+          path: .tmp/soldier-staged-rendering
+          persist-credentials: false
+      - name: Preflight soldier staged source and finite input controls
+        run: |
+          set -euo pipefail
+          test "$(git -C .tmp/soldier-staged-rendering rev-parse HEAD)" = c921eb13963864609d36545ef45d1b4b50bc3b52
+          node .tmp/soldier-staged-rendering/tests/Scene.SvgBrowser.Tests/suite-control-test.mjs
+          python3 tests/composition/fable-game/test-soldier-staged-fixture.py
+          bash -n tests/composition/fable-game/verify-soldier-reference-candidate.sh
       - name: Install browser hosts
         working-directory: templates/fs-gg-fable-game/Browser.Tests
         run: |
@@ -169,6 +189,25 @@ jobs:
           shutil.copy2('tests/composition/fable-game/svg-preview-c-public-api.json',evidence/'public-api-mirror.json')
           (evidence/'execution.json').write_text(json.dumps(report,indent=2)+'\n')
           PYLOCAL
+      - name: Build immutable producer fixture and qualify actual soldier page route
+        shell: bash
+        run: |
+          set -euo pipefail
+          producer="$GITHUB_WORKSPACE/.tmp/soldier-staged-rendering"
+          expected_source=c921eb13963864609d36545ef45d1b4b50bc3b52
+          test "$(git -C "$producer" rev-parse HEAD)" = "$expected_source"
+          # Bounds: producer10m + staged50m + observed original14m02s + collection margin <90m.
+          # New timings are unknown; exceeding a bound fails rather than omitting qualification.
+          timeout --signal=TERM --kill-after=15s 10m \
+            bash "$producer/tests/Scene.SvgBrowser.Tests/build-fixture.sh" "$RUNNER_TEMP/soldier-staged-producer"
+          manifest="$RUNNER_TEMP/soldier-staged-producer/Browser/dist/artifact-manifest.json"
+          manifest_sha="$(sha256sum "$manifest" | cut -d' ' -f1)"
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
+            timeout --signal=TERM --kill-after=15s 50m \
+            bash tests/composition/fable-game/verify-soldier-reference-candidate.sh \
+              "$producer" "$RUNNER_TEMP/soldier-staged-producer/feed" 0.32.0 \
+              "$RUNNER_TEMP/soldier-staged-consumer" "$expected_source" "$manifest_sha" staged
       - name: Qualify the local container edge
         shell: bash
         run: |
@@ -202,6 +241,13 @@ jobs:
         with:
           name: svg-preview-c-source-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            ${{ runner.temp }}/soldier-staged-producer/logs/**
+            ${{ runner.temp }}/soldier-staged-producer/source-manifest*.tsv
+            ${{ runner.temp }}/soldier-staged-consumer/*.json
+            ${{ runner.temp }}/soldier-staged-consumer/*.tsv
+            ${{ runner.temp }}/soldier-staged-consumer/*.log
+            ${{ runner.temp }}/soldier-staged-consumer/*.world.svg
+            ${{ runner.temp }}/soldier-staged-consumer/complete/SvgFoundation/obj/project.assets.json
             ${{ runner.temp }}/svg-preview-c-quint-evaluator/**
             ${{ runner.temp }}/svg-preview-c-source/qualification.json
             ${{ runner.temp }}/svg-preview-c-source/local-save-replay/**
