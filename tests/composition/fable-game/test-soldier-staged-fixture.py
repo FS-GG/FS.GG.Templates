@@ -42,6 +42,7 @@ def verify(report, manifest, manifest_raw, rendering, templates):
         assert observation['skipped'] is False and observation['retried'] is False and observation['flaky'] is False
         assert observation['assertions'] and all(item['name'] and item['passed'] is True for item in observation['assertions'])
         assert observation['cleanup']['owned'] == 0 and observation['cleanup']['frameDisposed'] is True
+    assert report['driver'].get('resumeObserved') is True, 'staged positive resume was not observed'
     assert report['driver']['downloadObserved'] is True and report['driver']['browserCleanup'] == 'observed-closed'
     full=report['cases'][-1]['observations']['details']['fullExport']
     assert full['uses']==2000 and full['symbols']==6
@@ -62,7 +63,7 @@ class StagedInputTests(unittest.TestCase):
         self.manifest['artifactId'] = digest(canonical({key: self.manifest[key] for key in ('files', 'packages', 'sourceSha256', 'workloadSha256')}))
         self.raw = canonical(self.manifest)
         observation = {'assertions': [{'name': 'inert assertion', 'passed': True}], 'skipped': False, 'retried': False, 'flaky': False, 'cleanup': {'owned': 0, 'frameDisposed': True}, 'details': {'fullExport': {'uses': 2000, 'symbols': 6, 'sha256': 'sha256:'+'d'*64}}}
-        self.report = {'schema': 'fsgg.svg-coherence.page-results/v1', 'artifact': copy.deepcopy(self.manifest), 'manifestSha256': digest(self.raw), 'outcome': 'soldier-functional-completed', 'integrity': 'verified-before-and-after', 'cases': [{'kind': kind, 'repetition': 0, 'outcome': 'pass', 'integrity': 'verified-before-and-after', 'observations': copy.deepcopy(observation)} for kind in CASES], 'driver': {'downloadObserved': True, 'browserCleanup': 'observed-closed', 'args': ['--disable-gpu'], 'serverCleanup': {'status': 'observed-exited'}, 'fullWorldExports': [{'sha256':'sha256:'+'d'*64}]}, 'claims': {'gpuQualified': False, 'performanceAccepted': False, 'representativeSoldierQualified': False}}
+        self.report = {'schema': 'fsgg.svg-coherence.page-results/v1', 'artifact': copy.deepcopy(self.manifest), 'manifestSha256': digest(self.raw), 'outcome': 'soldier-functional-completed', 'integrity': 'verified-before-and-after', 'cases': [{'kind': kind, 'repetition': 0, 'outcome': 'pass', 'integrity': 'verified-before-and-after', 'observations': copy.deepcopy(observation)} for kind in CASES], 'driver': {'resumeObserved': True, 'downloadObserved': True, 'browserCleanup': 'observed-closed', 'args': ['--disable-gpu'], 'serverCleanup': {'status': 'observed-exited'}, 'fullWorldExports': [{'sha256':'sha256:'+'d'*64}]}, 'claims': {'gpuQualified': False, 'performanceAccepted': False, 'representativeSoldierQualified': False}}
 
     def test_complete_inert_input_passes(self):
         self.assertEqual(verify(self.report, self.manifest, self.raw, self.rendering, self.templates)['cases'], 8)
@@ -83,6 +84,17 @@ class StagedInputTests(unittest.TestCase):
             with self.subTest(mutate=mutate):
                 value = copy.deepcopy(self.report); mutate(value)
                 with self.assertRaises(AssertionError): verify(value, self.manifest, self.raw, self.rendering, self.templates)
+
+    def test_unobserved_or_missing_resume_refuses(self):
+        for observed in (False, None, 'true'):
+            with self.subTest(observed=observed):
+                value = copy.deepcopy(self.report)
+                if observed is None:
+                    value['driver'].pop('resumeObserved')
+                else:
+                    value['driver']['resumeObserved'] = observed
+                with self.assertRaisesRegex(AssertionError, 'resume was not observed'):
+                    verify(value, self.manifest, self.raw, self.rendering, self.templates)
 
     def test_actual_workflow_pins_order_budget_and_separate_evidence(self):
         root=Path(__file__).parents[3]
