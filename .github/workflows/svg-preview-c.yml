@@ -64,13 +64,13 @@ jobs:
         uses: actions/checkout@v7
         with:
           repository: FS-GG/FS.GG.Rendering
-          ref: fe46b0844952d00fb2b542ed43fc74669a52ecc8
+          ref: 268ef03de868e5ffb878524f80966f81b8119179
           path: .tmp/soldier-staged-rendering
           persist-credentials: false
       - name: Preflight soldier staged source and finite input controls
         run: |
           set -euo pipefail
-          test "$(git -C .tmp/soldier-staged-rendering rev-parse HEAD)" = fe46b0844952d00fb2b542ed43fc74669a52ecc8
+          test "$(git -C .tmp/soldier-staged-rendering rev-parse HEAD)" = 268ef03de868e5ffb878524f80966f81b8119179
           node .tmp/soldier-staged-rendering/tests/Scene.SvgBrowser.Tests/suite-control-test.mjs
           python3 tests/composition/fable-game/test-soldier-staged-fixture.py
           bash -n tests/composition/fable-game/verify-soldier-reference-candidate.sh
@@ -190,7 +190,7 @@ jobs:
         run: |
           set -euo pipefail
           producer="$GITHUB_WORKSPACE/.tmp/soldier-staged-rendering"
-          expected_source=fe46b0844952d00fb2b542ed43fc74669a52ecc8
+          expected_source=268ef03de868e5ffb878524f80966f81b8119179
           test "$(git -C "$producer" rev-parse HEAD)" = "$expected_source"
           # Bounds: producer10m + staged50m + observed original14m02s + collection margin <90m.
           # New timings are unknown; exceeding a bound fails rather than omitting qualification.
