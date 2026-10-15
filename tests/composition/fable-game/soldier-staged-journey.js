@@ -1,12 +1,24 @@
 // Browser-only functional adapter. All state changes go through the mounted UI.
 // DOM activation is synthetic functional input, never trusted physical-input/AT evidence.
+// Fixed subdeadline leaves the original 60s frame budget available for failure cleanup.
+export async function waitForSoldierCondition(predicate, name, clock) {
+  const deadline = clock.now() + 10000;
+  while (!predicate()) {
+    if (clock.expired() || clock.now() >= deadline) throw new Error(`soldier wait deadline: ${name}`);
+    await clock.delay(10);
+  }
+}
+
 export async function runSoldierCase(w, kind, options) {
   const doc = w.document, assertions = [], details = { kind };
   const check = (name, condition) => { if (!condition) throw new Error(`soldier ${kind}: ${name}`); assertions.push({ name, passed: true }); };
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
   const delay = (ms) => new Promise((resolve) => w.setTimeout(resolve, ms));
   const wait = async (predicate, name) => {
-    while (!predicate()) { if (options.expired()) throw new Error(`soldier deadline: ${name}`); await delay(10); }
+    details.waitingFor = name;
+    await waitForSoldierCondition(predicate, name, { now: () => w.performance.now(), delay, expired: options.expired });
+    assertions.push({ name: `completed wait: ${name}`, passed: true });
+    delete details.waitingFor;
   };
   const root = () => doc.getElementById("soldier-reference");
   const state = () => JSON.parse(doc.getElementById("soldier-reference-state")?.textContent ?? "null");
@@ -15,7 +27,13 @@ export async function runSoldierCase(w, kind, options) {
     const matches = [...owner.querySelectorAll("button")].filter((node) => node.textContent === name);
     check(`unique real control ${name}`, matches.length === 1); return matches[0];
   };
-  const click = async (name) => { button(name).click(); await new Promise((done) => w.requestAnimationFrame(done)); await delay(0); };
+  const click = async (name) => {
+    button(name).click();
+    let painted = false; const frame = w.requestAnimationFrame(() => { painted = true; });
+    try { await wait(() => painted, `animation frame after ${name}`); }
+    finally { w.cancelAnimationFrame(frame); }
+    await delay(0);
+  };
   const attribute = (name) => root().getAttribute(name);
   const select = async (id) => {
     const node = root().querySelector(`[data-soldier-id="${id}"]`);
@@ -41,8 +59,11 @@ export async function runSoldierCase(w, kind, options) {
     if (kind === "soldier-local") {
       await select("soldier-0000"); const before = state();
       const nodes = ["#soldier-reference symbol", '[data-fsgg-element-id="soldier-0000-art"]', '[data-fsgg-element-id="soldier-0001-art"]', '[data-soldier-id="soldier-0001"]'].map((selector) => [selector, doc.querySelector(selector)]);
-      root().focus();
-      for (const type of ["keydown", "keyup"]) root().dispatchEvent(new w.KeyboardEvent(type, { key: "ArrowRight", code: "ArrowRight", bubbles: true }));
+      root().focus(); check("real panel keyboard focus", doc.activeElement === root());
+      const keyboardTarget = root();
+      keyboardTarget.dispatchEvent(new w.KeyboardEvent("keydown", { key: "ArrowRight", code: "ArrowRight", bubbles: true, cancelable: true }));
+      try { await delay(0); }
+      finally { keyboardTarget.dispatchEvent(new w.KeyboardEvent("keyup", { key: "ArrowRight", code: "ArrowRight", bubbles: true, cancelable: true })); }
       await wait(() => state().soldiers[0].x === before.soldiers[0].x + 16, "semantic keyboard route");
       check("keyboard semantic move/rotation", state().soldiers[0].facing === before.soldiers[0].facing + 5);
       check("untouched product state", same(state().soldiers.slice(1), before.soldiers.slice(1)));
@@ -51,6 +72,7 @@ export async function runSoldierCase(w, kind, options) {
       await click("Change selected pose"); await wait(() => state().soldiers[0].pose === "March", "pose projection"); check("pose command", state().soldiers[0].pose === "March");
       await click("Change selected appearance"); await wait(() => state().soldiers[0].faction === "Amber", "appearance projection"); check("appearance command", state().soldiers[0].faction === "Amber" && state().soldiers[0].health === 90);
       const art = doc.querySelector('[data-fsgg-element-id="soldier-0001-art"]');
+      art.scrollIntoView({ block: "center", inline: "center" });
       const bounds = art.getBoundingClientRect();
       check("painted full asset target", bounds.width > 0 && bounds.height > 0);
       art.dispatchEvent(new w.PointerEvent("pointerup", { clientX: bounds.x + bounds.width / 2, clientY: bounds.y + bounds.height / 2, pointerId: 1, button: 0, bubbles: true }));
@@ -139,7 +161,17 @@ export async function runSoldierCase(w, kind, options) {
     } else throw new Error(`Unknown soldier case ${kind}`);
     details.finalStateSha256 = options.hash(JSON.stringify(state()));
     details.finalWorldCount = state().soldiers.length;
-  } catch (error) { failure = error; }
+  } catch (error) {
+    failure = error;
+    details.failureProgress = { waitingFor: details.waitingFor ?? null, completedAssertions: assertions.length };
+    try {
+      const current = state();
+      Object.assign(details.failureProgress, {
+      revision: current?.revision ?? null, firstSoldier: current?.soldiers?.[0] ?? null,
+      selected: root()?.getAttribute("data-selected") ?? null, focused: root()?.getAttribute("data-focused") ?? null,
+      status: root()?.getAttribute("data-status") ?? null, activeTag: doc.activeElement?.tagName ?? null });
+    } catch (observationError) { details.failureProgress.observationError = observationError.message; }
+  }
   finally {
     try {
       if (root()) {

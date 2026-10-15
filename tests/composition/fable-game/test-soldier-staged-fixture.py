@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 import re
 import sys
+import subprocess
 import unittest
 
 CASES = ['soldier-local', 'soldier-external', *[f'soldier-population-{n}' for n in (1, 100, 250, 500, 1000)], 'soldier-churn']
@@ -84,6 +85,27 @@ class StagedInputTests(unittest.TestCase):
             with self.subTest(mutate=mutate):
                 value = copy.deepcopy(self.report); mutate(value)
                 with self.assertRaises(AssertionError): verify(value, self.manifest, self.raw, self.rendering, self.templates)
+
+    def test_actual_named_wait_deadline_and_first_failure(self):
+        adapter = Path(__file__).parent / 'soldier-staged-journey.js'
+        script = r"""
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const source = readFileSync(process.argv[1], 'utf8');
+const {waitForSoldierCondition} = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+let now = 0, ticks = 0;
+const clock = {now: () => now, expired: () => false, delay: async () => { ticks++; now += 5000; }};
+await waitForSoldierCondition(() => true, 'already complete', clock);
+assert.equal(ticks, 0);
+await assert.rejects(waitForSoldierCondition(() => false, 'semantic keyboard route', clock), /soldier wait deadline: semantic keyboard route/);
+assert.equal(now, 10000); assert.equal(ticks, 2);
+await assert.rejects(waitForSoldierCondition(() => false, 'expired owner', {...clock, expired: () => true}), /expired owner/);
+assert.equal(ticks, 2);
+const first = new Error('first product refusal');
+await assert.rejects(waitForSoldierCondition(() => { throw first; }, 'later timeout', clock), error => error === first);
+"""
+        result = subprocess.run(['node', '--input-type=module', '-e', script, str(adapter)], capture_output=True, text=True, timeout=10)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_unobserved_or_missing_resume_refuses(self):
         for observed in (False, None, 'true'):
