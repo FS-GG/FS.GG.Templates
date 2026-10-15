@@ -450,12 +450,45 @@ class HostedWasmCallerTests(unittest.TestCase):
         registrations=[]
         for asset,(name,directory,relative) in self.ns['BROWSER_REGISTRY'].items():
             tree=self.root/'browsers'/directory;tree.mkdir(parents=True)
+            executable=tree/relative;executable.parent.mkdir(parents=True,exist_ok=True);executable.write_bytes(b'inert executable fixture')
             registrations.append({'asset':asset,'name':name,'directory':str(tree),'executable':str(tree/relative)})
         core=self.root/'npm-seed/Browser.Tests/node_modules/playwright-core/lib/coreBundle.js';core.parent.mkdir(parents=True);core.write_bytes(b'inert stock module')
         self.ns['STOCK_LAUNCHER_INPUTS']['playwright-core/lib/coreBundle.js']=hashlib.sha256(core.read_bytes()).hexdigest()
         metadata=core.parent.parent/'browsers.json';metadata.write_text(json.dumps({'browsers':[{'name':name,'revision':directory.rsplit('-',1)[1]} for name,directory,relative in self.ns['BROWSER_REGISTRY'].values()]}))
         self.ns['STOCK_LAUNCHER_INPUTS']['playwright-core/browsers.json']=hashlib.sha256(metadata.read_bytes()).hexdigest()
         return registrations
+
+    def test_chromium_support_paths_use_both_selected_archive_directories(self):
+        registrations=self.validation_fixture()
+        self.assertEqual(self.ns['chromium_support_directories'](self.root,registrations),[
+            str(self.root/'browsers/chromium-1243/chrome-linux64'),
+            str(self.root/'browsers/chromium_headless_shell-1243/chrome-headless-shell-linux64')])
+
+    def test_chromium_support_path_refusals_precede_stock_execution(self):
+        registrations=self.validation_fixture()
+        def execute(*args):raise AssertionError('stock execution must remain blocked')
+        for key,value in [('directory',str(self.root/'foreign')),('executable',str(self.root/'browsers/chromium-1243/chrome-linux/chrome')),('name','firefox')]:
+            changed=copy.deepcopy(registrations);changed[0][key]=value
+            with self.subTest(key=key),self.assertRaisesRegex(ValueError,'support selection'):
+                self.ns['validate_registered_browsers'](self.root,{},changed,execute)
+        executable=Path(registrations[0]['executable']);directory=executable.parent
+        executable.unlink();directory.rmdir();directory.symlink_to(self.root,target_is_directory=True)
+        with self.assertRaisesRegex(ValueError,'support directory'):
+            self.ns['validate_registered_browsers'](self.root,{},registrations,execute)
+
+    def test_chromium_support_refuses_missing_or_duplicate_registration(self):
+        registrations=self.validation_fixture()
+        for changed in (registrations[1:],registrations+[registrations[0]]):
+            with self.subTest(count=len(changed)),self.assertRaisesRegex(ValueError,'missing/ambiguous'):
+                self.ns['chromium_support_directories'](self.root,changed)
+
+    def test_chromium_support_refuses_missing_or_symlink_executable(self):
+        registrations=self.validation_fixture();executable=Path(registrations[1]['executable']);executable.unlink()
+        with self.assertRaisesRegex(ValueError,'executable missing/nonregular'):
+            self.ns['chromium_support_directories'](self.root,registrations)
+        executable.symlink_to(Path(registrations[0]['executable']))
+        with self.assertRaisesRegex(ValueError,'executable missing/nonregular'):
+            self.ns['chromium_support_directories'](self.root,registrations)
 
     def test_host_validation_calls_stock_validator_without_install_or_forged_marker(self):
         registrations=self.validation_fixture();calls=[]
@@ -466,6 +499,7 @@ class HostedWasmCallerTests(unittest.TestCase):
             return json.dumps({'platform':'ubuntu24.04-x64','names':[r['name'] for r in registrations],'state':'stock-host-validation-passed-runtime-pending'})
         result=self.ns['validate_registered_browsers'](self.root,{},registrations,execute)
         self.assertEqual(len(calls),1);self.assertEqual(result['chromiumSupport'],'pending-selected-archive-library-validation')
+        self.assertEqual(result['chromiumSupportDirectories'],self.ns['chromium_support_directories'](self.root,registrations))
         self.assertEqual(result['runtime'],'not-run')
         self.assertFalse(any((Path(r['directory'])/'DEPENDENCIES_VALIDATED').exists() for r in registrations))
 
