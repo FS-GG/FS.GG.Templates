@@ -101,6 +101,9 @@ class StagedInputTests(unittest.TestCase):
         workflow=(root/'.github/workflows/svg-preview-c.yml').read_text()
         pin=re.search(r'repository: FS-GG/FS.GG.Rendering\n          ref: ([0-9a-f]{40})',workflow).group(1)
         self.assertIn('expected_source='+pin,workflow)
+        for path in ('verify-soldier-reference-candidate.sh', 'soldier-staged-journey.js', 'test-soldier-staged-fixture.py'):
+            self.assertEqual(workflow.count("      - 'tests/composition/fable-game/"+path+"'"), 2)
+
         self.assertLess(workflow.index('Preflight soldier staged source'),workflow.index('Install browser hosts'))
         self.assertIn('timeout-minutes: 90',workflow)
         self.assertIn('10m ',workflow); self.assertIn('50m ',workflow)

@@ -18,6 +18,9 @@ on:
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'tests/composition/fable-game/svg-preview-c-public-api.json'
       - 'tests/composition/fable-game/verify-svg-preview-c-source.sh'
+      - 'tests/composition/fable-game/verify-soldier-reference-candidate.sh'
+      - 'tests/composition/fable-game/soldier-staged-journey.js'
+      - 'tests/composition/fable-game/test-soldier-staged-fixture.py'
       - 'tests/composition/fable-game/test-historical-provider.py'
       - '.github/workflows/svg-preview-c.yml'
   push:
@@ -38,6 +41,9 @@ on:
       - 'tests/composition/fable-game/svg-input-orca.py'
       - 'tests/composition/fable-game/svg-preview-c-public-api.json'
       - 'tests/composition/fable-game/verify-svg-preview-c-source.sh'
+      - 'tests/composition/fable-game/verify-soldier-reference-candidate.sh'
+      - 'tests/composition/fable-game/soldier-staged-journey.js'
+      - 'tests/composition/fable-game/test-soldier-staged-fixture.py'
       - 'tests/composition/fable-game/test-historical-provider.py'
       - '.github/workflows/svg-preview-c.yml'
 
