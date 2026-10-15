@@ -4,37 +4,41 @@ Templates owns this partial **GAME-TEMPLATE-01 / FABLE-ADOPT-01 .3** source wind
 [staged foundation plan](https://github.com/FS-GG/.github/blob/main/docs/roadmaps/staged-fable-game-adoption.md).
 The reference remains opt-in; the default player and dependency pins are unchanged.
 
-## Synthetic local save/replay source integration — 2026-10-15
+## Synthetic local save/replay source qualification — 2026-10-15
 
-The Complete-only [local example](../../templates/fs-gg-fable-game/SvgFoundation/Examples/FourD/README.md)
-uses the unchanged public Game.Core 0.16.0 runtime and replay APIs. The downloaded
-package's signatures and consumed Fable implementations match reviewed release
-`996832a6ebb5c893199627b0ecc46f7c1da848cd`. Conditional compile links tolerate
-Player omission and exclude the production example from legacy selection. A named
-Domain.Tests entry and actual browser controls cover inspection, in-memory save,
-restore to a new recording epoch and deterministic preview replay. Both the encounter
-and synthetic agent retain their positions; payload, codec and digest policy remain
-caller-owned. Existing reference selectors and disposal ownership remain intact.
+[PR #722](https://github.com/FS-GG/FS.GG.Templates/pull/722) qualifies the Complete-only
+synthetic local save/replay example at source `8173d38a4a125198cebf72e9df194ed5140913fa`.
+The exact-head [source run](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38691234268)
+passed production Fable/Vite, the named Domain.Tests conformance case, and one new
+control journey without retry in Chromium, Firefox and WebKit. Its retained
+`local-save-replay/execution.json`, `domain.trx`, browser reports, public package and
+API mirror verify locked package-backed Game.Core 0.16.0 with unchanged content hashes.
+Protected source delivery was read back at merge `8a66f0ff604692e22b65b3c066fffceb495636ad`
+on 2026-10-15 at 06:30:50 UTC. Exact-head required checks and coherent validation passed.
 
-The existing `svg-preview-c` source workflow must verify the named finite .NET case,
-locked package-backed identity, and one nonretried browser journey in each of Chromium,
-Firefox and WebKit. Exact-candidate compile/runtime qualification is pending; package
-and static checks alone do not establish it. This accepts no publication, durable
-persistence, product save compatibility, downloaded-only installed/retaining journey,
-new-control actual screen-reader acceptance or whole GAME-TEMPLATE-01 completion.
+The controls inspect, save an in-memory versioned snapshot, inspect again, preview
+ordered replay, restore, and preview the new recording epoch. Both agents retain
+their positions. Retained detached controls become inert after disposal. The finite
+cases exercise four-coordinate round trips, compatibility refusal preserving accepted
+state, accepted order, rejected/stale-input exclusion and checkpoint/digest divergence.
+Default Player omission and legacy exclusion remain conditional; no producer pin,
+lock, descriptor or default changed. Payload, codec, digest and product rules remain
+caller-owned. The existing container and Orca stages passed; this does not qualify
+the new controls' own actual screen-reader journey.
 
-The first source attempt [38689999512/a1](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38689999512)
-verified public package bytes, then found reserved-identifier and strict-indentation
-errors in the new finite test file; both were repaired on the same PR. Independently,
-the historical public receiver attempt [38689999498/a1](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38689999498)
-failed audited restore on the original 0.13.0 receiver's SignalR dependency. The
-current template already selects 10.0.13. The public qualification now uses the
-existing bounded maintenance helper to authenticate the original archive/manifest/lock,
-update only the generated historical receiver to SignalR 10.0.13, audit public
-regeneration and locked restore, and retain the maintenance receipt/manifest/lock.
-The qualification identifies dependency-maintained execution; original public archive
-bytes and all current template dependency pins/locks remain unchanged. Hosted repaired
-qualification remains pending.
+The original [source attempt](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38689999512)
+retains the repaired reserved-identifier/indentation failures. Independently, the
+original [public receiver attempt](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38689999498)
+failed audited restore on the historical 0.13.0 receiver's SignalR dependency.
+The repaired [public receiver run](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38691234520)
+authenticates the original archive/manifest/lock, maintains only the generated receiver
+to SignalR 10.0.13, and passes audited public regeneration, locked restore and the
+existing receiver qualification. Its receipt identifies dependency-maintained execution;
+original archive bytes and current template pins/locks remain unchanged.
+
+This accepts source-candidate composition from a local archive with in-memory storage.
+Durable persistence, product saves, public publication, downloaded-only installed and
+retaining adoption, new-control actual AT and whole GAME-TEMPLATE-01 remain open.
 
 ## Command receipt recovery source — 2026-10-09
 
