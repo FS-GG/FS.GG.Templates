@@ -116,6 +116,18 @@ prepare_svg_source_python_fixture "$root" "$out"
 dotnet pack "$root/FS.GG.Templates.csproj" -c Release -o "$out/template" --disable-build-servers -m:1 -p:UseSharedCompilation=false -p:BuildInParallel=false >"$out/templates-pack.log" 2>&1
 mapfile -t archives < <(find "$out/template" -maxdepth 1 -name '*.nupkg' -type f)
 [[ "${#archives[@]}" == 1 ]]
+template_id="$(python3 - "${archives[0]}" <<'PYTEMPLATEID'
+from zipfile import ZipFile
+import sys,xml.etree.ElementTree as ET
+with ZipFile(sys.argv[1]) as archive:
+    specs=[name for name in archive.namelist() if name.endswith('.nuspec')]
+    assert len(specs)==1
+    metadata=ET.fromstring(archive.read(specs[0]))
+    ids=[node.text for node in metadata.iter() if node.tag.rsplit('}',1)[-1]=='id']
+    assert ids==['FS.GG.Workspace.Template'], 'unexpected generated template package identity'
+    print(ids[0])
+PYTEMPLATEID
+)"
 dotnet new install "${archives[0]}" --force >"$out/template-install.log" 2>&1
 dotnet new fs-gg-fable-game -n SoldierReference -o "$out/complete" --bundle complete --lifecycle none >"$out/complete-generate.log" 2>&1
 dotnet new fs-gg-fable-game -n DefaultPlayer -o "$out/player" >"$out/player-generate.log" 2>&1
@@ -263,18 +275,16 @@ PYCLEANUP
       --out "$out/staged-negative-$mutant.json" --mutant "$mutant" "${executable_args[@]}" >"$out/staged-negative-$mutant.log" 2>&1; then
       echo "staged mutant survived: $mutant" >&2; exit 1
     fi
-    python3 - "$out/staged-negative-$mutant.json" <<'PYNEGATIVE'
-from pathlib import Path
-import json,sys
-value=json.loads(Path(sys.argv[1]).read_text())
-assert value['outcome'] in ('failed','capability-check-failed') and value['driver']['downloadObserved'] is True
-assert value['driver']['browserCleanup']=='observed-closed'
-PYNEGATIVE
+    python3 "$root/tests/composition/fable-game/test-soldier-staged-fixture.py" \
+      --verify-negative "$out/staged-negative-$mutant.json" --mutant "$mutant" \
+      >"$out/staged-negative-$mutant.verification.log" 2>&1
   done
   cleanup_server
   python3 "$root/tests/composition/fable-game/test-soldier-staged-fixture.py" --verify "$out/staged-result.json" \
     --manifest "$out/staged-artifact-manifest.json" --rendering "$expected_source" --templates "$templates_source" >"$out/staged-verification.log" 2>&1
   trap - EXIT
 fi
-dotnet new uninstall "${archives[0]}" >"$out/template-uninstall.log" 2>&1
+dotnet new uninstall "$template_id" >"$out/template-uninstall.log" 2>&1
+dotnet new uninstall >"$out/template-uninstall-readback.log" 2>&1
+! grep -F -- "$template_id" "$out/template-uninstall-readback.log"
 printf 'soldier-reference-candidate: compile passed; evidence=%s/compile-qualification.json\n' "$out"

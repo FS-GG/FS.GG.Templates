@@ -54,6 +54,60 @@ def verify(report, manifest, manifest_raw, rendering, templates):
     return {'cases': len(CASES), 'result': 'verified', 'profile': 'soldier-functional', 'gpuQualified': False, 'publication': False, 'installedAcceptance': False}
 
 
+def verify_negative(report, mutant):
+    assert report.get('schema') == 'fsgg.svg-coherence.page-results/v1'
+    assert report.get('outcome') in ('failed', 'capability-check-failed')
+    driver = report.get('driver', {})
+    assert driver.get('downloadObserved') is True and driver.get('browserCleanup') == 'observed-closed'
+    assert 'mutant survived' not in json.dumps(report).lower(), 'surviving mutant is not killed'
+    assert all(report.get('claims', {}).get(key) is False for key in ('gpuQualified', 'performanceAccepted', 'representativeSoldierQualified'))
+    capability_errors = {'wrong-entry': 'wrong actual player entry', 'source-hash': 'Artifact identity mismatch',
+                         'asset-hash': 'Workload contract hash mismatch', 'bundle-hash': 'Artifact hash mismatch: soldier-player/',
+                         'workload-hash': 'Workload contract hash mismatch', 'stale-checkpoint': 'Stale or foreign checkpoint'}
+    rows = report.get('cases', [])
+    def failed_case(kind, message):
+        matches = [row for row in rows if row.get('kind') == kind]
+        assert len(matches) == 1 and matches[0].get('outcome') == 'failed', 'targeted case did not fail'
+        row = matches[0]
+        assert row.get('error') == message, 'unrelated failure does not kill mutant'
+        observation = row.get('observations', {})
+        assert any(item.get('name') == message and item.get('passed') is False for item in observation.get('assertions', []))
+        assert observation.get('cleanup', {}).get('frameDisposed') is True
+        return observation
+    if mutant in capability_errors:
+        assert rows == [] and 'artifact' not in report
+        assert report.get('verificationError') == 'Downloaded staged input identity mismatch'
+        if mutant == 'bundle-hash':
+            assert re.fullmatch(r'Artifact hash mismatch: soldier-player/(?:[A-Za-z0-9_.-]+/)*[A-Za-z0-9_.-]+', report.get('error', ''))
+            assert '..' not in report['error'].split('/')
+        else:
+            assert report.get('error') == capability_errors[mutant]
+    elif mutant == 'missing-mount':
+        assert [row.get('kind') for row in rows] == CASES
+        for kind in CASES:
+            failed_case(kind, 'Soldier opt-in/mount control missing from actual entry')
+    elif mutant == 'missing-case':
+        assert report.get('error') == 'downloaded case removed by explicit negative control'
+        assert [row.get('kind') for row in rows] == CASES[:-1] and all(row.get('outcome') == 'pass' for row in rows)
+    elif mutant == 'stale-epoch-accepted':
+        failed_case('soldier-external', 'soldier soldier-external: stale epoch reply refused')
+    elif mutant == 'incomplete-export':
+        observed = failed_case('soldier-churn', 'soldier soldier-churn: complete 2000-use six-symbol export')
+        assert observed.get('details', {}).get('fullExport', {}).get('uses') == 1999
+    elif mutant == 'owner-leak':
+        observed = failed_case('soldier-external', 'soldier soldier-external: zero reported owned resources')
+        assert observed['cleanup'].get('owned') != 0
+    elif mutant == 'artifact-before-download':
+        assert report.get('integrity') == 'failed-before-download' and report.get('error') == 'Manifest changed during run'
+    elif mutant == 'artifact-after-download':
+        assert report.get('error') == 'downloaded artifact identity altered by explicit negative control'
+        assert report.get('verificationError') == 'Downloaded staged input identity mismatch'
+        assert report.get('artifact', {}).get('files', [{}])[0].get('sha256') == 'altered'
+    else:
+        raise AssertionError('unknown staged mutant')
+    return {'mutant': mutant, 'result': 'killed-by-specific-evidence'}
+
+
 class StagedInputTests(unittest.TestCase):
     def setUp(self):
         self.rendering, self.templates = 'a' * 40, 'b' * 40
@@ -85,6 +139,59 @@ class StagedInputTests(unittest.TestCase):
             with self.subTest(mutate=mutate):
                 value = copy.deepcopy(self.report); mutate(value)
                 with self.assertRaises(AssertionError): verify(value, self.manifest, self.raw, self.rendering, self.templates)
+
+    def test_negative_oracle_refuses_survivor_and_unrelated_failures(self):
+        base = copy.deepcopy(self.report)
+        base.pop('artifact')
+        base.update(outcome='failed', cases=[], error='Stale or foreign checkpoint', verificationError='Downloaded staged input identity mismatch')
+        self.assertEqual(verify_negative(base, 'stale-checkpoint')['result'], 'killed-by-specific-evidence')
+        for mutate in (lambda r: r.update(verificationError='Soldier mutant survived: stale-checkpoint'),
+                       lambda r: r.update(error='Case exceeded 60000ms'),
+                       lambda r: r['driver'].update(browserCleanup='unknown')):
+            value = copy.deepcopy(base); mutate(value)
+            with self.assertRaises(AssertionError): verify_negative(value, 'stale-checkpoint')
+        # A matching failure from another injection is not this mutant's evidence.
+        with self.assertRaises(AssertionError): verify_negative(base, 'wrong-entry')
+        with self.assertRaises(AssertionError): verify_negative(base, 'unknown')
+
+    def test_each_negative_branch_requires_its_specific_evidence(self):
+        capability = {'wrong-entry': 'wrong actual player entry', 'source-hash': 'Artifact identity mismatch',
+                      'asset-hash': 'Workload contract hash mismatch', 'bundle-hash': 'Artifact hash mismatch: soldier-player/',
+                      'workload-hash': 'Workload contract hash mismatch', 'stale-checkpoint': 'Stale or foreign checkpoint'}
+        mutants = ['missing-mount', *capability, 'missing-case', 'stale-epoch-accepted', 'incomplete-export', 'owner-leak', 'artifact-before-download', 'artifact-after-download']
+        self.assertEqual(len(mutants), 13)
+        for mutant in mutants:
+            with self.subTest(mutant=mutant):
+                value = copy.deepcopy(self.report); value['outcome'] = 'failed'
+                def fail(kind, message):
+                    row = next(row for row in value['cases'] if row['kind'] == kind)
+                    row.update(outcome='failed', error=message)
+                    row['observations']['assertions'] = [{'name': message, 'passed': False}]
+                    return row['observations']
+                if mutant in capability:
+                    value.pop('artifact')
+                    error = 'Artifact hash mismatch: soldier-player/assets/index-fixture.js' if mutant == 'bundle-hash' else capability[mutant]
+                    value.update(outcome='failed', cases=[], error=error, verificationError='Downloaded staged input identity mismatch')
+                elif mutant == 'missing-mount':
+                    for kind in CASES: fail(kind, 'Soldier opt-in/mount control missing from actual entry')
+                elif mutant == 'missing-case':
+                    value['cases'].pop(); value['error'] = 'downloaded case removed by explicit negative control'
+                elif mutant == 'stale-epoch-accepted':
+                    fail('soldier-external', 'soldier soldier-external: stale epoch reply refused')
+                elif mutant == 'incomplete-export':
+                    fail('soldier-churn', 'soldier soldier-churn: complete 2000-use six-symbol export')['details']['fullExport']['uses'] = 1999
+                elif mutant == 'owner-leak':
+                    fail('soldier-external', 'soldier soldier-external: zero reported owned resources')['cleanup']['owned'] = None
+                elif mutant == 'artifact-before-download':
+                    value.update(integrity='failed-before-download', error='Manifest changed during run')
+                elif mutant == 'artifact-after-download':
+                    value.update(error='downloaded artifact identity altered by explicit negative control', verificationError='Downloaded staged input identity mismatch')
+                    value['artifact']['files'] = [{'sha256': 'altered'}]
+                self.assertEqual(verify_negative(value, mutant)['mutant'], mutant)
+                survivor = copy.deepcopy(value); survivor['verificationError'] = 'Soldier mutant survived: '+mutant
+                with self.assertRaisesRegex(AssertionError, 'surviving mutant'): verify_negative(survivor, mutant)
+                unrelated = copy.deepcopy(self.report); unrelated.update(outcome='failed', error='Case exceeded 60000ms')
+                with self.assertRaises(AssertionError): verify_negative(unrelated, mutant)
 
     def test_actual_named_wait_deadline_and_first_failure(self):
         adapter = Path(__file__).parent / 'soldier-staged-journey.js'
@@ -144,16 +251,39 @@ await assert.rejects(waitForSoldierCondition(() => { throw first; }, 'later time
         # 750s positive +13*120s adversarial +90s shutdown reserve fit the2400s server lifetime.
         self.assertLessEqual(750+13*120+90,2400)
 
+    def test_uninstall_identity_parser_refuses_foreign_or_ambiguous_package(self):
+        import tempfile
+        from zipfile import ZipFile
+        source = (Path(__file__).parent / 'verify-soldier-reference-candidate.sh').read_text()
+        code = source.split("<<'PYTEMPLATEID'\n", 1)[1].split('\nPYTEMPLATEID', 1)[0]
+        with tempfile.TemporaryDirectory() as folder:
+            for identity, ambiguous, expected in [('FS.GG.Workspace.Template', False, 0), ('Foreign.Template', False, 1), ('FS.GG.Workspace.Template', True, 1)]:
+                archive = Path(folder) / 'fixture.nupkg'
+                with ZipFile(archive, 'w') as package:
+                    package.writestr('fixture.nuspec', '<package><metadata><id>'+identity+'</id></metadata></package>')
+                    if ambiguous: package.writestr('second.nuspec', '<package/>')
+                result = subprocess.run([sys.executable, '-c', code, str(archive)], capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, expected, result.stderr)
+                if expected == 0: self.assertEqual(result.stdout.strip(), identity)
+
     def test_actual_verifier_keeps_compile_profile_and_selected_order(self):
         source = (Path(__file__).parent / 'verify-soldier-reference-candidate.sh').read_text()
         self.assertIn('237f66bcce46c9e6227a266231342b34367b060c', source)
         self.assertIn('staged', source)
         self.assertNotIn('NuGetAudit=false', source)
+        self.assertIn('template_id="$(python3 - "${archives[0]}"', source)
+        self.assertIn('dotnet new uninstall "$template_id"', source)
+        self.assertIn('! grep -F -- "$template_id"', source)
+        self.assertIn('--verify-negative "$out/staged-negative-$mutant.json" --mutant "$mutant"', source)
         self.assertNotIn('window.svgFoundation =', (Path(__file__).parent / 'soldier-staged-journey.js').read_text())
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1 and sys.argv[1] == '--verify':
+    if len(sys.argv) > 1 and sys.argv[1] == '--verify-negative':
+        parser = argparse.ArgumentParser(); parser.add_argument('--verify-negative', type=Path, required=True); parser.add_argument('--mutant', required=True)
+        args = parser.parse_args()
+        print(json.dumps(verify_negative(json.loads(args.verify_negative.read_text()), args.mutant), sort_keys=True))
+    elif len(sys.argv) > 1 and sys.argv[1] == '--verify':
         parser = argparse.ArgumentParser(); parser.add_argument('--verify', type=Path, required=True); parser.add_argument('--manifest', type=Path, required=True); parser.add_argument('--rendering', required=True); parser.add_argument('--templates', required=True)
         args = parser.parse_args(); raw = args.manifest.read_bytes()
         print(json.dumps(verify(json.loads(args.verify.read_text()), json.loads(raw), raw, args.rendering, args.templates), sort_keys=True))
