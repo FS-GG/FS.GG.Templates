@@ -177,6 +177,30 @@ dotnet tool install FS.GG.NewSddWorkspace --version 0.11.1 --tool-path "$out/too
 DOTNET_CLI_HOME="$out/wizard-home" PATH="$(dirname "$sdd"):$PATH" "$out/tools/wizard/new-sdd-workspace" "$out/wizard" WizardReceiver --template fable-game --lifecycle none --ref fs-gg-templates/v0.11.0 --pinned --no-governance --no-coordination >"$out/wizard.log"
 "$root/scripts/apply-svg-foundation-preview.sh" apply "$out/direct" "$out/wizard" "$root/scripts/svg-foundation-preview-baseline.manifest" "$out/wizard-backup" >/dev/null
 
+# Maintain only the generated historical receiver; the downloaded archive stays immutable.
+maintain_public_receiver() {
+  local helper="$root/tests/composition/fable-game/historical-receiver-maintenance.py"
+  local state="$out/direct-dependency-maintenance-state.json" log="$out/direct-dependency-maintenance.log"
+  python3 "$helper" prepare --receiver "$out/direct" --archive "$template" --version 0.13.0 \
+    --config "$out/NuGet.Config" --state "$state" || return
+  if ! (cd "$out/direct" && dotnet restore Server.Tests/Server.Tests.fsproj \
+    --configfile "$out/NuGet.Config" --force-evaluate -p:RestoreLockedMode=false \
+    -p:NuGetAudit=true -p:NuGetAuditMode=all -p:TreatWarningsAsErrors=true) >"$log" 2>&1; then
+    tail -n 80 "$log" >&2; return 1
+  fi
+  if ! (cd "$out/direct" && dotnet restore Server.Tests/Server.Tests.fsproj \
+    --configfile "$out/NuGet.Config" --locked-mode \
+    -p:NuGetAudit=true -p:NuGetAuditMode=all -p:TreatWarningsAsErrors=true) >>"$log" 2>&1; then
+    tail -n 80 "$log" >&2; return 1
+  fi
+  python3 "$helper" finish --receiver "$out/direct" --archive "$template" --version 0.13.0 \
+    --config "$out/NuGet.Config" --state "$state" --restore-log "$log" \
+    --output "$out/direct-dependency-maintenance.json" || return
+  cp "$out/direct/Server.Tests/Server.Tests.fsproj" "$out/direct-maintained.Server.Tests.fsproj" || return
+  cp "$out/direct/Server.Tests/packages.lock.json" "$out/direct-maintained.packages.lock.json" || return
+}
+maintain_public_receiver
+
 (cd "$out/direct" && dotnet tool restore >/dev/null)
 bash "$out/direct/SvgFoundation/build.sh" >"$out/player-build.log" 2>&1
 ! grep -RIE 'SvgStudio|SvgGeometryWorker|polygon-clipping|OpenAL|Silk.NET.OpenAL' "$out/direct/SvgFoundation/dist"
@@ -224,5 +248,5 @@ for family in chromium firefox webkit; do
   kill "$network_server"; wait "$network_server" 2>/dev/null || true; network_server=''
 done
 browser_evidence_sha="$(cat "$out"/*-present.json "$out"/*-authoring.json "$out"/*-input.json "$out"/*-replay.json "$out"/*-scale.json "$out"/*-network.json | sha256sum | cut -d' ' -f1)"
-jq -n --arg templateSha "$(sha256sum "$template" | cut -d' ' -f1)" --arg browserEvidenceSha "$browser_evidence_sha" --slurpfile c "$out/chromium-present.json" --slurpfile f "$out/firefox-present.json" --slurpfile w "$out/webkit-present.json" --slurpfile packages "$out/public-packages.json" --slurpfile scaleMeasurement "$out/chromium-scale-measurement.json" --arg scaleReferenceSha "98ba3cf0a2a1db103ca7ac1711017062bf2c3697d59a0880e376c3629c5953b6" '{schema:"fsgg.svg-preview-c.public-qualification/v1",template:{version:"0.13.0",source:"nuget.org",sha256:$templateSha},packageHashes:$packages[0],publicProducers:{rendering:"0.31.0",game:"0.16.0",net:"0.6.0",audio:"0.6.0"},routes:{direct:"passed",sdd17:{none:"passed",default:"passed",typed:"passed"},wizard0111Adopter:"passed",retained010to012:"passed"},browser:{chromium:$c[0],firefox:$f[0],webkit:$w[0],authoringInputEvidenceSha256:$browserEvidenceSha},presentation:{animation:"passed",reducedMotion:"passed",gestureAudio:"passed",liveCueSeekPolicy:"passed",autosaveRecovery:"passed",reload:"passed",archive:"passed"},replay:{equality:"passed",divergence:"passed",rules:"passed",studioOnly:"passed"},network:{authority:"passed",twoBrowser:"passed",reconnect:"passed",review:"passed"},scale:{dense:"passed",worldExtent:"passed",responsive:"passed",accessibility:"passed",chromiumMeasurement:$scaleMeasurement[0],referenceReceiptSha256:$scaleReferenceSha,ownerTimingDisposition:"frozen SVG-SCALE-01 contract rerun on the exact reference host; every released Fable source matched before reuse; installed receiver samples are diagnostic and add no threshold or physical-device claim"},apiMirror:{candidateOmissions:0,status:"passed"},adopter:{collision:"refused-without-write",interruption:"rolled-back",rollback:"byte-identical",authoredFiles:"preserved"},publication:true,producerDistribution:"public-nuget-only",release:"C"}' >"$out/qualification.json"
+jq -n --arg templateSha "$(sha256sum "$template" | cut -d' ' -f1)" --arg browserEvidenceSha "$browser_evidence_sha" --slurpfile c "$out/chromium-present.json" --slurpfile f "$out/firefox-present.json" --slurpfile w "$out/webkit-present.json" --slurpfile packages "$out/public-packages.json" --slurpfile maintenance "$out/direct-dependency-maintenance.json" --slurpfile scaleMeasurement "$out/chromium-scale-measurement.json" --arg scaleReferenceSha "98ba3cf0a2a1db103ca7ac1711017062bf2c3697d59a0880e376c3629c5953b6" 'if ($maintenance[0].phase!="audited-public-regeneration-and-locked-restore-passed" or $maintenance[0].resolvedSignalRCommon!="10.0.13" or $maintenance[0].historicalTemplateVersion!="0.13.0" or $maintenance[0].archiveSha256!=$templateSha) then error("historical receiver maintenance incomplete") else {schema:"fsgg.svg-preview-c.public-qualification/v1",historicalScaffold:{archives:"unchanged-original-public-bytes",execution:"dependency-maintained-receiver"},dependencyMaintenance:$maintenance[0],template:{version:"0.13.0",source:"nuget.org",sha256:$templateSha},packageHashes:$packages[0],publicProducers:{rendering:"0.31.0",game:"0.16.0",net:"0.6.0",audio:"0.6.0"},routes:{direct:"passed",sdd17:{none:"passed",default:"passed",typed:"passed"},wizard0111Adopter:"passed",retained010to012:"passed"},browser:{chromium:$c[0],firefox:$f[0],webkit:$w[0],authoringInputEvidenceSha256:$browserEvidenceSha},presentation:{animation:"passed",reducedMotion:"passed",gestureAudio:"passed",liveCueSeekPolicy:"passed",autosaveRecovery:"passed",reload:"passed",archive:"passed"},replay:{equality:"passed",divergence:"passed",rules:"passed",studioOnly:"passed"},network:{authority:"passed",twoBrowser:"passed",reconnect:"passed",review:"passed"},scale:{dense:"passed",worldExtent:"passed",responsive:"passed",accessibility:"passed",chromiumMeasurement:$scaleMeasurement[0],referenceReceiptSha256:$scaleReferenceSha,ownerTimingDisposition:"frozen SVG-SCALE-01 contract rerun on the exact reference host; every released Fable source matched before reuse; installed receiver samples are diagnostic and add no threshold or physical-device claim"},apiMirror:{candidateOmissions:0,status:"passed"},adopter:{collision:"refused-without-write",interruption:"rolled-back",rollback:"byte-identical",authoredFiles:"preserved"},publication:true,producerDistribution:"public-nuget-only",release:"C"} end' >"$out/qualification.json"
 echo "svg-preview-c-public: passed; evidence=$out/qualification.json"

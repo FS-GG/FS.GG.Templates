@@ -972,6 +972,43 @@ test("FourD reference composes local session, normalized input, transformed hit 
   await expect.poll(disposedSnapshot).toEqual({ inputOwned: "0", sessionOwned: "0", commandOrder: "" });
 });
 
+test("Local save and replay example preserves synthetic state and settles detached controls", async ({ page }) => {
+  test.skip(!hasFourDReference || isLegacySvgPreview, "selected composition has no local save/replay example");
+  await page.goto("/");
+  const reference = page.locator("#fourd-reference");
+  const status = page.locator("#local-save-replay-status");
+  await expect(reference).toHaveAttribute("data-local-agent", "-7:23:-41:89");
+  await expect(reference).toHaveAttribute("data-local-accepted", "0");
+  await page.getByRole("button", { name: "Synthetic inspect full cell", exact: true }).click();
+  await expect(reference).toHaveAttribute("data-local-accepted", "1");
+  await page.getByRole("button", { name: "Save synthetic local snapshot", exact: true }).click();
+  await expect(reference).toHaveAttribute("data-local-saved", "true");
+  await page.getByRole("button", { name: "Synthetic inspect full cell", exact: true }).click();
+  await expect(reference).toHaveAttribute("data-local-accepted", "2");
+  await page.getByRole("button", { name: "Replay synthetic local recording", exact: true }).click();
+  await expect(reference).toHaveAttribute("data-local-replay-count", "2");
+  await expect(reference).toHaveAttribute("data-local-accepted", "2");
+  await expect(status).toContainText("replay preview completed");
+  await page.getByRole("button", { name: "Restore synthetic local snapshot", exact: true }).click();
+  await expect(reference).toHaveAttribute("data-local-accepted", "1");
+  await expect(status).toContainText("snapshot restored; new recording epoch");
+  await page.getByRole("button", { name: "Replay synthetic local recording", exact: true }).click();
+  await expect(reference).toHaveAttribute("data-local-replay-count", "1");
+  await expect(reference).toHaveAttribute("data-local-agent", "-7:23:-41:89");
+  await expect(reference).toHaveAttribute("data-agent-full-cell", "0:0:0:0");
+
+  const disposed = await reference.elementHandle();
+  const retainedControls = await reference.locator("button").filter({ hasText: /[Ss]ynthetic/ }).elementHandles();
+  expect(retainedControls).toHaveLength(4);
+  await page.getByRole("button", { name: "Dispose FourD reference", exact: true }).click();
+  await expect(reference).toHaveCount(0);
+  const before = await disposed!.evaluate(element => element.outerHTML);
+  for (const control of retainedControls) await control.evaluate(element => element.click());
+  expect(await disposed!.evaluate(element => element.outerHTML)).toBe(before);
+  expect(await disposed!.getAttribute("data-input-owned")).toBe("0");
+  expect(await disposed!.getAttribute("data-session-owned")).toBe("0");
+});
+
 test("current player and Studio remain operable at 320 CSS pixels with reduced motion", async ({ page }) => {
   test.skip(!hasAnySvgPlayer || isLegacySvgPreview, "selected composition has no current SVG UI");
   await page.emulateMedia({ reducedMotion: "reduce" });

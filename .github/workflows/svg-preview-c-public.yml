@@ -13,6 +13,8 @@ on:
       - 'tests/composition/fable-game/verify-svg-preview-c-public.sh'
       - 'tests/composition/fable-game/historical-provider.py'
       - 'tests/composition/fable-game/test-historical-provider.py'
+      - 'tests/composition/fable-game/historical-receiver-maintenance.py'
+      - 'tests/composition/fable-game/test-historical-receiver-maintenance.py'
       - '.github/workflows/svg-preview-c-public.yml'
   push:
     branches: [main]
@@ -27,6 +29,8 @@ on:
       - 'tests/composition/fable-game/verify-svg-preview-c-public.sh'
       - 'tests/composition/fable-game/historical-provider.py'
       - 'tests/composition/fable-game/test-historical-provider.py'
+      - 'tests/composition/fable-game/historical-receiver-maintenance.py'
+      - 'tests/composition/fable-game/test-historical-receiver-maintenance.py'
       - '.github/workflows/svg-preview-c-public.yml'
   workflow_dispatch:
 
@@ -40,7 +44,10 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Check historical custody and source refusal controls
-        run: python3 tests/composition/fable-game/test-historical-provider.py
+        run: |
+          python3 tests/composition/fable-game/test-historical-provider.py
+          python3 tests/composition/fable-game/test-historical-receiver-maintenance.py
+          bash -n tests/composition/fable-game/verify-svg-preview-c-public.sh
       - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
@@ -67,6 +74,9 @@ jobs:
           path: |
             ${{ runner.temp }}/svg-preview-c-public/qualification.json
             ${{ runner.temp }}/svg-preview-c-public/public-packages.json
+            ${{ runner.temp }}/svg-preview-c-public/*-dependency-maintenance*.json
+            ${{ runner.temp }}/svg-preview-c-public/*-maintained.Server.Tests.fsproj
+            ${{ runner.temp }}/svg-preview-c-public/*-maintained.packages.lock.json
             ${{ runner.temp }}/svg-preview-c-public/sdd-none.json
             ${{ runner.temp }}/svg-preview-c-public/sdd-default.json
             ${{ runner.temp }}/svg-preview-c-public/sdd-typed.json

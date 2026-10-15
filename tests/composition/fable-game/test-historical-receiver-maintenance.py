@@ -135,6 +135,84 @@ class MaintenanceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'beyond serializer'): self.finish()
         self.assertFalse(self.output.exists())
 
+    def test_version_013_binds_its_distinct_original_manifest_and_lock(self):
+        self.manifest.write_bytes(b'<Project Sdk="historical013"><ItemGroup>' + m.OLD + b'</ItemGroup></Project>')
+        m.BASELINES['0.13.0'] = (m.sha(self.archive), m.sha(self.lock))
+        with patch.dict(m.MANIFEST_SHAS, {'0.13.0': m.sha(self.manifest)}):
+            saved = m.prepare(self.receiver, self.archive, '0.13.0', self.config, self.state)
+            self.regenerate()
+            receipt = m.finish(self.receiver, self.archive, '0.13.0', self.config, self.state, self.log, self.output)
+            self.assertEqual(saved['originalManifestSha256'], m.MANIFEST_SHAS['0.13.0'])
+            self.assertNotEqual(saved['originalManifestSha256'], m.MANIFEST_SHA)
+            self.assertEqual(receipt['historicalTemplateVersion'], '0.13.0')
+            self.assertEqual(receipt['resolvedSignalRCommon'], '10.0.13')
+            self.assertEqual(receipt['archiveSha256'], m.sha(self.archive))
+
+    def test_version_013_refuses_the_older_manifest_baseline(self):
+        m.BASELINES['0.13.0'] = (m.sha(self.archive), m.sha(self.lock))
+        with patch.dict(m.MANIFEST_SHAS, {'0.13.0': '0' * 64}):
+            with self.assertRaisesRegex(ValueError, 'original historical manifest'):
+                m.prepare(self.receiver, self.archive, '0.13.0', self.config, self.state)
+        self.assertFalse(self.state.exists())
+
+    def test_public_013_caller_orders_audited_restores_and_blocks_failed_restore(self):
+        source = (HERE / 'verify-svg-preview-c-public.sh').read_text()
+        function = 'maintain_public_receiver() {' + source.split('maintain_public_receiver() {', 1)[1].split('\n}\n', 1)[0] + '\n}\n'
+        self.assertLess(source.index('\nmaintain_public_receiver\n'), source.index('bash "$out/direct/SvgFoundation/build.sh"'))
+        tools = self.root / 'tools'; tools.mkdir()
+        trace = self.root / 'calls.jsonl'
+        helper = self.root / 'tests/composition/fable-game/historical-receiver-maintenance.py'; helper.parent.mkdir(parents=True)
+        helper.write_text('import json,os,sys\nwith open(os.environ["TRACE"],"a") as f:f.write(json.dumps({"helper":sys.argv[1:]})+"\\n")\n')
+        dotnet = tools / 'dotnet'
+        dotnet.write_text('#!/usr/bin/env python3\nimport json,os,sys\na=sys.argv[1:]\nassert a[:2]==["restore","Server.Tests/Server.Tests.fsproj"]\nassert all(x in a for x in ["-p:NuGetAudit=true","-p:NuGetAuditMode=all","-p:TreatWarningsAsErrors=true"])\nwith open(os.environ["TRACE"],"a") as f:f.write(json.dumps({"dotnet":a,"cwd":os.getcwd()})+"\\n")\nif os.environ.get("FAIL_RESTORE")=="1":sys.exit(23)\n')
+        dotnet.chmod(0o755)
+        out = self.root / 'out'; tree = out / 'direct/Server.Tests'; tree.mkdir(parents=True)
+        (tree / 'Server.Tests.fsproj').write_text('inert source'); (tree / 'packages.lock.json').write_text('{}')
+        setup = 'set -euo pipefail\nroot="$1"\nout="$2"\ntemplate=immutable013\n'
+        for failed in (False, True):
+            trace.unlink(missing_ok=True)
+            result = subprocess.run(['bash', '-c', setup + function + 'maintain_public_receiver\ntouch "$out/root-build-reached"', 'fixture', str(self.root), str(out)], env={**os.environ, 'PATH': str(tools) + ':' + os.environ['PATH'], 'TRACE': str(trace), 'FAIL_RESTORE': '1' if failed else '0'}, capture_output=True, text=True)
+            rows = [json.loads(line) for line in trace.read_text().splitlines()]
+            if failed:
+                self.assertNotEqual(result.returncode, 0); self.assertEqual(len(rows), 2)
+                self.assertFalse((out / 'root-build-reached').exists())
+            else:
+                self.assertEqual(result.returncode, 0, result.stderr); self.assertEqual(len(rows), 4)
+                prepare, regeneration, locked, finish = rows
+                self.assertEqual(prepare['helper'][0], 'prepare'); self.assertEqual(finish['helper'][0], 'finish')
+                self.assertIn('0.13.0', prepare['helper']); self.assertIn('immutable013', prepare['helper'])
+                self.assertIn('--force-evaluate', regeneration['dotnet']); self.assertIn('-p:RestoreLockedMode=false', regeneration['dotnet'])
+                self.assertIn('--locked-mode', locked['dotnet']); self.assertNotIn('-p:RestoreLockedMode=false', locked['dotnet'])
+                self.assertEqual(locked['cwd'], str(out / 'direct'))
+                self.assertTrue((out / 'direct-maintained.packages.lock.json').exists())
+                (out / 'root-build-reached').unlink()
+
+    def test_public_013_final_receipt_binds_maintained_execution_to_original_archive(self):
+        source = (HERE / 'verify-svg-preview-c-public.sh').read_text()
+        command = 'jq -n --arg templateSha' + source.split('jq -n --arg templateSha', 1)[1].split('\necho "svg-preview-c-public:', 1)[0]
+        template = self.root / 'template.nupkg'; template.write_bytes(b'immutable original')
+        for name in ('chromium-present.json', 'firefox-present.json', 'webkit-present.json', 'public-packages.json', 'chromium-scale-measurement.json'):
+            (self.root / name).write_text('{}')
+        receipt = {'phase':'audited-public-regeneration-and-locked-restore-passed', 'resolvedSignalRCommon':'10.0.13', 'historicalTemplateVersion':'0.13.0', 'archiveSha256':m.sha(template)}
+        maintenance = self.root / 'direct-dependency-maintenance.json'
+        setup = 'set -euo pipefail\nout="$1"\ntemplate="$out/template.nupkg"\nbrowser_evidence_sha=fixture\n'
+        for mutation in ('good', 'failed', 'wrong-version', 'wrong-archive', 'vulnerable'):
+            value = copy.deepcopy(receipt)
+            if mutation == 'failed': value['phase'] = 'failed'
+            if mutation == 'wrong-version': value['historicalTemplateVersion'] = '0.11.0'
+            if mutation == 'wrong-archive': value['archiveSha256'] = 'foreign'
+            if mutation == 'vulnerable': value['resolvedSignalRCommon'] = '10.0.0'
+            maintenance.write_text(json.dumps(value))
+            result = subprocess.run(['bash', '-c', setup + command, 'fixture', str(self.root)], capture_output=True, text=True)
+            if mutation == 'good':
+                self.assertEqual(result.returncode, 0, result.stderr)
+                observed = json.loads((self.root / 'qualification.json').read_text())
+                self.assertEqual(observed['historicalScaffold']['execution'], 'dependency-maintained-receiver')
+                self.assertEqual(observed['template']['sha256'], receipt['archiveSha256'])
+                self.assertEqual(observed['dependencyMaintenance'], receipt)
+            else:
+                self.assertNotEqual(result.returncode, 0)
+
     def test_actual_caller_maintains_all_four_before_root_work_and_records_v6(self):
         source = (HERE / 'verify-svg-typed-receivers.sh').read_text()
         maintenance = source.index('for receiver in clean retained sdd-none wizard; do\n  maintain_receiver')

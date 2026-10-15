@@ -122,6 +122,53 @@ jobs:
             cp Browser.Tests/test-results/browser.json "$RUNNER_TEMP/svg-preview-c-source/complete-$family.browser.json"
             cp "artifacts/test-results/browser.$family.junit.xml" "$RUNNER_TEMP/svg-preview-c-source/complete-$family.junit.xml"
           done
+      - name: Verify local save replay execution and locked package evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - "$RUNNER_TEMP/svg-workspace-complete" "$RUNNER_TEMP/svg-preview-c-source" <<'PYLOCAL'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+          import hashlib,json,shutil,sys
+          workspace,out=map(Path,sys.argv[1:])
+          evidence=out/'local-save-replay'; evidence.mkdir()
+          trx=workspace/'artifacts/test-results/domain.trx'
+          shutil.copy2(trx,evidence/'domain.trx')
+          ns={'t':'http://microsoft.com/schemas/VisualStudio/TeamTest/2010'}
+          cases=[node for node in ET.parse(trx).findall('.//t:UnitTestResult',ns)
+                 if node.attrib.get('testName','').endswith('Local save replay finite conformance')]
+          assert len(cases)==1 and cases[0].attrib.get('outcome')=='Passed', 'named local save replay .NET case must execute once and pass'
+          package_hash='mn66KeVyqj0kphAn8Nm11GbEUbmGcO28uRMFiuX6FdQv87Zvv4kXTV7MqwTVeH3GQtA2Nna56Okd6IaCSHH6Bg=='
+          report={'dotnetCase':cases[0].attrib['testName'],'browserCases':{},'packages':{}}
+          for project in ['Domain.Tests','SvgFoundation']:
+              lock=workspace/project/'packages.lock.json'
+              assets=workspace/project/'obj/project.assets.json'
+              locked=json.loads(lock.read_text())
+              found=[item['FS.GG.Game.Core'] for item in locked['dependencies'].values() if 'FS.GG.Game.Core' in item]
+              assert found and all(item['resolved']=='0.16.0' and item['contentHash']==package_hash for item in found), project+' locked Game.Core identity mismatch'
+              resolved=json.loads(assets.read_text())
+              library=resolved['libraries']['FS.GG.Game.Core/0.16.0']
+              assert library['type']=='package' and library['sha512']==package_hash, project+' must resolve package-backed Game.Core'
+              original=Path('templates/fs-gg-fable-game')/project/'packages.lock.json'
+              assert lock.read_bytes()==original.read_bytes(), project+' generated lock changed'
+              for path in [lock,assets]: shutil.copy2(path,evidence/(project+'-'+path.name))
+              report['packages'][project]={'version':'0.16.0','contentHash':package_hash,'lockSha256':hashlib.sha256(lock.read_bytes()).hexdigest()}
+          def specs(suites):
+              for suite in suites:
+                  yield from suite.get('specs',[])
+                  yield from specs(suite.get('suites',[]))
+          for family in ['chromium','firefox','webkit']:
+              data=json.loads((out/f'complete-{family}.browser.json').read_text())
+              matches=[spec for spec in specs(data['suites']) if spec['title']=='Local save and replay example preserves synthetic state and settles detached controls']
+              assert len(matches)==1, family+' named browser case missing or duplicated'
+              tests=matches[0]['tests']
+              assert len(tests)==1 and tests[0]['expectedStatus']=='passed', family+' named case must not skip'
+              results=tests[0]['results']
+              assert len(results)==1 and results[0]['status']=='passed' and results[0]['retry']==0, family+' named case must pass without retries'
+              report['browserCases'][family]='passed-once-no-retry'
+          shutil.copy2('tests/composition/fable-game/svg-preview-c-public-api.json',evidence/'public-api-mirror.json')
+          (evidence/'execution.json').write_text(json.dumps(report,indent=2)+'\n')
+          PYLOCAL
       - name: Qualify the local container edge
         shell: bash
         run: |
@@ -157,6 +204,11 @@ jobs:
           path: |
             ${{ runner.temp }}/svg-preview-c-quint-evaluator/**
             ${{ runner.temp }}/svg-preview-c-source/qualification.json
+            ${{ runner.temp }}/svg-preview-c-source/local-save-replay/**
+            ${{ runner.temp }}/svg-preview-c-source/feed/fs.gg.game.core.0.16.0.nupkg
+            ${{ runner.temp }}/svg-workspace-complete/artifacts/test-results/domain.trx
+            ${{ runner.temp }}/svg-workspace-complete/Domain.Tests/obj/project.assets.json
+            ${{ runner.temp }}/svg-workspace-complete/SvgFoundation/obj/project.assets.json
             ${{ runner.temp }}/svg-preview-c-source/sdd-none.json
             ${{ runner.temp }}/svg-preview-c-source/sdd-default.json
             ${{ runner.temp }}/svg-preview-c-source/sdd-typed.json
