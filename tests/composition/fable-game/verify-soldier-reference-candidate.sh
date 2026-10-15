@@ -8,17 +8,20 @@ out="${4:?empty qualification directory required}"
 expected_source="${5:?exact admitted Rendering source revision required}"
 expected_manifest="${6:?SHA-256 of root-admitted existing fixture manifest required}"
 phase="${7:-compile}"
-# This exact source profile is compile-only. Browser/publication admission remains separate.
-[[ "$phase" == compile && "$version" == 0.32.0 ]]
-[[ "$expected_source" == 237f66bcce46c9e6227a266231342b34367b060c ]]
-[[ "$expected_manifest" == d496fe3f69d873d7522d19897bc4a2955f670b958133d481a805141299f2fae1 ]]
+# Historical compile custody stays exact; staged mode has an explicit immutable producer input.
+[[ "$version" == 0.32.0 && "$phase" =~ ^(compile|staged)$ ]]
+[[ "$expected_source" =~ ^[0-9a-f]{40}$ && "$expected_manifest" =~ ^[0-9a-f]{64}$ ]]
+if [[ "$phase" == compile ]]; then
+  [[ "$expected_source" == 237f66bcce46c9e6227a266231342b34367b060c ]]
+  [[ "$expected_manifest" == d496fe3f69d873d7522d19897bc4a2955f670b958133d481a805141299f2fae1 ]]
+fi
 [[ ! -e "$out" && "$(git -C "$producer" rev-parse HEAD)" == "$expected_source" ]]
 [[ -z "$(git -C "$producer" status --porcelain --untracked-files=no)" ]]
 mkdir -p "$out"/{feed,home,packages,http}
 out="$(realpath "$out")"
 export DOTNET_CLI_HOME="$out/home" NUGET_PACKAGES="$out/packages" NUGET_HTTP_CACHE_PATH="$out/http"
 export DOTNET_PROCESSOR_COUNT=1 MSBUILDDISABLENODEREUSE=1 DOTNET_CLI_USE_MSBUILD_SERVER=0
-python3 - "$producer" "$producer_feed" "$out" "$version" "$expected_source" "$expected_manifest" <<'PY'
+python3 - "$producer" "$producer_feed" "$out" "$version" "$expected_source" "$expected_manifest" "$phase" <<'PY'
 from pathlib import Path
 from zipfile import ZipFile
 import hashlib,json,shutil,subprocess,sys,xml.etree.ElementTree as ET
@@ -35,10 +38,12 @@ manifest_raw=manifest_path.read_bytes()
 assert sha(manifest_raw)==expected_manifest, 'fixture manifest digest'
 manifest=json.loads(manifest_raw,object_pairs_hook=unique)
 assert manifest['schema']=='fsgg.svg-coherence.fixture/v1', 'fixture schema'
-assert manifest['artifactId']=='sha256:4385c3b3ef8ac9188d6b28c75582cd5eeabff3227b2bb4d8ef88c1ceacb16ef6', 'fixture artifact identity'
+if sys.argv[7]=='compile': assert manifest['artifactId']=='sha256:4385c3b3ef8ac9188d6b28c75582cd5eeabff3227b2bb4d8ef88c1ceacb16ef6', 'fixture artifact identity'
 source_manifest=feed.parent/'source-manifest.tsv'
 source_raw=source_manifest.read_bytes()
-assert manifest['sourceSha256']=='sha256:'+sha(source_raw)=='sha256:fa33c2a5f2de93d2961f9844bad35350d787978c8ba734aa8ac6dbbba8faf393', 'source manifest digest'
+assert manifest['sourceSha256']=='sha256:'+sha(source_raw), 'source manifest digest'
+if sys.argv[7]=='compile': assert manifest['sourceSha256']=='sha256:fa33c2a5f2de93d2961f9844bad35350d787978c8ba734aa8ac6dbbba8faf393', 'source manifest digest'
+assert manifest['artifactId']=='sha256:'+sha(json.dumps({key:manifest[key] for key in ('files','packages','sourceSha256','workloadSha256')},separators=(',',':'),ensure_ascii=False).encode()), 'fixture artifact derivation'
 assert source_raw==(feed.parent/'source-manifest-after.tsv').read_bytes(), 'producer source drift'
 assert subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()==head
 paths=[]
@@ -131,7 +136,9 @@ dotnet restore "$out/complete/SvgFoundation/SvgFoundation.fsproj" --force-evalua
 (cd "$out/complete" && dotnet tool restore --configfile "$out/NuGet.Config" && dotnet fable SvgFoundation/SvgFoundation.fsproj --outDir SvgFoundation/output --noCache) >"$out/fable-build.log" 2>&1
 (cd "$out/complete" && dotnet fable --version) >"$out/fable-version.log" 2>&1
 (cd "$out/complete/Client" && npm ci) >"$out/npm-client.log" 2>&1
-(cd "$out/complete" && ./Client/node_modules/.bin/vite build --config SvgFoundation/vite.config.js) >"$out/vite-build.log" 2>&1
+base_args=()
+[[ "$phase" != staged ]] || base_args=(--base /soldier-player/)
+(cd "$out/complete" && ./Client/node_modules/.bin/vite build --config SvgFoundation/vite.config.js "${base_args[@]}") >"$out/vite-build.log" 2>&1
 python3 - "$out" "$version" <<'PY'
 from pathlib import Path
 import json,sys
@@ -156,5 +163,118 @@ root,out=map(Path,sys.argv[1:3])
 receipt={'schema':'fsgg.soldier-reference-compile/1','disposition':'passed','templatesRevision':subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip(),'producerRevision':sys.argv[3],'inputProfile':'existing-fixture-compile-only','fixtureInput':json.loads((out/'producer-fixture-input.json').read_text()),'fixtureManifestSha256':sys.argv[4],'releaseCustody':False,'archives':json.loads((out/'producer-archives.json').read_text()),'fableLogSha256':hashlib.sha256((out/'fable-build.log').read_bytes()).hexdigest(),'browserExecuted':False,'publication':False}
 (out/'compile-qualification.json').write_text(json.dumps(receipt,indent=2)+'\n')
 PY
+if [[ "$phase" == staged ]]; then
+  templates_source="$(git -C "$root" rev-parse HEAD)"
+  dotnet msbuild "$out/complete/SvgFoundation/SvgFoundation.fsproj" -nologo \
+    -getProperty:FsGgExternalReferenceCandidate -getProperty:FsGgSvgRuntimeCandidate \
+    -getProperty:FsGgSvgInputCandidate -getProperty:FsGgSvgNetworkCandidate -getProperty:FsGgLegacyPreview >"$out/receiver-properties.json"
+  python3 - "$root" "$out" "$expected_source" "$expected_manifest" <<'PYSTAGED'
+from pathlib import Path
+import hashlib,json,re,subprocess,sys
+root,out=map(Path,sys.argv[1:3]); complete=out/'complete'
+def sha(path): return 'sha256:'+hashlib.sha256(path.read_bytes()).hexdigest()
+asset=complete/'SvgFoundation/Examples/SoldierReference'
+provenance=json.loads((asset/'provenance.json').read_text())
+entry=(complete/'SvgFoundation/dist/index.html').read_text()
+modules=re.findall(r'<script[^>]+type="module"[^>]+src="([^"]+)"',entry)
+assert len(modules)==1 and modules[0].startswith('/soldier-player/assets/') and '..' not in modules[0]
+module=complete/'SvgFoundation/dist'/modules[0].removeprefix('/soldier-player/')
+inputs={'schema':'fsgg.soldier-staged-input/v1','renderingRevision':sys.argv[3],
+        'templatesRevision':subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip(),
+        'candidateVersion':'0.32.0','producerManifestSha256':'sha256:'+sys.argv[4],
+        'restoreAssetsSha256':sha(complete/'SvgFoundation/obj/project.assets.json'),
+        'actualProgramSha256':sha(complete/'SvgFoundation/output/Program.js'),
+        'programSourceSha256':sha(complete/'SvgFoundation/Program.fs'),
+        'playerEntryModule':modules[0],'playerEntryModuleSha256':sha(module),
+        'referenceSha256':sha(asset/'reference.json'),'provenanceSha256':sha(asset/'provenance.json'),
+        'assetSha256':'sha256:'+provenance['canonicalContentSha256'],
+        'adapterSha256':sha(root/'tests/composition/fable-game/soldier-staged-journey.js'),
+        'actualEntry':'soldier-player/index.html','adapterEntry':'soldier-staged-journey.js',
+        'evaluatedProperties':json.loads((out/'receiver-properties.json').read_text())['Properties'],
+        'packageArchives':[{'name':row['name'],'sha256':'sha256:'+row['sha256']} for row in json.loads((out/'producer-archives.json').read_text())]}
+(out/'staged-input.json').write_text(json.dumps(inputs,indent=2)+'\n')
+PYSTAGED
+  fixture_work="$(realpath "$producer_feed/..")"
+  node "$producer/tests/Scene.SvgBrowser.Tests/package-fixture.mjs" --work "$fixture_work" \
+    --profile soldier-functional --player-dist "$out/complete/SvgFoundation/dist" \
+    --adapter "$root/tests/composition/fable-game/soldier-staged-journey.js" --input-metadata "$out/staged-input.json" \
+    >"$out/staging.log" 2>&1
+  sealed="$fixture_work/Browser/dist"
+  cp "$sealed/artifact-manifest.json" "$out/staged-artifact-manifest.json"
+  manifest_sha="sha256:$(sha256sum "$out/staged-artifact-manifest.json" | cut -d' ' -f1)"
+  dotnet restore "$out/complete/Server/Server.fsproj" --locked-mode --configfile "$out/NuGet.Config" >"$out/server-restore.log" 2>&1
+  dotnet publish "$out/complete/Server/Server.fsproj" -c Release --no-restore -o "$out/server" >"$out/server-publish.log" 2>&1
+  mkdir -p "$out/server-home"
+  server=''
+  server_start=''
+  origin=''
+  cleanup_server() {
+    local status=0
+    if [[ -n "$server" ]]; then
+      if [[ -r "/proc/$server/stat" ]]; then
+        [[ "$(awk '{print $22}' "/proc/$server/stat")" == "$server_start" ]] || { echo 'server custody changed; refusing kill' >&2; return 1; }
+        kill -TERM "$server" 2>/dev/null || true
+      fi
+      wait "$server" 2>/dev/null || status=$?
+      if kill -0 "$server" 2>/dev/null; then
+        printf 'server cleanup unknown: process remains %s\n' "$server" >&2
+        return 1
+      fi
+      python3 - "$out/staged-result.json" "$status" "$origin" <<'PYCLEANUP'
+from pathlib import Path
+import json,sys,socket,urllib.parse
+origin=urllib.parse.urlparse(sys.argv[3])
+if origin.port:
+ with socket.socket() as probe:
+  probe.settimeout(1)
+  assert probe.connect_ex(('127.0.0.1',origin.port))!=0, 'owned server listener did not settle'
+p=Path(sys.argv[1])
+if p.exists():
+ value=json.loads(p.read_text()); value['driver']['serverCleanup']={'status':'observed-exited','exitCode':int(sys.argv[2])}
+ p.write_text(json.dumps(value,indent=2)+'\n')
+PYCLEANUP
+      server=''
+    fi
+  }
+  trap cleanup_server EXIT
+  # Existing generated app, isolated test room, sealed webroot. No checkout, token or debug endpoint.
+  (cd "$out/server" && exec timeout --signal=TERM --kill-after=5s 2400s \
+    env -i PATH="$PATH" DOTNET_ROOT="${DOTNET_ROOT:-/usr/share/dotnet}" DOTNET_CLI_HOME="$out/server-home" \
+    ASPNETCORE_ENVIRONMENT=Production dotnet "$out/server/Server.dll" --urls http://127.0.0.1:0 --webroot "$sealed") \
+    >"$out/staged-server.log" 2>&1 & server=$!
+  server_start="$(awk '{print $22}' "/proc/$server/stat")"
+  for _ in {1..120}; do
+    origin="$(sed -nE 's@.*Now listening on: (http://127\.0\.0\.1:[0-9]+).*@\1@p' "$out/staged-server.log" | head -1)"
+    [[ -z "$origin" ]] || break
+    kill -0 "$server" 2>/dev/null || { tail -n 80 "$out/staged-server.log" >&2; exit 1; }
+    sleep .25
+  done
+  [[ "$origin" =~ ^http://127\.0\.0\.1:[0-9]+$ ]]
+  curl -fsS "$origin/healthz" >/dev/null
+  executable_args=()
+  [[ -z "${PLAYWRIGHT_EXECUTABLE_PATH:-}" ]] || executable_args=(--executable "$PLAYWRIGHT_EXECUTABLE_PATH")
+  node "$fixture_work/Browser/drive-suite.mjs" --base-url "$origin/" \
+    --profile soldier-functional --manifest-sha256 "$manifest_sha" --deadline-ms 750000 \
+    --out "$out/staged-result.json" --exercise-resume "${executable_args[@]}" >"$out/staged-driver.log" 2>&1
+  # Every adversarial driver invocation must download a failed report and refuse acceptance.
+  for mutant in missing-mount wrong-entry source-hash asset-hash bundle-hash workload-hash missing-case stale-checkpoint stale-epoch-accepted incomplete-export owner-leak artifact-before-download artifact-after-download; do
+    if node "$fixture_work/Browser/drive-suite.mjs" --base-url "$origin/" \
+      --profile soldier-functional --manifest-sha256 "$manifest_sha" --deadline-ms 120000 \
+      --out "$out/staged-negative-$mutant.json" --mutant "$mutant" "${executable_args[@]}" >"$out/staged-negative-$mutant.log" 2>&1; then
+      echo "staged mutant survived: $mutant" >&2; exit 1
+    fi
+    python3 - "$out/staged-negative-$mutant.json" <<'PYNEGATIVE'
+from pathlib import Path
+import json,sys
+value=json.loads(Path(sys.argv[1]).read_text())
+assert value['outcome'] in ('failed','capability-check-failed') and value['driver']['downloadObserved'] is True
+assert value['driver']['browserCleanup']=='observed-closed'
+PYNEGATIVE
+  done
+  cleanup_server
+  python3 "$root/tests/composition/fable-game/test-soldier-staged-fixture.py" --verify "$out/staged-result.json" \
+    --manifest "$out/staged-artifact-manifest.json" --rendering "$expected_source" --templates "$templates_source" >"$out/staged-verification.log" 2>&1
+  trap - EXIT
+fi
 dotnet new uninstall "${archives[0]}" >"$out/template-uninstall.log" 2>&1
 printf 'soldier-reference-candidate: compile passed; evidence=%s/compile-qualification.json\n' "$out"
