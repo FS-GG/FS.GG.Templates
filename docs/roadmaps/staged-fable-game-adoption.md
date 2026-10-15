@@ -4,6 +4,25 @@ Templates owns this partial **GAME-TEMPLATE-01 / FABLE-ADOPT-01 .3** source wind
 [staged foundation plan](https://github.com/FS-GG/.github/blob/main/docs/roadmaps/staged-fable-game-adoption.md).
 The reference remains opt-in; the default player and dependency pins are unchanged.
 
+## Synthetic local save/replay source integration — 2026-10-15
+
+The Complete-only [local example](../../templates/fs-gg-fable-game/SvgFoundation/Examples/FourD/README.md)
+uses the unchanged public Game.Core 0.16.0 runtime and replay APIs. The downloaded
+package's signatures and consumed Fable implementations match reviewed release
+`996832a6ebb5c893199627b0ecc46f7c1da848cd`. Conditional compile links tolerate
+Player omission and exclude the production example from legacy selection. A named
+Domain.Tests entry and actual browser controls cover inspection, in-memory save,
+restore to a new recording epoch and deterministic preview replay. Both the encounter
+and synthetic agent retain their positions; payload, codec and digest policy remain
+caller-owned. Existing reference selectors and disposal ownership remain intact.
+
+The existing `svg-preview-c` source workflow must verify the named finite .NET case,
+locked package-backed identity, and one nonretried browser journey in each of Chromium,
+Firefox and WebKit. Exact-candidate compile/runtime qualification is pending; package
+and static checks alone do not establish it. This accepts no publication, durable
+persistence, product save compatibility, downloaded-only installed/retaining journey,
+new-control actual screen-reader acceptance or whole GAME-TEMPLATE-01 completion.
+
 ## Command receipt recovery source — 2026-10-09
 
 The [external authority reference](../../templates/fs-gg-fable-game/SvgFoundation/ExternalAuthorityReference.fs)

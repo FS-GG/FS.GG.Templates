@@ -1,4 +1,4 @@
-/// Finite source conformance definitions; not yet compiled, connected, or executed.
+/// Finite conformance cases linked by the named Domain.Tests xUnit entry.
 module FableGameWorkspaceNamespace.SvgFoundation.LocalSaveReplayExampleTests
 
 open FS.GG.Game.Core

@@ -1,4 +1,4 @@
-/// Source preparation only: not included in the generated project compile graph.
+/// Pure synthetic example, conditionally compiled in the Complete receiver.
 module FableGameWorkspaceNamespace.SvgFoundation.LocalSaveReplayExample
 
 open FS.GG.Game.Core

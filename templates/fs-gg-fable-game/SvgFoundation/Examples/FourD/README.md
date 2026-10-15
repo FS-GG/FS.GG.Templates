@@ -1,17 +1,26 @@
 # Pure local save/replay preparation
 
-`LocalSaveReplayExample.fs` and `LocalSaveReplayExample.Tests.fs` are **source-only,
-uncompiled and unconnected** preparation. Neither file is included in an `.fsproj`,
-test runner, or browser mount. Their presence does not establish generated behavior,
-source qualification, publication, installed adoption, or a complete player journey.
-The existing `FourDReference.fs` remains the browser fixture.
+`LocalSaveReplayExample.fs` is conditionally compiled in the Complete receiver
+before `FourDReference.fs`, with `LOCAL_SAVE_REPLAY_EXAMPLE`; legacy selection
+omits it. Default Player generation omits the example directory. The finite cases
+and named xUnit entry link into Domain.Tests only when the example is present;
+they do not enter the production browser compile graph.
 
 The example uses the public Game.Core `SessionRuntime`, `ReplayRecorder` and `Replay`
-surfaces selected by the template's unchanged **0.16.0** pin. API signatures and
-producer behavior were reviewed at the [0.16.0 release source](https://github.com/FS-GG/FS.GG.Game/tree/996832a6ebb5c893199627b0ecc46f7c1da848cd/src/Game.Core)
-(`SessionContract.fsi`, `SessionRuntime.fsi`, `Replay.fsi` and their implementations).
-Package payload verification and compilation against the actual downloaded 0.16.0
-package remain prerequisites for integration; source inspection is not that proof.
+surfaces selected by the unchanged **0.16.0** pin. The actual downloaded package's
+API and consumed Fable implementation members match the [reviewed release source](https://github.com/FS-GG/FS.GG.Game/tree/996832a6ebb5c893199627b0ecc46f7c1da848cd/src/Game.Core).
+The existing Release C source qualification repeats those data-driven mirror checks,
+then builds a local candidate archive and generates the Complete receiver. Named
+.NET execution, locked package identity and one nonretried browser case per family
+are checked explicitly. Exact-candidate hosted qualification remains pending until
+that workflow passes; static package/source checks alone do not qualify it.
+
+The browser fixture adds four separate controls: **Synthetic inspect full cell**,
+**Save synthetic local snapshot**, **Restore synthetic local snapshot**, and
+**Replay synthetic local recording**. The live output describes accepted inspections,
+restore and preview results. Save retains a versioned snapshot in memory; restore
+starts a fresh recording epoch. The existing button listener owner removes all four
+listeners on disposal, including listeners on retained detached controls.
 
 ## Pure entrypoints
 
@@ -57,10 +66,11 @@ generation refusal need a later explicit integration if migration is selected.
 trips; session/schema/profile refusal preserving accepted state; accepted semantic
 order; illegal-coordinate and stale-sequence exclusion; altered event/payload/digest
 detection; incompatible checkpoints; checkpoint seek and admission boundaries.
-These are definitions, not reported passing tests.
+The named xUnit entry invokes these definitions; hosted execution evidence is required before reporting them as passing.
 
-The serial Templates integrator must verify actual package APIs, include the exact
-source and tests in the existing compile/test route, compile and execute them, then
-connect and qualify one genuine browser save/restore/replay journey. That later scope
-owns project/descriptor/browser-test edits and normal generated receiver checks.
-Publication and downloaded-only installed acceptance retain their separate gates.
+The source workflow qualifies these controls in a generated Complete receiver through
+production Fable/Vite and Chromium, Firefox and WebKit. It retains the named .NET
+TRX, browser reports and locked package evidence. This is source-candidate composition
+from a local archive. Durable persistence, product saves, public publication,
+downloaded-only installed/retaining acceptance and actual screen-reader qualification
+of the new controls retain their separate gates; whole GAME-TEMPLATE-01 remains open.

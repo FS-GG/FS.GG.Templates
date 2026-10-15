@@ -392,6 +392,61 @@ let mount () : IDisposable =
         buttonListeners.Add(value, handler)
         root.appendChild value |> ignore
 
+#if LOCAL_SAVE_REPLAY_EXAMPLE
+    // This separate synthetic inspection trace never changes the encounter's gameplay state.
+    let syntheticOrigin: LocalSaveReplayExample.FullCell = { A = -7; B = 23; C = -41; D = 89 }
+    let syntheticDestination: LocalSaveReplayExample.FullCell = { A = 5; B = -11; C = 37; D = -83 }
+    let mutable localExample =
+        LocalSaveReplayExample.initialize syntheticOrigin syntheticDestination
+        |> Result.defaultWith (fun issue -> failwithf "Synthetic local example initialization: %A" issue)
+    let mutable localSequence = 0UL
+    let mutable localSaved: SessionSnapshot<LocalSaveReplayExample.Payload> option = None
+    let mutable localReplayCount: int option = None
+    let localStatus = document.createElement "output"
+    localStatus.id <- "local-save-replay-status"
+    localStatus.setAttribute ("aria-live", "polite")
+    root.appendChild localStatus |> ignore
+    let describeLocal result =
+        let cell = localExample.Runtime.Current.Agent
+        let accepted = localExample.Runtime.Current.Accepted.Length
+        root.setAttribute ("data-local-agent", $"{cell.A}:{cell.B}:{cell.C}:{cell.D}")
+        root.setAttribute ("data-local-accepted", string accepted)
+        root.setAttribute ("data-local-saved", if localSaved.IsSome then "true" else "false")
+        root.setAttribute ("data-local-replay-count", localReplayCount |> Option.map string |> Option.defaultValue "none")
+        localStatus.textContent <- $"Synthetic local save/replay: {result}; accepted inspections {accepted}. Agent {cell.A}, {cell.B}, {cell.C}, {cell.D}."
+    button "Synthetic inspect full cell" (fun () ->
+        localSequence <- localSequence + 1UL
+        let next, result =
+            LocalSaveReplayExample.admit
+                { SessionId = LocalSaveReplayExample.sessionId
+                  InputId = $"synthetic.inspect:{localSequence}"
+                  Sequence = localSequence
+                  Value = LocalSaveReplayExample.InspectFullCell syntheticDestination }
+                localExample
+        localExample <- next
+        describeLocal (match result with Ok _ -> "inspection accepted" | Error _ -> "inspection refused"))
+    button "Save synthetic local snapshot" (fun () ->
+        localSaved <- Some(LocalSaveReplayExample.snapshot localExample)
+        describeLocal "snapshot saved in memory")
+    button "Restore synthetic local snapshot" (fun () ->
+        match localSaved with
+        | None -> describeLocal "no snapshot saved"
+        | Some saved ->
+            let next, result = LocalSaveReplayExample.restore saved localExample
+            localExample <- next
+            localReplayCount <- None
+            describeLocal (match result with Ok _ -> "snapshot restored; new recording epoch" | Error _ -> "restore refused"))
+    button "Replay synthetic local recording" (fun () ->
+        match LocalSaveReplayExample.replay (uint64 localExample.Recording.Events.Length) localExample.Recording with
+        | Ok(ReplayRunOutcome.Completed(_, payload)) ->
+            localReplayCount <- Some payload.Accepted.Length
+            describeLocal "replay preview completed"
+        | _ ->
+            localReplayCount <- None
+            describeLocal "replay preview refused or diverged")
+    describeLocal "ready"
+#endif
+
     button "Move to legal full cell" (fun () -> admit (NormalizedBrowserObservation.Invoke "fourd.move-full-cell"))
 
     button "Request projection burst" (fun () ->
