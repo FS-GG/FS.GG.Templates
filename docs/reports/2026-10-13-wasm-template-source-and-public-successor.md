@@ -249,6 +249,39 @@ retained. Fresh Google HEAD CRC32C was validated offline, while fresh MD5 and GE
 metadata remain unknown, rather than a demonstrated MD5 mismatch.
 
 
+## Chromium support path preflight preparation — 2026-10-15
+
+The next independent source increment derives the two Chromium support directories
+from the selected archive executables: `chrome-linux64` and
+`chrome-headless-shell-linux64`. Before stock host validation, it refuses missing,
+duplicate, redirected or symlinked selections. Four added inert control methods
+prepare positive and negative coverage. The returned paths are inputs for a later
+library scan; they do not establish dependency closure. The result retains
+`pending-selected-archive-library-validation` and `runtime: not-run`.
+
+Pipeline preflight choice is static path validation, reusing the existing finite
+controls; no state model is warranted for this path calculation. Scope is the
+selected Chromium archive directories, with reuse expected on each installed-C
+preparation. Source preparation is bounded to this change. No approved maintained
+local source-test resource profile was established, so the new controls and gate
+inversion remain unexecuted pending admission. Static parse and whitespace checks
+are preparation evidence only. Runtime/upload literal-false conditions, the inline
+refusal, original 40-minute budget and historical holds remain.
+
+The smallest existing hosted route is the same-repository PR job
+`WASM caller source preparation (runtime held)` in `fable-reference-public.yml`:
+checkout, shell syntax and the finite Python source controls. Original predecessor
+run [38633032065](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38633032065)
+records six seconds of job elapsed time and one second for the controls; this is
+one observation, not a new-head result or billed-time estimate. Opening a PR also
+admits repository workflows, including full composition for this source diff;
+qualification requires separate root review of that complete closure and queue.
+No hosted run is admitted by this preparation.
+
+Atlas retrieval returned no matching browser/Chromium/WASM record and the owning
+`docs/atlas` archive is absent. This report retains the source finding and capture
+gap for the Templates owner to reconcile at accepted delivery.
+
 ## Browser registry preparation — 2026-10-14
 
 The prepared hosted caller now maps the five verified archives to the exact

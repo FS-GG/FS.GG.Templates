@@ -622,9 +622,28 @@ jobs:
               with (target/"INSTALLATION_COMPLETE").open("x") as marker:marker.write("")
               return {"asset":name,"name":package_name,"directory":str(target),"executable":str(target/relative),"executableSha256":digest.hexdigest(),"mode":stat.S_IMODE(mode),"state":"registered-installation-complete-host-validation-pending"}
 
+          def chromium_support_directories(root, registrations):
+              # Prepare the real archive paths for a later library scan; stock 1.63
+              # scans chrome-linux, which does not cover either selected archive.
+              registry_root=root/"browsers"
+              require(registry_root.is_absolute() and registry_root.is_dir() and not registry_root.is_symlink(),"private support registry root differs")
+              directories=[]
+              for asset in ("chromium-full1243","chromium-headless1243"):
+                  name,directory,relative=BROWSER_REGISTRY[asset]
+                  rows=[row for row in registrations if row.get("asset")==asset]
+                  require(len(rows)==1,"Chromium support registration missing/ambiguous")
+                  row=rows[0];target=registry_root/directory;executable=target/relative
+                  require(row.get("name")==name and row.get("directory")==str(target) and row.get("executable")==str(executable),"Chromium support selection differs")
+                  for part in (target,executable.parent):
+                      require(part.is_dir() and not part.is_symlink(),"Chromium support directory missing/symlink")
+                  require(executable.is_file() and not executable.is_symlink() and stat.S_ISREG(executable.lstat().st_mode),"Chromium support executable missing/nonregular")
+                  directories.append(str(executable.parent))
+              return directories
+
           def validate_registered_browsers(root, env, registrations, execute):
               require([r["asset"] for r in registrations]==list(BROWSER_REGISTRY),"exact registry population/order required")
               require(not any(key in env for key in ("PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS","PLAYWRIGHT_HOST_PLATFORM_OVERRIDE","PLAYWRIGHT_CHROMIUM_REVISION","PLAYWRIGHT_FIREFOX_REVISION","PLAYWRIGHT_WEBKIT_REVISION","PLAYWRIGHT_EXECUTABLE_PATH","NODE_OPTIONS","NODE_PATH")),"host/registry override refused")
+              support_directories=chromium_support_directories(root,registrations)
               for row in registrations:
                   marker=pathlib.Path(row["directory"])/"DEPENDENCIES_VALIDATED"
                   require(not marker.exists() and not marker.is_symlink(),"dependency marker must be absent before stock validation")
@@ -648,7 +667,7 @@ jobs:
               require(result=={"platform":"ubuntu24.04-x64","names":[row["name"] for row in registrations],"state":"stock-host-validation-passed-runtime-pending"},"stock host validation result differs")
               # Stock Chromium1.63 scans chrome-linux, but these authentic archives use
               # chrome-linux64/headless-shell-linux64. Its success cannot prove those libraries.
-              return {**result,"chromiumSupport":"pending-selected-archive-library-validation","runtime":"not-run"}
+              return {**result,"chromiumSupport":"pending-selected-archive-library-validation","chromiumSupportDirectories":support_directories,"runtime":"not-run"}
 
           def qualify_tools(root, env, execute):
               expected = [([env["DOTNET_HOST_PATH"],"--version"], TOOLS["sdk"]),
