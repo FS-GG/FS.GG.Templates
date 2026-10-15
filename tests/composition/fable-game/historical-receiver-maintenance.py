@@ -12,9 +12,11 @@ from zipfile import ZipFile
 
 BASELINES = {
     '0.10.0': ('69cbed30447e6bd4d221e0ce78060c8245d2744fc3993b4c27368aeeb48d11c8', '30d3c55255a95eae43b794de5170c2be7f8dba40c22bdd0b9e94673db62692ed'),
+    '0.13.0': ('ab72f74a76d59ad4be6f11f367bbdf1b27f8bdedae7a2e3afecbe0e4b3fac10c', '2704b23dfd50ab3f14a071389b1062395a787216ce6ae791141126c267bc4d0f'),
     '0.11.0': ('41fa91ba1674a4c1140c4054d4e76cff00cd514462dcdb3d9b3e3cdfa22ba4d9', '169a9e87a5c680ea9de7e1b47ac69bf30af8072af024d46a96187469e02c3667'),
 }
 MANIFEST_SHA = 'c4f9790fdcddb607362a9a9a3c86c2135f2b49e58e0b766ea61897175017c982'
+MANIFEST_SHAS = {'0.13.0': 'a83102b36379d00e162d94d5578644c2704608ae5abca7b2ea99655bc1aee36d'}
 MANIFEST = 'Server.Tests/Server.Tests.fsproj'
 LOCK = 'Server.Tests/packages.lock.json'
 PACKAGE = 'Microsoft.AspNetCore.SignalR.Client'
@@ -87,7 +89,7 @@ def baseline(receiver, archive, version, evidence):
     if version != LEGACY_VERSION:
         guard_archive(archive, version)
         require(evidence is None, 'historical receiver cannot use Wizard compatibility evidence')
-        return MANIFEST_SHA, BASELINES[version][1], OLD, 'content/templates/fs-gg-fable-game/', 'historical'
+        return MANIFEST_SHAS.get(version, MANIFEST_SHA), BASELINES[version][1], OLD, 'content/templates/fs-gg-fable-game/', 'historical'
     require(receiver.name == 'wizard' and evidence is not None, 'distinct Wizard legacy role/evidence required')
     require(sha(archive) == LEGACY_ARCHIVE, 'immutable legacy archive mismatch')
     record = json.loads(evidence.read_text())

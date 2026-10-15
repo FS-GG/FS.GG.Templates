@@ -23,6 +23,19 @@ and static checks alone do not establish it. This accepts no publication, durabl
 persistence, product save compatibility, downloaded-only installed/retaining journey,
 new-control actual screen-reader acceptance or whole GAME-TEMPLATE-01 completion.
 
+The first source attempt [38689999512/a1](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38689999512)
+verified public package bytes, then found reserved-identifier and strict-indentation
+errors in the new finite test file; both were repaired on the same PR. Independently,
+the historical public receiver attempt [38689999498/a1](https://github.com/FS-GG/FS.GG.Templates/actions/runs/38689999498)
+failed audited restore on the original 0.13.0 receiver's SignalR dependency. The
+current template already selects 10.0.13. The public qualification now uses the
+existing bounded maintenance helper to authenticate the original archive/manifest/lock,
+update only the generated historical receiver to SignalR 10.0.13, audit public
+regeneration and locked restore, and retain the maintenance receipt/manifest/lock.
+The qualification identifies dependency-maintained execution; original public archive
+bytes and all current template dependency pins/locks remain unchanged. Hosted repaired
+qualification remains pending.
+
 ## Command receipt recovery source — 2026-10-09
 
 The [external authority reference](../../templates/fs-gg-fable-game/SvgFoundation/ExternalAuthorityReference.fs)
