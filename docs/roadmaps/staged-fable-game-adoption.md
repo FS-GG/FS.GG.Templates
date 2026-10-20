@@ -460,8 +460,9 @@ The historical reference retains Rendering0310. This does not select
 `FS.GG.UI.Template::0.32.1`, which belongs to the separate Rendering provider
 (descriptor SHA256 `668873206cbed9b6e47b939a6325039e3eb54fee59b420b089245fb9294bf3f6`,
 original publisher37461402933). Separately, the actual Workspace019 SVG project
-selects UI.Scene/SvgBrowser/KeyboardInput0321; its optional Portal closure retains
-0310. These framework-library, historical-reference and UI.Template roles must
+selects UI.Scene/SvgBrowser0321 and selects KeyboardInput0321 when
+`FsGgSvgInputCandidate=true`; its optional Portal closure retains0310. These
+framework-library, historical-reference and UI.Template roles must
 remain distinguishable. No all0310 runtime or UI.Template0321 game claim follows.
 
 The hold requires genuine downloaded archives/signatures, installed apphost/tool
