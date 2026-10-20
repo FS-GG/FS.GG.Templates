@@ -124,6 +124,68 @@ class CurrentPublicPreflightTests(unittest.TestCase):
         self.assertEqual(before, after, 'preflight modified input/output bytes')
         return result
 
+    def creator020(self):
+        value = copy.deepcopy(self.value)
+        value['packages']['wizard'] = ['FS.GG.NewSddWorkspace', '0.20.0', '699f60851288f5f817b98856bdd3d220cf27dd09', 'ee8f4e33c0099b00888c50e4a5e32b3254a9d479211b39b44719fa8cf2925356']
+        value['sources']['wizard'].update(revision='699f60851288f5f817b98856bdd3d220cf27dd09', sha256='4a4f3012f61a484ed09d3a14d923293c32d0ae8914ebdb53cc3abbde56ba0d06')
+        return value
+
+    def test_published020_plan_has_its_own_identity_and_no_receiver_acceptance_transfer(self):
+        result = self.invoke(self.creator020()); self.assertEqual(result.returncode, 0, result.stderr)
+        plan = json.loads(result.stdout)
+        self.assertEqual(plan['packages']['wizard'], self.creator020()['packages']['wizard'])
+        self.assertEqual(plan['wizardArgv'][0], '<qualified-installed-Wizard0.20.0>')
+        self.assertEqual(plan['wizardCohort']['selection'], 'selected020 source preparation')
+        self.assertEqual(plan['wizardCohort']['embeddedCoordVersion'], '0.108.0')
+        self.assertIn('no019-to020 acceptance transfer', plan['wizardCohort']['receiverEvidence'])
+        self.assertEqual(plan['runtimeDisposition'], 'held')
+        self.assertEqual(plan['packages']['initialOverlay'], self.value['packages']['initialOverlay'])
+        self.assertEqual(plan['packages']['provider'], self.value['packages']['provider'])
+        self.assertFalse(self.output.exists())
+
+    def test_019_and020_cannot_mix_package_or_source_evidence(self):
+        newer = self.creator020()
+        for field in (1, 2, 3):
+            for original, donor in [(self.value, newer), (newer, self.value)]:
+                value = copy.deepcopy(original); value['packages']['wizard'][field] = donor['packages']['wizard'][field]
+                with self.subTest(field=field, original=original['packages']['wizard'][1]):
+                    self.assertNotEqual(self.invoke(value).returncode, 0)
+        for original, donor in [(self.value, newer), (newer, self.value)]:
+            value = copy.deepcopy(original); value['sources']['wizard'] = donor['sources']['wizard']
+            self.assertNotEqual(self.invoke(value).returncode, 0)
+
+    def test_020_preserves_actual_omission_default_and_explicit_lifecycle_bundle_mapping(self):
+        for lifecycle, bundle in [(None, None), ('none', 'player'), ('typed-sdd', 'complete'), ('sdd', 'studio'), ('spec-kit', 'tactical')]:
+            value = self.creator020(); value['selection'] = dict(lifecycle=lifecycle, bundle=bundle)
+            result = self.invoke(value); self.assertEqual(result.returncode, 0, result.stderr)
+            plan = json.loads(result.stdout)
+            self.assertEqual(plan['providerParameters']['lifecycle'], lifecycle or 'sdd')
+            self.assertEqual(plan['providerParameters']['bundle'], bundle or 'player')
+            self.assertEqual('--lifecycle' in plan['wizardArgv'], lifecycle is not None)
+            self.assertIn('--no-coordination', plan['wizardArgv'])
+            self.assertIn('--no-governance', plan['wizardArgv'])
+
+    def test_020_does_not_admit_signature_runtime_or_unselected_version_claims(self):
+        for key in ('signatureTrust', 'runtimeAccepted', 'latestWizard'):
+            value = self.creator020(); value[key] = True
+            with self.subTest(key=key): self.assertNotEqual(self.invoke(value).returncode, 0)
+        value = self.creator020(); value['packages']['wizard'][1] = '0.21.0'
+        self.assertNotEqual(self.invoke(value).returncode, 0)
+        # A release-original archive is not the selected signed public body.
+        value = self.creator020(); value['packages']['wizard'][3] = '05ed18357132b2eb6013536206d83f0ca9d95e1d3fd41f78390fe99302e9767b'
+        self.assertNotEqual(self.invoke(value).returncode, 0)
+
+    def test_020_keeps_descriptor_overlay_profile_and_runtime_holds(self):
+        value = self.creator020(); value['initialRegistration']['package'] = value['packages']['provider']
+        self.assertNotEqual(self.invoke(value).returncode, 0)
+        value = self.creator020(); value['sources']['descriptor']['sha256'] = '668873206cbed9b6e47b939a6325039e3eb54fee59b420b089245fb9294bf3f6'
+        self.assertNotEqual(self.invoke(value).returncode, 0)
+        result = self.invoke(self.creator020(), preflight=False)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('pre-target Governance', result.stderr)
+        self.assertIn('browser/native profiles', result.stderr)
+        self.assertFalse(self.output.exists())
+
     def test_real_current_public_plan_distinguishes_roles_and_has_no_effects(self):
         result = self.invoke(); self.assertEqual(result.returncode, 0, result.stderr)
         plan = json.loads(result.stdout)
@@ -131,6 +193,7 @@ class CurrentPublicPreflightTests(unittest.TestCase):
         self.assertEqual(plan['packages']['provider'][1], '0.19.0')
         self.assertEqual(plan['providerParameters']['lifecycle'], 'typed-sdd')
         self.assertEqual(plan['runtimeDisposition'], 'held')
+        self.assertEqual(plan['wizardCohort']['selection'], 'retained019 source compatibility')
         self.assertIsNone(plan['rendering']['providerUiTemplate'])
         self.assertIn('--pinned', plan['wizardArgv']); self.assertIn('--no-governance', plan['wizardArgv'])
         self.assertFalse(self.output.exists())
