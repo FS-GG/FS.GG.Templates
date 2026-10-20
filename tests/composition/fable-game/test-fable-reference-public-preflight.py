@@ -73,6 +73,138 @@ class PublicReferencePreflightTests(unittest.TestCase):
         self.assertNotEqual(result.returncode,0); self.assertFalse(self.effect.exists())
 
 
+class CurrentPublicPreflightTests(unittest.TestCase):
+    """Exercise the real shell boundary with immutable descriptor bytes and causal mutations."""
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.effect = self.root / 'runtime-effect'
+        self.bin = self.root / 'bin'; self.bin.mkdir()
+        # Any accidental acquisition/tool entry is observable, including --version.
+        for name in ('dotnet', 'fsgg-sdd', 'new-sdd-workspace', 'quint', 'npm', 'node', 'curl', 'git'):
+            path = self.bin / name
+            path.write_text('#!/bin/sh\n: > "' + str(self.effect) + '"\nexit 99\n'); path.chmod(0o700)
+        self.env = {**os.environ, 'PATH': str(self.bin) + os.pathsep + os.environ['PATH'],
+                    'DOTNET_HOST_PATH': str(self.bin/'dotnet'), 'QUINT_BIN': str(self.bin/'quint')}
+        self.descriptor = self.root / 'descriptor.yml'
+        self.descriptor.write_bytes((HERE.parents[2]/'providers/fable-game.providers.yml').read_bytes())
+        self.manifest = self.root / 'inputs.json'
+        self.output = self.root / 'fresh'
+        self.value = {
+            'schema': 'fable-reference-current-public/1',
+            'packages': {
+                'wizard': ['FS.GG.NewSddWorkspace', '0.19.0', 'cc1d3c12c1ed7e7128012063d7ab478c7198b523', '3c8150734814c3d5c4416535ff56f91a0570595bcc38cea6586012678a4e92b6'],
+                'sdd': ['FS.GG.SDD.Cli', '2.2.0', 'cf2f046a10497a336d6243c9a314c3f91fb15771', '46b4b172eac65df00db43f813bd3d3fbafac5c6376da62a6d3c08fb05750cf28'],
+                'initialOverlay': ['FS.GG.Workspace.Template', '0.18.2', '20c009bc6728302f9ed06fdf49cb2e8bd19e417d', '496aad0e89496719bc543edc6ffbf829a82307862e630ba4e174e374ac11cc4e'],
+                'provider': ['FS.GG.Workspace.Template', '0.19.0', '8952e1c5753b0abc972154c7596ddc8da772b271', '187c995806bb2f22db67c8a9a67c251f46f339bf6350b8051035935d308b497f'],
+            },
+            'sources': {},
+            'selection': {'lifecycle': 'typed-sdd', 'bundle': 'complete'},
+            'referenceRenderingVersion': '0.31.0',
+            'defaults': {'wizardLifecycle': 'sdd', 'providerLifecycle': 'typed-sdd', 'templateLifecycle': 'typed-sdd', 'bundle': 'player'},
+            'parameterKeys': {'name': 'productName', 'identifier': 'rootNamespace'},
+        }
+        self.value['initialRegistration'] = {'soleWorkspaceRegistration': True, 'package': copy.deepcopy(self.value['packages']['initialOverlay'])}
+        for role, revision, path, digest in [
+            ('wizard', 'cc1d3c12c1ed7e7128012063d7ab478c7198b523', 'scripts/NewSddWorkspace/Program.fs', '09060748f44b555b1859e0fd0b720d06cc0d362d9c239f1f652905fbf2e62965'),
+            ('descriptor', 'f5fbd06ed9e6df40f9037c7acddf9eca3c6a14fc', 'providers/fable-game.providers.yml', 'd7207cbde78f2890a63bbebf23c80bbcae8ce7f2405c0ceacf602dc6c185942c'),
+            ('template', '8952e1c5753b0abc972154c7596ddc8da772b271', 'templates/fs-gg-fable-game/.template.config/template.json', 'f0f81f93b923084a56a42e2f8d008eb6fd7c5078afbc84b3b3781cfcfc2ffcff'),
+            ('runtimeProject', '8952e1c5753b0abc972154c7596ddc8da772b271', 'templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj', '76bf18c19864218054c2824449b68b98a1c1b88a0311c378a951666f638c3a0b')]:
+            self.value['sources'][role] = {'revision': revision, 'repositoryPath': path, 'sha256': digest}
+        self.value['sources']['descriptor']['path'] = str(self.descriptor)
+
+    def invoke(self, value=None, extra=(), preflight=True, raw=None):
+        self.manifest.write_text(raw if raw is not None else json.dumps(self.value if value is None else value))
+        args = ['--mode', 'current-public', '--current-public-inputs', str(self.manifest), '--evidence-dir', str(self.output)]
+        if preflight: args.append('--preflight-only')
+        before = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+        result = subprocess.run(['bash', str(HERE/'verify-fable-reference-public.sh'), *args, *extra], env=self.env, text=True, capture_output=True)
+        self.assertFalse(self.effect.exists(), result.stderr)
+        after = {str(p.relative_to(self.root)): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+        self.assertEqual(before, after, 'preflight modified input/output bytes')
+        return result
+
+    def test_real_current_public_plan_distinguishes_roles_and_has_no_effects(self):
+        result = self.invoke(); self.assertEqual(result.returncode, 0, result.stderr)
+        plan = json.loads(result.stdout)
+        self.assertEqual(plan['packages']['initialOverlay'][1], '0.18.2')
+        self.assertEqual(plan['packages']['provider'][1], '0.19.0')
+        self.assertEqual(plan['providerParameters']['lifecycle'], 'typed-sdd')
+        self.assertEqual(plan['runtimeDisposition'], 'held')
+        self.assertIsNone(plan['rendering']['providerUiTemplate'])
+        self.assertIn('--pinned', plan['wizardArgv']); self.assertIn('--no-governance', plan['wizardArgv'])
+        self.assertFalse(self.output.exists())
+
+    def test_wizard_omission_and_explicit_none_are_distinct_from_provider_default(self):
+        for lifecycle, bundle, expected in [(None, None, 'sdd'), ('none', 'player', 'none'), ('typed-sdd', 'complete', 'typed-sdd')]:
+            value = copy.deepcopy(self.value); value['selection'] = dict(lifecycle=lifecycle, bundle=bundle)
+            result = self.invoke(value); self.assertEqual(result.returncode, 0, result.stderr)
+            plan = json.loads(result.stdout)
+            self.assertEqual(plan['providerParameters']['lifecycle'], expected)
+            self.assertEqual(plan['providerParameters']['bundle'], bundle or 'player')
+            self.assertEqual('--lifecycle' in plan['wizardArgv'], lifecycle is not None)
+
+    def test_each_package_version_source_archive_and_role_join_refuses_causal_drift(self):
+        for role in self.value['packages']:
+            for field in (1, 2, 3):
+                value = copy.deepcopy(self.value); value['packages'][role][field] = 'wrong'
+                with self.subTest(role=role, field=field): self.assertNotEqual(self.invoke(value).returncode, 0)
+        value = copy.deepcopy(self.value)
+        value['packages']['provider'], value['packages']['initialOverlay'] = value['packages']['initialOverlay'], value['packages']['provider']
+        self.assertNotEqual(self.invoke(value).returncode, 0)
+
+    def test_missing_or_conflicting_initial_custody_refuses(self):
+        for change in ('missing', 'multiple', 'provider', 'numeric'):
+            value = copy.deepcopy(self.value)
+            if change == 'missing': del value['initialRegistration']
+            elif change == 'multiple': value['initialRegistration']['soleWorkspaceRegistration'] = False
+            elif change == 'numeric': value['initialRegistration']['soleWorkspaceRegistration'] = 1
+            else: value['initialRegistration']['package'] = value['packages']['provider']
+            with self.subTest(change=change): self.assertNotEqual(self.invoke(value).returncode, 0)
+
+    def test_descriptor_bytes_default_and_key_mutations_refuse(self):
+        original = self.descriptor.read_text()
+        for old, new in [('0.19.0', '0.18.2'), ('default: typed-sdd', 'default: none'), ('nameParameter: productName', 'nameParameter: name'), ('identifierParameter: rootNamespace', 'identifierParameter: namespace')]:
+            self.descriptor.write_text(original.replace(old, new))
+            with self.subTest(old=old): self.assertNotEqual(self.invoke().returncode, 0)
+        self.descriptor.write_text(original)
+        for field, key, wrong in [('defaults', 'wizardLifecycle', 'typed-sdd'), ('defaults', 'bundle', 'complete'), ('parameterKeys', 'name', 'name')]:
+            value = copy.deepcopy(self.value); value[field][key] = wrong
+            with self.subTest(key=key): self.assertNotEqual(self.invoke(value).returncode, 0)
+
+    def test_source_descriptor_and_false_rendering_claims_refuse(self):
+        for key in ('revision', 'repositoryPath', 'sha256'):
+            value = copy.deepcopy(self.value); value['sources']['descriptor'][key] = 'wrong'
+            with self.subTest(key=key): self.assertNotEqual(self.invoke(value).returncode, 0)
+        value = copy.deepcopy(self.value); value['referenceRenderingVersion'] = '0.32.1'
+        self.assertNotEqual(self.invoke(value).returncode, 0)
+        value = copy.deepcopy(self.value); value['packages']['rendering'] = ['FS.GG.UI.Template', '0.32.1']
+        self.assertNotEqual(self.invoke(value).returncode, 0)
+
+    def test_unsupported_lifecycle_bundle_mixed_route_and_duplicate_inputs_refuse(self):
+        for key, wrong in [('lifecycle', 'unknown'), ('bundle', 'governed')]:
+            value = copy.deepcopy(self.value); value['selection'][key] = wrong
+            self.assertNotEqual(self.invoke(value).returncode, 0)
+        for extra in [('--template-version', '0.19.0'), ('--mode', 'full'), ('--preflight-only',), ('--current-public-inputs', str(self.manifest))]:
+            with self.subTest(extra=extra): self.assertNotEqual(self.invoke(extra=extra).returncode, 0)
+        raw = json.dumps(self.value).replace('"schema":', '"schema": "duplicate", "schema":', 1)
+        self.assertNotEqual(self.invoke(raw=raw).returncode, 0)
+
+    def test_existing_root_and_dangling_root_refuse_without_runtime(self):
+        self.output.mkdir(); (self.output/'owner').write_text('owner')
+        self.assertNotEqual(self.invoke().returncode, 0)
+        (self.output/'owner').unlink(); self.output.rmdir()
+        self.output.symlink_to(self.root/'missing', target_is_directory=True)
+        self.assertNotEqual(self.invoke().returncode, 0)
+
+    def test_non_preflight_refuses_before_historical_runtime_or_output_effects(self):
+        result = self.invoke(preflight=False)
+        self.assertEqual(result.returncode, 2)
+        self.assertIn('pre-target Governance', result.stderr)
+        self.assertIn('browser/native profiles', result.stderr)
+        self.assertFalse(self.output.exists())
+
+
 WORKFLOW=HERE.parents[2]/'.github/workflows/fable-reference-public.yml'
 
 def actual_hosted_code():

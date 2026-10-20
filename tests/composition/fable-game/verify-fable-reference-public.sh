@@ -2,8 +2,8 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-version=''; mode=''
-usage() { echo "usage: $0 --mode templates|full|wasm --template-version 0.18.1 --sha256 HEX --descriptor-sha256 HEX --source-revision COMMIT --tag-revision COMMIT --sdd-version VERSION --sdd-sha256 HEX --sdd-source-revision COMMIT --wizard-version VERSION --wizard-sha256 HEX --wizard-source-revision COMMIT --evidence-dir ABSOLUTE [--preflight-only]" >&2; exit 2; }
+version=''; mode=''; current_inputs=''
+usage() { echo "usage: $0 --mode templates|full|wasm --template-version 0.18.1 --sha256 HEX --descriptor-sha256 HEX --source-revision COMMIT --tag-revision COMMIT --sdd-version VERSION --sdd-sha256 HEX --sdd-source-revision COMMIT --wizard-version VERSION --wizard-sha256 HEX --wizard-source-revision COMMIT --evidence-dir ABSOLUTE [--preflight-only]" >&2; echo "       $0 --mode current-public --current-public-inputs ABSOLUTE_JSON --evidence-dir ABSOLUTE --preflight-only" >&2; exit 2; }
 sha=''; descriptor_sha=''; revision=''; tag_revision=''; sdd_version=''; sdd_sha=''; sdd_revision=''; wizard_version=''; wizard_sha=''; wizard_revision=''; evidence=''; preflight=false
 declare -A seen=()
 while [[ $# -gt 0 ]]; do
@@ -11,6 +11,7 @@ while [[ $# -gt 0 ]]; do
   [[ -z "${seen[$option]:-}" ]] || usage
   seen[$option]=1
   case "$option" in
+    --current-public-inputs) current_inputs="${2:-}"; shift 2;;
     --mode) mode="${2:-}"; shift 2;;
     --template-version) version="${2:-}"; shift 2;;
     --sha256) sha="${2:-}"; shift 2;;
@@ -28,6 +29,105 @@ while [[ $# -gt 0 ]]; do
     *) usage;;
   esac
 done
+# This route validates declared operation inputs and immutable source bytes only.
+# It cannot fall through into the historical acquisition/runtime closure below.
+if [[ "$mode" == current-public ]]; then
+  [[ "$current_inputs" = /* && "$evidence" = /* && ! -e "$evidence" && ! -L "$evidence" ]] || usage
+  [[ -z "$version$sha$descriptor_sha$revision$tag_revision$sdd_version$sdd_sha$sdd_revision$wizard_version$wizard_sha$wizard_revision" ]] || usage
+  python3 - "$current_inputs" "$evidence" <<'CURRENT_PUBLIC'
+import hashlib, json, pathlib, sys
+
+def require(ok, message):
+    if not ok:
+        raise ValueError(message)
+
+def unique(pairs):
+    result = {}
+    for key, value in pairs:
+        require(key not in result, 'duplicate JSON key: ' + key)
+        result[key] = value
+    return result
+
+def read(path, limit):
+    path = pathlib.Path(path)
+    require(path.is_absolute() and path.is_file() and not path.is_symlink(), 'absolute regular input required')
+    require(path.stat().st_size <= limit, 'input byte limit exceeded')
+    with path.open('rb') as source:
+        raw = source.read(limit + 1)
+    require(len(raw) <= limit, 'input byte limit exceeded')
+    return raw
+
+try:
+    value = json.loads(read(sys.argv[1], 32768), object_pairs_hook=unique)
+    require(set(value) == {'schema', 'packages', 'sources', 'initialRegistration', 'selection', 'referenceRenderingVersion', 'defaults', 'parameterKeys'}, 'closed current-public input keys required')
+    require(value['schema'] == 'fable-reference-current-public/1', 'current-public schema mismatch')
+    # These are independently published roles, not one compatible version tuple.
+    packages = {
+        'wizard': ['FS.GG.NewSddWorkspace', '0.19.0', 'cc1d3c12c1ed7e7128012063d7ab478c7198b523', '3c8150734814c3d5c4416535ff56f91a0570595bcc38cea6586012678a4e92b6'],
+        'sdd': ['FS.GG.SDD.Cli', '2.2.0', 'cf2f046a10497a336d6243c9a314c3f91fb15771', '46b4b172eac65df00db43f813bd3d3fbafac5c6376da62a6d3c08fb05750cf28'],
+        'initialOverlay': ['FS.GG.Workspace.Template', '0.18.2', '20c009bc6728302f9ed06fdf49cb2e8bd19e417d', '496aad0e89496719bc543edc6ffbf829a82307862e630ba4e174e374ac11cc4e'],
+        'provider': ['FS.GG.Workspace.Template', '0.19.0', '8952e1c5753b0abc972154c7596ddc8da772b271', '187c995806bb2f22db67c8a9a67c251f46f339bf6350b8051035935d308b497f'],
+    }
+    require(value['packages'] == packages, 'published package role/source/archive mismatch')
+    require(value['initialRegistration'] == {'soleWorkspaceRegistration': True, 'package': packages['initialOverlay']}, 'sole initial 0.18.2 preflight custody declaration required')
+    require(value['initialRegistration']['soleWorkspaceRegistration'] is True, 'initial custody flag must be boolean true')
+    sources = {
+        'wizard': ('cc1d3c12c1ed7e7128012063d7ab478c7198b523', 'scripts/NewSddWorkspace/Program.fs', '09060748f44b555b1859e0fd0b720d06cc0d362d9c239f1f652905fbf2e62965'),
+        'descriptor': ('f5fbd06ed9e6df40f9037c7acddf9eca3c6a14fc', 'providers/fable-game.providers.yml', 'd7207cbde78f2890a63bbebf23c80bbcae8ce7f2405c0ceacf602dc6c185942c'),
+        'template': ('8952e1c5753b0abc972154c7596ddc8da772b271', 'templates/fs-gg-fable-game/.template.config/template.json', 'f0f81f93b923084a56a42e2f8d008eb6fd7c5078afbc84b3b3781cfcfc2ffcff'),
+        'runtimeProject': ('8952e1c5753b0abc972154c7596ddc8da772b271', 'templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj', '76bf18c19864218054c2824449b68b98a1c1b88a0311c378a951666f638c3a0b'),
+    }
+    require(set(value['sources']) == set(sources), 'exact source input population required')
+    for role, (revision, repository_path, digest) in sources.items():
+        row = value['sources'][role]
+        keys = {'revision', 'repositoryPath', 'sha256'} | ({'path'} if role == 'descriptor' else set())
+        require(set(row) == keys, 'closed source input keys required')
+        require((row['revision'], row['repositoryPath'], row['sha256']) == (revision, repository_path, digest), 'immutable source join mismatch: ' + role)
+    # Only the descriptor is read in this metadata route. Other source declarations
+    # are pinned observations, not a claim of re-reading packages or source files.
+    descriptor = read(value['sources']['descriptor']['path'], 65536)
+    require(hashlib.sha256(descriptor).hexdigest() == sources['descriptor'][2], 'immutable descriptor bytes mismatch')
+    defaults = {'wizardLifecycle': 'sdd', 'providerLifecycle': 'typed-sdd', 'templateLifecycle': 'typed-sdd', 'bundle': 'player'}
+    require(value['defaults'] == defaults, 'route lifecycle/bundle defaults drifted')
+    require(value['parameterKeys'] == {'name': 'productName', 'identifier': 'rootNamespace'}, 'provider parameter key join drifted')
+    selection = value['selection']
+    require(set(selection) == {'lifecycle', 'bundle'}, 'closed lifecycle/bundle selection required')
+    lifecycle, bundle = selection['lifecycle'], selection['bundle']
+    require(lifecycle is None or lifecycle in ('none', 'sdd', 'typed-sdd', 'spec-kit'), 'unsupported lifecycle')
+    require(bundle is None or bundle in ('player', 'studio', 'tactical', 'arcade', 'complete'), 'unsupported bundle')
+    require(value['referenceRenderingVersion'] == '0.31.0', 'historical reference is not Rendering provider UI.Template 0.32.1')
+    # Wizard019 forwards its sdd default: the special omission rule names only015.
+    effective_lifecycle = lifecycle if lifecycle is not None else 'sdd'
+    effective_bundle = bundle if bundle is not None else 'player'
+    argv = ['<qualified-installed-Wizard019>', str(pathlib.Path(sys.argv[2]) / 'wizard'), 'ReferenceCurrentPublic', '--template', 'fable-game', '--ref', sources['descriptor'][0], '--pinned', '--no-governance', '--no-coordination']
+    if lifecycle is not None:
+        argv += ['--lifecycle', lifecycle]
+    if bundle is not None:
+        argv += ['--bundle', bundle]
+    print(json.dumps({
+        'scope': 'immutable-source and declared-input preflight only; no archive/installed/runtime proof',
+        'packages': packages, 'wizardArgv': argv,
+        'providerParameters': {'productName': 'ReferenceCurrentPublic', 'bundle': effective_bundle, 'lifecycle': effective_lifecycle},
+        'defaults': defaults,
+        'rendering': {'historicalReference': '0.31.0', 'providerUiTemplate': None, 'workspace019SvgLibraries': '0.32.1'},
+        'runtimeDisposition': 'held',
+        'remaining': ['qualify actual downloaded archives/signatures and installed tool/registration payloads',
+                      'observe sole initial0182 Governance/knowledge preflight before target effects and actual provider019 registration transition',
+                      'admit exact Gate/Governance operation and browser/native custody profiles with original deadlines/cleanup',
+                      'execute genuine selected/default and explicit-none lifecycle/bundle receivers, knowledge/key/provenance assertions',
+                      'qualify actual product builds, browser journeys and full4709 remaining acceptance; Complete WASM remains separately owned']
+    }, sort_keys=True))
+except (ValueError, TypeError, KeyError, OSError) as error:
+    print('current-public preflight refused: ' + str(error), file=sys.stderr)
+    sys.exit(2)
+CURRENT_PUBLIC
+  if ! $preflight; then
+    echo 'current-public runtime held: downloaded/installed custody, pre-target Governance and admitted Gate/browser/native profiles remain required; inspect preflight assertion plan' >&2
+    exit 2
+  fi
+  exit 0
+fi
+[[ -z "$current_inputs" ]] || usage
 [[ "$mode" == templates || "$mode" == full || "$mode" == wasm ]] || usage
 if [[ "$mode" == wasm ]]; then
   [[ "$version" == 0.19.0 && -z "$sdd_version$sdd_sha$sdd_revision$wizard_version$wizard_sha$wizard_revision" ]] || usage
