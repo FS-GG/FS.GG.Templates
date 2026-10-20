@@ -373,6 +373,122 @@ retaining upgrades and the broader reference/AT/product outcomes are also pendin
 GAME-TEMPLATE-01 and FABLE-ADOPT-01 remain Done No.
 
 
+### Current-public Wizard receiver preparation — 2026-10-20
+
+[Delivery4709](https://github.com/FS-GG/.github/issues/4709), under
+[parent4644](https://github.com/FS-GG/.github/issues/4644), has a separate source
+preflight route. Historical `templates`/`full` and direct `wasm` routes retain their
+existing version and execution boundaries. This prepares a later genuine Wizard
+assertion; it accepts no downloaded archive, installed tool, product runtime or
+complete Delivery promise.
+
+Run the dependency-free boundary with a new absolute output location:
+
+```bash
+bash tests/composition/fable-game/verify-fable-reference-public.sh \
+  --mode current-public --current-public-inputs /absolute/inputs.json \
+  --evidence-dir /absolute/new-evidence --preflight-only
+```
+
+The input is closed JSON data, schema `fable-reference-current-public/1`, with these
+exact top-level fields: `schema`, `packages`, `sources`, `initialRegistration`,
+`selection`, `referenceRenderingVersion`, `defaults`, `parameterKeys`. Duplicate
+JSON keys/options, mixed historical arguments and existing output roots refuse.
+Only the JSON and descriptor file are read. Preflight prints the assertion plan to
+stdout and creates no evidence directory. Omitting `--preflight-only` prints the
+same plan and exits2 at the explicit runtime hold.
+
+`packages` maps each role to `[packageId, version, sourceRevision, archiveSha256]`:
+
+| Role | Package/version | Source revision | Declared public archive SHA256 |
+| --- | --- | --- | --- |
+| `wizard` | FS.GG.NewSddWorkspace0.19.0 | `cc1d3c12c1ed7e7128012063d7ab478c7198b523` | `3c8150734814c3d5c4416535ff56f91a0570595bcc38cea6586012678a4e92b6` |
+| `sdd` | FS.GG.SDD.Cli2.2.0 | `cf2f046a10497a336d6243c9a314c3f91fb15771` | `46b4b172eac65df00db43f813bd3d3fbafac5c6376da62a6d3c08fb05750cf28` |
+| `initialOverlay` | FS.GG.Workspace.Template0.18.2 | `20c009bc6728302f9ed06fdf49cb2e8bd19e417d` | `496aad0e89496719bc543edc6ffbf829a82307862e630ba4e174e374ac11cc4e` |
+| `provider` | FS.GG.Workspace.Template0.19.0 | `8952e1c5753b0abc972154c7596ddc8da772b271` | `187c995806bb2f22db67c8a9a67c251f46f339bf6350b8051035935d308b497f` |
+
+`initialRegistration` must be
+`{"soleWorkspaceRegistration": true, "package": <exact initialOverlay array>}`.
+This declares a prerequisite to check during the later operation; it proves no
+actual registration. The initial sole0182 Governance/knowledge overlay and the
+subsequent019 provider package are distinct roles. The
+[accepted Rendering report](https://github.com/FS-GG/.github/blob/f0c2e92/docs/reports/knowledge-current-public-rendering-20261020.md)
+and [console report](https://github.com/FS-GG/.github/blob/26eec966789318d99b20929a67e0990224b66431/docs/reports/knowledge-public-console-receiver-20261020.md)
+retain their original public archive and installed-operation evidence. Those
+journeys do not qualify this SVG receiver.
+
+`sources` maps the following roles to objects containing `revision`,
+`repositoryPath`, `sha256`. Only `descriptor` additionally requires `path`, an
+absolute regular local file with the exact immutable bytes below. The other rows
+are source declarations previously checked against the immutable Git blobs; this
+preflight does not read those blobs or imply downloaded-package correspondence.
+
+| Role | Repository/revision | Repository path | SHA256 |
+| --- | --- | --- | --- |
+| `wizard` | .github / `cc1d3c12c1ed7e7128012063d7ab478c7198b523` | `scripts/NewSddWorkspace/Program.fs` | `09060748f44b555b1859e0fd0b720d06cc0d362d9c239f1f652905fbf2e62965` |
+| `descriptor` | Templates / `f5fbd06ed9e6df40f9037c7acddf9eca3c6a14fc` | `providers/fable-game.providers.yml` | `d7207cbde78f2890a63bbebf23c80bbcae8ce7f2405c0ceacf602dc6c185942c` |
+| `template` | Templates / `8952e1c5753b0abc972154c7596ddc8da772b271` | `templates/fs-gg-fable-game/.template.config/template.json` | `f0f81f93b923084a56a42e2f8d008eb6fd7c5078afbc84b3b3781cfcfc2ffcff` |
+| `runtimeProject` | Templates / `8952e1c5753b0abc972154c7596ddc8da772b271` | `templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj` | `76bf18c19864218054c2824449b68b98a1c1b88a0311c378a951666f638c3a0b` |
+
+The remaining exact fields are:
+
+```json
+{
+  "selection": {"lifecycle": "typed-sdd", "bundle": "complete"},
+  "referenceRenderingVersion": "0.31.0",
+  "defaults": {
+    "wizardLifecycle": "sdd", "providerLifecycle": "typed-sdd",
+    "templateLifecycle": "typed-sdd", "bundle": "player"
+  },
+  "parameterKeys": {"name": "productName", "identifier": "rootNamespace"}
+}
+```
+
+A `null` selection means omission. Supported explicit lifecycles are `none`,
+`sdd`, `typed-sdd`, `spec-kit`; bundles are `player`, `studio`, `tactical`, `arcade`,
+`complete`. Source-supported options do not imply accepted runtime combinations.
+Wizard019 forwards its omitted `sdd` lifecycle for provider019: its special
+`typed-sdd` omission rule names only provider015. The provider/template separately
+default to `typed-sdd`, and bundle omission remains `player`. Therefore the planned
+Typed SDD assertion must explicitly pass `--lifecycle typed-sdd`. The emitted argv
+uses `--template fable-game`, the immutable descriptor revision, `--pinned`,
+`--no-governance`, `--no-coordination`, selected lifecycle/bundle and an unqualified
+installed-Wizard placeholder. The provider name/key joins remain `productName` and
+`rootNamespace`; no Rendering profile argument is introduced.
+
+The historical reference retains Rendering0310. This does not select
+`FS.GG.UI.Template::0.32.1`, which belongs to the separate Rendering provider
+(descriptor SHA256 `668873206cbed9b6e47b939a6325039e3eb54fee59b420b089245fb9294bf3f6`,
+original publisher37461402933). Separately, the actual Workspace019 SVG project
+selects UI.Scene/SvgBrowser0321 and selects KeyboardInput0321 when
+`FsGgSvgInputCandidate=true`; its optional Portal closure retains0310. These
+framework-library, historical-reference and UI.Template roles must
+remain distinguishable. No all0310 runtime or UI.Template0321 game claim follows.
+
+The hold requires genuine downloaded archives/signatures, installed apphost/tool
+and exact registration custody, observed initial0182 pre-target
+Governance/knowledge refusal/protection and subsequent provider019 transition,
+and an admitted Gate/Governance operation plus browser/native custody profiles
+with original deadlines and cleanup. Later work must exercise actual selected,
+omitted-default and explicit-none receivers, knowledge/default/key/provenance
+assertions, product builds and browser journeys under that authority. Current
+source controls cannot issue a supplier/profile ruling or bypass the existing
+pre-target refusal. Missing operation acceptance remains held.
+
+Full4709 acceptance remains: “The exact selected current compatible public
+Wizard/SDD/Templates/Rendering successor completes the plan full-Wizard SVG
+creation and actual workspace runtime assertions, with omitted/default and
+promised explicit lifecycle/bundle behavior mapped to independently read-back
+package/default identities. Reuse compatible existing receiver setup and knowledge
+evidence without substituting a Templates-only result.” The owning plan is
+[SVG release D .3–.5 and completion boundary](https://github.com/FS-GG/.github/blob/main/docs/roadmaps/svg-release-d.md),
+with [coherence/instancing .8](https://github.com/FS-GG/.github/blob/main/docs/roadmaps/svg-coherence-and-instancing-01.md).
+Parent4644 retains broader source/publication/runtime/installed/retaining/AT
+promises. This source slice neither completes them nor reassigns4710's
+`template_wasm_reference` / `game-template-installed-c` chain. The adjacent Hosted
+direct installed-WASM window, its candidate/profile prerequisites, all historical
+failures and known/Unknown reservations remain intact.
+
 ### Hosted direct installed-WASM window — 2026-10-14
 
 Continue the existing GAME-TEMPLATE-01 / FABLE-ADOPT-01 installed slice with the
