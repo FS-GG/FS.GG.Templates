@@ -61,9 +61,18 @@ try:
     value = json.loads(read(sys.argv[1], 32768), object_pairs_hook=unique)
     require(set(value) == {'schema', 'packages', 'sources', 'initialRegistration', 'selection', 'referenceRenderingVersion', 'defaults', 'parameterKeys'}, 'closed current-public input keys required')
     require(value['schema'] == 'fable-reference-current-public/1', 'current-public schema mismatch')
+    # Select an entire published Wizard identity. Retained019 observations cannot
+    # become020 evidence by changing a version scalar or one source declaration.
+    wizard_packages = {
+        '0.19.0': ['FS.GG.NewSddWorkspace', '0.19.0', 'cc1d3c12c1ed7e7128012063d7ab478c7198b523', '3c8150734814c3d5c4416535ff56f91a0570595bcc38cea6586012678a4e92b6'],
+        '0.20.0': ['FS.GG.NewSddWorkspace', '0.20.0', '699f60851288f5f817b98856bdd3d220cf27dd09', 'ee8f4e33c0099b00888c50e4a5e32b3254a9d479211b39b44719fa8cf2925356'],
+    }
+    wizard = value['packages']['wizard']
+    require(wizard in wizard_packages.values(), 'published Wizard version/source/archive mismatch')
+    wizard_version = wizard[1]
     # These are independently published roles, not one compatible version tuple.
     packages = {
-        'wizard': ['FS.GG.NewSddWorkspace', '0.19.0', 'cc1d3c12c1ed7e7128012063d7ab478c7198b523', '3c8150734814c3d5c4416535ff56f91a0570595bcc38cea6586012678a4e92b6'],
+        'wizard': wizard,
         'sdd': ['FS.GG.SDD.Cli', '2.2.0', 'cf2f046a10497a336d6243c9a314c3f91fb15771', '46b4b172eac65df00db43f813bd3d3fbafac5c6376da62a6d3c08fb05750cf28'],
         'initialOverlay': ['FS.GG.Workspace.Template', '0.18.2', '20c009bc6728302f9ed06fdf49cb2e8bd19e417d', '496aad0e89496719bc543edc6ffbf829a82307862e630ba4e174e374ac11cc4e'],
         'provider': ['FS.GG.Workspace.Template', '0.19.0', '8952e1c5753b0abc972154c7596ddc8da772b271', '187c995806bb2f22db67c8a9a67c251f46f339bf6350b8051035935d308b497f'],
@@ -71,8 +80,12 @@ try:
     require(value['packages'] == packages, 'published package role/source/archive mismatch')
     require(value['initialRegistration'] == {'soleWorkspaceRegistration': True, 'package': packages['initialOverlay']}, 'sole initial 0.18.2 preflight custody declaration required')
     require(value['initialRegistration']['soleWorkspaceRegistration'] is True, 'initial custody flag must be boolean true')
+    wizard_sources = {
+        '0.19.0': ('cc1d3c12c1ed7e7128012063d7ab478c7198b523', 'scripts/NewSddWorkspace/Program.fs', '09060748f44b555b1859e0fd0b720d06cc0d362d9c239f1f652905fbf2e62965'),
+        '0.20.0': ('699f60851288f5f817b98856bdd3d220cf27dd09', 'scripts/NewSddWorkspace/Program.fs', '4a4f3012f61a484ed09d3a14d923293c32d0ae8914ebdb53cc3abbde56ba0d06'),
+    }
     sources = {
-        'wizard': ('cc1d3c12c1ed7e7128012063d7ab478c7198b523', 'scripts/NewSddWorkspace/Program.fs', '09060748f44b555b1859e0fd0b720d06cc0d362d9c239f1f652905fbf2e62965'),
+        'wizard': wizard_sources[wizard_version],
         'descriptor': ('f5fbd06ed9e6df40f9037c7acddf9eca3c6a14fc', 'providers/fable-game.providers.yml', 'd7207cbde78f2890a63bbebf23c80bbcae8ce7f2405c0ceacf602dc6c185942c'),
         'template': ('8952e1c5753b0abc972154c7596ddc8da772b271', 'templates/fs-gg-fable-game/.template.config/template.json', 'f0f81f93b923084a56a42e2f8d008eb6fd7c5078afbc84b3b3781cfcfc2ffcff'),
         'runtimeProject': ('8952e1c5753b0abc972154c7596ddc8da772b271', 'templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj', '76bf18c19864218054c2824449b68b98a1c1b88a0311c378a951666f638c3a0b'),
@@ -96,10 +109,10 @@ try:
     require(lifecycle is None or lifecycle in ('none', 'sdd', 'typed-sdd', 'spec-kit'), 'unsupported lifecycle')
     require(bundle is None or bundle in ('player', 'studio', 'tactical', 'arcade', 'complete'), 'unsupported bundle')
     require(value['referenceRenderingVersion'] == '0.31.0', 'historical reference is not Rendering provider UI.Template 0.32.1')
-    # Wizard019 forwards its sdd default: the special omission rule names only015.
+    # Wizard019/020 forward the same sdd default: the omission rule names only015.
     effective_lifecycle = lifecycle if lifecycle is not None else 'sdd'
     effective_bundle = bundle if bundle is not None else 'player'
-    argv = ['<qualified-installed-Wizard019>', str(pathlib.Path(sys.argv[2]) / 'wizard'), 'ReferenceCurrentPublic', '--template', 'fable-game', '--ref', sources['descriptor'][0], '--pinned', '--no-governance', '--no-coordination']
+    argv = ['<qualified-installed-Wizard' + wizard_version + '>', str(pathlib.Path(sys.argv[2]) / 'wizard'), 'ReferenceCurrentPublic', '--template', 'fable-game', '--ref', sources['descriptor'][0], '--pinned', '--no-governance', '--no-coordination']
     if lifecycle is not None:
         argv += ['--lifecycle', lifecycle]
     if bundle is not None:
@@ -107,6 +120,9 @@ try:
     print(json.dumps({
         'scope': 'immutable-source and declared-input preflight only; no archive/installed/runtime proof',
         'packages': packages, 'wizardArgv': argv,
+        'wizardCohort': {'version': wizard_version, 'embeddedCoordVersion': '0.108.0',
+                         'selection': 'selected020 source preparation' if wizard_version == '0.20.0' else 'retained019 source compatibility',
+                         'receiverEvidence': 'must bind this exact Wizard; no019-to020 acceptance transfer'},
         'providerParameters': {'productName': 'ReferenceCurrentPublic', 'bundle': effective_bundle, 'lifecycle': effective_lifecycle},
         'defaults': defaults,
         'rendering': {'historicalReference': '0.31.0', 'providerUiTemplate': None, 'workspace019SvgLibraries': '0.32.1'},

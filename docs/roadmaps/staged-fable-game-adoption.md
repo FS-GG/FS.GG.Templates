@@ -398,11 +398,15 @@ Only the JSON and descriptor file are read. Preflight prints the assertion plan 
 stdout and creates no evidence directory. Omitting `--preflight-only` prints the
 same plan and exits2 at the explicit runtime hold.
 
-`packages` maps each role to `[packageId, version, sourceRevision, archiveSha256]`:
+`packages` maps each role to `[packageId, version, sourceRevision, archiveSha256]`.
+Select exactly one complete `wizard` row: published020 is selected for the pending
+4709 successor assertion;019 remains supported for its original source-compatibility
+scope. Neither selection transfers accepted receiver results across versions.
 
 | Role | Package/version | Source revision | Declared public archive SHA256 |
 | --- | --- | --- | --- |
-| `wizard` | FS.GG.NewSddWorkspace0.19.0 | `cc1d3c12c1ed7e7128012063d7ab478c7198b523` | `3c8150734814c3d5c4416535ff56f91a0570595bcc38cea6586012678a4e92b6` |
+| `wizard` (retained019) | FS.GG.NewSddWorkspace0.19.0 | `cc1d3c12c1ed7e7128012063d7ab478c7198b523` | `3c8150734814c3d5c4416535ff56f91a0570595bcc38cea6586012678a4e92b6` |
+| `wizard` (selected020) | FS.GG.NewSddWorkspace0.20.0 | `699f60851288f5f817b98856bdd3d220cf27dd09` | `ee8f4e33c0099b00888c50e4a5e32b3254a9d479211b39b44719fa8cf2925356` |
 | `sdd` | FS.GG.SDD.Cli2.2.0 | `cf2f046a10497a336d6243c9a314c3f91fb15771` | `46b4b172eac65df00db43f813bd3d3fbafac5c6376da62a6d3c08fb05750cf28` |
 | `initialOverlay` | FS.GG.Workspace.Template0.18.2 | `20c009bc6728302f9ed06fdf49cb2e8bd19e417d` | `496aad0e89496719bc543edc6ffbf829a82307862e630ba4e174e374ac11cc4e` |
 | `provider` | FS.GG.Workspace.Template0.19.0 | `8952e1c5753b0abc972154c7596ddc8da772b271` | `187c995806bb2f22db67c8a9a67c251f46f339bf6350b8051035935d308b497f` |
@@ -425,10 +429,34 @@ preflight does not read those blobs or imply downloaded-package correspondence.
 
 | Role | Repository/revision | Repository path | SHA256 |
 | --- | --- | --- | --- |
-| `wizard` | .github / `cc1d3c12c1ed7e7128012063d7ab478c7198b523` | `scripts/NewSddWorkspace/Program.fs` | `09060748f44b555b1859e0fd0b720d06cc0d362d9c239f1f652905fbf2e62965` |
+| `wizard` (retained019) | .github / `cc1d3c12c1ed7e7128012063d7ab478c7198b523` | `scripts/NewSddWorkspace/Program.fs` | `09060748f44b555b1859e0fd0b720d06cc0d362d9c239f1f652905fbf2e62965` |
+| `wizard` (selected020) | .github / `699f60851288f5f817b98856bdd3d220cf27dd09` | `scripts/NewSddWorkspace/Program.fs` | `4a4f3012f61a484ed09d3a14d923293c32d0ae8914ebdb53cc3abbde56ba0d06` |
 | `descriptor` | Templates / `f5fbd06ed9e6df40f9037c7acddf9eca3c6a14fc` | `providers/fable-game.providers.yml` | `d7207cbde78f2890a63bbebf23c80bbcae8ce7f2405c0ceacf602dc6c185942c` |
 | `template` | Templates / `8952e1c5753b0abc972154c7596ddc8da772b271` | `templates/fs-gg-fable-game/.template.config/template.json` | `f0f81f93b923084a56a42e2f8d008eb6fd7c5078afbc84b3b3781cfcfc2ffcff` |
 | `runtimeProject` | Templates / `8952e1c5753b0abc972154c7596ddc8da772b271` | `templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj` | `76bf18c19864218054c2824449b68b98a1c1b88a0311c378a951666f638c3a0b` |
+
+The Wizard source row must match its selected package row. Mixed019/020 version,
+source, archive or Program declarations refuse; the signed public archive cannot
+be replaced by the unsigned release-original digest. Existing019 manifests remain
+valid and report `retained019 source compatibility`;020 reports `selected020 source
+preparation`. The emitted qualified-tool placeholder names the selected version.
+Both keep `runtimeDisposition: held` and require receiver evidence for that exact
+Wizard. No global latest-version claim or new publication follows.
+
+The [published020 release](https://github.com/FS-GG/.github/releases/tag/new-sdd-workspace/v0.20.0)
+(id417678688, source699f6085) and existing custody establish a distinct successor.
+The signed public body above matches all93 signature-excluded release payload
+members; the release-original archive has SHA256
+`05ed18357132b2eb6013536206d83f0ca9d95e1d3fd41f78390fe99302e9767b`.
+Its Program changes route Product V2 retained upgrades and the instruction allowlist
+from42 to48 leaves; the selected `--no-coordination` SVG path skips that
+materialization. SVG options,0182 preflight, lifecycle/bundle defaults and the
+embedded public Coord0.108 dependency bytes remain unchanged. Current installed020
+payload/apphost correspondence provides setup input reuse; it proves no new SVG
+invocation or runtime outcome. A prior normalized-payload verifier JSON is not
+NuGet signature-trust evidence. The019 knowledge/Matrix subjects keep their
+original identities, and source-supported020 compatibility still requires actual
+full-Wizard acceptance.
 
 The remaining exact fields are:
 
@@ -447,7 +475,7 @@ The remaining exact fields are:
 A `null` selection means omission. Supported explicit lifecycles are `none`,
 `sdd`, `typed-sdd`, `spec-kit`; bundles are `player`, `studio`, `tactical`, `arcade`,
 `complete`. Source-supported options do not imply accepted runtime combinations.
-Wizard019 forwards its omitted `sdd` lifecycle for provider019: its special
+Wizard019 and020 forward the omitted `sdd` lifecycle for provider019: their special
 `typed-sdd` omission rule names only provider015. The provider/template separately
 default to `typed-sdd`, and bundle omission remains `player`. Therefore the planned
 Typed SDD assertion must explicitly pass `--lifecycle typed-sdd`. The emitted argv
