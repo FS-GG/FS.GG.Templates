@@ -33,6 +33,58 @@ let private container: HTMLElement =
 let mutable private state = initialState ()
 let private sceneFocusId = "generated-authoring-studio--scene"
 
+// One pending activation and one mounted resource; a later scene wins over an
+// earlier asynchronous load. Producer disposal also has to prevent late adds.
+let mutable private fontRequest = 0
+let mutable private fontTimer: float option = None
+let mutable private pendingFont: SvgFontResourceHost option = None
+let mutable private retainedFont: (SvgFontResource * SvgFontResourceHost) option = None
+let mutable private committingFont = false
+let mutable private restoreDocumentFont: (SvgAuthoringState -> unit) = ignore
+
+[<Emit("performance.now()")>]
+let private fontClock () : float = jsNative
+
+let private disposeFont (font: SvgFontResourceHost) =
+    (font :> IDisposable).Dispose()
+
+let private cancelFontRequest () =
+    fontRequest <- fontRequest + 1
+    fontTimer |> Option.iter window.clearTimeout
+    fontTimer <- None
+    pendingFont |> Option.iter disposeFont
+    pendingFont <- None
+
+let private retainsFont (document: SvgDocument) (resource: SvgFontResource) =
+    // Runtime registration is owned by activateFont, not a second relative-URL
+    // CSS face. The exact resource is validated independently from bundled bytes.
+    let text =
+        document.Children
+        |> List.exists (fun value ->
+            value.Id = "verified-text"
+            && (match value.Content with
+                | SvgElementContent.SceneLeaf leaf ->
+                    leaf.Nodes
+                    |> List.exists (function
+                        | SceneNode.TextRun run -> run.Font.Family = Some resource.Family
+                        | _ -> false)
+                | _ -> false))
+
+    text
+
+let private reconcileFont (next: SvgAuthoringState) =
+    if not committingFont then
+        cancelFontRequest ()
+
+        match retainedFont with
+        | Some(resource, activated) when not (retainsFont next.Document resource) ->
+            disposeFont activated
+            retainedFont <- None
+        | _ -> ()
+
+        if retainedFont.IsNone then
+            restoreDocumentFont next
+
 let private retainSceneHostAttributes () =
     match container.querySelector ("[data-fsgg-document-id]") with
     | null -> ()
@@ -56,6 +108,7 @@ let private host =
         state
         (fun accepted ->
             state <- accepted
+            reconcileFont accepted
             // SvgBrowser reconciles the authored SVG root from exported scene
             // attributes. Reapply the Studio host decorations after each
             // accepted replacement so focus restoration retains a live target.
@@ -1151,7 +1204,66 @@ do
     for event in early do
         handlePersistence event
 
+let private loadDocumentFont resource success onReady =
+    cancelFontRequest ()
+    let request = fontRequest
+    let revision = state.Revision
+
+    match SvgStudio.activateFont resource with
+    | Error issues -> announce (sprintf "Validation error: %A" issues)
+    | Ok activated ->
+        pendingFont <- Some activated
+        announce "Loading verified Noto font"
+        let started = fontClock ()
+
+        let refuse message =
+            cancelFontRequest ()
+            announce ("Validation error: " + message)
+
+        let rec awaitReady () =
+            if request <> fontRequest then
+                // A stale callback cannot clear a newer request's timer/status.
+                disposeFont activated
+            else
+                fontTimer <- None
+
+                if state.Revision <> revision then
+                    cancelFontRequest ()
+                elif fontClock () - started >= 5000.0 then
+                    refuse "Noto font readiness timed out"
+                else
+                    match activated.Diagnostic with
+                    | Some diagnostic -> refuse ("Noto font load failed: " + diagnostic)
+                    | None when activated.Ready ->
+                        let result =
+                            try onReady ()
+                            with error -> Error("Noto font activation failed: " + error.Message)
+
+                        match result with
+                        | Ok() ->
+                            let previous = retainedFont
+                            pendingFont <- None
+                            retainedFont <- Some(resource, activated)
+                            previous |> Option.iter (snd >> disposeFont)
+                            announce success
+                        | Error error -> refuse error
+                    | None -> fontTimer <- Some(window.setTimeout (awaitReady, 16))
+
+        awaitReady ()
+
+// Undo/redo, import and persistence may restore the verified text after its
+// prior resource was disposed. Reacquire only the bundled exact-byte resource.
+do
+    restoreDocumentFont <- fun next ->
+        match SvgResourceInterchange.notoSansLatin400 (notoBase64.Trim()) with
+        | Ok resource when retainsFont next.Document resource ->
+            loadDocumentFont resource "Restored Noto text font ready" (fun () -> Ok())
+        | _ -> ()
+
+    restoreDocumentFont state
+
 let private verifyFont () =
+    cancelFontRequest ()
     match SvgResourceInterchange.notoSansLatin400 (notoBase64.Trim()) with
     | Ok resource ->
         let paint =
@@ -1220,8 +1332,10 @@ let private verifyFont () =
 
         let document =
             { state.Document with
-                Definitions = font :: state.Document.Definitions
-                Children = state.Document.Children @ [ text ]
+                Definitions =
+                    font :: (state.Document.Definitions |> List.filter (fun value -> value.Id <> font.Id))
+                Children =
+                    (state.Document.Children |> List.filter (fun value -> value.Id <> text.Id)) @ [ text ]
             }
 
         match
@@ -1245,11 +1359,51 @@ let private verifyFont () =
             restored.Fonts = [ resource ]
             && restored.Document.Children.Length = document.Children.Length
             ->
-            match SvgStudio.activateFont resource with
-            | Ok activated ->
-                announce "Verified Noto text exported and reopened offline"
-                (activated :> IDisposable).Dispose()
-            | Error issues -> announce (sprintf "Validation error: %A" issues)
+            let mountText () =
+                // importXml deliberately namespaces imported IDs. Mount the
+                // verified source document so existing entity/asset IDs and
+                // scene metadata retain their independently valid identities.
+                // SvgDocument emits Font definitions as relative-URL CSS. The
+                // live host already owns a verified Blob-backed FontFace; keep
+                // the manifest in the offline roundtrip, not a duplicate CSS
+                // rule pointing at an absent .woff2 beside this page.
+                let mounted =
+                    { document with
+                        Definitions =
+                            document.Definitions
+                            |> List.filter (fun value -> value.Id <> resource.DefinitionId)
+                    }
+
+                let candidate =
+                    transaction
+                        "verified-noto-font"
+                        [ SvgAuthoringOperation.ReplaceDocument mounted ]
+
+                committingFont <- true
+
+                let result =
+                    try
+                        host.Preview candidate
+                        |> Result.bind (fun () -> host.CommitGesture candidate.Id)
+                    finally
+                        committingFont <- false
+
+                match result with
+                | Ok() ->
+                    state <- host.State
+                    Ok()
+                | Error error ->
+                    committingFont <- true
+
+                    try
+                        host.CancelGesture candidate.Id |> ignore
+                    finally
+                        committingFont <- false
+
+                    state <- host.State
+                    Error(sprintf "Noto text commit refused: %A" error)
+
+            loadDocumentFont resource "Verified Noto text exported and reopened offline" mountText
         | Ok _ -> announce "Validation error: verified resource roundtrip drifted"
     | Error issues -> announce (sprintf "Validation error: %A" issues)
 
@@ -1510,6 +1664,9 @@ expose (
 window.addEventListener (
     "beforeunload",
     fun _ ->
+        cancelFontRequest ()
+        retainedFont |> Option.iter (snd >> disposeFont)
+        retainedFont <- None
 #if SVG_INPUT_CANDIDATE
         inputAdapter |> Option.iter (fun value -> (value :> IDisposable).Dispose())
 #endif
