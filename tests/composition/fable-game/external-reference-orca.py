@@ -1181,6 +1181,18 @@ FONT_CASE_TITLES = [
     "Studio unload releases its mounted native font and Blob",
 ]
 
+# Playwright JSON stores file suites, describe ancestry and leaf titles separately.
+REFERENCE_CASES = [
+    ("two-client.spec.ts", (), "FourD reference composes local session, normalized input, transformed hit testing and settled disposal"),
+    ("two-client.spec.ts", (), "external authority reference fences captured snapshots and settles commands independently"),
+    ("two-client.spec.ts", (), "external authority reference recovers failures and disposes owned resources terminally"),
+    ("two-client.spec.ts", (), "external authority reference uses production keyboard pointer editing and IME input"),
+    ("external-command-outcomes.spec.ts", ("external authority reference command outcomes",), "unknown receipt survives projection and reconnect without replay"),
+    ("external-command-outcomes.spec.ts", ("external authority reference command outcomes",), "explicit reconciliation and rearm retain the original and use a fresh correlation"),
+    ("external-command-outcomes.spec.ts", ("external authority reference command outcomes",), "old generation completion is inert and abandonment requires explicit rearm"),
+    ("external-command-outcomes.spec.ts", ("external authority reference command outcomes",), "delayed completion settles once and disposal makes retained controls inert"),
+]
+
 def browser_selector(mode):
     require(mode in ("candidate", "public", "font-disposal"), "unknown receiver selection")
     historical = "external authority reference|FourD reference"
@@ -1191,14 +1203,16 @@ def validate_browser_report(report, mode):
     count = 15 if mode == "font-disposal" else 8
     require(report["stats"]["expected"] == count and all(report["stats"][v] == 0 for v in ("unexpected", "skipped", "flaky")), "receiver case outcomes differ")
     if mode == "font-disposal":
-        def specs(suite):
-            return suite.get("specs", []) + [v for child in suite.get("suites", []) for v in specs(child)]
+        def specs(suite, ancestry=()):
+            # Top-level suites represent files. Only child suites contribute
+            # describe titles, exactly as the JSON reporter serializes them.
+            rows = [(v, ancestry) for v in suite.get("specs", [])]
+            return rows + [v for child in suite.get("suites", []) for v in specs(child, ancestry + (child["title"],))]
         selected = [v for suite in report["suites"] for v in specs(suite)]
-        titles = [v["title"] for v in selected]
-        require(len(titles) == 15 and len(set(titles)) == 15, "receiver case identities duplicate/missing")
-        require(sorted(v for v in titles if v in FONT_CASE_TITLES) == sorted(FONT_CASE_TITLES), "strict Studio font case absent")
-        require(sum(bool(re.search("external authority reference|FourD reference", v)) for v in titles) == 8, "historical reference case absent")
-        require(all(v.get("ok") is True and len(v["tests"]) == 1 and v["tests"][0]["status"] == "expected" for v in selected), "case-level outcome differs")
+        identities = [(v["file"], ancestry, v["title"]) for v, ancestry in selected]
+        expected = REFERENCE_CASES + [("two-client.spec.ts", (), title) for title in FONT_CASE_TITLES]
+        require(len(identities) == 15 and len(set(identities)) == 15 and set(identities) == set(expected), "receiver file/suite/case identities differ")
+        require(all(v.get("ok") is True and len(v["tests"]) == 1 and v["tests"][0]["status"] == "expected" for v, _ in selected), "case-level outcome differs")
     return True
 
 def browser_prerequisite(packet, preflight):

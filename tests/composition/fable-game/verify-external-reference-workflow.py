@@ -331,20 +331,50 @@ for mode in ('unknown','FONT-DISPOSAL','font-disposal\n'):
     try: selector(mode)
     except RuntimeError: pass
     else: raise AssertionError('unknown selection accepted')
-actual_titles=['external authority reference fixture '+str(n) for n in range(8)]+titles
-report={'stats':{'expected':15,'unexpected':0,'skipped':0,'flaky':0},'suites':[{'suites':[{'specs':[{'title':title,'ok':True,'tests':[{'status':'expected'}]} for title in actual_titles]}]}]}
+# Genuine source-derived identities and actual JSON reporter topology: four
+# direct historical specs, four describe-nested specs, seven direct font specs.
+references=receiver['REFERENCE_CASES']
+for filename,ancestry,title in references:
+    authored=(root/'templates/fs-gg-fable-game/Browser.Tests'/filename).read_text()
+    assert authored.count('test("'+title+'"')==1
+    for group in ancestry: assert authored.count('test.describe("'+group+'"')==1
+    assert re.search(selector('font-disposal'),'[chromium] '+filename+' '+ ' '.join(ancestry+(title,)))
+def json_spec(filename,title):
+    return {'file':filename,'title':title,'ok':True,'tests':[{'status':'expected'}]}
+direct=[json_spec(filename,title) for filename,ancestry,title in references if not ancestry]
+nested=[json_spec(filename,title) for filename,ancestry,title in references if ancestry]
+report={'stats':{'expected':15,'unexpected':0,'skipped':0,'flaky':0},'suites':[
+    {'title':'two-client.spec.ts','file':'two-client.spec.ts','specs':direct+[json_spec('two-client.spec.ts',title) for title in titles]},
+    {'title':'external-command-outcomes.spec.ts','file':'external-command-outcomes.spec.ts','specs':[],
+     'suites':[{'title':'external authority reference command outcomes','specs':nested}]},
+]}
+# Causal RED: the original209a1ad leaf-only predicate rejects this genuine-shaped
+# successful15-case report: only four historical leaves contain its grep text.
+all_leaves=report['suites'][0]['specs']+report['suites'][1]['suites'][0]['specs']
+assert len(all_leaves)==15
+assert sum(bool(re.search('external authority reference|FourD reference',v['title'])) for v in all_leaves)==4
 validate_report=receiver['validate_browser_report']
 assert validate_report(report,'font-disposal')
 report_bad=[]
 for key in ('unexpected','skipped','flaky'):
     bad=copy.deepcopy(report);bad['stats'][key]=1;report_bad.append(bad)
-for title in ('unrelated Studio case',actual_titles[0]):
-    bad=copy.deepcopy(report);bad['suites'][0]['suites'][0]['specs'][-1]['title']=title;report_bad.append(bad)
-bad=copy.deepcopy(report);bad['suites'][0]['suites'][0]['specs'][-1]['tests'][0]['status']='skipped';report_bad.append(bad)
+for title in ('unrelated Studio case',titles[0]):
+    bad=copy.deepcopy(report);bad['suites'][0]['specs'][-1]['title']=title;report_bad.append(bad)
+# Preserve15successfulstats while independently changing each actual identity,
+# describe ancestry, file, multiplicity, result or population.
+for field,value in [('file','foreign.spec.ts'),('title','foreign leaf')]:
+    bad=copy.deepcopy(report);bad['suites'][1]['suites'][0]['specs'][0][field]=value;report_bad.append(bad)
+bad=copy.deepcopy(report);bad['suites'][1]['suites'][0]['title']='foreign describe';report_bad.append(bad)
+bad=copy.deepcopy(report);bad['suites'][1]['suites'][0]['specs'].pop();report_bad.append(bad)
+bad=copy.deepcopy(report);bad['suites'][1]['suites'][0]['specs'][1]=copy.deepcopy(bad['suites'][1]['suites'][0]['specs'][0]);report_bad.append(bad)
+for status in ('skipped','unexpected'):
+    bad=copy.deepcopy(report);bad['suites'][1]['suites'][0]['specs'][0]['tests'][0]['status']=status;report_bad.append(bad)
+bad=copy.deepcopy(report);bad['suites'][0]['specs'][-1]['ok']=False;report_bad.append(bad)
 for bad in report_bad:
     try: validate_report(bad,'font-disposal')
     except RuntimeError: pass
     else: raise AssertionError('wrong/missing/duplicate/skipped named case accepted')
+print('PASS reportshape causal RED originalleafpredicate4not8; GREEN genuine4direct+4nested+7font; '+str(len(report_bad))+' independent identity/population/outcome refusals')
 for mode in ('candidate','public'):
     assert validate_report({'stats':{'expected':8,'unexpected':0,'skipped':0,'flaky':0}},mode)
     try: validate_report(report,mode)
