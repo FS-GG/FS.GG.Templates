@@ -1996,7 +1996,7 @@ def browser_evidence(directory, receipt, runtime, leaders):
     return True
 
 
-ORCA_INFO_SCHEMA = 'fsgg.orca-info-readiness/3'
+ORCA_INFO_SCHEMA = 'fsgg.orca-info-readiness/4'
 ORCA_DEBUG_SOURCE_SHA = '58c2c01dc8606c5ddd4c19b366a56addc529d9b988591b656a0613107c8d3061'
 ORCA_DEBUG_SOURCE_PATH = '/usr/lib/python3/dist-packages/orca/debug.py'
 ORCA_EVENT_SOURCE_PROFILE = {'/usr/lib/python3/dist-packages/orca/event_manager.py': 'dc286ec05d1f638cf62ec6358309327b03ed8dc0dbf51111c5cc45a3403ce45d', '/usr/lib/python3/dist-packages/orca/liveregions.py': 'e78019df0d2892794503e12d7a88a8d1693e64b589870241ca54041a78f221b1', '/usr/lib/python3/dist-packages/orca/speech.py': '0c26304165d5527ce60fd4c3f624a039011f15b420159046a785a4c88421d55f'}
@@ -2004,8 +2004,28 @@ ORCA_EVENT_SOURCE_PROFILE = {'/usr/lib/python3/dist-packages/orca/event_manager.
 
 def orca_customization_source(directory):
     record = str(directory / 'orca-info-ready.json')
-    return "from orca import debug\nimport hashlib, json, os, pathlib, re, sys\ntry:\n    source = pathlib.Path(__file__).resolve()\n    module = pathlib.Path(debug.__file__).resolve()\n    if str(module) != %r or hashlib.sha256(module.read_bytes()).hexdigest() != %r:\n        raise RuntimeError('original Orca debug source differs from selected Ubuntu46.1 source')\n    if debug.LEVEL_INFO != 800 or debug.LEVEL_FINEST != 400 or debug.debugLevel != debug.LEVEL_ALL or debug.eventDebugLevel != debug.LEVEL_OFF or debug.eventDebugFilter is not None or debug.debugFile is None:\n        raise RuntimeError('original Orca CLI logging setup absent')\n    vendor_sources = %r\n    for vendor_path, vendor_sha in vendor_sources.items():\n        selected = pathlib.Path(vendor_path)\n        if str(selected.resolve()) != vendor_path or hashlib.sha256(selected.read_bytes()).hexdigest() != vendor_sha:\n            raise RuntimeError('original Orca event logging source differs')\n    debug.debugLevel = debug.LEVEL_INFO\n    debug.eventDebugLevel = debug.LEVEL_FINEST\n    debug.eventDebugFilter = re.compile(r'(?!)')\n    if debug.debugLevel != 800 or debug.eventDebugLevel != 400 or not isinstance(debug.eventDebugFilter, re.Pattern) or debug.eventDebugFilter.pattern != '(?!)' or int(debug.eventDebugFilter.flags) != 32:\n        raise RuntimeError('original Orca event logging settings differ')\n    debug.debugFile.reconfigure(line_buffering=True, write_through=True)\n    if debug.debugFile.line_buffering is not True or debug.debugFile.write_through is not True:\n        raise RuntimeError('original Orca speech log line visibility absent')\n    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()\n    debug.printMessage(debug.LEVEL_INFO, 'FS_GG_ORCA_INFO_READY '+source_sha, True)\n    debug.debugFile.flush()\n    tail = pathlib.Path('/proc/self/stat').read_text().rsplit(') ', 1)[1].split()\n    birth = {'pid': os.getpid(), 'start': int(tail[19]), 'ppid': int(tail[1]), 'pgid': int(tail[2]), 'sid': int(tail[3])}\n    packet = {'schema': %r, 'birth': birth, 'level': debug.debugLevel, 'levelName': 'INFO',\n              'eventLevel': debug.eventDebugLevel, 'eventLevelName': 'FINEST',\n              'lineBuffering': debug.debugFile.line_buffering, 'writeThrough': debug.debugFile.write_through,\n              'eventFilterPattern': debug.eventDebugFilter.pattern, 'eventFilterFlags': int(debug.eventDebugFilter.flags), 'vendorEventSources': vendor_sources,\n              'sourceSha256': source_sha, 'observerSha256': %r, 'vendorDebugPath': str(module), 'vendorDebugSha256': %r}\n    final = pathlib.Path(%r)\n    temporary = final.with_name(final.name+'.tmp')\n    fd = os.open(temporary, os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW, 0o600)\n    try:\n        body = (json.dumps(packet, sort_keys=True)+'\\n').encode()\n        while body:\n            written = os.write(fd, body)\n            if written <= 0: raise RuntimeError('Orca INFO readiness write incomplete')\n            body = body[written:]\n        os.fsync(fd)\n    finally:\n        os.close(fd)\n    os.link(temporary, final, follow_symlinks=False)\n    temporary.unlink()\nexcept BaseException as error:\n    print('ORCA_INFO_FIRST_CAUSE: '+type(error).__name__+': '+str(error), file=sys.stderr, flush=True)\n    raise\n" % (ORCA_DEBUG_SOURCE_PATH, ORCA_DEBUG_SOURCE_SHA, ORCA_EVENT_SOURCE_PROFILE, ORCA_INFO_SCHEMA,
+    body = "from orca import debug\nimport hashlib, json, os, pathlib, re, sys\ntry:\n    source = pathlib.Path(__file__).resolve()\n    module = pathlib.Path(debug.__file__).resolve()\n    if str(module) != %r or hashlib.sha256(module.read_bytes()).hexdigest() != %r:\n        raise RuntimeError('original Orca debug source differs from selected Ubuntu46.1 source')\n    if debug.LEVEL_INFO != 800 or debug.LEVEL_FINEST != 400 or debug.debugLevel != debug.LEVEL_ALL or debug.eventDebugLevel != debug.LEVEL_OFF or debug.eventDebugFilter is not None or debug.debugFile is None:\n        raise RuntimeError('original Orca CLI logging setup absent')\n    vendor_sources = %r\n    for vendor_path, vendor_sha in vendor_sources.items():\n        selected = pathlib.Path(vendor_path)\n        if str(selected.resolve()) != vendor_path or hashlib.sha256(selected.read_bytes()).hexdigest() != vendor_sha:\n            raise RuntimeError('original Orca event logging source differs')\n    debug.debugLevel = debug.LEVEL_INFO\n    debug.eventDebugLevel = debug.LEVEL_FINEST\n    debug.eventDebugFilter = re.compile(r'(?!)')\n    if debug.debugLevel != 800 or debug.eventDebugLevel != 400 or not isinstance(debug.eventDebugFilter, re.Pattern) or debug.eventDebugFilter.pattern != '(?!)' or int(debug.eventDebugFilter.flags) != 32:\n        raise RuntimeError('original Orca event logging settings differ')\n    debug.debugFile.reconfigure(line_buffering=True, write_through=True)\n    if debug.debugFile.line_buffering is not True or debug.debugFile.write_through is not True:\n        raise RuntimeError('original Orca speech log line visibility absent')\n    source_sha = hashlib.sha256(source.read_bytes()).hexdigest()\n    debug.printMessage(debug.LEVEL_INFO, 'FS_GG_ORCA_INFO_READY '+source_sha, True)\n    debug.debugFile.flush()\n    tail = pathlib.Path('/proc/self/stat').read_text().rsplit(') ', 1)[1].split()\n    birth = {'pid': os.getpid(), 'start': int(tail[19]), 'ppid': int(tail[1]), 'pgid': int(tail[2]), 'sid': int(tail[3])}\n    packet = {'capture': 'source-bound-speech-readiness', 'schema': %r, 'birth': birth, 'level': debug.debugLevel, 'levelName': 'INFO',\n              'eventLevel': debug.eventDebugLevel, 'eventLevelName': 'FINEST',\n              'lineBuffering': debug.debugFile.line_buffering, 'writeThrough': debug.debugFile.write_through,\n              'eventFilterPattern': debug.eventDebugFilter.pattern, 'eventFilterFlags': int(debug.eventDebugFilter.flags), 'vendorEventSources': vendor_sources,\n              'sourceSha256': source_sha, 'observerSha256': %r, 'vendorDebugPath': str(module), 'vendorDebugSha256': %r}\n    final = pathlib.Path(%r)\n    temporary = final.with_name(final.name+'.tmp')\n    fd = os.open(temporary, os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW, 0o600)\n    try:\n        body = (json.dumps(packet, sort_keys=True)+'\\n').encode()\n        while body:\n            written = os.write(fd, body)\n            if written <= 0: raise RuntimeError('Orca INFO readiness write incomplete')\n            body = body[written:]\n        os.fsync(fd)\n    finally:\n        os.close(fd)\n    os.link(temporary, final, follow_symlinks=False)\n    temporary.unlink()\nexcept BaseException as error:\n    print('ORCA_INFO_FIRST_CAUSE: '+type(error).__name__+': '+str(error), file=sys.stderr, flush=True)\n    raise\n" % (ORCA_DEBUG_SOURCE_PATH, ORCA_DEBUG_SOURCE_SHA, ORCA_EVENT_SOURCE_PROFILE, ORCA_INFO_SCHEMA,
        digest(Path(__file__).resolve()), ORCA_DEBUG_SOURCE_SHA, record)
+
+    # Ubuntu46.1 debug.printMessage/printTokens both call println. Its INFO
+    # level also includes keyboard/script/focus diagnostics; eventDebugFilter
+    # filters object events only. Keep the genuine speech callsite and our
+    # source-bound readiness marker, using the unchanged vendor formatter.
+    selection = """    _original_println = debug.println
+    _speech_path = '/usr/lib/python3/dist-packages/orca/speech.py'
+    _ready_marker = 'FS_GG_ORCA_INFO_READY '+hashlib.sha256(source.read_bytes()).hexdigest()
+    def _selected_println(level, text='', timestamp=False, stack=False):
+        caller = sys._getframe(2)
+        genuine_speech = (level == debug.LEVEL_INFO and isinstance(text, str) and
+                          text.startswith('SPEECH OUTPUT: ') and
+                          caller.f_code.co_filename == _speech_path)
+        own_readiness = (level == debug.LEVEL_INFO and text == _ready_marker and
+                         caller.f_code.co_filename == str(source))
+        if genuine_speech or own_readiness:
+            _original_println(level, text, timestamp, stack)
+    debug.println = _selected_println
+"""
+    return body.replace('    debug.debugFile.reconfigure', selection+'    debug.debugFile.reconfigure', 1)
 
 
 def prepare_orca_logging(directory):
@@ -2028,7 +2048,7 @@ def prepare_orca_logging(directory):
 
 def orca_logging_record(directory, birth):
     # Inert fixtures use the same expected schema; no native readiness is asserted.
-    return {'schema': ORCA_INFO_SCHEMA, 'birth': {k: birth[k] for k in ['pid', 'start', 'ppid', 'pgid', 'sid']},
+    return {'capture': 'source-bound-speech-readiness', 'schema': ORCA_INFO_SCHEMA, 'birth': {k: birth[k] for k in ['pid', 'start', 'ppid', 'pgid', 'sid']},
             'level': 800, 'levelName': 'INFO', 'eventLevel': 400, 'eventLevelName': 'FINEST',
             'lineBuffering': True, 'writeThrough': True,
             'eventFilterPattern': '(?!)', 'eventFilterFlags': int(re.compile(r'(?!)').flags), 'vendorEventSources': ORCA_EVENT_SOURCE_PROFILE, 'sourceSha256': digest(directory / 'data/orca/orca-customizations.py'),
@@ -3908,7 +3928,14 @@ def orca_event_logging_self_test():
                     debug = SimpleNamespace(__file__=str(vendor), LEVEL_ALL=0, LEVEL_OFF=10000,
                                             LEVEL_INFO=800, LEVEL_FINEST=400, debugLevel=0,
                                             eventDebugLevel=10000, eventDebugFilter=None, debugFile=log)
-                    debug.printMessage = lambda level, text, timestamp=False: log.write(text+'\n')
+                    def println(level, text='', timestamp=False, stack=False):
+                        if level >= debug.debugLevel:
+                            debug.debugFile.writelines([text, '\n'])
+                    def print_message(level, text, timestamp=False, stack=False):
+                        if level >= debug.debugLevel:
+                            debug.println(level, text, timestamp, stack)
+                    debug.println = println
+                    debug.printMessage = print_message
                     module.debug = debug
                     with patch.dict(sys.modules, {'orca': module}):
                         return action(directory, source, sha, debug)
@@ -3944,10 +3971,52 @@ def orca_event_logging_self_test():
         start = log.stat().st_size
         debug.printMessage(800, 'SPEECH: Speak Commands are rearmed.')
         require(speech_range(log, start)[0] == '', 'Speak intent accepted as speech output')
-        debug.printMessage(800, "SPEECH OUTPUT: 'Commands are rearmed.'")
+        exec(compile("debug.printMessage(800, \"SPEECH OUTPUT: 'Commands are rearmed.'\")",
+                     '/usr/lib/python3/dist-packages/orca/speech.py', 'exec'), {'debug': debug})
         require(PHRASES['rearmed'] in speech_range(log, start)[0],
                 'complete genuine-format speech output invisible before stream close')
     case('terminal-output-visible-before-close-intent-not-output', lambda: fixture(terminal_visibility))
+    def selected_volume(directory, source, sha, debug):
+        # Actual Ubuntu46.1 printMessage/printTokens -> println API shape.
+        # Source filenames are inert compile labels, not native runtime proof.
+        original_println = debug.println
+        def print_tokens(level, tokens, timestamp=False, stack=False):
+            if level >= debug.debugLevel:
+                debug.println(level, ' '.join(map(str, tokens)), timestamp, stack)
+        debug.printTokens = print_tokens
+        chatter = 'SCRIPT MANAGER: '+('diagnostic ' * 100)
+        # Causal RED: unchanged INFO/event-only configuration admits >4MiB.
+        debug.debugLevel = debug.LEVEL_INFO
+        original = io.StringIO()
+        with patch.object(debug, 'debugFile', original):
+            for _ in range(5000): debug.printMessage(800, chatter)
+        require(len(original.getvalue().encode()) > 4194304, 'old logging fixture did not reproduce overflow')
+        debug.debugLevel = debug.LEVEL_ALL
+        run_customization(directory, source)
+        log = directory / 'orca-debug.log'
+        start = log.stat().st_size
+        for _ in range(5000):
+            debug.printMessage(800, chatter)
+            debug.printTokens(800, ['FOCUS MANAGER:', 'diagnostic'])
+        # A familiar prefix from the wrong callsite has no speech authority.
+        debug.printMessage(800, "SPEECH OUTPUT: 'forged diagnostic'")
+        debug.printTokens(800, ['SPEECH OUTPUT:', "'forged tokens'"])
+        debug.printMessage(800, 'FS_GG_ORCA_INFO_READY '+sha)
+        require(log.stat().st_size == start, 'non-speech/foreign callsite enlarged selected log')
+        speech = compile("def emit(debug, phrases):\n"
+                         "    for phrase in phrases:\n"
+                         "        debug.printMessage(800, \"SPEECH OUTPUT: '\"+phrase+\"'\", True)\n"
+                         "    debug.printTokens(800, ['SPEECH OUTPUT:', \"'native character'\"], True)\n",
+                         '/usr/lib/python3/dist-packages/orca/speech.py', 'exec')
+        namespace = {}; exec(speech, namespace)
+        namespace['emit'](debug, list(PHRASES.values()))
+        spoken, end = speech_range(log, start)
+        require(all(phrase in spoken for phrase in PHRASES.values()) and 'native character' in spoken and
+                'forged' not in spoken and end-start < 4096,
+                'genuine message/token speech absent or diagnostic leaked')
+        with log.open('a') as stream: stream.write('x'*4194304)
+        refused(lambda: speech_range(log, start), 'Orca speech evidence nonregular or over budget')
+    case('actual-api-shaped-chatter-red-selected-speech-green-cap-still-refuses', lambda: fixture(selected_volume))
     def configure_error(directory, source, sha, debug):
         class FailingVisibility:
             def reconfigure(self, **kwargs):
@@ -3961,6 +4030,8 @@ def orca_event_logging_self_test():
     def stream_fault(directory, source, sha, debug, fault):
         original = debug.debugFile
         class StreamFault:
+            def writelines(self, lines):
+                original.writelines(lines)
             def reconfigure(self, **kwargs):
                 original.reconfigure(**kwargs)
             @property
@@ -3988,7 +4059,8 @@ def orca_event_logging_self_test():
             require(not (directory / 'orca-info-ready.json').exists(), 'refused setup published readiness')
             refused(lambda: check_orca_logging(directory, {'pid': 1}, sha), 'original Orca CLI logging setup absent')
         case(name, lambda action=bad_setup: fixture(action))
-    for name, field, value in [('missing-event-level', 'eventLevel', None), ('wrong-event-level', 'eventLevel', 10000),
+    for name, field, value in [('missing-capture', 'capture', None), ('wrong-capture', 'capture', 'all-debug'),
+                              ('missing-event-level', 'eventLevel', None), ('wrong-event-level', 'eventLevel', 10000),
                               ('boolean-event-level', 'eventLevel', True), ('wrong-event-name', 'eventLevelName', 'OFF'),
                               ('missing-event-filter', 'eventFilterPattern', None), ('wrong-event-filter', 'eventFilterPattern', '.*'),
                               ('wrong-event-flags', 'eventFilterFlags', 0), ('boolean-event-flags', 'eventFilterFlags', True),
@@ -4035,7 +4107,7 @@ def orca_event_logging_self_test():
         require(body.index('debug.debugLevel = debug.LEVEL_INFO') < body.index('debug.eventDebugLevel = debug.LEVEL_FINEST') <
                 body.index("debug.eventDebugFilter = re.compile(r'(?!)')") <
                 body.index('debug.debugFile.reconfigure(line_buffering=True, write_through=True)') <
-                body.index('FS_GG_ORCA_INFO_READY') < body.index('debug.debugFile.flush()') <
+                body.index("debug.printMessage(debug.LEVEL_INFO, 'FS_GG_ORCA_INFO_READY") < body.index('debug.debugFile.flush()') <
                 body.index('os.link(temporary, final'), 'event settings published after readiness')
         require('debug.printMessage =' not in body and '--debug-level' not in body and 'os.kill' not in body,
                 'event settings changed message methods/flags/custody')
