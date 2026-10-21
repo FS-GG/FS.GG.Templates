@@ -7,11 +7,13 @@ import json
 import os
 from pathlib import Path
 import re
+import runpy
 import subprocess
 import tempfile
 from unittest.mock import patch
 from zipfile import ZipFile
 
+INERT_ENV={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','LC_ALL':'C.UTF-8','PYTHONDONTWRITEBYTECODE':'1','PYTHONNOUSERSITE':'1'}
 root=Path(__file__).resolve().parents[3]
 text=(root/'.github/workflows/fable-external-reference-source.yml').read_text()
 blocks=re.findall(r"          python3 - <<'(PY(?:INPUT)?)'\n(.*?)\n          \1",text,re.S)
@@ -55,18 +57,27 @@ PRODUCER_ROWS = {
         'PRODUCER_VERSION':'0.32.2','PRODUCER_PLAN':'eng/release/external-authority-recovery-0.32.2.json',
     },
 }
+PRODUCER_ROWS['font-disposal']={
+    'PRODUCER_SOURCE':'4ec6eafbbbf02264db9b0db4780c590abe0bf9cd',
+    'PRODUCER_RUN':'39509314882','PRODUCER_ARTIFACT':'12305198394',
+    'PRODUCER_ARCHIVE_SHA256':'84647332c124e511545787c8c3f8634d4f5177068521acfc86c93430ac73ef63',
+    'PRODUCER_CUSTODY_SHA256':'7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9',
+    'PRODUCER_ARCHIVE_SIZE_BYTES':'15073469','PRODUCER_VERSION':'0.32.3',
+    'PRODUCER_PLAN':'eng/release/font-disposal-0.32.3.json',
+}
 selector_cases=[]
 def selected_producer(candidate, mode):
     assert mode in PRODUCER_ROWS, 'closed candidate/public route required'
     result={}
     for key in PRODUCER_ROWS['public']:
-        values=re.findall(r"^      "+key+r": \$\{\{ inputs\.rendering-input-source == 'public' && '([^']+)' \|\| '([^']+)' \}\}$",candidate,re.M)
+        values=re.findall(r"^      "+key+r": \$\{\{ inputs\.rendering-input-source == 'font-disposal' && '([^']+)' \|\| inputs\.rendering-input-source == 'public' && '([^']+)' \|\| '([^']+)' \}\}$",candidate,re.M)
         assert len(values)==1, 'closed producer expression absent/duplicated: '+key
-        public,source_candidate=values[0]
+        font,public,source_candidate=values[0]
+        assert font==PRODUCER_ROWS['font-disposal'][key], 'font producer row identity differs: '+key
         assert public==PRODUCER_ROWS['public'][key] and source_candidate==PRODUCER_ROWS['candidate'][key], 'producer row identity differs: '+key
-        result[key]=public if mode=='public' else source_candidate
+        result[key]={'public':public,'candidate':source_candidate,'font-disposal':font}[mode]
     return {**result,'RENDERING_INPUT_SOURCE':mode}
-for mode in ['candidate','public']:
+for mode in ['candidate','public','font-disposal']:
     assert selected_producer(text,mode)=={**PRODUCER_ROWS[mode],'RENDERING_INPUT_SOURCE':mode}
     selector_cases.append('selector-good-'+mode)
 for mode in ['unknown','PUBLIC','public\n']:
@@ -75,7 +86,7 @@ for mode in ['unknown','PUBLIC','public\n']:
     else: raise AssertionError('unknown producer mode accepted')
     selector_cases.append('selector-bad-mode-'+repr(mode))
 for key in PRODUCER_ROWS['public']:
-    for mode in ['candidate','public']:
+    for mode in ['candidate','public','font-disposal']:
         changed=text.replace(PRODUCER_ROWS[mode][key], 'altered-'+PRODUCER_ROWS[mode][key])
         try: selected_producer(changed,mode)
         except AssertionError: pass
@@ -86,7 +97,7 @@ assertion_cases=[]
 def execute(code,env,should_pass):
     global checks
     previous=os.environ.copy()
-    os.environ.update(env)
+    os.environ.clear(); os.environ.update(INERT_ENV); os.environ.update(env)
     try:
         try:
             exec(compile(code,'workflow-assertions','exec'),{})
@@ -109,13 +120,22 @@ for key,value in [('CALLER_REPOSITORY','FS-GG/FS.GG.Templates'),('CALLER_REPOSIT
     execute(codes[0],{**env,key:value},False)
 with tempfile.TemporaryDirectory() as directory:
     path=Path(directory); env['RUNNER_TEMP']=directory
-    for mode in ['candidate','public']:
+    for mode in ['candidate','public','font-disposal']:
         env.update(selected_producer(text,mode))
-        run={'id':int(env['PRODUCER_RUN']),'head_sha':env['PRODUCER_SOURCE'],'conclusion':'success','path':'.github/workflows/release.yml'}
+        run={'id':int(env['PRODUCER_RUN']),'head_sha':env['PRODUCER_SOURCE'],'conclusion':'success','path':'.github/workflows/release.yml','run_attempt':1}
         artifact={'id':int(env['PRODUCER_ARTIFACT']),'expired':False,'size_in_bytes':int(env['PRODUCER_ARCHIVE_SIZE_BYTES']),'digest':'sha256:'+env['PRODUCER_ARCHIVE_SHA256'],'workflow_run':{'id':run['id'],'head_sha':run['head_sha']},'name':'rendering-source-candidate-'+run['head_sha']+'-'+env['PRODUCER_VERSION']}
-        def metadata(r,a,success):
-            (path/'rendering-run.json').write_text(json.dumps(r)); (path/'rendering-artifact.json').write_text(json.dumps(a)); execute(codes[1],env,success)
+        def metadata(r,a,success,plan_good=True):
+            (path/'rendering-run.json').write_text(json.dumps(r)); (path/'rendering-artifact.json').write_text(json.dumps(a))
+            # Closed plan-byte seam: metadata fixtures do not acquire a producer checkout.
+            class PlanDigest:
+                def hexdigest(self): return '89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239' if plan_good else '0'*64
+            with patch.object(Path,'read_bytes',return_value=b'x'*3490), patch.object(hashlib,'sha256',side_effect=lambda raw: PlanDigest()):
+                execute(codes[1],env,success)
+
         metadata(run,artifact,True)
+        if mode=='font-disposal':
+            metadata({**run,'run_attempt':2},artifact,False)
+            metadata(run,artifact,False,plan_good=False)
         for key,value in [('id',0),('head_sha','b'*40),('conclusion','failure'),('path','.github/workflows/other.yml')]:
             metadata({**run,key:value},artifact,False)
         for key,value in [('id',0),('expired',True),('size_in_bytes',1),('digest','sha256:'+'0'*64),('name','other'),('workflow_run',{'id':0,'head_sha':run['head_sha']}),('workflow_run',{'id':run['id'],'head_sha':'b'*40})]:
@@ -141,7 +161,10 @@ with tempfile.TemporaryDirectory() as directory:
             execute(codes[3],receipt_env,True)
         receipt=json.loads((path/'external-reference-preflight.json').read_text())
         assert len(calls)==2 and receipt['templates']=={'revision':'a'*40,'tree':'b'*40}
-        assert receipt['producer']=={name:env[key] for name,key in [('revision','PRODUCER_SOURCE'),('run','PRODUCER_RUN'),('artifact','PRODUCER_ARTIFACT'),('archiveSha256','PRODUCER_ARCHIVE_SHA256'),('custodySha256','PRODUCER_CUSTODY_SHA256')]}
+        producer_expected={name:env[key] for name,key in [('revision','PRODUCER_SOURCE'),('run','PRODUCER_RUN'),('artifact','PRODUCER_ARTIFACT'),('archiveSha256','PRODUCER_ARCHIVE_SHA256'),('custodySha256','PRODUCER_CUSTODY_SHA256')]}
+        if mode=='font-disposal':
+            producer_expected.update(attempt='1',version=env['PRODUCER_VERSION'],plan=env['PRODUCER_PLAN'],rawPlanSha256='89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239')
+        assert receipt['producer']==producer_expected
         assert receipt['producerTree']=='c'*40 and receipt['artifactSizeBytes']==int(env['PRODUCER_ARCHIVE_SIZE_BYTES'])
         assert receipt['renderingInputSource']==mode and receipt['requestedPhase']=='preflight'
         assert receipt['qualification']=='not-run' and receipt['publication'] is False and receipt['installedAcceptance'] is False
@@ -175,10 +198,10 @@ with tempfile.TemporaryDirectory() as directory:
     binary=path/'npm'
     binary.write_text("#!/usr/bin/env python3\nimport os,sys\nfrom pathlib import Path\np=Path(os.environ['NPM_FIXTURE_STATE'])\nif sys.argv[1:]==['install','--global','npm@12.1.0']: p.write_text('12.1.0')\nelif sys.argv[1:]==['--version']: print(p.read_text())\nelse: sys.exit(2)\n")
     binary.chmod(0o700)
-    env={**os.environ,'PATH':directory+os.pathsep+os.environ['PATH'],'NPM_FIXTURE_STATE':str(state)}
-    assert subprocess.run(['bash','-euo','pipefail','-c',provision],env=env,check=False).returncode==0
+    env={**INERT_ENV,'PATH':directory+os.pathsep+INERT_ENV['PATH'],'NPM_FIXTURE_STATE':str(state)}
+    assert subprocess.run(['bash','-euo','pipefail','-c',provision],env=env,check=False,timeout=5).returncode==0
     state.write_text('11.19.1')
-    assert subprocess.run(['bash','-euo','pipefail','-c',provision.replace('npm install --global npm@12.1.0','true')],env=env,check=False).returncode!=0
+    assert subprocess.run(['bash','-euo','pipefail','-c',provision.replace('npm install --global npm@12.1.0','true')],env=env,check=False,timeout=5).returncode!=0
 print('PASS pinned npm provision: actual shell upgrades bundled11.19.1 fixture to12.1.0; missing/floating provision refused')
 
 # The actual native Provider command must exit successfully before its exact-count assertion.
@@ -193,7 +216,7 @@ provider_prefix=qualification.split('bash tests/composition/fable-game/verify-ex
 assert provider_prefix.startswith('set -euo pipefail\n') and provider_prefix.index('dotnet run') < provider_prefix.index('PYPROVIDER')
 with tempfile.TemporaryDirectory() as directory:
     path=Path(directory);log=path/'provider-composition.log'
-    previous=os.environ.copy();os.environ['RUNNER_TEMP']=directory
+    previous=os.environ.copy();os.environ.clear();os.environ.update(INERT_ENV);os.environ['RUNNER_TEMP']=directory
     try:
         for count in [186,185,187,0]:
             log.write_text('build diagnostics\n'+'PASS assertion\n'*count+' PASS indented\nPASS\twrong delimiter\n')
@@ -205,19 +228,19 @@ with tempfile.TemporaryDirectory() as directory:
         except FileNotFoundError: pass
         else: raise AssertionError('missing Provider evidence accepted')
         binary=path/'dotnet';binary.write_text('#!/usr/bin/env bash\nexit 7\n');binary.chmod(0o700)
-        env={**os.environ,'PATH':directory+os.pathsep+os.environ['PATH']}
-        result=subprocess.run(['bash','-euo','pipefail','-c',provider_prefix],env=env,text=True,capture_output=True)
+        env={**INERT_ENV,'PATH':directory+os.pathsep+INERT_ENV['PATH'],'RUNNER_TEMP':directory}
+        result=subprocess.run(['bash','-euo','pipefail','-c',provider_prefix],env=env,text=True,capture_output=True,timeout=5)
         assert result.returncode==7 and 'ProviderComposition: verified' not in result.stdout, 'failed Provider command must stop before count'
     finally: os.environ.clear();os.environ.update(previous)
 print('PASS actual stdlib Provider count186;185/187/empty/missing evidence refused; native command exit7 preserved')
 
 # Execute the actual final receipt binder, including its report reads and writeback.
 # A good receipt must describe all eight cases in each of the three families.
-for mode in ['candidate','public']:
+for mode in ['candidate','public','font-disposal']:
     with tempfile.TemporaryDirectory() as directory:
         path=Path(directory); evidence=path/'external-reference'; evidence.mkdir()
         templates={'revision':'a'*40,'tree':'b'*40}
-        (path/'external-reference-preflight.json').write_text(json.dumps({'templates':templates}))
+        (path/'external-reference-preflight.json').write_text(json.dumps({'templates':templates,'renderingInputSource':mode}))
         families=['chromium','firefox','webkit']
         reports={}
         for family in families:
@@ -229,7 +252,10 @@ for mode in ['candidate','public']:
                 'producer':{'revision':PRODUCER_ROWS[mode]['PRODUCER_SOURCE'],'custodyManifestSha256':custody_digest},
                 'renderingInputSource':'nuget.org' if mode=='public' else 'candidate','templatesInputSource':'source-built-candidate',
                 'renderingPublicInputsQualified':mode=='public','browserFamilies':families,
-                'passedPerFamily':8,'skipped':0,'browserReportSha256':reports}
+                'passedPerFamily':15 if mode=='font-disposal' else 8,'skipped':0,'browserReportSha256':reports}
+        if mode=='font-disposal':
+            packet.update(qualificationMode=mode,studioFontCases=runpy.run_path(str(root/'tests/composition/fable-game/external-reference-orca.py'))['FONT_CASE_TITLES'])
+            packet['producer']['candidateVersion']='0.32.3'
         binder_env={'RUNNER_TEMP':directory,'TEMPLATES_SOURCE':templates['revision'],
                     'PRODUCER_SOURCE':PRODUCER_ROWS[mode]['PRODUCER_SOURCE'],'PRODUCER_CUSTODY_SHA256':custody_digest,
                     'RENDERING_INPUT_SOURCE':mode}
@@ -240,7 +266,7 @@ for mode in ['candidate','public']:
             execute(codes[4],binder_env,success)
             if success:
                 bound=json.loads(receipt.read_text())
-                assert bound=={**candidate,'nativePreflight':{'templates':templates}}
+                assert bound=={**candidate,'nativePreflight':{'templates':templates,'renderingInputSource':mode}}
             else:
                 assert receipt.read_bytes()==before, 'refused receipt must not be rewritten'
         bind(packet,True)
@@ -265,7 +291,7 @@ for mode in ['candidate','public']:
         for candidate in negatives: bind(candidate,False)
         missing=copy.deepcopy(packet); del missing['browserReportSha256']; bind(missing,False)
         bind(packet,True)
-        print(f'PASS actual final receipt binder: valid8 per family; {len(negatives)+1} negative receipts refused without writeback')
+        print(f'PASS actual final receipt binder: valid{packet["passedPerFamily"]} per family; {len(negatives)+1} negative receipts refused without writeback')
 
 # Reusable calls bypass the pull-request-only static job, so run these controls
 # from the exact checked-out consumer before archive acquisition or compilation.
@@ -281,3 +307,70 @@ print('PASS reusable static controls run after exact checkout and before expensi
 # Names/count are consumed only after the complete module returns.
 qualified_assertion_names=selector_cases+assertion_cases
 assert len(qualified_assertion_names)==len(set(qualified_assertion_names))
+
+# A finite union binds the actual maintained test titles and successful report rows.
+receiver=runpy.run_path(str(root/'tests/composition/fable-game/external-reference-orca.py'))
+titles=receiver['FONT_CASE_TITLES']
+spec=(root/'templates/fs-gg-fable-game/Browser.Tests/two-client.spec.ts').read_text()
+expanded=spec.replace('Studio ${cancellation} prevents a late genuine font load from mounting or leaking',
+    'Studio timeout prevents a late genuine font load from mounting or leaking\nStudio replacement prevents a late genuine font load from mounting or leaking')
+assert len(titles)==7 and all(expanded.count(title)==1 for title in titles)
+assert 'for (const cancellation of ["timeout", "replacement"] as const)' in spec
+assert "timeout-minutes: ${{ inputs.rendering-input-source == 'font-disposal' && 60 || 35 }}" in text
+assert text.index('Require fresh exact SDK root') < text.index('actions/setup-dotnet') < text.index('test "$(dotnet --version)" = 10.0.401')
+sdk=text.split('      - name: Require fresh exact SDK root',1)[1].split('      - uses:',1)[0]
+assert "!inputs.preflight-only && inputs.rendering-input-source == 'font-disposal'" in sdk
+assert '! -e "$expected" && ! -L "$expected"' in sdk and '>> "$GITHUB_ENV"' in sdk
+selector=receiver['browser_selector']
+assert selector('candidate')==selector('public')=='external authority reference|FourD reference'
+# Playwright grep is applied to project/file/full title, not a bare-title anchor.
+for title in titles:
+    assert re.search(selector('font-disposal'),'[chromium] two-client.spec.ts '+title)
+    assert not re.search(selector('candidate'),title)
+for mode in ('unknown','FONT-DISPOSAL','font-disposal\n'):
+    try: selector(mode)
+    except RuntimeError: pass
+    else: raise AssertionError('unknown selection accepted')
+actual_titles=['external authority reference fixture '+str(n) for n in range(8)]+titles
+report={'stats':{'expected':15,'unexpected':0,'skipped':0,'flaky':0},'suites':[{'suites':[{'specs':[{'title':title,'ok':True,'tests':[{'status':'expected'}]} for title in actual_titles]}]}]}
+validate_report=receiver['validate_browser_report']
+assert validate_report(report,'font-disposal')
+report_bad=[]
+for key in ('unexpected','skipped','flaky'):
+    bad=copy.deepcopy(report);bad['stats'][key]=1;report_bad.append(bad)
+for title in ('unrelated Studio case',actual_titles[0]):
+    bad=copy.deepcopy(report);bad['suites'][0]['suites'][0]['specs'][-1]['title']=title;report_bad.append(bad)
+bad=copy.deepcopy(report);bad['suites'][0]['suites'][0]['specs'][-1]['tests'][0]['status']='skipped';report_bad.append(bad)
+for bad in report_bad:
+    try: validate_report(bad,'font-disposal')
+    except RuntimeError: pass
+    else: raise AssertionError('wrong/missing/duplicate/skipped named case accepted')
+for mode in ('candidate','public'):
+    assert validate_report({'stats':{'expected':8,'unexpected':0,'skipped':0,'flaky':0}},mode)
+    try: validate_report(report,mode)
+    except RuntimeError: pass
+    else: raise AssertionError('new population selected historical contract')
+font_packet={'qualificationMode':'font-disposal','producer':{'revision':PRODUCER_ROWS['font-disposal']['PRODUCER_SOURCE'],'candidateVersion':'0.32.3'},'studioFontCases':titles,'passedPerFamily':15,'skipped':0,'browserFamilies':['chromium','firefox','webkit']}
+assert receiver['browser_prerequisite'](font_packet,{'renderingInputSource':'font-disposal'})
+for field,value in [('qualificationMode','candidate'),('passedPerFamily',8),('studioFontCases',titles[:-1]),('producer',{'revision':PRODUCER_ROWS['candidate']['PRODUCER_SOURCE'],'candidateVersion':'0.32.3'})]:
+    bad=copy.deepcopy(font_packet);bad[field]=value
+    assert not receiver['browser_prerequisite'](bad,{'renderingInputSource':'font-disposal'})
+for mode in ('candidate','public'):
+    assert not receiver['browser_prerequisite'](font_packet,{'renderingInputSource':mode})
+script=(root/'tests/composition/fable-game/verify-external-reference-candidate.sh').read_text()
+assert script.index('if [[ "$input_mode" == font-disposal ]]; then') < script.index('mkdir -p "$out"')
+assert script.index('>"$out/studio-restore.log"') < script.index('>"$out/studio-build.log"') < script.index('npx playwright install')
+assert 'FSGG_SVG_AUTHORING_VERSION="$version" FSGG_SVG_CANDIDATE_FEED="$out/feed"' in script
+assert "cached.read_bytes()" in script and "assets['libraries'][name+'/'+version]['type']=='package'" in script
+print('PASS finite0323 source/plan/SDK/Studio guards;7 genuine font titles+8 historical cases across3 families; wrong/missing/duplicate/skipped/mixed receipts refused; no native execution')
+
+# The maintained shell guard itself refuses mixed current/historical tuples before
+# mkdir, Git, package/tool work or output creation; only Bash is spawned here.
+mode_guard=next(line for line in script.splitlines() if line.startswith('[[ "$input_mode" == candidate'))
+font_guard=script.split('if [[ "$input_mode" == font-disposal ]]; then',1)[1].split('\nfi',1)[0]
+actual_guard='set -euo pipefail\n'+mode_guard+'\nif [[ "$input_mode" == font-disposal ]]; then'+font_guard+'\nfi\nprintf GUARD_ACCEPTED'
+guard_env={**INERT_ENV,'input_mode':'font-disposal','version':'0.32.3','expected_source':PRODUCER_ROWS['font-disposal']['PRODUCER_SOURCE'],'templates_package':''}
+for changes,good in [({},True),({'version':'0.32.2'},False),({'expected_source':PRODUCER_ROWS['public']['PRODUCER_SOURCE']},False),({'templates_package':'foreign.nupkg'},False),({'FsGgSvgAuthoringVersion':'0.32.1'},False),({'input_mode':'unknown'},False)]:
+    result=subprocess.run(['/bin/bash','-c',actual_guard],env={**guard_env,**changes},capture_output=True,text=True,timeout=5)
+    assert (result.returncode==0)==good and ('GUARD_ACCEPTED' in result.stdout)==good, 'actual pre-effect guard disposition differs'
+print('PASS actual closed-mode pre-effect shell guard: correct0323 accepted; historical/source/package/override/unknown controls refused without product effects')

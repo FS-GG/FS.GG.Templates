@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       rendering-input-source:
-        description: Finite candidate/public Rendering input route; public binds admitted 0.32.1 bytes
+        description: Finite candidate/public/font-disposal route; font-disposal binds original 0.32.3 candidate bytes
         type: string
         default: candidate
       preflight-only:
@@ -57,16 +57,16 @@ jobs:
     if: github.repository != 'FS-GG/FS.GG.Templates' || inputs.templates-source != ''
     name: External reference immutable preflight and optional full qualification
     runs-on: ubuntu-24.04
-    timeout-minutes: 35
+    timeout-minutes: ${{ inputs.rendering-input-source == 'font-disposal' && 60 || 35 }}
     env:
-      PRODUCER_SOURCE: ${{ inputs.rendering-input-source == 'public' && '6c9f766fdd91483c2de6f061e75589e94852a265' || '9b73395658d4683a067d150ca9441b04e802c4af' }}
-      PRODUCER_RUN: ${{ inputs.rendering-input-source == 'public' && '37419955679' || '38200411661' }}
-      PRODUCER_ARTIFACT: ${{ inputs.rendering-input-source == 'public' && '11392773621' || '11725317255' }}
-      PRODUCER_ARCHIVE_SHA256: ${{ inputs.rendering-input-source == 'public' && '486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee' || '7b0532caf431cfa41acaf35555016cf126bc495c5a6e13fe7db6b8fbe7478cca' }}
-      PRODUCER_CUSTODY_SHA256: ${{ inputs.rendering-input-source == 'public' && 'ecd0c5d742fd8d19d5659991e413e92971c1d2cb9aea913faa2bb249f53f577d' || '85bb1dcdf0378d05ca536d5878b88dedc301ff1524d39d98966e23888aae0120' }}
-      PRODUCER_ARCHIVE_SIZE_BYTES: ${{ inputs.rendering-input-source == 'public' && '14912688' || '15007722' }}
-      PRODUCER_VERSION: ${{ inputs.rendering-input-source == 'public' && '0.32.1' || '0.32.2' }}
-      PRODUCER_PLAN: ${{ inputs.rendering-input-source == 'public' && 'eng/release/svg-export-prefix-0.32.1.json' || 'eng/release/external-authority-recovery-0.32.2.json' }}
+      PRODUCER_SOURCE: ${{ inputs.rendering-input-source == 'font-disposal' && '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd' || inputs.rendering-input-source == 'public' && '6c9f766fdd91483c2de6f061e75589e94852a265' || '9b73395658d4683a067d150ca9441b04e802c4af' }}
+      PRODUCER_RUN: ${{ inputs.rendering-input-source == 'font-disposal' && '39509314882' || inputs.rendering-input-source == 'public' && '37419955679' || '38200411661' }}
+      PRODUCER_ARTIFACT: ${{ inputs.rendering-input-source == 'font-disposal' && '12305198394' || inputs.rendering-input-source == 'public' && '11392773621' || '11725317255' }}
+      PRODUCER_ARCHIVE_SHA256: ${{ inputs.rendering-input-source == 'font-disposal' && '84647332c124e511545787c8c3f8634d4f5177068521acfc86c93430ac73ef63' || inputs.rendering-input-source == 'public' && '486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee' || '7b0532caf431cfa41acaf35555016cf126bc495c5a6e13fe7db6b8fbe7478cca' }}
+      PRODUCER_CUSTODY_SHA256: ${{ inputs.rendering-input-source == 'font-disposal' && '7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9' || inputs.rendering-input-source == 'public' && 'ecd0c5d742fd8d19d5659991e413e92971c1d2cb9aea913faa2bb249f53f577d' || '85bb1dcdf0378d05ca536d5878b88dedc301ff1524d39d98966e23888aae0120' }}
+      PRODUCER_ARCHIVE_SIZE_BYTES: ${{ inputs.rendering-input-source == 'font-disposal' && '15073469' || inputs.rendering-input-source == 'public' && '14912688' || '15007722' }}
+      PRODUCER_VERSION: ${{ inputs.rendering-input-source == 'font-disposal' && '0.32.3' || inputs.rendering-input-source == 'public' && '0.32.1' || '0.32.2' }}
+      PRODUCER_PLAN: ${{ inputs.rendering-input-source == 'font-disposal' && 'eng/release/font-disposal-0.32.3.json' || inputs.rendering-input-source == 'public' && 'eng/release/svg-export-prefix-0.32.1.json' || 'eng/release/external-authority-recovery-0.32.2.json' }}
       RENDERING_INPUT_SOURCE: ${{ inputs.rendering-input-source || 'candidate' }}
       DOTNET_PROCESSOR_COUNT: '1'
       MSBUILDDISABLENODEREUSE: '1'
@@ -85,7 +85,7 @@ jobs:
           import os, re
           assert os.environ['CALLER_REPOSITORY']=='FS-GG/FS.GG.Rendering', 'Rendering caller required'
           assert re.fullmatch('[0-9a-f]{40}', os.environ['TEMPLATES_SOURCE']), 'Exact Templates SHA required'
-          assert os.environ.get('RENDERING_INPUT_SOURCE','candidate') in ['candidate','public'], 'Finite input source required'
+          assert os.environ.get('RENDERING_INPUT_SOURCE','candidate') in ['candidate','public','font-disposal'], 'Finite input source required'
           PYINPUT
       - uses: actions/checkout@v7
         with:
@@ -124,7 +124,7 @@ jobs:
           gh api "repos/FS-GG/FS.GG.Rendering/actions/runs/$PRODUCER_RUN" > "$RUNNER_TEMP/rendering-run.json"
           gh api "repos/FS-GG/FS.GG.Rendering/actions/artifacts/$PRODUCER_ARTIFACT" > "$RUNNER_TEMP/rendering-artifact.json"
           python3 - <<'PY'
-          import json, os
+          import hashlib, json, os
           from pathlib import Path
           root=Path(os.environ['RUNNER_TEMP'])
           run=json.loads((root/'rendering-run.json').read_text())
@@ -136,6 +136,11 @@ jobs:
           assert artifact['digest']=='sha256:'+os.environ['PRODUCER_ARCHIVE_SHA256']
           assert artifact['workflow_run']['id']==run['id'] and artifact['workflow_run']['head_sha']==run['head_sha']
           assert artifact['name']=='rendering-source-candidate-'+run['head_sha']+'-'+os.environ['PRODUCER_VERSION']
+          if os.environ['RENDERING_INPUT_SOURCE']=='font-disposal':
+              assert run['run_attempt']==1
+              plan=Path('.tmp/rendering-source')/os.environ['PRODUCER_PLAN']
+              raw=plan.read_bytes()
+              assert len(raw)==3490 and hashlib.sha256(raw).hexdigest()=='89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239'
           PY
           gh api "repos/FS-GG/FS.GG.Rendering/actions/artifacts/$PRODUCER_ARTIFACT/zip" > "$RUNNER_TEMP/rendering-packet.zip"
           printf '%s  %s\n' "$PRODUCER_ARCHIVE_SHA256" "$RUNNER_TEMP/rendering-packet.zip" | sha256sum --check --strict
@@ -168,8 +173,20 @@ jobs:
           import json, os, subprocess
           from pathlib import Path
           receipt={'schema':'fsgg.external-reference-native-preflight/1','disposition':'preflight-passed','qualification':'not-run','templates':{'revision':os.environ['TEMPLATES_SOURCE'],'tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()},'caller':{key:os.environ[value] for key,value in [('repository','CALLER_REPOSITORY'),('revision','CALLER_SOURCE'),('run','CALLER_RUN'),('attempt','CALLER_ATTEMPT')]},'producer':{key:os.environ[value] for key,value in [('revision','PRODUCER_SOURCE'),('run','PRODUCER_RUN'),('artifact','PRODUCER_ARTIFACT'),('archiveSha256','PRODUCER_ARCHIVE_SHA256'),('custodySha256','PRODUCER_CUSTODY_SHA256')]},'producerTree':subprocess.check_output(['git','-C','.tmp/rendering-source','rev-parse','HEAD^{tree}'],text=True).strip(),'artifactSizeBytes':int(os.environ['PRODUCER_ARCHIVE_SIZE_BYTES']),'requestedPhase':'preflight' if os.environ['PREFLIGHT_ONLY']=='true' else 'full','publication':False,'installedAcceptance':False,'renderingInputSource':os.environ['RENDERING_INPUT_SOURCE']}
+          if os.environ['RENDERING_INPUT_SOURCE']=='font-disposal':
+              receipt['producer'].update(attempt='1',version=os.environ['PRODUCER_VERSION'],plan=os.environ['PRODUCER_PLAN'],rawPlanSha256='89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239')
           (Path(os.environ['RUNNER_TEMP'])/'external-reference-preflight.json').write_text(json.dumps(receipt,indent=2)+'\n')
           PY
+      - name: Require fresh exact SDK root for font disposal
+        if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'font-disposal' }}
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/templates-font-disposal-dotnet-10.0.401
+        run: |
+          set -euo pipefail
+          expected="${RUNNER_TEMP:?}/templates-font-disposal-dotnet-10.0.401"
+          [[ "$RUNNER_TEMP" == /* && "$RUNNER_TEMP" != / && "$RUNNER_TEMP" != */ && "$(realpath -e -- "$RUNNER_TEMP")" == "$RUNNER_TEMP" ]]
+          [[ "$DOTNET_INSTALL_DIR" == "$expected" && ! -e "$expected" && ! -L "$expected" ]]
+          printf 'DOTNET_INSTALL_DIR=%s\n' "$expected" >> "$GITHUB_ENV"
       - uses: actions/setup-dotnet@v6
         if: ${{ !inputs.preflight-only }}
         with:
@@ -244,7 +261,11 @@ jobs:
           assert packet['templatesInputSource']=='source-built-candidate'
           assert packet['renderingPublicInputsQualified']==(os.environ['RENDERING_INPUT_SOURCE']=='public')
           assert packet['producer']['custodyManifestSha256']==os.environ['PRODUCER_CUSTODY_SHA256']
-          assert packet['browserFamilies']==['chromium','firefox','webkit'] and packet['passedPerFamily']==8 and packet['skipped']==0
+          assert packet['browserFamilies']==['chromium','firefox','webkit'] and packet['passedPerFamily']==(15 if os.environ['RENDERING_INPUT_SOURCE']=='font-disposal' else 8) and packet['skipped']==0
+          if os.environ['RENDERING_INPUT_SOURCE']=='font-disposal':
+              import runpy
+              checks=runpy.run_path('tests/composition/fable-game/external-reference-orca.py')
+              assert checks['browser_prerequisite'](packet,preflight)
           for family in packet['browserFamilies']:
               assert hashlib.sha256((root/'external-reference'/f'{family}-browser.json').read_bytes()).hexdigest()==packet['browserReportSha256'][family]
           packet['nativePreflight']=preflight

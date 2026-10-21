@@ -1169,6 +1169,48 @@ def route_evidence(directory, packet, receipt):
     return True
 
 
+# Finite current receiver cohort; historical candidate/public populations stay eight.
+FONT_DISPOSAL_SOURCE = "4ec6eafbbbf02264db9b0db4780c590abe0bf9cd"
+FONT_CASE_TITLES = [
+    "Studio awaits genuine Noto readiness and retains the mounted font through replacement and redo",
+    "Studio does not announce or mount Noto before native readiness is delivered",
+    "Studio reports a font diagnostic without committing text and disposes the failed activation",
+    "Studio timeout prevents a late genuine font load from mounting or leaking",
+    "Studio replacement prevents a late genuine font load from mounting or leaking",
+    "Studio stale font completion cannot replace or cancel a newer activation",
+    "Studio unload releases its mounted native font and Blob",
+]
+
+def browser_selector(mode):
+    require(mode in ("candidate", "public", "font-disposal"), "unknown receiver selection")
+    historical = "external authority reference|FourD reference"
+    return historical if mode != "font-disposal" else historical + "|" + "|".join(re.escape(v) for v in FONT_CASE_TITLES)
+
+def validate_browser_report(report, mode):
+    browser_selector(mode)
+    count = 15 if mode == "font-disposal" else 8
+    require(report["stats"]["expected"] == count and all(report["stats"][v] == 0 for v in ("unexpected", "skipped", "flaky")), "receiver case outcomes differ")
+    if mode == "font-disposal":
+        def specs(suite):
+            return suite.get("specs", []) + [v for child in suite.get("suites", []) for v in specs(child)]
+        selected = [v for suite in report["suites"] for v in specs(suite)]
+        titles = [v["title"] for v in selected]
+        require(len(titles) == 15 and len(set(titles)) == 15, "receiver case identities duplicate/missing")
+        require(sorted(v for v in titles if v in FONT_CASE_TITLES) == sorted(FONT_CASE_TITLES), "strict Studio font case absent")
+        require(sum(bool(re.search("external authority reference|FourD reference", v)) for v in titles) == 8, "historical reference case absent")
+        require(all(v.get("ok") is True and len(v["tests"]) == 1 and v["tests"][0]["status"] == "expected" for v in selected), "case-level outcome differs")
+    return True
+
+def browser_prerequisite(packet, preflight):
+    mode = preflight.get("renderingInputSource", "candidate")
+    browser_selector(mode)
+    if mode == "font-disposal":
+        return (packet.get("qualificationMode") == mode and packet["producer"].get("candidateVersion") == "0.32.3" and
+                packet["producer"]["revision"] == FONT_DISPOSAL_SOURCE and packet.get("studioFontCases") == FONT_CASE_TITLES and
+                packet["passedPerFamily"] == 15 and packet["skipped"] == 0 and packet["browserFamilies"] == ["chromium", "firefox", "webkit"])
+    return packet.get("qualificationMode", mode) == mode and packet["passedPerFamily"] == 8 and packet["skipped"] == 0 and packet["browserFamilies"] == ["chromium", "firefox", "webkit"]
+
+
 def prerequisites(packet, preflight, available):
     errors = []
     checks = [
@@ -1178,7 +1220,7 @@ def prerequisites(packet, preflight, available):
         (lambda: packet["producer"]["custodyManifestSha256"] == preflight["producer"]["custodySha256"], "producer custody mismatch"),
         (lambda: preflight["caller"]["repository"] == "FS-GG/FS.GG.Rendering" and re.fullmatch("[0-9a-f]{40}", preflight["caller"]["revision"]) and int(preflight["caller"]["run"]) > 0 and preflight["caller"]["attempt"] == "1", "caller identity unsupported"),
         (lambda: preflight["disposition"] == "preflight-passed" and preflight["requestedPhase"] == "full", "authenticated full input prerequisite absent"),
-        (lambda: packet["passedPerFamily"] == 8 and packet["skipped"] == 0 and packet["browserFamilies"] == ["chromium", "firefox", "webkit"], "browser prerequisite incomplete"),
+        (lambda: browser_prerequisite(packet, preflight), "browser prerequisite incomplete"),
     ]
     for check, message in checks:
         try:
