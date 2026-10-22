@@ -445,3 +445,61 @@ lock/assets/deps; final source preservation passed, including unrelated lock byt
 and modes. Known owned groups ended empty, sampled peak aggregate RSS 516780032
 bytes under the one-CPU/1GiB profile. This focused result does not establish the
 full hosted receiver journeys, whole Wizard adoption, or installed WASM acceptance.
+
+## Managed-group contract binding (C-J1) — 2026-10-22
+
+The held hosted caller now binds the canonical supplier contract
+`fsgg.managed-group-contract/1` from
+[FS.GG.Coordination#1047](https://github.com/FS-GG/FS.GG.Coordination/pull/1047)
+(for [#1046](https://github.com/FS-GG/FS.GG.Coordination/issues/1046)). The pin is
+`(FS-GG/FS.GG.Coordination, ac22206560f3eddfea524ce8f752ff1d0dfeec4e,
+eng/managed_group_owner.py, d846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0)`,
+45315 bytes. The binding follows the supplier's
+[architecture note](https://github.com/FS-GG/FS.GG.Coordination/blob/ac22206560f3eddfea524ce8f752ff1d0dfeec4e/docs/architecture/managed-group-candidate-contract.md#what-the-templates-caller-binds):
+
+- `load_owner` fetches the pinned file through the closed acquisition path, checks
+  its size and SHA-256, and only then imports it. It also checks the contract
+  schema and the owner's own import-time hash.
+- `probe_containment` runs before any provisioning acquisition and refuses when
+  no delegated cgroup v2 root is available.
+- `managed_executor` replaces the injected `execute(argv, cwd, env)`. Each call is
+  one `run(profile, env=, deadline=, out_dir=)` with `require-empty`, under the
+  caller's original phase deadline (never renewed per call), in a fresh output
+  directory under the job root. It returns `stdout.log`, retains every receipt in
+  `managed-receipts.json`, and raises the first cause on a refusal or failure.
+- Every executable must be identity-bound before use. Each identity records its
+  basis: verified download, verified archive member, installer copy of a verified
+  download, caller-authored wrapper, installer output or host image. The npm
+  wrapper admits the host `/bin/sh` image and the Node image as leaders. Calls use
+  absolute executables, and their working directory is inside the job root.
+- `managed_playwright` makes each Playwright invocation its own managed group.
+- The hosted step runs the job's Python inside
+  `sudo -n systemd-run … -p Delegate=yes -p User=runner -p NoNewPrivileges=yes
+  -p KillMode=control-group -p TimeoutStopSec=5` with `TasksMax=6144` and
+  `MemoryMax=12G` as the unit's hard limits.
+
+The literal holds remain: the caller step and the upload step keep `if: ${{ false }}`,
+and `main()` refuses while `RUNTIME_ADMITTED = False`. No provisioning, custody pilot
+or installed C runs.
+
+The WASM receiver now targets published Workspace.Template **0.19.1**. Its archive
+SHA-256 is `5d1886c37b6e6a0d64c3998ee23e76b4c5ba8b8a0c2136200c377d7bbab7d0c6`,
+its nuspec and peeled tag source are `1e95dddb6326d276773154df1336599907d8dbfe`, and
+its descriptor SHA-256 is `10b532dacb0fba79c1c9dc666487f78903e1fd1a09fc757932f605a3f055f5f7`.
+0.19.0 Complete scaffolds truncate `guest/policy.c` (1130 of 1308 bytes), so they
+cannot close the receiver's byte-exact WASM source check. The stock template,
+config and lock inputs are unchanged between the two versions.
+
+A non-required PR job, `managed-group-binding`, runs the caller's own binding
+against the real pinned owner on tiny host commands. Outside a delegated unit,
+the probe and the run must both refuse before launch. Inside a fresh delegated
+unit, it checks the following:
+
+- a bound group succeeds with an admitted birth image and `no_new_privs`;
+- a detached leftover fails `require-empty` and is retired;
+- drifted, unbound or expired calls refuse;
+- the unit's `pids.max` and `memory.max` match the requested hard limits.
+
+Not established: the Chromium support/runtime join, the three-family custody pilot,
+the installed downloaded-only 27-case journey and the provenance of
+installer-output or host images.

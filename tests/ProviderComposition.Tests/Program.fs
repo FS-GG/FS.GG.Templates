@@ -226,6 +226,43 @@ let main _ =
         (validate { request archive with Provider = { parsedProvider with Parameters = [ { Key = "different_parameter"; Required = false; Default = Some "typed-sdd" } ] } })
     assertEqual "stale descriptor pin refuses" (Error "descriptor-source-refused")
         (validate { request archive with Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::0.16.0" } })
+    // Published 0.19.1 is a selected WASM successor: it must carry the complete WASM source closure.
+    let wasmEntries =
+        [ "SvgFoundation/SvgFoundation.fsproj"; "SvgFoundation/Program.fs"; "SvgFoundation/build.sh"
+          "SvgFoundation/vite.config.js"; "SvgFoundation/packages.lock.json"
+          "SvgFoundation/Examples/Wasm/WasmPolicyExample.fs"; "SvgFoundation/Examples/Wasm/WasmPolicyExample.Tests.fs"
+          "SvgFoundation/Examples/Wasm/WasmPolicyBrowser.fs"; "SvgFoundation/Examples/Wasm/README.md"
+          "SvgFoundation/Examples/Wasm/materialize-assets.py"; "SvgFoundation/Examples/Wasm/build-guests.sh"
+          "SvgFoundation/Examples/Wasm/packages.lock.json"; "SvgFoundation/Examples/Wasm/guest/policy.c"
+          "SvgFoundation/Examples/Wasm/guest/rust/Cargo.toml"; "SvgFoundation/Examples/Wasm/guest/rust/Cargo.lock"
+          "SvgFoundation/Examples/Wasm/guest/rust/src/lib.rs"; "Browser.Tests/wasm-policy.spec.ts"
+          "Browser.Tests/playwright.config.ts" ]
+        |> List.map (fun name -> "content/templates/fs-gg-fable-game/" + name)
+    let makeSuccessorArchive path (version: string) withWasm =
+        use zip = ZipFile.Open(path, ZipArchiveMode.Create)
+        let add (name: string) (body: string) =
+            let entry = zip.CreateEntry(name)
+            use writer = new StreamWriter(entry.Open(), UTF8Encoding(false))
+            writer.Write(body)
+        add "FS.GG.Workspace.Template.nuspec" $"<package><metadata><id>FS.GG.Workspace.Template</id><version>{version}</version><repository commit=\"{revision}\" /></metadata></package>"
+        let members = if withWasm then List.distinct (requiredEntries @ wasmEntries) else requiredEntries
+        members |> List.iter (fun name -> add name "fixture")
+    let successorRequest path version =
+        { request path with ExpectedVersion = version; Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::" + version } }
+    let successorPartial = Path.Combine(temp, "successor-0.19.1-partial.nupkg")
+    makeSuccessorArchive successorPartial "0.19.1" false
+    assertEqual "0.19.1 successor without the WASM source closure refuses" (Error "reference-member-missing")
+        (validate (successorRequest successorPartial "0.19.1"))
+    let successorComplete = Path.Combine(temp, "successor-0.19.1.nupkg")
+    makeSuccessorArchive successorComplete "0.19.1" true
+    match validate (successorRequest successorComplete "0.19.1") with
+    | Ok _ -> printfn "PASS 0.19.1 successor closes the WASM source closure"
+    | Error x -> failwithf "0.19.1 successor refused: %s" x
+    assertEqual "0.19.1 descriptor pin cannot select another successor" (Error "descriptor-source-refused")
+        (validate { successorRequest successorComplete "0.19.1" with Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::0.19.0" } })
+    let unselected = Path.Combine(temp, "successor-0.19.2.nupkg")
+    makeSuccessorArchive unselected "0.19.2" true
+    assertEqual "unselected 0.19.2 refuses" (Error "selected-version-refused") (validate (successorRequest unselected "0.19.2"))
     let receiver = Path.Combine(temp, "receiver")
     use receiverArchive = ZipFile.OpenRead archive
     for name in requiredEntries.Tail do
