@@ -138,6 +138,22 @@ DOTNET_CLI_HOME="$out/homes/tool" dotnet tool install FS.GG.NewSddWorkspace --ve
   --tool-path "$wizard_dir" --configfile "$out/Public.NuGet.Config" --no-cache >/dev/null
 wizard_archive="$wizard_dir/.store/fs.gg.newsddworkspace/$wizard_version/fs.gg.newsddworkspace/$wizard_version/fs.gg.newsddworkspace.$wizard_version.nupkg"
 dotnet nuget verify "$wizard_archive" --all >"$out/wizard-tool-signatures.log"
+# The Wizard 0.11.1 receiver is historical. Its SDD 1.7.0 scaffold runs `dotnet new install` for the
+# descriptor source and then a best-effort `dotnet new update` (the Wizard passes no --no-update, unlike
+# the direct receivers above). The update would adopt whatever Workspace.Template is newest on the
+# public feed (0.19.1+ after 2026-10-22), so this receiver drifted with every Templates release. Close
+# the Wizard hive's NuGet sources to exactly the two hash-verified public archives the original
+# qualification observed: descriptor 0.11.0 and newest-at-qualification legacy 0.19.0.
+wizard_template_feed="$out/wizard-template-feed"
+mkdir -p "$wizard_template_feed" "$out/homes/wizard/.nuget/NuGet"
+cp "$current_package" "$wizard_package" "$wizard_template_feed/"
+[[ "$(find "$wizard_template_feed" -mindepth 1 | wc -l)" == 2 \
+  && "$(sha "$wizard_template_feed/FS.GG.Workspace.Template.$template_version.nupkg")" == "$template_public_sha" \
+  && "$(sha "$wizard_template_feed/FS.GG.Workspace.Template.$wizard_template_version.nupkg")" == "$wizard_template_public_sha" ]] \
+  || fail 'Wizard legacy template feed is not exactly the two verified public archives'
+printf '%s\n' '<?xml version="1.0" encoding="utf-8"?>' '<configuration>' '  <packageSources>' '    <clear />' \
+  "    <add key=\"wizard-legacy-templates\" value=\"$wizard_template_feed\" />" '  </packageSources>' '</configuration>' \
+  >"$out/homes/wizard/.nuget/NuGet/NuGet.Config"
 PATH="$(dirname "$cli"):$PATH" DOTNET_CLI_HOME="$out/homes/wizard" "$wizard_dir/new-sdd-workspace" \
   "$out/wizard" WizardReceiver --template fable-game --lifecycle none \
   --ref "fs-gg-templates/v${template_version}" --pinned --no-governance --no-coordination >"$out/wizard-scaffold.log"
