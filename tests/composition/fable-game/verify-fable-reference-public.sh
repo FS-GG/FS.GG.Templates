@@ -235,12 +235,24 @@ WASM_RECEIPT
   export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 DOTNET_CLI_TELEMETRY_OPTOUT=1
   archive="$evidence/feed/FS.GG.Workspace.Template.$version.nupkg"
   descriptor="$evidence/fable-game.providers.yml"
-  mapfile -t remote_refs < <(git ls-remote --tags https://github.com/FS-GG/FS.GG.Templates.git "refs/tags/$tag" "refs/tags/$tag^{}")
+  # Read-only tag read: 3 bounded attempts (20 s each, 5 s kill grace, 5 s then 10 s backoff; at most
+  # 100 s), so a transient error cannot spend a single-use admission. The result is still compared below.
+  refs_text=''
+  for attempt in 1 2 3; do
+    if refs_text="$(timeout -k 5 20 git ls-remote --tags https://github.com/FS-GG/FS.GG.Templates.git "refs/tags/$tag" "refs/tags/$tag^{}")"; then break; fi
+    refs_text=''
+    [[ "$attempt" -lt 3 ]] || { echo 'WASM public tag read failed after 3 bounded attempts' >&2; exit 1; }
+    sleep $((attempt * 5))
+  done
+  mapfile -t remote_refs <<<"$refs_text"
   resolved="$(printf '%s\n' "${remote_refs[@]}" | awk '$2 ~ /\^\{\}$/ {print $1}')"
   [[ -n "$resolved" ]] || resolved="$(printf '%s\n' "${remote_refs[@]}" | awk '$2 !~ /\^\{\}$/ {print $1}')"
   [[ "$resolved" == "$tag_revision" && "$(printf '%s\n' "$resolved" | wc -l)" -eq 1 ]] || { echo 'WASM public immutable tag mismatch' >&2; exit 1; }
-  curl -q --fail --silent --show-error --location --retry 0 --max-time 15 --max-filesize 8388608 "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/$version/fs.gg.workspace.template.$version.nupkg" -o "$archive"
-  curl -q --fail --silent --show-error --location --retry 0 --max-time 15 --max-filesize 1048576 "https://raw.githubusercontent.com/FS-GG/FS.GG.Templates/$revision/providers/fable-game.providers.yml" -o "$descriptor"
+  # Both fetches are idempotent GETs, retried (bounded: 15 s per attempt, 60 s retry window) so a transient
+  # error cannot spend a single-use admission. Retries restart the output file; the bytes are then
+  # hash-checked below (--sha256 / --descriptor-sha256) exactly as before.
+  curl -q --fail --silent --show-error --location --retry 3 --retry-all-errors --retry-max-time 60 --max-time 15 --max-filesize 8388608 "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/$version/fs.gg.workspace.template.$version.nupkg" -o "$archive"
+  curl -q --fail --silent --show-error --location --retry 3 --retry-all-errors --retry-max-time 60 --max-time 15 --max-filesize 1048576 "https://raw.githubusercontent.com/FS-GG/FS.GG.Templates/$revision/providers/fable-game.providers.yml" -o "$descriptor"
   validator=("$DOTNET_HOST_PATH" run --project "$root/src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj" -c Release --no-build --no-restore --)
   "${validator[@]}" reference-publication-check --template-version "$version" --archive "$archive" --descriptor "$descriptor" --sha256 "$sha" --source-revision "$revision" --tag-revision "$tag_revision" --descriptor-sha256 "$descriptor_sha"
   "$DOTNET_HOST_PATH" nuget verify "$archive" --all >"$evidence/template-signatures.log" 2>&1

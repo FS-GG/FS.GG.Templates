@@ -806,23 +806,35 @@ class FakeGroupFailed(RuntimeError):
 class FakeOwner:
     """Records exactly what the caller hands the contract; never launches anything."""
     Refused=FakeRefused;GroupFailed=FakeGroupFailed
-    def __init__(self, outcome='succeeded', available=True, stdout=None, validate=None):
+    def __init__(self, outcome='succeeded', available=True, stdout=None, validate=None, cgroup=None, events=None, fail_on=None):
         self.calls=[];self.outcome=outcome;self.available=available;self.stdout=stdout;self.envs={};self.validate=validate
+        self.cgroup=cgroup;self.events=events or {} # (delegated root, leaf) fixture dirs; event -> mutation before the hook
+        self.fail_on=fail_on # profile -> outcome override for that one call, or None
     def env_of(self, profile):
         return self.envs[id(profile)]
     def probe(self):
         return {'schema':'fsgg.managed-group-contract/1','available':self.available,'refusal':None if self.available else 'delegated-root-invalid'}
-    def run(self, profile, *, env, deadline, out_dir):
+    def hooks(self, control):
+        # The real owner's public hook events, in order; a raising hook is a group failure there too.
+        if control is None:return
+        context={'delegatedRoot':str(self.cgroup[0]) if self.cgroup else None,'leaf':str(self.cgroup[1]) if self.cgroup else None}
+        for event in ('after-birth','poll','before-retire','before-remove','after-cleanup'):
+            if event in self.events:self.events[event]()
+            try:control(event,dict(context))
+            except Exception as error:raise FakeGroupFailed({'outcome':'failed','cleanup':'observed-empty-removed','custody':'contained','firstCause':'hook:'+type(error).__name__})
+    def run(self, profile, *, env, deadline, out_dir, control=None):
         if self.validate:self.validate(profile) # the real schema, at the moment of each run
         self.calls.append({'profile':profile,'env':env,'deadline':deadline,'outDir':out_dir})
+        outcome=(self.fail_on(profile) if self.fail_on else None) or self.outcome
+        if outcome not in ('refused','crash'):self.hooks(control) # the real owner refuses before any launch or hook
         self.envs[id(profile)]=env
         os.mkdir(out_dir,0o700)
         receipt={'outcome':'succeeded','cleanup':'observed-empty-removed','custody':'contained','profileSha256':'f'*64,
                  'owner':{'sha256':'d846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0'},'firstCause':None}
-        if self.outcome=='refused':raise FakeRefused('executable-identity-mismatch',{**receipt,'outcome':'refused','firstCause':'Refused: executable-identity-mismatch'})
-        if self.outcome=='failed':raise FakeGroupFailed({**receipt,'outcome':'failed','firstCause':'RuntimeError: leader exited with live contained members'})
-        if self.outcome=='unclean':receipt['cleanup']='unknown'
-        if self.outcome=='crash':raise OSError('unexpected owner failure')
+        if outcome=='refused':raise FakeRefused('executable-identity-mismatch',{**receipt,'outcome':'refused','firstCause':'Refused: executable-identity-mismatch'})
+        if outcome=='failed':raise FakeGroupFailed({**receipt,'outcome':'failed','firstCause':'RuntimeError: leader exited with live contained members'})
+        if outcome=='unclean':receipt['cleanup']='unknown'
+        if outcome=='crash':raise OSError('unexpected owner failure')
         Path(out_dir,'stdout.log').write_text(self.stdout(profile) if self.stdout else 'stdout of '+profile['argv'][0])
         return receipt
 
@@ -1327,7 +1339,7 @@ class PilotOwner(FakeOwner):
     """Fake owner for the custody pilot: plays each case and writes a receipt shaped like the real one."""
     def __init__(self, world, behaviour=None, validate=None):
         super().__init__(validate=validate);self.world=world;self.behaviour=behaviour or {};self.case_calls=[]
-    def run(self, profile, *, env, deadline, out_dir):
+    def run(self, profile, *, env, deadline, out_dir, control=None):
         if self.validate:self.validate(profile)
         self.calls.append({'profile':profile,'env':env,'deadline':deadline,'outDir':out_dir});self.envs[id(profile)]=env
         os.mkdir(out_dir,0o700);argv=profile['argv'];stdout='';stderr='';cause=None;residual=[]
@@ -2029,6 +2041,199 @@ class RestoreControlTests(unittest.TestCase):
                 with self.subTest(row=row):self.assertIn(row,[l.strip() for l in checker])
         self.assertEqual(len(lines['"$DOTNET_HOST_PATH" new ']),3)
         self.assertIn('-p:FsGgWasmPolicyExample="$enabled"',lines['"$DOTNET_HOST_PATH" restore '][0])
+
+
+class ObservabilityTests(unittest.TestCase):
+    """Installed-C run 2 precondition (FS-GG/.github#4710 comment 6352823677): per-group cgroup high-water,
+    per-phase wall-clock, and bounded retries on the checker's idempotent GETs. Recording only."""
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(os.path.realpath(self.temp.name))
+        self.text,self.code=actual_hosted_code()
+        self.ns={'__name__':'observability_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+        self.tool=self.root/'tool';self.tool.write_bytes(b'#!/bin/sh\nexit 0\n');self.tool.chmod(0o700)
+        self.identities={};self.ns['bind_identity'](self.identities,str(self.tool),'verified-archive-member')
+        self.droot=self.root/'cg/unit.service';self.leaf=self.droot/'fsgg-mg-0';self.leaf.mkdir(parents=True)
+
+    def cg(self, directory, **files):
+        for name,value in files.items():(directory/name.replace('_','.')).write_text(value)
+
+    def run_group(self, owner):
+        receipts=[];execute=self.ns['managed_executor'](owner,self.root,time.monotonic()+60,self.identities,'setup',receipts)
+        try:execute([str(self.tool)],self.root,{'PATH':'/usr/bin'})
+        except RuntimeError:pass
+        return receipts[0],json.loads((self.root/'managed-receipts.json').read_text())[0]
+
+    def test_group_and_unit_high_water_is_recorded_for_the_group(self):
+        self.cg(self.droot,pids_peak='12\n',memory_peak='5000\n',memory_current='100\n',pids_events='max 1\n',memory_events='low 0\nhigh 0\nmax 3\noom 0\noom_kill 2\n')
+        self.cg(self.leaf,pids_peak='0\n',pids_events='max 0\n')
+        events={'poll':lambda:self.cg(self.droot,memory_current='4096\n'),
+                'before-remove':lambda:(self.cg(self.leaf,pids_peak='37\n',pids_events='max 0\n'),
+                    self.cg(self.droot,pids_peak='40\n',memory_peak='9000\n',pids_events='max 1\n',memory_events='low 0\nhigh 0\nmax 3\noom 1\noom_kill 3\n'))}
+        entry,written=self.run_group(FakeOwner(cgroup=(self.droot,self.leaf),events=events))
+        self.assertEqual(entry['status'],'succeeded');self.assertEqual(written['highWater'],entry['highWater'])
+        high=entry['highWater']
+        self.assertEqual(high['group'],{'pidsPeak':37,'pidsEventsMax':0,'memoryPeakBytes':None,'memoryEventsMax':None,'memoryEventsOomKill':None,
+            'memoryCurrentBytes':None,'memoryAnonBytes':None})
+        unit={k:v for k,v in high['unit'].items() if not k.startswith(('memoryCurrentBytesAt','memoryAnonBytesAt','memoryCurrentGrowth','memoryAnonGrowth','memoryCurrentSince','memoryAnonSince'))}
+        self.assertEqual(unit,{'pidsPeakCumulative':40,'memoryPeakBytesCumulative':9000,'memoryCurrentMaxBytesSampled':4096,
+            'pidsEventsMaxDelta':0,'memoryEventsMaxDelta':0,'memoryEventsOomKillDelta':1})
+        self.assertEqual((high['polls'],high['errors']),(1,[]))
+
+    def test_high_water_is_recorded_for_failed_groups_and_never_affects_custody(self):
+        self.cg(self.droot,pids_events='max 0\n',memory_events='oom_kill 0\n')
+        events={'before-remove':lambda:self.cg(self.droot,pids_events='max 4\n',memory_events='oom_kill 1\n')}
+        entry,_=self.run_group(FakeOwner(outcome='failed',cgroup=(self.droot,self.leaf),events=events))
+        self.assertEqual(entry['status'],'failed')
+        self.assertEqual((entry['highWater']['unit']['pidsEventsMaxDelta'],entry['highWater']['unit']['memoryEventsOomKillDelta']),(4,1))
+
+    def test_observer_never_raises_or_reads_outside_the_delegated_root(self):
+        state,control=self.ns['high_water_observer']()
+        outside=self.root/'elsewhere';outside.mkdir();(outside/'pids.peak').write_text('99\n')
+        for event,context in [('after-birth',{'delegatedRoot':7}),('poll',{'delegatedRoot':str(self.root/'missing')}),
+                ('poll',{'delegatedRoot':None}),('before-remove',{'delegatedRoot':str(self.droot),'leaf':str(outside)}),
+                ('before-remove',{'delegatedRoot':str(self.droot),'leaf':str(self.droot)+'-sibling/x'}),('unknown',{})]+[('poll',{'delegatedRoot':str(self.root/'missing')})]*6:
+            with self.subTest(event=event):control(event,context) # must not raise
+        self.assertIsNone(state['group']);self.assertEqual(len(state['errors']),4)
+        record=self.ns['high_water_record'](state);self.assertIsNone(record['group'])
+        self.assertEqual(self.ns['high_water_record']({'unitBefore':{'pidsEventsMax':'x'},'unitAfter':{'pidsEventsMax':1}})['unit']['pidsEventsMaxDelta'],None)
+        self.assertNotIn('open(os.path.join(droot,"memory.current"),"w',self.code);self.assertNotIn('write_text',ast.get_source_segment(self.code,
+            next(n for n in ast.parse(self.code).body if isinstance(n,ast.FunctionDef) and n.name=='high_water_observer')))
+
+    @unittest.skipUnless(OWNER_FILE,'set FSGG_MANAGED_GROUP_OWNER to the pinned owner file to check its hook events')
+    def test_the_pinned_owner_offers_the_hook_events_used(self):
+        source=Path(OWNER_FILE).read_text();self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),self.ns['OWNER']['sha256'])
+        spec=importlib.util.spec_from_file_location('hook_owner_check',OWNER_FILE);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        import inspect
+        self.assertIn('control',inspect.signature(module.run).parameters)
+        for event in ('after-birth','poll','before-remove'):self.assertIn("hook('"+event+"', context())",source)
+        self.assertIn("'leaf': leaf, 'delegatedRoot': droot",source)
+        self.assertIn("stage('hook', lambda: hook('before-remove', context()))",source) # every launched outcome
+
+    def test_phase_wall_clock_is_recorded_on_pass_and_on_failure(self):
+        case=InstalledAdmissionTests('test_admitted_sequence_runs_provisioning_custody_gate_and_27_case_installed_c');case.setUp()
+        self.addCleanup(case.doCleanups);case.admit()
+        summary=self.ns_run(case)
+        timing=summary['timing']
+        self.assertEqual(timing['budgetSeconds'],case.ns['INSTALLED_BUDGET'])
+        for key in ('setupStartedAt','setupSeconds','installedStartedAt','installedSeconds','checkerSeconds','sequenceSeconds'):
+            with self.subTest(key=key):self.assertIsInstance(timing[key],float)
+        self.assertEqual(set(timing['families']),{'chromium','firefox','webkit'})
+        for row in timing['families'].values():self.assertEqual(set(row),{'listSeconds','testSeconds'})
+        self.assertEqual(summary['installedC']['timing'],timing)
+        root=case.root/'rt/wasm-installed-c'
+        self.assertEqual(json.loads((root/'installed-run.json').read_text())['timing']['sequenceSeconds'],timing['sequenceSeconds'])
+        self.assertTrue(all('highWater' in r for r in json.loads((root/'managed-receipts.json').read_text())))
+        failing=InstalledAdmissionTests('test_admitted_sequence_runs_provisioning_custody_gate_and_27_case_installed_c');failing.setUp()
+        self.addCleanup(failing.doCleanups);owner=failing.admit();owner.outcome='failed'
+        with self.assertRaises((RuntimeError,ValueError)):failing.ns['admitted_installed_sequence'](failing.environ(),time.monotonic())
+        stopped=json.loads((failing.root/'rt/wasm-installed-c/installed-run.json').read_text())['timing']
+        self.assertIn('sequenceSeconds',stopped);self.assertIn('setupSecondsUntilStop',stopped);self.assertNotIn('setupSeconds',stopped)
+
+    def ns_run(self, case):
+        return case.ns['admitted_installed_sequence'](case.environ(),time.monotonic())
+
+    def test_checker_gets_are_bounded_retried_and_still_hash_checked(self):
+        text=CHECKER.read_text();start=text.index('if [[ "$mode" == wasm ]]; then\n  : "${DOTNET_HOST_PATH:?')
+        block=text[start:text.index('\n  exit 0\nfi\n',start)]
+        curls=[l.strip() for l in block.splitlines() if l.strip().startswith('curl ')]
+        self.assertEqual(len(curls),2);self.assertNotIn('--retry 0',block)
+        for line,target in zip(curls,('-o "$archive"','-o "$descriptor"')):
+            with self.subTest(target=target):
+                self.assertIn('--retry 3 --retry-all-errors --retry-max-time 60 --max-time 15 ',line);self.assertTrue(line.endswith(target))
+                self.assertIn('--fail',line);self.assertIn('--max-filesize',line)
+                for verb in (' -X',' --request',' -d ',' --data',' -T ',' --upload-file',' -F ',' --form',' -I ',' --head',' -G '):self.assertNotIn(verb,line) # GET only
+                for resume in (' -C ',' -C-',' --continue-at'):self.assertNotIn(resume,line) # no resume: a retry restarts the file
+        check=[l for l in block.splitlines() if 'reference-publication-check' in l];self.assertEqual(len(check),1)
+        for flag in ('--archive "$archive"','--descriptor "$descriptor"','--sha256 "$sha"','--descriptor-sha256 "$descriptor_sha"'):self.assertIn(flag,check[0])
+        self.assertLess(block.index('-o "$descriptor"'),block.index('reference-publication-check'))
+
+
+class ObservabilityFollowUpTests(unittest.TestCase):
+    """Admitter follow-ups on #744: memory at birth/removal with deltas, read-only observation,
+    installed-phase failure timing, and the bounded tag read."""
+    setUp=ObservabilityTests.setUp;cg=ObservabilityTests.cg;run_group=ObservabilityTests.run_group
+    def test_memory_growth_and_change_since_the_previous_group(self):
+        def stat(anon):return 'anon '+str(anon)+'\nfile 7\n'
+        self.cg(self.droot,memory_current='1000\n',memory_stat=stat(300))
+        steps=iter([('1000\n',stat(300)),('5000\n',stat(2300)),('1500\n',stat(400)),('2600\n',stat(900))])
+        def set_next():
+            current,anon=next(steps);self.cg(self.droot,memory_current=current,memory_stat=anon)
+        owner=FakeOwner(cgroup=(self.droot,self.leaf),events={'after-birth':set_next,'before-remove':set_next})
+        receipts=[];execute=self.ns['managed_executor'](owner,self.root,time.monotonic()+60,self.identities,'setup',receipts)
+        execute([str(self.tool)],self.root,{'PATH':'/usr/bin'})
+        later=self.ns['managed_executor'](owner,self.root,time.monotonic()+60,self.identities,'installed',receipts) # a new phase executor
+        later([str(self.tool)],self.root,{'PATH':'/usr/bin'})
+        first,second=(r['highWater']['unit'] for r in receipts)
+        self.assertEqual((first['memoryCurrentBytesAtBirth'],first['memoryCurrentBytesAtRemove'],first['memoryCurrentGrowthBytes']),(1000,5000,4000))
+        self.assertEqual((first['memoryAnonBytesAtBirth'],first['memoryAnonBytesAtRemove'],first['memoryAnonGrowthBytes']),(300,2300,2000))
+        self.assertIsNone(first['memoryCurrentSincePreviousGroupBytes']);self.assertIsNone(first['memoryAnonSincePreviousGroupBytes'])
+        self.assertEqual((second['memoryCurrentSincePreviousGroupBytes'],second['memoryAnonSincePreviousGroupBytes']),(1500-5000,400-2300))
+        self.assertEqual((second['memoryCurrentGrowthBytes'],second['memoryAnonGrowthBytes']),(1100,500))
+
+    def test_observation_only_reads_read_only_cgroup_files(self):
+        self.cg(self.droot,pids_peak='3\n',memory_peak='10\n',memory_current='5\n',memory_stat='anon 4\n',pids_events='max 0\n',memory_events='oom_kill 0\n')
+        self.cg(self.leaf,pids_peak='2\n',pids_events='max 0\n')
+        def restore():
+            for d in (self.leaf,self.droot):
+                d.chmod(0o755)
+                for f in d.iterdir():
+                    if f.is_file():f.chmod(0o644)
+        self.addCleanup(restore)
+        for d in (self.leaf,self.droot):
+            for f in d.iterdir():
+                if f.is_file():f.chmod(0o444)
+            d.chmod(0o555)
+        state,control=self.ns['high_water_observer']()
+        for event in ('after-birth','poll','before-retire','before-remove','after-cleanup'):control(event,{'delegatedRoot':str(self.droot),'leaf':str(self.leaf)})
+        self.assertEqual(state['errors'],[]);self.assertEqual(state['group']['pidsPeak'],2);self.assertEqual(state['unitAfter']['memoryAnonBytes'],4)
+        tree=ast.parse(self.code)
+        for name in ('cgroup_counters','high_water_observer'):
+            fn=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name==name)
+            opens=[c for c in ast.walk(fn) if isinstance(c,ast.Call) and getattr(c.func,'id',None)=='open']
+            self.assertTrue(opens)
+            for call in opens:
+                with self.subTest(function=name,line=call.lineno):
+                    self.assertEqual(len(call.args),1);self.assertEqual(call.keywords,[]) # default mode "r" only
+            for call in ast.walk(fn):
+                if isinstance(call,ast.Attribute):self.assertNotIn(call.attr,('write','write_text','write_bytes','unlink','rmdir','mkdir','chmod','kill'))
+
+    def failing_installed_run(self, fail_on):
+        case=InstalledAdmissionTests('test_admitted_sequence_runs_provisioning_custody_gate_and_27_case_installed_c');case.setUp()
+        self.addCleanup(case.doCleanups);owner=case.admit();owner.fail_on=fail_on
+        with self.assertRaises(RuntimeError):case.ns['admitted_installed_sequence'](case.environ(),time.monotonic())
+        return json.loads((case.root/'rt/wasm-installed-c/installed-run.json').read_text())
+
+    def test_installed_phase_failures_still_record_installed_and_checker_time(self):
+        checker=lambda profile:'failed' if any(a.endswith('verify-fable-reference-public.sh') for a in profile['argv']) else None
+        run=self.failing_installed_run(checker);timing=run['timing']
+        self.assertEqual(run['disposition'],'failed')
+        for key in ('setupSeconds','installedStartedAt','installedSeconds','checkerSeconds','sequenceSeconds'):
+            with self.subTest(failure='checker',key=key):self.assertIsInstance(timing[key],float)
+        self.assertNotIn('families',timing)
+        browser=lambda profile:'failed' if len(profile['argv'])>2 and profile['argv'][2]=='test' and '--list' not in profile['argv'] else None
+        timing=self.failing_installed_run(browser)['timing']
+        for key in ('installedSeconds','checkerSeconds','sequenceSeconds'):
+            with self.subTest(failure='first browser test',key=key):self.assertIsInstance(timing[key],float)
+        self.assertEqual(set(timing['families']['chromium']),{'listSeconds','testSeconds'})
+        self.assertNotIn('testSeconds',timing['families'].get('firefox',{}))
+
+    def test_refused_groups_record_no_hook_reading(self):
+        self.cg(self.droot,pids_peak='3\n')
+        entry,_=self.run_group(FakeOwner(outcome='refused',cgroup=(self.droot,self.leaf)))
+        self.assertEqual(entry['status'],'refused')
+        self.assertEqual((entry['highWater']['group'],entry['highWater']['polls'],entry['highWater']['errors']),(None,0,[]))
+        self.assertIsNone(entry['highWater']['unit']['pidsPeakCumulative'])
+
+    def test_tag_read_is_bounded_and_retried_and_still_compared(self):
+        text=CHECKER.read_text();start=text.index('if [[ "$mode" == wasm ]]; then\n  : "${DOTNET_HOST_PATH:?')
+        block=text[start:text.index('\n  exit 0\nfi\n',start)]
+        reads=[l.strip() for l in block.splitlines() if 'git ls-remote' in l]
+        self.assertEqual(len(reads),1);self.assertTrue(reads[0].startswith('if refs_text="$(timeout -k 5 20 git ls-remote --tags https://github.com/FS-GG/FS.GG.Templates.git '))
+        self.assertIn('  for attempt in 1 2 3; do\n',block);self.assertIn("sleep $((attempt * 5))",block)
+        self.assertIn("[[ \"$attempt\" -lt 3 ]] || { echo 'WASM public tag read failed after 3 bounded attempts' >&2; exit 1; }",block)
+        self.assertLess(block.index('mapfile -t remote_refs <<<"$refs_text"'),block.index("WASM public immutable tag mismatch"))
+        self.assertNotIn('push',reads[0]);self.assertNotIn('git fetch',block);self.assertNotIn('git clone',block)
 
 
 if __name__ == '__main__': unittest.main()

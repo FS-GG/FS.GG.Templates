@@ -915,3 +915,52 @@ at `056e739`, admission reset by #741) failed in `prepare_inputs` at managed gro
     - apt's sandbox user (root);
     - no Azure mirror file.
   - The evidence is posted on FS-GG/.github#4710.
+
+### Installed-C run 2 precondition: high-water, phase timing, bounded checker retries — 2026-10-22
+
+This is the precondition named by the second installed-C admission
+(FS-GG/.github#4710 comment 6352823677). It changes recording only; custody, profiles,
+limits and the admission literals are unchanged (`INSTALLED_ADMISSION = None`).
+
+- **(b) Per-group high-water.** `managed_executor` passes the pinned owner's public
+  `run(control=)` hook. The hook is read-only, never raises, and reads only at or below the
+  delegated root. Every managed receipt entry gains `highWater`:
+  - **group:** the group's own leaf at `before-remove`, giving `pids.peak` and the
+    `pids.events` max. Its memory fields are `None`, because the profile enables only the
+    `pids` controller on the leaf; enabling memory would mean setting `memory.max` and
+    `memory.swap.max=0`, which is a custody change.
+  - **unit:** the delegated root, giving cumulative `pids.peak` and `memory.peak`, plus this
+    group's deltas of the `pids.events` max, `memory.events` max and `oom_kill`, and the
+    maximum of `memory.current` sampled at each owner poll.
+  - The record is kept for every outcome, including refused and failed groups.
+  - The hosted binding probe checks real values under the real owner in a delegated unit.
+- **(c) Per-phase wall-clock.** `installed-run.json` and `installed-c.json` record:
+  - `budgetSeconds`, `setupSeconds` (up to `qualify_tools`), `installedSeconds` and
+    `checkerSeconds`;
+  - per-family Playwright `listSeconds` and `testSeconds`;
+  - `sequenceSeconds`, plus `setupSecondsUntilStop` when setup does not finish.
+- **(d) Bounded checker retries.** The checker's two `--mode wasm` fetches (the template
+  `.nupkg` and the descriptor) are idempotent GETs. They now use
+  `--retry 3 --retry-all-errors --retry-max-time 60 --max-time 15`, which keeps them well
+  within the installed budget.
+  - On a retry, curl restarts the output file. This was shown with Ubuntu 24.04's curl 8.5.0
+    against a server that drops the first response part-way through.
+  - The fetched bytes are still hash-checked by `reference-publication-check` (`--sha256`,
+    `--descriptor-sha256`).
+  - No other call in that step uses curl, and none is non-idempotent.
+- **Admitter follow-ups** (#744 decisions, after the critic's ACCEPT):
+  - **Unit memory around each group.** The unit's `memory.current` and `memory.stat` `anon`
+    are read at birth and at removal. The record gives growth within the group, and the
+    change since the previous group's removal, across phase executors.
+  - **Bounded tag read.** The checker's read-only `git ls-remote` makes 3 attempts of 20 s
+    each, with backoff, for at most 100 s. Its result is still compared with the tag.
+  - **Tests and fixes:**
+    - observation is checked against read-only fixture files, plus an AST scan that allows
+      only `open()` in default read mode;
+    - an installed-phase failure, at the checker and at the first browser test, still
+      records `installedSeconds` and `checkerSeconds`;
+    - curl may not use resume flags;
+    - refused groups record no hook reading;
+    - the timing comment now names the sequence start correctly.
+  - The hosted probe additionally requires real birth/removal memory readings and the
+    deltas since the previous group.

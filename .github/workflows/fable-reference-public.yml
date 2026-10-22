@@ -507,6 +507,67 @@ jobs:
               require(real.is_file() and not real.is_symlink(),"host image missing")
               return str(real),sha(real)
 
+          def cgroup_counters(directory):
+              # Read-only cgroup v2 high-water and event counters; an absent or unreadable file records None.
+              def read(name):
+                  try:
+                      with open(os.path.join(directory,name)) as source:return source.read(4096)
+                  except (OSError,TypeError,ValueError):return None
+              def number(text):
+                  text=(text or "").strip();return int(text) if text.isdigit() else None
+              def event(text,key):
+                  for line in (text or "").splitlines():
+                      parts=line.split()
+                      if len(parts)==2 and parts[0]==key and parts[1].isdigit():return int(parts[1])
+                  return None
+              pids,memory=read("pids.events"),read("memory.events")
+              return {"pidsPeak":number(read("pids.peak")),"pidsEventsMax":event(pids,"max"),"memoryPeakBytes":number(read("memory.peak")),
+                  "memoryEventsMax":event(memory,"max"),"memoryEventsOomKill":event(memory,"oom_kill"),
+                  "memoryCurrentBytes":number(read("memory.current")),"memoryAnonBytes":event(read("memory.stat"),"anon")}
+
+          def high_water_observer():
+              # The owner's public run(control=) hook, used for recording only: it never writes, reads only at
+              # or below the delegated root, and never raises (the owner records a raising hook as a failure).
+              state={"group":None,"unitBefore":None,"unitAfter":None,"unitMemoryCurrentMaxBytes":None,"polls":0,"errors":[]}
+              def control(event, context):
+                  try:
+                      droot=context.get("delegatedRoot");leaf=context.get("leaf")
+                      if not (isinstance(droot,str) and os.path.isabs(droot)):return
+                      if event=="after-birth":state["unitBefore"]=cgroup_counters(droot)
+                      elif event=="poll":
+                          state["polls"]+=1
+                          with open(os.path.join(droot,"memory.current")) as source:current=source.read(64).strip()
+                          if current.isdigit():state["unitMemoryCurrentMaxBytes"]=max(int(current),state["unitMemoryCurrentMaxBytes"] or 0)
+                      elif event=="before-remove":
+                          if isinstance(leaf,str) and leaf.startswith(droot.rstrip("/")+"/"):state["group"]=cgroup_counters(leaf)
+                          state["unitAfter"]=cgroup_counters(droot)
+                  except Exception as error:
+                      if len(state["errors"])<4:state["errors"].append(type(error).__name__+": "+str(error)[:200])
+              return state,control
+
+          def high_water_record(state, previous=None):
+              # Group: the group's own leaf at retirement (the profile enables only the pids controller there,
+              # so its memory fields are None). Unit: the delegated root; peaks are cumulative over the job,
+              # event counters are this group's deltas, memory.current is sampled at each owner poll, and
+              # memory.current / memory.stat anon are read at birth and removal: growth within this group and
+              # change since the previous group's removal (``previous``: that group's recorded unit row).
+              try:
+                  before,after=state.get("unitBefore") or {},state.get("unitAfter") or {}
+                  prior=previous or {}
+                  diff=lambda a,b:a-b if isinstance(a,int) and isinstance(b,int) and not isinstance(a,bool) and not isinstance(b,bool) else None
+                  delta=lambda k:diff(after.get(k),before.get(k))
+                  return {"group":state.get("group"),"unit":{"pidsPeakCumulative":after.get("pidsPeak"),"memoryPeakBytesCumulative":after.get("memoryPeakBytes"),
+                      "memoryCurrentMaxBytesSampled":state.get("unitMemoryCurrentMaxBytes"),"pidsEventsMaxDelta":delta("pidsEventsMax"),
+                      "memoryEventsMaxDelta":delta("memoryEventsMax"),"memoryEventsOomKillDelta":delta("memoryEventsOomKill"),
+                      "memoryCurrentBytesAtBirth":before.get("memoryCurrentBytes"),"memoryAnonBytesAtBirth":before.get("memoryAnonBytes"),
+                      "memoryCurrentBytesAtRemove":after.get("memoryCurrentBytes"),"memoryAnonBytesAtRemove":after.get("memoryAnonBytes"),
+                      "memoryCurrentGrowthBytes":delta("memoryCurrentBytes"),"memoryAnonGrowthBytes":delta("memoryAnonBytes"),
+                      "memoryCurrentSincePreviousGroupBytes":diff(before.get("memoryCurrentBytes"),prior.get("memoryCurrentBytesAtRemove")),
+                      "memoryAnonSincePreviousGroupBytes":diff(before.get("memoryAnonBytes"),prior.get("memoryAnonBytesAtRemove"))},
+                      "polls":state.get("polls"),"errors":state.get("errors")}
+              except Exception as error:
+                  return {"error":type(error).__name__+": "+str(error)[:200]}
+
           def managed_executor(owner, root, deadline, identities, phase, receipts):
               # Replaces the injected execute(argv, cwd, env): one managed group per call, all bound
               # to the caller's original phase deadline (never renewed per call).
@@ -539,8 +600,12 @@ jobs:
                       bound[str(path)]=sha(path)
                   entry={"phase":phase,"index":index,"name":name,"outDir":str(out_dir),"executable":real,"identityBasis":row["basis"],"inputs":bound,"status":"started"}
                   receipts.append(entry);notes=[record()]
+                  state,control=high_water_observer()
+                  # The previous group's unit row (shared across this job root's executors) anchors the deltas.
+                  previous=next(((r.get("highWater") or {}).get("unit") for r in reversed(receipts[:-1]) if ((r.get("highWater") or {}).get("unit") or {}).get("memoryCurrentBytesAtRemove") is not None),None)
                   try:
-                      receipt=owner.run(profile,env=dict(env),deadline=deadline,out_dir=str(out_dir))
+                      try:receipt=owner.run(profile,env=dict(env),deadline=deadline,out_dir=str(out_dir),control=control)
+                      finally:entry["highWater"]=high_water_record(state,previous) # recorded for every outcome
                   except owner.Refused as error:
                       retained=error.receipt or {}
                       entry.update(status="refused",code=error.code,firstCause=retained.get("firstCause") or str(error))
@@ -622,7 +687,7 @@ jobs:
               require(stats["expected"]==9 and stats["unexpected"]==stats["flaky"]==stats["skipped"]==0,"family "+family+" stats differ: "+json.dumps(stats,sort_keys=True))
               return stats
 
-          def installed_c(root, workspace, env, execute, identities, node):
+          def installed_c(root, workspace, env, execute, identities, node, timing=None):
               # The checker's source stage is one group; every Playwright --list and test invocation is its
               # own require-empty group, so detached browser/Vite groups cannot outlive their invocation.
               installed=root/"installed"
@@ -631,21 +696,28 @@ jobs:
               (installed/"qualification.json").write_text(json.dumps({"schema":"fable-reference-public/1","disposition":"started"})+"\n")
               bash,_=host_image("/bin/bash");bind_identity(identities,bash,"host-observed")
               checker=workspace/"tests/composition/fable-game/verify-fable-reference-public.sh"
-              execute(fixed_checker_argv(workspace,installed,bash),root,env,inputs=[checker])
+              timing=timing if timing is not None else {}
+              began=time.monotonic()
+              try:execute(fixed_checker_argv(workspace,installed,bash),root,env,inputs=[checker])
+              finally:timing["checkerSeconds"]=round(time.monotonic()-began,3)
               tests=installed/"direct/Browser.Tests";results=installed/"browser"
               require(tests.is_dir() and not tests.is_symlink(),"generated Browser.Tests receiver missing")
               results.mkdir(mode=0o700)
               browser_env={**env,"FsGgWasmPolicyExample":"true","FSGG_WASM_POLICY_EXAMPLE":"true","FSGG_WASM_RESULTS":str(results)}
-              summary={"schema":"fsgg.templates.wasm-installed-c/1","disposition":"incomplete","families":{}}
+              summary={"schema":"fsgg.templates.wasm-installed-c/1","disposition":"incomplete","families":{},"timing":timing}
+              def timed(family,key,action):
+                  began=time.monotonic()
+                  try:return action()
+                  finally:timing.setdefault("families",{}).setdefault(family,{})[key]=round(time.monotonic()-began,3)
               def report():(root/"installed-c.json").write_text(json.dumps(summary,indent=2)+"\n")
               try:
                   for family in WASM_FAMILIES:
                       (results/family).mkdir(mode=0o700)
-                      listed=managed_playwright(execute,node,tests,family,browser_env,list_only=True)
+                      listed=timed(family,"listSeconds",lambda:managed_playwright(execute,node,tests,family,browser_env,list_only=True))
                       (results/family/"list.json").write_text(listed)
                       summary["families"][family]={"listed":check_wasm_list(json.loads(listed),family)};report()
                   for family in WASM_FAMILIES:
-                      managed_playwright(execute,node,tests,family,browser_env)
+                      timed(family,"testSeconds",lambda:managed_playwright(execute,node,tests,family,browser_env))
                       summary["families"][family]["stats"]=check_wasm_result(json.loads((results/family/"report.json").read_bytes()),family);report()
               except BaseException as error:
                   summary["disposition"]="failed";summary["firstCause"]=type(error).__name__+": "+str(error)
@@ -1620,11 +1692,15 @@ jobs:
               workspace=pathlib.Path(environ["GITHUB_WORKSPACE"]);root=pathlib.Path(environ["RUNNER_TEMP"])/"wasm-installed-c"
               source=validate_installed_dispatch(environ,environ["CHECKOUT_HEAD"],root)
               env=fresh_environment(root,environ)
-              summary={"schema":"fsgg.templates.wasm-installed-c-run/1","disposition":"started","admission":INSTALLED_ADMISSION,"source":source,"owner":OWNER}
+              summary={"schema":"fsgg.templates.wasm-installed-c-run/1","disposition":"started","admission":INSTALLED_ADMISSION,"source":source,"owner":OWNER,
+                  "timing":{"budgetSeconds":dict(INSTALLED_BUDGET)}}
+              # Monotonic seconds since this sequence's ``start`` (taken by wasm-installed-c.py inside the unit,
+              # the same origin installed_deadline uses), not since the GitHub job started.
+              timing=summary["timing"];since=lambda:round(time.monotonic()-start,3)
               def write():(root/"installed-run.json").write_text(json.dumps(summary,indent=2)+"\n")
               try:
                   write();(root/"source.json").write_text(json.dumps(source,indent=2)+"\n")
-                  setup=installed_deadline(start,"setup",time.monotonic())
+                  setup=installed_deadline(start,"setup",time.monotonic());timing["setupStartedAt"]=since()
                   owner=load_owner(root,setup)
                   summary["probe"]=probe_containment(owner,root)
                   identities={};receipts=[]
@@ -1639,15 +1715,19 @@ jobs:
                   setup_run=managed_executor(owner,root,setup,identities,"setup",receipts)
                   provisioned=prepare_inputs(root,workspace,env,setup_run,download,setup,identities)
                   qualify_tools(root,env,setup_run)
+                  timing["setupSeconds"]=round(since()-timing["setupStartedAt"],3)
                   summary["hostValidation"]=provisioned["hostValidation"];write()
                   custody_gate(provisioned,admitted=True)
-                  installed=installed_deadline(start,"installed",time.monotonic())
-                  summary["installedC"]=installed_c(root,workspace,env,managed_executor(owner,root,installed,identities,"installed",receipts),identities,provisioned["node"])
+                  installed=installed_deadline(start,"installed",time.monotonic());timing["installedStartedAt"]=since()
+                  try:summary["installedC"]=installed_c(root,workspace,env,managed_executor(owner,root,installed,identities,"installed",receipts),identities,provisioned["node"],timing)
+                  finally:timing["installedSeconds"]=round(since()-timing["installedStartedAt"],3)
                   summary["disposition"]=summary["installedC"]["disposition"]
               except BaseException as error:
                   summary["disposition"]="failed";summary["firstCause"]=type(error).__name__+": "+str(error)
                   raise
               finally:
+                  timing["sequenceSeconds"]=since()
+                  if "setupStartedAt" in timing and "setupSeconds" not in timing:timing["setupSecondsUntilStop"]=round(since()-timing["setupStartedAt"],3)
                   notes=[]
                   try:write()
                   except Exception as reporting:notes.append("installed summary reporting failure: "+type(reporting).__name__+": "+str(reporting))
