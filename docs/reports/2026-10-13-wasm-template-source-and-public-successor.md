@@ -889,5 +889,29 @@ at `056e739`, admission reset by #741) failed in `prepare_inputs` at managed gro
   - On the fix the control passes in 18 s. ProviderTool FSharp.Core resolves from the SDK
     library-packs (`IGqjL9U8…`), and both receivers resolve from nuget.org (`/lvOK51K…`).
   - On the pre-fix argv it reproduces the run's NU1403.
-- **Before any new admission:** a full local rehearsal of the never-hosted path is required.
-  Its evidence is posted on FS-GG/.github#4710.
+- **Local rehearsal (2026-10-22, source `e004cd2`): passed 27/27.** It ran in a fresh
+  ubuntu 24.04.5 container that approximates the runner image, with clean caches.
+  - **What ran unchanged:** the recorded apt step and post-step check (verbatim), then the
+    caller's actual `admitted_installed_sequence`:
+    - pinned owner acquisition and import;
+    - `prepare_inputs`, with all 17 pinned acquisitions;
+    - `qualify_tools`, `custody_gate` and `installed_c`;
+    - evidence collection.
+  - **Results:**
+    - all 25 groups succeeded, with no residue;
+    - the ProviderTool restored from the SDK library-packs;
+    - the checker returned `source-passed`, and both receivers resolved from nuget.org;
+    - Chromium, Firefox and WebKit each gave 9 listed / 9 expected, 0 unexpected, flaky or
+      skipped.
+  - **Substituted, because no hosted identity exists locally:**
+    - dispatch validation and the systemd unit readback (both passed hosted in run
+      39858275028);
+    - the owner's cgroup launch: the real `validate_profile` still checked every profile, and
+      leaders started with `no_new_privs` and admitted images; require-empty was approximated
+      by a container-wide live-process scan; pidsMax and memory were not enforced.
+  - **Not representative:**
+    - local timing: 113 s in total, against the 2400 s budget;
+    - the image approximation;
+    - apt's sandbox user (root);
+    - no Azure mirror file.
+  - The evidence is posted on FS-GG/.github#4710.
