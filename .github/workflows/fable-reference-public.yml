@@ -558,7 +558,7 @@ jobs:
 
           def hosted_sequence(environ, start):
               # Bound order: exact source, fresh closed environment, pinned owner, containment probe,
-              # provisioning, the custody gate, then installed C. Every process is a managed group.
+              # provisioning, tool qualification, the custody gate, then installed C. Every process is a managed group.
               workspace=pathlib.Path(environ["GITHUB_WORKSPACE"]);root=pathlib.Path(environ["RUNNER_TEMP"])/"fable-wasm-installed-c"
               source=validate_source(environ,environ["CHECKOUT_HEAD"],root)
               env=fresh_environment(root,environ)
@@ -567,7 +567,9 @@ jobs:
               owner=load_owner(root,setup)
               probe_containment(owner,root)
               identities={};receipts=[]
-              provisioned=prepare_inputs(root,workspace,env,managed_executor(owner,root,setup,identities,"setup",receipts),download,setup,identities)
+              setup_run=managed_executor(owner,root,setup,identities,"setup",receipts)
+              provisioned=prepare_inputs(root,workspace,env,setup_run,download,setup,identities)
+              qualify_tools(root,env,setup_run) # actual tool versions, still inside the setup deadline
               custody_gate(provisioned)
               installed=phase_deadline(start,"installed",time.monotonic())
               return installed_c(root,workspace,env,managed_executor(owner,root,installed,identities,"installed",receipts),identities,provisioned["node"])
@@ -615,16 +617,22 @@ jobs:
               require(tests.is_dir() and not tests.is_symlink(),"generated Browser.Tests receiver missing")
               results.mkdir(mode=0o700)
               browser_env={**env,"FsGgWasmPolicyExample":"true","FSGG_WASM_POLICY_EXAMPLE":"true","FSGG_WASM_RESULTS":str(results)}
-              summary={"schema":"fsgg.templates.wasm-installed-c/1","families":{}}
+              summary={"schema":"fsgg.templates.wasm-installed-c/1","disposition":"incomplete","families":{}}
               def report():(root/"installed-c.json").write_text(json.dumps(summary,indent=2)+"\n")
-              for family in WASM_FAMILIES:
-                  (results/family).mkdir(mode=0o700)
-                  listed=managed_playwright(execute,node,tests,family,browser_env,list_only=True)
-                  (results/family/"list.json").write_text(listed)
-                  summary["families"][family]={"listed":check_wasm_list(json.loads(listed),family)};report()
-              for family in WASM_FAMILIES:
-                  managed_playwright(execute,node,tests,family,browser_env)
-                  summary["families"][family]["stats"]=check_wasm_result(json.loads((results/family/"report.json").read_bytes()),family);report()
+              try:
+                  for family in WASM_FAMILIES:
+                      (results/family).mkdir(mode=0o700)
+                      listed=managed_playwright(execute,node,tests,family,browser_env,list_only=True)
+                      (results/family/"list.json").write_text(listed)
+                      summary["families"][family]={"listed":check_wasm_list(json.loads(listed),family)};report()
+                  for family in WASM_FAMILIES:
+                      managed_playwright(execute,node,tests,family,browser_env)
+                      summary["families"][family]["stats"]=check_wasm_result(json.loads((results/family/"report.json").read_bytes()),family);report()
+              except BaseException as error:
+                  summary["disposition"]="failed";summary["firstCause"]=type(error).__name__+": "+str(error)
+                  try:report()
+                  except Exception as reporting:error.add_note("independent installed-C reporting failure: "+type(reporting).__name__+": "+str(reporting))
+                  raise
               summary["disposition"]="passed";report()
               return summary
 

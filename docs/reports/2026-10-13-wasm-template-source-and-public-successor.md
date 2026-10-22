@@ -526,15 +526,20 @@ no browser. The caller's `installed_c` takes over from there:
 - It writes `installed-c.json`.
 
 A browser or Vite process left behind by a family fails that invocation's group, and
-the group retires it. `hosted_sequence` reaches `installed_c` only after
-`custody_gate`, which refuses until the three-family custody pilot is admitted. The
+the group retires it. `hosted_sequence` runs provisioning and
+tool-version qualification under the setup deadline, then `custody_gate`, which
+refuses until the three-family custody pilot is admitted, and only then
+`installed_c` under its own installed-phase deadline. If a family fails,
+`installed-c.json` records `failed` and its first cause. The
 literal step, upload and `RUNTIME_ADMITTED` holds are unchanged.
 
 Other changes in this follow-up:
 - The browser host validator is content-addressed
   (`browser-host-validation.<sha256>.cjs`, mode 0400), so its hash is part of the
   argv and therefore of `profileSha256`.
-- Each managed group records the hashes of the script inputs it reads.
+- Each managed group records the hashes of its declared script inputs (the
+  validator and the checker). Playwright's own `cli.js` and the generated config are
+  not hashed per group.
 - An unexpected owner exception keeps every report note.
 
 A fixture-driven test runs the actual provisioning sequence, tool qualification and

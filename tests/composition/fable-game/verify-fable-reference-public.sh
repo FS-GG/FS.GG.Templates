@@ -203,7 +203,7 @@ with open(path, 'w') as out:
       'archiveSha256':archive,'descriptorSha256':descriptor,
       'sdd':None,'wizard':None,'wizardQualification':'pending',
       'firefoxProfile':os.environ['FSGG_WASM_FIREFOX_PROFILE'],
-      'workerCleanupBoundary':'wrapper handles/terminate-call receipts; native exit unknown'}, out, indent=2)
+      'workerCleanupBoundary':'browser workers run in caller-managed groups, not by this checker'}, out, indent=2)
     out.write('\n')
 WASM_RECEIPT
     exit "$rc"

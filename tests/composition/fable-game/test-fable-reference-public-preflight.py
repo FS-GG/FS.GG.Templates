@@ -872,7 +872,11 @@ def drive_every_call_site(ns, base, owner):
         elif 'browser-host-validation' in ' '.join(argv):
             return json.dumps({'platform':'ubuntu24.04-x64','names':[n for n,_,_ in ns['BROWSER_REGISTRY'].values()],'state':'stock-host-validation-passed-runtime-pending'})
         elif exe=='verify-fable-reference-public.sh' or (len(argv)>1 and argv[1].endswith('verify-fable-reference-public.sh')):
-            (installed/'direct/Browser.Tests').mkdir(parents=True)
+            evidence=Path(argv[argv.index('--evidence-dir')+1])
+            # The real shell refuses unless the evidence dir is 0700 and holds only qualification.json.
+            if stat.S_IMODE(evidence.stat().st_mode)!=0o700 or sorted(os.listdir(evidence))!=['qualification.json']:
+                raise RuntimeError('checker usage: evidence dir must be 0700 with only qualification.json')
+            (evidence/'direct/Browser.Tests').mkdir(parents=True)
         elif len(argv)>2 and argv[2]=='test':
             family=owner.env_of(profile)['PLAYWRIGHT_BROWSER_FAMILY']
             if '--list' in argv:return json.dumps(report_for(family))
@@ -966,7 +970,7 @@ class ManagedGroupBindingTests(unittest.TestCase):
         def provision(root,workspace,env,execute,acquire,deadline,identities):
             seen.append((root,workspace,deadline,identities,acquire));return {'node':'/node'}
         def installed(*args,**kwargs):raise AssertionError('installed C ran past the custody gate')
-        self.ns['prepare_inputs']=provision;self.ns['installed_c']=installed
+        self.ns['prepare_inputs']=provision;self.ns['installed_c']=installed;self.ns['qualify_tools']=lambda root,env,execute:None
         start=time.monotonic()
         with self.assertRaisesRegex(RuntimeError,'custody pilot remain unadmitted; installed C held'):
             self.ns['hosted_sequence'](self.environ(),start)
@@ -1043,6 +1047,13 @@ class ManagedGroupBindingTests(unittest.TestCase):
         with self.assertRaisesRegex(OSError,'unexpected owner failure'):execute([str(self.tool)],self.root,{})
         self.assertEqual(json.loads((self.root/'managed-receipts.json').read_text())[-1]['status'],'error')
 
+    def test_unexpected_owner_exception_keeps_the_first_report_note(self):
+        (self.root/'managed-receipts.json').mkdir() # every index write fails
+        execute,receipts=self.executor(FakeOwner('crash'))
+        with self.assertRaisesRegex(OSError,'unexpected owner failure') as caught:execute([str(self.tool)],self.root,{})
+        notes=[n for n in caught.exception.__notes__ if 'independent managed receipt reporting failure' in n]
+        self.assertEqual(len(notes),2) # the index write before run and the one after
+
     def test_every_call_site_is_one_bounded_group_and_each_playwright_invocation_its_own(self):
         owner=FakeOwner()
         root,receipts,summary=drive_every_call_site(self.ns,self.root,owner)
@@ -1065,6 +1076,9 @@ class ManagedGroupBindingTests(unittest.TestCase):
             [('chromium',True),('firefox',True),('webkit',True),('chromium',False),('firefox',False),('webkit',False)])
         for call in playwright:
             self.assertEqual(call['env']['FSGG_WASM_RESULTS'],str(root/'installed/browser'))
+            self.assertEqual((call['env']['FsGgWasmPolicyExample'],call['env']['FSGG_WASM_POLICY_EXAMPLE']),('true','true'))
+            self.assertEqual(call['env']['FSGG_WASM_FIREFOX_PROFILE'],'content-sandbox-enabled')
+            self.assertNotIn('PLAYWRIGHT_EXECUTABLE_PATH',call['env']);self.assertNotIn('MOZ_DISABLE_CONTENT_SANDBOX',call['env'])
             self.assertEqual(call['profile']['cwd'],str(root/'installed/direct/Browser.Tests'))
         checker=[r for r in receipts if r['executable'].endswith('bash')]
         self.assertEqual(len(checker),1);self.assertEqual(len(checker[0]['inputs']),1)
@@ -1085,7 +1099,7 @@ class ManagedGroupBindingTests(unittest.TestCase):
         stats={'config':{'projects':[{'name':'webkit'}]},'stats':{'expected':8,'unexpected':1,'flaky':0,'skipped':0}}
         with self.assertRaisesRegex(ValueError,'family webkit stats differ'):self.ns['check_wasm_result'](stats,'webkit')
         # A failed Playwright group stops installed C at that family and keeps its receipt.
-        owner=FakeOwner();failing={'n':0}
+        owner=FakeOwner()
         original=FakeOwner.run
         def run(self_,profile,**kwargs):
             if len(profile['argv'])>2 and profile['argv'][2]=='test' and '--list' not in profile['argv']:
@@ -1096,6 +1110,52 @@ class ManagedGroupBindingTests(unittest.TestCase):
         index=json.loads((self.root/'job/managed-receipts.json').read_text())
         self.assertEqual(index[-1]['status'],'failed');self.assertEqual(len(index),23)
         self.assertFalse((self.root/'job/installed/browser/chromium/report.json').exists())
+        summary=json.loads((self.root/'job/installed-c.json').read_text())
+        self.assertEqual(summary['disposition'],'failed');self.assertIn('leader exited with live contained members',summary['firstCause'])
+
+    def test_moved_assertions_refuse_each_population_and_stats_drift(self):
+        def listing(name='firefox',project='firefox',ident='firefox',count=9):
+            return {'config':{'projects':[{'name':name}]},'suites':[{'specs':[{'tests':[{'projectName':project,'projectId':ident}]*count}]}]}
+        self.assertEqual(self.ns['check_wasm_list'](listing(),'firefox'),9)
+        for kwargs in ({'project':'chromium'},{'ident':'chromium'}):
+            with self.subTest(**kwargs),self.assertRaisesRegex(ValueError,'wrong selected project population'):self.ns['check_wasm_list'](listing(**kwargs),'firefox')
+        good={'expected':9,'unexpected':0,'flaky':0,'skipped':0}
+        self.assertEqual(self.ns['check_wasm_result']({'config':{'projects':[{'name':'webkit'}]},'stats':good},'webkit'),good)
+        for key in ('unexpected','flaky','skipped'):
+            with self.subTest(key=key),self.assertRaisesRegex(ValueError,'stats differ'):
+                self.ns['check_wasm_result']({'config':{'projects':[{'name':'webkit'}]},'stats':{**good,key:1}},'webkit')
+        with self.assertRaisesRegex(ValueError,'runtime family differs'):
+            self.ns['check_wasm_result']({'config':{'projects':[{'name':'chromium'}]},'stats':good},'webkit')
+
+    def test_installed_c_refuses_an_occupied_evidence_root(self):
+        owner=FakeOwner();execute,_=self.executor(owner)
+        (self.root/'installed').mkdir()
+        with self.assertRaisesRegex(ValueError,'installed evidence root occupied'):
+            self.ns['installed_c'](self.root,self.root,{},execute,self.identities,str(self.tool))
+        self.assertEqual(owner.calls,[])
+
+    def test_hosted_sequence_qualifies_tools_then_hands_installed_c_its_own_phase_deadline(self):
+        owner=FakeOwner();made=[];order=[]
+        self.ns['load_owner']=lambda root,deadline:owner
+        original=self.ns['managed_executor']
+        def executor(owner_,root,deadline,identities,phase,receipts):
+            run=original(owner_,root,deadline,identities,phase,receipts);made.append((phase,deadline,receipts,run));return run
+        self.ns['managed_executor']=executor
+        def provision(root,workspace,env,execute,acquire,deadline,identities):order.append(('provision',execute,deadline));return {'node':'/node'}
+        def qualify(root,env,execute):order.append(('qualify',execute))
+        def gate(provisioned):order.append(('gate',provisioned['node']))
+        def installed(root,workspace,env,execute,identities,node):order.append(('installed',execute,node));return 'installed'
+        self.ns.update(prepare_inputs=provision,qualify_tools=qualify,custody_gate=gate,installed_c=installed)
+        start=time.monotonic()
+        self.assertEqual(self.ns['hosted_sequence'](self.environ(),start),'installed')
+        self.assertEqual([step[0] for step in order],['provision','qualify','gate','installed'])
+        (setup_phase,setup,setup_receipts,setup_run),(installed_phase,deadline,installed_receipts,installed_run)=made
+        self.assertEqual((setup_phase,installed_phase),('setup','installed'))
+        self.assertIs(order[0][1],setup_run);self.assertIs(order[1][1],setup_run);self.assertIs(order[3][1],installed_run)
+        self.assertEqual(order[0][2],setup);self.assertIs(setup_receipts,installed_receipts)
+        budget=self.ns['BUDGET']
+        self.assertLessEqual(deadline,start+budget['job']-budget['cleanup']-budget['collection']-budget['overhead']+1)
+        self.assertNotEqual(deadline,setup);self.assertLessEqual(deadline-time.monotonic(),budget['installed'])
 
     def test_bind_identity_refuses_symlink_drift_conflict_and_unknown_basis(self):
         alias=self.root/'alias';alias.symlink_to(self.tool)
