@@ -1692,10 +1692,12 @@ class CustodyPilotTests(unittest.TestCase):
         finish=apt.split('finish() {',1)[1].split('          }',1)[0]
         for written in ('update-exit.txt','install-exit.txt','dpkg-after.tsv','dpkg-diff.txt','step-complete.txt','apt-mirrors-after.txt','dpkg-settle.txt'):self.assertIn(written,finish)
         self.assertTrue(finish.lstrip().startswith('local rc=$?')) # the status that ended the step, captured first
+        self.assertIn('''            cp /etc/apt/apt-mirrors.txt "$host/apt-mirrors-after.txt" 2>/dev/null || printf 'absent\\n' >"$host/apt-mirrors-after.txt"\n''',finish)
         loop='while pgrep -x dpkg >/dev/null 2>&1 && (( waited < 20 )); do sleep 1; waited=$((waited + 1)); done'
         self.assertIn(loop,finish);self.assertLess(finish.index(loop),finish.index('snapshot >"$host/dpkg-after.tsv"')) # dpkg settles before the after-state
         self.assertLessEqual(60+10+480+15+20,10*60-10) # bounded calls plus the dpkg settle fit the 10-minute step
-        self.assertIn('''trap 'printf "signal TERM\\n" >"$host/step-signal.txt"; exit 143' TERM''',apt)
+        # Signal traps would defer until the foreground apt call ends and lose the evidence on cancel.
+        self.assertEqual(re.findall(r'^\s*trap .*$',apt,re.M),['          trap finish EXIT'])
         self.assertIn('''update -q >"$host/update.log" 2>&1\n          printf '%s\\n' "$?" >"$host/update-exit.txt"\n''',apt)
         self.assertIn('''install -y -q --no-install-recommends "${packages[@]}" >"$host/install.log" 2>&1\n          printf '%s\\n' "$?" >"$host/install-exit.txt"\n''',apt)
         self.assertIn('''grep -Eq '^[a-z]+://archive\\.ubuntu\\.com/ubuntu/?([[:space:]]|$)' "$mirrors"''',apt)

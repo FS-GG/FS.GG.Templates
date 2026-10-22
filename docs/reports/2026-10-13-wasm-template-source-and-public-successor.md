@@ -720,10 +720,14 @@ admits one final dispatch with the same conditions, with these changes:
   The step timeout is 10 minutes and the job timeout 40.
 - **Trap-written evidence.** An `EXIT` trap always writes the update and install exit
   codes (`not-run` if never reached), the dpkg after-snapshot, the diff, the mirror
-  list after, and a `step-complete` marker. TERM and INT end the step with their own
-  status (143 or 130). apt runs dpkg in its own session, out of `timeout`'s reach, so
-  the trap waits up to 20 s for dpkg to settle before snapshotting, and records the
-  wait.
+  list after, and a `step-complete` marker. There are deliberately no TERM or INT
+  traps: bash would defer them until the foreground apt call ended, and the runner's
+  tree kill on cancel would then arrive before any evidence was written. Untrapped,
+  a cancel ends bash at once and the `EXIT` trap still writes everything.
+  `step-complete` then shows the last command's status, and the state comes from the
+  markers (attempted with `not-run` means interrupted). apt runs dpkg in its own
+  session, out of `timeout`'s reach, so the trap waits up to 20 s for dpkg to settle
+  before snapshotting, and records the wait.
 - **Marker-based state.** `update-attempted` and `install-attempted` markers are
   written before each call, so the pilot derives the state from the step's own
   markers: `installed`, `install-timed-out` (install exit 124 or 137),

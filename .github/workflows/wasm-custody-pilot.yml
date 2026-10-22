@@ -98,10 +98,11 @@ jobs:
             cp /etc/apt/apt-mirrors.txt "$host/apt-mirrors-after.txt" 2>/dev/null || printf 'absent\n' >"$host/apt-mirrors-after.txt"
             printf 'step-exit %s\n' "$rc" >"$host/step-complete.txt"
           }
+          # No TERM/INT traps: bash defers a trapped signal until the foreground apt call ends, so a
+          # cancelled step would be tree-killed before writing anything. Untrapped, SIGTERM ends bash at
+          # once and this EXIT trap still writes the evidence (step-complete then shows the last
+          # command's status; the state comes from the markers: attempted + not-run = interrupted).
           trap finish EXIT
-          # A signal ends the step with its own status, so step-complete records it (not the last command's).
-          trap 'printf "signal TERM\n" >"$host/step-signal.txt"; exit 143' TERM
-          trap 'printf "signal INT\n" >"$host/step-signal.txt"; exit 130' INT
           python3 -I tests/composition/fable-game/wasm-custody-pilot.py --print-webkit-packages >"$host/packages.txt"
           snapshot >"$host/dpkg-before.tsv"
           for source in /etc/apt/sources.list /etc/apt/sources.list.d/*; do
