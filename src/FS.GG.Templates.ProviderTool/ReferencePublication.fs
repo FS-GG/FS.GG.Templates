@@ -25,15 +25,14 @@ type InstalledTool = { EntryCount: int; CorePath: string }
 
 let private packageId = "FS.GG.Workspace.Template"
 let private version = "0.18.1"
-// Additive WASM successors. 0.19.1 carries the byte-exact C guest sources that 0.19.0 Complete
+// Additive WASM successors. 0.19.1 and 0.19.2 carry the byte-exact C guest sources that 0.19.0 Complete
 // scaffolds truncated; both keep the same direct-only scope and source closure.
-let private wasmSuccessors = [ "0.19.0"; "0.19.1" ]
+let private wasmSuccessors = [ "0.19.0"; "0.19.1"; "0.19.2" ]
 // Current public successor (FS-GG/.github#4709). Published 0.19.2 is the newest public default
-// that Wizard 0.21.0 resolves. It carries the same Complete WASM source closure, but unlike the
-// direct-only WASM successors it is admitted on the provider and Wizard receiver routes.
+// that Wizard 0.21.0 resolves. It keeps the WASM successors' Complete source closure, but unlike
+// their direct-only scope it is also admitted on the provider and Wizard receiver routes.
 let private currentPublicSuccessors = [ "0.19.2" ]
-let private wasmClosureVersions = wasmSuccessors @ currentPublicSuccessors
-let private supportedVersions = version :: wasmClosureVersions
+let private supportedVersions = version :: wasmSuccessors
 let private templateId = "fs-gg-fable-game"
 let private hex64 = Regex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)
 let private hex40 = Regex("^[0-9a-f]{40}$", RegexOptions.CultureInvariant)
@@ -233,12 +232,12 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
                     let doc = XDocument.Load stream
                     let versions = doc.Descendants() |> Seq.filter (fun e -> e.Name.LocalName = "version") |> Seq.map _.Value |> Seq.toList
                     match versions with
-                    | [ selected ] when List.contains selected wasmClosureVersions ->
+                    | [ selected ] when List.contains selected wasmSuccessors ->
                         let templateTransform (raw: byte array) (actual: byte array) =
                             let text = UTF8Encoding(false, true).GetString raw
                             same (UTF8Encoding(false).GetBytes(text.Replace("FableGameWorkspaceNamespace", productName, StringComparison.Ordinal).Replace("FableGameWorkspace", productName, StringComparison.Ordinal))) actual
                         let mismatch = wasmRelative |> List.exists (fun name -> not (exact (prefix + name) templateTransform))
-                        mismatch, (List.contains selected wasmSuccessors && route <> "direct")
+                        mismatch, (not (List.contains selected currentPublicSuccessors) && route <> "direct")
                     | _ -> false, false
                 | _ -> true, false
             let mismatched =
@@ -349,7 +348,7 @@ let validate request =
                     elif duplicate || directoryCollides then refuse "archive-duplicate-entry-refused"
                     elif oversized || total > 128L * 1024L * 1024L then refuse "archive-entry-bound-refused"
                     elif linked then refuse "archive-link-refused"
-                    elif (required @ (if List.contains request.ExpectedVersion wasmClosureVersions then
+                    elif (required @ (if List.contains request.ExpectedVersion wasmSuccessors then
                                           wasmRelative |> List.map (fun name -> "content/templates/fs-gg-fable-game/" + name)
                                       else []))
                          |> List.exists (fun name -> archive.GetEntry(name) |> Option.ofObj |> Option.forall (fun e -> e.Length = 0L)) then refuse "reference-member-missing"

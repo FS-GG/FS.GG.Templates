@@ -157,8 +157,9 @@ current_wizard_revision=12480a2083a00e0ccc91f3e0f3111d56108d755c
 # public Workspace.Template 0.18.2 project-knowledge registration before any target effect.
 current_overlay_sha=496aad0e89496719bc543edc6ffbf829a82307862e630ba4e174e374ac11cc4e
 if [[ "$mode" == wasm ]]; then
-  # Published 0.19.1 is the selected WASM receiver: 0.19.0 Complete scaffolds truncate guest/policy.c.
-  [[ "$version" == 0.19.1 && -z "$sdd_version$sdd_sha$sdd_revision$wizard_version$wizard_sha$wizard_revision" ]] || usage
+  # Published 0.19.2 is the selected WASM receiver (0.19.0 Complete scaffolds truncate guest/policy.c;
+  # 0.19.1 is superseded by 0.19.2, which adopts Rendering 0.32.3).
+  [[ "$version" == 0.19.2 && -z "$sdd_version$sdd_sha$sdd_revision$wizard_version$wizard_sha$wizard_revision" ]] || usage
 else
   # Closed published cohorts. 0.18.1/SDD 2.1.0/Wizard 0.16.0 is historical; 0.19.2/SDD 2.4.0/
   # Wizard 0.21.0 is the current public default the documented install resolves (FS-GG/.github#4709).

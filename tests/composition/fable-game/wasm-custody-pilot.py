@@ -41,8 +41,17 @@ def main():
             raise SystemExit('admitted package list invalid')
         print('\n'.join(packages))
         return 0
+    if sys.argv[1:] == ['--check-admission']:
+        # Pre-host-write gate: refuse (exit 3) before the apt step unless source carries the admission.
+        try:
+            caller['admission_precheck'](os.environ, caller['PILOT_ADMISSION'])
+        except ValueError as error:
+            print('custody pilot refused before any host write: ' + str(error), file=sys.stderr)
+            return 3
+        print('custody pilot admission bound: ' + caller['PILOT_ADMISSION'])
+        return 0
     if sys.argv[1:]:
-        raise SystemExit('usage: wasm-custody-pilot.py [--print-webkit-packages]')
+        raise SystemExit('usage: wasm-custody-pilot.py [--print-webkit-packages | --check-admission]')
     summary = caller['pilot_sequence'](os.environ, start)
     print(json.dumps({key: summary.get(key) for key in ('disposition', 'reasons', 'evidence')}, indent=2, default=str))
     return 0 if summary['disposition'] == 'completed' else 1

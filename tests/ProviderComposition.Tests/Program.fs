@@ -260,18 +260,17 @@ let main _ =
     | Error x -> failwithf "0.19.1 successor refused: %s" x
     assertEqual "0.19.1 descriptor pin cannot select another successor" (Error "descriptor-source-refused")
         (validate { successorRequest successorComplete "0.19.1" with Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::0.19.0" } })
-    // Published 0.19.2 is the selected current public successor (FS-GG/.github#4709).
-    let currentPartial = Path.Combine(temp, "current-0.19.2-partial.nupkg")
-    makeSuccessorArchive currentPartial "0.19.2" false
-    assertEqual "0.19.2 current successor without the WASM source closure refuses" (Error "reference-member-missing")
-        (validate (successorRequest currentPartial "0.19.2"))
-    let currentComplete = Path.Combine(temp, "current-0.19.2.nupkg")
-    makeSuccessorArchive currentComplete "0.19.2" true
-    match validate (successorRequest currentComplete "0.19.2") with
-    | Ok _ -> printfn "PASS 0.19.2 current successor closes the WASM source closure"
-    | Error x -> failwithf "0.19.2 current successor refused: %s" x
+    let successor192 = Path.Combine(temp, "successor-0.19.2.nupkg")
+    makeSuccessorArchive successor192 "0.19.2" true
+    match validate (successorRequest successor192 "0.19.2") with
+    | Ok _ -> printfn "PASS 0.19.2 successor closes the WASM source closure"
+    | Error x -> failwithf "0.19.2 successor refused: %s" x
+    let successor192Partial = Path.Combine(temp, "successor-0.19.2-partial.nupkg")
+    makeSuccessorArchive successor192Partial "0.19.2" false
+    assertEqual "0.19.2 successor without the WASM source closure refuses" (Error "reference-member-missing")
+        (validate (successorRequest successor192Partial "0.19.2"))
     assertEqual "0.19.2 descriptor pin cannot select 0.19.1" (Error "descriptor-source-refused")
-        (validate { successorRequest currentComplete "0.19.2" with Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::0.19.1" } })
+        (validate { successorRequest successor192 "0.19.2" with Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::0.19.1" } })
     let unselected = Path.Combine(temp, "successor-0.19.3.nupkg")
     makeSuccessorArchive unselected "0.19.3" true
     assertEqual "unselected 0.19.3 refuses" (Error "selected-version-refused") (validate (successorRequest unselected "0.19.3"))
