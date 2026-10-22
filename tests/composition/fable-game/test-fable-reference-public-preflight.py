@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 import ast
+import base64
 import copy
 import hashlib
 import io
@@ -314,7 +315,8 @@ class HostedWasmCallerTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.ns['phase_deadline'](100,'installed',2400)
         with self.assertRaises(ValueError):self.ns['phase_deadline'](100,'other',100)
     def test_fixed_checker_has_no_sdd_wizard_inputs(self):
-        argv=self.ns['fixed_checker_argv'](self.root,self.root/'installed')
+        argv=self.ns['fixed_checker_argv'](self.root,self.root/'installed','/usr/bin/bash')
+        self.assertEqual(argv[0],'/usr/bin/bash')
         self.assertIn('wasm',argv);self.assertIn('0.19.1',argv);self.assertNotIn('0.19.0',argv)
         self.assertEqual(argv.count(self.ns['PUBLISHED']),2)
         self.assertNotIn('--sdd-version',argv);self.assertNotIn('--wizard-version',argv)
@@ -696,8 +698,11 @@ class HostedWasmCallerTests(unittest.TestCase):
 
     def test_host_validation_calls_stock_validator_without_install_or_forged_marker(self):
         registrations=self.validation_fixture();calls=[]
-        def execute(argv,cwd,env):
-            calls.append(argv);self.assertEqual(argv[1],str(self.root/'browser-host-validation.cjs'))
+        def execute(argv,cwd,env,inputs=()):
+            calls.append(argv);self.assertEqual(list(map(str,inputs)),[argv[1]])
+            self.assertRegex(argv[1],r'/browser-host-validation\.[0-9a-f]{64}\.cjs$')
+            self.assertEqual(Path(argv[1]).name.split('.')[1],hashlib.sha256(Path(argv[1]).read_bytes()).hexdigest())
+            self.assertEqual(stat.S_IMODE(Path(argv[1]).stat().st_mode),0o400)
             self.assertFalse(any(ord(c)<32 for arg in argv for c in arg))
             script=Path(argv[1]).read_text();self.assertIn('validateHostRequirementsForExecutablesIfNeeded(actual',script)
             self.assertIn('require(process.argv[2]),expected=JSON.parse(process.argv[3])',script)
@@ -719,7 +724,7 @@ class HostedWasmCallerTests(unittest.TestCase):
 
     def test_host_validation_failure_does_not_become_runtime_pass(self):
         registrations=self.validation_fixture()
-        def execute(*args):raise RuntimeError('actual missing host dependency')
+        def execute(*args,**kwargs):raise RuntimeError('actual missing host dependency')
         with self.assertRaisesRegex(RuntimeError,'missing host dependency'):self.ns['validate_registered_browsers'](self.root,{},registrations,execute)
         with self.assertRaisesRegex(RuntimeError,'no provisioning, custody pilot or installed C admitted'):self.ns['main']()
 
@@ -763,12 +768,16 @@ class FakeGroupFailed(RuntimeError):
 class FakeOwner:
     """Records exactly what the caller hands the contract; never launches anything."""
     Refused=FakeRefused;GroupFailed=FakeGroupFailed
-    def __init__(self, outcome='succeeded', available=True, stdout=None):
-        self.calls=[];self.outcome=outcome;self.available=available;self.stdout=stdout
+    def __init__(self, outcome='succeeded', available=True, stdout=None, validate=None):
+        self.calls=[];self.outcome=outcome;self.available=available;self.stdout=stdout;self.envs={};self.validate=validate
+    def env_of(self, profile):
+        return self.envs[id(profile)]
     def probe(self):
         return {'schema':'fsgg.managed-group-contract/1','available':self.available,'refusal':None if self.available else 'delegated-root-invalid'}
     def run(self, profile, *, env, deadline, out_dir):
+        if self.validate:self.validate(profile) # the real schema, at the moment of each run
         self.calls.append({'profile':profile,'env':env,'deadline':deadline,'outDir':out_dir})
+        self.envs[id(profile)]=env
         os.mkdir(out_dir,0o700)
         receipt={'outcome':'succeeded','cleanup':'observed-empty-removed','custody':'contained','profileSha256':'f'*64,
                  'owner':{'sha256':'d846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0'},'firstCause':None}
@@ -778,6 +787,105 @@ class FakeOwner:
         if self.outcome=='crash':raise OSError('unexpected owner failure')
         Path(out_dir,'stdout.log').write_text(self.stdout(profile) if self.stdout else 'stdout of '+profile['argv'][0])
         return receipt
+
+def _tar(path, members):
+    with tarfile.open(path,'w:gz',format=tarfile.USTAR_FORMAT) as out:
+        for name,body in members:
+            info=tarfile.TarInfo(name);info.mode=0o755;info.size=len(body);out.addfile(info,io.BytesIO(body))
+
+def _browser_zip(path, relative):
+    body=b'inert browser executable fixture'
+    with zipfile.ZipFile(path,'w') as z:
+        info=zipfile.ZipInfo(relative);info.create_system=3;info.external_attr=(stat.S_IFREG|0o755)<<16;z.writestr(info,body)
+    rows=[{'name':relative,'mode':stat.S_IFREG|0o755,'bytes':len(body),'link':None}]
+    layout={'members':1,'logicalBytes':len(body),'symlinks':0,'layoutSha256':hashlib.sha256(json.dumps(rows,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
+    return {'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()},layout
+
+def drive_every_call_site(ns, base, owner):
+    """Run the actual provisioning sequence, tool qualification and installed C on inert fixtures.
+
+    Every process the caller would start goes through managed_executor into ``owner`` (a FakeOwner),
+    whose stdout callback plays the tools. Nothing is downloaded or executed."""
+    root=base/'job';workspace=base/'workspace';fixtures=base/'fixtures';fixtures.mkdir()
+    checker=workspace/'tests/composition/fable-game/verify-fable-reference-public.sh';checker.parent.mkdir(parents=True)
+    checker.write_bytes((HERE/'verify-fable-reference-public.sh').read_bytes())
+    env=ns['fresh_environment'](root,{})
+    tools=root/'tools';T=ns['TOOLS'];node_name='node-v'+T['node']+'-linux-x64'
+    # Template archive: seed locks plus the stock template inputs, with fixture digests admitted.
+    template=fixtures/'template.zip';stock={}
+    with zipfile.ZipFile(template,'w') as z:
+        for role,key,version in [('Client','vite','7.3.6'),('Browser.Tests','@playwright/test',T['playwright'])]:
+            prefix='content/templates/fs-gg-fable-game/'+role+'/'
+            lock=json.dumps({'packages':{'':{'devDependencies':{key:version}},'node_modules/'+key:{'resolved':'https://registry.npmjs.org/x/-/x.tgz','integrity':'sha512-abc'}}}).encode()
+            z.writestr(prefix+'package.json','{}');z.writestr(prefix+'package-lock.json',lock)
+            if role=='Browser.Tests':stock['Browser.Tests/package-lock.json']=hashlib.sha256(lock).hexdigest()
+        for name in ('Browser.Tests/playwright.config.ts','SvgFoundation/vite.config.js'):
+            z.writestr('content/templates/fs-gg-fable-game/'+name,name);stock[name]=hashlib.sha256(name.encode()).hexdigest()
+    ns['STOCK_INPUTS']=stock
+    files={'template':template.read_bytes(),'descriptor':b'descriptor','guest':b'guest'}
+    _tar(fixtures/'wasi.tgz',[('wasi-sdk-34.0-x86_64-linux/bin/clang',b'#!/bin/sh\n')]);files['wasi']=(fixtures/'wasi.tgz').read_bytes()
+    files['dotnet-releases.json']=json.dumps({'releases':[{'sdks':[{'version':T['sdk'],'files':[{'rid':'linux-x64','name':'dotnet-sdk-linux-x64.tar.gz','url':'https://builds.dotnet.microsoft.com/dotnet/sdk.tar.gz','hash':'ab'*64}]}]}]}).encode()
+    _tar(fixtures/'dotnet.tgz',[('dotnet',b'#!/bin/sh\n# dotnet\n')]);files['dotnet.tar.gz']=(fixtures/'dotnet.tgz').read_bytes()
+    files['node-SHASUMS256.txt']=('a'*64+'  '+node_name+'.tar.gz\n').encode()
+    _tar(fixtures/'node.tgz',[(node_name+'/bin/node',b'#!/bin/sh\n# node\n')]);files['node.tar.gz']=(fixtures/'node.tgz').read_bytes()
+    files['npm-metadata.json']=json.dumps({'name':'npm','version':T['npm'],'dist':{'tarball':'https://registry.npmjs.org/npm/-/npm-'+T['npm']+'.tgz','integrity':'sha512-'+base64.b64encode(b'x'*64).decode()}}).encode()
+    _tar(fixtures/'npm.tgz',[('package/bin/npm-cli.js',b'// npm')]);files['npm.tgz']=(fixtures/'npm.tgz').read_bytes()
+    rustup=b'#!/bin/sh\n# rustup-init fixture\n';files['rustup-init']=rustup
+    files['rustup-init.sha256']=(hashlib.sha256(rustup).hexdigest()+'  rustup-init\n').encode()
+    for asset,(name,directory,relative) in ns['BROWSER_REGISTRY'].items():
+        identity,layout=_browser_zip(fixtures/(asset+'.zip'),relative)
+        ns['BROWSER_ARCHIVES'][asset]={**ns['BROWSER_ARCHIVES'][asset],**identity};ns['BROWSER_LAYOUTS'][asset]=layout
+        files[asset+'.zip']=(fixtures/(asset+'.zip')).read_bytes()
+    def acquire(url,path,maximum,deadline,expected,algorithm='sha256'):
+        path.write_bytes(files[path.name]);return {'url':url,'bytes':path.stat().st_size,'digest':'fixture','observedAt':0}
+    fable=b'fable entrypoint fixture';ns['FABLE_SHA']=hashlib.sha256(fable).hexdigest()
+    seed_core=root/'npm-seed/Browser.Tests/node_modules'
+    launcher={'playwright-core/lib/coreBundle.js':b'core','playwright/lib/runner/index.js':b'runner','playwright/lib/index.js':b'index',
+              'playwright-core/browsers.json':json.dumps({'browsers':[{'name':n,'revision':d.rsplit('-',1)[1]} for n,d,_ in ns['BROWSER_REGISTRY'].values()]}).encode()}
+    ns['STOCK_LAUNCHER_INPUTS']={k:hashlib.sha256(v).hexdigest() for k,v in launcher.items()}
+    installed=root/'installed';results=installed/'browser'
+    def report_for(family,stats=False):
+        tests=[{'projectName':family,'projectId':family} for _ in range(9)]
+        value={'config':{'projects':[{'name':family}]},'suites':[{'specs':[{'tests':tests}],'suites':[]}]}
+        if stats:value['stats']={'expected':9,'unexpected':0,'flaky':0,'skipped':0}
+        return value
+    outputs={'--version':{'dotnet':T['sdk'],'node':'v'+T['node'],'npm':T['npm'],'rustc':'rustc 1.90.0 (1159e78c4 2025-09-14)','cargo':'cargo 1.90.0 (840b83a10 2025-07-30)','dll':'fable'}}
+    def play(profile):
+        argv=profile['argv'];exe=Path(argv[0]).name;cwd=Path(profile['cwd'])
+        if exe=='rustup-init':
+            target=tools/'cargo/bin/rustup';target.parent.mkdir(parents=True);target.write_bytes(rustup);target.chmod(0o700)
+        elif argv[1:3]==['target','add']:
+            for name in ('rustc','cargo'):
+                target=ns['rust_toolchain_bin'](root)/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b'#!/bin/sh\n');target.chmod(0o700)
+        elif argv[1:3]==['target','list']:return 'wasm32-unknown-unknown\n'
+        elif argv[1:3]==['tool','install']:
+            (tools/'fable').mkdir();(tools/'fable/fable.dll').write_bytes(fable)
+            (tools/'fable/fable.nuspec').write_text('<package><metadata><id>fable</id><version>'+T['fable']+'</version></metadata></package>')
+        elif len(argv)>1 and argv[1]=='build':
+            output=workspace/'src/FS.GG.Templates.ProviderTool/bin/Release/net10.0/FS.GG.Templates.ProviderTool.dll';output.parent.mkdir(parents=True);output.write_bytes(b'dll')
+        elif len(argv)>1 and argv[1]=='ci' and cwd.name=='Browser.Tests':
+            for name,body in launcher.items():
+                target=cwd/'node_modules'/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(body)
+        elif len(argv)>1 and argv[1]=='--list-runtimes':return 'Microsoft.NETCore.App '+T['runtime']+' [/fixture]\n'
+        elif exe=='clang':return 'clang version 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)\n'
+        elif argv[-1]=='--version':return outputs['--version']['dll' if argv[-2].endswith('.dll') else exe]
+        elif 'browser-host-validation' in ' '.join(argv):
+            return json.dumps({'platform':'ubuntu24.04-x64','names':[n for n,_,_ in ns['BROWSER_REGISTRY'].values()],'state':'stock-host-validation-passed-runtime-pending'})
+        elif exe=='verify-fable-reference-public.sh' or (len(argv)>1 and argv[1].endswith('verify-fable-reference-public.sh')):
+            (installed/'direct/Browser.Tests').mkdir(parents=True)
+        elif len(argv)>2 and argv[2]=='test':
+            family=owner.env_of(profile)['PLAYWRIGHT_BROWSER_FAMILY']
+            if '--list' in argv:return json.dumps(report_for(family))
+            (results/family/'report.json').write_text(json.dumps(report_for(family,True)))
+        return ''
+    owner.stdout=play
+    identities={};receipts=[]
+    setup=ns['managed_executor'](owner,root,time.monotonic()+600,identities,'setup',receipts)
+    provisioned=ns['prepare_inputs'](root,workspace,env,setup,acquire,time.monotonic()+600,identities)
+    ns['qualify_tools'](root,env,setup)
+    installed_run=ns['managed_executor'](owner,root,time.monotonic()+600,identities,'installed',receipts)
+    summary=ns['installed_c'](root,workspace,env,installed_run,identities,provisioned['node'])
+    return root,receipts,summary
 
 class ManagedGroupBindingTests(unittest.TestCase):
     """Caller-side binding of fsgg.managed-group-contract/1 (C-J1); no tool, browser or network effect."""
@@ -856,10 +964,12 @@ class ManagedGroupBindingTests(unittest.TestCase):
         owner=FakeOwner();seen=[]
         self.ns['load_owner']=lambda root,deadline:owner
         def provision(root,workspace,env,execute,acquire,deadline,identities):
-            seen.append((root,workspace,deadline,identities,acquire));return 'provisioned'
-        self.ns['prepare_inputs']=provision
+            seen.append((root,workspace,deadline,identities,acquire));return {'node':'/node'}
+        def installed(*args,**kwargs):raise AssertionError('installed C ran past the custody gate')
+        self.ns['prepare_inputs']=provision;self.ns['installed_c']=installed
         start=time.monotonic()
-        self.assertEqual(self.ns['hosted_sequence'](self.environ(),start),'provisioned')
+        with self.assertRaisesRegex(RuntimeError,'custody pilot remain unadmitted; installed C held'):
+            self.ns['hosted_sequence'](self.environ(),start)
         root,workspace,deadline,identities,acquire=seen[0]
         self.assertEqual(root,self.root/'fable-wasm-installed-c');self.assertEqual(workspace,self.root/'workspace')
         self.assertLessEqual(deadline,start+self.ns['BUDGET']['setup']+1);self.assertEqual(identities,{})
@@ -932,6 +1042,60 @@ class ManagedGroupBindingTests(unittest.TestCase):
         execute,receipts=self.executor(FakeOwner('crash'))
         with self.assertRaisesRegex(OSError,'unexpected owner failure'):execute([str(self.tool)],self.root,{})
         self.assertEqual(json.loads((self.root/'managed-receipts.json').read_text())[-1]['status'],'error')
+
+    def test_every_call_site_is_one_bounded_group_and_each_playwright_invocation_its_own(self):
+        owner=FakeOwner()
+        root,receipts,summary=drive_every_call_site(self.ns,self.root,owner)
+        self.assertEqual(summary['disposition'],'passed')
+        self.assertEqual([r['phase'] for r in receipts],['setup']*18+['installed']*7)
+        self.assertEqual([r['status'] for r in receipts],['succeeded']*25)
+        identities=set()
+        for call in owner.calls:
+            profile=call['profile']
+            with self.subTest(argv=profile['argv'][:3]):
+                self.assertTrue(Path(profile['argv'][0]).is_absolute())
+                self.assertFalse(any(ord(c)<32 or ord(c)==127 for arg in profile['argv'] for c in arg))
+                self.assertTrue(profile['cwd']==str(root) or profile['cwd'].startswith(str(root)+'/'))
+                self.assertEqual(profile['retirement']['onLeaderExit'],'require-empty')
+                self.assertEqual(profile['environmentKeys'],sorted(call['env']))
+                identities.add(profile['executable']['path'])
+        self.assertEqual(len({call['outDir'] for call in owner.calls}),25)
+        playwright=[call for call in owner.calls if len(call['profile']['argv'])>2 and call['profile']['argv'][2]=='test']
+        self.assertEqual([(call['env']['PLAYWRIGHT_BROWSER_FAMILY'],'--list' in call['profile']['argv']) for call in playwright],
+            [('chromium',True),('firefox',True),('webkit',True),('chromium',False),('firefox',False),('webkit',False)])
+        for call in playwright:
+            self.assertEqual(call['env']['FSGG_WASM_RESULTS'],str(root/'installed/browser'))
+            self.assertEqual(call['profile']['cwd'],str(root/'installed/direct/Browser.Tests'))
+        checker=[r for r in receipts if r['executable'].endswith('bash')]
+        self.assertEqual(len(checker),1);self.assertEqual(len(checker[0]['inputs']),1)
+        validator=[call['profile']['argv'][1] for call in owner.calls if 'browser-host-validation' in ' '.join(call['profile']['argv'])]
+        self.assertEqual(len(validator),1);self.assertRegex(validator[0],r'browser-host-validation\.[0-9a-f]{64}\.cjs$')
+        self.assertEqual(json.loads((root/'installed-c.json').read_text())['families']['webkit']['stats']['expected'],9)
+
+    def test_shell_checker_no_longer_starts_playwright(self):
+        text=(HERE/'verify-fable-reference-public.sh').read_text()
+        wasm=text[text.index(': "${FSGG_WASM_SDK_ARCHIVE'):text.index(': "${QUINT_BIN')]
+        self.assertNotIn('@playwright/test/cli.js',wasm);self.assertNotIn('PLAYWRIGHT_BROWSER_FAMILY=',wasm)
+        self.assertIn("'browserCases':'managed-groups-in-caller'",wasm);self.assertIn('wasm_status=source-passed',wasm)
+
+    def test_installed_c_refuses_wrong_case_population_or_failed_family(self):
+        report={'config':{'projects':[{'name':'firefox'}]},'suites':[{'specs':[{'tests':[{'projectName':'firefox','projectId':'firefox'}]*8}]}]}
+        with self.assertRaisesRegex(ValueError,'nine definitions'):self.ns['check_wasm_list'](report,'firefox')
+        with self.assertRaisesRegex(ValueError,'exact selected family'):self.ns['check_wasm_list'](report,'webkit')
+        stats={'config':{'projects':[{'name':'webkit'}]},'stats':{'expected':8,'unexpected':1,'flaky':0,'skipped':0}}
+        with self.assertRaisesRegex(ValueError,'family webkit stats differ'):self.ns['check_wasm_result'](stats,'webkit')
+        # A failed Playwright group stops installed C at that family and keeps its receipt.
+        owner=FakeOwner();failing={'n':0}
+        original=FakeOwner.run
+        def run(self_,profile,**kwargs):
+            if len(profile['argv'])>2 and profile['argv'][2]=='test' and '--list' not in profile['argv']:
+                self_.outcome='failed'
+            return original(self_,profile,**kwargs)
+        with patch.object(FakeOwner,'run',run),self.assertRaisesRegex(RuntimeError,'leader exited with live contained members'):
+            drive_every_call_site(self.ns,self.root,owner)
+        index=json.loads((self.root/'job/managed-receipts.json').read_text())
+        self.assertEqual(index[-1]['status'],'failed');self.assertEqual(len(index),23)
+        self.assertFalse((self.root/'job/installed/browser/chromium/report.json').exists())
 
     def test_bind_identity_refuses_symlink_drift_conflict_and_unknown_basis(self):
         alias=self.root/'alias';alias.symlink_to(self.tool)
@@ -1022,36 +1186,11 @@ class RealOwnerBindingTests(unittest.TestCase):
         profile,digest=self.owner.validate_profile(captured.calls[0]['profile'])
         self.assertRegex(digest,r'^[0-9a-f]{64}$');self.assertEqual(profile['retirement']['onLeaderExit'],'require-empty')
 
-    def test_every_caller_argv_is_valid_under_the_real_contract(self):
-        # Drive the actual call sites through the executor, then put each profile through the real schema.
-        registrations=[]
-        for asset,(name,directory,relative) in self.ns['BROWSER_REGISTRY'].items():
-            tree=self.root/'browsers'/directory;tree.mkdir(parents=True)
-            executable=tree/relative;executable.parent.mkdir(parents=True,exist_ok=True);executable.write_bytes(b'inert')
-            registrations.append({'asset':asset,'name':name,'directory':str(tree),'executable':str(executable)})
-        core=self.root/'npm-seed/Browser.Tests/node_modules/playwright-core/lib/coreBundle.js';core.parent.mkdir(parents=True);core.write_bytes(b'inert')
-        self.ns['STOCK_LAUNCHER_INPUTS']['playwright-core/lib/coreBundle.js']=hashlib.sha256(b'inert').hexdigest()
-        metadata=core.parent.parent/'browsers.json';metadata.write_text(json.dumps({'browsers':[{'name':n,'revision':d.rsplit('-',1)[1]} for n,d,_ in self.ns['BROWSER_REGISTRY'].values()]}))
-        self.ns['STOCK_LAUNCHER_INPUTS']['playwright-core/browsers.json']=hashlib.sha256(metadata.read_bytes()).hexdigest()
-        tools=self.root/'tools';toolchain=self.ns['rust_toolchain_bin'](self.root)
-        node=tools/('node-archive/node-v'+self.ns['TOOLS']['node']+'-linux-x64/bin/node')
-        wasi=tools/'wasi/wasi-sdk-34.0-x86_64-linux'
-        paths=[node,tools/'bin/npm',toolchain/'rustc',toolchain/'cargo',tools/'cargo/bin/rustup',tools/'dotnet/dotnet',wasi/'bin/clang']
-        for path in paths:
-            path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'#!/bin/sh\n');path.chmod(0o700)
-            self.ns['bind_identity'](self.identities,str(path),'verified-archive-member')
-        accepted={'platform':'ubuntu24.04-x64','names':[r['name'] for r in registrations],'state':'stock-host-validation-passed-runtime-pending'}
-        captured=FakeOwner(stdout=lambda profile:json.dumps(accepted) if str(core) in profile['argv'] else '')
-        execute=self.ns['managed_executor'](captured,self.root,time.monotonic()+60,self.identities,'setup',self.receipts)
-        env={'PATH':'/usr/bin:/bin','FSGG_WASM_FIREFOX_PROFILE':'content-sandbox-enabled','DOTNET_HOST_PATH':str(tools/'dotnet/dotnet'),
-             'FSGG_WASM_FABLE_CORE':str(self.root/'fable.dll'),'FSGG_WASM_WASI_ROOT':str(wasi)}
-        self.ns['validate_registered_browsers'](self.root,env,registrations,execute)
-        with self.assertRaises(ValueError):self.ns['qualify_tools'](self.root,env,execute)
-        for family in ('chromium','firefox','webkit'):
-            self.ns['managed_playwright'](execute,node,self.root,family,env,list_only=True)
-        self.assertGreaterEqual(len(captured.calls),10)
-        for call in captured.calls:
-            with self.subTest(argv=call['profile']['argv'][:2]):self.owner.validate_profile(call['profile'])
+    def test_every_call_site_is_valid_under_the_real_contract(self):
+        # Every provisioning, tool-qualification and installed-C call site, through the real schema.
+        owner=FakeOwner(validate=self.owner.validate_profile)
+        drive_every_call_site(self.ns,self.root,owner)
+        self.assertEqual(len(owner.calls),25)
 
     def run_refused(self, deadline, code):
         receipts=self.receipts

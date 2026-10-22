@@ -190,13 +190,14 @@ if [[ "$mode" == wasm ]]; then
   wasm_status=failed
   wasm_finish() {
     local rc=$?
-    [[ $rc -eq 0 ]] && wasm_status=passed
+    [[ $rc -eq 0 ]] && wasm_status=source-passed
     python3 - "$evidence/qualification.json" "$wasm_status" "$version" "$revision" "$tag_revision" "$sha" "$descriptor_sha" <<'WASM_RECEIPT'
 import json, sys, os
 path, status, version, revision, tag_revision, archive, descriptor = sys.argv[1:]
 with open(path, 'w') as out:
     json.dump({'schema':'fable-reference-public/1','disposition':status,'mode':'wasm',
       'scope':'direct downloaded Complete WASM source consumer; no provider/Wizard/FourD/AT acceptance',
+      'browserCases':'managed-groups-in-caller',
       'package':'FS.GG.Workspace.Template','version':version,'sourceRevision':revision,
       'tag':'fs-gg-templates/v'+version,'tagRevision':tag_revision,
       'archiveSha256':archive,'descriptorSha256':descriptor,
@@ -279,35 +280,9 @@ export default defineConfig({ ...maintained, testMatch: "wasm-policy.spec.ts", w
 });
 WASM_CONFIG
   (cd "$evidence/direct/Browser.Tests" && npm ci "${npm_args[@]}") >"$evidence/browser-npm.log" 2>&1
-  export FsGgWasmPolicyExample=true FSGG_WASM_POLICY_EXAMPLE=true FSGG_WASM_RESULTS="$evidence/browser"
-  mkdir "$evidence/browser"
-  for family in chromium firefox webkit; do
-    mkdir "$evidence/browser/$family"
-    (cd "$evidence/direct/Browser.Tests" && PLAYWRIGHT_BROWSER_FAMILY="$family" node node_modules/@playwright/test/cli.js test --config wasm-public.generated.config.ts --list --reporter=json) >"$evidence/browser/$family/list.json"
-    python3 - "$evidence/browser/$family/list.json" "$family" <<'WASM_LIST'
-import json, sys
-def count(suites):
-    return sum(sum(len(s.get('tests',[])) for s in suite.get('specs',[]))+count(suite.get('suites',[])) for suite in suites)
-report=json.load(open(sys.argv[1])); family=sys.argv[2]
-assert [p['name'] for p in report['config']['projects']]==[family], 'exact selected family required'
-def tests(suites):
-    return [t for suite in suites for spec in suite.get('specs',[]) for t in spec.get('tests',[])] + [t for suite in suites for t in tests(suite.get('suites',[]))]
-selected=tests(report['suites'])
-assert count(report['suites'])==9 and len(selected)==9, 'exact nine definitions required'
-assert {t['projectName'] for t in selected}=={family} and {t['projectId'] for t in selected}=={family}, 'wrong selected project population'
-WASM_LIST
-  done
-  for family in chromium firefox webkit; do
-    # Compatibility remains a caller-selected profile, never an automatic disable.
-    (cd "$evidence/direct/Browser.Tests" && PLAYWRIGHT_BROWSER_FAMILY="$family" node node_modules/@playwright/test/cli.js test --config wasm-public.generated.config.ts --workers=1 --retries=0 --max-failures=1) >"$evidence/browser/$family/browser.log" 2>&1
-    python3 - "$evidence/browser/$family/report.json" "$family" <<'WASM_RESULT'
-import json, sys
-report=json.load(open(sys.argv[1])); stats=report['stats']; family=sys.argv[2]
-assert [p['name'] for p in report['config']['projects']]==[family], 'runtime family differs'
-assert stats['expected']==9 and stats['unexpected']==stats['flaky']==stats['skipped']==0, stats
-WASM_RESULT
-  done
-  echo 'WASM public: direct default/opt-in source, production graph and 27 browser cases passed; retaining/provider/Wizard/AT/native-exit acceptance not claimed'
+  # Browser cases are not run here. The managed caller runs each Playwright --list/test
+  # invocation as its own require-empty managed group and asserts the 9 cases per family.
+  echo 'WASM public: direct default/opt-in source and production graph passed; the 27 browser cases run as managed groups in the caller; retaining/provider/Wizard/AT/native-exit acceptance not claimed'
   exit 0
 fi
 : "${QUINT_BIN:?set QUINT_BIN to qualified Quint 0.32.0}"
