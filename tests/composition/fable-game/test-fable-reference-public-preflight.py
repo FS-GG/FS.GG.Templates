@@ -1290,31 +1290,41 @@ class PilotOwner(FakeOwner):
     def run(self, profile, *, env, deadline, out_dir):
         if self.validate:self.validate(profile)
         self.calls.append({'profile':profile,'env':env,'deadline':deadline,'outDir':out_dir});self.envs[id(profile)]=env
-        os.mkdir(out_dir,0o700);argv=profile['argv'];stdout='';cause=None;residual=[]
+        os.mkdir(out_dir,0o700);argv=profile['argv'];stdout='';stderr='';cause=None;residual=[]
         receipt={'outcome':'succeeded','refusal':None,'cleanup':'observed-empty-removed','custody':'contained','exit':{'code':0,'signal':None},
             'leader':{'image':'admitted','noNewPrivileges':'1'},'members':{'observed':3},'residualAfterLeaderExit':[],'residualInRoot':[],'escaped':[],
             'retirement':{'termSignals':0,'cgroupKill':False},'timing':{'stopSeconds':1.0},'profileSha256':'f'*64,
             'owner':{'sha256':'d846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0'},'firstCause':None}
-        if Path(argv[0]).name=='ldd':
+        if 'browser-host-validation' in ' '.join(argv):
+            rows=json.loads(argv[3]);names=[r['name'] for r in rows];case=('host',names[0])
+            if self.behaviour.get('webkit-deps') and names==['webkit']:
+                stderr='Error: Host system is missing dependencies to run browsers.\n  libflite1\n';cause='RuntimeError: command failed with exit 1'
+            else:stdout=json.dumps({'platform':'ubuntu24.04-x64','names':names,'state':'stock-host-validation-passed-runtime-pending'})
+        elif Path(argv[0]).name=='ldd':
             case=('scan',None)
+            if self.behaviour.get('scan-fail'):cause='RuntimeError: command failed with exit 1'
             missing=self.behaviour.get('missing')
             stdout=''.join(a+':\n\tlibc.so.6 => /lib/libc.so.6 (0x1)\n'+('\t'+missing+' => not found\n' if missing and a.endswith('chrome-headless-shell') else '') for a in argv[1:])
         elif len(argv)>2 and argv[2]=='test' and '--config' in argv:
             family=env['PILOT_FAMILY'];case=('normal',family)
             stats={'expected':1,'unexpected':0,'flaky':0,'skipped':0}
             if self.behaviour.get(case)=='fail':stats={'expected':0,'unexpected':1,'flaky':0,'skipped':0};cause='RuntimeError: command failed with exit 1'
-            Path(env['PILOT_RESULTS'],family,'normal-report.json').write_text(json.dumps({'stats':stats}))
+            if self.behaviour.get(case)=='raise':raise OSError('owner pipe broke')
+            if self.behaviour.get(case)!='no-report':Path(env['PILOT_RESULTS'],family,'normal-report.json').write_text(json.dumps({'stats':stats}))
+            if self.behaviour.get(case)=='report-unreadable':Path(env['PILOT_RESULTS'],family,'normal-report.json').chmod(0)
             if self.behaviour.get(case)=='leftover':cause='RuntimeError: leader exited with live contained members';residual=[{'pid':9}]
+            if self.behaviour.get(case)=='other-failure':cause='RuntimeError: command failed with signal 9'
         elif len(argv)==4 and argv[1].endswith('.cjs') and argv[3] in ('hold','exit'):
             family,mode=argv[2],argv[3];case=(mode=='hold' and 'forced' or 'exit',family)
-            stdout=json.dumps({'launched':True,'family':family,'mode':mode,'version':'1','descendants':[{'pid':2,'comm':'browser'}]})+'\n'
+            stdout='' if self.behaviour.get(case)=='no-launch' else json.dumps({'launched':True,'family':family,'mode':mode,'version':'1','descendants':[{'pid':2,'comm':'browser'}]})+'\n'
             if mode=='hold' and self.behaviour.get(case)!='not-held':cause='TimeoutError: original deadline exhausted';receipt['exit']=None
             if mode=='exit' and self.behaviour.get(case)=='leftover':cause='RuntimeError: leader exited with live contained members';residual=[{'pid':7}]
         else:
             case=None;stdout=self.world['play'](profile)
-        if case:self.case_calls.append((case,deadline))
+        if case and case[0]!='host':self.case_calls.append((case,deadline))
         if self.behaviour.get(case)=='unknown-cleanup':receipt['cleanup']='unknown';cause=cause or 'RuntimeError: cleanup unqualified: unknown'
-        Path(out_dir,'stdout.log').write_text(stdout);Path(out_dir,'stderr.log').write_text('')
+        if self.behaviour.get(case)=='escaped':receipt['escaped']=[{'pid':5}]
+        Path(out_dir,'stdout.log').write_text(stdout);Path(out_dir,'stderr.log').write_text(stderr)
         receipt['residualAfterLeaderExit']=residual
         if cause:receipt.update(outcome='failed',firstCause=cause)
         Path(out_dir,'receipt.json').write_text(json.dumps(receipt))
@@ -1351,7 +1361,7 @@ class CustodyPilotTests(unittest.TestCase):
         self.assertEqual((source['ADMITTED_REF'],source['ADMISSION']),('c'*40,PILOT_URL))
         for key,value in [('EVENT','pull_request'),('REPOSITORY','attacker/fork'),('REF','refs/heads/other'),('ADMITTED_REF','d'*40),('SHA','d'*40),
                           ('ADMISSION',PILOT_URL+'0'),('WORKFLOW_REF','FS-GG/FS.GG.Templates/.github/workflows/fable-reference-public.yml@refs/heads/main'),
-                          ('WORKFLOW_SHA',''),('RUN_ATTEMPT','2'),('ADMITTED_REF','C'*40)]:
+                          ('WORKFLOW_SHA',''),('WORKFLOW_SHA','d'*40),('RUN_ATTEMPT','2'),('ADMITTED_REF','C'*40)]:
             with self.subTest(key=key),self.assertRaises(ValueError):self.ns['validate_dispatch_source'](self.environ(**{key:value}),'c'*40,self.root/'rt/p')
         with self.assertRaisesRegex(ValueError,'admitted_ref'):self.ns['validate_dispatch_source'](self.environ(),'d'*40,self.root/'rt/p')
 
@@ -1373,7 +1383,8 @@ class CustodyPilotTests(unittest.TestCase):
         self.assertEqual({f:{c:r['disposition'] for c,r in rows.items()} for f,rows in summary['cases'].items()},
             {f:{'normal':'clean-stock-shutdown','forced':'deadline-retired','exit':'browser-exited-with-leader'} for f in ('chromium','firefox','webkit')})
         root=self.root/'rt/wasm-custody-pilot';receipts=json.loads((root/'managed-receipts.json').read_text())
-        self.assertEqual([r['phase'] for r in receipts],['setup']*3+['custody']*11)
+        self.assertEqual([r['phase'] for r in receipts],['setup']*5+['custody']*11)
+        self.assertEqual({f:r['state'] for f,r in summary['hostValidation']['families'].items()},{f:'stock-host-validation-passed-runtime-pending' for f in ('chromium','firefox','webkit')})
         cases=[c for c,_ in owner.case_calls]
         self.assertEqual(cases,[('scan',None)]*2+[(k,f) for f in ('chromium','firefox','webkit') for k in ('normal','forced','exit')])
         custody=start+self.ns['PILOT_BUDGET']['job']-sum(self.ns['PILOT_BUDGET'][k] for k in ('cleanup','collection','overhead'))
@@ -1422,6 +1433,74 @@ class CustodyPilotTests(unittest.TestCase):
                 summary=self.ns['pilot_sequence'](self.environ(),time.monotonic())
                 self.assertEqual(summary['cases'][family][case]['disposition'],expected)
                 self.assertEqual(summary['disposition'],'incomplete');self.assertTrue(summary['reasons'])
+
+    def run_pilot(self, behaviour):
+        if (self.root/'rt').exists():shutil.rmtree(self.root/'rt')
+        if (self.root/'world').exists():shutil.rmtree(self.root/'world')
+        self.ns={'__name__':'pilot_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+        self.pilot(behaviour)
+        return self.ns['pilot_sequence'](self.environ(),time.monotonic())
+
+    def test_missing_webkit_host_libraries_are_evidence_not_an_abort(self):
+        summary=self.run_pilot({'webkit-deps':True,('normal','webkit'):'fail'})
+        states={f:r['state'] for f,r in summary['hostValidation']['families'].items()}
+        self.assertEqual(states,{'chromium':'stock-host-validation-passed-runtime-pending','firefox':'stock-host-validation-passed-runtime-pending','webkit':'host-dependencies-missing'})
+        self.assertIn('missing dependencies',summary['hostValidation']['families']['webkit']['stderr'])
+        self.assertEqual(sorted(summary['cases']),['chromium','firefox','webkit'])
+        self.assertEqual(summary['cases']['chromium']['normal']['disposition'],'clean-stock-shutdown')
+        self.assertEqual(summary['cases']['webkit']['normal']['disposition'],'run-failed')
+        self.assertEqual(summary['disposition'],'incomplete')
+
+    def test_each_false_completion_guard_is_causal(self):
+        cases=[({('forced','firefox'):'no-launch'},'firefox','forced','unexpected'),
+               ({('exit','chromium'):'no-launch'},'chromium','exit','unexpected'),
+               ({('exit','webkit'):'unknown-cleanup'},'webkit','exit','unexpected'),
+               ({('exit','firefox'):'escaped'},'firefox','exit','unexpected'),
+               ({('normal','firefox'):'no-report'},'firefox','normal','run-failed'),
+               ({('normal','chromium'):'other-failure'},'chromium','normal','run-failed'),
+               ({('normal','webkit'):'escaped'},'webkit','normal','run-failed'),
+               ({('forced','webkit'):'escaped'},'webkit','forced','unexpected')]
+        for behaviour,family,case,expected in cases:
+            with self.subTest(behaviour=behaviour):
+                summary=self.run_pilot(behaviour)
+                self.assertEqual(summary['cases'][family][case]['disposition'],expected)
+                self.assertEqual(summary['disposition'],'incomplete')
+        summary=self.run_pilot({'scan-fail':True})
+        self.assertEqual({r['disposition'] for r in summary['libraryScan'].values()},{'scan-failed'})
+        self.assertEqual(summary['disposition'],'incomplete')
+
+    def test_one_case_exception_does_not_abort_later_cases(self):
+        if os.geteuid()==0:self.skipTest('root can read a mode-0 file')
+        summary=self.run_pilot({('normal','chromium'):'report-unreadable'}) # an OSError outside the group itself
+        self.assertEqual(summary['cases']['chromium']['normal']['disposition'],'run-failed')
+        self.assertIn('PermissionError',summary['cases']['chromium']['normal']['error'])
+        self.assertEqual(summary['cases']['webkit']['exit']['disposition'],'browser-exited-with-leader')
+        summary=self.run_pilot({('normal','firefox'):'raise'})
+        self.assertEqual(summary['cases']['firefox']['normal']['disposition'],'run-failed')
+        self.assertIn('owner pipe broke',summary['cases']['firefox']['normal']['error'])
+        self.assertEqual(summary['cases']['webkit']['exit']['disposition'],'browser-exited-with-leader')
+        self.assertEqual(summary['disposition'],'incomplete')
+
+    def test_disposition_counts_missing_cases_and_missing_scans(self):
+        full={f:{c:{'disposition':self.ns['PILOT_EXPECTED'][c][0]} for c in ('normal','forced','exit')} for f in ('chromium','firefox','webkit')}
+        scans={a:{'disposition':'support-complete'} for a in ('chromium-headless1243','chromium-full1243')}
+        self.assertEqual(self.ns['pilot_disposition']({'cases':full,'libraryScan':scans}),'completed')
+        partial=copy.deepcopy(full);del partial['webkit']['exit']
+        summary={'cases':partial,'libraryScan':scans}
+        self.assertEqual(self.ns['pilot_disposition'](summary),'incomplete');self.assertIn('webkit/exit: not run',summary['reasons'])
+        summary={'cases':full,'libraryScan':{'chromium-full1243':scans['chromium-full1243']}}
+        self.assertEqual(self.ns['pilot_disposition'](summary),'incomplete');self.assertIn('scan chromium-headless1243: not run',summary['reasons'])
+
+    def test_every_case_deadline_is_capped_by_the_custody_phase(self):
+        owner=self.pilot();root=self.root/'rt/wasm-custody-pilot'
+        env=self.ns['fresh_environment'](root,{});self.ns['load_owner']=lambda r,d:owner
+        identities={};receipts=[]
+        provisioned=self.ns['prepare_browser_inputs'](root,env,self.ns['managed_executor'](owner,root,time.monotonic()+60,identities,'setup',receipts),owner.world['acquire'],time.monotonic()+60,identities,receipts)
+        owner.case_calls.clear();short=time.monotonic()+3
+        summary={'cases':{},'libraryScan':{}}
+        self.ns['run_custody_pilot'](root,env,owner,identities,receipts,provisioned,short,summary,lambda:None)
+        self.assertEqual(len(owner.case_calls),11)
+        self.assertTrue(all(deadline<=short for _,deadline in owner.case_calls))
 
     def test_unavailable_containment_fails_before_acquisition_and_still_retains_evidence(self):
         self.pilot(owner_available=False)
@@ -1488,7 +1567,7 @@ class CustodyPilotTests(unittest.TestCase):
         spec=importlib.util.spec_from_file_location('pilot_owner_check',OWNER_FILE);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         owner=self.pilot(validate=module.validate_profile)
         self.assertEqual(self.ns['pilot_sequence'](self.environ(),time.monotonic())['disposition'],'completed')
-        self.assertEqual(len(owner.calls),14)
+        self.assertEqual(len(owner.calls),16)
 
 
 if __name__ == '__main__': unittest.main()

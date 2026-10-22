@@ -150,7 +150,7 @@ jobs:
           set -euo pipefail
           python3 -I tests/composition/fable-game/managed-group-binding-probe.py --expect unavailable --root "$RUNNER_TEMP/mg-unavailable"
           FSGG_MANAGED_GROUP_OWNER="$RUNNER_TEMP/mg-unavailable/owner/managed_group_owner.py" \
-            python3 tests/composition/fable-game/test-fable-reference-public-preflight.py ManagedGroupBindingTests RealOwnerBindingTests
+            python3 tests/composition/fable-game/test-fable-reference-public-preflight.py ManagedGroupBindingTests RealOwnerBindingTests CustodyPilotTests
       - name: Contain bound groups inside a fresh delegated unit
         shell: bash
         run: |
@@ -672,7 +672,7 @@ jobs:
               (bin_root/"npm").write_text('#!/bin/sh\nexec "'+str(node_root/"bin/node")+'" "'+str(tools/"npm/package/bin/npm-cli.js")+'" "$@"\n');(bin_root/"npm").chmod(0o700)
               return node_root,bin_root
 
-          def register_browsers(root, downloads, seed, env, execute, get, deadline):
+          def register_browsers(root, downloads, seed, env, execute, get, deadline, validate=True):
               # Uncontrolled stock CLI downloads cannot bypass reviewed raw archive identity.
               browser_inputs=browser_archive_inputs(get)
               (root/"browser-archive-inputs.json").write_text(json.dumps({"archives":browser_inputs,"webkitSourcePreparation":webkit_source_profile()},indent=2)+"\n")
@@ -686,6 +686,7 @@ jobs:
                   registered.append(register_browser_archive(entry["asset"],pathlib.Path(entry["path"]),extracted[-1],browser_root,deadline))
                   (root/"browser-registration.json").write_text(json.dumps(registered,indent=2)+"\n")
               inspect_stock_sources(downloads/"template",seed/"Browser.Tests/node_modules")
+              if not validate:return registered,None # the caller validates per family itself
               host_validation=validate_registered_browsers(root,env,registered,execute)
               (root/"browser-host-validation.json").write_text(json.dumps(host_validation,indent=2)+"\n")
               return registered,host_validation
@@ -932,7 +933,16 @@ jobs:
                   directories.append(str(executable.parent))
               return directories
 
-          def validate_registered_browsers(root, env, registrations, execute):
+          STOCK_HOST_VALIDATOR="""const fs=require('fs'),path=require('path');
+          const core=require(process.argv[2]),expected=JSON.parse(process.argv[3]);
+          if(core.utils.hostPlatform!=='ubuntu24.04-x64'||!core.utils.isOfficiallySupportedPlatform)throw Error('effective stock platform differs');
+          const registry=core.registry.registry;
+          const actual=expected.map(row=>{const e=registry.findExecutable(row.name);if(!e||e.directory!==row.directory||e.executablePath()!==row.executable)throw Error('stock registry selection differs');return e;});
+          (async()=>{await registry.validateHostRequirementsForExecutablesIfNeeded(actual,'javascript');
+          for(const e of actual){const p=path.join(e.directory,'DEPENDENCIES_VALIDATED');if(!fs.existsSync(p))throw Error('stock dependency validation marker absent');}
+          console.log(JSON.stringify({platform:core.utils.hostPlatform,names:actual.map(e=>e.name),state:'stock-host-validation-passed-runtime-pending'}));})().catch(e=>{console.error(e);process.exitCode=1;});"""
+
+          def stock_validation_preconditions(root, env, registrations):
               require([r["asset"] for r in registrations]==list(BROWSER_REGISTRY),"exact registry population/order required")
               require(not any(key in env for key in ("PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS","PLAYWRIGHT_HOST_PLATFORM_OVERRIDE","PLAYWRIGHT_CHROMIUM_REVISION","PLAYWRIGHT_FIREFOX_REVISION","PLAYWRIGHT_WEBKIT_REVISION","PLAYWRIGHT_EXECUTABLE_PATH","NODE_OPTIONS","NODE_PATH")),"host/registry override refused")
               support_directories=chromium_support_directories(root,registrations)
@@ -947,21 +957,27 @@ jobs:
                   rows=[row for row in browser_rows if row["name"]==name]
                   require(len(rows)==1 and rows[0]["revision"]==directory.rsplit("-",1)[1] and not rows[0].get("revisionOverrides",{}).get("ubuntu24.04-x64"),"stock revision/override differs")
               require(core.is_file() and not core.is_symlink() and sha(core)==STOCK_LAUNCHER_INPUTS["playwright-core/lib/coreBundle.js"],"stock validation source differs")
-              script="""const fs=require('fs'),path=require('path');
-          const core=require(process.argv[2]),expected=JSON.parse(process.argv[3]);
-          if(core.utils.hostPlatform!=='ubuntu24.04-x64'||!core.utils.isOfficiallySupportedPlatform)throw Error('effective stock platform differs');
-          const registry=core.registry.registry;
-          const actual=expected.map(row=>{const e=registry.findExecutable(row.name);if(!e||e.directory!==row.directory||e.executablePath()!==row.executable)throw Error('stock registry selection differs');return e;});
-          (async()=>{await registry.validateHostRequirementsForExecutablesIfNeeded(actual,'javascript');
-          for(const e of actual){const p=path.join(e.directory,'DEPENDENCIES_VALIDATED');if(!fs.existsSync(p))throw Error('stock dependency validation marker absent');}
-          console.log(JSON.stringify({platform:core.utils.hostPlatform,names:actual.map(e=>e.name),state:'stock-host-validation-passed-runtime-pending'}));})().catch(e=>{console.error(e);process.exitCode=1;});"""
+              return core,support_directories
+
+          def stock_host_validator(root):
               # Managed argv admits no control characters, so the multi-line validator is a private file.
               # Content-addressed: the script's SHA-256 is part of the argv and so of profileSha256.
-              validator=root/("browser-host-validation."+hashlib.sha256(script.encode()).hexdigest()+".cjs")
-              require(not validator.exists() and not validator.is_symlink(),"host validation script path occupied")
-              with validator.open("x") as source:source.write(script)
+              digest=hashlib.sha256(STOCK_HOST_VALIDATOR.encode()).hexdigest()
+              validator=root/("browser-host-validation."+digest+".cjs")
+              if validator.exists() or validator.is_symlink():
+                  require(validator.is_file() and not validator.is_symlink() and sha(validator)==digest,"host validation script path occupied")
+                  return validator
+              with validator.open("x") as source:source.write(STOCK_HOST_VALIDATOR)
               validator.chmod(0o400)
-              result=json.loads(execute([str(root/"tools/node-archive"/('node-v'+TOOLS['node']+'-linux-x64')/"bin/node"),str(validator),str(core),json.dumps(registrations)],root,env,inputs=[validator]))
+              return validator
+
+          def stock_host_validation_argv(root, core, validator, rows):
+              return [str(root/"tools/node-archive"/('node-v'+TOOLS['node']+'-linux-x64')/"bin/node"),str(validator),str(core),json.dumps(rows)]
+
+          def validate_registered_browsers(root, env, registrations, execute):
+              core,support_directories=stock_validation_preconditions(root,env,registrations)
+              validator=stock_host_validator(root)
+              result=json.loads(execute(stock_host_validation_argv(root,core,validator,registrations),root,env,inputs=[validator]))
               require(result=={"platform":"ubuntu24.04-x64","names":[row["name"] for row in registrations],"state":"stock-host-validation-passed-runtime-pending"},"stock host validation result differs")
               # Stock Chromium1.63 scans chrome-linux, but these authentic archives use
               # chrome-linux64/headless-shell-linux64. Its success cannot prove those libraries.
@@ -1095,7 +1111,7 @@ jobs:
               require(env["REF"]=="refs/heads/main","main ref required")
               require(re.fullmatch(r"[0-9a-f]{40}",env["ADMITTED_REF"]) and env["ADMITTED_REF"]==env["SHA"]==head,"admitted_ref must equal the dispatched and checked-out commit")
               require(env["ADMISSION"]==PILOT_ADMISSION,"admission differs from the recorded pilot admission")
-              require(env["WORKFLOW_REF"]==PILOT_WORKFLOW and re.fullmatch(r"[0-9a-f]{40}",env["WORKFLOW_SHA"]),"pilot workflow identity differs")
+              require(env["WORKFLOW_REF"]==PILOT_WORKFLOW and env["WORKFLOW_SHA"]==env["SHA"],"pilot workflow identity differs")
               require(env["RUN_ATTEMPT"]=="1","re-run refused: a new admission is required")
               require(pathlib.Path(root).is_absolute() and not pathlib.Path(root).is_symlink(),"private root must be an absolute nonlink")
               return {**{k:env[k] for k in ("EVENT","REPOSITORY","REF","SHA","ADMITTED_REF","ADMISSION","WORKFLOW_REF","WORKFLOW_SHA","RUN_ID","RUN_ATTEMPT")},"imageOS":env.get("ImageOS"),"imageVersion":env.get("ImageVersion"),"runnerOS":env.get("RUNNER_OS"),"runnerArch":env.get("RUNNER_ARCH")}
@@ -1108,7 +1124,7 @@ jobs:
               require(deadline>now,"original pilot budget cannot supply this phase")
               return deadline
 
-          def prepare_browser_inputs(root, env, execute, acquire, deadline, identities):
+          def prepare_browser_inputs(root, env, execute, acquire, deadline, identities, receipts):
               # Browser-only subset: template locks, Node/npm, stock Playwright seed and the five pinned
               # browser archives. No .NET, Rust, WASI or Fable is acquired for the custody pilot.
               tools=root/"tools";tools.mkdir(mode=0o700)
@@ -1123,8 +1139,29 @@ jobs:
               seed=seed_from_package(downloads/"template",root/"npm-seed",deadline)
               for role in ("Client","Browser.Tests"):
                   execute([str(bin_root/"npm"),"ci","--ignore-scripts","--no-audit","--no-fund","--cache",env["FSGG_WASM_NPM_CACHE"]],seed/role,env)
-              registered,host_validation=register_browsers(root,downloads,seed,env,execute,get,deadline)
+              registered,_=register_browsers(root,downloads,seed,env,execute,get,deadline,validate=False)
+              host_validation=pilot_host_validation(root,env,registered,execute,receipts)
               return {"node":os.path.realpath(node_root/"bin/node"),"seed":seed,"registered":registered,"hostValidation":host_validation}
+
+          PILOT_HOST_GROUPS = {"chromium":("chromium-full1243","chromium-headless1243","ffmpeg1011"),"firefox":("firefox1543",),"webkit":("webkit2359",)}
+
+          def pilot_host_validation(root, env, registered, execute, receipts):
+              # Stock host validation per family, non-fatal: missing host libraries for one family are
+              # evidence for that family, never an abort of the others' custody cases.
+              core,support_directories=stock_validation_preconditions(root,env,registered)
+              validator=stock_host_validator(root);rows={}
+              for family,assets in PILOT_HOST_GROUPS.items():
+                  selected=[r for r in registered if r["asset"] in assets]
+                  result=pilot_group(execute,stock_host_validation_argv(root,core,validator,selected),root,env,receipts,[validator])
+                  expected={"platform":"ubuntu24.04-x64","names":[r["name"] for r in selected],"state":"stock-host-validation-passed-runtime-pending"}
+                  try:observed=json.loads(result["stdout"]) if result["stdout"].strip() else None
+                  except ValueError:observed=None
+                  if result["error"] is None and observed==expected:state=expected["state"]
+                  elif "missing dependencies" in result["stderr"]:state="host-dependencies-missing"
+                  else:state="host-validation-failed"
+                  rows[family]={"state":state,"assets":list(assets),"error":result["error"],"stderr":result["stderr"],"receipt":result["receipt"]}
+                  (root/"browser-host-validation.json").write_text(json.dumps({"families":rows,"chromiumSupportDirectories":support_directories},indent=2)+"\n")
+              return {"families":rows,"chromiumSupport":"pending-selected-archive-library-validation","chromiumSupportDirectories":support_directories}
 
           def content_file(directory, stem, suffix, text):
               # Content-addressed, exclusive, read-only: the name (and so the argv/profile) binds the bytes.
@@ -1191,11 +1228,15 @@ jobs:
           def pilot_group(execute, argv, cwd, env, receipts, inputs=()):
               before=len(receipts);error=None
               try:execute(argv,cwd,env,inputs=inputs)
-              except (RuntimeError,ValueError) as caught:error=type(caught).__name__+": "+str(caught)
+              except Exception as caught:error=type(caught).__name__+": "+str(caught) # evidence, never an abort of later cases
               entry=receipts[-1] if len(receipts)>before else None
               stdout=(pathlib.Path(entry["outDir"])/"stdout.log") if entry else None
               text=stdout.read_text(errors="replace") if stdout and stdout.is_file() else ""
-              return {"error":error,"receipt":pilot_receipt(entry),"stdout":text}
+              stderr=(pathlib.Path(entry["outDir"])/"stderr.log") if entry else None
+              excerpt=stderr.read_text(errors="replace")[:4096] if stderr and stderr.is_file() else ""
+              try:receipt=pilot_receipt(entry)
+              except Exception as caught:receipt=None;error=error or "receipt unreadable: "+type(caught).__name__+": "+str(caught)
+              return {"error":error,"receipt":receipt,"stdout":text,"stderr":excerpt}
 
           def launched(text):
               for line in text.splitlines():
@@ -1225,8 +1266,10 @@ jobs:
 
           def pilot_disposition(summary):
               reasons=[]
-              for name,row in summary["libraryScan"].items():
-                  if row["disposition"] not in PILOT_EXPECTED["scan"]:reasons.append("scan "+name+": "+row["disposition"])
+              for name in ("chromium-headless1243","chromium-full1243"):
+                  row=summary["libraryScan"].get(name)
+                  if row is None:reasons.append("scan "+name+": not run")
+                  elif row["disposition"] not in PILOT_EXPECTED["scan"]:reasons.append("scan "+name+": "+row["disposition"])
               for family in PILOT_FAMILIES:
                   for case in ("normal","forced","exit"):
                       row=summary["cases"].get(family,{}).get(case)
@@ -1256,7 +1299,9 @@ jobs:
           def run_custody_pilot(root, env, owner, identities, receipts, provisioned, deadline, summary, write):
               files=pilot_files(provisioned["seed"],provisioned["node"])
               summary["pilotFiles"]={k:str(v) for k,v in files.items()}
-              summary["libraryScan"]=chromium_library_scan(root,env,owner,identities,receipts,provisioned["registered"],deadline);write()
+              try:summary["libraryScan"]=chromium_library_scan(root,env,owner,identities,receipts,provisioned["registered"],deadline)
+              except Exception as error:summary["libraryScanError"]=type(error).__name__+": "+str(error)
+              write()
               results=root/"pilot-results";results.mkdir(mode=0o700)
               tests=provisioned["seed"]/"Browser.Tests";node=provisioned["node"]
               cli=str(tests/"node_modules/@playwright/test/cli.js")
@@ -1267,16 +1312,26 @@ jobs:
                       execute=managed_executor(owner,root,min(deadline,time.monotonic()+PILOT_CASE_SECONDS[case]),identities,"custody",receipts)
                       return pilot_group(execute,argv,tests,case_env,receipts,inputs)
                   # Normal: the stock runner, its webServer (vite preview) and browser must leave nothing behind.
-                  result=group("normal",[node,cli,"test","--config",str(files["config"])],[files["config"],files["spec"]])
-                  report_path=results/family/"normal-report.json"
-                  report=json.loads(report_path.read_bytes()) if report_path.is_file() else None
-                  rows["normal"]={"disposition":classify_pilot_case("normal",result,report),"stats":(report or {}).get("stats"),"receipt":result["receipt"],"error":result["error"]};write()
+                  try:
+                      result=group("normal",[node,cli,"test","--config",str(files["config"])],[files["config"],files["spec"]])
+                      report_path=results/family/"normal-report.json"
+                      try:report=json.loads(report_path.read_bytes()) if report_path.is_file() else None
+                      except ValueError:report=None
+                      rows["normal"]={"disposition":classify_pilot_case("normal",result,report),"stats":(report or {}).get("stats"),"receipt":result["receipt"],"error":result["error"],"stderr":result["stderr"]}
+                  except Exception as error:rows["normal"]={"disposition":"run-failed","error":type(error).__name__+": "+str(error)}
+                  write()
                   # Forced: a live browser held past its group deadline must be retired by the owner.
-                  result=group("forced",[node,str(files["hold"]),family,"hold"],[files["hold"]])
-                  rows["forced"]={"disposition":classify_pilot_case("forced",result),"launch":launched(result["stdout"]),"receipt":result["receipt"],"error":result["error"]};write()
+                  try:
+                      result=group("forced",[node,str(files["hold"]),family,"hold"],[files["hold"]])
+                      rows["forced"]={"disposition":classify_pilot_case("forced",result),"launch":launched(result["stdout"]),"receipt":result["receipt"],"error":result["error"],"stderr":result["stderr"]}
+                  except Exception as error:rows["forced"]={"disposition":"unexpected","error":type(error).__name__+": "+str(error)}
+                  write()
                   # Leader exit: the leader exits without closing; any surviving browser member is retired.
-                  result=group("exit",[node,str(files["hold"]),family,"exit"],[files["hold"]])
-                  rows["exit"]={"disposition":classify_pilot_case("exit",result),"launch":launched(result["stdout"]),"receipt":result["receipt"],"error":result["error"]};write()
+                  try:
+                      result=group("exit",[node,str(files["hold"]),family,"exit"],[files["hold"]])
+                      rows["exit"]={"disposition":classify_pilot_case("exit",result),"launch":launched(result["stdout"]),"receipt":result["receipt"],"error":result["error"],"stderr":result["stderr"]}
+                  except Exception as error:rows["exit"]={"disposition":"unexpected","error":type(error).__name__+": "+str(error)}
+                  write()
 
           def collect_pilot_evidence(root):
               # One bounded evidence tree for the single artifact: summaries, receipts, small logs, reports, scripts.
@@ -1313,7 +1368,7 @@ jobs:
                   owner=load_owner(root,setup)
                   summary["probe"]=probe_containment(owner,root)
                   identities={};receipts=[]
-                  provisioned=prepare_browser_inputs(root,env,managed_executor(owner,root,setup,identities,"setup",receipts),download,setup,identities)
+                  provisioned=prepare_browser_inputs(root,env,managed_executor(owner,root,setup,identities,"setup",receipts),download,setup,identities,receipts)
                   summary["hostValidation"]=provisioned["hostValidation"];write()
                   run_custody_pilot(root,env,owner,identities,receipts,provisioned,pilot_deadline(start,"custody",time.monotonic()),summary,write)
                   summary["disposition"]=pilot_disposition(summary)

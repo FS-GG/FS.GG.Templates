@@ -565,7 +565,12 @@ caller and runs in this order:
 2. It loads the pinned owner and probes containment before any acquisition.
 3. `prepare_browser_inputs` provisions only the browser subset: the 0.19.1 template
    locks, Node and npm, the stock Playwright seed and the five pinned browser
-   archives, with stock host validation. It acquires no .NET, Rust, WASI or Fable.
+   archives. It acquires no .NET, Rust, WASI or Fable. Stock host validation runs
+   once per family as its own group and is **not fatal**. The stock runner lacks
+   WebKit's host libraries (Playwright's Ubuntu 24.04 WebKit package list, such as
+   `libflite1`, `libmanette-0.2-0` and `libgtk-4-1`), and installing host packages is
+   not admitted. So a missing dependency is recorded as `host-dependencies-missing`
+   for that family, and every family's cases still run.
 4. Everything runs in custody groups under the custody-phase deadline.
    - A Chromium library scan runs host `ldd` on each selected Chromium archive
      directory and reports missing libraries per file.
@@ -585,8 +590,10 @@ inputs. `custody-pilot.json` classifies each case:
 | leader exit | `browser-exited-with-leader`, `leftover-retired` or `unexpected` |
 | library scan | `support-complete`, `support-missing` or `scan-failed` |
 
-A case counts only when its group was contained and removed. The pilot records
-`completed` only if every case is in its expected set.
+A case counts only when its group was contained, removed and had no escape. The
+pilot records `completed` only if both library scans and all nine cases ran and are
+in their expected sets. An exception in one case is recorded for that case, and the
+later cases still run.
 
 **Bounds:**
 - the job's Python runs in one delegated unit with `TasksMax=4096`, `MemoryMax=8G`
@@ -598,4 +605,5 @@ A case counts only when its group was contained and removed. The pilot records
 
 Installed C stays held: `RUNTIME_ADMITTED`, both literal-false steps and
 `custody_gate` are unchanged. A fixture-driven test runs the whole pilot sequence,
-and all 14 groups pass the real owner's `validate_profile`.
+and all 16 groups pass the real owner's `validate_profile`. That test also runs in
+the PR probe job with the pinned owner.
