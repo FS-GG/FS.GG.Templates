@@ -25,9 +25,9 @@ type InstalledTool = { EntryCount: int; CorePath: string }
 
 let private packageId = "FS.GG.Workspace.Template"
 let private version = "0.18.1"
-// Additive WASM successors. 0.19.1 carries the byte-exact C guest sources that 0.19.0 Complete
+// Additive WASM successors. 0.19.1 and 0.19.2 carry the byte-exact C guest sources that 0.19.0 Complete
 // scaffolds truncated; both keep the same direct-only scope and source closure.
-let private wasmSuccessors = [ "0.19.0"; "0.19.1" ]
+let private wasmSuccessors = [ "0.19.0"; "0.19.1"; "0.19.2" ]
 let private supportedVersions = version :: wasmSuccessors
 let private templateId = "fs-gg-fable-game"
 let private hex64 = Regex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)

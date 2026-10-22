@@ -40,7 +40,7 @@ class PublicReferencePreflightTests(unittest.TestCase):
         return args
 
     def wasm_args(self):
-        return ['--mode', 'wasm', '--template-version', '0.19.1', '--sha256', 'a'*64,
+        return ['--mode', 'wasm', '--template-version', '0.19.2', '--sha256', 'a'*64,
                 '--descriptor-sha256', 'b'*64, '--source-revision', 'c'*40,
                 '--tag-revision', 'c'*40, '--evidence-dir', str(self.root/'fresh'), '--preflight-only']
 
@@ -62,10 +62,11 @@ class PublicReferencePreflightTests(unittest.TestCase):
     def test_duplicate_version_refused(self): self.run_preflight(self.args()+['--template-version', '0.18.1'], False)
 
     def test_wasm_direct_preflight_has_no_sdd_wizard_or_runtime_effect(self): self.run_preflight(self.wasm_args(), True)
-    def test_wasm_requires_closed_successor(self): self.run_preflight([a.replace('0.19.1','0.18.1') for a in self.wasm_args()], False)
-    def test_wasm_refuses_superseded_0190_with_truncated_guest(self): self.run_preflight([a.replace('0.19.1','0.19.0') for a in self.wasm_args()], False)
+    def test_wasm_requires_closed_successor(self): self.run_preflight([a.replace('0.19.2','0.18.1') for a in self.wasm_args()], False)
+    def test_wasm_refuses_superseded_0190_with_truncated_guest(self): self.run_preflight([a.replace('0.19.2','0.19.0') for a in self.wasm_args()], False)
+    def test_wasm_refuses_superseded_0191(self): self.run_preflight([a.replace('0.19.2','0.19.1') for a in self.wasm_args()], False)
     def test_historical_route_cannot_claim_successor(self):
-        for successor in ('0.19.0','0.19.1'):
+        for successor in ('0.19.0','0.19.1','0.19.2'):
             with self.subTest(successor=successor): self.run_preflight([a.replace('0.18.1',successor) for a in self.args()], False)
     def test_wasm_refuses_sdd_scope(self): self.run_preflight(self.wasm_args()+['--sdd-version','2.1.0'], False)
     def test_wasm_refuses_wizard_scope(self): self.run_preflight(self.wasm_args()+['--wizard-version','0.16.0'], False)
@@ -318,7 +319,7 @@ class HostedWasmCallerTests(unittest.TestCase):
     def test_fixed_checker_has_no_sdd_wizard_inputs(self):
         argv=self.ns['fixed_checker_argv'](self.root,self.root/'installed','/usr/bin/bash')
         self.assertEqual(argv[0],'/usr/bin/bash')
-        self.assertIn('wasm',argv);self.assertIn('0.19.1',argv);self.assertNotIn('0.19.0',argv)
+        self.assertIn('wasm',argv);self.assertIn('0.19.2',argv);self.assertNotIn('0.19.1',argv)
         self.assertEqual(argv.count(self.ns['PUBLISHED']),2)
         self.assertNotIn('--sdd-version',argv);self.assertNotIn('--wizard-version',argv)
     def test_literal_runtime_hold_cannot_acquire_or_start_c(self):
@@ -1203,13 +1204,13 @@ class ManagedGroupBindingTests(unittest.TestCase):
         self.assertNotRegex(code,r'\],workspace,env\)')
         for bare in ('["node","--version"]','["npm","--version"]','["rustc","--version"]','["cargo","--version"]'):self.assertNotIn(bare,code)
 
-    def test_receiver_targets_published_0191(self):
-        self.assertEqual(self.ns['TEMPLATE_VERSION'],'0.19.1')
-        self.assertEqual(self.ns['PUBLISHED'],'1e95dddb6326d276773154df1336599907d8dbfe')
-        self.assertEqual(self.ns['PACKAGE_SHA'],'5d1886c37b6e6a0d64c3998ee23e76b4c5ba8b8a0c2136200c377d7bbab7d0c6')
-        self.assertEqual(self.ns['DESCRIPTOR_SHA'],'10b532dacb0fba79c1c9dc666487f78903e1fd1a09fc757932f605a3f055f5f7')
+    def test_receiver_targets_published_0192(self):
+        self.assertEqual(self.ns['TEMPLATE_VERSION'],'0.19.2')
+        self.assertEqual(self.ns['PUBLISHED'],'d15f085ff4d64b7736e09ff263644b3c86a576a6')
+        self.assertEqual(self.ns['PACKAGE_SHA'],'ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a')
+        self.assertEqual(self.ns['DESCRIPTOR_SHA'],'e8dbf8958f90d522e577378ae36b0e131954e400991d542ae9709ac32c713e3b')
         url,digest,_=self.ns['ENDPOINTS']['template']
-        self.assertEqual(url,'https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.19.1/fs.gg.workspace.template.0.19.1.nupkg')
+        self.assertEqual(url,'https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.19.2/fs.gg.workspace.template.0.19.2.nupkg')
         self.assertEqual(digest,self.ns['PACKAGE_SHA'])
         self.assertIn('/'+self.ns['PUBLISHED']+'/providers/fable-game.providers.yml',self.ns['ENDPOINTS']['descriptor'][0])
 

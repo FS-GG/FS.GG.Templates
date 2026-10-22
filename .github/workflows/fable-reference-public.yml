@@ -219,12 +219,13 @@ jobs:
           import contextlib, gzip, signal, struct, threading, base64, hashlib, importlib.util, json, os, pathlib, platform, re, shutil, stat, subprocess, sys, tarfile, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET, zipfile
           if sys.flags.optimize != 0:
               raise RuntimeError("hosted admission requires optimization=0")
-          # Published Workspace.Template 0.19.1 (peeled fs-gg-templates/v0.19.1, signed nuget.org archive):
-          # 0.19.0 Complete scaffolds truncate the WASM guest policy.c, so it cannot close the receiver.
-          TEMPLATE_VERSION = "0.19.1"
-          PUBLISHED = "1e95dddb6326d276773154df1336599907d8dbfe"
-          PACKAGE_SHA = "5d1886c37b6e6a0d64c3998ee23e76b4c5ba8b8a0c2136200c377d7bbab7d0c6"
-          DESCRIPTOR_SHA = "10b532dacb0fba79c1c9dc666487f78903e1fd1a09fc757932f605a3f055f5f7"
+          # Published Workspace.Template 0.19.2 (peeled fs-gg-templates/v0.19.2 = d15f085, signed nuget.org
+          # archive; release run 39845406998). Same stock inputs, locks and WASM [0.3.0] refs as 0.19.1, with
+          # Rendering 0.32.3 adopted. 0.19.0 Complete scaffolds truncate the WASM guest policy.c.
+          TEMPLATE_VERSION = "0.19.2"
+          PUBLISHED = "d15f085ff4d64b7736e09ff263644b3c86a576a6"
+          PACKAGE_SHA = "ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a"
+          DESCRIPTOR_SHA = "e8dbf8958f90d522e577378ae36b0e131954e400991d542ae9709ac32c713e3b"
           FABLE_SHA = "b586190f1592c3352d7319008a99e1747267dacbc44d6e5bd3753c84390f47a4"
           TOOLS = {"sdk":"10.0.401", "runtime":"10.0.12", "node":"24.20.0", "npm":"11.19.0", "fable":"5.18.0", "rust":"1.90.0", "wasi":"34.0", "playwright":"1.63.0"}
           BUDGET = {"job":2400, "setup":840, "custody":300, "installed":900, "cleanup":30, "collection":180, "overhead":90}

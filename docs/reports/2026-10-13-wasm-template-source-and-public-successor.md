@@ -820,5 +820,30 @@ Installed C (the downloaded-only 27-case journey) gets its own dispatch-only wor
   tested. An end-to-end admitted run on fixtures puts all 26 groups through the real
   owner's `validate_profile`. Refusal without recorded packages is tested, as is the
   workflow structure.
-- **Not in this source:** the Workspace.Template 0.19.2 pins and the admission
-  constant. Both belong to the lift PR, after Programme/root admission.
+- **Closures and enforcement after review.**
+  - Both dispatch workflows begin with a "Refuse unless this dispatch is admitted in
+    source" step, so a held dispatch does no apt host write.
+  - The custody pilot is closed (`PILOT_ADMISSION = None`), since its phase is complete.
+  - The unit read-back and "no apt or dpkg process left" are enforced before
+    provisioning.
+  - The admitted path has its own budget (`INSTALLED_BUDGET`: setup 840 s, installed
+    1230 s, total 2400 s), because the spent custody reserve now goes to installed.
+  - "One run" is enforced by the admission plan: dispatch once at the commit that sets
+    the constant, then a reset PR sets it back to `None`. Attempt-1 and ref binding
+    alone do not enforce it.
+- **Receiver pins moved to Workspace.Template 0.19.2** (published by release run
+  39845406998):
+  - archive sha256 `ef5c5c2f…`, 1,040,811 bytes, signed;
+  - nuspec commit and peeled `fs-gg-templates/v0.19.2` both `d15f085f`;
+  - descriptor `e8dbf895…`, pinning `::0.19.2`;
+  - stock inputs, locks, Playwright 1.63.0, vite 7.3.6 and the WASM `[0.3.0]` references
+    are unchanged;
+  - the shell `--mode wasm` and the ProviderTool's WASM successor set accept 0.19.2.
+
+  Local checks against the real package all passed: `reference-publication-check`,
+  `dotnet nuget verify --all`, `dotnet new` (Complete and default),
+  `reference-receiver-check` (`valid — direct none`), `policy.c` intact at 1,308 bytes,
+  the default scaffold without WASM, and 192 F# tests. Byte verification by the #4709
+  owner is a precondition of admission.
+- **Not in this source:** the admission constant. It belongs to the admission PR,
+  after Programme/root admission, together with the reset PR that follows the run.
