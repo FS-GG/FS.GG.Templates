@@ -568,9 +568,10 @@ C-J1 review admits the complete canonical profile; the inline refusal also remai
 
 C-J1 binds the canonical `fsgg.managed-group-contract/1` (Coordination `ac22206`,
 `eng/managed_group_owner.py`, sha256 `d846dbe1…`) into the held caller. The caller
-pins and imports the owner, probes containment before acquisition, runs every tool
-call and each Playwright invocation as one `require-empty` managed group, and runs
-the job inside a delegated `systemd-run` unit that carries the hard limits. The WASM
+pins and imports the owner, probes containment before acquisition, runs every
+provisioning call as one `require-empty` managed group, and runs the job inside a
+delegated `systemd-run` unit that carries the hard limits. A per-Playwright-invocation
+helper exists for the custody pilot, but the installed-C checker path does not use it yet. The WASM
 receiver targets published 0.19.1. The literal step, upload and inline holds remain
 until Programme/root admits the bounded three-family custody pilot. The
 [binding report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#managed-group-contract-binding-c-j1--2026-10-22)

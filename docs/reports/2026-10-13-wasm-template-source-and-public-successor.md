@@ -472,7 +472,12 @@ eng/managed_group_owner.py, d846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a322
   download, caller-authored wrapper, installer output or host image. The npm
   wrapper admits the host `/bin/sh` image and the Node image as leaders. Calls use
   absolute executables, and their working directory is inside the job root.
-- `managed_playwright` makes each Playwright invocation its own managed group.
+- `managed_playwright` builds one managed group for each Playwright invocation, for
+  the custody pilot. It has no production caller yet. The installed-C entry,
+  `fixed_checker_argv`, still starts the shell checker (with a relative `bash`), and
+  that checker runs Playwright itself, so all three families would share one group.
+  Moving those invocations into the Python owner is open with the custody pilot and
+  installed-C admission.
 - The hosted step runs the job's Python inside
   `sudo -n systemd-run … -p Delegate=yes -p User=runner -p NoNewPrivileges=yes
   -p KillMode=control-group -p TimeoutStopSec=5` with `TasksMax=6144` and
@@ -501,5 +506,7 @@ unit, it checks the following:
 - the unit's `pids.max` and `memory.max` match the requested hard limits.
 
 Not established: the Chromium support/runtime join, the three-family custody pilot,
-the installed downloaded-only 27-case journey and the provenance of
-installer-output or host images.
+per-invocation Playwright groups on the installed-C path, the installed
+downloaded-only 27-case journey and the provenance of installer-output or host
+images. The `rustup-init` digest still comes from unpinned metadata on the same
+server, as before this change.

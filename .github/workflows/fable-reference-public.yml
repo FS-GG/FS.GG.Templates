@@ -215,7 +215,7 @@ jobs:
             --setenv=GITHUB_WORKSPACE="$GITHUB_WORKSPACE" --setenv=RUNNER_TEMP="$RUNNER_TEMP" \
             --setenv=ImageOS="${ImageOS:-}" --setenv=ImageVersion="${ImageVersion:-}" \
             --setenv=RUNNER_OS="$RUNNER_OS" --setenv=RUNNER_ARCH="$RUNNER_ARCH" \
-            -- /usr/bin/python3 - <<'HOSTED_WASM'
+            -- /usr/bin/python3 -I - <<'HOSTED_WASM'
           import contextlib, gzip, signal, struct, threading, base64, hashlib, importlib.util, json, os, pathlib, platform, re, shutil, stat, subprocess, sys, tarfile, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET, zipfile
           if sys.flags.optimize != 0:
               raise RuntimeError("hosted admission requires optimization=0")
@@ -516,7 +516,7 @@ jobs:
                       "limits":{"pidsMax":MANAGED["pidsMax"],"memoryMaxBytes":None,"stdoutBytes":MANAGED["stdoutBytes"],"stderrBytes":MANAGED["stderrBytes"]},
                       "retirement":{"onLeaderExit":"require-empty","leaderExitSettleSeconds":MANAGED["settleSeconds"],"termGraceSeconds":MANAGED["termGraceSeconds"],"cleanupSeconds":BUDGET["cleanup"]}}
                   entry={"phase":phase,"index":index,"name":name,"outDir":str(out_dir),"executable":real,"identityBasis":row["basis"],"status":"started"}
-                  receipts.append(entry);record()
+                  receipts.append(entry);notes=[record()]
                   try:
                       receipt=owner.run(profile,env=dict(env),deadline=deadline,out_dir=str(out_dir))
                   except owner.Refused as error:
@@ -526,14 +526,20 @@ jobs:
                   except owner.GroupFailed as error:
                       entry.update(status="failed",firstCause=error.receipt["firstCause"],cleanup=error.receipt["cleanup"],custody=error.receipt["custody"])
                       failure=RuntimeError("managed group "+name+" failed: "+entry["firstCause"]);cause=error
+                  except BaseException as error:
+                      # Not a contract outcome: keep a terminal index status, then re-raise unchanged.
+                      entry.update(status="error",firstCause=type(error).__name__+": "+str(error))
+                      note=record()
+                      if note:error.add_note(note)
+                      raise
                   else:
                       entry.update(status=receipt["outcome"],cleanup=receipt["cleanup"],custody=receipt["custody"],profileSha256=receipt["profileSha256"],ownerSha256=receipt["owner"]["sha256"])
                       failure=None;cause=None
                       if not (receipt["outcome"]=="succeeded" and receipt["cleanup"]=="observed-empty-removed" and receipt["owner"]["sha256"]==OWNER["sha256"]):
                           failure=RuntimeError("managed group "+name+" receipt differs from contained success")
-                  note=record()
+                  notes.append(record())
                   if failure is not None:
-                      if note:failure.add_note(note)
+                      for note in filter(None,notes):failure.add_note(note)
                       raise failure from cause
                   return (out_dir/"stdout.log").read_text()
               return execute
@@ -561,6 +567,8 @@ jobs:
               return prepare_inputs(root,workspace,env,execute,download,setup,identities)
 
           def fixed_checker_argv(workspace, installed):
+              # Open with installed-C admission: this checker runs Playwright itself (one group for all
+              # families) and starts from relative bash; per-invocation groups need managed_playwright.
               return ["bash",str(workspace/"tests/composition/fable-game/verify-fable-reference-public.sh"),"--mode","wasm","--template-version",TEMPLATE_VERSION,"--sha256",PACKAGE_SHA,"--descriptor-sha256",DESCRIPTOR_SHA,"--source-revision",PUBLISHED,"--tag-revision",PUBLISHED,"--evidence-dir",str(installed)]
 
           def prepare_inputs(root, workspace, env, execute, acquire, deadline, identities=None):
@@ -862,14 +870,18 @@ jobs:
                   require(len(rows)==1 and rows[0]["revision"]==directory.rsplit("-",1)[1] and not rows[0].get("revisionOverrides",{}).get("ubuntu24.04-x64"),"stock revision/override differs")
               require(core.is_file() and not core.is_symlink() and sha(core)==STOCK_LAUNCHER_INPUTS["playwright-core/lib/coreBundle.js"],"stock validation source differs")
               script="""const fs=require('fs'),path=require('path');
-          const core=require(process.argv[1]),expected=JSON.parse(process.argv[2]);
+          const core=require(process.argv[2]),expected=JSON.parse(process.argv[3]);
           if(core.utils.hostPlatform!=='ubuntu24.04-x64'||!core.utils.isOfficiallySupportedPlatform)throw Error('effective stock platform differs');
           const registry=core.registry.registry;
           const actual=expected.map(row=>{const e=registry.findExecutable(row.name);if(!e||e.directory!==row.directory||e.executablePath()!==row.executable)throw Error('stock registry selection differs');return e;});
           (async()=>{await registry.validateHostRequirementsForExecutablesIfNeeded(actual,'javascript');
           for(const e of actual){const p=path.join(e.directory,'DEPENDENCIES_VALIDATED');if(!fs.existsSync(p))throw Error('stock dependency validation marker absent');}
           console.log(JSON.stringify({platform:core.utils.hostPlatform,names:actual.map(e=>e.name),state:'stock-host-validation-passed-runtime-pending'}));})().catch(e=>{console.error(e);process.exitCode=1;});"""
-              result=json.loads(execute([str(root/"tools/node-archive"/('node-v'+TOOLS['node']+'-linux-x64')/"bin/node"),"-e",script,str(core),json.dumps(registrations)],root,env))
+              # Managed argv admits no control characters, so the multi-line validator is a private file.
+              validator=root/"browser-host-validation.cjs"
+              require(not validator.exists() and not validator.is_symlink(),"host validation script path occupied")
+              with validator.open("x") as source:source.write(script)
+              result=json.loads(execute([str(root/"tools/node-archive"/('node-v'+TOOLS['node']+'-linux-x64')/"bin/node"),str(validator),str(core),json.dumps(registrations)],root,env))
               require(result=={"platform":"ubuntu24.04-x64","names":[row["name"] for row in registrations],"state":"stock-host-validation-passed-runtime-pending"},"stock host validation result differs")
               # Stock Chromium1.63 scans chrome-linux, but these authentic archives use
               # chrome-linux64/headless-shell-linux64. Its success cannot prove those libraries.

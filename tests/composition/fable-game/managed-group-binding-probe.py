@@ -25,7 +25,7 @@ WORKFLOW = HERE.parents[2] / '.github/workflows/fable-reference-public.yml'
 
 def actual_caller():
     text = WORKFLOW.read_text()
-    blocks = re.findall(r"-- /usr/bin/python3 - <<'HOSTED_WASM'\n(.*?)\n          HOSTED_WASM", text, re.S)
+    blocks = re.findall(r"-- /usr/bin/python3 -I - <<'HOSTED_WASM'\n(.*?)\n          HOSTED_WASM", text, re.S)
     if len(blocks) != 1:
         raise SystemExit('exactly one actual hosted caller required')
     namespace = {'__name__': 'managed_group_binding_probe'}

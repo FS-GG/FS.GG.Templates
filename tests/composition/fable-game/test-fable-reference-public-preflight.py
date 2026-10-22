@@ -279,7 +279,7 @@ WORKFLOW=HERE.parents[2]/'.github/workflows/fable-reference-public.yml'
 
 def actual_hosted_code():
     text=WORKFLOW.read_text()
-    matches=re.findall(r"            -- /usr/bin/python3 - <<'HOSTED_WASM'\n(.*?)\n          HOSTED_WASM",text,re.S)
+    matches=re.findall(r"            -- /usr/bin/python3 -I - <<'HOSTED_WASM'\n(.*?)\n          HOSTED_WASM",text,re.S)
     if len(matches)!=1: raise AssertionError('exactly one actual hosted caller required')
     code='\n'.join(line[10:] for line in matches[0].splitlines())
     ast.parse(code)
@@ -697,8 +697,10 @@ class HostedWasmCallerTests(unittest.TestCase):
     def test_host_validation_calls_stock_validator_without_install_or_forged_marker(self):
         registrations=self.validation_fixture();calls=[]
         def execute(argv,cwd,env):
-            calls.append(argv);self.assertEqual(argv[1],'-e')
-            script=argv[2];self.assertIn('validateHostRequirementsForExecutablesIfNeeded(actual',script)
+            calls.append(argv);self.assertEqual(argv[1],str(self.root/'browser-host-validation.cjs'))
+            self.assertFalse(any(ord(c)<32 for arg in argv for c in arg))
+            script=Path(argv[1]).read_text();self.assertIn('validateHostRequirementsForExecutablesIfNeeded(actual',script)
+            self.assertIn('require(process.argv[2]),expected=JSON.parse(process.argv[3])',script)
             self.assertNotIn('writeFile',script);self.assertNotIn('registry.install',script)
             return json.dumps({'platform':'ubuntu24.04-x64','names':[r['name'] for r in registrations],'state':'stock-host-validation-passed-runtime-pending'})
         result=self.ns['validate_registered_browsers'](self.root,{},registrations,execute)
@@ -761,8 +763,8 @@ class FakeGroupFailed(RuntimeError):
 class FakeOwner:
     """Records exactly what the caller hands the contract; never launches anything."""
     Refused=FakeRefused;GroupFailed=FakeGroupFailed
-    def __init__(self, outcome='succeeded', available=True):
-        self.calls=[];self.outcome=outcome;self.available=available
+    def __init__(self, outcome='succeeded', available=True, stdout=None):
+        self.calls=[];self.outcome=outcome;self.available=available;self.stdout=stdout
     def probe(self):
         return {'schema':'fsgg.managed-group-contract/1','available':self.available,'refusal':None if self.available else 'delegated-root-invalid'}
     def run(self, profile, *, env, deadline, out_dir):
@@ -773,7 +775,8 @@ class FakeOwner:
         if self.outcome=='refused':raise FakeRefused('executable-identity-mismatch',{**receipt,'outcome':'refused','firstCause':'Refused: executable-identity-mismatch'})
         if self.outcome=='failed':raise FakeGroupFailed({**receipt,'outcome':'failed','firstCause':'RuntimeError: leader exited with live contained members'})
         if self.outcome=='unclean':receipt['cleanup']='unknown'
-        Path(out_dir,'stdout.log').write_text('stdout of '+profile['argv'][0])
+        if self.outcome=='crash':raise OSError('unexpected owner failure')
+        Path(out_dir,'stdout.log').write_text(self.stdout(profile) if self.stdout else 'stdout of '+profile['argv'][0])
         return receipt
 
 class ManagedGroupBindingTests(unittest.TestCase):
@@ -925,6 +928,11 @@ class ManagedGroupBindingTests(unittest.TestCase):
                 self.assertEqual(json.loads((self.root/'managed-receipts.json').read_text())[-1]['status'],status)
                 if outcome!='unclean':self.assertIsInstance(caught.exception.__cause__,(FakeRefused,FakeGroupFailed))
 
+    def test_unexpected_owner_exception_keeps_a_terminal_index_status(self):
+        execute,receipts=self.executor(FakeOwner('crash'))
+        with self.assertRaisesRegex(OSError,'unexpected owner failure'):execute([str(self.tool)],self.root,{})
+        self.assertEqual(json.loads((self.root/'managed-receipts.json').read_text())[-1]['status'],'error')
+
     def test_bind_identity_refuses_symlink_drift_conflict_and_unknown_basis(self):
         alias=self.root/'alias';alias.symlink_to(self.tool)
         cases=[((str(alias),'host-observed'),{},'symlink-free'),
@@ -973,7 +981,7 @@ class ManagedGroupBindingTests(unittest.TestCase):
         self.assertEqual(re.findall(r'^        if: (.*)$',step,re.M),['${{ false }}'])
         for required in ('sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec','-p Delegate=yes','-p User="$(id -un)"',
                          '-p NoNewPrivileges=yes','-p KillMode=control-group','-p TimeoutStopSec=5','-p TasksMax=6144','-p MemoryMax=12G',
-                         '-p RuntimeMaxSec=2400','--setenv=CHECKOUT_HEAD="$checkout_head"','-- /usr/bin/python3 - <<'):
+                         '-p RuntimeMaxSec=2400','--setenv=CHECKOUT_HEAD="$checkout_head"','-- /usr/bin/python3 -I - <<'):
             with self.subTest(required=required):self.assertIn(required,step)
         self.assertEqual(self.ns['BUDGET']['job'],2400)
 
@@ -1013,6 +1021,37 @@ class RealOwnerBindingTests(unittest.TestCase):
         execute(['/bin/sh','-c','true'],self.root,{'PATH':'/usr/bin:/bin'})
         profile,digest=self.owner.validate_profile(captured.calls[0]['profile'])
         self.assertRegex(digest,r'^[0-9a-f]{64}$');self.assertEqual(profile['retirement']['onLeaderExit'],'require-empty')
+
+    def test_every_caller_argv_is_valid_under_the_real_contract(self):
+        # Drive the actual call sites through the executor, then put each profile through the real schema.
+        registrations=[]
+        for asset,(name,directory,relative) in self.ns['BROWSER_REGISTRY'].items():
+            tree=self.root/'browsers'/directory;tree.mkdir(parents=True)
+            executable=tree/relative;executable.parent.mkdir(parents=True,exist_ok=True);executable.write_bytes(b'inert')
+            registrations.append({'asset':asset,'name':name,'directory':str(tree),'executable':str(executable)})
+        core=self.root/'npm-seed/Browser.Tests/node_modules/playwright-core/lib/coreBundle.js';core.parent.mkdir(parents=True);core.write_bytes(b'inert')
+        self.ns['STOCK_LAUNCHER_INPUTS']['playwright-core/lib/coreBundle.js']=hashlib.sha256(b'inert').hexdigest()
+        metadata=core.parent.parent/'browsers.json';metadata.write_text(json.dumps({'browsers':[{'name':n,'revision':d.rsplit('-',1)[1]} for n,d,_ in self.ns['BROWSER_REGISTRY'].values()]}))
+        self.ns['STOCK_LAUNCHER_INPUTS']['playwright-core/browsers.json']=hashlib.sha256(metadata.read_bytes()).hexdigest()
+        tools=self.root/'tools';toolchain=self.ns['rust_toolchain_bin'](self.root)
+        node=tools/('node-archive/node-v'+self.ns['TOOLS']['node']+'-linux-x64/bin/node')
+        wasi=tools/'wasi/wasi-sdk-34.0-x86_64-linux'
+        paths=[node,tools/'bin/npm',toolchain/'rustc',toolchain/'cargo',tools/'cargo/bin/rustup',tools/'dotnet/dotnet',wasi/'bin/clang']
+        for path in paths:
+            path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b'#!/bin/sh\n');path.chmod(0o700)
+            self.ns['bind_identity'](self.identities,str(path),'verified-archive-member')
+        accepted={'platform':'ubuntu24.04-x64','names':[r['name'] for r in registrations],'state':'stock-host-validation-passed-runtime-pending'}
+        captured=FakeOwner(stdout=lambda profile:json.dumps(accepted) if str(core) in profile['argv'] else '')
+        execute=self.ns['managed_executor'](captured,self.root,time.monotonic()+60,self.identities,'setup',self.receipts)
+        env={'PATH':'/usr/bin:/bin','FSGG_WASM_FIREFOX_PROFILE':'content-sandbox-enabled','DOTNET_HOST_PATH':str(tools/'dotnet/dotnet'),
+             'FSGG_WASM_FABLE_CORE':str(self.root/'fable.dll'),'FSGG_WASM_WASI_ROOT':str(wasi)}
+        self.ns['validate_registered_browsers'](self.root,env,registrations,execute)
+        with self.assertRaises(ValueError):self.ns['qualify_tools'](self.root,env,execute)
+        for family in ('chromium','firefox','webkit'):
+            self.ns['managed_playwright'](execute,node,self.root,family,env,list_only=True)
+        self.assertGreaterEqual(len(captured.calls),10)
+        for call in captured.calls:
+            with self.subTest(argv=call['profile']['argv'][:2]):self.owner.validate_profile(call['profile'])
 
     def run_refused(self, deadline, code):
         receipts=self.receipts
