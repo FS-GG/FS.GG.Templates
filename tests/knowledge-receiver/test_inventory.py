@@ -1,6 +1,7 @@
 """Cheap real-descriptor inventory and controls; this is not installed qualification."""
 import json
 from pathlib import Path
+import re
 import shutil
 import sys
 import tempfile
@@ -13,8 +14,12 @@ from receiver import ROOT, call, inventory
 class InventoryTests(unittest.TestCase):
     def test_owned_successor_pins_preserve_external_identity_and_defaults(self):
         rows = {r["provider"]: r for r in inventory()}
+        # Owned providers self-pin the package this repository produces; bind to its own
+        # <Version> rather than a literal that went stale at every Workspace release.
+        versions = re.findall(r"<Version>([^<]+)</Version>", (ROOT / "FS.GG.Templates.csproj").read_text())
+        self.assertEqual(len(versions), 1)
         for name in ("console", "web", "fable-bindings", "python", "fable-game"):
-            self.assertEqual(rows[name]["source"], "FS.GG.Workspace.Template::0.18.1")
+            self.assertEqual(rows[name]["source"], "FS.GG.Workspace.Template::" + versions[0])
             descriptor = (ROOT / rows[name]["descriptor"]).read_text()
             self.assertIn('minimumFsggSdd:\n      version: "2.1.0"', descriptor)
         for row in rows.values():

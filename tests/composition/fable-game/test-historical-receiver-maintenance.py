@@ -227,6 +227,39 @@ class MaintenanceTests(unittest.TestCase):
         for key in ('cleanMaintenance', 'retainedMaintenance', 'noneMaintenance', 'wizardMaintenance'):
             self.assertIn('$' + key + '[0]', source)
 
+    def test_actual_wizard_hive_is_closed_to_the_two_verified_legacy_archives(self):
+        # SDD 1.7.0 runs a best-effort `dotnet new update` under the Wizard, so an open hive
+        # silently adopts whatever Workspace.Template is newest. Execute the actual closing block.
+        source = (HERE / 'verify-svg-typed-receivers.sh').read_text()
+        start = source.index('wizard_template_feed="$out/wizard-template-feed"')
+        wizard = source.index('PATH="$(dirname "$cli"):$PATH" DOTNET_CLI_HOME="$out/homes/wizard" "$wizard_dir/new-sdd-workspace"')
+        self.assertLess(start, wizard)
+        block = source[start:wizard]
+        self.assertIn("'    <clear />'", block)
+        self.assertEqual(block.count('<add key='), 1)
+        for case in ('exact', 'extra', 'wrong-current', 'wrong-legacy'):
+            with self.subTest(case=case), tempfile.TemporaryDirectory() as temp:
+                out = Path(temp)
+                current = out / 'FS.GG.Workspace.Template.0.11.0.nupkg'; legacy = out / 'FS.GG.Workspace.Template.0.19.0.nupkg'
+                current.write_bytes(b'current' + (b'!' if case == 'wrong-current' else b''))
+                legacy.write_bytes(b'legacy' + (b'!' if case == 'wrong-legacy' else b''))
+                prelude = ('set -euo pipefail\nfail() { echo "$*" >&2; exit 1; }\nsha() { sha256sum "$1" | cut -d" " -f1; }\n'
+                           f'out={out}\ncurrent_package={current}\nwizard_package={legacy}\ntemplate_version=0.11.0\nwizard_template_version=0.19.0\n'
+                           f'template_public_sha={hashlib.sha256(b"current").hexdigest()}\nwizard_template_public_sha={hashlib.sha256(b"legacy").hexdigest()}\n')
+                if case == 'extra':
+                    (out / 'wizard-template-feed').mkdir(); (out / 'wizard-template-feed' / 'FS.GG.Workspace.Template.0.19.1.nupkg').write_bytes(b'newest')
+                result = subprocess.run(['bash', '-c', prelude + block], capture_output=True, text=True)
+                config = out / 'homes/wizard/.nuget/NuGet/NuGet.Config'
+                if case == 'exact':
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    text = config.read_text()
+                    self.assertIn('<clear />', text)
+                    self.assertIn(f'value="{out}/wizard-template-feed"', text)
+                    self.assertNotIn('nuget.org', text)
+                else:
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertFalse(config.exists())
+
     def test_actual_caller_failed_restore_cannot_finish_or_build(self):
         source = (HERE / 'verify-svg-typed-receivers.sh').read_text()
         function = 'maintain_receiver() {' + source.split('maintain_receiver() {', 1)[1].split('\n}\n', 1)[0] + '\n}\n'
