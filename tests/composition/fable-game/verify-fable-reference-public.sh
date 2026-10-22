@@ -146,8 +146,9 @@ fi
 [[ -z "$current_inputs" ]] || usage
 [[ "$mode" == templates || "$mode" == full || "$mode" == wasm ]] || usage
 if [[ "$mode" == wasm ]]; then
-  # Published 0.19.1 is the selected WASM receiver: 0.19.0 Complete scaffolds truncate guest/policy.c.
-  [[ "$version" == 0.19.1 && -z "$sdd_version$sdd_sha$sdd_revision$wizard_version$wizard_sha$wizard_revision" ]] || usage
+  # Published 0.19.2 is the selected WASM receiver (0.19.0 Complete scaffolds truncate guest/policy.c;
+  # 0.19.1 is superseded by 0.19.2, which adopts Rendering 0.32.3).
+  [[ "$version" == 0.19.2 && -z "$sdd_version$sdd_sha$sdd_revision$wizard_version$wizard_sha$wizard_revision" ]] || usage
 else
   [[ "$version" == 0.18.1 && "$sdd_version" == 2.1.0 ]] || usage
 fi

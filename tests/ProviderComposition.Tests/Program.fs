@@ -260,9 +260,18 @@ let main _ =
     | Error x -> failwithf "0.19.1 successor refused: %s" x
     assertEqual "0.19.1 descriptor pin cannot select another successor" (Error "descriptor-source-refused")
         (validate { successorRequest successorComplete "0.19.1" with Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::0.19.0" } })
-    let unselected = Path.Combine(temp, "successor-0.19.2.nupkg")
-    makeSuccessorArchive unselected "0.19.2" true
-    assertEqual "unselected 0.19.2 refuses" (Error "selected-version-refused") (validate (successorRequest unselected "0.19.2"))
+    let successor192 = Path.Combine(temp, "successor-0.19.2.nupkg")
+    makeSuccessorArchive successor192 "0.19.2" true
+    match validate (successorRequest successor192 "0.19.2") with
+    | Ok _ -> printfn "PASS 0.19.2 successor closes the WASM source closure"
+    | Error x -> failwithf "0.19.2 successor refused: %s" x
+    let successor192Partial = Path.Combine(temp, "successor-0.19.2-partial.nupkg")
+    makeSuccessorArchive successor192Partial "0.19.2" false
+    assertEqual "0.19.2 successor without the WASM source closure refuses" (Error "reference-member-missing")
+        (validate (successorRequest successor192Partial "0.19.2"))
+    let unselected = Path.Combine(temp, "successor-0.19.3.nupkg")
+    makeSuccessorArchive unselected "0.19.3" true
+    assertEqual "unselected 0.19.3 refuses" (Error "selected-version-refused") (validate (successorRequest unselected "0.19.3"))
     let receiver = Path.Combine(temp, "receiver")
     use receiverArchive = ZipFile.OpenRead archive
     for name in requiredEntries.Tail do
