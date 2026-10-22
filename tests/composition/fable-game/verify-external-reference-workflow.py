@@ -38,15 +38,16 @@ assert "packet['disposition']=='passed'" in codes[4]
 assert "['chromium','firefox','webkit']" in codes[4]
 
 # Read the actual closed GitHub expressions; producer rows are immutable workflow
-# choices, not overridable caller inputs. Keep the published public row intact.
+# choices, not overridable caller inputs. The public row is the currently published default
+# (Rendering 0.32.3, published original 4ec6 bytes); it is never caller-overridable.
 PRODUCER_ROWS = {
     'public': {
-        'PRODUCER_SOURCE':'6c9f766fdd91483c2de6f061e75589e94852a265',
-        'PRODUCER_RUN':'37419955679','PRODUCER_ARTIFACT':'11392773621',
-        'PRODUCER_ARCHIVE_SHA256':'486182db3efd8442c007f66322a7bfb27caf0cb8e3c87bc2521e66dd90a7adee',
-        'PRODUCER_CUSTODY_SHA256':'ecd0c5d742fd8d19d5659991e413e92971c1d2cb9aea913faa2bb249f53f577d',
-        'PRODUCER_ARCHIVE_SIZE_BYTES':'14912688',
-        'PRODUCER_VERSION':'0.32.1','PRODUCER_PLAN':'eng/release/svg-export-prefix-0.32.1.json',
+        'PRODUCER_SOURCE':'4ec6eafbbbf02264db9b0db4780c590abe0bf9cd',
+        'PRODUCER_RUN':'39509314882','PRODUCER_ARTIFACT':'12305198394',
+        'PRODUCER_ARCHIVE_SHA256':'84647332c124e511545787c8c3f8634d4f5177068521acfc86c93430ac73ef63',
+        'PRODUCER_CUSTODY_SHA256':'7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9',
+        'PRODUCER_ARCHIVE_SIZE_BYTES':'15073469',
+        'PRODUCER_VERSION':'0.32.3','PRODUCER_PLAN':'eng/release/font-disposal-0.32.3.json',
     },
     'candidate': {
         'PRODUCER_SOURCE':'9b73395658d4683a067d150ca9441b04e802c4af',
@@ -400,7 +401,7 @@ mode_guard=next(line for line in script.splitlines() if line.startswith('[[ "$in
 font_guard=script.split('if [[ "$input_mode" == font-disposal ]]; then',1)[1].split('\nfi',1)[0]
 actual_guard='set -euo pipefail\n'+mode_guard+'\nif [[ "$input_mode" == font-disposal ]]; then'+font_guard+'\nfi\nprintf GUARD_ACCEPTED'
 guard_env={**INERT_ENV,'input_mode':'font-disposal','version':'0.32.3','expected_source':PRODUCER_ROWS['font-disposal']['PRODUCER_SOURCE'],'templates_package':''}
-for changes,good in [({},True),({'version':'0.32.2'},False),({'expected_source':PRODUCER_ROWS['public']['PRODUCER_SOURCE']},False),({'templates_package':'foreign.nupkg'},False),({'FsGgSvgAuthoringVersion':'0.32.1'},False),({'input_mode':'unknown'},False)]:
+for changes,good in [({},True),({'version':'0.32.2'},False),({'expected_source':'6c9f766fdd91483c2de6f061e75589e94852a265'},False),({'templates_package':'foreign.nupkg'},False),({'FsGgSvgAuthoringVersion':'0.32.1'},False),({'input_mode':'unknown'},False)]:
     result=subprocess.run(['/bin/bash','-c',actual_guard],env={**guard_env,**changes},capture_output=True,text=True,timeout=5)
     assert (result.returncode==0)==good and ('GUARD_ACCEPTED' in result.stdout)==good, 'actual pre-effect guard disposition differs'
 print('PASS actual closed-mode pre-effect shell guard: correct0323 accepted; historical/source/package/override/unknown controls refused without product effects')

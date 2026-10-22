@@ -13,7 +13,7 @@ templates_package_sha="${8:-}"
 [[ -z "$templates_package" && -z "$templates_package_sha" || -n "$templates_package" && "$templates_package_sha" =~ ^[0-9a-f]{64}$ ]] || { echo "external template package requires exact path and SHA256" >&2; exit 1; }
 [[ "$input_mode" == candidate || "$input_mode" == public || "$input_mode" == font-disposal ]] || { echo "unknown input mode" >&2; exit 1; }
 if [[ "$input_mode" == public ]]; then
-  [[ "$version" == 0.32.1 && "$expected_source" == 6c9f766fdd91483c2de6f061e75589e94852a265 ]]
+  [[ "$version" == 0.32.3 && "$expected_source" == 4ec6eafbbbf02264db9b0db4780c590abe0bf9cd ]]
   [[ -z "${FsGgSvgInputVersion:-}" && -z "${FsGgSvgAuthoringVersion:-}" ]] || { echo "public defaults cannot be overridden" >&2; exit 1; }
 fi
 if [[ "$input_mode" == font-disposal ]]; then
@@ -123,16 +123,16 @@ for project in projects:
     path=root/project; tree=ET.parse(path)
     for key in ['FsGgSvgInputVersion','FsGgSvgAuthoringVersion']:
         node=tree.find('.//'+key)
-        if node is not None: assert node.text=='0.32.1'
+        if node is not None: assert node.text==module.VERSION
     for node in tree.findall('.//PackageReference'):
         if node.attrib.get('Include','').startswith('FS.GG.UI.'):
-            assert node.attrib['Version'] in ['[0.32.1]','[$(FsGgSvgInputVersion)]','[$(FsGgSvgAuthoringVersion)]']
+            assert node.attrib['Version'] in ['['+module.VERSION+']','[$(FsGgSvgInputVersion)]','[$(FsGgSvgAuthoringVersion)]']
     module.validate_project_references(tree, project, root)
     lock=json.loads(path.with_name('packages.lock.json').read_text())
     for deps in lock['dependencies'].values():
         for name,row in deps.items():
             if name.startswith('FS.GG.UI.'):
-                assert name in module.LOCK_HASH and row['resolved']=='0.32.1' and row['contentHash']==module.LOCK_HASH[name]
+                assert name in module.LOCK_HASH and row['resolved']==module.VERSION and row['contentHash']==module.LOCK_HASH[name]
 PYPUBLIC
   for project in SvgFoundation/SvgFoundation.fsproj SvgFoundation/Studio/Studio.fsproj SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fsproj Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj Protocol.Tests/cross-runtime/CodecProbe.Fable/CodecProbe.Fable.fsproj; do
     dotnet restore "$out/complete/$project" --locked-mode --configfile "$out/NuGet.Config" >>"$out/public-locked-restore.log" 2>&1
@@ -143,7 +143,7 @@ from pathlib import Path
 cache,helpers,custody=map(Path,sys.argv[1:]);spec=importlib.util.spec_from_file_location('public_input',helpers/'external-reference-public.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 rows={r['id']:r for r in json.loads(custody.read_text())['archives']}
 for identity,sha in module.PUBLIC_SHA256.items():
-    folder=cache/identity.lower()/'0.32.1';module.validate_archive(folder/(identity.lower()+'.0.32.1.nupkg'),identity,sha,rows[identity])
+    folder=cache/identity.lower()/module.VERSION;module.validate_archive(folder/(identity.lower()+'.'+module.VERSION+'.nupkg'),identity,sha,rows[identity])
     assert json.loads((folder/'.nupkg.metadata').read_text())['contentHash']==module.LOCK_HASH[identity]
 PYCACHE
 else
