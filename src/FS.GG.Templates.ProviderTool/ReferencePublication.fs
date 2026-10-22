@@ -25,7 +25,10 @@ type InstalledTool = { EntryCount: int; CorePath: string }
 
 let private packageId = "FS.GG.Workspace.Template"
 let private version = "0.18.1"
-let private supportedVersions = [ version; "0.19.0" ]
+// Additive WASM successors. 0.19.1 carries the byte-exact C guest sources that 0.19.0 Complete
+// scaffolds truncated; both keep the same direct-only scope and source closure.
+let private wasmSuccessors = [ "0.19.0"; "0.19.1" ]
+let private supportedVersions = version :: wasmSuccessors
 let private templateId = "fs-gg-fable-game"
 let private hex64 = Regex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)
 let private hex40 = Regex("^[0-9a-f]{40}$", RegexOptions.CultureInvariant)
@@ -221,7 +224,7 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
                     use stream = nuspec.Open()
                     let doc = XDocument.Load stream
                     let versions = doc.Descendants() |> Seq.filter (fun e -> e.Name.LocalName = "version") |> Seq.map _.Value |> Seq.toList
-                    if versions = [ "0.19.0" ] then
+                    if (match versions with [ selected ] -> List.contains selected wasmSuccessors | _ -> false) then
                         let templateTransform (raw: byte array) (actual: byte array) =
                             let text = UTF8Encoding(false, true).GetString raw
                             same (UTF8Encoding(false).GetBytes(text.Replace("FableGameWorkspaceNamespace", productName, StringComparison.Ordinal).Replace("FableGameWorkspace", productName, StringComparison.Ordinal))) actual
@@ -233,7 +236,7 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
                 successorWasmMismatch
                 || (invariant |> List.exists (fun name -> not (exact name same)))
                 || (transformed |> List.exists (fun name -> not (exact name replaced)))
-            // 0.19.0's accepted scope is direct-only. A caller cannot relabel this
+            // The WASM successors' accepted scope is direct-only. A caller cannot relabel this
             // successor as installed SDD/Wizard success through the generic checker.
             if successorRouteMismatch then refuse "receiver-successor-route-refused"
             elif not (regularFile (Path.Combine(receiver, productName + ".slnx"))) then refuse "receiver-product-name-refused"
@@ -337,7 +340,7 @@ let validate request =
                     elif duplicate || directoryCollides then refuse "archive-duplicate-entry-refused"
                     elif oversized || total > 128L * 1024L * 1024L then refuse "archive-entry-bound-refused"
                     elif linked then refuse "archive-link-refused"
-                    elif (required @ (if request.ExpectedVersion = "0.19.0" then
+                    elif (required @ (if List.contains request.ExpectedVersion wasmSuccessors then
                                           wasmRelative |> List.map (fun name -> "content/templates/fs-gg-fable-game/" + name)
                                       else []))
                          |> List.exists (fun name -> archive.GetEntry(name) |> Option.ofObj |> Option.forall (fun e -> e.Length = 0L)) then refuse "reference-member-missing"

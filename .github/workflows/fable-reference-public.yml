@@ -6,6 +6,8 @@ on:
       - .github/workflows/fable-reference-public.yml
       - tests/composition/fable-game/verify-fable-reference-public.sh
       - tests/composition/fable-game/test-fable-reference-public-preflight.py
+      - tests/composition/fable-game/managed-group-binding-probe.py
+      - tests/composition/fable-game/current-public-descriptor-0.19.0.yml
   workflow_dispatch:
     inputs:
       mode:
@@ -123,6 +125,45 @@ jobs:
           retention-days: 90
 
 
+  # Non-required binding probe. It runs the caller's own pin, owner loading, probe and managed
+  # executor against the real pinned owner on tiny host commands. It provisions nothing and runs
+  # no browser, WASM journey or installed C; those stay held by the literal gates below.
+  managed-group-binding:
+    name: Managed-group contract binding probe (non-required)
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      RUN_ID: ${{ github.run_id }}
+      RUN_ATTEMPT: ${{ github.run_attempt }}
+    steps:
+      - name: Check out exact reviewed Templates source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Refuse outside a delegated unit with the real pinned owner
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I tests/composition/fable-game/managed-group-binding-probe.py --expect unavailable --root "$RUNNER_TEMP/mg-unavailable"
+          FSGG_MANAGED_GROUP_OWNER="$RUNNER_TEMP/mg-unavailable/owner/managed_group_owner.py" \
+            python3 tests/composition/fable-game/test-fable-reference-public-preflight.py ManagedGroupBindingTests RealOwnerBindingTests
+      - name: Contain bound groups inside a fresh delegated unit
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec \
+            --unit="fsgg-mg-templates-probe-${RUN_ID}-${RUN_ATTEMPT}" \
+            -p Delegate=yes -p User="$(id -un)" -p Group="$(id -gn)" -p NoNewPrivileges=yes \
+            -p KillMode=control-group -p TimeoutStopSec=5 -p TasksAccounting=yes -p MemoryAccounting=yes \
+            -p TasksMax=256 -p MemoryMax=1073741824 -p RuntimeMaxSec=300 -p WorkingDirectory="$PWD" \
+            --setenv=PATH=/usr/bin:/bin \
+            -- /usr/bin/python3 -I tests/composition/fable-game/managed-group-binding-probe.py \
+               --expect contained --root "$RUNNER_TEMP/mg-contained" --tasks-max 256 --memory-max 1073741824
+
   wasm-installed-c:
     name: WASM caller source preparation (runtime held)
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
@@ -151,27 +192,46 @@ jobs:
           set -euo pipefail
           bash -n tests/composition/fable-game/verify-fable-reference-public.sh
           python3 tests/composition/fable-game/test-fable-reference-public-preflight.py
-      # C-T1 delivers source and inert controls only. C-J1 must explicitly admit
-      # the complete canonical profile before any caller execution is enabled.
+      # C-J1 binds fsgg.managed-group-contract/1 in source. Caller execution stays literal
+      # false until C-J1 source/profile review and Programme/root admission enable it.
       - name: Prepare closed hosted WASM caller
         if: ${{ false }}
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'HOSTED_WASM'
-          import contextlib, gzip, signal, struct, threading, base64, hashlib, json, os, pathlib, platform, re, shutil, stat, subprocess, sys, tarfile, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET, zipfile
+          # fsgg.managed-group-contract/1 hosted bootstrap: the job's Python is the only process of a
+          # fresh delegated unit. The unit owns hard limits and owner-death cleanup; each tool and
+          # Playwright invocation is a managed group under it. A host without systemd/sudo refuses.
+          checkout_head="$(git rev-parse HEAD)"
+          sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec \
+            --unit="fsgg-mg-templates-${RUN_ID}-${RUN_ATTEMPT}" \
+            -p Delegate=yes -p User="$(id -un)" -p Group="$(id -gn)" -p NoNewPrivileges=yes \
+            -p KillMode=control-group -p TimeoutStopSec=5 -p TasksAccounting=yes -p MemoryAccounting=yes \
+            -p TasksMax=6144 -p MemoryMax=12G -p RuntimeMaxSec=2400 -p WorkingDirectory="$PWD" \
+            --setenv=PATH=/usr/bin:/bin --setenv=EVENT="$EVENT" --setenv=REPOSITORY="$REPOSITORY" \
+            --setenv=HEAD_REPOSITORY="$HEAD_REPOSITORY" --setenv=PR_HEAD="$PR_HEAD" \
+            --setenv=WORKFLOW_REF="$WORKFLOW_REF" --setenv=WORKFLOW_SHA="$WORKFLOW_SHA" \
+            --setenv=RUN_ID="$RUN_ID" --setenv=RUN_ATTEMPT="$RUN_ATTEMPT" --setenv=CHECKOUT_HEAD="$checkout_head" \
+            --setenv=GITHUB_WORKSPACE="$GITHUB_WORKSPACE" --setenv=RUNNER_TEMP="$RUNNER_TEMP" \
+            --setenv=ImageOS="${ImageOS:-}" --setenv=ImageVersion="${ImageVersion:-}" \
+            --setenv=RUNNER_OS="$RUNNER_OS" --setenv=RUNNER_ARCH="$RUNNER_ARCH" \
+            -- /usr/bin/python3 -I - <<'HOSTED_WASM'
+          import contextlib, gzip, signal, struct, threading, base64, hashlib, importlib.util, json, os, pathlib, platform, re, shutil, stat, subprocess, sys, tarfile, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET, zipfile
           if sys.flags.optimize != 0:
               raise RuntimeError("hosted admission requires optimization=0")
-          PUBLISHED = "8952e1c5753b0abc972154c7596ddc8da772b271"
-          PACKAGE_SHA = "187c995806bb2f22db67c8a9a67c251f46f339bf6350b8051035935d308b497f"
-          DESCRIPTOR_SHA = "d7207cbde78f2890a63bbebf23c80bbcae8ce7f2405c0ceacf602dc6c185942c"
+          # Published Workspace.Template 0.19.1 (peeled fs-gg-templates/v0.19.1, signed nuget.org archive):
+          # 0.19.0 Complete scaffolds truncate the WASM guest policy.c, so it cannot close the receiver.
+          TEMPLATE_VERSION = "0.19.1"
+          PUBLISHED = "1e95dddb6326d276773154df1336599907d8dbfe"
+          PACKAGE_SHA = "5d1886c37b6e6a0d64c3998ee23e76b4c5ba8b8a0c2136200c377d7bbab7d0c6"
+          DESCRIPTOR_SHA = "10b532dacb0fba79c1c9dc666487f78903e1fd1a09fc757932f605a3f055f5f7"
           FABLE_SHA = "b586190f1592c3352d7319008a99e1747267dacbc44d6e5bd3753c84390f47a4"
           TOOLS = {"sdk":"10.0.401", "runtime":"10.0.12", "node":"24.20.0", "npm":"11.19.0", "fable":"5.18.0", "rust":"1.90.0", "wasi":"34.0", "playwright":"1.63.0"}
           BUDGET = {"job":2400, "setup":840, "custody":300, "installed":900, "cleanup":30, "collection":180, "overhead":90}
           if BUDGET["setup"] + BUDGET["custody"] + BUDGET["installed"] + 3 * BUDGET["cleanup"] + BUDGET["collection"] + BUDGET["overhead"] != BUDGET["job"]:
               raise RuntimeError("phase budgets must fit the original job")
           ENDPOINTS = {
-              "template":("https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.19.0/fs.gg.workspace.template.0.19.0.nupkg", PACKAGE_SHA, 8388608),
+              "template":(f"https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/{TEMPLATE_VERSION}/fs.gg.workspace.template.{TEMPLATE_VERSION}.nupkg", PACKAGE_SHA, 8388608),
               "descriptor":(f"https://raw.githubusercontent.com/FS-GG/FS.GG.Templates/{PUBLISHED}/providers/fable-game.providers.yml", DESCRIPTOR_SHA, 1048576),
               "guest":("https://github.com/FS-GG/FS.GG.Game/releases/download/wasm/v0.3.0/fsgg-wasm-sdk-0.3.0.tar.gz", "8091df6824981c0c37131524ffbcbae9bb8b36f672a20edc2efaddd35664f8c8", 2097152),
               "wasi":("https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz", "b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4", 268435456)}
@@ -197,6 +257,21 @@ jobs:
                           'bytes': 2376500,
                           'selector': 'ffmpeg-1011'}}
           HTTPS_HOSTS = {"api.nuget.org", "raw.githubusercontent.com", "github.com", "release-assets.githubusercontent.com", "builds.dotnet.microsoft.com", "dotnetcli.blob.core.windows.net", "ci.dot.net", "nodejs.org", "registry.npmjs.org", "static.rust-lang.org", "storage.googleapis.com", "playwright.download.prss.microsoft.com"}
+          # C-J1 supplier: fsgg.managed-group-contract/1, merged by FS.GG.Coordination#1047 for #1046.
+          # The single stdlib file is the complete closure; the (commit, path, sha256) pin is its identity.
+          OWNER = {"repository":"FS-GG/FS.GG.Coordination", "commit":"ac22206560f3eddfea524ce8f752ff1d0dfeec4e",
+              "path":"eng/managed_group_owner.py", "sha256":"d846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0",
+              "bytes":45315, "contract":"fsgg.managed-group-contract/1"}
+          OWNER_URL = "https://raw.githubusercontent.com/"+OWNER["repository"]+"/"+OWNER["commit"]+"/"+OWNER["path"]
+          # Leaf limits are cooperative (members share the owner's uid); hard limits are the unit's.
+          MANAGED = {"pidsMax":4096, "stdoutBytes":16777216, "stderrBytes":16777216, "settleSeconds":2, "termGraceSeconds":5}
+          # How each executable identity was obtained. Only the first three carry acquisition provenance.
+          IDENTITY_BASES = ("verified-download", "verified-archive-member", "installer-copy-of-verified-download",
+              "caller-authored", "installer-output-observed", "host-observed")
+          # C-J1 literal runtime hold. The supplier contract is bound below, but provisioning, the
+          # three-family custody pilot and installed C stay refused until C-J1 source/profile
+          # review and Programme/root admission lift this, the step condition and the upload gate.
+          RUNTIME_ADMITTED = False
 
           def require(value, message):
               if not value: raise ValueError(message)
@@ -369,10 +444,136 @@ jobs:
                           if name:require(row.get("resolved","").startswith("https://registry.npmjs.org/") and row.get("integrity","").startswith("sha512-"), "npm lock requires authenticated registry bytes")
               return destination
 
-          def fixed_checker_argv(workspace, installed):
-              return ["bash",str(workspace/"tests/composition/fable-game/verify-fable-reference-public.sh"),"--mode","wasm","--template-version","0.19.0","--sha256",PACKAGE_SHA,"--descriptor-sha256",DESCRIPTOR_SHA,"--source-revision",PUBLISHED,"--tag-revision",PUBLISHED,"--evidence-dir",str(installed)]
+          def load_owner(root, deadline, acquire=download):
+              # Closed public acquisition, exact pin check, then import of the hashed private copy.
+              directory=root/"owner"
+              require(not directory.exists() and not directory.is_symlink(),"managed-group owner root occupied")
+              directory.mkdir(mode=0o700)
+              path=directory/pathlib.PurePosixPath(OWNER["path"]).name
+              record=acquire(OWNER_URL,path,OWNER["bytes"],deadline,OWNER["sha256"])
+              require(path.is_file() and not path.is_symlink() and path.stat().st_size==OWNER["bytes"] and sha(path)==OWNER["sha256"],"managed-group owner pin differs")
+              require(record.get("digest")==OWNER["sha256"] and record.get("bytes")==OWNER["bytes"],"managed-group owner acquisition record differs")
+              path.chmod(0o400)
+              sys.dont_write_bytecode=True # no derived cache beside the pinned source
+              spec=importlib.util.spec_from_file_location("fsgg_managed_group_owner",path)
+              module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+              # The owner re-hashes its own file at import; that hash is repeated in every receipt.
+              require(getattr(module,"CONTRACT_SCHEMA",None)==OWNER["contract"] and getattr(module,"OWNER_SHA256",None)==OWNER["sha256"] and getattr(module,"OWNER_PATH",None)==str(path),"imported managed-group owner identity differs")
+              (root/"managed-owner.json").write_text(json.dumps({**OWNER,"url":OWNER_URL,"privatePath":str(path),"acquisition":record},indent=2)+"\n")
+              return module
 
-          def prepare_inputs(root, workspace, env, execute, acquire, deadline):
+          def probe_containment(owner, root):
+              # Before any provisioning acquisition: no delegated cgroup v2 root, no run.
+              result=owner.probe()
+              (root/"managed-owner-probe.json").write_text(json.dumps(result,indent=2,sort_keys=True)+"\n")
+              require(result.get("schema")==OWNER["contract"] and result.get("available") is True and result.get("refusal") is None,"managed-group containment unavailable: "+str(result.get("refusal")))
+              return result
+
+          def bind_identity(identities, path, basis, expected=None, images=None):
+              # One reviewed or derived executable identity per real path; leader images default to itself.
+              require(basis in IDENTITY_BASES,"unknown executable identity basis")
+              path=pathlib.Path(path)
+              require(path.is_absolute() and os.path.realpath(path)==str(path),"managed executable must be an absolute symlink-free path")
+              require(path.is_file() and stat.S_ISREG(path.lstat().st_mode) and path.stat().st_mode & 0o111,"managed executable is not a regular executable file")
+              actual=sha(path)
+              require(expected is None or actual==expected,"managed executable bytes differ from bound identity: "+str(path))
+              leaders=list(images) if images is not None else [actual]
+              require(1<=len(leaders)<=8 and len(set(leaders))==len(leaders) and all(re.fullmatch(r"[0-9a-f]{64}",v) for v in leaders),"managed leader images invalid")
+              row={"sha256":actual,"leaderImages":leaders,"basis":basis}
+              require(identities.get(str(path),row)==row,"conflicting managed executable identity: "+str(path))
+              identities[str(path)]=row
+              return row
+
+          def host_image(path):
+              # Host-owned interpreter bytes; observed, never provenance-checked.
+              real=pathlib.Path(os.path.realpath(path))
+              require(real.is_file() and not real.is_symlink(),"host image missing")
+              return str(real),sha(real)
+
+          def managed_executor(owner, root, deadline, identities, phase, receipts):
+              # Replaces the injected execute(argv, cwd, env): one managed group per call, all bound
+              # to the caller's original phase deadline (never renewed per call).
+              require(phase in ("setup","custody","installed"),"closed phase required")
+              sink=root/"managed"
+              if not sink.exists():sink.mkdir(mode=0o700)
+              require(sink.is_dir() and not sink.is_symlink(),"managed receipt root differs")
+              def record():
+                  try:(root/"managed-receipts.json").write_text(json.dumps(receipts,indent=2)+"\n")
+                  except Exception as reporting:return "independent managed receipt reporting failure: "+type(reporting).__name__+": "+str(reporting)
+              def execute(argv, cwd, env):
+                  require(isinstance(argv,list) and argv and all(isinstance(a,str) for a in argv),"exact argv required")
+                  require(pathlib.Path(argv[0]).is_absolute(),"managed executable must be absolute: "+argv[0])
+                  real=os.path.realpath(argv[0]);row=identities.get(real)
+                  require(row is not None,"managed executable identity not bound: "+real)
+                  index=len(receipts)+1
+                  name=(phase+"-"+format(index,"03d")+"-"+re.sub(r"[^a-z0-9.-]","-",pathlib.Path(real).name.lower()))[:64]
+                  out_dir=sink/(format(index,"03d")+"-"+phase)
+                  # One retained receipt list per job root: a second list would reuse groups and overwrite the index.
+                  require(not os.path.lexists(out_dir),"managed group sequence reused; share one receipt list per job root")
+                  profile={"schema":"fsgg.managed-group-profile/1","name":name,"root":str(root),
+                      "executable":{"path":real,"sha256":row["sha256"]},"leaderImages":list(row["leaderImages"]),
+                      "argv":list(argv),"cwd":str(cwd),"environmentKeys":sorted(env),"containment":"cgroup2-delegated",
+                      "limits":{"pidsMax":MANAGED["pidsMax"],"memoryMaxBytes":None,"stdoutBytes":MANAGED["stdoutBytes"],"stderrBytes":MANAGED["stderrBytes"]},
+                      "retirement":{"onLeaderExit":"require-empty","leaderExitSettleSeconds":MANAGED["settleSeconds"],"termGraceSeconds":MANAGED["termGraceSeconds"],"cleanupSeconds":BUDGET["cleanup"]}}
+                  entry={"phase":phase,"index":index,"name":name,"outDir":str(out_dir),"executable":real,"identityBasis":row["basis"],"status":"started"}
+                  receipts.append(entry);notes=[record()]
+                  try:
+                      receipt=owner.run(profile,env=dict(env),deadline=deadline,out_dir=str(out_dir))
+                  except owner.Refused as error:
+                      retained=error.receipt or {}
+                      entry.update(status="refused",code=error.code,firstCause=retained.get("firstCause") or str(error))
+                      failure=RuntimeError("managed group "+name+" refused: "+str(error));cause=error # closed code first
+                  except owner.GroupFailed as error:
+                      entry.update(status="failed",firstCause=error.receipt["firstCause"],cleanup=error.receipt["cleanup"],custody=error.receipt["custody"])
+                      failure=RuntimeError("managed group "+name+" failed: "+entry["firstCause"]);cause=error
+                  except BaseException as error:
+                      # Not a contract outcome: keep a terminal index status, then re-raise unchanged.
+                      entry.update(status="error",firstCause=type(error).__name__+": "+str(error))
+                      note=record()
+                      if note:error.add_note(note)
+                      raise
+                  else:
+                      entry.update(status=receipt["outcome"],cleanup=receipt["cleanup"],custody=receipt["custody"],profileSha256=receipt["profileSha256"],ownerSha256=receipt["owner"]["sha256"])
+                      failure=None;cause=None
+                      if not (receipt["outcome"]=="succeeded" and receipt["cleanup"]=="observed-empty-removed" and receipt["owner"]["sha256"]==OWNER["sha256"]):
+                          failure=RuntimeError("managed group "+name+" receipt differs from contained success")
+                  notes.append(record())
+                  if failure is not None:
+                      for note in filter(None,notes):failure.add_note(note)
+                      raise failure from cause
+                  return (out_dir/"stdout.log").read_text()
+              return execute
+
+          def managed_playwright(execute, node, browser_tests, family, env, list_only=False):
+              # One managed group per Playwright invocation (custody pilot / installed C): detached
+              # browser and Vite groups are contained members and require-empty records leftovers.
+              require(family in ("chromium","firefox","webkit"),"unselected browser family")
+              cli=browser_tests/"node_modules/@playwright/test/cli.js"
+              argv=[str(node),str(cli),"test","--config","wasm-public.generated.config.ts"]+(["--list","--reporter=json"] if list_only else ["--workers=1","--retries=0","--max-failures=1"])
+              return execute(argv,browser_tests,{**env,"PLAYWRIGHT_BROWSER_FAMILY":family})
+
+          def hosted_sequence(environ, start):
+              # Bound order: exact source, fresh closed environment, pinned owner, containment probe,
+              # then provisioning whose every process is a managed group under the setup deadline.
+              workspace=pathlib.Path(environ["GITHUB_WORKSPACE"]);root=pathlib.Path(environ["RUNNER_TEMP"])/"fable-wasm-installed-c"
+              source=validate_source(environ,environ["CHECKOUT_HEAD"],root)
+              env=fresh_environment(root,environ)
+              (root/"source.json").write_text(json.dumps(source,indent=2)+"\n")
+              setup=phase_deadline(start,"setup",time.monotonic())
+              owner=load_owner(root,setup)
+              probe_containment(owner,root)
+              identities={};receipts=[]
+              execute=managed_executor(owner,root,setup,identities,"setup",receipts)
+              return prepare_inputs(root,workspace,env,execute,download,setup,identities)
+
+          def fixed_checker_argv(workspace, installed):
+              # Open with installed-C admission: this checker runs Playwright itself (one group for all
+              # families) and starts from relative bash; per-invocation groups need managed_playwright.
+              return ["bash",str(workspace/"tests/composition/fable-game/verify-fable-reference-public.sh"),"--mode","wasm","--template-version",TEMPLATE_VERSION,"--sha256",PACKAGE_SHA,"--descriptor-sha256",DESCRIPTOR_SHA,"--source-revision",PUBLISHED,"--tag-revision",PUBLISHED,"--evidence-dir",str(installed)]
+
+          def prepare_inputs(root, workspace, env, execute, acquire, deadline, identities=None):
+              # Every execute call is one managed group; its executable must already be identity-bound.
+              identities=identities if identities is not None else {}
               tools=root/"tools"; tools.mkdir(mode=0o700)
               downloads=root/"downloads"; downloads.mkdir(mode=0o700)
               records=[]
@@ -421,15 +622,28 @@ jobs:
               (root/"input-downloads.json").write_text(json.dumps(records,indent=2)+"\n")
               env.update(PATH=str(bin_root)+":"+str(node_root/"bin")+":"+str(tools/"cargo/bin")+":/usr/bin:/bin",DOTNET_ROOT=str(tools/"dotnet"),DOTNET_HOST_PATH=str(tools/"dotnet/dotnet"),RUSTUP_HOME=str(tools/"rustup"),CARGO_HOME=str(tools/"cargo"),FSGG_WASM_SDK_ARCHIVE=str(downloads/"guest"),FSGG_WASM_WASI_ROOT=str(tools/"wasi/wasi-sdk-34.0-x86_64-linux"),FSGG_WASM_NPM_CACHE=str(root/"npm-cache"),PLAYWRIGHT_BROWSERS_PATH=str(root/"browsers"),FSGG_WASM_FIREFOX_PROFILE="content-sandbox-enabled")
               config=root/"nuget.config";config.write_text('<configuration><packageSources><clear/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>\n');env["FSGG_WASM_NUGET_CONFIG"]=str(config)
+              _,shell_sha=host_image("/bin/sh")
+              bind_identity(identities,str(tools/"dotnet/dotnet"),"verified-archive-member")
+              node=bind_identity(identities,os.path.realpath(node_root/"bin/node"),"verified-archive-member")
+              # The wrapper is exec'd as /bin/sh, which then execs Node: both are admitted leader images.
+              bind_identity(identities,str(bin_root/"npm"),"caller-authored",images=[shell_sha,node["sha256"]])
+              bind_identity(identities,str(rustup),"verified-download",expected=rust_digest)
+              clang=os.path.realpath(pathlib.Path(env["FSGG_WASM_WASI_ROOT"])/"bin/clang")
+              require(clang.startswith(str(tools/"wasi")+"/"),"WASI compiler resolves outside its verified archive")
+              bind_identity(identities,clang,"verified-archive-member")
               execute([str(rustup),"-y","--profile","minimal","--default-toolchain",TOOLS["rust"],"--no-modify-path"],root,env)
+              # rustup-init installs a copy of itself; any other bytes refuse before the next group.
+              bind_identity(identities,str(tools/"cargo/bin/rustup"),"installer-copy-of-verified-download",expected=rust_digest)
               execute([str(tools/"cargo/bin/rustup"),"target","add","wasm32-unknown-unknown","--toolchain",TOOLS["rust"]],root,env)
+              for name in ("rustc","cargo"):bind_identity(identities,str(rust_toolchain_bin(root)/name),"installer-output-observed")
               dotnet=env["DOTNET_HOST_PATH"]
               execute([dotnet,"--info"],root,env)
               execute([dotnet,"tool","install","fable","--version",TOOLS["fable"],"--tool-path",str(tools/"fable"),"--configfile",str(config)],root,env)
               entries=[p for p in (tools/"fable").rglob("*.dll") if sha(p)==FABLE_SHA]; require(len(entries)==1,"actual Fable entrypoint hash differs");env["FSGG_WASM_FABLE_CORE"]=str(entries[0])
               project=workspace/"src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj"
-              execute([dotnet,"restore",str(project),"--locked-mode","--configfile",str(config),"-p:NuGetAudit=false","-p:DisableImplicitLibraryPacksFolder=true"],workspace,env)
-              execute([dotnet,"build",str(project),"-c","Release","--no-restore","-p:UseSharedCompilation=false","-p:BuildInParallel=false"],workspace,env)
+              # Managed profiles require cwd inside the private root; the project path stays absolute.
+              execute([dotnet,"restore",str(project),"--locked-mode","--configfile",str(config),"-p:NuGetAudit=false","-p:DisableImplicitLibraryPacksFolder=true"],root,env)
+              execute([dotnet,"build",str(project),"-c","Release","--no-restore","-p:UseSharedCompilation=false","-p:BuildInParallel=false"],root,env)
               output=project.parent/"bin/Release/net10.0/FS.GG.Templates.ProviderTool.dll";require(output.is_file(),"Release ProviderTool output missing")
               seed=seed_from_package(downloads/"template",root/"npm-seed",deadline)
               for role in ("Client","Browser.Tests"):
@@ -451,7 +665,7 @@ jobs:
               inspect_stock_sources(downloads/"template",seed/"Browser.Tests/node_modules")
               host_validation=validate_registered_browsers(root,env,registered,execute)
               (root/"browser-host-validation.json").write_text(json.dumps(host_validation,indent=2)+"\n")
-              raise RuntimeError("registered stock browser validation is not complete support/runtime proof; canonical profile contract not yet bound")
+              raise RuntimeError("registered stock browser validation is not complete support/runtime proof; Chromium support/runtime join, three-family custody pilot and installed C remain unadmitted")
 
           def browser_archive_inputs(get):
               # Data acquisition only: raw bytes must match before any extraction or browser use.
@@ -472,7 +686,7 @@ jobs:
                   "selectedBranch":"Linux --headless bundled minibrowser-wpe only; no checkout/HOME or GTK fallback",
                   "environment":"WEBKIT_FORCE_COMPLEX_TEXT=1; wrapper owns WEBKIT_EXEC_PATH=bin, WEBKIT_INJECTED_BUNDLE_PATH=lib, WEBKIT_INSPECTOR_RESOURCES_PATH=share, LD_LIBRARY_PATH=lib:sys/lib",
                   "runtimeUnknown":["actual /usr/bin/env, bash, /bin/sh, dirname, readlink, uname bytes and exec/interpreter resolution","fresh browser root, ports, temp paths, source/argv and kernel births","support libraries, native children, normal/forced retirement and original deadline/resources"],
-                  "canonicalContract":"pending; preparation cannot auto-learn authority or produce a qualified receipt"}
+                  "canonicalContract":"fsgg.managed-group-contract/1 bound; WebKit host/birth/retirement qualification pending, preparation cannot produce a qualified receipt"}
 
           BROWSER_LAYOUTS = {'chromium-full1243': {'members': 308,
                                  'logicalBytes': 410251304,
@@ -656,24 +870,33 @@ jobs:
                   require(len(rows)==1 and rows[0]["revision"]==directory.rsplit("-",1)[1] and not rows[0].get("revisionOverrides",{}).get("ubuntu24.04-x64"),"stock revision/override differs")
               require(core.is_file() and not core.is_symlink() and sha(core)==STOCK_LAUNCHER_INPUTS["playwright-core/lib/coreBundle.js"],"stock validation source differs")
               script="""const fs=require('fs'),path=require('path');
-          const core=require(process.argv[1]),expected=JSON.parse(process.argv[2]);
+          const core=require(process.argv[2]),expected=JSON.parse(process.argv[3]);
           if(core.utils.hostPlatform!=='ubuntu24.04-x64'||!core.utils.isOfficiallySupportedPlatform)throw Error('effective stock platform differs');
           const registry=core.registry.registry;
           const actual=expected.map(row=>{const e=registry.findExecutable(row.name);if(!e||e.directory!==row.directory||e.executablePath()!==row.executable)throw Error('stock registry selection differs');return e;});
           (async()=>{await registry.validateHostRequirementsForExecutablesIfNeeded(actual,'javascript');
           for(const e of actual){const p=path.join(e.directory,'DEPENDENCIES_VALIDATED');if(!fs.existsSync(p))throw Error('stock dependency validation marker absent');}
           console.log(JSON.stringify({platform:core.utils.hostPlatform,names:actual.map(e=>e.name),state:'stock-host-validation-passed-runtime-pending'}));})().catch(e=>{console.error(e);process.exitCode=1;});"""
-              result=json.loads(execute([str(root/"tools/node-archive"/('node-v'+TOOLS['node']+'-linux-x64')/"bin/node"),"-e",script,str(core),json.dumps(registrations)],root,env))
+              # Managed argv admits no control characters, so the multi-line validator is a private file.
+              validator=root/"browser-host-validation.cjs"
+              require(not validator.exists() and not validator.is_symlink(),"host validation script path occupied")
+              with validator.open("x") as source:source.write(script)
+              result=json.loads(execute([str(root/"tools/node-archive"/('node-v'+TOOLS['node']+'-linux-x64')/"bin/node"),str(validator),str(core),json.dumps(registrations)],root,env))
               require(result=={"platform":"ubuntu24.04-x64","names":[row["name"] for row in registrations],"state":"stock-host-validation-passed-runtime-pending"},"stock host validation result differs")
               # Stock Chromium1.63 scans chrome-linux, but these authentic archives use
               # chrome-linux64/headless-shell-linux64. Its success cannot prove those libraries.
               return {**result,"chromiumSupport":"pending-selected-archive-library-validation","chromiumSupportDirectories":support_directories,"runtime":"not-run"}
 
+          def rust_toolchain_bin(root):
+              return root/"tools/rustup/toolchains"/(TOOLS["rust"]+"-x86_64-unknown-linux-gnu")/"bin"
+
           def qualify_tools(root, env, execute):
+              # Managed groups bind absolute executables: no PATH lookup or rustup proxy re-exec.
+              node=str(root/"tools/node-archive"/("node-v"+TOOLS["node"]+"-linux-x64")/"bin/node");toolchain=rust_toolchain_bin(root)
               expected = [([env["DOTNET_HOST_PATH"],"--version"], TOOLS["sdk"]),
-                  (["node","--version"],"v"+TOOLS["node"]),(["npm","--version"],TOOLS["npm"]),
-                  (["rustc","--version"],"rustc 1.90.0 (1159e78c4 2025-09-14)"),
-                  (["cargo","--version"],"cargo 1.90.0 (840b83a10 2025-07-30)")]
+                  ([node,"--version"],"v"+TOOLS["node"]),([str(root/"tools/bin/npm"),"--version"],TOOLS["npm"]),
+                  ([str(toolchain/"rustc"),"--version"],"rustc 1.90.0 (1159e78c4 2025-09-14)"),
+                  ([str(toolchain/"cargo"),"--version"],"cargo 1.90.0 (840b83a10 2025-07-30)")]
               findings=[]; failures=[]
               for argv,wanted in expected:
                   try:
@@ -734,7 +957,7 @@ jobs:
                   "chromiumSelection":"stock headless-shell1243 --no-sandbox",
                   "firefoxSelection":"content-sandbox-enabled",
                   "webkitSelection":"stock2359 pw_run.sh -> bundled WPE shell wrapper -> bin/MiniBrowser; runtime transitions unqualified",
-                  "canonicalSignalBoundary":"canonical-cleanup-only; actual candidate contract pending",
+                  "canonicalSignalBoundary":"canonical-cleanup-only; fsgg.managed-group-contract/1 bound, custody pilot pending",
                   "stockShutdownBoundary":"negative-pid-group-SIGKILL; no fresh kernel birth check",
                   "stockSignalResidual":"numeric-group reuse/foreign membership between observations not prevented",
                   "claims":"no strong security/isolation or universally birth-safe transitive signalling",
@@ -758,8 +981,8 @@ jobs:
               return observations
 
           def check_stock_launch_selection(family, argv, env):
-              # Necessary selection checks only. Full executable/birth/root/argv admission belongs to
-              # the real canonical candidate/profile, and remains unbound at this checkpoint.
+              # Necessary selection checks only. Executable/birth/root/argv admission is the managed-group
+              # profile of each Playwright invocation; browser-family custody remains unqualified.
               require(family in ("chromium","firefox","webkit"),"unselected browser family")
               require(argv and all(isinstance(arg,str) and not any(ord(c)<32 or ord(c)==127 for c in arg) for arg in argv),"malformed actual browser argv")
               require(env.get("FSGG_WASM_FIREFOX_PROFILE")=="content-sandbox-enabled" and not env.get("MOZ_DISABLE_CONTENT_SANDBOX"),"Firefox disabling is not selected")
@@ -774,9 +997,11 @@ jobs:
               return {"family":family,"observedArgv":argv,"selectedBoundary":stock_boundary_metadata(),"fullCanonicalAdmission":"pending"}
 
           def main():
-              # This source checkpoint deliberately has no invented candidate pin or managed-group policy.
-              # Root supplies and reviews the real canonical contract before this job can acquire or execute tools.
-              raise RuntimeError("managed-group candidate/profile contract not yet bound; no provisioning or installed C admitted")
+              # The contract is bound (OWNER, probe_containment, managed_executor). The inline refusal stays
+              # literal with the step and upload conditions until C-J1 review and root admission lift all three.
+              if not RUNTIME_ADMITTED:
+                  raise RuntimeError("C-J1 runtime held: managed-group contract bound; no provisioning, custody pilot or installed C admitted")
+              hosted_sequence(os.environ,time.monotonic())
 
           if __name__ == "__main__": main()
           HOSTED_WASM
@@ -792,6 +1017,11 @@ jobs:
           include-hidden-files: true
           path: |
             ${{ runner.temp }}/fable-wasm-installed-c/evidence/**
+            ${{ runner.temp }}/fable-wasm-installed-c/managed/**
+            ${{ runner.temp }}/fable-wasm-installed-c/managed-owner.json
+            ${{ runner.temp }}/fable-wasm-installed-c/managed-owner-probe.json
+            ${{ runner.temp }}/fable-wasm-installed-c/managed-receipts.json
+            ${{ runner.temp }}/fable-wasm-installed-c/source.json
             ${{ runner.temp }}/fable-wasm-installed-c/input-downloads.json
             ${{ runner.temp }}/fable-wasm-installed-c/browser-archive-inputs.json
             ${{ runner.temp }}/fable-wasm-installed-c/browser-registration.json
