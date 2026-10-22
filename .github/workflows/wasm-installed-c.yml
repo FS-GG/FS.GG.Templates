@@ -1,11 +1,13 @@
 name: WASM installed C (admitted dispatch only)
 
 # Downloaded-only 27-case WASM journey for FS-GG/.github#4710 (C-J1 installed C). HELD in source:
-# admitted_installed_sequence refuses before any acquisition while INSTALLED_ADMISSION is None.
-# A Programme/root admission is bound by a reviewed source PR that sets INSTALLED_ADMISSION to its
-# exact comment URL; it then admits exactly one dispatch of job installed-c at that merge commit.
-# RUNTIME_ADMITTED and the literal-false steps in fable-reference-public.yml stay closed. The
-# recorded WebKit host-package step below is byte-identical to the accepted custody pilot's.
+# the first step and admitted_installed_sequence refuse before any host write or acquisition while
+# INSTALLED_ADMISSION is None. A Programme/root admission is bound by a reviewed source PR that sets
+# INSTALLED_ADMISSION to its exact comment URL. A dispatch then runs only at the commit it names, on
+# attempt 1; "one run" is enforced by the admission plan (dispatch once, then a reset PR sets
+# INSTALLED_ADMISSION back to None), not by this file alone. RUNTIME_ADMITTED and the literal-false
+# steps in fable-reference-public.yml stay closed. The recorded WebKit host-package step below is
+# byte-identical to the accepted custody pilot's.
 on:
   pull_request:
     paths:
@@ -71,6 +73,9 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Refuse unless this dispatch is admitted in source
+        shell: bash
+        run: python3 -I tests/composition/fable-game/wasm-installed-c.py --check-admission
       # The only admitted host write: Playwright's pinned ubuntu24.04 WebKit list (plus a recorded
       # archive.ubuntu.com mirror fallback), on the ephemeral runner, before the unit (NoNewPrivileges
       # blocks sudo inside it). Every apt call is bounded; a trap always writes the exit codes and the

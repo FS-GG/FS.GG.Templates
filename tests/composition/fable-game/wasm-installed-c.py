@@ -31,8 +31,18 @@ def actual_caller():
 
 
 def main():
+    if sys.argv[1:] == ['--check-admission']:
+        # Pre-host-write gate: refuse (exit 3) before the apt step unless source carries the admission.
+        caller = actual_caller()
+        try:
+            caller['admission_precheck'](os.environ, caller['INSTALLED_ADMISSION'])
+        except ValueError as error:
+            print('installed C refused before any host write: ' + str(error), file=sys.stderr)
+            return 3
+        print('installed C admission bound: ' + caller['INSTALLED_ADMISSION'])
+        return 0
     if sys.argv[1:]:
-        raise SystemExit('usage: wasm-installed-c.py')
+        raise SystemExit('usage: wasm-installed-c.py [--check-admission]')
     start = time.monotonic()
     summary = actual_caller()['admitted_installed_sequence'](os.environ, start)
     print(json.dumps({key: summary.get(key) for key in ('disposition', 'evidence')}, indent=2, default=str))

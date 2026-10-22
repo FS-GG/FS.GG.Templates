@@ -280,6 +280,10 @@ jobs:
           INSTALLED_WORKFLOW = "FS-GG/FS.GG.Templates/.github/workflows/wasm-installed-c.yml@refs/heads/main"
           INSTALLED_UNIT = {"TasksMax":"6144","MemoryMax":str(12*1073741824),"RuntimeMaxUSec":"40min","Delegate":"yes","NoNewPrivileges":"yes","KillMode":"control-group"}
           INSTALLED_EVIDENCE_BYTES = 150 * 1048576
+          # The admitted path has no custody phase (the pilot is done): its reserve moves to installed.
+          INSTALLED_BUDGET = {"job":2400, "setup":840, "installed":1230, "cleanup":30, "collection":180, "overhead":90}
+          if INSTALLED_BUDGET["setup"] + INSTALLED_BUDGET["installed"] + 2 * INSTALLED_BUDGET["cleanup"] + INSTALLED_BUDGET["collection"] + INSTALLED_BUDGET["overhead"] != INSTALLED_BUDGET["job"]:
+              raise RuntimeError("installed-C phase budgets must fit the original job")
 
           def require(value, message):
               if not value: raise ValueError(message)
@@ -1107,7 +1111,9 @@ jobs:
           # RUNTIME_ADMITTED, both literal-false steps and custody_gate are untouched by this entry.
           # Third and final admitted run (bounded, retried WebKit host packages). Runs 39828121993
           # (admission 6346457201) and 39837319401 (admission 6347853904) are retained evidence only.
-          PILOT_ADMISSION = "https://github.com/FS-GG/.github/issues/4710#issuecomment-6349235037"
+          # Closed: the custody pilot phase is complete (run 39845591542 accepted, #4710 comment 6350233291).
+          # Its last admission was 6349235037; None makes pilot_sequence refuse before any acquisition.
+          PILOT_ADMISSION = None
           # Exactly deps["ubuntu24.04-x64"].webkit of the pinned playwright-core 1.63.0 coreBundle.js
           # (sha256 549070af..., deduplicated, order kept). Stock install-deps also adds the "tools" group;
           # that is not admitted. The pilot re-derives this list from the pinned bundle and records the match.
@@ -1481,6 +1487,8 @@ jobs:
               return {"properties":props,"matchesAdmission":{k:props.get(k)==v for k,v in expected.items()},"error":result["error"],"receipt":result["receipt"]}
 
           def pilot_sequence(environ, start):
+              if PILOT_ADMISSION is None:
+                  raise RuntimeError("custody pilot closed: PILOT_ADMISSION is unset in source; nothing acquired or run")
               root=pathlib.Path(environ["RUNNER_TEMP"])/"wasm-custody-pilot"
               source=validate_dispatch_source(environ,environ["CHECKOUT_HEAD"],root)
               env=fresh_environment(root,environ)
@@ -1519,6 +1527,23 @@ jobs:
               return summary
 
           # ---- Admitted installed C (downloaded-only 27-case journey; wasm-installed-c.yml, dispatch only) ----
+          def installed_deadline(start, phase, now):
+              require(phase in ("setup","installed"),"closed installed-C phase required")
+              reserved=INSTALLED_BUDGET["cleanup"]+INSTALLED_BUDGET["collection"]+INSTALLED_BUDGET["overhead"]
+              later={"setup":INSTALLED_BUDGET["installed"]+INSTALLED_BUDGET["cleanup"],"installed":0}[phase]
+              deadline=min(now+INSTALLED_BUDGET[phase],start+INSTALLED_BUDGET["job"]-reserved-later)
+              require(deadline>now,"original installed-C budget cannot supply this phase")
+              return deadline
+
+          def admission_precheck(environ, admission):
+              # Pre-host-write gate for a dispatch workflow: nothing (not even the recorded apt step) runs
+              # unless source carries the exact admission and the dispatch binds it on its first attempt.
+              require(admission is not None,"not admitted in source")
+              require(environ.get("ADMISSION")==admission,"admission input differs from source")
+              require(re.fullmatch(r"[0-9a-f]{40}",environ.get("ADMITTED_REF","")) and environ["ADMITTED_REF"]==environ.get("SHA"),"admitted_ref differs from the dispatched commit")
+              require(environ.get("RUN_ATTEMPT")=="1","re-run refused: a new admission is required")
+              return True
+
           def validate_installed_dispatch(env, head, root):
               require(INSTALLED_ADMISSION is not None,"installed C not admitted")
               require(env["EVENT"]=="workflow_dispatch" and env["REPOSITORY"]=="FS-GG/FS.GG.Templates","admitted same-repository dispatch required")
@@ -1572,22 +1597,24 @@ jobs:
               def write():(root/"installed-run.json").write_text(json.dumps(summary,indent=2)+"\n")
               try:
                   write();(root/"source.json").write_text(json.dumps(source,indent=2)+"\n")
-                  setup=phase_deadline(start,"setup",time.monotonic())
+                  setup=installed_deadline(start,"setup",time.monotonic())
                   owner=load_owner(root,setup)
                   summary["probe"]=probe_containment(owner,root)
                   identities={};receipts=[]
                   unit_run=managed_executor(owner,root,min(setup,time.monotonic()+20),identities,"setup",receipts)
                   summary["unit"]=pilot_unit_properties(environ,root,env,unit_run,identities,receipts,INSTALLED_UNIT)
+                  require(summary["unit"]["error"] is None and all(summary["unit"]["matchesAdmission"].values()),"delegated unit properties differ from the admission")
                   summary["hostPackages"]=pilot_host_packages(environ,root);summary["platformLabel"]=summary["hostPackages"]["label"];write()
                   # The 27-case journey needs all three families: without the recorded WebKit packages, refuse
                   # before any provisioning acquisition.
                   require(summary["hostPackages"]["state"]=="installed","WebKit host packages not installed: "+str(summary["hostPackages"]["state"]))
+                  require(summary["hostPackages"].get("postStepAptProcesses")==0,"apt or dpkg process still running after the host-package step")
                   setup_run=managed_executor(owner,root,setup,identities,"setup",receipts)
                   provisioned=prepare_inputs(root,workspace,env,setup_run,download,setup,identities)
                   qualify_tools(root,env,setup_run)
                   summary["hostValidation"]=provisioned["hostValidation"];write()
                   custody_gate(provisioned,admitted=True)
-                  installed=phase_deadline(start,"installed",time.monotonic())
+                  installed=installed_deadline(start,"installed",time.monotonic())
                   summary["installedC"]=installed_c(root,workspace,env,managed_executor(owner,root,installed,identities,"installed",receipts),identities,provisioned["node"])
                   summary["disposition"]=summary["installedC"]["disposition"]
               except BaseException as error:

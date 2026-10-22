@@ -7,6 +7,8 @@ name: WASM custody pilot (admitted dispatch only)
 # evidence (results are labelled "ubuntu-24.04 + recorded packages"). If the install fails to
 # complete again, WebKit on hosted runners is recorded as a residual: no fourth run. Pull requests
 # run static controls only. Installed C stays held. Runs 39828121993 and 39837319401 are retained.
+# CLOSED: run 39845591542 was accepted and the pilot phase is complete (#4710 comment 6350233291);
+# PILOT_ADMISSION is None, so the first step refuses a dispatch before any host write.
 on:
   pull_request:
     paths:
@@ -71,6 +73,9 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Refuse unless this dispatch is admitted in source
+        shell: bash
+        run: python3 -I tests/composition/fable-game/wasm-custody-pilot.py --check-admission
       # The only admitted host write: Playwright's pinned ubuntu24.04 WebKit list (plus a recorded
       # archive.ubuntu.com mirror fallback), on the ephemeral runner, before the unit (NoNewPrivileges
       # blocks sudo inside it). Every apt call is bounded; a trap always writes the exit codes and the

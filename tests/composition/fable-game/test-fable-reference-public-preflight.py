@@ -1365,7 +1365,7 @@ class CustodyPilotTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
         self.root=Path(os.path.realpath(self.temp.name))
         self.text,self.code=actual_hosted_code()
-        self.ns={'__name__':'pilot_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+        self.ns={'__name__':'pilot_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns);self.ns['PILOT_ADMISSION']=PILOT_URL # closed in source; test-only admission
         self.addCleanup(setattr,sys,'dont_write_bytecode',sys.dont_write_bytecode)
         self.workflow=PILOT_WORKFLOW_FILE.read_text()
 
@@ -1470,7 +1470,7 @@ class CustodyPilotTests(unittest.TestCase):
                                                ({('normal','chromium'):'fail'},'chromium','normal','run-failed')]:
             with self.subTest(case=case,family=family):
                 shutil.rmtree(self.root/'rt');shutil.rmtree(self.root/'world')
-                self.ns={'__name__':'pilot_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+                self.ns={'__name__':'pilot_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns);self.ns['PILOT_ADMISSION']=PILOT_URL # closed in source; test-only admission
                 self.pilot(behaviour)
                 summary=self.ns['pilot_sequence'](self.environ(),time.monotonic())
                 self.assertEqual(summary['cases'][family][case]['disposition'],expected)
@@ -1479,7 +1479,7 @@ class CustodyPilotTests(unittest.TestCase):
     def run_pilot(self, behaviour):
         if (self.root/'rt').exists():shutil.rmtree(self.root/'rt')
         if (self.root/'world').exists():shutil.rmtree(self.root/'world')
-        self.ns={'__name__':'pilot_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+        self.ns={'__name__':'pilot_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns);self.ns['PILOT_ADMISSION']=PILOT_URL # closed in source; test-only admission
         self.pilot(behaviour)
         return self.ns['pilot_sequence'](self.environ(),time.monotonic())
 
@@ -1675,11 +1675,13 @@ class CustodyPilotTests(unittest.TestCase):
             with self.subTest(required=required):self.assertIn(required,pilot)
         self.assertEqual(re.findall(r'uses: ([^\s]+)',pilot),['actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1','actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'])
         self.assertNotIn('${{ inputs.',pilot.split('    steps:',1)[1])
-        self.assertIn(PILOT_URL,text);self.assertEqual(self.ns['PILOT_ADMISSION'],PILOT_URL)
+        self.assertIn(PILOT_URL,text)
         # The only host write is the pre-unit apt step, installing exactly the printed admitted list.
         steps=re.findall(r'^      - name: (.*)$',pilot,re.M)
-        self.assertEqual(steps,['Check out the exact dispatched commit','Install and record the admitted WebKit host packages',
+        self.assertEqual(steps,['Check out the exact dispatched commit','Refuse unless this dispatch is admitted in source','Install and record the admitted WebKit host packages',
             'Check that no apt or dpkg process remains','Run the admitted pilot in a fresh delegated unit','Retain bounded pilot evidence','Report evidence artifact identity'])
+        precheck=pilot.split('Refuse unless this dispatch is admitted in source',1)[1].split('      - name:',1)[0]
+        self.assertIn('python3 -I tests/composition/fable-game/wasm-custody-pilot.py --check-admission',precheck);self.assertNotIn('if:',precheck)
         apt=pilot.split('Install and record the admitted WebKit host packages',1)[1].split('      - name:',1)[0]
         check=pilot.split('Check that no apt or dpkg process remains',1)[1].split('      - name:',1)[0]
         self.assertEqual(len(re.findall(r'apt-get .*install',text)),1);self.assertIn('apt-get',apt)
@@ -1718,6 +1720,24 @@ class CustodyPilotTests(unittest.TestCase):
         hold=self.ns['PILOT_HOLD_SCRIPT'];self.assertIn('{detached:true,stdio:"ignore"}',hold);self.assertIn('holder.unref()',hold)
         self.assertIn('fs.writeFileSync(ready+".error"',hold);self.assertIn('fs.existsSync(ready+".error")',hold)
         self.assertEqual(text.count('sudo -n'),4) # apt update, apt install, mirror fallback append, systemd-run
+
+    def test_pilot_is_closed_in_source_and_refuses_before_any_host_write(self):
+        tree=ast.parse(self.code)
+        nodes=[n for n in ast.walk(tree) if isinstance(n,ast.Assign) and any(getattr(x,'id',None)=='PILOT_ADMISSION' for x in n.targets)]
+        self.assertEqual(len(nodes),1);self.assertIsNone(nodes[0].value.value)
+        closed={'__name__':'pilot_closed'};exec(compile(self.code,'actual-hosted-workflow','exec'),closed)
+        with self.assertRaisesRegex(RuntimeError,'custody pilot closed'):closed['pilot_sequence'](self.environ(),time.monotonic())
+        self.assertFalse((self.root/'rt/wasm-custody-pilot').exists())
+        env={'PATH':'/usr/bin:/bin','ADMISSION':PILOT_URL,'ADMITTED_REF':'c'*40,'SHA':'c'*40,'RUN_ATTEMPT':'1'}
+        result=subprocess.run([sys.executable,'-I',str(HERE/'wasm-custody-pilot.py'),'--check-admission'],env=env,capture_output=True,text=True)
+        self.assertEqual(result.returncode,3,result.stderr);self.assertIn('not admitted in source',result.stderr)
+
+    def test_admission_precheck_binds_source_input_ref_and_attempt(self):
+        good={'ADMISSION':PILOT_URL,'ADMITTED_REF':'c'*40,'SHA':'c'*40,'RUN_ATTEMPT':'1'}
+        self.assertTrue(self.ns['admission_precheck'](good,PILOT_URL))
+        for admission,changes,message in [(None,{},'not admitted'),(PILOT_URL,{'ADMISSION':'x'},'input differs'),(PILOT_URL,{'ADMITTED_REF':'d'*40},'admitted_ref'),
+                                          (PILOT_URL,{'RUN_ATTEMPT':'2'},'re-run refused')]:
+            with self.subTest(message=message),self.assertRaisesRegex(ValueError,message):self.ns['admission_precheck']({**good,**changes},admission)
 
     def test_pilot_entry_leaves_installed_c_gates_closed(self):
         caller=WORKFLOW.read_text()
@@ -1822,6 +1842,7 @@ class InstalledAdmissionTests(unittest.TestCase):
         for call in owner.calls:self.assertEqual(call['profile']['retirement']['onLeaderExit'],'require-empty')
         installed_deadlines={c['deadline'] for c,r in zip(owner.calls,receipts) if r['phase']=='installed'}
         self.assertEqual(len(installed_deadlines),1) # one installed-phase deadline, never renewed
+        self.assertGreater(min(installed_deadlines)-start,1000) # the installed-C budget (1230 s), not the shared 900 s
         manifest=json.loads((root/'installed-evidence/manifest.json').read_text());files=[f['path'] for f in manifest['files']]
         for name in ('installed-run.json','installed-c.json','managed-receipts.json','host-packages/install-exit.txt','installed/qualification.json','source.json'):
             self.assertIn(name,files)
@@ -1857,12 +1878,51 @@ class InstalledAdmissionTests(unittest.TestCase):
             with self.subTest(required=required):self.assertIn(required,job)
         self.assertEqual(re.findall(r'uses: ([^\s]+)',job),['actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1','actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'])
         self.assertNotIn('${{ inputs.',job.split('    steps:',1)[1])
+        steps=re.findall(r'^      - name: (.*)$',job,re.M)
+        self.assertEqual(steps[:3],['Check out the exact dispatched commit','Refuse unless this dispatch is admitted in source','Install and record the admitted WebKit host packages'])
+        self.assertIn('python3 -I tests/composition/fable-game/wasm-installed-c.py --check-admission',job)
+        self.assertEqual(re.findall(r'^    if: (.*)$',text,re.M),["${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}","${{ github.event_name == 'workflow_dispatch' }}"])
         # The recorded WebKit host-package step and its post-step check are the accepted pilot's, byte for byte.
         pilot=PILOT_WORKFLOW_FILE.read_text()
         shared=pilot[pilot.index("      # The only admitted host write:"):pilot.index("      - name: Run the admitted pilot in a fresh delegated unit")]
         self.assertIn(shared,job)
         self.assertEqual(self.ns['INSTALLED_WORKFLOW'],'FS-GG/FS.GG.Templates/.github/workflows/'+INSTALLED_WORKFLOW_FILE.name+'@refs/heads/main')
         self.assertEqual(self.ns['INSTALLED_UNIT']['TasksMax'],'6144');self.assertEqual(self.ns['INSTALLED_UNIT']['RuntimeMaxUSec'],'40min')
+
+    def test_held_precheck_refuses_before_the_host_step(self):
+        env={'PATH':'/usr/bin:/bin','ADMISSION':INSTALLED_URL,'ADMITTED_REF':'c'*40,'SHA':'c'*40,'RUN_ATTEMPT':'1'}
+        result=subprocess.run([sys.executable,'-I',str(HERE/'wasm-installed-c.py'),'--check-admission'],env=env,capture_output=True,text=True)
+        self.assertEqual(result.returncode,3,result.stderr);self.assertIn('refused before any host write',result.stderr)
+
+    def test_installed_budget_moves_the_spent_custody_reserve_to_installed(self):
+        budget=self.ns['INSTALLED_BUDGET']
+        self.assertEqual(budget['setup']+budget['installed']+2*budget['cleanup']+budget['collection']+budget['overhead'],budget['job'])
+        self.assertEqual(budget['job'],self.ns['BUDGET']['job']);self.assertGreater(budget['installed'],self.ns['BUDGET']['installed'])
+        self.assertEqual(self.ns['installed_deadline'](100,'setup',100),940)
+        self.assertEqual(self.ns['installed_deadline'](100,'installed',940),2170) # min(940+1230, 100+2400-300)
+        for phase,now in [('installed',2200),('custody',100)]:
+            with self.subTest(phase=phase),self.assertRaises(ValueError):self.ns['installed_deadline'](100,phase,now)
+
+    def test_unit_mismatch_or_lingering_apt_refuses_before_provisioning(self):
+        for case in ('unit','lingering'):
+            with self.subTest(case=case):
+                shutil.rmtree(self.root/'world',ignore_errors=True);shutil.rmtree(self.root/'rt',ignore_errors=True)
+                self.ns={'__name__':'installed_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+                owner=self.admit('lingering' if case=='lingering' else 'installed')
+                if case=='unit':self.ns['INSTALLED_UNIT']={**self.ns['INSTALLED_UNIT'],'TasksMax':'1'}
+                def forbidden(*args,**kwargs):raise AssertionError('provisioning after a failed precondition')
+                self.ns['prepare_inputs']=forbidden
+                with self.assertRaisesRegex(ValueError,'unit properties differ' if case=='unit' else 'apt or dpkg process still running'):
+                    self.ns['admitted_installed_sequence'](self.environ(),time.monotonic())
+
+    def test_installed_evidence_is_capped(self):
+        root=self.root/'job';(root/'installed/browser/webkit').mkdir(parents=True);(root/'installed-run.json').write_text('{}')
+        (root/'installed/browser/webkit/trace.zip').write_bytes(b'z'*4096);(root/'installed/guests.log').write_bytes(b'l'*(2*1048576))
+        self.ns['INSTALLED_EVIDENCE_BYTES']=1048576+64
+        manifest=self.ns['collect_installed_evidence'](root)
+        self.assertLessEqual(manifest['totalBytes'],1048576+64)
+        self.assertEqual([Path(s['path']).name for s in manifest['skipped']],['trace.zip'])
+        self.assertEqual([t['bytes'] for t in manifest['truncated']],[2*1048576])
 
     @unittest.skipUnless(OWNER_FILE,'set FSGG_MANAGED_GROUP_OWNER to the pinned owner file to validate installed-C profiles')
     def test_every_installed_call_is_valid_under_the_real_contract(self):
