@@ -636,12 +636,8 @@ jobs:
               summary["disposition"]="passed";report()
               return summary
 
-          def prepare_inputs(root, workspace, env, execute, acquire, deadline, identities=None):
-              # Every execute call is one managed group; its executable must already be identity-bound.
-              identities=identities if identities is not None else {}
-              tools=root/"tools"; tools.mkdir(mode=0o700)
-              downloads=root/"downloads"; downloads.mkdir(mode=0o700)
-              records=[]
+          def acquirer(root, downloads, acquire, deadline, records):
+              # One retained acquisition record per input; a failure keeps its first cause.
               def get(name,url,expected,maximum,algorithm="sha256"):
                   path=downloads/name
                   try:
@@ -655,16 +651,10 @@ jobs:
                       raise
                   (root/"input-downloads.json").write_text(json.dumps(records,indent=2)+"\n")
                   return path
-              # Metadata and archives have separate retained identities. HTTPS metadata is not a detached signature claim.
-              for name,(url,expected,maximum) in ENDPOINTS.items(): get(name,url,expected,maximum)
-              metadata=get("dotnet-releases.json","https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json",None,8388608)
-              releases=json.loads(metadata.read_bytes())["releases"]
-              sdk=[sdk for release in releases for sdk in release.get("sdks",[release.get("sdk",{})]) if sdk.get("version") == TOOLS["sdk"]]
-              require(len(sdk) >= 1, "fixed SDK absent from authentic release metadata")
-              files={f["url"]:f for value in sdk for f in value["files"] if f["rid"] == "linux-x64" and f["name"].endswith(".tar.gz")}
-              require(len(files) == 1, "fixed Linux SDK archive ambiguous")
-              sdk_file=next(iter(files.values())); sdk_archive=get("dotnet.tar.gz",sdk_file["url"],sdk_file["hash"],536870912,"sha512")
-              unpack_tar(sdk_archive,tools/"dotnet",2147483648,deadline)
+              return get
+
+          def provision_node_npm(get, tools, deadline):
+              # Fixed Node from its SHASUMS metadata, fixed npm from registry SRI, and the npm wrapper.
               node_name="node-v"+TOOLS["node"]+"-linux-x64.tar.gz"
               sums=get("node-SHASUMS256.txt",f"https://nodejs.org/dist/v{TOOLS['node']}/SHASUMS256.txt",None,1048576)
               hashes=[row.split()[0] for row in sums.read_text().splitlines() if row.split()[-1] == node_name]
@@ -680,6 +670,43 @@ jobs:
               unpack_tar(npm_archive,tools/"npm",67108864,deadline)
               bin_root=tools/"bin";bin_root.mkdir()
               (bin_root/"npm").write_text('#!/bin/sh\nexec "'+str(node_root/"bin/node")+'" "'+str(tools/"npm/package/bin/npm-cli.js")+'" "$@"\n');(bin_root/"npm").chmod(0o700)
+              return node_root,bin_root
+
+          def register_browsers(root, downloads, seed, env, execute, get, deadline):
+              # Uncontrolled stock CLI downloads cannot bypass reviewed raw archive identity.
+              browser_inputs=browser_archive_inputs(get)
+              (root/"browser-archive-inputs.json").write_text(json.dumps({"archives":browser_inputs,"webkitSourcePreparation":webkit_source_profile()},indent=2)+"\n")
+              browser_root=root/"browsers";browser_root.mkdir(mode=0o700)
+              extracted=[];registered=[]
+              for entry in browser_inputs:
+                  staged=browser_root/(".staging-"+entry["asset"])
+                  # Registry names are checked independently of acquisition selectors.
+                  extracted.append(extract_browser_archive(entry["asset"],pathlib.Path(entry["path"]),staged,deadline))
+                  (root/"browser-extracted-layouts.json").write_text(json.dumps(extracted,indent=2)+"\n")
+                  registered.append(register_browser_archive(entry["asset"],pathlib.Path(entry["path"]),extracted[-1],browser_root,deadline))
+                  (root/"browser-registration.json").write_text(json.dumps(registered,indent=2)+"\n")
+              inspect_stock_sources(downloads/"template",seed/"Browser.Tests/node_modules")
+              host_validation=validate_registered_browsers(root,env,registered,execute)
+              (root/"browser-host-validation.json").write_text(json.dumps(host_validation,indent=2)+"\n")
+              return registered,host_validation
+
+          def prepare_inputs(root, workspace, env, execute, acquire, deadline, identities=None):
+              # Every execute call is one managed group; its executable must already be identity-bound.
+              identities=identities if identities is not None else {}
+              tools=root/"tools"; tools.mkdir(mode=0o700)
+              downloads=root/"downloads"; downloads.mkdir(mode=0o700)
+              records=[];get=acquirer(root,downloads,acquire,deadline,records)
+              # Metadata and archives have separate retained identities. HTTPS metadata is not a detached signature claim.
+              for name,(url,expected,maximum) in ENDPOINTS.items(): get(name,url,expected,maximum)
+              metadata=get("dotnet-releases.json","https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json",None,8388608)
+              releases=json.loads(metadata.read_bytes())["releases"]
+              sdk=[sdk for release in releases for sdk in release.get("sdks",[release.get("sdk",{})]) if sdk.get("version") == TOOLS["sdk"]]
+              require(len(sdk) >= 1, "fixed SDK absent from authentic release metadata")
+              files={f["url"]:f for value in sdk for f in value["files"] if f["rid"] == "linux-x64" and f["name"].endswith(".tar.gz")}
+              require(len(files) == 1, "fixed Linux SDK archive ambiguous")
+              sdk_file=next(iter(files.values())); sdk_archive=get("dotnet.tar.gz",sdk_file["url"],sdk_file["hash"],536870912,"sha512")
+              unpack_tar(sdk_archive,tools/"dotnet",2147483648,deadline)
+              node_root,bin_root=provision_node_npm(get,tools,deadline)
               rust_hash=get("rustup-init.sha256","https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init.sha256",None,1048576)
               rust_digest=rust_hash.read_text().split()[0]; require(re.fullmatch(r"[0-9a-f]{64}",rust_digest),"rustup metadata invalid")
               rustup=get("rustup-init","https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init",rust_digest,33554432);rustup.chmod(0o700)
@@ -713,23 +740,9 @@ jobs:
               seed=seed_from_package(downloads/"template",root/"npm-seed",deadline)
               for role in ("Client","Browser.Tests"):
                   execute([str(bin_root/"npm"),"ci","--ignore-scripts","--no-audit","--no-fund","--cache",env["FSGG_WASM_NPM_CACHE"]],seed/role,env)
-              # Uncontrolled stock CLI downloads cannot bypass reviewed raw archive identity.
-              browser_inputs=browser_archive_inputs(get)
-              (root/"browser-archive-inputs.json").write_text(json.dumps({"archives":browser_inputs,"webkitSourcePreparation":webkit_source_profile()},indent=2)+"\n")
               # Real executable/library/startup and managed-group policy qualification is the separate custody phase.
               (root/"provisioned-paths.json").write_text(json.dumps({"paths":{k:v for k,v in env.items() if k.startswith("FSGG_WASM_") or k in ("DOTNET_HOST_PATH","PLAYWRIGHT_BROWSERS_PATH")},"providerToolSha256":sha(output),"state":"provisioned-not-qualified"},indent=2)+"\n")
-              browser_root=root/"browsers";browser_root.mkdir(mode=0o700)
-              extracted=[];registered=[]
-              for entry in browser_inputs:
-                  staged=browser_root/(".staging-"+entry["asset"])
-                  # Registry names are checked independently of acquisition selectors.
-                  extracted.append(extract_browser_archive(entry["asset"],pathlib.Path(entry["path"]),staged,deadline))
-                  (root/"browser-extracted-layouts.json").write_text(json.dumps(extracted,indent=2)+"\n")
-                  registered.append(register_browser_archive(entry["asset"],pathlib.Path(entry["path"]),extracted[-1],browser_root,deadline))
-                  (root/"browser-registration.json").write_text(json.dumps(registered,indent=2)+"\n")
-              inspect_stock_sources(downloads/"template",seed/"Browser.Tests/node_modules")
-              host_validation=validate_registered_browsers(root,env,registered,execute)
-              (root/"browser-host-validation.json").write_text(json.dumps(host_validation,indent=2)+"\n")
+              registered,host_validation=register_browsers(root,downloads,seed,env,execute,get,deadline)
               return {"node":os.path.realpath(node_root/"bin/node"),"registered":registered,"hostValidation":host_validation}
 
           def browser_archive_inputs(get):
@@ -1062,6 +1075,259 @@ jobs:
               else:
                   require("--inspector-pipe" in argv and "--headless" in argv and "--no-startup-window" in argv,"actual stock WebKit selection differs")
               return {"family":family,"observedArgv":argv,"selectedBoundary":stock_boundary_metadata(),"fullCanonicalAdmission":"pending"}
+
+          # ---- Bounded three-family custody pilot (admitted dispatch only; wasm-custody-pilot.yml) ----
+          # Admission: exactly one dispatch of job custody-pilot at its merge SHA. Installed C stays held:
+          # RUNTIME_ADMITTED, both literal-false steps and custody_gate are untouched by this entry.
+          PILOT_ADMISSION = "https://github.com/FS-GG/.github/issues/4710#issuecomment-6346457201"
+          PILOT_WORKFLOW = "FS-GG/FS.GG.Templates/.github/workflows/wasm-custody-pilot.yml@refs/heads/main"
+          PILOT_BUDGET = {"job":1500, "setup":600, "custody":630, "cleanup":30, "collection":120, "overhead":90}
+          if PILOT_BUDGET["setup"] + PILOT_BUDGET["custody"] + 2 * PILOT_BUDGET["cleanup"] + PILOT_BUDGET["collection"] + PILOT_BUDGET["overhead"] != PILOT_BUDGET["job"]:
+              raise RuntimeError("pilot phase budgets must fit the original pilot job")
+          # Per-group ceilings; each is further bounded by the custody phase deadline, never renewed.
+          PILOT_CASE_SECONDS = {"scan":45, "normal":120, "forced":25, "exit":45}
+          PILOT_FAMILIES = ("chromium", "firefox", "webkit")
+          PILOT_PORT = 5101
+          PILOT_EVIDENCE_BYTES = 45 * 1048576
+
+          def validate_dispatch_source(env, head, root):
+              require(env["EVENT"]=="workflow_dispatch" and env["REPOSITORY"]=="FS-GG/FS.GG.Templates","admitted same-repository dispatch required")
+              require(env["REF"]=="refs/heads/main","main ref required")
+              require(re.fullmatch(r"[0-9a-f]{40}",env["ADMITTED_REF"]) and env["ADMITTED_REF"]==env["SHA"]==head,"admitted_ref must equal the dispatched and checked-out commit")
+              require(env["ADMISSION"]==PILOT_ADMISSION,"admission differs from the recorded pilot admission")
+              require(env["WORKFLOW_REF"]==PILOT_WORKFLOW and re.fullmatch(r"[0-9a-f]{40}",env["WORKFLOW_SHA"]),"pilot workflow identity differs")
+              require(env["RUN_ATTEMPT"]=="1","re-run refused: a new admission is required")
+              require(pathlib.Path(root).is_absolute() and not pathlib.Path(root).is_symlink(),"private root must be an absolute nonlink")
+              return {**{k:env[k] for k in ("EVENT","REPOSITORY","REF","SHA","ADMITTED_REF","ADMISSION","WORKFLOW_REF","WORKFLOW_SHA","RUN_ID","RUN_ATTEMPT")},"imageOS":env.get("ImageOS"),"imageVersion":env.get("ImageVersion"),"runnerOS":env.get("RUNNER_OS"),"runnerArch":env.get("RUNNER_ARCH")}
+
+          def pilot_deadline(start, phase, now):
+              require(phase in ("setup","custody"),"closed pilot phase required")
+              reserved=PILOT_BUDGET["cleanup"]+PILOT_BUDGET["collection"]+PILOT_BUDGET["overhead"]
+              later={"setup":PILOT_BUDGET["custody"]+PILOT_BUDGET["cleanup"],"custody":0}[phase]
+              deadline=min(now+PILOT_BUDGET[phase],start+PILOT_BUDGET["job"]-reserved-later)
+              require(deadline>now,"original pilot budget cannot supply this phase")
+              return deadline
+
+          def prepare_browser_inputs(root, env, execute, acquire, deadline, identities):
+              # Browser-only subset: template locks, Node/npm, stock Playwright seed and the five pinned
+              # browser archives. No .NET, Rust, WASI or Fable is acquired for the custody pilot.
+              tools=root/"tools";tools.mkdir(mode=0o700)
+              downloads=root/"downloads";downloads.mkdir(mode=0o700)
+              records=[];get=acquirer(root,downloads,acquire,deadline,records)
+              url,expected,maximum=ENDPOINTS["template"];get("template",url,expected,maximum)
+              node_root,bin_root=provision_node_npm(get,tools,deadline)
+              env.update(PATH=str(bin_root)+":"+str(node_root/"bin")+":/usr/bin:/bin",FSGG_WASM_NPM_CACHE=str(root/"npm-cache"),PLAYWRIGHT_BROWSERS_PATH=str(root/"browsers"),FSGG_WASM_FIREFOX_PROFILE="content-sandbox-enabled")
+              _,shell_sha=host_image("/bin/sh")
+              node=bind_identity(identities,os.path.realpath(node_root/"bin/node"),"verified-archive-member")
+              bind_identity(identities,str(bin_root/"npm"),"caller-authored",images=[shell_sha,node["sha256"]])
+              seed=seed_from_package(downloads/"template",root/"npm-seed",deadline)
+              for role in ("Client","Browser.Tests"):
+                  execute([str(bin_root/"npm"),"ci","--ignore-scripts","--no-audit","--no-fund","--cache",env["FSGG_WASM_NPM_CACHE"]],seed/role,env)
+              registered,host_validation=register_browsers(root,downloads,seed,env,execute,get,deadline)
+              return {"node":os.path.realpath(node_root/"bin/node"),"seed":seed,"registered":registered,"hostValidation":host_validation}
+
+          def content_file(directory, stem, suffix, text):
+              # Content-addressed, exclusive, read-only: the name (and so the argv/profile) binds the bytes.
+              path=directory/(stem+"."+hashlib.sha256(text.encode()).hexdigest()+suffix)
+              require(not path.exists() and not path.is_symlink(),"pilot file occupied")
+              with path.open("x") as sink:sink.write(text)
+              path.chmod(0o400)
+              return path
+
+          PILOT_HOLD_SCRIPT = """const fs=require("fs"),path=require("path"),pw=require("playwright-core");
+          const [family,mode]=process.argv.slice(2);
+          if(!["chromium","firefox","webkit"].includes(family)||!["hold","exit"].includes(mode))throw new Error("closed family/mode required");
+          function descendants(){const rows=[];for(const d of fs.readdirSync("/proc")){if(!/^[0-9]+$/.test(d))continue;try{const s=fs.readFileSync("/proc/"+d+"/stat","utf8");const r=s.slice(s.lastIndexOf(")")+2).split(" ");let exe=null;try{exe=path.basename(fs.readlinkSync("/proc/"+d+"/exe"))}catch(e){}rows.push({pid:+d,ppid:+r[1],pgid:+r[2],sid:+r[3],comm:s.slice(s.indexOf("(")+1,s.lastIndexOf(")")),exe})}catch(e){}}
+          const out=[],seen=new Set([process.pid]);let grew=true;while(grew){grew=false;for(const r of rows){if(!seen.has(r.pid)&&seen.has(r.ppid)){seen.add(r.pid);out.push(r);grew=true}}}return out}
+          (async()=>{const browser=await pw[family].launch({headless:true});const page=await browser.newPage();await page.goto("about:blank");
+          console.log(JSON.stringify({launched:true,family,mode,version:browser.version(),descendants:descendants()}));
+          if(mode==="exit")process.exit(0);
+          setInterval(()=>{},1<<30)})().catch(e=>{console.error(e);process.exit(1)});
+          """
+
+          PILOT_SPEC = """const {test,expect}=require("@playwright/test");
+          test("custody pilot page",async({page})=>{await page.goto(process.env.PILOT_URL);await expect(page).toHaveTitle("fsgg-custody-pilot");});
+          """
+
+          def pilot_files(seed, node):
+              # Written inside the stock seed so @playwright/test and playwright-core resolve from its node_modules.
+              directory=seed/"Browser.Tests/custody-pilot";directory.mkdir(mode=0o700)
+              client=seed/"Client";dist=client/"custody-pilot-dist";dist.mkdir(mode=0o700)
+              (dist/"index.html").write_text("<!doctype html><title>fsgg-custody-pilot</title><p>custody pilot</p>\n")
+              vite=client/"node_modules/vite/bin/vite.js"
+              spec=content_file(directory,"custody",".spec.cjs",PILOT_SPEC)
+              web=json.dumps(node)+" "+json.dumps(str(vite))+" preview --outDir custody-pilot-dist --host 127.0.0.1 --port "+str(PILOT_PORT)+" --strictPort"
+              config_text=("const family=process.env.PILOT_FAMILY,results=process.env.PILOT_RESULTS,url=process.env.PILOT_URL;\n"
+                  "if(![\"chromium\",\"firefox\",\"webkit\"].includes(family)||!results||!results.startsWith(\"/\")||!url)throw new Error(\"explicit family/results/url required\");\n"
+                  "if(process.env.PLAYWRIGHT_EXECUTABLE_PATH)throw new Error(\"own registry required\");\n"
+                  "module.exports={testDir:__dirname,testMatch:"+json.dumps(spec.name)+",workers:1,retries:0,timeout:60000,\n"
+                  "  outputDir:results+\"/\"+family+\"/normal-results\",\n"
+                  "  reporter:[[\"line\"],[\"json\",{outputFile:results+\"/\"+family+\"/normal-report.json\"}]],\n"
+                  "  use:{headless:true,trace:\"off\",screenshot:\"off\",video:\"off\"},\n"
+                  "  projects:[{name:family,use:{browserName:family}}],\n"
+                  "  webServer:{command:"+json.dumps(web)+",cwd:"+json.dumps(str(client))+",url:url,timeout:60000,reuseExistingServer:false}};\n")
+              config=content_file(directory,"custody-pilot",".config.cjs",config_text)
+              hold=content_file(directory,"custody-hold",".cjs",PILOT_HOLD_SCRIPT)
+              return {"directory":directory,"spec":spec,"config":config,"hold":hold,"vite":vite,"dist":dist}
+
+          def parse_ldd(text, targets):
+              missing={str(t):[] for t in targets};current=str(targets[0]) if len(targets)==1 else None
+              for line in text.splitlines():
+                  if line.endswith(":") and line[:-1] in missing:current=line[:-1];continue
+                  if "=> not found" in line and current is not None:missing[current].append(line.split("=>")[0].strip())
+              return missing
+
+          def pilot_receipt(entry):
+              # Compact receipt summary; the full receipt stays in the retained evidence.
+              if entry is None or not (pathlib.Path(entry["outDir"])/"receipt.json").is_file():return None
+              r=json.loads((pathlib.Path(entry["outDir"])/"receipt.json").read_text())
+              leader=r.get("leader") or {}
+              return {"name":entry["name"],"status":entry["status"],"outcome":r.get("outcome"),"refusal":r.get("refusal"),"firstCause":r.get("firstCause"),
+                  "cleanup":r.get("cleanup"),"custody":r.get("custody"),"exit":r.get("exit"),"leaderImage":leader.get("image"),"noNewPrivileges":leader.get("noNewPrivileges"),
+                  "membersObserved":(r.get("members") or {}).get("observed"),"residualAfterLeaderExit":len(r.get("residualAfterLeaderExit") or []),
+                  "residualInRoot":r.get("residualInRoot"),"escaped":len(r.get("escaped") or []),"retirement":r.get("retirement"),
+                  "stopSeconds":(r.get("timing") or {}).get("stopSeconds"),"profileSha256":r.get("profileSha256"),"ownerSha256":(r.get("owner") or {}).get("sha256")}
+
+          def pilot_group(execute, argv, cwd, env, receipts, inputs=()):
+              before=len(receipts);error=None
+              try:execute(argv,cwd,env,inputs=inputs)
+              except (RuntimeError,ValueError) as caught:error=type(caught).__name__+": "+str(caught)
+              entry=receipts[-1] if len(receipts)>before else None
+              stdout=(pathlib.Path(entry["outDir"])/"stdout.log") if entry else None
+              text=stdout.read_text(errors="replace") if stdout and stdout.is_file() else ""
+              return {"error":error,"receipt":pilot_receipt(entry),"stdout":text}
+
+          def launched(text):
+              for line in text.splitlines():
+                  try:value=json.loads(line)
+                  except ValueError:continue
+                  if isinstance(value,dict) and value.get("launched") is True:return value
+              return None
+
+          def classify_pilot_case(case, result, report=None):
+              r=result["receipt"];cause=(r or {}).get("firstCause") or result["error"] or ""
+              retired=bool(r) and r["cleanup"]=="observed-empty-removed" and r["custody"]=="contained" and not r["escaped"]
+              if case=="normal":
+                  passed=bool(report) and report.get("stats",{}).get("expected")==1 and report["stats"].get("unexpected")==0
+                  if retired and r["outcome"]=="succeeded" and passed:return "clean-stock-shutdown"
+                  if retired and passed and "leader exited with live contained members" in cause:return "stock-leftover-retired"
+                  return "run-failed"
+              if case=="forced":
+                  return "deadline-retired" if retired and "original deadline exhausted" in cause and launched(result["stdout"]) else "unexpected"
+              if case=="exit":
+                  if retired and launched(result["stdout"]) and r["outcome"]=="succeeded":return "browser-exited-with-leader"
+                  if retired and launched(result["stdout"]) and "leader exited with live contained members" in cause:return "leftover-retired"
+                  return "unexpected"
+              raise ValueError("closed pilot case required")
+
+          PILOT_EXPECTED = {"normal":("clean-stock-shutdown","stock-leftover-retired"),"forced":("deadline-retired",),"exit":("browser-exited-with-leader","leftover-retired"),
+              "scan":("support-complete","support-missing")}
+
+          def pilot_disposition(summary):
+              reasons=[]
+              for name,row in summary["libraryScan"].items():
+                  if row["disposition"] not in PILOT_EXPECTED["scan"]:reasons.append("scan "+name+": "+row["disposition"])
+              for family in PILOT_FAMILIES:
+                  for case in ("normal","forced","exit"):
+                      row=summary["cases"].get(family,{}).get(case)
+                      if row is None:reasons.append(family+"/"+case+": not run")
+                      elif row["disposition"] not in PILOT_EXPECTED[case]:reasons.append(family+"/"+case+": "+row["disposition"])
+              summary["reasons"]=reasons
+              return "completed" if not reasons else "incomplete"
+
+          def chromium_library_scan(root, env, owner, identities, receipts, registered, deadline):
+              ldd,_=host_image("/usr/bin/ldd")
+              interpreter=pathlib.Path(ldd).read_text(errors="replace").splitlines()[0]
+              require(interpreter.startswith("#!"),"host ldd interpreter unknown")
+              interp,interp_sha=host_image(interpreter[2:].strip().split()[0])
+              bind_identity(identities,ldd,"host-observed",images=[interp_sha])
+              rows={}
+              for asset in ("chromium-headless1243","chromium-full1243"):
+                  executable=pathlib.Path(next(r["executable"] for r in registered if r["asset"]==asset))
+                  targets=[executable]+sorted(p for p in executable.parent.iterdir() if p.is_file() and not p.is_symlink() and ".so" in p.name)
+                  execute=managed_executor(owner,root,min(deadline,time.monotonic()+PILOT_CASE_SECONDS["scan"]),identities,"custody",receipts)
+                  result=pilot_group(execute,[ldd]+[str(t) for t in targets],root,env,receipts)
+                  missing=parse_ldd(result["stdout"],targets)
+                  ok=bool(result["receipt"]) and result["receipt"]["outcome"]=="succeeded"
+                  rows[asset]={"directory":str(executable.parent),"targets":len(targets),"missing":{k:v for k,v in missing.items() if v},
+                      "disposition":("support-missing" if any(missing.values()) else "support-complete") if ok else "scan-failed","receipt":result["receipt"],"error":result["error"]}
+              return rows
+
+          def run_custody_pilot(root, env, owner, identities, receipts, provisioned, deadline, summary, write):
+              files=pilot_files(provisioned["seed"],provisioned["node"])
+              summary["pilotFiles"]={k:str(v) for k,v in files.items()}
+              summary["libraryScan"]=chromium_library_scan(root,env,owner,identities,receipts,provisioned["registered"],deadline);write()
+              results=root/"pilot-results";results.mkdir(mode=0o700)
+              tests=provisioned["seed"]/"Browser.Tests";node=provisioned["node"]
+              cli=str(tests/"node_modules/@playwright/test/cli.js")
+              for family in PILOT_FAMILIES:
+                  (results/family).mkdir(mode=0o700);rows=summary["cases"].setdefault(family,{})
+                  case_env={**env,"PILOT_FAMILY":family,"PILOT_RESULTS":str(results),"PILOT_URL":"http://127.0.0.1:"+str(PILOT_PORT)+"/"}
+                  def group(case, argv, inputs):
+                      execute=managed_executor(owner,root,min(deadline,time.monotonic()+PILOT_CASE_SECONDS[case]),identities,"custody",receipts)
+                      return pilot_group(execute,argv,tests,case_env,receipts,inputs)
+                  # Normal: the stock runner, its webServer (vite preview) and browser must leave nothing behind.
+                  result=group("normal",[node,cli,"test","--config",str(files["config"])],[files["config"],files["spec"]])
+                  report_path=results/family/"normal-report.json"
+                  report=json.loads(report_path.read_bytes()) if report_path.is_file() else None
+                  rows["normal"]={"disposition":classify_pilot_case("normal",result,report),"stats":(report or {}).get("stats"),"receipt":result["receipt"],"error":result["error"]};write()
+                  # Forced: a live browser held past its group deadline must be retired by the owner.
+                  result=group("forced",[node,str(files["hold"]),family,"hold"],[files["hold"]])
+                  rows["forced"]={"disposition":classify_pilot_case("forced",result),"launch":launched(result["stdout"]),"receipt":result["receipt"],"error":result["error"]};write()
+                  # Leader exit: the leader exits without closing; any surviving browser member is retired.
+                  result=group("exit",[node,str(files["hold"]),family,"exit"],[files["hold"]])
+                  rows["exit"]={"disposition":classify_pilot_case("exit",result),"launch":launched(result["stdout"]),"receipt":result["receipt"],"error":result["error"]};write()
+
+          def collect_pilot_evidence(root):
+              # One bounded evidence tree for the single artifact: summaries, receipts, small logs, reports, scripts.
+              evidence=root/"pilot-evidence";require(not evidence.exists(),"pilot evidence root occupied");evidence.mkdir(mode=0o700)
+              candidates=[root/name for name in ("custody-pilot.json","managed-receipts.json","managed-owner.json","managed-owner-probe.json","source.json","input-downloads.json",
+                  "browser-archive-inputs.json","browser-registration.json","browser-extracted-layouts.json","browser-host-validation.json")]
+              managed=root/"managed"
+              if managed.is_dir():
+                  for group in sorted(managed.iterdir()):candidates+=[group/n for n in ("receipt.json","stdout.log","stderr.log")]
+              for pattern_root,pattern in ((root/"pilot-results","*.json"),(root/"npm-seed/Browser.Tests/custody-pilot","*.cjs")):
+                  if pattern_root.is_dir():candidates+=sorted(pattern_root.rglob(pattern))
+              manifest={"schema":"fsgg.templates.wasm-custody-pilot-evidence/1","capBytes":PILOT_EVIDENCE_BYTES,"files":[],"skipped":[],"truncated":[]};total=0
+              for path in candidates:
+                  if not path.is_file() or path.is_symlink():continue
+                  data=path.read_bytes()
+                  if path.suffix==".log" and len(data)>1048576:manifest["truncated"].append({"path":str(path),"bytes":len(data)});data=data[:1048576]
+                  if total+len(data)>PILOT_EVIDENCE_BYTES:manifest["skipped"].append({"path":str(path),"bytes":len(data)});continue
+                  relative=path.relative_to(root);target=evidence/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
+                  total+=len(data);manifest["files"].append({"path":str(relative),"bytes":len(data),"sha256":hashlib.sha256(data).hexdigest()})
+              manifest["totalBytes"]=total
+              (evidence/"manifest.json").write_text(json.dumps(manifest,indent=2)+"\n")
+              return manifest
+
+          def pilot_sequence(environ, start):
+              root=pathlib.Path(environ["RUNNER_TEMP"])/"wasm-custody-pilot"
+              source=validate_dispatch_source(environ,environ["CHECKOUT_HEAD"],root)
+              env=fresh_environment(root,environ)
+              summary={"schema":"fsgg.templates.wasm-custody-pilot/1","disposition":"started","admission":PILOT_ADMISSION,"source":source,"owner":OWNER,
+                  "families":list(PILOT_FAMILIES),"libraryScan":{},"cases":{}}
+              def write():(root/"custody-pilot.json").write_text(json.dumps(summary,indent=2)+"\n")
+              try:
+                  write();(root/"source.json").write_text(json.dumps(source,indent=2)+"\n")
+                  setup=pilot_deadline(start,"setup",time.monotonic())
+                  owner=load_owner(root,setup)
+                  summary["probe"]=probe_containment(owner,root)
+                  identities={};receipts=[]
+                  provisioned=prepare_browser_inputs(root,env,managed_executor(owner,root,setup,identities,"setup",receipts),download,setup,identities)
+                  summary["hostValidation"]=provisioned["hostValidation"];write()
+                  run_custody_pilot(root,env,owner,identities,receipts,provisioned,pilot_deadline(start,"custody",time.monotonic()),summary,write)
+                  summary["disposition"]=pilot_disposition(summary)
+              except BaseException as error:
+                  summary["disposition"]="failed";summary["firstCause"]=type(error).__name__+": "+str(error)
+                  raise
+              finally:
+                  notes=[]
+                  try:write()
+                  except Exception as reporting:notes.append("pilot summary reporting failure: "+type(reporting).__name__+": "+str(reporting))
+                  try:summary["evidence"]=collect_pilot_evidence(root)
+                  except Exception as reporting:notes.append("pilot evidence collection failure: "+type(reporting).__name__+": "+str(reporting))
+                  for note in notes:print(note,file=sys.stderr)
+              return summary
 
           def main():
               # The contract is bound (OWNER, probe_containment, managed_executor). The inline refusal stays

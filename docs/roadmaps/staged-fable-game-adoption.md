@@ -573,7 +573,10 @@ provisioning call as one `require-empty` managed group, and runs the job inside 
 delegated `systemd-run` unit that carries the hard limits. On the installed-C path each
 Playwright `--list` and `test` invocation is its own `require-empty` group run by the caller;
 the shell checker now prepares only source and the production graph. Installed C runs only
-after a held custody gate, pending the admitted three-family custody pilot. The WASM
+after a held custody gate, pending the admitted three-family custody pilot. The pilot itself
+is a separate dispatch-only workflow (`wasm-custody-pilot.yml`), admitted for exactly one
+run at its merge commit; it provisions only the browser subset and records the Chromium
+library scan plus normal, forced-deadline and leader-exit custody per family. The WASM
 receiver targets published 0.19.1. The literal step, upload and inline holds remain
 until Programme/root admits the bounded three-family custody pilot. The
 [binding report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#managed-group-contract-binding-c-j1--2026-10-22)

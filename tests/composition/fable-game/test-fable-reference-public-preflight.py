@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 import ast
+import importlib.util
 import base64
 import copy
 import hashlib
@@ -519,8 +520,10 @@ class HostedWasmCallerTests(unittest.TestCase):
         self.assertNotIn('"install","chromium"',self.code)
 
     def test_release_build_precedes_browser_and_provisioned_is_not_qualified(self):
-        self.assertLess(self.code.index('"--locked-mode"'),self.code.index('"Release"'))
-        self.assertLess(self.code.index('"Release"'),self.code.index('browser_inputs=browser_archive_inputs(get)'))
+        body=ast.get_source_segment(self.code,next(n for n in ast.parse(self.code).body if isinstance(n,ast.FunctionDef) and n.name=='prepare_inputs'))
+        self.assertLess(body.index('"--locked-mode"'),body.index('"Release"'))
+        self.assertLess(body.index('"Release"'),body.index('register_browsers(root,downloads,seed,env,execute,get,deadline)'))
+        self.assertIn('browser_inputs=browser_archive_inputs(get)',self.code)
         self.assertIn('provisioned-not-qualified',self.code)
         self.assertIn('observedAt',self.code)
 
@@ -801,7 +804,7 @@ def _browser_zip(path, relative):
     layout={'members':1,'logicalBytes':len(body),'symlinks':0,'layoutSha256':hashlib.sha256(json.dumps(rows,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
     return {'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()},layout
 
-def drive_every_call_site(ns, base, owner):
+def fixture_world(ns, base, owner):
     """Run the actual provisioning sequence, tool qualification and installed C on inert fixtures.
 
     Every process the caller would start goes through managed_executor into ``owner`` (a FakeOwner),
@@ -882,6 +885,12 @@ def drive_every_call_site(ns, base, owner):
             if '--list' in argv:return json.dumps(report_for(family))
             (results/family/'report.json').write_text(json.dumps(report_for(family,True)))
         return ''
+    return {'root':root,'workspace':workspace,'env':env,'acquire':acquire,'play':play,'installed':installed,'results':results}
+
+def drive_every_call_site(ns, base, owner):
+    """Run the actual provisioning sequence, tool qualification and installed C on inert fixtures."""
+    world=fixture_world(ns,base,owner)
+    root,workspace,env,acquire,play=world['root'],world['workspace'],world['env'],world['acquire'],world['play']
     owner.stdout=play
     identities={};receipts=[]
     setup=ns['managed_executor'](owner,root,time.monotonic()+600,identities,'setup',receipts)
@@ -1269,6 +1278,217 @@ class RealOwnerBindingTests(unittest.TestCase):
         if self.owner.probe()['available']:self.skipTest('this host delegates a cgroup; the hosted unit probe covers containment')
         with self.assertRaisesRegex(ValueError,'containment unavailable'):self.ns['probe_containment'](self.owner,self.root)
         self.run_refused(time.monotonic()+60,'containment-unavailable')
+
+
+PILOT_WORKFLOW_FILE=HERE.parents[2]/'.github/workflows/wasm-custody-pilot.yml'
+PILOT_URL='https://github.com/FS-GG/.github/issues/4710#issuecomment-6346457201'
+
+class PilotOwner(FakeOwner):
+    """Fake owner for the custody pilot: plays each case and writes a receipt shaped like the real one."""
+    def __init__(self, world, behaviour=None, validate=None):
+        super().__init__(validate=validate);self.world=world;self.behaviour=behaviour or {};self.case_calls=[]
+    def run(self, profile, *, env, deadline, out_dir):
+        if self.validate:self.validate(profile)
+        self.calls.append({'profile':profile,'env':env,'deadline':deadline,'outDir':out_dir});self.envs[id(profile)]=env
+        os.mkdir(out_dir,0o700);argv=profile['argv'];stdout='';cause=None;residual=[]
+        receipt={'outcome':'succeeded','refusal':None,'cleanup':'observed-empty-removed','custody':'contained','exit':{'code':0,'signal':None},
+            'leader':{'image':'admitted','noNewPrivileges':'1'},'members':{'observed':3},'residualAfterLeaderExit':[],'residualInRoot':[],'escaped':[],
+            'retirement':{'termSignals':0,'cgroupKill':False},'timing':{'stopSeconds':1.0},'profileSha256':'f'*64,
+            'owner':{'sha256':'d846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0'},'firstCause':None}
+        if Path(argv[0]).name=='ldd':
+            case=('scan',None)
+            missing=self.behaviour.get('missing')
+            stdout=''.join(a+':\n\tlibc.so.6 => /lib/libc.so.6 (0x1)\n'+('\t'+missing+' => not found\n' if missing and a.endswith('chrome-headless-shell') else '') for a in argv[1:])
+        elif len(argv)>2 and argv[2]=='test' and '--config' in argv:
+            family=env['PILOT_FAMILY'];case=('normal',family)
+            stats={'expected':1,'unexpected':0,'flaky':0,'skipped':0}
+            if self.behaviour.get(case)=='fail':stats={'expected':0,'unexpected':1,'flaky':0,'skipped':0};cause='RuntimeError: command failed with exit 1'
+            Path(env['PILOT_RESULTS'],family,'normal-report.json').write_text(json.dumps({'stats':stats}))
+            if self.behaviour.get(case)=='leftover':cause='RuntimeError: leader exited with live contained members';residual=[{'pid':9}]
+        elif len(argv)==4 and argv[1].endswith('.cjs') and argv[3] in ('hold','exit'):
+            family,mode=argv[2],argv[3];case=(mode=='hold' and 'forced' or 'exit',family)
+            stdout=json.dumps({'launched':True,'family':family,'mode':mode,'version':'1','descendants':[{'pid':2,'comm':'browser'}]})+'\n'
+            if mode=='hold' and self.behaviour.get(case)!='not-held':cause='TimeoutError: original deadline exhausted';receipt['exit']=None
+            if mode=='exit' and self.behaviour.get(case)=='leftover':cause='RuntimeError: leader exited with live contained members';residual=[{'pid':7}]
+        else:
+            case=None;stdout=self.world['play'](profile)
+        if case:self.case_calls.append((case,deadline))
+        if self.behaviour.get(case)=='unknown-cleanup':receipt['cleanup']='unknown';cause=cause or 'RuntimeError: cleanup unqualified: unknown'
+        Path(out_dir,'stdout.log').write_text(stdout);Path(out_dir,'stderr.log').write_text('')
+        receipt['residualAfterLeaderExit']=residual
+        if cause:receipt.update(outcome='failed',firstCause=cause)
+        Path(out_dir,'receipt.json').write_text(json.dumps(receipt))
+        if cause:raise FakeGroupFailed(receipt)
+        return receipt
+
+class CustodyPilotTests(unittest.TestCase):
+    """The admitted custody pilot entry on inert fixtures; nothing is downloaded, launched or uploaded."""
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(os.path.realpath(self.temp.name))
+        self.text,self.code=actual_hosted_code()
+        self.ns={'__name__':'pilot_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+        self.addCleanup(setattr,sys,'dont_write_bytecode',sys.dont_write_bytecode)
+        self.workflow=PILOT_WORKFLOW_FILE.read_text()
+
+    def environ(self, **changes):
+        sha='c'*40
+        value={'EVENT':'workflow_dispatch','REPOSITORY':'FS-GG/FS.GG.Templates','REF':'refs/heads/main','SHA':sha,'ADMITTED_REF':sha,'CHECKOUT_HEAD':sha,
+            'ADMISSION':PILOT_URL,'WORKFLOW_REF':'FS-GG/FS.GG.Templates/.github/workflows/wasm-custody-pilot.yml@refs/heads/main','WORKFLOW_SHA':sha,
+            'RUN_ID':'7','RUN_ATTEMPT':'1','RUNNER_TEMP':str(self.root/'rt')}
+        value.update(changes);return value
+
+    def pilot(self, behaviour=None, validate=None, owner_available=True):
+        (self.root/'world').mkdir()
+        world=fixture_world(self.ns,self.root/'world',None)
+        owner=PilotOwner(world,behaviour,validate);owner.available=owner_available
+        self.ns['load_owner']=lambda root,deadline:owner;self.ns['download']=world['acquire']
+        (self.root/'rt').mkdir(exist_ok=True)
+        return owner
+
+    def test_dispatch_validation_binds_admitted_ref_admission_workflow_and_first_attempt(self):
+        source=self.ns['validate_dispatch_source'](self.environ(),'c'*40,self.root/'rt/p')
+        self.assertEqual((source['ADMITTED_REF'],source['ADMISSION']),('c'*40,PILOT_URL))
+        for key,value in [('EVENT','pull_request'),('REPOSITORY','attacker/fork'),('REF','refs/heads/other'),('ADMITTED_REF','d'*40),('SHA','d'*40),
+                          ('ADMISSION',PILOT_URL+'0'),('WORKFLOW_REF','FS-GG/FS.GG.Templates/.github/workflows/fable-reference-public.yml@refs/heads/main'),
+                          ('WORKFLOW_SHA',''),('RUN_ATTEMPT','2'),('ADMITTED_REF','C'*40)]:
+            with self.subTest(key=key),self.assertRaises(ValueError):self.ns['validate_dispatch_source'](self.environ(**{key:value}),'c'*40,self.root/'rt/p')
+        with self.assertRaisesRegex(ValueError,'admitted_ref'):self.ns['validate_dispatch_source'](self.environ(),'d'*40,self.root/'rt/p')
+
+    def test_pilot_budget_fits_the_admitted_unit_and_never_renews(self):
+        budget=self.ns['PILOT_BUDGET']
+        self.assertEqual(budget['setup']+budget['custody']+2*budget['cleanup']+budget['collection']+budget['overhead'],budget['job'])
+        self.assertLess(budget['job'],1800)
+        self.assertEqual(self.ns['pilot_deadline'](100,'setup',100),700)
+        self.assertEqual(self.ns['pilot_deadline'](100,'custody',700),1330)
+        self.assertEqual(self.ns['pilot_deadline'](100,'custody',800),1360) # the job end, never renewed
+        for phase,now in [('custody',1360),('installed',100)]:
+            with self.subTest(phase=phase),self.assertRaises(ValueError):self.ns['pilot_deadline'](100,phase,now)
+
+    def test_pilot_sequence_runs_scan_and_three_cases_per_family_as_bounded_groups(self):
+        owner=self.pilot();start=time.monotonic()
+        summary=self.ns['pilot_sequence'](self.environ(),start)
+        self.assertEqual(summary['disposition'],'completed',summary.get('reasons'))
+        self.assertEqual({k:v['disposition'] for k,v in summary['libraryScan'].items()},{'chromium-headless1243':'support-complete','chromium-full1243':'support-complete'})
+        self.assertEqual({f:{c:r['disposition'] for c,r in rows.items()} for f,rows in summary['cases'].items()},
+            {f:{'normal':'clean-stock-shutdown','forced':'deadline-retired','exit':'browser-exited-with-leader'} for f in ('chromium','firefox','webkit')})
+        root=self.root/'rt/wasm-custody-pilot';receipts=json.loads((root/'managed-receipts.json').read_text())
+        self.assertEqual([r['phase'] for r in receipts],['setup']*3+['custody']*11)
+        cases=[c for c,_ in owner.case_calls]
+        self.assertEqual(cases,[('scan',None)]*2+[(k,f) for f in ('chromium','firefox','webkit') for k in ('normal','forced','exit')])
+        custody=start+self.ns['PILOT_BUDGET']['job']-sum(self.ns['PILOT_BUDGET'][k] for k in ('cleanup','collection','overhead'))
+        for (case,family),deadline in owner.case_calls:
+            self.assertLessEqual(deadline,custody+1)
+            self.assertLessEqual(deadline-start,self.ns['PILOT_BUDGET']['job'])
+        forced=[d for (c,_),d in owner.case_calls if c=='forced']
+        self.assertTrue(all(d-time.monotonic()<=self.ns['PILOT_CASE_SECONDS']['forced'] for d in forced))
+        for call in owner.calls:
+            profile=call['profile']
+            with self.subTest(argv=profile['argv'][:3]):
+                self.assertTrue(profile['cwd']==str(root) or profile['cwd'].startswith(str(root)+'/'))
+                self.assertFalse(any(ord(c)<32 for arg in profile['argv'] for c in arg))
+                self.assertEqual(profile['retirement']['onLeaderExit'],'require-empty')
+        normal=[c for c in owner.calls if '--config' in c['profile']['argv']]
+        self.assertEqual([c['env']['PILOT_FAMILY'] for c in normal],['chromium','firefox','webkit'])
+        for call in normal:
+            self.assertEqual(call['env']['FSGG_WASM_FIREFOX_PROFILE'],'content-sandbox-enabled')
+            self.assertNotIn('MOZ_DISABLE_CONTENT_SANDBOX',call['env']);self.assertNotIn('PLAYWRIGHT_EXECUTABLE_PATH',call['env'])
+        # Pilot code files are content-addressed, read-only and recorded as group inputs.
+        for name in ('config','spec','hold'):
+            path=Path(summary['pilotFiles'][name])
+            self.assertEqual(path.name.split('.')[1],hashlib.sha256(path.read_bytes()).hexdigest());self.assertEqual(stat.S_IMODE(path.stat().st_mode),0o400)
+        self.assertTrue(all(r['inputs'] for r in receipts if r['phase']=='custody' and not r['executable'].endswith('ldd')))
+        evidence=root/'pilot-evidence';manifest=json.loads((evidence/'manifest.json').read_text())
+        self.assertIn('custody-pilot.json',[f['path'] for f in manifest['files']]);self.assertLessEqual(manifest['totalBytes'],45*1048576)
+        self.assertEqual(json.loads((evidence/'custody-pilot.json').read_text())['disposition'],'completed')
+        self.assertEqual(summary['source']['ADMISSION'],PILOT_URL)
+        self.assertFalse((root/'tools/dotnet').exists());self.assertFalse((root/'tools/cargo').exists())
+
+    def test_classification_records_leftovers_missing_libraries_and_custody_failures(self):
+        self.pilot({'missing':'libfoo.so.1',('normal','firefox'):'leftover',('exit','webkit'):'leftover'})
+        summary=self.ns['pilot_sequence'](self.environ(),time.monotonic())
+        self.assertEqual(summary['disposition'],'completed')
+        self.assertEqual(summary['libraryScan']['chromium-headless1243']['disposition'],'support-missing')
+        self.assertEqual(list(summary['libraryScan']['chromium-headless1243']['missing'].values()),[['libfoo.so.1']])
+        self.assertEqual(summary['cases']['firefox']['normal']['disposition'],'stock-leftover-retired')
+        self.assertEqual(summary['cases']['webkit']['exit']['disposition'],'leftover-retired')
+        for behaviour,family,case,expected in [({('forced','chromium'):'not-held'},'chromium','forced','unexpected'),
+                                               ({('normal','webkit'):'unknown-cleanup'},'webkit','normal','run-failed'),
+                                               ({('normal','chromium'):'fail'},'chromium','normal','run-failed')]:
+            with self.subTest(case=case,family=family):
+                shutil.rmtree(self.root/'rt');shutil.rmtree(self.root/'world')
+                self.ns={'__name__':'pilot_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+                self.pilot(behaviour)
+                summary=self.ns['pilot_sequence'](self.environ(),time.monotonic())
+                self.assertEqual(summary['cases'][family][case]['disposition'],expected)
+                self.assertEqual(summary['disposition'],'incomplete');self.assertTrue(summary['reasons'])
+
+    def test_unavailable_containment_fails_before_acquisition_and_still_retains_evidence(self):
+        self.pilot(owner_available=False)
+        def forbidden(*args,**kwargs):raise AssertionError('acquisition before containment probe')
+        self.ns['download']=forbidden
+        with self.assertRaisesRegex(ValueError,'containment unavailable'):self.ns['pilot_sequence'](self.environ(),time.monotonic())
+        root=self.root/'rt/wasm-custody-pilot'
+        summary=json.loads((root/'pilot-evidence/custody-pilot.json').read_text())
+        self.assertEqual(summary['disposition'],'failed');self.assertIn('containment unavailable',summary['firstCause'])
+        self.assertFalse((root/'downloads').exists())
+
+    def test_refused_dispatch_writes_nothing(self):
+        with self.assertRaisesRegex(ValueError,'re-run refused'):self.ns['pilot_sequence'](self.environ(RUN_ATTEMPT='2'),time.monotonic())
+        self.assertFalse((self.root/'rt/wasm-custody-pilot').exists())
+
+    def test_evidence_is_capped_and_logs_truncated(self):
+        root=self.root/'job';root.mkdir();(root/'custody-pilot.json').write_text('{}')
+        group=root/'managed/001-custody';group.mkdir(parents=True)
+        (group/'receipt.json').write_text('{}');(group/'stdout.log').write_bytes(b'x'*(2*1048576))
+        self.ns['PILOT_EVIDENCE_BYTES']=1048576+100
+        manifest=self.ns['collect_pilot_evidence'](root)
+        self.assertEqual([t['bytes'] for t in manifest['truncated']],[2*1048576])
+        self.assertLessEqual(manifest['totalBytes'],1048576+100)
+        self.assertTrue(manifest['skipped'] or manifest['totalBytes']==2+2+1048576)
+        for row in manifest['files']:
+            self.assertEqual(hashlib.sha256((root/'pilot-evidence'/row['path']).read_bytes()).hexdigest(),row['sha256'])
+
+    def test_parse_ldd_attributes_missing_libraries_per_target(self):
+        targets=[Path('/b/chrome'),Path('/b/libEGL.so')]
+        text='/b/chrome:\n\tlibnss3.so => not found\n\tlibc.so.6 => /lib/libc.so.6 (0x1)\n/b/libEGL.so:\n\tlibX11.so.6 => not found\n'
+        self.assertEqual(self.ns['parse_ldd'](text,targets),{'/b/chrome':['libnss3.so'],'/b/libEGL.so':['libX11.so.6']})
+        self.assertEqual(self.ns['parse_ldd']('\tlibz.so => not found\n',[Path('/b/one')]),{'/b/one':['libz.so']})
+
+    def test_pilot_workflow_is_dispatch_only_bounded_and_uploads_one_artifact(self):
+        text=self.workflow
+        trigger=text.split('\non:\n',1)[1].split('\npermissions:',1)[0]
+        self.assertEqual(re.findall(r'^  ([a-z_]+):$',trigger,re.M),['pull_request','workflow_dispatch'])
+        self.assertNotRegex(text,r'(contents|actions|packages|id-token|pull-requests|issues): write|secrets\.|pull_request_target|continue-on-error|workflow_run|schedule:')
+        static=text.split('  pilot-static-controls:',1)[1].split('  custody-pilot:',1)[0]
+        pilot=text.split('  custody-pilot:',1)[1]
+        self.assertNotIn('systemd-run',static);self.assertNotIn('wasm-custody-pilot.py\n',static.replace('ast.parse(open(sys.argv[1]).read())\' tests/composition/fable-game/wasm-custody-pilot.py',''))
+        self.assertIn("if: ${{ github.event_name == 'workflow_dispatch' }}",pilot)
+        for required in ('runs-on: ubuntu-24.04','timeout-minutes: 30','contents: read','sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec',
+                         '-p Delegate=yes','-p NoNewPrivileges=yes','-p KillMode=control-group','-p TimeoutStopSec=5','-p TasksMax=4096','-p MemoryMax=8G',
+                         '-p RuntimeMaxSec=1800','--setenv=ADMITTED_REF="$ADMITTED_REF"','--setenv=ADMISSION="$ADMISSION"','ref: ${{ github.sha }}',
+                         '-- /usr/bin/python3 -I tests/composition/fable-game/wasm-custody-pilot.py','retention-days: 30',
+                         'path: ${{ runner.temp }}/wasm-custody-pilot/pilot-evidence/'):
+            with self.subTest(required=required):self.assertIn(required,pilot)
+        self.assertEqual(re.findall(r'uses: ([^\s]+)',pilot),['actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1','actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'])
+        self.assertNotIn('${{ inputs.',pilot.split('    steps:',1)[1])
+        self.assertIn(PILOT_URL,text);self.assertEqual(self.ns['PILOT_ADMISSION'],PILOT_URL)
+
+    def test_pilot_entry_leaves_installed_c_gates_closed(self):
+        caller=WORKFLOW.read_text()
+        self.assertEqual(len(re.findall(r'^        if: \$\{\{ false \}\}$',caller,re.M)),2)
+        self.assertIn('RUNTIME_ADMITTED = False',self.code)
+        with self.assertRaisesRegex(RuntimeError,'custody pilot remain unadmitted'):self.ns['custody_gate']({})
+        body=ast.get_source_segment(self.code,next(n for n in ast.parse(self.code).body if isinstance(n,ast.FunctionDef) and n.name=='pilot_sequence'))
+        for forbidden in ('installed_c','custody_gate','RUNTIME_ADMITTED','prepare_inputs','qualify_tools'):self.assertNotIn(forbidden,body)
+
+    @unittest.skipUnless(OWNER_FILE,'set FSGG_MANAGED_GROUP_OWNER to the pinned owner file to validate pilot profiles')
+    def test_every_pilot_call_is_valid_under_the_real_contract(self):
+        source=Path(OWNER_FILE).read_bytes();self.assertEqual(hashlib.sha256(source).hexdigest(),self.ns['OWNER']['sha256'])
+        spec=importlib.util.spec_from_file_location('pilot_owner_check',OWNER_FILE);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        owner=self.pilot(validate=module.validate_profile)
+        self.assertEqual(self.ns['pilot_sequence'](self.environ(),time.monotonic())['disposition'],'completed')
+        self.assertEqual(len(owner.calls),14)
 
 
 if __name__ == '__main__': unittest.main()

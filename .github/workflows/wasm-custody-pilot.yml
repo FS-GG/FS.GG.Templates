@@ -1,0 +1,105 @@
+name: WASM custody pilot (admitted dispatch only)
+
+# Bounded three-family custody pilot for FS-GG/.github#4710 (C-J1), admitted at
+# https://github.com/FS-GG/.github/issues/4710#issuecomment-6346457201 for exactly one
+# dispatch of job custody-pilot at this workflow's merge commit. Pull requests run static
+# controls only. Installed C stays held in fable-reference-public.yml.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/wasm-custody-pilot.yml
+      - .github/workflows/fable-reference-public.yml
+      - tests/composition/fable-game/wasm-custody-pilot.py
+      - tests/composition/fable-game/test-fable-reference-public-preflight.py
+  workflow_dispatch:
+    inputs:
+      admitted_ref:
+        description: Exact admitted main commit; must equal the dispatched commit
+        required: true
+        type: string
+      admission:
+        description: Exact admission comment URL on FS-GG/.github#4710
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  pilot-static-controls:
+    name: Custody pilot static controls (no runtime)
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact reviewed Templates source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Qualify pilot source, dispatch validation and evidence bounds without runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -c 'import ast,sys; ast.parse(open(sys.argv[1]).read())' tests/composition/fable-game/wasm-custody-pilot.py
+          python3 tests/composition/fable-game/test-fable-reference-public-preflight.py CustodyPilotTests
+
+  custody-pilot:
+    name: Bounded three-family custody pilot
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      EVENT: ${{ github.event_name }}
+      REPOSITORY: ${{ github.repository }}
+      REF: ${{ github.ref }}
+      SHA: ${{ github.sha }}
+      WORKFLOW_REF: ${{ github.workflow_ref }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
+      RUN_ID: ${{ github.run_id }}
+      RUN_ATTEMPT: ${{ github.run_attempt }}
+      ADMITTED_REF: ${{ inputs.admitted_ref }}
+      ADMISSION: ${{ inputs.admission }}
+    steps:
+      - name: Check out the exact dispatched commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Run the admitted pilot in a fresh delegated unit
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkout_head="$(git rev-parse HEAD)"
+          sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec \
+            --unit="fsgg-mg-templates-pilot-${RUN_ID}-${RUN_ATTEMPT}" \
+            -p Delegate=yes -p User="$(id -un)" -p Group="$(id -gn)" -p NoNewPrivileges=yes \
+            -p KillMode=control-group -p TimeoutStopSec=5 -p TasksAccounting=yes -p MemoryAccounting=yes \
+            -p TasksMax=4096 -p MemoryMax=8G -p RuntimeMaxSec=1800 -p WorkingDirectory="$PWD" \
+            --setenv=PATH=/usr/bin:/bin --setenv=EVENT="$EVENT" --setenv=REPOSITORY="$REPOSITORY" \
+            --setenv=REF="$REF" --setenv=SHA="$SHA" --setenv=WORKFLOW_REF="$WORKFLOW_REF" \
+            --setenv=WORKFLOW_SHA="$WORKFLOW_SHA" --setenv=RUN_ID="$RUN_ID" --setenv=RUN_ATTEMPT="$RUN_ATTEMPT" \
+            --setenv=ADMITTED_REF="$ADMITTED_REF" --setenv=ADMISSION="$ADMISSION" \
+            --setenv=CHECKOUT_HEAD="$checkout_head" --setenv=RUNNER_TEMP="$RUNNER_TEMP" \
+            --setenv=ImageOS="${ImageOS:-}" --setenv=ImageVersion="${ImageVersion:-}" \
+            --setenv=RUNNER_OS="$RUNNER_OS" --setenv=RUNNER_ARCH="$RUNNER_ARCH" \
+            -- /usr/bin/python3 -I tests/composition/fable-game/wasm-custody-pilot.py
+      - name: Retain bounded pilot evidence
+        id: evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: wasm-custody-pilot-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wasm-custody-pilot/pilot-evidence/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Report evidence artifact identity
+        if: always()
+        shell: bash
+        env:
+          ARTIFACT_ID: ${{ steps.evidence.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.evidence.outputs.artifact-digest }}
+        run: |
+          printf 'artifact-id=%s\nartifact-digest=%s\n' "$ARTIFACT_ID" "$ARTIFACT_DIGEST" | tee -a "$GITHUB_STEP_SUMMARY"
