@@ -11,16 +11,16 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Templates-only public proof or full proof including separately qualified Wizard 0.16.0
+        description: Templates-only public proof or full Wizard proof (historical 0.18.1/Wizard 0.16.0 or current public 0.19.2/SDD 2.4.0/Wizard 0.21.0)
         required: true
         type: choice
         default: templates
         options: [templates, full]
-      template_version: { description: Selected FS.GG.Workspace.Template successor 0.18.1, required: true, type: string }
-      archive_sha256: { description: Exact nuget.org FS.GG.Workspace.Template 0.18.1 archive SHA-256, required: true, type: string }
+      template_version: { description: Selected FS.GG.Workspace.Template cohort 0.18.1 or current public 0.19.2, required: true, type: string }
+      archive_sha256: { description: Exact nuget.org FS.GG.Workspace.Template archive SHA-256 for the selected cohort, required: true, type: string }
       descriptor_sha256: { description: Exact protected fable-game provider descriptor SHA-256, required: true, type: string }
       source_revision: { description: Exact protected Templates commit carried by the package, required: true, type: string }
-      tag_revision: { description: Peeled immutable fs-gg-templates/v0.18.1 revision, required: true, type: string }
+      tag_revision: { description: Peeled immutable fs-gg-templates/v<version> revision, required: true, type: string }
       sdd_version: { description: Exact published FS.GG.SDD.Cli version, required: true, type: string }
       sdd_archive_sha256: { description: Exact public FS.GG.SDD.Cli archive SHA-256, required: true, type: string }
       sdd_source_revision: { description: Exact FS.GG.SDD.Cli nuspec source revision, required: true, type: string }
@@ -121,6 +121,8 @@ jobs:
             ${{ runner.temp }}/fable-reference-public/*-browser.log
             ${{ runner.temp }}/fable-reference-public/*-none.json
             ${{ runner.temp }}/fable-reference-public/provider.json
+            ${{ runner.temp }}/fable-reference-public/wizard*-registry.json
+            ${{ runner.temp }}/fable-reference-public/wizard*.log
           if-no-files-found: warn
           retention-days: 90
 

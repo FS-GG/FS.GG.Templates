@@ -28,7 +28,12 @@ let private version = "0.18.1"
 // Additive WASM successors. 0.19.1 carries the byte-exact C guest sources that 0.19.0 Complete
 // scaffolds truncated; both keep the same direct-only scope and source closure.
 let private wasmSuccessors = [ "0.19.0"; "0.19.1" ]
-let private supportedVersions = version :: wasmSuccessors
+// Current public successor (FS-GG/.github#4709). Published 0.19.2 is the newest public default
+// that Wizard 0.21.0 resolves. It carries the same Complete WASM source closure, but unlike the
+// direct-only WASM successors it is admitted on the provider and Wizard receiver routes.
+let private currentPublicSuccessors = [ "0.19.2" ]
+let private wasmClosureVersions = wasmSuccessors @ currentPublicSuccessors
+let private supportedVersions = version :: wasmClosureVersions
 let private templateId = "fs-gg-fable-game"
 let private hex64 = Regex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)
 let private hex40 = Regex("^[0-9a-f]{40}$", RegexOptions.CultureInvariant)
@@ -148,8 +153,11 @@ let private uniqueObject (element: JsonElement) =
 let validateReceiver (archive: string) (receiver: string) (route: string) (expectedLifecycle: string) (expectedGeneratorVersion: string) (productName: string) =
     if not (File.Exists archive) || not (Directory.Exists receiver) then refuse "receiver-input-missing"
     elif not ([ "direct"; "provider"; "wizard" ] |> List.contains route) then refuse "receiver-route-refused"
-    elif not ([ "none"; "typed-sdd" ] |> List.contains expectedLifecycle) then refuse "receiver-lifecycle-refused"
+    elif not ([ "none"; "typed-sdd"; "sdd" ] |> List.contains expectedLifecycle) then refuse "receiver-lifecycle-refused"
     elif route = "direct" && expectedLifecycle <> "none" then refuse "receiver-lifecycle-refused"
+    // Wizard 0.21.0 forwards its own omitted default `sdd` for current fable-game descriptors; only
+    // that route may claim it, and the recorded provenance must still equal it exactly.
+    elif expectedLifecycle = "sdd" && route <> "wizard" then refuse "receiver-lifecycle-refused"
     elif not (Regex.IsMatch(productName, "^[A-Za-z_][A-Za-z0-9_']*$", RegexOptions.CultureInvariant)) then refuse "receiver-product-name-refused"
     else
         try
@@ -224,13 +232,14 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
                     use stream = nuspec.Open()
                     let doc = XDocument.Load stream
                     let versions = doc.Descendants() |> Seq.filter (fun e -> e.Name.LocalName = "version") |> Seq.map _.Value |> Seq.toList
-                    if (match versions with [ selected ] -> List.contains selected wasmSuccessors | _ -> false) then
+                    match versions with
+                    | [ selected ] when List.contains selected wasmClosureVersions ->
                         let templateTransform (raw: byte array) (actual: byte array) =
                             let text = UTF8Encoding(false, true).GetString raw
                             same (UTF8Encoding(false).GetBytes(text.Replace("FableGameWorkspaceNamespace", productName, StringComparison.Ordinal).Replace("FableGameWorkspace", productName, StringComparison.Ordinal))) actual
                         let mismatch = wasmRelative |> List.exists (fun name -> not (exact (prefix + name) templateTransform))
-                        mismatch, route <> "direct"
-                    else false, false
+                        mismatch, (List.contains selected wasmSuccessors && route <> "direct")
+                    | _ -> false, false
                 | _ -> true, false
             let mismatched =
                 successorWasmMismatch
@@ -340,7 +349,7 @@ let validate request =
                     elif duplicate || directoryCollides then refuse "archive-duplicate-entry-refused"
                     elif oversized || total > 128L * 1024L * 1024L then refuse "archive-entry-bound-refused"
                     elif linked then refuse "archive-link-refused"
-                    elif (required @ (if List.contains request.ExpectedVersion wasmSuccessors then
+                    elif (required @ (if List.contains request.ExpectedVersion wasmClosureVersions then
                                           wasmRelative |> List.map (fun name -> "content/templates/fs-gg-fable-game/" + name)
                                       else []))
                          |> List.exists (fun name -> archive.GetEntry(name) |> Option.ofObj |> Option.forall (fun e -> e.Length = 0L)) then refuse "reference-member-missing"
