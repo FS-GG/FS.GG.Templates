@@ -1882,6 +1882,10 @@ class InstalledAdmissionTests(unittest.TestCase):
         steps=re.findall(r'^      - name: (.*)$',job,re.M)
         self.assertEqual(steps[:3],['Check out the exact dispatched commit','Refuse unless this dispatch is admitted in source','Install and record the admitted WebKit host packages'])
         self.assertIn('python3 -I tests/composition/fable-game/wasm-installed-c.py --check-admission',job)
+        precheck=job.split('Refuse unless this dispatch is admitted in source',1)[1].split('      - name:',1)[0]
+        own='\n        shell: bash\n        run: python3 -I tests/composition/fable-game/wasm-installed-c.py --check-admission\n'
+        self.assertTrue(precheck.startswith(own),precheck) # no if:, no continue-on-error
+        self.assertTrue(all(line.startswith('      #') for line in precheck[len(own):].splitlines()),precheck) # then only the next step's comments
         self.assertEqual(re.findall(r'^    if: (.*)$',text,re.M),["${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}","${{ github.event_name == 'workflow_dispatch' }}"])
         # The recorded WebKit host-package step and its post-step check are the accepted pilot's, byte for byte.
         pilot=PILOT_WORKFLOW_FILE.read_text()
