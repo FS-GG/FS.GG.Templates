@@ -1,11 +1,12 @@
 name: WASM custody pilot (admitted dispatch only)
 
-# Bounded three-family custody pilot for FS-GG/.github#4710 (C-J1). Second admitted run:
-# https://github.com/FS-GG/.github/issues/4710#issuecomment-6347853904 admits exactly one
-# dispatch of job custody-pilot at this workflow's merge commit, with Playwright's pinned
-# ubuntu24.04 WebKit package list installed and recorded before the unit (results are labelled
-# "ubuntu-24.04 + recorded packages"). Pull requests run static controls only. Installed C stays
-# held in fable-reference-public.yml. The first run (39828121993) is retained, not re-admitted.
+# Bounded three-family custody pilot for FS-GG/.github#4710 (C-J1). Third and final admitted run:
+# https://github.com/FS-GG/.github/issues/4710#issuecomment-6349235037 admits exactly one
+# dispatch of job custody-pilot at this workflow's merge commit. Playwright's pinned ubuntu24.04
+# WebKit package list is installed before the unit under bounded, retried apt with trap-written
+# evidence (results are labelled "ubuntu-24.04 + recorded packages"). If the install fails to
+# complete again, WebKit on hosted runners is recorded as a residual: no fourth run. Pull requests
+# run static controls only. Installed C stays held. Runs 39828121993 and 39837319401 are retained.
 on:
   pull_request:
     paths:
@@ -50,7 +51,7 @@ jobs:
     name: Bounded three-family custody pilot
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 40
     permissions:
       contents: read
     env:
@@ -70,35 +71,69 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      # The only admitted host write: Playwright's pinned ubuntu24.04 WebKit list, on the ephemeral
-      # runner, before the unit (NoNewPrivileges blocks sudo inside it). Recorded, never fatal.
+      # The only admitted host write: Playwright's pinned ubuntu24.04 WebKit list (plus a recorded
+      # archive.ubuntu.com mirror fallback), on the ephemeral runner, before the unit (NoNewPrivileges
+      # blocks sudo inside it). Every apt call is bounded; a trap always writes the exit codes and the
+      # dpkg after-state, so attempted/timed-out come from this step's own markers. Never fatal.
       - name: Install and record the admitted WebKit host packages
-        # First attempt only (a re-run is refused anyway). Bounded and never fatal: a failed or hung
-        # install still lets the pilot run and record host-evidence-missing or a partial install.
         if: ${{ github.run_attempt == '1' }}
         continue-on-error: true
-        timeout-minutes: 5
+        timeout-minutes: 10
         shell: bash
         run: |
           set -euo pipefail
           host="$RUNNER_TEMP/wasm-custody-pilot-host"
           mkdir -m 700 "$host"
+          snapshot() { dpkg-query -W -f='${Package}\t${Version}\t${db:Status-Abbrev}\n' | LC_ALL=C sort; }
+          finish() {
+            local rc=$?
+            [[ -f "$host/update-exit.txt" ]] || printf 'not-run\n' >"$host/update-exit.txt"
+            [[ -f "$host/install-exit.txt" ]] || printf 'not-run\n' >"$host/install-exit.txt"
+            snapshot >"$host/dpkg-after.tsv" 2>"$host/dpkg-after.err" || true
+            diff "$host/dpkg-before.tsv" "$host/dpkg-after.tsv" >"$host/dpkg-diff.txt" || true
+            cp /etc/apt/apt-mirrors.txt "$host/apt-mirrors-after.txt" 2>/dev/null || printf 'absent\n' >"$host/apt-mirrors-after.txt"
+            printf 'step-exit %s\n' "$rc" >"$host/step-complete.txt"
+          }
+          trap finish EXIT
           python3 -I tests/composition/fable-game/wasm-custody-pilot.py --print-webkit-packages >"$host/packages.txt"
-          dpkg-query -W -f='${Package}\t${Version}\t${db:Status-Abbrev}\n' | LC_ALL=C sort >"$host/dpkg-before.tsv"
+          snapshot >"$host/dpkg-before.tsv"
           for source in /etc/apt/sources.list /etc/apt/sources.list.d/*; do
             if [[ -f "$source" ]]; then printf '### %s\n' "$source"; cat "$source"; fi
           done >"$host/apt-sources.txt"
+          # Keep the Azure mirror first; archive.ubuntu.com is only a recorded fallback entry.
+          mirrors=/etc/apt/apt-mirrors.txt
+          cp "$mirrors" "$host/apt-mirrors-before.txt" 2>/dev/null || printf 'absent\n' >"$host/apt-mirrors-before.txt"
+          if [[ ! -f "$mirrors" ]]; then
+            printf 'no-mirror-file\n' >"$host/fallback.txt"
+          elif grep -Eq '^[a-z]+://archive\.ubuntu\.com/ubuntu/?([[:space:]]|$)' "$mirrors"; then
+            printf 'already-present\n' >"$host/fallback.txt"
+          else
+            printf 'http://archive.ubuntu.com/ubuntu/\n' | sudo -n tee -a "$mirrors" >/dev/null
+            printf 'added\n' >"$host/fallback.txt"
+          fi
           mapfile -t packages <"$host/packages.txt"
-          # An unrelated failing apt source must not skip the install: both exits are recorded.
           set +e
-          sudo -n apt-get update -q >"$host/update.log" 2>&1
+          printf 'attempted\n' >"$host/update-attempted.txt"
+          sudo -n timeout -k 10 60 apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update -q >"$host/update.log" 2>&1
           printf '%s\n' "$?" >"$host/update-exit.txt"
-          sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends "${packages[@]}" >"$host/install.log" 2>&1
+          printf 'attempted\n' >"$host/install-attempted.txt"
+          sudo -n env DEBIAN_FRONTEND=noninteractive timeout -k 15 480 apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y -q --no-install-recommends "${packages[@]}" >"$host/install.log" 2>&1
           printf '%s\n' "$?" >"$host/install-exit.txt"
           set -e
-          dpkg-query -W -f='${Package}\t${Version}\t${db:Status-Abbrev}\n' | LC_ALL=C sort >"$host/dpkg-after.tsv"
-          diff "$host/dpkg-before.tsv" "$host/dpkg-after.tsv" >"$host/dpkg-diff.txt" || true
           printf 'update exit %s; install exit %s; %s listed packages\n' "$(cat "$host/update-exit.txt")" "$(cat "$host/install-exit.txt")" "${#packages[@]}"
+      # apt termination evidence: after the bounded install, no apt, dpkg or apt method process may remain.
+      - name: Check that no apt or dpkg process remains
+        if: ${{ always() && github.run_attempt == '1' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -uo pipefail
+          host="$RUNNER_TEMP/wasm-custody-pilot-host"
+          [[ -d "$host" ]] || exit 0
+          ps -eo pid=,ppid=,etimes=,comm=,args= | awk '{c=$4} c!="awk" && c!="ps" && (c=="apt" || c=="apt-get" || c=="dpkg" || index($0,"/usr/lib/apt/methods/") || (c=="timeout" && index($0,"apt-get")))' >"$host/post-step-processes.txt"
+          printf 'apt-dpkg-processes %s\n' "$(grep -c . "$host/post-step-processes.txt")" >"$host/post-step-check.txt"
+          cat "$host/post-step-check.txt"
       - name: Run the admitted pilot in a fresh delegated unit
         shell: bash
         run: |

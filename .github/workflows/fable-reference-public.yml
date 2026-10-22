@@ -1095,9 +1095,9 @@ jobs:
           # ---- Bounded three-family custody pilot (admitted dispatch only; wasm-custody-pilot.yml) ----
           # Admission: exactly one dispatch of job custody-pilot at its merge SHA. Installed C stays held:
           # RUNTIME_ADMITTED, both literal-false steps and custody_gate are untouched by this entry.
-          # Second admitted run (WebKit host packages + survivor retirement). The first run (39828121993,
-          # admission 6346457201) is retained evidence; it is not re-admitted.
-          PILOT_ADMISSION = "https://github.com/FS-GG/.github/issues/4710#issuecomment-6347853904"
+          # Third and final admitted run (bounded, retried WebKit host packages). Runs 39828121993
+          # (admission 6346457201) and 39837319401 (admission 6347853904) are retained evidence only.
+          PILOT_ADMISSION = "https://github.com/FS-GG/.github/issues/4710#issuecomment-6349235037"
           # Exactly deps["ubuntu24.04-x64"].webkit of the pinned playwright-core 1.63.0 coreBundle.js
           # (sha256 549070af..., deduplicated, order kept). Stock install-deps also adds the "tools" group;
           # that is not admitted. The pilot re-derives this list from the pinned bundle and records the match.
@@ -1412,21 +1412,37 @@ jobs:
                   if len(parts)>=2 and parts[0]:rows[parts[0]]={"version":parts[1],"status":parts[2] if len(parts)>2 else None}
               return rows
 
+          HOST_EVIDENCE_FILES = ("packages.txt","dpkg-before.tsv","dpkg-after.tsv","dpkg-after.err","dpkg-diff.txt","apt-sources.txt",
+              "apt-mirrors-before.txt","apt-mirrors-after.txt","fallback.txt","update-attempted.txt","update.log","update-exit.txt",
+              "install-attempted.txt","install.log","install-exit.txt","step-complete.txt","post-step-processes.txt","post-step-check.txt")
+          TIMEOUT_EXITS = ("124","137") # timeout(1): limit reached; killed after the -k grace
+
           def pilot_host_packages(environ, root):
               # Reads the evidence of the pre-unit apt step (it cannot run inside the NoNewPrivileges unit).
+              # attempted / timed-out come from the step's own markers, never from a missing file.
               host=pathlib.Path(environ["HOST_EVIDENCE"])
-              summary={"evidence":str(host),"attempted":False,"label":"ubuntu-24.04"}
+              summary={"evidence":str(host),"attempted":False,"timedOut":False,"label":"ubuntu-24.04"}
               if not (host.is_dir() and not host.is_symlink()):summary["state"]="host-evidence-missing";return summary
               target=root/"host-packages";target.mkdir(mode=0o700)
-              for name in ("packages.txt","dpkg-before.tsv","dpkg-after.tsv","dpkg-diff.txt","apt-sources.txt","update.log","update-exit.txt","install.log","install-exit.txt"):
+              for name in HOST_EVIDENCE_FILES:
                   source=host/name
                   if source.is_file() and not source.is_symlink():(target/name).write_bytes(source.read_bytes()[:4194304])
-              listed=[l.strip() for l in (target/"packages.txt").read_text().splitlines() if l.strip()] if (target/"packages.txt").is_file() else []
+              read=lambda name:(target/name).read_text(errors="replace").strip() if (target/name).is_file() else None
+              listed=[l.strip() for l in (read("packages.txt") or "").splitlines() if l.strip()]
               summary["listedEqualsAdmittedList"]=listed==list(PILOT_WEBKIT_PACKAGES)
-              if (target/"install-exit.txt").is_file():
-                  summary["attempted"]=True;summary["installExit"]=(target/"install-exit.txt").read_text().strip()
-                  summary["updateExit"]=(target/"update-exit.txt").read_text().strip() if (target/"update-exit.txt").is_file() else None
-                  summary["label"]="ubuntu-24.04 + recorded packages"
+              summary["updateAttempted"]=read("update-attempted.txt")=="attempted"
+              summary["attempted"]=read("install-attempted.txt")=="attempted"
+              summary["updateExit"]=read("update-exit.txt");summary["installExit"]=read("install-exit.txt")
+              summary["stepComplete"]=read("step-complete.txt");summary["fallback"]=read("fallback.txt")
+              summary["timedOut"]=summary["installExit"] in TIMEOUT_EXITS or summary["updateExit"] in TIMEOUT_EXITS
+              if summary["attempted"] or summary["updateAttempted"]:summary["label"]="ubuntu-24.04 + recorded packages"
+              hosts={}
+              for line in (read("install.log") or "").splitlines():
+                  match=re.match(r"(?:Get|Hit|Ign|Err):\d+ [a-z+]+://([^/ ]+)/",line)
+                  if match:hosts[match.group(1)]=hosts.get(match.group(1),0)+1
+              summary["fetchHosts"]=hosts
+              check=read("post-step-check.txt")
+              summary["postStepAptProcesses"]=int(check.split()[-1]) if check and check.split()[-1].isdigit() else None
               if (target/"dpkg-before.tsv").is_file() and (target/"dpkg-after.tsv").is_file():
                   before,after=dpkg_table(target/"dpkg-before.tsv"),dpkg_table(target/"dpkg-after.tsv")
                   summary["added"]={k:v["version"] for k,v in sorted(after.items()) if k not in before}
@@ -1434,7 +1450,11 @@ jobs:
                   summary["removed"]=sorted(k for k in before if k not in after)
                   summary["listedVersions"]={k:(after.get(k) or {}).get("version") for k in PILOT_WEBKIT_PACKAGES}
                   summary["listedMissingAfter"]=[k for k in PILOT_WEBKIT_PACKAGES if k not in after]
-              summary["state"]="installed" if summary.get("installExit")=="0" and not summary.get("listedMissingAfter") else ("install-failed" if summary["attempted"] else "not-attempted")
+              if summary["attempted"] and summary["installExit"]=="0" and summary.get("listedMissingAfter")==[]:summary["state"]="installed"
+              elif summary["timedOut"]:summary["state"]="install-timed-out"
+              elif summary["attempted"] and summary["installExit"] in (None,"not-run"):summary["state"]="install-interrupted"
+              elif summary["attempted"] or summary["updateAttempted"]:summary["state"]="install-failed"
+              else:summary["state"]="not-attempted"
               return summary
 
           def pilot_unit_properties(environ, root, env, execute, identities, receipts):
