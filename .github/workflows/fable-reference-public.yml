@@ -1191,14 +1191,15 @@ jobs:
           // browser and its holder outlive the leader, so require-empty must retire them.
           const holder=child.spawn(process.execPath,[__filename,family,"serve",ready],{detached:true,stdio:"ignore"});holder.unref();
           const until=Date.now()+30000;const poll=()=>{if(fs.existsSync(ready)){const v=JSON.parse(fs.readFileSync(ready,"utf8"));console.log(JSON.stringify({...v,leaderPid:process.pid,holderPid:holder.pid}));process.exit(0)}
-          if(Date.now()>until){console.error("holder not ready");process.exit(1)}setTimeout(poll,100)};poll();
+          if(fs.existsSync(ready+".error")){console.error("holder failed: "+fs.readFileSync(ready+".error","utf8"));process.exit(1)}
+if(Date.now()>until){console.error("holder not ready");process.exit(1)}setTimeout(poll,100)};poll();
           }else{
           (async()=>{const browser=await pw[family].launch({headless:true});const page=await browser.newPage();await page.goto("about:blank");
           const value={launched:true,family,mode,version:browser.version(),pid:process.pid,descendants:descendants(process.pid)};
           if(mode==="serve"){fs.writeFileSync(ready+".tmp",JSON.stringify(value));fs.renameSync(ready+".tmp",ready);setInterval(()=>{},1<<30);return}
           console.log(JSON.stringify(value));
           if(mode==="exit")process.exit(0);
-          setInterval(()=>{},1<<30)})().catch(e=>{console.error(e);process.exit(1)});
+          setInterval(()=>{},1<<30)})().catch(e=>{if(mode==="serve")try{fs.writeFileSync(ready+".error",String(e&&e.stack||e))}catch(w){}console.error(e);process.exit(1)});
           }
           """
 
@@ -1266,6 +1267,10 @@ jobs:
                   if isinstance(value,dict) and value.get("launched") is True:return value
               return None
 
+          def surviving_browser_members(result):
+              pids=set((result["receipt"] or {}).get("residualPids") or [])
+              return [d for d in (launched(result["stdout"]) or {}).get("descendants",[]) if d.get("pid") in pids]
+
           def classify_pilot_case(case, result, report=None):
               r=result["receipt"];cause=(r or {}).get("firstCause") or result["error"] or ""
               retired=bool(r) and r["cleanup"]=="observed-empty-removed" and r["custody"]=="contained" and not r["escaped"]
@@ -1281,8 +1286,9 @@ jobs:
                   if retired and launched(result["stdout"]) and "leader exited with live contained members" in cause:return "leftover-retired"
                   return "unexpected"
               if case=="survivor":
-                  # The holder and its browser must outlive the leader, be recorded as residual, then be retired.
-                  if retired and launched(result["stdout"]) and r["residualAfterLeaderExit"]>0 and "leader exited with live contained members" in cause:return "leftover-retired"
+                  # A browser process (a launch descendant, not just the holder) must outlive the leader,
+                  # be recorded as residual, then be retired.
+                  if retired and surviving_browser_members(result) and "leader exited with live contained members" in cause:return "leftover-retired"
                   return "unexpected"
               raise ValueError("closed pilot case required")
 
@@ -1351,7 +1357,7 @@ jobs:
                       result=group("forced",[node,str(files["hold"]),family,"hold"],[files["hold"]])
                       launch=launched(result["stdout"]);pids=set((result["receipt"] or {}).get("memberPids") or [])
                       held=[d for d in (launch or {}).get("descendants",[]) if d.get("pid") in pids]
-                      rows["forced"]={"disposition":classify_pilot_case("forced",result),"launch":launch,"heldBrowserMembers":held,"receipt":result["receipt"],"error":result["error"],"stderr":result["stderr"]}
+                      rows["forced"]={"disposition":classify_pilot_case("forced",result),"launch":launch,"observedBrowserMembers":held,"receipt":result["receipt"],"error":result["error"],"stderr":result["stderr"]}
                   except Exception as error:rows["forced"]={"disposition":"unexpected","error":type(error).__name__+": "+str(error)}
                   write()
                   # Leader exit: the leader exits without closing; any surviving browser member is retired.
@@ -1364,8 +1370,7 @@ jobs:
                   try:
                       ready=ready_dir/(family+".json")
                       result=group("survivor",[node,str(files["hold"]),family,"survive",str(ready)],[files["hold"]])
-                      launch=launched(result["stdout"]);pids=set((result["receipt"] or {}).get("residualPids") or [])
-                      survivors=[d for d in (launch or {}).get("descendants",[]) if d.get("pid") in pids]
+                      launch=launched(result["stdout"]);survivors=surviving_browser_members(result)
                       rows["survivor"]={"disposition":classify_pilot_case("survivor",result),"launch":launch,"survivingBrowserMembers":survivors,"receipt":result["receipt"],"error":result["error"],"stderr":result["stderr"]}
                   except Exception as error:rows["survivor"]={"disposition":"unexpected","error":type(error).__name__+": "+str(error)}
                   write()
@@ -1378,7 +1383,7 @@ jobs:
               managed=root/"managed"
               if managed.is_dir():
                   for group in sorted(managed.iterdir()):candidates+=[group/n for n in ("receipt.json","stdout.log","stderr.log")]
-              for pattern_root,pattern in ((root/"pilot-results","*.json"),(root/"npm-seed/Browser.Tests/custody-pilot","*.cjs"),(root/"host-packages","*")):
+              for pattern_root,pattern in ((root/"pilot-results","*.json"),(root/"npm-seed/Browser.Tests/custody-pilot","*.cjs"),(root/"host-packages","*"),(root/"pilot-ready","*")):
                   if pattern_root.is_dir():candidates+=sorted(pattern_root.rglob(pattern))
               manifest={"schema":"fsgg.templates.wasm-custody-pilot-evidence/1","capBytes":PILOT_EVIDENCE_BYTES,"files":[],"skipped":[],"truncated":[],"unreadable":[]};total=0
               for path in candidates:
@@ -1413,13 +1418,14 @@ jobs:
               summary={"evidence":str(host),"attempted":False,"label":"ubuntu-24.04"}
               if not (host.is_dir() and not host.is_symlink()):summary["state"]="host-evidence-missing";return summary
               target=root/"host-packages";target.mkdir(mode=0o700)
-              for name in ("packages.txt","dpkg-before.tsv","dpkg-after.tsv","dpkg-diff.txt","apt-sources.txt","install.log","install-exit.txt"):
+              for name in ("packages.txt","dpkg-before.tsv","dpkg-after.tsv","dpkg-diff.txt","apt-sources.txt","update.log","update-exit.txt","install.log","install-exit.txt"):
                   source=host/name
                   if source.is_file() and not source.is_symlink():(target/name).write_bytes(source.read_bytes()[:4194304])
               listed=[l.strip() for l in (target/"packages.txt").read_text().splitlines() if l.strip()] if (target/"packages.txt").is_file() else []
               summary["listedEqualsAdmittedList"]=listed==list(PILOT_WEBKIT_PACKAGES)
               if (target/"install-exit.txt").is_file():
                   summary["attempted"]=True;summary["installExit"]=(target/"install-exit.txt").read_text().strip()
+                  summary["updateExit"]=(target/"update-exit.txt").read_text().strip() if (target/"update-exit.txt").is_file() else None
                   summary["label"]="ubuntu-24.04 + recorded packages"
               if (target/"dpkg-before.tsv").is_file() and (target/"dpkg-after.tsv").is_file():
                   before,after=dpkg_table(target/"dpkg-before.tsv"),dpkg_table(target/"dpkg-after.tsv")

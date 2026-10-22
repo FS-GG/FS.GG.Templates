@@ -1322,10 +1322,11 @@ class PilotOwner(FakeOwner):
         elif len(argv) in (4,5) and argv[1].endswith('.cjs') and argv[3] in ('hold','exit','survive'):
             family,mode=argv[2],argv[3];case=({'hold':'forced','exit':'exit','survive':'survivor'}[mode],family)
             receipt['members']={'observed':3,'sample':[{'pid':2},{'pid':1}]}
-            stdout='' if self.behaviour.get(case)=='no-launch' else json.dumps({'launched':True,'family':family,'mode':mode,'version':'1','descendants':[{'pid':2,'comm':'browser'}]})+'\n'
+            stdout='' if self.behaviour.get(case)=='no-launch' else json.dumps({'launched':True,'family':family,'mode':mode,'version':'1','descendants':[{'pid':2,'comm':'browser'},{'pid':3,'comm':'gpu'}]})+'\n'
             if mode=='hold' and self.behaviour.get(case)!='not-held':cause='TimeoutError: original deadline exhausted';receipt['exit']=None
             if mode=='exit' and self.behaviour.get(case)=='leftover':cause='RuntimeError: leader exited with live contained members';residual=[{'pid':7}]
             if mode=='survive' and self.behaviour.get(case)!='no-survivor':cause='RuntimeError: leader exited with live contained members';residual=[{'pid':2}]
+            if mode=='survive' and self.behaviour.get(case)=='holder-only':residual=[{'pid':1}] # the holder alone outlived the leader
         else:
             case=None;stdout=self.world['play'](profile)
         if case and case[0] not in ('host','unit'):self.case_calls.append((case,deadline))
@@ -1375,7 +1376,7 @@ class CustodyPilotTests(unittest.TestCase):
         (host/'dpkg-after.tsv').write_text('libc6\t2.39-0ubuntu8\tii \n'+''.join(p+'\t1.0-'+p+'\tii \n' for p in sorted(installed)))
         (host/'apt-sources.txt').write_text('### /etc/apt/sources.list\ndeb http://azure.archive.ubuntu.com/ubuntu noble main\n')
         (host/'install.log').write_text('Setting up libflite1\n');(host/'dpkg-diff.txt').write_text('> libflite1\n')
-        (host/'install-exit.txt').write_text('0\n' if state!='failed' else '100\n')
+        (host/'install-exit.txt').write_text('0\n' if state!='failed' else '100\n');(host/'update-exit.txt').write_text('100\n');(host/'update.log').write_text('W: failed source\n')
 
     def test_dispatch_validation_binds_admitted_ref_admission_workflow_and_first_attempt(self):
         source=self.ns['validate_dispatch_source'](self.environ(),'c'*40,self.root/'rt/p')
@@ -1409,7 +1410,7 @@ class CustodyPilotTests(unittest.TestCase):
         self.assertIs(summary['hostPackages']['admittedListMatchesPinnedPlaywright'],True)
         self.assertEqual(summary['hostPackages']['changed'],{'libgtk-4-1':['4.14.0-1','1.0-libgtk-4-1']})
         self.assertEqual(set(summary['unit']['matchesAdmission'].values()),{True})
-        self.assertEqual(summary['cases']['firefox']['forced']['heldBrowserMembers'],[{'pid':2,'comm':'browser'}])
+        self.assertEqual(summary['cases']['firefox']['forced']['observedBrowserMembers'],[{'pid':2,'comm':'browser'}])
         self.assertEqual(summary['cases']['webkit']['survivor']['survivingBrowserMembers'],[{'pid':2,'comm':'browser'}])
         root=self.root/'rt/wasm-custody-pilot';receipts=json.loads((root/'managed-receipts.json').read_text())
         self.assertEqual([r['phase'] for r in receipts],['setup']*6+['custody']*14)
@@ -1503,7 +1504,7 @@ class CustodyPilotTests(unittest.TestCase):
         summary=self.run_pilot({('survivor','firefox'):'no-survivor'})
         self.assertEqual(summary['cases']['firefox']['survivor']['disposition'],'unexpected')
         self.assertEqual(summary['disposition'],'incomplete')
-        for behaviour in ({('survivor','webkit'):'no-launch'},{('survivor','chromium'):'unknown-cleanup'},{('survivor','chromium'):'escaped'}):
+        for behaviour in ({('survivor','webkit'):'no-launch'},{('survivor','chromium'):'unknown-cleanup'},{('survivor','chromium'):'escaped'},{('survivor','firefox'):'holder-only'}):
             with self.subTest(behaviour=behaviour):
                 family=next(iter(behaviour))[1]
                 self.assertEqual(self.run_pilot(behaviour)['cases'][family]['survivor']['disposition'],'unexpected')
@@ -1517,15 +1518,22 @@ class CustodyPilotTests(unittest.TestCase):
                 if state=='partial':self.assertEqual(summary['hostPackages']['listedMissingAfter'],[self.ns['PILOT_WEBKIT_PACKAGES'][-1]])
         summary=self.run_pilot({})
         self.assertEqual(summary['hostPackages']['listedVersions']['libflite1'],'1.0-libflite1')
+        self.assertEqual((summary['hostPackages']['updateExit'],summary['hostPackages']['state']),('100','installed'))
         self.assertIn('libflite1',summary['hostPackages']['added'])
         files=[f['path'] for f in json.loads((self.root/'rt/wasm-custody-pilot/pilot-evidence/manifest.json').read_text())['files']]
-        for name in ('packages.txt','dpkg-before.tsv','dpkg-after.tsv','apt-sources.txt','install.log','install-exit.txt'):self.assertIn('host-packages/'+name,files)
+        for name in ('packages.txt','dpkg-before.tsv','dpkg-after.tsv','apt-sources.txt','update-exit.txt','install.log','install-exit.txt'):self.assertIn('host-packages/'+name,files)
 
     def test_unit_properties_are_read_back_and_compared(self):
         summary=self.run_pilot({'unit-empty':True})
         self.assertEqual(set(summary['unit']['matchesAdmission'].values()),{False})
         summary=self.run_pilot({})
         self.assertEqual(summary['unit']['properties']['MemoryMax'],str(8*1073741824))
+
+    def test_admitted_webkit_list_is_the_reviewed_pinned_list(self):
+        # Reviewed fingerprint of deps["ubuntu24.04-x64"].webkit in playwright-core 1.63.0 (51 packages).
+        packages=list(self.ns['PILOT_WEBKIT_PACKAGES'])
+        self.assertEqual((len(packages),len(set(packages))),(51,51))
+        self.assertEqual(hashlib.sha256(json.dumps(packages).encode()).hexdigest(),'d5bfa5eb129c4455d329e51e09a263bbffa87224f0a70476bbf9b9c899c8edd0')
 
     def test_pinned_webkit_list_parser(self):
         core=self.root/'core.js'
@@ -1608,7 +1616,8 @@ class CustodyPilotTests(unittest.TestCase):
         text=self.workflow
         trigger=text.split('\non:\n',1)[1].split('\npermissions:',1)[0]
         self.assertEqual(re.findall(r'^  ([a-z_]+):$',trigger,re.M),['pull_request','workflow_dispatch'])
-        self.assertNotRegex(text,r'(contents|actions|packages|id-token|pull-requests|issues): write|secrets\.|pull_request_target|continue-on-error|workflow_run|schedule:')
+        self.assertNotRegex(text,r'(contents|actions|packages|id-token|pull-requests|issues): write|secrets\.|pull_request_target|workflow_run|schedule:')
+        self.assertEqual(text.count('continue-on-error'),1)
         static=text.split('  pilot-static-controls:',1)[1].split('  custody-pilot:',1)[0]
         pilot=text.split('  custody-pilot:',1)[1]
         self.assertNotIn('systemd-run',static);self.assertNotIn('wasm-custody-pilot.py\n',static.replace('ast.parse(open(sys.argv[1]).read())\' tests/composition/fable-game/wasm-custody-pilot.py',''))
@@ -1630,9 +1639,16 @@ class CustodyPilotTests(unittest.TestCase):
         apt=pilot.split('Install and record the admitted WebKit host packages',1)[1].split('      - name:',1)[0]
         self.assertEqual(len(re.findall(r'apt-get install',text)),1);self.assertIn('apt-get install',apt)
         self.assertIn('--print-webkit-packages >"$host/packages.txt"',apt);self.assertIn('"${packages[@]}"',apt)
-        for evidence in ('dpkg-before.tsv','dpkg-after.tsv','dpkg-diff.txt','apt-sources.txt','install.log','install-exit.txt'):self.assertIn(evidence,apt)
-        self.assertIn('set +e',apt);self.assertNotIn('if:',apt)
+        for evidence in ('dpkg-before.tsv','dpkg-after.tsv','dpkg-diff.txt','apt-sources.txt','update.log','update-exit.txt','install.log','install-exit.txt'):self.assertIn(evidence,apt)
+        self.assertIn('set +e',apt)
+        self.assertIn("if: ${{ github.run_attempt == '1' }}",apt);self.assertIn('continue-on-error: true',apt);self.assertIn('timeout-minutes: 5',apt)
+        self.assertIn('"$host/dpkg-diff.txt" || true',apt) # diff exits 1 after any install
+        hold=self.ns['PILOT_HOLD_SCRIPT'];self.assertIn('{detached:true,stdio:"ignore"}',hold);self.assertIn('holder.unref()',hold)
+        self.assertIn('fs.writeFileSync(ready+".error"',hold);self.assertIn('fs.existsSync(ready+".error")',hold)
+        self.assertIn('sudo -n apt-get update -q >"$host/update.log" 2>&1\n          printf \'%s\\n\' "$?" >"$host/update-exit.txt"\n',apt)
         self.assertEqual((text.count('sudo -n apt-get update -q'),text.count('sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends')),(1,1))
+        self.assertNotIn('update -q &&',apt) # a failing unrelated apt source must not skip the install
+        self.assertLess(apt.index('update-exit.txt'),apt.index('apt-get install'))
         self.assertEqual(text.count('sudo -n'),3) # apt update, apt install, systemd-run
 
     def test_pilot_entry_leaves_installed_c_gates_closed(self):

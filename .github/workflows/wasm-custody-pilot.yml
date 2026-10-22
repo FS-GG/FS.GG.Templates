@@ -73,6 +73,11 @@ jobs:
       # The only admitted host write: Playwright's pinned ubuntu24.04 WebKit list, on the ephemeral
       # runner, before the unit (NoNewPrivileges blocks sudo inside it). Recorded, never fatal.
       - name: Install and record the admitted WebKit host packages
+        # First attempt only (a re-run is refused anyway). Bounded and never fatal: a failed or hung
+        # install still lets the pilot run and record host-evidence-missing or a partial install.
+        if: ${{ github.run_attempt == '1' }}
+        continue-on-error: true
+        timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
@@ -84,13 +89,16 @@ jobs:
             if [[ -f "$source" ]]; then printf '### %s\n' "$source"; cat "$source"; fi
           done >"$host/apt-sources.txt"
           mapfile -t packages <"$host/packages.txt"
+          # An unrelated failing apt source must not skip the install: both exits are recorded.
           set +e
-          { sudo -n apt-get update -q && sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends "${packages[@]}"; } >"$host/install.log" 2>&1
+          sudo -n apt-get update -q >"$host/update.log" 2>&1
+          printf '%s\n' "$?" >"$host/update-exit.txt"
+          sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends "${packages[@]}" >"$host/install.log" 2>&1
           printf '%s\n' "$?" >"$host/install-exit.txt"
           set -e
           dpkg-query -W -f='${Package}\t${Version}\t${db:Status-Abbrev}\n' | LC_ALL=C sort >"$host/dpkg-after.tsv"
           diff "$host/dpkg-before.tsv" "$host/dpkg-after.tsv" >"$host/dpkg-diff.txt" || true
-          printf 'install exit %s; %s listed packages\n' "$(cat "$host/install-exit.txt")" "${#packages[@]}"
+          printf 'update exit %s; install exit %s; %s listed packages\n' "$(cat "$host/update-exit.txt")" "$(cat "$host/install-exit.txt")" "${#packages[@]}"
       - name: Run the admitted pilot in a fresh delegated unit
         shell: bash
         run: |

@@ -630,9 +630,10 @@ returned **ACCEPTED WITH GAPS**.
 - **Forced cases** prove that the group still held processes past SIGTERM. They do
   not prove *which* browser processes were held, because the receipt's member sample
   carries no comm.
-- **Leader exit did not exercise survivor retirement.** Playwright's own exit
-  handling killed the browser within the 50 ms settle window, so
-  `residualAfterLeaderExit` was empty. That case shows the browser exits with its
+- **Leader exit did not exercise survivor retirement.** Playwright's exit handler in
+  the leader SIGKILLs the browser's process group when the leader exits, well within
+  the 2 s settle window (`leaderExitSettleSeconds`), so `residualAfterLeaderExit` was
+  empty. That case shows the browser exits with its
   leader, not that the owner retires leftovers.
 - **WebKit 2359 has a genuine host-library gap.** Playwright's own Linux dependency
   check found 34 missing libraries, including `libgtk-4.so.1`, the GStreamer
@@ -654,7 +655,10 @@ admits exactly one more dispatch under the first run's conditions, with these ch
   `deps["ubuntu24.04-x64"].webkit` of the pinned playwright-core 1.63.0 bundle: 51
   unique packages. The `tools` group that stock `install-deps` would add is not
   admitted. The step records the list, `dpkg-query -W` before and after, the diff, the
-  apt sources, the install log and its exit code. It is never fatal. Inside the unit,
+  apt sources, and the update and install logs with their exit codes. A failing
+  unrelated apt source does not skip the install. The step runs only on attempt 1, has
+  a 5-minute timeout and uses `continue-on-error`, so it is never fatal and cannot
+  waste the run. Inside the unit,
   the pilot re-derives the list from the pinned bundle and records whether it matches.
   Results are labelled **"ubuntu-24.04 + recorded packages"**.
 - **Unit limits.** `systemctl show` runs as one managed group and records the unit's
@@ -662,10 +666,13 @@ admits exactly one more dispatch under the first run's conditions, with these ch
   and `TimeoutStopUSec`, compared with the admission.
 - **Survivor case per family.** The leader starts a detached holder that launches and
   keeps the browser, then exits once the holder is ready. `leftover-retired` requires
-  the holder and browser to be recorded as residual after the leader exits, and then
-  retired contained.
+  at least one browser process (a launch descendant, not just the holder) to be
+  recorded as residual after the leader exits, and then retired contained. A holder
+  launch failure is written next to the ready file and kept as evidence.
 - **Forced cases** now record which launched browser processes appear in the owner's
-  member sample.
+  member sample (`observedBrowserMembers`). That sample lists every member observed,
+  not the processes alive at the deadline, so it does not show which processes were
+  held.
 - **Evidence.** `include-hidden-files: true` is set. Evidence collection records an
   unreadable file instead of losing the rest of the tree.
 
