@@ -546,3 +546,64 @@ A fixture-driven test runs the actual provisioning sequence, tool qualification 
 `installed_c` through the executor. All 25 call sites are put through the real owner's
 `validate_profile` at run time. Restoring the old `node -e` argv fails that test with
 `profile-invalid: argv`.
+
+### Bounded three-family custody pilot source — 2026-10-22
+
+Programme/root conditionally admitted
+([#4710 comment](https://github.com/FS-GG/.github/issues/4710#issuecomment-6346457201))
+exactly one dispatch of the new `.github/workflows/wasm-custody-pilot.yml` job
+`custody-pilot`, at this source's merge commit. On pull requests the workflow runs
+static controls only. The pilot entry, `pilot_sequence`, lives in the same inline
+caller and runs in this order:
+
+1. `validate_dispatch_source` refuses unless all of these hold:
+   - a same-repository dispatch on `main`;
+   - `admitted_ref` equals the dispatched and checked-out commit;
+   - the recorded admission URL;
+   - the pilot workflow identity;
+   - run attempt 1, so a re-run needs a new admission.
+2. It loads the pinned owner and probes containment before any acquisition.
+3. `prepare_browser_inputs` provisions only the browser subset: the 0.19.1 template
+   locks, Node and npm, the stock Playwright seed and the five pinned browser
+   archives. It acquires no .NET, Rust, WASI or Fable. Stock host validation runs
+   once per family as its own group and is **not fatal**. The stock runner lacks
+   WebKit's host libraries (Playwright's Ubuntu 24.04 WebKit package list, such as
+   `libflite1`, `libmanette-0.2-0` and `libgtk-4-1`), and installing host packages is
+   not admitted. So a missing dependency is recorded as `host-dependencies-missing`
+   for that family, and every family's cases still run.
+4. Everything runs in custody groups under the custody-phase deadline.
+   - A Chromium library scan runs host `ldd` on each selected Chromium archive
+     directory and reports missing libraries per file.
+   - Each family (Chromium headless-shell 1243, Firefox 1543 with its content sandbox
+     enabled, WebKit 2359) gets three `require-empty` groups:
+     - **normal:** the stock runner with a `vite preview` webServer and one page test;
+     - **forced:** a launched browser held past its 25 s group deadline;
+     - **leader exit:** the leader exits without closing the browser.
+
+Pilot code is content-addressed and read-only, and is recorded as each group's
+inputs. `custody-pilot.json` classifies each case:
+
+| Case | Possible dispositions |
+|---|---|
+| normal | `clean-stock-shutdown`, `stock-leftover-retired` or `run-failed` |
+| forced | `deadline-retired` or `unexpected` |
+| leader exit | `browser-exited-with-leader`, `leftover-retired` or `unexpected` |
+| library scan | `support-complete`, `support-missing` or `scan-failed` |
+
+A case counts only when its group was contained, removed and had no escape. The
+pilot records `completed` only if both library scans and all nine cases ran and are
+in their expected sets. An exception in one case is recorded for that case, and the
+later cases still run.
+
+**Bounds:**
+- the job's Python runs in one delegated unit with `TasksMax=4096`, `MemoryMax=8G`
+  and `RuntimeMaxSec=1800`;
+- the job timeout is 30 min, and the pilot budget is 1500 s;
+- permissions are `contents: read`, with no secrets;
+- the evidence tree is capped at 45 MiB, logs are truncated to 1 MiB each, and it is
+  uploaded once as an artifact kept 30 days.
+
+Installed C stays held: `RUNTIME_ADMITTED`, both literal-false steps and
+`custody_gate` are unchanged. A fixture-driven test runs the whole pilot sequence,
+and all 16 groups pass the real owner's `validate_profile`. That test also runs in
+the PR probe job with the pinned owner.
