@@ -27,6 +27,7 @@ stage is this repo's own preflight rather than part of the report's flow, so it 
 | **govern** | the overlay does not just *exist* — it **enforces**: a produced `governance-handoff.json` actually drives a Governance verdict (strict **blocks**, `light` does not) | **yes** |
 | **lanes** (per-identity) | one full generated-root lifecycle per packaged workspace identity — instantiate, restore, build, test, publish, and where the identity has one the browser and provider/SDD routes. The stages above prove the descriptors **pack**; only these prove an identity **works**. See [Per-identity lanes](#per-identity-lanes) | no |
 | **product skills** | the owner-sourced product-skill catalog, its checked-in manifest and the `csproj` package items agree, **and** a product instantiated from the packed archive actually receives the declared set (#347) | no |
+| **source fidelity** | the exact packed archive is installed into isolated hives and `fs-gg-fable-game` is scaffolded for every `--bundle` and legacy `--svgFoundation` composition; every token-free packaged file the engine delivers must be byte-identical (packaged `policy.c` kept its `POLICY_*` `#if` blocks, #729), with `.c`/`.h` probes injected into a derived archive and a **causal control** (the same archive without the `**/*.c`/`**/*.h` `specialCustomOperations`) that must fail on every run. Offline; no SDD CLI | no |
 
 The **build** stage needs the `fsgg-sdd` CLI and a reachable `FS.GG.UI.Template` feed. It
 runs when the CLI is on `PATH` (or `FSGG_COMPOSITION_FULL=1` forces it) and otherwise

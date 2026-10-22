@@ -87,6 +87,8 @@ FIXTURES="$COMPOSITION_DIR/fixtures"
 . "$COMPOSITION_DIR/lib/game-skill-release.sh" # the #349 Game Skills materialization assertion + release resolver and its self-demonstration
 # shellcheck source=tests/composition/lib/content-exclusions.sh
 . "$COMPOSITION_DIR/lib/content-exclusions.sh" # the #386 .nuget//node_modules content-filter gate and its self-demonstration
+# shellcheck source=tests/composition/lib/source-fidelity.sh
+. "$COMPOSITION_DIR/lib/source-fidelity.sh" # the #729 packaged-source byte-fidelity gate and its causal control
 # shellcheck source=tests/composition/lib/lifecycle-matrix.sh
 . "$COMPOSITION_DIR/lib/lifecycle-matrix.sh" # installed provider/profile lifecycle selection matrix (#432)
 
@@ -382,5 +384,12 @@ else
 fi
 
 # ── Summary ──────────────────────────────────────────────────────────────────
+# ── Packaged sources reach a scaffold byte-for-byte (FS.GG.Templates#729) ─────────────────────────
+# Last, and against the exact archive stage 1 packed (or the release gate's FSGG_TEMPLATES_NUPKG),
+# because the subject is what the template engine DELIVERS from that archive, not what the source
+# tree holds. Offline: isolated hives, no network, no SDD CLI. See lib/source-fidelity.sh.
+step "source fidelity — packaged C sources are delivered byte-for-byte, with a causal control (#729)"
+assert_source_fidelity "$REPO_ROOT" "$WORKDIR" "$NUPKG"
+
 printf '\n\033[1m== summary ==\033[0m  \033[32m%d passed\033[0m, \033[31m%d failed\033[0m\n' "$PASS" "$FAIL"
 [[ "$FAIL" -eq 0 ]]
