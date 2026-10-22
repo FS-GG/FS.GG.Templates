@@ -34,6 +34,15 @@ def actual_caller():
 def main():
     start = time.monotonic()
     caller = actual_caller()
+    if sys.argv[1:] == ['--print-webkit-packages']:
+        # The admitted package list, one name per line, for the pre-unit apt step.
+        packages = list(caller['PILOT_WEBKIT_PACKAGES'])
+        if not packages or not all(re.fullmatch(r'[a-z0-9][a-z0-9.+-]{1,63}', name) for name in packages):
+            raise SystemExit('admitted package list invalid')
+        print('\n'.join(packages))
+        return 0
+    if sys.argv[1:]:
+        raise SystemExit('usage: wasm-custody-pilot.py [--print-webkit-packages]')
     summary = caller['pilot_sequence'](os.environ, start)
     print(json.dumps({key: summary.get(key) for key in ('disposition', 'reasons', 'evidence')}, indent=2, default=str))
     return 0 if summary['disposition'] == 'completed' else 1

@@ -1095,14 +1095,21 @@ jobs:
           # ---- Bounded three-family custody pilot (admitted dispatch only; wasm-custody-pilot.yml) ----
           # Admission: exactly one dispatch of job custody-pilot at its merge SHA. Installed C stays held:
           # RUNTIME_ADMITTED, both literal-false steps and custody_gate are untouched by this entry.
-          PILOT_ADMISSION = "https://github.com/FS-GG/.github/issues/4710#issuecomment-6346457201"
+          # Second admitted run (WebKit host packages + survivor retirement). The first run (39828121993,
+          # admission 6346457201) is retained evidence; it is not re-admitted.
+          PILOT_ADMISSION = "https://github.com/FS-GG/.github/issues/4710#issuecomment-6347853904"
+          # Exactly deps["ubuntu24.04-x64"].webkit of the pinned playwright-core 1.63.0 coreBundle.js
+          # (sha256 549070af..., deduplicated, order kept). Stock install-deps also adds the "tools" group;
+          # that is not admitted. The pilot re-derives this list from the pinned bundle and records the match.
+          PILOT_WEBKIT_PACKAGES = ["gstreamer1.0-libav", "gstreamer1.0-plugins-bad", "gstreamer1.0-plugins-base", "gstreamer1.0-plugins-good", "libicu74", "libatomic1", "libatk-bridge2.0-0t64", "libatk1.0-0t64", "libcairo-gobject2", "libcairo2", "libdbus-1-3", "libdrm2", "libenchant-2-2", "libepoxy0", "libevent-2.1-7t64", "libflite1", "libfontconfig1", "libfreetype6", "libgbm1", "libgdk-pixbuf-2.0-0", "libgles2", "libglib2.0-0t64", "libgstreamer-gl1.0-0", "libgstreamer-plugins-bad1.0-0", "libgstreamer-plugins-base1.0-0", "libgstreamer1.0-0", "libgtk-4-1", "libharfbuzz-icu0", "libharfbuzz0b", "libhyphen0", "libjpeg-turbo8", "liblcms2-2", "libmanette-0.2-0", "libopus0", "libpango-1.0-0", "libpangocairo-1.0-0", "libpng16-16t64", "libsecret-1-0", "libvpx9", "libwayland-client0", "libwayland-egl1", "libwayland-server0", "libwebp7", "libwebpdemux2", "libwoff1", "libx11-6", "libxkbcommon0", "libxml2", "libxslt1.1", "libx264-164", "libavif16"]
           PILOT_WORKFLOW = "FS-GG/FS.GG.Templates/.github/workflows/wasm-custody-pilot.yml@refs/heads/main"
           PILOT_BUDGET = {"job":1500, "setup":600, "custody":630, "cleanup":30, "collection":120, "overhead":90}
           if PILOT_BUDGET["setup"] + PILOT_BUDGET["custody"] + 2 * PILOT_BUDGET["cleanup"] + PILOT_BUDGET["collection"] + PILOT_BUDGET["overhead"] != PILOT_BUDGET["job"]:
               raise RuntimeError("pilot phase budgets must fit the original pilot job")
           # Per-group ceilings; each is further bounded by the custody phase deadline, never renewed.
-          PILOT_CASE_SECONDS = {"scan":45, "normal":120, "forced":25, "exit":45}
+          PILOT_CASE_SECONDS = {"scan":45, "normal":120, "forced":25, "exit":45, "survivor":45, "unit":20}
           PILOT_FAMILIES = ("chromium", "firefox", "webkit")
+          PILOT_CASES = ("normal", "forced", "exit", "survivor")
           PILOT_PORT = 5101
           PILOT_EVIDENCE_BYTES = 45 * 1048576
 
@@ -1113,8 +1120,10 @@ jobs:
               require(env["ADMISSION"]==PILOT_ADMISSION,"admission differs from the recorded pilot admission")
               require(env["WORKFLOW_REF"]==PILOT_WORKFLOW and env["WORKFLOW_SHA"]==env["SHA"],"pilot workflow identity differs")
               require(env["RUN_ATTEMPT"]=="1","re-run refused: a new admission is required")
+              require(env.get("UNIT_NAME")=="fsgg-mg-templates-pilot-"+env["RUN_ID"]+"-"+env["RUN_ATTEMPT"],"delegated unit identity differs")
+              require(env.get("HOST_EVIDENCE")==str(pathlib.Path(env["RUNNER_TEMP"])/"wasm-custody-pilot-host"),"host package evidence path differs")
               require(pathlib.Path(root).is_absolute() and not pathlib.Path(root).is_symlink(),"private root must be an absolute nonlink")
-              return {**{k:env[k] for k in ("EVENT","REPOSITORY","REF","SHA","ADMITTED_REF","ADMISSION","WORKFLOW_REF","WORKFLOW_SHA","RUN_ID","RUN_ATTEMPT")},"imageOS":env.get("ImageOS"),"imageVersion":env.get("ImageVersion"),"runnerOS":env.get("RUNNER_OS"),"runnerArch":env.get("RUNNER_ARCH")}
+              return {**{k:env[k] for k in ("EVENT","REPOSITORY","REF","SHA","ADMITTED_REF","ADMISSION","WORKFLOW_REF","WORKFLOW_SHA","RUN_ID","RUN_ATTEMPT","UNIT_NAME")},"imageOS":env.get("ImageOS"),"imageVersion":env.get("ImageVersion"),"runnerOS":env.get("RUNNER_OS"),"runnerArch":env.get("RUNNER_ARCH")}
 
           def pilot_deadline(start, phase, now):
               require(phase in ("setup","custody"),"closed pilot phase required")
@@ -1171,15 +1180,27 @@ jobs:
               path.chmod(0o400)
               return path
 
-          PILOT_HOLD_SCRIPT = """const fs=require("fs"),path=require("path"),pw=require("playwright-core");
-          const [family,mode]=process.argv.slice(2);
-          if(!["chromium","firefox","webkit"].includes(family)||!["hold","exit"].includes(mode))throw new Error("closed family/mode required");
-          function descendants(){const rows=[];for(const d of fs.readdirSync("/proc")){if(!/^[0-9]+$/.test(d))continue;try{const s=fs.readFileSync("/proc/"+d+"/stat","utf8");const r=s.slice(s.lastIndexOf(")")+2).split(" ");let exe=null;try{exe=path.basename(fs.readlinkSync("/proc/"+d+"/exe"))}catch(e){}rows.push({pid:+d,ppid:+r[1],pgid:+r[2],sid:+r[3],comm:s.slice(s.indexOf("(")+1,s.lastIndexOf(")")),exe})}catch(e){}}
-          const out=[],seen=new Set([process.pid]);let grew=true;while(grew){grew=false;for(const r of rows){if(!seen.has(r.pid)&&seen.has(r.ppid)){seen.add(r.pid);out.push(r);grew=true}}}return out}
+          PILOT_HOLD_SCRIPT = """const fs=require("fs"),path=require("path"),child=require("child_process"),pw=require("playwright-core");
+          const [family,mode,ready]=process.argv.slice(2);
+          if(!["chromium","firefox","webkit"].includes(family)||!["hold","exit","survive","serve"].includes(mode))throw new Error("closed family/mode required");
+          if((mode==="survive"||mode==="serve")&&!(ready&&path.isAbsolute(ready)))throw new Error("absolute ready file required");
+          function descendants(root){const rows=[];for(const d of fs.readdirSync("/proc")){if(!/^[0-9]+$/.test(d))continue;try{const s=fs.readFileSync("/proc/"+d+"/stat","utf8");const r=s.slice(s.lastIndexOf(")")+2).split(" ");let exe=null;try{exe=path.basename(fs.readlinkSync("/proc/"+d+"/exe"))}catch(e){}rows.push({pid:+d,ppid:+r[1],pgid:+r[2],sid:+r[3],comm:s.slice(s.indexOf("(")+1,s.lastIndexOf(")")),exe})}catch(e){}}
+          const out=[],seen=new Set([root]);let grew=true;while(grew){grew=false;for(const r of rows){if(!seen.has(r.pid)&&seen.has(r.ppid)){seen.add(r.pid);out.push(r);grew=true}}}return out}
+          if(mode==="survive"){
+          // The leader starts a detached holder that owns the browser, waits for it, then exits: the
+          // browser and its holder outlive the leader, so require-empty must retire them.
+          const holder=child.spawn(process.execPath,[__filename,family,"serve",ready],{detached:true,stdio:"ignore"});holder.unref();
+          const until=Date.now()+30000;const poll=()=>{if(fs.existsSync(ready)){const v=JSON.parse(fs.readFileSync(ready,"utf8"));console.log(JSON.stringify({...v,leaderPid:process.pid,holderPid:holder.pid}));process.exit(0)}
+          if(fs.existsSync(ready+".error")){console.error("holder failed: "+fs.readFileSync(ready+".error","utf8"));process.exit(1)}
+          if(Date.now()>until){console.error("holder not ready");process.exit(1)}setTimeout(poll,100)};poll();
+          }else{
           (async()=>{const browser=await pw[family].launch({headless:true});const page=await browser.newPage();await page.goto("about:blank");
-          console.log(JSON.stringify({launched:true,family,mode,version:browser.version(),descendants:descendants()}));
+          const value={launched:true,family,mode,version:browser.version(),pid:process.pid,descendants:descendants(process.pid)};
+          if(mode==="serve"){fs.writeFileSync(ready+".tmp",JSON.stringify(value));fs.renameSync(ready+".tmp",ready);setInterval(()=>{},1<<30);return}
+          console.log(JSON.stringify(value));
           if(mode==="exit")process.exit(0);
-          setInterval(()=>{},1<<30)})().catch(e=>{console.error(e);process.exit(1)});
+          setInterval(()=>{},1<<30)})().catch(e=>{if(mode==="serve")try{fs.writeFileSync(ready+".error",String(e&&e.stack||e))}catch(w){}console.error(e);process.exit(1)});
+          }
           """
 
           PILOT_SPEC = """const {test,expect}=require("@playwright/test");
@@ -1223,6 +1244,7 @@ jobs:
                   "cleanup":r.get("cleanup"),"custody":r.get("custody"),"exit":r.get("exit"),"leaderImage":leader.get("image"),"noNewPrivileges":leader.get("noNewPrivileges"),
                   "membersObserved":(r.get("members") or {}).get("observed"),"residualAfterLeaderExit":len(r.get("residualAfterLeaderExit") or []),
                   "residualInRoot":r.get("residualInRoot"),"escaped":len(r.get("escaped") or []),"retirement":r.get("retirement"),
+                  "memberPids":[m.get("pid") for m in (r.get("members") or {}).get("sample") or []],"residualPids":[m.get("pid") for m in r.get("residualAfterLeaderExit") or []],
                   "stopSeconds":(r.get("timing") or {}).get("stopSeconds"),"profileSha256":r.get("profileSha256"),"ownerSha256":(r.get("owner") or {}).get("sha256")}
 
           def pilot_group(execute, argv, cwd, env, receipts, inputs=()):
@@ -1245,6 +1267,10 @@ jobs:
                   if isinstance(value,dict) and value.get("launched") is True:return value
               return None
 
+          def surviving_browser_members(result):
+              pids=set((result["receipt"] or {}).get("residualPids") or [])
+              return [d for d in (launched(result["stdout"]) or {}).get("descendants",[]) if d.get("pid") in pids]
+
           def classify_pilot_case(case, result, report=None):
               r=result["receipt"];cause=(r or {}).get("firstCause") or result["error"] or ""
               retired=bool(r) and r["cleanup"]=="observed-empty-removed" and r["custody"]=="contained" and not r["escaped"]
@@ -1259,9 +1285,14 @@ jobs:
                   if retired and launched(result["stdout"]) and r["outcome"]=="succeeded":return "browser-exited-with-leader"
                   if retired and launched(result["stdout"]) and "leader exited with live contained members" in cause:return "leftover-retired"
                   return "unexpected"
+              if case=="survivor":
+                  # A browser process (a launch descendant, not just the holder) must outlive the leader,
+                  # be recorded as residual, then be retired.
+                  if retired and surviving_browser_members(result) and "leader exited with live contained members" in cause:return "leftover-retired"
+                  return "unexpected"
               raise ValueError("closed pilot case required")
 
-          PILOT_EXPECTED = {"normal":("clean-stock-shutdown","stock-leftover-retired"),"forced":("deadline-retired",),"exit":("browser-exited-with-leader","leftover-retired"),
+          PILOT_EXPECTED = {"normal":("clean-stock-shutdown","stock-leftover-retired"),"forced":("deadline-retired",),"exit":("browser-exited-with-leader","leftover-retired"),"survivor":("leftover-retired",),
               "scan":("support-complete","support-missing")}
 
           def pilot_disposition(summary):
@@ -1271,7 +1302,7 @@ jobs:
                   if row is None:reasons.append("scan "+name+": not run")
                   elif row["disposition"] not in PILOT_EXPECTED["scan"]:reasons.append("scan "+name+": "+row["disposition"])
               for family in PILOT_FAMILIES:
-                  for case in ("normal","forced","exit"):
+                  for case in PILOT_CASES:
                       row=summary["cases"].get(family,{}).get(case)
                       if row is None:reasons.append(family+"/"+case+": not run")
                       elif row["disposition"] not in PILOT_EXPECTED[case]:reasons.append(family+"/"+case+": "+row["disposition"])
@@ -1303,6 +1334,7 @@ jobs:
               except Exception as error:summary["libraryScanError"]=type(error).__name__+": "+str(error)
               write()
               results=root/"pilot-results";results.mkdir(mode=0o700)
+              ready_dir=root/"pilot-ready";ready_dir.mkdir(mode=0o700)
               tests=provisioned["seed"]/"Browser.Tests";node=provisioned["node"]
               cli=str(tests/"node_modules/@playwright/test/cli.js")
               for family in PILOT_FAMILIES:
@@ -1323,7 +1355,9 @@ jobs:
                   # Forced: a live browser held past its group deadline must be retired by the owner.
                   try:
                       result=group("forced",[node,str(files["hold"]),family,"hold"],[files["hold"]])
-                      rows["forced"]={"disposition":classify_pilot_case("forced",result),"launch":launched(result["stdout"]),"receipt":result["receipt"],"error":result["error"],"stderr":result["stderr"]}
+                      launch=launched(result["stdout"]);pids=set((result["receipt"] or {}).get("memberPids") or [])
+                      held=[d for d in (launch or {}).get("descendants",[]) if d.get("pid") in pids]
+                      rows["forced"]={"disposition":classify_pilot_case("forced",result),"launch":launch,"observedBrowserMembers":held,"receipt":result["receipt"],"error":result["error"],"stderr":result["stderr"]}
                   except Exception as error:rows["forced"]={"disposition":"unexpected","error":type(error).__name__+": "+str(error)}
                   write()
                   # Leader exit: the leader exits without closing; any surviving browser member is retired.
@@ -1331,6 +1365,14 @@ jobs:
                       result=group("exit",[node,str(files["hold"]),family,"exit"],[files["hold"]])
                       rows["exit"]={"disposition":classify_pilot_case("exit",result),"launch":launched(result["stdout"]),"receipt":result["receipt"],"error":result["error"],"stderr":result["stderr"]}
                   except Exception as error:rows["exit"]={"disposition":"unexpected","error":type(error).__name__+": "+str(error)}
+                  write()
+                  # Survivor: a detached holder keeps the browser alive after the leader exits; require-empty retires it.
+                  try:
+                      ready=ready_dir/(family+".json")
+                      result=group("survivor",[node,str(files["hold"]),family,"survive",str(ready)],[files["hold"]])
+                      launch=launched(result["stdout"]);survivors=surviving_browser_members(result)
+                      rows["survivor"]={"disposition":classify_pilot_case("survivor",result),"launch":launch,"survivingBrowserMembers":survivors,"receipt":result["receipt"],"error":result["error"],"stderr":result["stderr"]}
+                  except Exception as error:rows["survivor"]={"disposition":"unexpected","error":type(error).__name__+": "+str(error)}
                   write()
 
           def collect_pilot_evidence(root):
@@ -1341,12 +1383,13 @@ jobs:
               managed=root/"managed"
               if managed.is_dir():
                   for group in sorted(managed.iterdir()):candidates+=[group/n for n in ("receipt.json","stdout.log","stderr.log")]
-              for pattern_root,pattern in ((root/"pilot-results","*.json"),(root/"npm-seed/Browser.Tests/custody-pilot","*.cjs")):
+              for pattern_root,pattern in ((root/"pilot-results","*.json"),(root/"npm-seed/Browser.Tests/custody-pilot","*.cjs"),(root/"host-packages","*"),(root/"pilot-ready","*")):
                   if pattern_root.is_dir():candidates+=sorted(pattern_root.rglob(pattern))
-              manifest={"schema":"fsgg.templates.wasm-custody-pilot-evidence/1","capBytes":PILOT_EVIDENCE_BYTES,"files":[],"skipped":[],"truncated":[]};total=0
+              manifest={"schema":"fsgg.templates.wasm-custody-pilot-evidence/1","capBytes":PILOT_EVIDENCE_BYTES,"files":[],"skipped":[],"truncated":[],"unreadable":[]};total=0
               for path in candidates:
                   if not path.is_file() or path.is_symlink():continue
-                  data=path.read_bytes()
+                  try:data=path.read_bytes()
+                  except OSError as error:manifest["unreadable"].append({"path":str(path),"error":type(error).__name__});continue # one file never loses the rest
                   if path.suffix==".log" and len(data)>1048576:manifest["truncated"].append({"path":str(path),"bytes":len(data)});data=data[:1048576]
                   if total+len(data)>PILOT_EVIDENCE_BYTES:manifest["skipped"].append({"path":str(path),"bytes":len(data)});continue
                   relative=path.relative_to(root);target=evidence/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(data)
@@ -1354,6 +1397,55 @@ jobs:
               manifest["totalBytes"]=total
               (evidence/"manifest.json").write_text(json.dumps(manifest,indent=2)+"\n")
               return manifest
+
+          def pinned_webkit_packages(core):
+              # deps["ubuntu24.04-x64"].webkit read from the pinned coreBundle bytes (no execution).
+              text=pathlib.Path(core).read_text(errors="replace")
+              block=text[text.index('"ubuntu24.04-x64": {'):]
+              start=block.index("webkit: [");end=block.index("]",start)
+              return list(dict.fromkeys(re.findall(r'"([^"]+)"',block[start:end])))
+
+          def dpkg_table(path):
+              rows={}
+              for line in pathlib.Path(path).read_text(errors="replace").splitlines():
+                  parts=line.split("\t")
+                  if len(parts)>=2 and parts[0]:rows[parts[0]]={"version":parts[1],"status":parts[2] if len(parts)>2 else None}
+              return rows
+
+          def pilot_host_packages(environ, root):
+              # Reads the evidence of the pre-unit apt step (it cannot run inside the NoNewPrivileges unit).
+              host=pathlib.Path(environ["HOST_EVIDENCE"])
+              summary={"evidence":str(host),"attempted":False,"label":"ubuntu-24.04"}
+              if not (host.is_dir() and not host.is_symlink()):summary["state"]="host-evidence-missing";return summary
+              target=root/"host-packages";target.mkdir(mode=0o700)
+              for name in ("packages.txt","dpkg-before.tsv","dpkg-after.tsv","dpkg-diff.txt","apt-sources.txt","update.log","update-exit.txt","install.log","install-exit.txt"):
+                  source=host/name
+                  if source.is_file() and not source.is_symlink():(target/name).write_bytes(source.read_bytes()[:4194304])
+              listed=[l.strip() for l in (target/"packages.txt").read_text().splitlines() if l.strip()] if (target/"packages.txt").is_file() else []
+              summary["listedEqualsAdmittedList"]=listed==list(PILOT_WEBKIT_PACKAGES)
+              if (target/"install-exit.txt").is_file():
+                  summary["attempted"]=True;summary["installExit"]=(target/"install-exit.txt").read_text().strip()
+                  summary["updateExit"]=(target/"update-exit.txt").read_text().strip() if (target/"update-exit.txt").is_file() else None
+                  summary["label"]="ubuntu-24.04 + recorded packages"
+              if (target/"dpkg-before.tsv").is_file() and (target/"dpkg-after.tsv").is_file():
+                  before,after=dpkg_table(target/"dpkg-before.tsv"),dpkg_table(target/"dpkg-after.tsv")
+                  summary["added"]={k:v["version"] for k,v in sorted(after.items()) if k not in before}
+                  summary["changed"]={k:[before[k]["version"],v["version"]] for k,v in sorted(after.items()) if k in before and before[k]["version"]!=v["version"]}
+                  summary["removed"]=sorted(k for k in before if k not in after)
+                  summary["listedVersions"]={k:(after.get(k) or {}).get("version") for k in PILOT_WEBKIT_PACKAGES}
+                  summary["listedMissingAfter"]=[k for k in PILOT_WEBKIT_PACKAGES if k not in after]
+              summary["state"]="installed" if summary.get("installExit")=="0" and not summary.get("listedMissingAfter") else ("install-failed" if summary["attempted"] else "not-attempted")
+              return summary
+
+          def pilot_unit_properties(environ, root, env, execute, identities, receipts):
+              # The admitted unit limits, read back from systemd as one managed group (no unmanaged process).
+              systemctl,_=host_image("/usr/bin/systemctl");bind_identity(identities,systemctl,"host-observed")
+              names=("TasksMax","MemoryMax","RuntimeMaxUSec","Delegate","NoNewPrivileges","KillMode","TimeoutStopUSec","User","ControlGroup")
+              argv=[systemctl,"show","--no-pager",environ["UNIT_NAME"]]+[x for name in names for x in ("-p",name)]
+              result=pilot_group(execute,argv,root,env,receipts)
+              props=dict(line.split("=",1) for line in result["stdout"].splitlines() if "=" in line)
+              expected={"TasksMax":"4096","MemoryMax":str(8*1073741824),"RuntimeMaxUSec":"30min","Delegate":"yes","NoNewPrivileges":"yes","KillMode":"control-group"}
+              return {"properties":props,"matchesAdmission":{k:props.get(k)==v for k,v in expected.items()},"error":result["error"],"receipt":result["receipt"]}
 
           def pilot_sequence(environ, start):
               root=pathlib.Path(environ["RUNNER_TEMP"])/"wasm-custody-pilot"
@@ -1368,8 +1460,17 @@ jobs:
                   owner=load_owner(root,setup)
                   summary["probe"]=probe_containment(owner,root)
                   identities={};receipts=[]
-                  provisioned=prepare_browser_inputs(root,env,managed_executor(owner,root,setup,identities,"setup",receipts),download,setup,identities,receipts)
-                  summary["hostValidation"]=provisioned["hostValidation"];write()
+                  setup_run=managed_executor(owner,root,setup,identities,"setup",receipts)
+                  unit_run=managed_executor(owner,root,min(setup,time.monotonic()+PILOT_CASE_SECONDS["unit"]),identities,"setup",receipts)
+                  summary["unit"]=pilot_unit_properties(environ,root,env,unit_run,identities,receipts)
+                  summary["hostPackages"]=pilot_host_packages(environ,root);summary["platformLabel"]=summary["hostPackages"]["label"];write()
+                  provisioned=prepare_browser_inputs(root,env,setup_run,download,setup,identities,receipts)
+                  summary["hostValidation"]=provisioned["hostValidation"]
+                  core=provisioned["seed"]/"Browser.Tests/node_modules/playwright-core/lib/coreBundle.js"
+                  try:summary["hostPackages"]["admittedListMatchesPinnedPlaywright"]=pinned_webkit_packages(core)==list(PILOT_WEBKIT_PACKAGES)
+                  except Exception as error:summary["hostPackages"]["admittedListMatchesPinnedPlaywright"]="unreadable: "+type(error).__name__
+                  write()
+
                   run_custody_pilot(root,env,owner,identities,receipts,provisioned,pilot_deadline(start,"custody",time.monotonic()),summary,write)
                   summary["disposition"]=pilot_disposition(summary)
               except BaseException as error:

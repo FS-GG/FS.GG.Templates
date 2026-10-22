@@ -566,10 +566,9 @@ caller and runs in this order:
 3. `prepare_browser_inputs` provisions only the browser subset: the 0.19.1 template
    locks, Node and npm, the stock Playwright seed and the five pinned browser
    archives. It acquires no .NET, Rust, WASI or Fable. Stock host validation runs
-   once per family as its own group and is **not fatal**. The stock runner lacks
-   WebKit's host libraries (Playwright's Ubuntu 24.04 WebKit package list, such as
-   `libflite1`, `libmanette-0.2-0` and `libgtk-4-1`), and installing host packages is
-   not admitted. So a missing dependency is recorded as `host-dependencies-missing`
+   once per family as its own group and is **not fatal**. Run 39828121993 confirmed
+   that the stock runner lacks WebKit's host libraries (34 missing; see below).
+   Installing host packages was not admitted for the first run. So a missing dependency is recorded as `host-dependencies-missing`
    for that family, and every family's cases still run.
 4. Everything runs in custody groups under the custody-phase deadline.
    - A Chromium library scan runs host `ldd` on each selected Chromium archive
@@ -607,3 +606,76 @@ Installed C stays held: `RUNTIME_ADMITTED`, both literal-false steps and
 `custody_gate` are unchanged. A fixture-driven test runs the whole pilot sequence,
 and all 16 groups pass the real owner's `validate_profile`. That test also runs in
 the PR probe job with the pinned owner.
+
+### First custody pilot run 39828121993: accepted with gaps — 2026-10-22
+
+This was the single admitted dispatch at `c6dabf4`. Its evidence artifact
+`wasm-custody-pilot-39828121993-1` has zip sha256 `6c74ef80…`. The independent
+acceptance review
+([#4710](https://github.com/FS-GG/.github/issues/4710#issuecomment-6347853904))
+returned **ACCEPTED WITH GAPS**.
+
+**Established on GitHub-hosted ubuntu-24.04 (kernel 7.0.0-1017-azure):**
+- All 16 managed groups were `observed-empty-removed` and contained, with no escapes
+  or residue, admitted leader images and `no_new_privs`.
+- The `ADMITTED_REF`, `SHA` and `WORKFLOW_SHA` binding held, and every recomputed
+  `profileSha256` matched.
+- Chromium headless-shell 1243 and Firefox 1543 (content sandbox enabled):
+  - **normal:** a genuine clean stock shutdown. The `vite preview` webServer tree was
+    inside the group, and Playwright's own teardown emptied it with no owner signal.
+  - **forced:** held past the 25 s deadline and retired by `cgroup.kill`.
+- The Chromium library scan was complete for both selected archive directories.
+
+**Corrected claims:**
+- **Forced cases** prove that the group still held processes past SIGTERM. They do
+  not prove *which* browser processes were held, because the receipt's member sample
+  carries no comm.
+- **Leader exit did not exercise survivor retirement.** Playwright's exit handler in
+  the leader SIGKILLs the browser's process group when the leader exits, well within
+  the 2 s settle window (`leaderExitSettleSeconds`), so `residualAfterLeaderExit` was
+  empty. That case shows the browser exits with its
+  leader, not that the owner retires leftovers.
+- **WebKit 2359 has a genuine host-library gap.** Playwright's own Linux dependency
+  check found 34 missing libraries, including `libgtk-4.so.1`, the GStreamer
+  libraries, `libflite*`, `libavif.so.16`, `libmanette-0.2.so.0`, `libGLESv2.so.2` and
+  `libx264.so`. Its groups were still retired clean, but WebKit startup and shutdown
+  are not established.
+- **Evidence gaps:** the artifact omitted 3 hidden files (`include-hidden-files: false`),
+  and the unit limits came from the source and log rather than captured unit
+  properties.
+
+### Second custody pilot run source — 2026-10-22
+
+The same admission ([#4710 comment 6347853904](https://github.com/FS-GG/.github/issues/4710#issuecomment-6347853904))
+admits exactly one more dispatch under the first run's conditions, with these changes:
+
+- **WebKit host packages.** A separate step before `systemd-run` (sudo is blocked
+  inside the `NoNewPrivileges` unit) runs `apt-get update` and then
+  `apt-get install --no-install-recommends` with exactly
+  `deps["ubuntu24.04-x64"].webkit` of the pinned playwright-core 1.63.0 bundle: 51
+  unique packages. The `tools` group that stock `install-deps` would add is not
+  admitted. The step records the list, `dpkg-query -W` before and after, the diff, the
+  apt sources, and the update and install logs with their exit codes. A failing
+  unrelated apt source does not skip the install. The step runs only on attempt 1, has
+  a 5-minute timeout and uses `continue-on-error`, so it is never fatal and cannot
+  waste the run. Inside the unit,
+  the pilot re-derives the list from the pinned bundle and records whether it matches.
+  Results are labelled **"ubuntu-24.04 + recorded packages"**.
+- **Unit limits.** `systemctl show` runs as one managed group and records the unit's
+  `TasksMax`, `MemoryMax`, `RuntimeMaxUSec`, `Delegate`, `NoNewPrivileges`, `KillMode`
+  and `TimeoutStopUSec`, compared with the admission.
+- **Survivor case per family.** The leader starts a detached holder that launches and
+  keeps the browser, then exits once the holder is ready. `leftover-retired` requires
+  at least one browser process (a launch descendant, not just the holder) to be
+  recorded as residual after the leader exits, and then retired contained. A holder
+  launch failure is written next to the ready file and kept as evidence.
+- **Forced cases** now record which launched browser processes appear in the owner's
+  member sample (`observedBrowserMembers`). That sample lists every member observed,
+  not the processes alive at the deadline, so it does not show which processes were
+  held.
+- **Evidence.** `include-hidden-files: true` is set. Evidence collection records an
+  unreadable file instead of losing the rest of the tree.
+
+Installed C stays held. The fixture-driven pilot test runs 20 groups through the real
+owner's `validate_profile`, and with the pinned bundle supplied it checks the admitted
+list against the bundle's list.
