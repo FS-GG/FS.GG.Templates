@@ -269,6 +269,8 @@ let main _ =
     makeSuccessorArchive successor192Partial "0.19.2" false
     assertEqual "0.19.2 successor without the WASM source closure refuses" (Error "reference-member-missing")
         (validate (successorRequest successor192Partial "0.19.2"))
+    assertEqual "0.19.2 descriptor pin cannot select 0.19.1" (Error "descriptor-source-refused")
+        (validate { successorRequest successor192 "0.19.2" with Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::0.19.1" } })
     let unselected = Path.Combine(temp, "successor-0.19.3.nupkg")
     makeSuccessorArchive unselected "0.19.3" true
     assertEqual "unselected 0.19.3 refuses" (Error "selected-version-refused") (validate (successorRequest unselected "0.19.3"))
@@ -318,6 +320,53 @@ let main _ =
     assertEqual "shortname does not bypass generator" (Error "receiver-generator-refused") (checkProvider ())
     File.WriteAllText(provenance, """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"1.2.3"},"providerName":"fable-game","providerName":"other","templateRef":"fs-gg-fable-game","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"typed-sdd"}]}""")
     assertEqual "duplicate receiver provenance field refuses" (Error "receiver-provenance-duplicate-field-refused") (checkProvider ())
+    // WASM successors stay direct-only; the current public successor is admitted on installed routes.
+    File.WriteAllText(provenance, providerProvenance "fs-gg-fable-game" "fable-game" "typed-sdd" "1.2.3")
+    let successorReceiverArchive (version: string) =
+        let path = Path.Combine(temp, "receiver-successor-" + version + ".nupkg")
+        use source = ZipFile.OpenRead archive
+        use zip = ZipFile.Open(path, ZipArchiveMode.Create)
+        let add (name: string) (body: byte array) =
+            let entry = zip.CreateEntry(name)
+            use stream = entry.Open()
+            stream.Write(body, 0, body.Length)
+        for entry in source.Entries do
+            if entry.FullName = "FS.GG.Workspace.Template.nuspec" then
+                add entry.FullName (UTF8Encoding(false).GetBytes($"<package><metadata><id>FS.GG.Workspace.Template</id><version>{version}</version><repository commit=\"{revision}\" /></metadata></package>"))
+            else
+                use stream = entry.Open()
+                use memory = new MemoryStream()
+                stream.CopyTo memory
+                add entry.FullName (memory.ToArray())
+        for name in wasmEntries do
+            if isNull (source.GetEntry name) then add name (UTF8Encoding(false).GetBytes "fixture")
+        path
+    for name in wasmEntries do
+        let relative = name.Substring("content/templates/fs-gg-fable-game/".Length)
+        let target = Path.Combine(receiver, relative.Replace('/', Path.DirectorySeparatorChar))
+        if not (File.Exists target) then
+            Directory.CreateDirectory(Path.GetDirectoryName target) |> ignore
+            File.WriteAllText(target, "fixture")
+    let wasm191 = successorReceiverArchive "0.19.1"
+    let current192 = successorReceiverArchive "0.19.2"
+    assertEqual "0.19.1 WASM successor still closes the direct route" (Ok ()) (validateReceiver wasm191 receiver "direct" "none" "1.2.3" "ReferenceDirect")
+    assertEqual "0.19.1 WASM successor cannot be relabelled as provider success" (Error "receiver-successor-route-refused") (validateReceiver wasm191 receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
+    assertEqual "0.19.2 current successor closes the provider route" (Ok ()) (validateReceiver current192 receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
+    assertEqual "0.19.2 current successor closes the Wizard route" (Ok ()) (validateReceiver current192 receiver "wizard" "typed-sdd" "1.2.3" "ReferenceDirect")
+    let guest = Path.Combine(receiver, "SvgFoundation", "Examples", "Wasm", "guest", "policy.c")
+    let guestBytes = File.ReadAllBytes guest
+    File.AppendAllText(guest, "x")
+    assertEqual "0.19.2 current successor refuses a changed WASM source member" (Error "receiver-source-closure-refused") (validateReceiver current192 receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
+    File.WriteAllBytes(guest, guestBytes)
+    File.Delete guest
+    assertEqual "0.19.2 current successor refuses a missing WASM source member" (Error "receiver-source-closure-refused") (validateReceiver current192 receiver "wizard" "typed-sdd" "1.2.3" "ReferenceDirect")
+    File.WriteAllBytes(guest, guestBytes)
+    File.WriteAllText(provenance, providerProvenance "fs-gg-fable-game" "fable-game" "sdd" "1.2.3")
+    assertEqual "Wizard route may record its own omitted sdd default" (Ok ()) (validateReceiver current192 receiver "wizard" "sdd" "1.2.3" "ReferenceDirect")
+    assertEqual "provider route cannot claim the Wizard sdd default" (Error "receiver-lifecycle-refused") (validateReceiver current192 receiver "provider" "sdd" "1.2.3" "ReferenceDirect")
+    assertEqual "Wizard sdd claim still binds the recorded lifecycle" (Error "receiver-lifecycle-refused") (validateReceiver current192 receiver "wizard" "typed-sdd" "1.2.3" "ReferenceDirect")
+    File.WriteAllText(provenance, providerProvenance "fs-gg-fable-game" "fable-game" "typed-sdd" "1.2.3")
+    assertEqual "recorded typed-sdd cannot pass as the Wizard sdd default" (Error "receiver-lifecycle-refused") (validateReceiver current192 receiver "wizard" "sdd" "1.2.3" "ReferenceDirect")
     let toolArchive = Path.Combine(temp, "tool.nupkg")
     use toolZip = ZipFile.Open(toolArchive, ZipArchiveMode.Create)
     let toolNuspec = toolZip.CreateEntry("FS.GG.SDD.Cli.nuspec")

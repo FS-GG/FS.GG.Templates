@@ -61,6 +61,40 @@ class PublicReferencePreflightTests(unittest.TestCase):
     def test_source_newline_refused(self): self.run_preflight([a+'\n' if a=='c'*40 else a for a in self.args()], False)
     def test_duplicate_version_refused(self): self.run_preflight(self.args()+['--template-version', '0.18.1'], False)
 
+    # Current public default cohort (FS-GG/.github#4709): Workspace 0.19.2 + SDD 2.4.0 + Wizard 0.21.0.
+    CURRENT = {'--sha256': 'ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a',
+               '--descriptor-sha256': 'e8dbf8958f90d522e577378ae36b0e131954e400991d542ae9709ac32c713e3b',
+               '--source-revision': 'd15f085ff4d64b7736e09ff263644b3c86a576a6',
+               '--tag-revision': 'd15f085ff4d64b7736e09ff263644b3c86a576a6',
+               '--sdd-sha256': '1df2e74faebd388f90b813ed9d7497f4247f977718469c9247b37111d791921f',
+               '--sdd-source-revision': 'c1fee66a34ec8d222586eb708ddff4973ad5594e',
+               '--wizard-sha256': '4326f57dc41ab3feaf6b7b693dcdc2867e818b0567af27da505b571aace4e190',
+               '--wizard-source-revision': '12480a2083a00e0ccc91f3e0f3111d56108d755c'}
+    def current_args(self, mode='full'):
+        c = self.CURRENT
+        args = ['--mode', mode, '--template-version', '0.19.2', '--sha256', c['--sha256'],
+                '--descriptor-sha256', c['--descriptor-sha256'], '--source-revision', c['--source-revision'],
+                '--tag-revision', c['--tag-revision'], '--sdd-version', '2.4.0', '--sdd-sha256', c['--sdd-sha256'],
+                '--sdd-source-revision', c['--sdd-source-revision'], '--evidence-dir', str(self.root/'fresh'), '--preflight-only']
+        if mode == 'full': args += ['--wizard-version', '0.21.0', '--wizard-sha256', c['--wizard-sha256'], '--wizard-source-revision', c['--wizard-source-revision']]
+        return args
+    def test_current_public_full_cohort_accepted(self): self.run_preflight(self.current_args(), True)
+    def test_current_public_templates_cohort_accepted(self): self.run_preflight(self.current_args('templates'), True)
+    def test_current_public_identity_mutations_refused(self):
+        base = self.current_args()
+        for flag in self.CURRENT:
+            for index, value in enumerate(base):
+                if value == flag:
+                    mutated = list(base); old = mutated[index+1]
+                    mutated[index+1] = ('0' if old[0] != '0' else '1') + old[1:]
+                    if flag == '--source-revision':
+                        tag = mutated.index('--tag-revision'); mutated[tag+1] = mutated[index+1]
+                    with self.subTest(flag=flag): self.run_preflight(mutated, False)
+    def test_current_public_cross_cohort_refused(self):
+        for old, new in (('2.4.0', '2.1.0'), ('0.21.0', '0.16.0'), ('0.21.0', '0.20.0'), ('0.19.2', '0.19.1')):
+            with self.subTest(old=old, new=new): self.run_preflight([a.replace(old, new) if a == old else a for a in self.current_args()], False)
+        historical = [a.replace('0.16.0', '0.21.0') if a == '0.16.0' else a for a in self.args('full')]
+        self.run_preflight(historical, False)
     def test_wasm_direct_preflight_has_no_sdd_wizard_or_runtime_effect(self): self.run_preflight(self.wasm_args(), True)
     def test_wasm_requires_closed_successor(self): self.run_preflight([a.replace('0.19.2','0.18.1') for a in self.wasm_args()], False)
     def test_wasm_refuses_superseded_0190_with_truncated_guest(self): self.run_preflight([a.replace('0.19.2','0.19.0') for a in self.wasm_args()], False)

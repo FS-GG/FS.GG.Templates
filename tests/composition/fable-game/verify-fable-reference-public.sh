@@ -145,15 +145,34 @@ CURRENT_PUBLIC
 fi
 [[ -z "$current_inputs" ]] || usage
 [[ "$mode" == templates || "$mode" == full || "$mode" == wasm ]] || usage
+# Current public cohort identities (independently read back from nuget.org/GitHub, 2026-10-22).
+current_template_sha=ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a
+current_template_revision=d15f085ff4d64b7736e09ff263644b3c86a576a6
+current_descriptor_sha=e8dbf8958f90d522e577378ae36b0e131954e400991d542ae9709ac32c713e3b
+current_sdd_sha=1df2e74faebd388f90b813ed9d7497f4247f977718469c9247b37111d791921f
+current_sdd_revision=c1fee66a34ec8d222586eb708ddff4973ad5594e
+current_wizard_sha=4326f57dc41ab3feaf6b7b693dcdc2867e818b0567af27da505b571aace4e190
+current_wizard_revision=12480a2083a00e0ccc91f3e0f3111d56108d755c
+# Wizard 0.21.0 pinned creation of the omitted (typed-sdd) lifecycle admits only the sole exact
+# public Workspace.Template 0.18.2 project-knowledge registration before any target effect.
+current_overlay_sha=496aad0e89496719bc543edc6ffbf829a82307862e630ba4e174e374ac11cc4e
 if [[ "$mode" == wasm ]]; then
   # Published 0.19.2 is the selected WASM receiver (0.19.0 Complete scaffolds truncate guest/policy.c;
   # 0.19.1 is superseded by 0.19.2, which adopts Rendering 0.32.3).
   [[ "$version" == 0.19.2 && -z "$sdd_version$sdd_sha$sdd_revision$wizard_version$wizard_sha$wizard_revision" ]] || usage
 else
-  [[ "$version" == 0.18.1 && "$sdd_version" == 2.1.0 ]] || usage
+  # Closed published cohorts. 0.18.1/SDD 2.1.0/Wizard 0.16.0 is historical; 0.19.2/SDD 2.4.0/
+  # Wizard 0.21.0 is the current public default the documented install resolves (FS-GG/.github#4709).
+  # The current cohort binds every public archive/source identity here, not only through inputs.
+  [[ ( "$version" == 0.18.1 && "$sdd_version" == 2.1.0 ) \
+     || ( "$version" == 0.19.2 && "$sha" == "$current_template_sha" && "$revision" == "$current_template_revision" \
+          && "$descriptor_sha" == "$current_descriptor_sha" \
+          && "$sdd_version" == 2.4.0 && "$sdd_sha" == "$current_sdd_sha" && "$sdd_revision" == "$current_sdd_revision" ) ]] || usage
 fi
 if [[ "$mode" == full ]]; then
-  [[ "$wizard_version" == 0.16.0 && "$wizard_sha" =~ ^[0-9a-f]{64}$ && "$wizard_revision" =~ ^[0-9a-f]{40}$ ]] || usage
+  [[ "$wizard_sha" =~ ^[0-9a-f]{64}$ && "$wizard_revision" =~ ^[0-9a-f]{40}$ ]] || usage
+  [[ ( "$version" == 0.18.1 && "$wizard_version" == 0.16.0 ) \
+     || ( "$version" == 0.19.2 && "$wizard_version" == 0.21.0 && "$wizard_sha" == "$current_wizard_sha" && "$wizard_revision" == "$current_wizard_revision" ) ]] || usage
 else
   [[ -z "$wizard_version$wizard_sha$wizard_revision" ]] || usage
 fi
@@ -366,17 +385,69 @@ for receiver in provider provider-none; do mkdir -p "$evidence/$receiver/.fsgg";
 "$DOTNET_HOST_PATH" "$sdd_core" scaffold --root "$evidence/provider" --provider fable-game --param productName=ReferenceProvider --param bundle=complete --no-update --json >"$evidence/provider.json"
 "$DOTNET_HOST_PATH" "$sdd_core" scaffold --root "$evidence/provider-none" --provider fable-game --param productName=ReferenceProviderNone --param bundle=complete --param lifecycle=none --no-update --json >"$evidence/provider-none.json"
 if [[ "$mode" == full ]]; then
-PATH="$evidence/tools/checked-sdd:$PATH" "$DOTNET_HOST_PATH" "$wizard_core" "$evidence/wizard" ReferenceWizard --template fable-game --bundle complete --ref "$tag" --pinned --no-governance --no-coordination >"$evidence/wizard.log"
-PATH="$evidence/tools/checked-sdd:$PATH" "$DOTNET_HOST_PATH" "$wizard_core" "$evidence/wizard-none" ReferenceWizardNone --template fable-game --bundle complete --lifecycle none --ref "$tag" --pinned --no-governance --no-coordination >"$evidence/wizard-none.log"
+wizard_home="$DOTNET_CLI_HOME"; wizard_none_home="$DOTNET_CLI_HOME"; wizard_default_lifecycle=typed-sdd
+if [[ "$version" == 0.19.2 ]]; then
+  # Fresh Wizard hives: the direct route above already registered the archive in the shared hive.
+  # Wizard 0.21.0 pinned creation of an omitted or typed-sdd fable-game lifecycle admits only the
+  # sole exact public 0.18.2 project-knowledge registration first; explicit none starts empty.
+  # Every hive must end on the published 0.19.2 bytes.
+  overlay="$evidence/feed/FS.GG.Workspace.Template.0.18.2.nupkg"
+  curl --fail --silent --show-error --location "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.18.2/fs.gg.workspace.template.0.18.2.nupkg" -o "$overlay"
+  [[ "$(sha256sum "$overlay" | cut -d' ' -f1)" == "$current_overlay_sha" ]] || { echo 'fable-reference-public: 0.18.2 overlay identity mismatch' >&2; exit 1; }
+  # Wizard 0.21.0 forwards its own omitted default `sdd` to current descriptors; the provider
+  # descriptor's omitted default remains typed-sdd (asserted on the provider route above).
+  wizard_default_lifecycle=sdd
+  wizard_home="$evidence/wizard-home"; wizard_none_home="$evidence/wizard-none-home"
+  wizard_typed_home="$evidence/wizard-typed-home"; wizard_public_home="$evidence/wizard-public-home"
+  mkdir "$wizard_home" "$wizard_none_home" "$wizard_typed_home" "$wizard_public_home"
+  for hive in "$wizard_home" "$wizard_typed_home" "$wizard_public_home"; do
+    DOTNET_CLI_HOME="$hive" "$DOTNET_HOST_PATH" new install "$overlay" >>"$evidence/wizard-overlay-install.log"
+  done
+fi
+PATH="$evidence/tools/checked-sdd:$PATH" DOTNET_CLI_HOME="$wizard_home" "$DOTNET_HOST_PATH" "$wizard_core" "$evidence/wizard" ReferenceWizard --template fable-game --bundle complete --ref "$tag" --pinned --no-governance --no-coordination >"$evidence/wizard.log"
+PATH="$evidence/tools/checked-sdd:$PATH" DOTNET_CLI_HOME="$wizard_none_home" "$DOTNET_HOST_PATH" "$wizard_core" "$evidence/wizard-none" ReferenceWizardNone --template fable-game --bundle complete --lifecycle none --ref "$tag" --pinned --no-governance --no-coordination >"$evidence/wizard-none.log"
+if [[ "$version" == 0.19.2 ]]; then
+  PATH="$evidence/tools/checked-sdd:$PATH" DOTNET_CLI_HOME="$wizard_typed_home" "$DOTNET_HOST_PATH" "$wizard_core" "$evidence/wizard-typed" ReferenceWizardTyped --template fable-game --bundle complete --lifecycle typed-sdd --ref "$tag" --pinned --no-governance --no-coordination >"$evidence/wizard-typed.log"
+  # The public default: no lifecycle and no bundle, exactly as a user omits them.
+  PATH="$evidence/tools/checked-sdd:$PATH" DOTNET_CLI_HOME="$wizard_public_home" "$DOTNET_HOST_PATH" "$wizard_core" "$evidence/wizard-public" ReferenceWizardPublic --template fable-game --ref "$tag" --pinned --no-governance --no-coordination >"$evidence/wizard-public.log"
+  for hive in "$wizard_home" "$wizard_none_home" "$wizard_typed_home" "$wizard_public_home"; do
+    python3 - "$hive/.templateengine/packages.json" "$sha" "$version" <<'WIZARD_REGISTRY'
+import hashlib, json, pathlib, sys
+registry, sha, version = sys.argv[1:]
+rows = [p for p in json.loads(pathlib.Path(registry).read_text(encoding='utf-8-sig'))['Packages'] if p['Details'].get('PackageId') == 'FS.GG.Workspace.Template']
+assert len(rows) == 1, 'Wizard hive must end with one Workspace.Template registration'
+assert rows[0]['Details'].get('Version') == version, 'Wizard hive did not resolve the selected public successor'
+assert hashlib.sha256(pathlib.Path(rows[0]['MountPointUri']).read_bytes()).hexdigest() == sha, 'Wizard hive archive is not the published nuget.org bytes'
+WIZARD_REGISTRY
+    cp "$hive/.templateengine/packages.json" "$evidence/$(basename "$hive" -home)-registry.json"
+  done
+  python3 - "$evidence/wizard-public" <<'PUBLIC_DEFAULT'
+import json, pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+p = json.loads((root/'.fsgg/scaffold-provenance.json').read_text())
+params = {x['key']: x['value'] for x in p['effectiveParameters']}
+assert p['generator'] == {'id': 'FS.GG.SDD.Artifacts', 'version': '2.4.0'}, 'public default generator drifted'
+assert params.get('lifecycle') == 'sdd' and params.get('bundle') == 'player', 'public default lifecycle/bundle drifted: %r' % params
+assert not (root/'SvgFoundation/Studio').exists() and not (root/'SvgFoundation/Examples/Wasm').exists(), 'player default must omit Studio and WASM'
+assert re.search(r"'\$\(FsGgSvgInputVersion\)' == ''\">0\.32\.3<", (root/'SvgFoundation/SvgFoundation.fsproj').read_text()), 'public default SVG input is not Rendering 0.32.3'
+assert (root/'ReferenceWizardPublic.slnx').is_file() and (root/'.fsgg/knowledge-guide.md').is_file()
+PUBLIC_DEFAULT
+fi
 fi
 
 "${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/direct" --route direct --lifecycle none --sdd-version "$sdd_version" --product-name ReferenceDirect
 provider_routes=(provider); [[ "$mode" != full ]] || provider_routes+=(wizard)
 for route in "${provider_routes[@]}"; do
   if [[ "$route" == provider ]]; then product=ReferenceProvider; none_product=ReferenceProviderNone; else product=ReferenceWizard; none_product=ReferenceWizardNone; fi
-  "${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/$route" --route "$route" --lifecycle typed-sdd --sdd-version "$sdd_version" --product-name "$product"
+  expected_lifecycle=typed-sdd; [[ "$route" != wizard ]] || expected_lifecycle="$wizard_default_lifecycle"
+  "${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/$route" --route "$route" --lifecycle "$expected_lifecycle" --sdd-version "$sdd_version" --product-name "$product"
   "${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/$route-none" --route "$route" --lifecycle none --sdd-version "$sdd_version" --product-name "$none_product"
 done
+if [[ "$mode" == full && "$version" == 0.19.2 ]]; then
+  "${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/wizard-typed" --route wizard --lifecycle typed-sdd --sdd-version "$sdd_version" --product-name ReferenceWizardTyped
+  # Runtime of the exact public default workspace (player bundle, Wizard sdd lifecycle).
+  (cd "$evidence/wizard-public" && QUINT_BIN="$QUINT_BIN" bash build.sh) >"$evidence/wizard-public-build.log" 2>&1
+fi
 receiver_routes=(direct provider); [[ "$mode" != full ]] || receiver_routes+=(wizard)
 for route in "${receiver_routes[@]}"; do
   (cd "$evidence/$route" && QUINT_BIN="$QUINT_BIN" bash build.sh) >"$evidence/$route-build.log" 2>&1
