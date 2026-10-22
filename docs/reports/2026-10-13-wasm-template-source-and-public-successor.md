@@ -720,17 +720,26 @@ admits one final dispatch with the same conditions, with these changes:
   The step timeout is 10 minutes and the job timeout 40.
 - **Trap-written evidence.** An `EXIT` trap always writes the update and install exit
   codes (`not-run` if never reached), the dpkg after-snapshot, the diff, the mirror
-  list after, and a `step-complete` marker.
+  list after, and a `step-complete` marker. TERM and INT end the step with their own
+  status (143 or 130). apt runs dpkg in its own session, out of `timeout`'s reach, so
+  the trap waits up to 20 s for dpkg to settle before snapshotting, and records the
+  wait.
 - **Marker-based state.** `update-attempted` and `install-attempted` markers are
   written before each call, so the pilot derives the state from the step's own
-  markers: `installed`, `install-timed-out` (exit 124 or 137), `install-interrupted`,
-  `install-failed` or `not-attempted`. It labels any attempt "ubuntu-24.04 + recorded
-  packages" and counts the hosts that served each fetch.
+  markers: `installed`, `install-timed-out` (install exit 124 or 137),
+  `install-interrupted`, `install-failed`, `install-not-reached` (update only) or
+  `not-attempted`. An update timeout is recorded separately. Any attempt is labelled
+  "ubuntu-24.04 + recorded packages", and the pilot counts the served fetches (`Get`
+  lines) per host.
 - **Mirror fallback.** The runner's `mirror+file:/etc/apt/apt-mirrors.txt` list is
-  recorded before and after. A plain `http://archive.ubuntu.com/ubuntu/` entry is
-  appended only if absent, so the Azure mirror stays first; the result is recorded as
-  `added` or `already-present`.
+  recorded before and after. On GitHub runners it already lists Azure at priority 1
+  and `archive.ubuntu.com` at priority 2, so the step records `already-present`.
+  Otherwise a plain `http://archive.ubuntu.com/ubuntu/` entry is appended. Without a
+  priority tag, apt ranks such an entry last, so Azure stays preferred.
 - **apt termination check.** A post-step check, run always, records any remaining
   apt, dpkg, apt-method or `timeout apt-get` process.
+- **Expectation.** The new options do not speed up a slow but moving download. Run 2
+  managed about 20 MB in 300 s, so this install completes only if mirror throughput
+  is clearly better.
 - **No fourth run.** If the install again fails to complete, WebKit on hosted runners
   is recorded as a residual.

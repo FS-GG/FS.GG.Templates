@@ -1375,11 +1375,11 @@ class CustodyPilotTests(unittest.TestCase):
         installed=packages if state!='partial' else packages[:-1]
         (host/'dpkg-after.tsv').write_text('libc6\t2.39-0ubuntu8\tii \n'+''.join(p+'\t1.0-'+p+'\tii \n' for p in sorted(installed)))
         (host/'apt-sources.txt').write_text('### /etc/apt/sources.list\ndeb http://azure.archive.ubuntu.com/ubuntu noble main\n')
-        (host/'install.log').write_text('Get:1 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libflite1 2.2 [1 kB]\nGet:2 http://archive.ubuntu.com/ubuntu noble/main amd64 libopus0 1.4 [2 kB]\nGet:3 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libx11-6 1 [3 kB]\nSetting up libflite1\n')
+        (host/'install.log').write_text('Ign:4 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libopus0 1.4\nGet:1 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libflite1 2.2 [1 kB]\nGet:2 http://archive.ubuntu.com/ubuntu noble/main amd64 libopus0 1.4 [2 kB]\nGet:3 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libx11-6 1 [3 kB]\nErr:5 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libz 1\nSetting up libflite1\n')
         (host/'dpkg-diff.txt').write_text('> libflite1\n');(host/'fallback.txt').write_text('already-present\n')
-        (host/'update-attempted.txt').write_text('attempted\n');(host/'update-exit.txt').write_text('100\n');(host/'update.log').write_text('W: failed source\n')
+        (host/'update-attempted.txt').write_text('attempted\n');(host/'update-exit.txt').write_text('124\n' if state=='update-timeout' else '100\n');(host/'update.log').write_text('W: failed source\n')
         if state!='not-attempted':(host/'install-attempted.txt').write_text('attempted\n')
-        exits={'failed':'100\n','timeout':'124\n','interrupted':'not-run\n','not-attempted':'not-run\n'}
+        exits={'failed':'100\n','update-timeout':'100\n','timeout':'124\n','killed':'137\n','interrupted':'not-run\n','not-attempted':'not-run\n'}
         (host/'install-exit.txt').write_text(exits.get(state,'0\n'));(host/'step-complete.txt').write_text('step-exit 0\n')
         (host/'post-step-check.txt').write_text('apt-dpkg-processes '+('2' if state=='lingering' else '0')+'\n');(host/'post-step-processes.txt').write_text('')
 
@@ -1518,12 +1518,15 @@ class CustodyPilotTests(unittest.TestCase):
         for state,label,expected in [('missing','ubuntu-24.04','host-evidence-missing'),('failed','ubuntu-24.04 + recorded packages','install-failed'),
                                      ('partial','ubuntu-24.04 + recorded packages','install-failed'),('timeout','ubuntu-24.04 + recorded packages','install-timed-out'),
                                      ('interrupted','ubuntu-24.04 + recorded packages','install-interrupted'),
-                                     ('not-attempted','ubuntu-24.04 + recorded packages','install-failed')]:
+                                     ('killed','ubuntu-24.04 + recorded packages','install-timed-out'),
+                                     ('update-timeout','ubuntu-24.04 + recorded packages','install-failed'),
+                                     ('not-attempted','ubuntu-24.04 + recorded packages','install-not-reached')]:
             with self.subTest(state=state):
                 summary=self.run_pilot({'host':state})
                 self.assertEqual((summary['platformLabel'],summary['hostPackages']['state']),(label,expected))
                 if state=='partial':self.assertEqual(summary['hostPackages']['listedMissingAfter'],[self.ns['PILOT_WEBKIT_PACKAGES'][-1]])
-                if state=='timeout':self.assertTrue(summary['hostPackages']['timedOut'])
+                if state in ('timeout','killed'):self.assertEqual((summary['hostPackages']['timedOut'],summary['hostPackages']['installTimedOut']),(True,True))
+                if state=='update-timeout':self.assertEqual((summary['hostPackages']['timedOut'],summary['hostPackages']['updateTimedOut'],summary['hostPackages']['installTimedOut']),(True,True,False))
                 if state=='not-attempted':self.assertEqual((summary['hostPackages']['updateAttempted'],summary['hostPackages']['attempted']),(True,False))
         summary=self.run_pilot({})
         self.assertEqual(summary['hostPackages']['listedVersions']['libflite1'],'1.0-libflite1')
@@ -1687,7 +1690,15 @@ class CustodyPilotTests(unittest.TestCase):
         # The trap always writes the exit codes and the dpkg after-state, even on failure.
         self.assertIn('trap finish EXIT',apt)
         finish=apt.split('finish() {',1)[1].split('          }',1)[0]
-        for written in ('update-exit.txt','install-exit.txt','dpkg-after.tsv','dpkg-diff.txt','step-complete.txt'):self.assertIn(written,finish)
+        for written in ('update-exit.txt','install-exit.txt','dpkg-after.tsv','dpkg-diff.txt','step-complete.txt','apt-mirrors-after.txt','dpkg-settle.txt'):self.assertIn(written,finish)
+        self.assertTrue(finish.lstrip().startswith('local rc=$?')) # the status that ended the step, captured first
+        loop='while pgrep -x dpkg >/dev/null 2>&1 && (( waited < 20 )); do sleep 1; waited=$((waited + 1)); done'
+        self.assertIn(loop,finish);self.assertLess(finish.index(loop),finish.index('snapshot >"$host/dpkg-after.tsv"')) # dpkg settles before the after-state
+        self.assertLessEqual(60+10+480+15+20,10*60-10) # bounded calls plus the dpkg settle fit the 10-minute step
+        self.assertIn('''trap 'printf "signal TERM\\n" >"$host/step-signal.txt"; exit 143' TERM''',apt)
+        self.assertIn('''update -q >"$host/update.log" 2>&1\n          printf '%s\\n' "$?" >"$host/update-exit.txt"\n''',apt)
+        self.assertIn('''install -y -q --no-install-recommends "${packages[@]}" >"$host/install.log" 2>&1\n          printf '%s\\n' "$?" >"$host/install-exit.txt"\n''',apt)
+        self.assertIn('''grep -Eq '^[a-z]+://archive\\.ubuntu\\.com/ubuntu/?([[:space:]]|$)' "$mirrors"''',apt)
         self.assertIn('"$host/dpkg-diff.txt" || true',finish) # diff exits 1 after any install
         self.assertLess(apt.index('update-attempted.txt'),apt.index('update -q'));self.assertLess(apt.index('install-attempted.txt'),apt.index(' install -y'))
         # Azure stays first; archive.ubuntu.com is only appended (recorded) when absent.

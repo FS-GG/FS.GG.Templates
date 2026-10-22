@@ -1414,7 +1414,7 @@ jobs:
 
           HOST_EVIDENCE_FILES = ("packages.txt","dpkg-before.tsv","dpkg-after.tsv","dpkg-after.err","dpkg-diff.txt","apt-sources.txt",
               "apt-mirrors-before.txt","apt-mirrors-after.txt","fallback.txt","update-attempted.txt","update.log","update-exit.txt",
-              "install-attempted.txt","install.log","install-exit.txt","step-complete.txt","post-step-processes.txt","post-step-check.txt")
+              "install-attempted.txt","install.log","install-exit.txt","step-complete.txt","step-signal.txt","dpkg-settle.txt","post-step-processes.txt","post-step-check.txt")
           TIMEOUT_EXITS = ("124","137") # timeout(1): limit reached; killed after the -k grace
 
           def pilot_host_packages(environ, root):
@@ -1434,11 +1434,13 @@ jobs:
               summary["attempted"]=read("install-attempted.txt")=="attempted"
               summary["updateExit"]=read("update-exit.txt");summary["installExit"]=read("install-exit.txt")
               summary["stepComplete"]=read("step-complete.txt");summary["fallback"]=read("fallback.txt")
-              summary["timedOut"]=summary["installExit"] in TIMEOUT_EXITS or summary["updateExit"] in TIMEOUT_EXITS
+              summary["installTimedOut"]=summary["installExit"] in TIMEOUT_EXITS;summary["updateTimedOut"]=summary["updateExit"] in TIMEOUT_EXITS
+              summary["timedOut"]=summary["installTimedOut"] or summary["updateTimedOut"]
+              summary["stepSignal"]=read("step-signal.txt");summary["dpkgSettle"]=read("dpkg-settle.txt")
               if summary["attempted"] or summary["updateAttempted"]:summary["label"]="ubuntu-24.04 + recorded packages"
               hosts={}
               for line in (read("install.log") or "").splitlines():
-                  match=re.match(r"(?:Get|Hit|Ign|Err):\d+ [a-z+]+://([^/ ]+)/",line)
+                  match=re.match(r"Get:\d+ [a-z+]+://([^/ ]+)/",line) # only fetches that were served
                   if match:hosts[match.group(1)]=hosts.get(match.group(1),0)+1
               summary["fetchHosts"]=hosts
               check=read("post-step-check.txt")
@@ -1451,9 +1453,10 @@ jobs:
                   summary["listedVersions"]={k:(after.get(k) or {}).get("version") for k in PILOT_WEBKIT_PACKAGES}
                   summary["listedMissingAfter"]=[k for k in PILOT_WEBKIT_PACKAGES if k not in after]
               if summary["attempted"] and summary["installExit"]=="0" and summary.get("listedMissingAfter")==[]:summary["state"]="installed"
-              elif summary["timedOut"]:summary["state"]="install-timed-out"
+              elif summary["installTimedOut"]:summary["state"]="install-timed-out"
               elif summary["attempted"] and summary["installExit"] in (None,"not-run"):summary["state"]="install-interrupted"
-              elif summary["attempted"] or summary["updateAttempted"]:summary["state"]="install-failed"
+              elif summary["attempted"]:summary["state"]="install-failed"
+              elif summary["updateAttempted"]:summary["state"]="install-not-reached"
               else:summary["state"]="not-attempted"
               return summary
 

@@ -21,7 +21,7 @@ on:
         required: true
         type: string
       admission:
-        description: Exact admission comment URL on FS-GG/.github#4710 (the second-run admission)
+        description: Exact admission comment URL on FS-GG/.github#4710 (the final-run admission)
         required: true
         type: string
 
@@ -89,12 +89,19 @@ jobs:
             local rc=$?
             [[ -f "$host/update-exit.txt" ]] || printf 'not-run\n' >"$host/update-exit.txt"
             [[ -f "$host/install-exit.txt" ]] || printf 'not-run\n' >"$host/install-exit.txt"
+            # apt runs dpkg in its own session, out of timeout's reach: let it settle (<=20 s) first.
+            local waited=0
+            while pgrep -x dpkg >/dev/null 2>&1 && (( waited < 20 )); do sleep 1; waited=$((waited + 1)); done
+            printf 'dpkg-wait %s; dpkg-running %s\n' "$waited" "$(pgrep -x dpkg >/dev/null 2>&1 && echo yes || echo no)" >"$host/dpkg-settle.txt"
             snapshot >"$host/dpkg-after.tsv" 2>"$host/dpkg-after.err" || true
             diff "$host/dpkg-before.tsv" "$host/dpkg-after.tsv" >"$host/dpkg-diff.txt" || true
             cp /etc/apt/apt-mirrors.txt "$host/apt-mirrors-after.txt" 2>/dev/null || printf 'absent\n' >"$host/apt-mirrors-after.txt"
             printf 'step-exit %s\n' "$rc" >"$host/step-complete.txt"
           }
           trap finish EXIT
+          # A signal ends the step with its own status, so step-complete records it (not the last command's).
+          trap 'printf "signal TERM\n" >"$host/step-signal.txt"; exit 143' TERM
+          trap 'printf "signal INT\n" >"$host/step-signal.txt"; exit 130' INT
           python3 -I tests/composition/fable-game/wasm-custody-pilot.py --print-webkit-packages >"$host/packages.txt"
           snapshot >"$host/dpkg-before.tsv"
           for source in /etc/apt/sources.list /etc/apt/sources.list.d/*; do
