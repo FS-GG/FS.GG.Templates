@@ -473,11 +473,8 @@ eng/managed_group_owner.py, d846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a322
   wrapper admits the host `/bin/sh` image and the Node image as leaders. Calls use
   absolute executables, and their working directory is inside the job root.
 - `managed_playwright` builds one managed group for each Playwright invocation, for
-  the custody pilot. It has no production caller yet. The installed-C entry,
-  `fixed_checker_argv`, still starts the shell checker (with a relative `bash`), and
-  that checker runs Playwright itself, so all three families would share one group.
-  Moving those invocations into the Python owner is open with the custody pilot and
-  installed-C admission.
+  the custody pilot. At this checkpoint the installed-C checker still ran Playwright
+  itself; the follow-up below moves those invocations into the Python owner.
 - The hosted step runs the job's Python inside
   `sudo -n systemd-run … -p Delegate=yes -p User=runner -p NoNewPrivileges=yes
   -p KillMode=control-group -p TimeoutStopSec=5` with `TasksMax=6144` and
@@ -510,3 +507,42 @@ per-invocation Playwright groups on the installed-C path, the installed
 downloaded-only 27-case journey and the provenance of installer-output or host
 images. The `rustup-init` digest still comes from unpinned metadata on the same
 server, as before this change.
+
+### Per-invocation Playwright groups on the installed-C path — 2026-10-22
+
+The shell checker's `--mode wasm` now stops after these steps:
+- the downloaded default/Complete source and production graph;
+- the generated Playwright config;
+- the Browser.Tests `npm ci`.
+
+It records `source-passed` and `browserCases: managed-groups-in-caller`, and runs
+no browser. The caller's `installed_c` takes over from there:
+- It runs the checker as one group, from the absolute host `bash`. The checker
+  script's hash is retained with that group's receipt.
+- Each family's Playwright `--list` invocation, then each `test` invocation, is its
+  own `require-empty` group under the original installed-phase deadline.
+- It applies the checker's former assertions per family: exactly 9 definitions of
+  the selected project, then 9 expected and nothing unexpected, flaky or skipped.
+- It writes `installed-c.json`.
+
+A browser or Vite process left behind by a family fails that invocation's group, and
+the group retires it. `hosted_sequence` runs provisioning and
+tool-version qualification under the setup deadline, then `custody_gate`, which
+refuses until the three-family custody pilot is admitted, and only then
+`installed_c` under its own installed-phase deadline. If a family fails,
+`installed-c.json` records `failed` and its first cause. The
+literal step, upload and `RUNTIME_ADMITTED` holds are unchanged.
+
+Other changes in this follow-up:
+- The browser host validator is content-addressed
+  (`browser-host-validation.<sha256>.cjs`, mode 0400), so its hash is part of the
+  argv and therefore of `profileSha256`.
+- Each managed group records the hashes of its declared script inputs (the
+  validator and the checker). Playwright's own `cli.js` and the generated config are
+  not hashed per group.
+- An unexpected owner exception keeps every report note.
+
+A fixture-driven test runs the actual provisioning sequence, tool qualification and
+`installed_c` through the executor. All 25 call sites are put through the real owner's
+`validate_profile` at run time. Restoring the old `node -e` argv fails that test with
+`profile-invalid: argv`.

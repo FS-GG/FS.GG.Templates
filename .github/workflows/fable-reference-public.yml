@@ -500,7 +500,8 @@ jobs:
               def record():
                   try:(root/"managed-receipts.json").write_text(json.dumps(receipts,indent=2)+"\n")
                   except Exception as reporting:return "independent managed receipt reporting failure: "+type(reporting).__name__+": "+str(reporting)
-              def execute(argv, cwd, env):
+              def execute(argv, cwd, env, inputs=()):
+                  # inputs: files the group reads as code (scripts); their hashes are retained with the receipt.
                   require(isinstance(argv,list) and argv and all(isinstance(a,str) for a in argv),"exact argv required")
                   require(pathlib.Path(argv[0]).is_absolute(),"managed executable must be absolute: "+argv[0])
                   real=os.path.realpath(argv[0]);row=identities.get(real)
@@ -515,7 +516,11 @@ jobs:
                       "argv":list(argv),"cwd":str(cwd),"environmentKeys":sorted(env),"containment":"cgroup2-delegated",
                       "limits":{"pidsMax":MANAGED["pidsMax"],"memoryMaxBytes":None,"stdoutBytes":MANAGED["stdoutBytes"],"stderrBytes":MANAGED["stderrBytes"]},
                       "retirement":{"onLeaderExit":"require-empty","leaderExitSettleSeconds":MANAGED["settleSeconds"],"termGraceSeconds":MANAGED["termGraceSeconds"],"cleanupSeconds":BUDGET["cleanup"]}}
-                  entry={"phase":phase,"index":index,"name":name,"outDir":str(out_dir),"executable":real,"identityBasis":row["basis"],"status":"started"}
+                  bound={}
+                  for path in inputs:
+                      path=pathlib.Path(path);require(path.is_absolute() and path.is_file() and not path.is_symlink(),"managed input must be an absolute regular file: "+str(path))
+                      bound[str(path)]=sha(path)
+                  entry={"phase":phase,"index":index,"name":name,"outDir":str(out_dir),"executable":real,"identityBasis":row["basis"],"inputs":bound,"status":"started"}
                   receipts.append(entry);notes=[record()]
                   try:
                       receipt=owner.run(profile,env=dict(env),deadline=deadline,out_dir=str(out_dir))
@@ -529,8 +534,7 @@ jobs:
                   except BaseException as error:
                       # Not a contract outcome: keep a terminal index status, then re-raise unchanged.
                       entry.update(status="error",firstCause=type(error).__name__+": "+str(error))
-                      note=record()
-                      if note:error.add_note(note)
+                      for note in filter(None,notes+[record()]):error.add_note(note)
                       raise
                   else:
                       entry.update(status=receipt["outcome"],cleanup=receipt["cleanup"],custody=receipt["custody"],profileSha256=receipt["profileSha256"],ownerSha256=receipt["owner"]["sha256"])
@@ -554,7 +558,7 @@ jobs:
 
           def hosted_sequence(environ, start):
               # Bound order: exact source, fresh closed environment, pinned owner, containment probe,
-              # then provisioning whose every process is a managed group under the setup deadline.
+              # provisioning, tool qualification, the custody gate, then installed C. Every process is a managed group.
               workspace=pathlib.Path(environ["GITHUB_WORKSPACE"]);root=pathlib.Path(environ["RUNNER_TEMP"])/"fable-wasm-installed-c"
               source=validate_source(environ,environ["CHECKOUT_HEAD"],root)
               env=fresh_environment(root,environ)
@@ -563,13 +567,74 @@ jobs:
               owner=load_owner(root,setup)
               probe_containment(owner,root)
               identities={};receipts=[]
-              execute=managed_executor(owner,root,setup,identities,"setup",receipts)
-              return prepare_inputs(root,workspace,env,execute,download,setup,identities)
+              setup_run=managed_executor(owner,root,setup,identities,"setup",receipts)
+              provisioned=prepare_inputs(root,workspace,env,setup_run,download,setup,identities)
+              qualify_tools(root,env,setup_run) # actual tool versions, still inside the setup deadline
+              custody_gate(provisioned)
+              installed=phase_deadline(start,"installed",time.monotonic())
+              return installed_c(root,workspace,env,managed_executor(owner,root,installed,identities,"installed",receipts),identities,provisioned["node"])
 
-          def fixed_checker_argv(workspace, installed):
-              # Open with installed-C admission: this checker runs Playwright itself (one group for all
-              # families) and starts from relative bash; per-invocation groups need managed_playwright.
-              return ["bash",str(workspace/"tests/composition/fable-game/verify-fable-reference-public.sh"),"--mode","wasm","--template-version",TEMPLATE_VERSION,"--sha256",PACKAGE_SHA,"--descriptor-sha256",DESCRIPTOR_SHA,"--source-revision",PUBLISHED,"--tag-revision",PUBLISHED,"--evidence-dir",str(installed)]
+          def custody_gate(provisioned):
+              # Held: stock host validation is not support/runtime proof. Installed C needs the separately
+              # admitted three-family custody pilot (Chromium support join, stock shutdown, WebKit) first.
+              raise RuntimeError("Chromium support/runtime join and three-family custody pilot remain unadmitted; installed C held")
+
+          def fixed_checker_argv(workspace, installed, bash):
+              # Source stage only: the checker no longer runs Playwright; installed_c runs each invocation.
+              return [bash,str(workspace/"tests/composition/fable-game/verify-fable-reference-public.sh"),"--mode","wasm","--template-version",TEMPLATE_VERSION,"--sha256",PACKAGE_SHA,"--descriptor-sha256",DESCRIPTOR_SHA,"--source-revision",PUBLISHED,"--tag-revision",PUBLISHED,"--evidence-dir",str(installed)]
+
+          WASM_FAMILIES = ("chromium", "firefox", "webkit")
+
+          def wasm_selected_tests(suites):
+              return [t for suite in suites for spec in suite.get("specs",[]) for t in spec.get("tests",[])]+[t for suite in suites for t in wasm_selected_tests(suite.get("suites",[]))]
+
+          def check_wasm_list(report, family):
+              # The checker's former --list assertion: exactly the nine definitions of one selected project.
+              require([p["name"] for p in report["config"]["projects"]]==[family],"exact selected family required")
+              selected=wasm_selected_tests(report["suites"])
+              require(len(selected)==9,"exact nine definitions required")
+              require({t["projectName"] for t in selected}=={family} and {t["projectId"] for t in selected}=={family},"wrong selected project population")
+              return len(selected)
+
+          def check_wasm_result(report, family):
+              # The checker's former result assertion: nine expected, nothing unexpected, flaky or skipped.
+              require([p["name"] for p in report["config"]["projects"]]==[family],"runtime family differs")
+              stats=report["stats"]
+              require(stats["expected"]==9 and stats["unexpected"]==stats["flaky"]==stats["skipped"]==0,"family "+family+" stats differ: "+json.dumps(stats,sort_keys=True))
+              return stats
+
+          def installed_c(root, workspace, env, execute, identities, node):
+              # The checker's source stage is one group; every Playwright --list and test invocation is its
+              # own require-empty group, so detached browser/Vite groups cannot outlive their invocation.
+              installed=root/"installed"
+              require(not installed.exists() and not installed.is_symlink(),"installed evidence root occupied")
+              installed.mkdir(mode=0o700)
+              (installed/"qualification.json").write_text(json.dumps({"schema":"fable-reference-public/1","disposition":"started"})+"\n")
+              bash,_=host_image("/bin/bash");bind_identity(identities,bash,"host-observed")
+              checker=workspace/"tests/composition/fable-game/verify-fable-reference-public.sh"
+              execute(fixed_checker_argv(workspace,installed,bash),root,env,inputs=[checker])
+              tests=installed/"direct/Browser.Tests";results=installed/"browser"
+              require(tests.is_dir() and not tests.is_symlink(),"generated Browser.Tests receiver missing")
+              results.mkdir(mode=0o700)
+              browser_env={**env,"FsGgWasmPolicyExample":"true","FSGG_WASM_POLICY_EXAMPLE":"true","FSGG_WASM_RESULTS":str(results)}
+              summary={"schema":"fsgg.templates.wasm-installed-c/1","disposition":"incomplete","families":{}}
+              def report():(root/"installed-c.json").write_text(json.dumps(summary,indent=2)+"\n")
+              try:
+                  for family in WASM_FAMILIES:
+                      (results/family).mkdir(mode=0o700)
+                      listed=managed_playwright(execute,node,tests,family,browser_env,list_only=True)
+                      (results/family/"list.json").write_text(listed)
+                      summary["families"][family]={"listed":check_wasm_list(json.loads(listed),family)};report()
+                  for family in WASM_FAMILIES:
+                      managed_playwright(execute,node,tests,family,browser_env)
+                      summary["families"][family]["stats"]=check_wasm_result(json.loads((results/family/"report.json").read_bytes()),family);report()
+              except BaseException as error:
+                  summary["disposition"]="failed";summary["firstCause"]=type(error).__name__+": "+str(error)
+                  try:report()
+                  except Exception as reporting:error.add_note("independent installed-C reporting failure: "+type(reporting).__name__+": "+str(reporting))
+                  raise
+              summary["disposition"]="passed";report()
+              return summary
 
           def prepare_inputs(root, workspace, env, execute, acquire, deadline, identities=None):
               # Every execute call is one managed group; its executable must already be identity-bound.
@@ -665,7 +730,7 @@ jobs:
               inspect_stock_sources(downloads/"template",seed/"Browser.Tests/node_modules")
               host_validation=validate_registered_browsers(root,env,registered,execute)
               (root/"browser-host-validation.json").write_text(json.dumps(host_validation,indent=2)+"\n")
-              raise RuntimeError("registered stock browser validation is not complete support/runtime proof; Chromium support/runtime join, three-family custody pilot and installed C remain unadmitted")
+              return {"node":os.path.realpath(node_root/"bin/node"),"registered":registered,"hostValidation":host_validation}
 
           def browser_archive_inputs(get):
               # Data acquisition only: raw bytes must match before any extraction or browser use.
@@ -878,10 +943,12 @@ jobs:
           for(const e of actual){const p=path.join(e.directory,'DEPENDENCIES_VALIDATED');if(!fs.existsSync(p))throw Error('stock dependency validation marker absent');}
           console.log(JSON.stringify({platform:core.utils.hostPlatform,names:actual.map(e=>e.name),state:'stock-host-validation-passed-runtime-pending'}));})().catch(e=>{console.error(e);process.exitCode=1;});"""
               # Managed argv admits no control characters, so the multi-line validator is a private file.
-              validator=root/"browser-host-validation.cjs"
+              # Content-addressed: the script's SHA-256 is part of the argv and so of profileSha256.
+              validator=root/("browser-host-validation."+hashlib.sha256(script.encode()).hexdigest()+".cjs")
               require(not validator.exists() and not validator.is_symlink(),"host validation script path occupied")
               with validator.open("x") as source:source.write(script)
-              result=json.loads(execute([str(root/"tools/node-archive"/('node-v'+TOOLS['node']+'-linux-x64')/"bin/node"),str(validator),str(core),json.dumps(registrations)],root,env))
+              validator.chmod(0o400)
+              result=json.loads(execute([str(root/"tools/node-archive"/('node-v'+TOOLS['node']+'-linux-x64')/"bin/node"),str(validator),str(core),json.dumps(registrations)],root,env,inputs=[validator]))
               require(result=={"platform":"ubuntu24.04-x64","names":[row["name"] for row in registrations],"state":"stock-host-validation-passed-runtime-pending"},"stock host validation result differs")
               # Stock Chromium1.63 scans chrome-linux, but these authentic archives use
               # chrome-linux64/headless-shell-linux64. Its success cannot prove those libraries.
@@ -1022,6 +1089,11 @@ jobs:
             ${{ runner.temp }}/fable-wasm-installed-c/managed-owner-probe.json
             ${{ runner.temp }}/fable-wasm-installed-c/managed-receipts.json
             ${{ runner.temp }}/fable-wasm-installed-c/source.json
+            ${{ runner.temp }}/fable-wasm-installed-c/installed-c.json
+            ${{ runner.temp }}/fable-wasm-installed-c/installed/qualification.json
+            ${{ runner.temp }}/fable-wasm-installed-c/installed/*.log
+            ${{ runner.temp }}/fable-wasm-installed-c/installed/browser/**
+            ${{ runner.temp }}/fable-wasm-installed-c/browser-host-validation.*.cjs
             ${{ runner.temp }}/fable-wasm-installed-c/input-downloads.json
             ${{ runner.temp }}/fable-wasm-installed-c/browser-archive-inputs.json
             ${{ runner.temp }}/fable-wasm-installed-c/browser-registration.json
