@@ -948,3 +948,19 @@ limits and the admission literals are unchanged (`INSTALLED_ADMISSION = None`).
   - The fetched bytes are still hash-checked by `reference-publication-check` (`--sha256`,
     `--descriptor-sha256`).
   - No other call in that step uses curl, and none is non-idempotent.
+- **Admitter follow-ups** (#744 decisions, after the critic's ACCEPT):
+  - **Unit memory around each group.** The unit's `memory.current` and `memory.stat` `anon`
+    are read at birth and at removal. The record gives growth within the group, and the
+    change since the previous group's removal, across phase executors.
+  - **Bounded tag read.** The checker's read-only `git ls-remote` makes 3 attempts of 20 s
+    each, with backoff, for at most 100 s. Its result is still compared with the tag.
+  - **Tests and fixes:**
+    - observation is checked against read-only fixture files, plus an AST scan that allows
+      only `open()` in default read mode;
+    - an installed-phase failure, at the checker and at the first browser test, still
+      records `installedSeconds` and `checkerSeconds`;
+    - curl may not use resume flags;
+    - refused groups record no hook reading;
+    - the timing comment now names the sequence start correctly.
+  - The hosted probe additionally requires real birth/removal memory readings and the
+    deltas since the previous group.

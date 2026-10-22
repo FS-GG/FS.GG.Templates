@@ -522,7 +522,8 @@ jobs:
                   return None
               pids,memory=read("pids.events"),read("memory.events")
               return {"pidsPeak":number(read("pids.peak")),"pidsEventsMax":event(pids,"max"),"memoryPeakBytes":number(read("memory.peak")),
-                  "memoryEventsMax":event(memory,"max"),"memoryEventsOomKill":event(memory,"oom_kill")}
+                  "memoryEventsMax":event(memory,"max"),"memoryEventsOomKill":event(memory,"oom_kill"),
+                  "memoryCurrentBytes":number(read("memory.current")),"memoryAnonBytes":event(read("memory.stat"),"anon")}
 
           def high_water_observer():
               # The owner's public run(control=) hook, used for recording only: it never writes, reads only at
@@ -544,16 +545,25 @@ jobs:
                       if len(state["errors"])<4:state["errors"].append(type(error).__name__+": "+str(error)[:200])
               return state,control
 
-          def high_water_record(state):
+          def high_water_record(state, previous=None):
               # Group: the group's own leaf at retirement (the profile enables only the pids controller there,
               # so its memory fields are None). Unit: the delegated root; peaks are cumulative over the job,
-              # event counters are this group's deltas, and memory.current is sampled at each owner poll.
+              # event counters are this group's deltas, memory.current is sampled at each owner poll, and
+              # memory.current / memory.stat anon are read at birth and removal: growth within this group and
+              # change since the previous group's removal (``previous``: that group's recorded unit row).
               try:
                   before,after=state.get("unitBefore") or {},state.get("unitAfter") or {}
-                  delta=lambda k:after[k]-before[k] if isinstance(after.get(k),int) and isinstance(before.get(k),int) else None
+                  prior=previous or {}
+                  diff=lambda a,b:a-b if isinstance(a,int) and isinstance(b,int) and not isinstance(a,bool) and not isinstance(b,bool) else None
+                  delta=lambda k:diff(after.get(k),before.get(k))
                   return {"group":state.get("group"),"unit":{"pidsPeakCumulative":after.get("pidsPeak"),"memoryPeakBytesCumulative":after.get("memoryPeakBytes"),
                       "memoryCurrentMaxBytesSampled":state.get("unitMemoryCurrentMaxBytes"),"pidsEventsMaxDelta":delta("pidsEventsMax"),
-                      "memoryEventsMaxDelta":delta("memoryEventsMax"),"memoryEventsOomKillDelta":delta("memoryEventsOomKill")},
+                      "memoryEventsMaxDelta":delta("memoryEventsMax"),"memoryEventsOomKillDelta":delta("memoryEventsOomKill"),
+                      "memoryCurrentBytesAtBirth":before.get("memoryCurrentBytes"),"memoryAnonBytesAtBirth":before.get("memoryAnonBytes"),
+                      "memoryCurrentBytesAtRemove":after.get("memoryCurrentBytes"),"memoryAnonBytesAtRemove":after.get("memoryAnonBytes"),
+                      "memoryCurrentGrowthBytes":delta("memoryCurrentBytes"),"memoryAnonGrowthBytes":delta("memoryAnonBytes"),
+                      "memoryCurrentSincePreviousGroupBytes":diff(before.get("memoryCurrentBytes"),prior.get("memoryCurrentBytesAtRemove")),
+                      "memoryAnonSincePreviousGroupBytes":diff(before.get("memoryAnonBytes"),prior.get("memoryAnonBytesAtRemove"))},
                       "polls":state.get("polls"),"errors":state.get("errors")}
               except Exception as error:
                   return {"error":type(error).__name__+": "+str(error)[:200]}
@@ -591,9 +601,11 @@ jobs:
                   entry={"phase":phase,"index":index,"name":name,"outDir":str(out_dir),"executable":real,"identityBasis":row["basis"],"inputs":bound,"status":"started"}
                   receipts.append(entry);notes=[record()]
                   state,control=high_water_observer()
+                  # The previous group's unit row (shared across this job root's executors) anchors the deltas.
+                  previous=next(((r.get("highWater") or {}).get("unit") for r in reversed(receipts[:-1]) if ((r.get("highWater") or {}).get("unit") or {}).get("memoryCurrentBytesAtRemove") is not None),None)
                   try:
                       try:receipt=owner.run(profile,env=dict(env),deadline=deadline,out_dir=str(out_dir),control=control)
-                      finally:entry["highWater"]=high_water_record(state) # recorded for every outcome
+                      finally:entry["highWater"]=high_water_record(state,previous) # recorded for every outcome
                   except owner.Refused as error:
                       retained=error.receipt or {}
                       entry.update(status="refused",code=error.code,firstCause=retained.get("firstCause") or str(error))
@@ -1682,7 +1694,9 @@ jobs:
               env=fresh_environment(root,environ)
               summary={"schema":"fsgg.templates.wasm-installed-c-run/1","disposition":"started","admission":INSTALLED_ADMISSION,"source":source,"owner":OWNER,
                   "timing":{"budgetSeconds":dict(INSTALLED_BUDGET)}}
-              timing=summary["timing"];since=lambda:round(time.monotonic()-start,3) # wall-clock seconds since the job's start
+              # Monotonic seconds since this sequence's ``start`` (taken by wasm-installed-c.py inside the unit,
+              # the same origin installed_deadline uses), not since the GitHub job started.
+              timing=summary["timing"];since=lambda:round(time.monotonic()-start,3)
               def write():(root/"installed-run.json").write_text(json.dumps(summary,indent=2)+"\n")
               try:
                   write();(root/"source.json").write_text(json.dumps(source,indent=2)+"\n")

@@ -102,10 +102,14 @@ def main(argv):
               and isint(unitwide.get('memoryCurrentMaxBytesSampled')) and unitwide.get('pidsEventsMaxDelta') == 0
               and unitwide.get('memoryEventsOomKillDelta') == 0, unitwide)
         check('high-water-observed-without-errors', isint(high.get('polls')) and high['polls'] >= 1 and high.get('errors') == [], high)
+        check('high-water-unit-memory-birth-and-removal', all(isint(unitwide.get(k)) for k in ('memoryCurrentBytesAtBirth', 'memoryAnonBytesAtBirth',
+              'memoryCurrentBytesAtRemove', 'memoryAnonBytesAtRemove', 'memoryCurrentGrowthBytes', 'memoryAnonGrowthBytes')), unitwide)
         cause = refusal(lambda: execute(['/bin/sh', '-c', 'setsid sleep 60 </dev/null >/dev/null 2>&1 & echo started'], root, env))
         check('detached-leftover-fails', cause is not None and 'leader exited with live contained members' in cause, cause)
         receipt = last_receipt(receipts)
         leftover = (receipts[-1].get('highWater') or {}).get('group') or {}
+        since = ((receipts[-1].get('highWater') or {}).get('unit') or {})
+        check('high-water-since-previous-group', isint(since.get('memoryCurrentSincePreviousGroupBytes')) and isint(since.get('memoryAnonSincePreviousGroupBytes')), since)
         check('high-water-on-failed-group', isinstance(leftover.get('pidsPeak'), int) and leftover['pidsPeak'] >= 2, leftover)
         check('detached-leftover-retired', receipt['cleanup'] == 'observed-empty-removed' and receipt['residualInRoot'] == [] and bool(receipt['residualAfterLeaderExit']) and (receipt['retirement']['termSignals'] > 0 or receipt['retirement']['cgroupKill']), [receipt['cleanup'], receipt['retirement']])
         bound = identities[shell]

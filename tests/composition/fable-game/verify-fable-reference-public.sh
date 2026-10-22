@@ -235,7 +235,16 @@ WASM_RECEIPT
   export DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1 DOTNET_CLI_TELEMETRY_OPTOUT=1
   archive="$evidence/feed/FS.GG.Workspace.Template.$version.nupkg"
   descriptor="$evidence/fable-game.providers.yml"
-  mapfile -t remote_refs < <(git ls-remote --tags https://github.com/FS-GG/FS.GG.Templates.git "refs/tags/$tag" "refs/tags/$tag^{}")
+  # Read-only tag read: 3 bounded attempts (20 s each, 5 s kill grace, 5 s then 10 s backoff; at most
+  # 100 s), so a transient error cannot spend a single-use admission. The result is still compared below.
+  refs_text=''
+  for attempt in 1 2 3; do
+    if refs_text="$(timeout -k 5 20 git ls-remote --tags https://github.com/FS-GG/FS.GG.Templates.git "refs/tags/$tag" "refs/tags/$tag^{}")"; then break; fi
+    refs_text=''
+    [[ "$attempt" -lt 3 ]] || { echo 'WASM public tag read failed after 3 bounded attempts' >&2; exit 1; }
+    sleep $((attempt * 5))
+  done
+  mapfile -t remote_refs <<<"$refs_text"
   resolved="$(printf '%s\n' "${remote_refs[@]}" | awk '$2 ~ /\^\{\}$/ {print $1}')"
   [[ -n "$resolved" ]] || resolved="$(printf '%s\n' "${remote_refs[@]}" | awk '$2 !~ /\^\{\}$/ {print $1}')"
   [[ "$resolved" == "$tag_revision" && "$(printf '%s\n' "$resolved" | wc -l)" -eq 1 ]] || { echo 'WASM public immutable tag mismatch' >&2; exit 1; }
