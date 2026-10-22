@@ -1788,7 +1788,6 @@ class InstalledAdmissionTests(unittest.TestCase):
         return owner
 
     def test_held_in_source_refuses_before_any_acquisition(self):
-        self.ns['INSTALLED_ADMISSION']=None # the held state, independent of the current source value
         def forbidden(*args,**kwargs):raise AssertionError('acquired while installed C is held')
         self.ns['download']=forbidden;self.ns['load_owner']=forbidden;self.ns['fresh_environment']=forbidden
         with self.assertRaisesRegex(RuntimeError,'installed C not admitted: INSTALLED_ADMISSION is unset'):
@@ -1800,10 +1799,8 @@ class InstalledAdmissionTests(unittest.TestCase):
         def literal(name):
             nodes=[n for n in ast.walk(tree) if isinstance(n,ast.Assign) and any(getattr(x,'id',None)==name for x in n.targets)]
             self.assertEqual(len(nodes),1,name);return nodes[0].value.value
-        # Admitted for exactly one run by #4710 comment 6351409506; a reset PR restores None.
-        self.assertIs(literal('RUNTIME_ADMITTED'),False);self.assertEqual(literal('INSTALLED_ADMISSION'),'https://github.com/FS-GG/.github/issues/4710#issuecomment-6351409506')
+        self.assertIs(literal('RUNTIME_ADMITTED'),False);self.assertIsNone(literal('INSTALLED_ADMISSION'))
         self.assertEqual(len(re.findall(r'^        if: \$\{\{ false \}\}$',WORKFLOW.read_text(),re.M)),2)
-        self.ns['INSTALLED_ADMISSION']=None # held behaviour of the gate
         for admitted in (False,True):
             with self.subTest(admitted=admitted),self.assertRaisesRegex(RuntimeError,'installed C held'):self.ns['custody_gate']({},admitted=admitted)
         with self.assertRaisesRegex(RuntimeError,'installed C held'):self.ns['custody_gate']({})
