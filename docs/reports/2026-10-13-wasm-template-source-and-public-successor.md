@@ -679,3 +679,71 @@ admits exactly one more dispatch under the first run's conditions, with these ch
 Installed C stays held. The fixture-driven pilot test runs 20 groups through the real
 owner's `validate_profile`, and with the pinned bundle supplied it checks the admitted
 list against the bundle's list.
+
+### Second custody pilot run 39837319401: accepted with gaps — 2026-10-22
+
+This was the single admitted dispatch at `1638416`, with admission
+[6347853904](https://github.com/FS-GG/.github/issues/4710#issuecomment-6347853904).
+Its evidence artifact has zip sha256 `c80e5a9a…` and holds 88 files, including the
+hidden ones. The independent acceptance review
+([#4710](https://github.com/FS-GG/.github/issues/4710#issuecomment-6349235037))
+returned **ACCEPTED WITH GAPS**.
+
+**Established for Chromium and Firefox (runner builds `20261018.339.1` and `20261021.345.10`):**
+- **Owner-performed survivor retirement.** A detached holder plus 6 (Chromium) or 7
+  (Firefox) browser processes were alive 2 s after the leader exited. They were
+  recorded as residual and retired by SIGTERM and then `cgroup.kill`, with
+  `populatedAfter=false`.
+- Clean stock shutdown and deadline retirement, as in the first run.
+- All 20 managed groups were contained.
+- The systemd unit properties were captured (`TasksMax=4096`, `MemoryMax=8589934592`,
+  `RuntimeMaxUSec=30min`, `Delegate`, `NoNewPrivileges`, `KillMode=control-group`)
+  and match the admission.
+
+**Gaps:**
+- **WebKit packages were never installed.** The admitted install resolved to 176
+  packages (95 MB) but had fetched only 30 when the step's 5-minute timeout fired, and
+  nothing was unpacked. WebKit still reported 34 missing host libraries.
+- **Mislabel.** The step never reached its exit-code and after-snapshot writes, so the
+  pilot recorded `not-attempted` and the plain `ubuntu-24.04` label, although update
+  and install had been attempted.
+- **apt termination after the timeout is unproven.**
+
+### Third and final custody pilot run source — 2026-10-22
+
+Admission [6349235037](https://github.com/FS-GG/.github/issues/4710#issuecomment-6349235037)
+admits one final dispatch with the same conditions, with these changes:
+
+- **Bounded install.** `sudo -n env DEBIAN_FRONTEND=noninteractive timeout -k 15 480
+  apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install` runs the same
+  pinned list. The update is bounded too, by `timeout -k 10 60` with the same options.
+  The step timeout is 10 minutes and the job timeout 40.
+- **Trap-written evidence.** An `EXIT` trap always writes the update and install exit
+  codes (`not-run` if never reached), the dpkg after-snapshot, the diff, the mirror
+  list after, and a `step-complete` marker. There are deliberately no TERM or INT
+  traps: bash would defer them until the foreground apt call ended, and the runner's
+  tree kill on cancel would then arrive before any evidence was written. Untrapped,
+  a cancel ends bash at once and the `EXIT` trap still writes everything.
+  `step-complete` then shows the last command's status, and the state comes from the
+  markers (attempted with `not-run` means interrupted). apt runs dpkg in its own
+  session, out of `timeout`'s reach, so the trap waits up to 20 s for dpkg to settle
+  before snapshotting, and records the wait.
+- **Marker-based state.** `update-attempted` and `install-attempted` markers are
+  written before each call, so the pilot derives the state from the step's own
+  markers: `installed`, `install-timed-out` (install exit 124 or 137),
+  `install-interrupted`, `install-failed`, `install-not-reached` (update only) or
+  `not-attempted`. An update timeout is recorded separately. Any attempt is labelled
+  "ubuntu-24.04 + recorded packages", and the pilot counts the served fetches (`Get`
+  lines) per host.
+- **Mirror fallback.** The runner's `mirror+file:/etc/apt/apt-mirrors.txt` list is
+  recorded before and after. On GitHub runners it already lists Azure at priority 1
+  and `archive.ubuntu.com` at priority 2, so the step records `already-present`.
+  Otherwise a plain `http://archive.ubuntu.com/ubuntu/` entry is appended. Without a
+  priority tag, apt ranks such an entry last, so Azure stays preferred.
+- **apt termination check.** A post-step check, run always, records any remaining
+  apt, dpkg, apt-method or `timeout apt-get` process.
+- **Expectation.** The new options do not speed up a slow but moving download. Run 2
+  managed about 20 MB in 300 s, so this install completes only if mirror throughput
+  is clearly better.
+- **No fourth run.** If the install again fails to complete, WebKit on hosted runners
+  is recorded as a residual.

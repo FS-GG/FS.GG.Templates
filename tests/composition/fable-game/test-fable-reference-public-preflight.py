@@ -1283,7 +1283,7 @@ class RealOwnerBindingTests(unittest.TestCase):
 
 
 PILOT_WORKFLOW_FILE=HERE.parents[2]/'.github/workflows/wasm-custody-pilot.yml'
-PILOT_URL='https://github.com/FS-GG/.github/issues/4710#issuecomment-6347853904'
+PILOT_URL='https://github.com/FS-GG/.github/issues/4710#issuecomment-6349235037'
 
 class PilotOwner(FakeOwner):
     """Fake owner for the custody pilot: plays each case and writes a receipt shaped like the real one."""
@@ -1375,8 +1375,13 @@ class CustodyPilotTests(unittest.TestCase):
         installed=packages if state!='partial' else packages[:-1]
         (host/'dpkg-after.tsv').write_text('libc6\t2.39-0ubuntu8\tii \n'+''.join(p+'\t1.0-'+p+'\tii \n' for p in sorted(installed)))
         (host/'apt-sources.txt').write_text('### /etc/apt/sources.list\ndeb http://azure.archive.ubuntu.com/ubuntu noble main\n')
-        (host/'install.log').write_text('Setting up libflite1\n');(host/'dpkg-diff.txt').write_text('> libflite1\n')
-        (host/'install-exit.txt').write_text('0\n' if state!='failed' else '100\n');(host/'update-exit.txt').write_text('100\n');(host/'update.log').write_text('W: failed source\n')
+        (host/'install.log').write_text('Ign:4 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libopus0 1.4\nGet:1 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libflite1 2.2 [1 kB]\nGet:2 http://archive.ubuntu.com/ubuntu noble/main amd64 libopus0 1.4 [2 kB]\nGet:3 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libx11-6 1 [3 kB]\nErr:5 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libz 1\nSetting up libflite1\n')
+        (host/'dpkg-diff.txt').write_text('> libflite1\n');(host/'fallback.txt').write_text('already-present\n')
+        (host/'update-attempted.txt').write_text('attempted\n');(host/'update-exit.txt').write_text('124\n' if state=='update-timeout' else '100\n');(host/'update.log').write_text('W: failed source\n')
+        if state!='not-attempted':(host/'install-attempted.txt').write_text('attempted\n')
+        exits={'failed':'100\n','update-timeout':'100\n','timeout':'124\n','killed':'137\n','interrupted':'not-run\n','not-attempted':'not-run\n'}
+        (host/'install-exit.txt').write_text(exits.get(state,'0\n'));(host/'step-complete.txt').write_text('step-exit 0\n')
+        (host/'post-step-check.txt').write_text('apt-dpkg-processes '+('2' if state=='lingering' else '0')+'\n');(host/'post-step-processes.txt').write_text('')
 
     def test_dispatch_validation_binds_admitted_ref_admission_workflow_and_first_attempt(self):
         source=self.ns['validate_dispatch_source'](self.environ(),'c'*40,self.root/'rt/p')
@@ -1511,17 +1516,28 @@ class CustodyPilotTests(unittest.TestCase):
 
     def test_host_package_evidence_states_and_label(self):
         for state,label,expected in [('missing','ubuntu-24.04','host-evidence-missing'),('failed','ubuntu-24.04 + recorded packages','install-failed'),
-                                     ('partial','ubuntu-24.04 + recorded packages','install-failed')]:
+                                     ('partial','ubuntu-24.04 + recorded packages','install-failed'),('timeout','ubuntu-24.04 + recorded packages','install-timed-out'),
+                                     ('interrupted','ubuntu-24.04 + recorded packages','install-interrupted'),
+                                     ('killed','ubuntu-24.04 + recorded packages','install-timed-out'),
+                                     ('update-timeout','ubuntu-24.04 + recorded packages','install-failed'),
+                                     ('not-attempted','ubuntu-24.04 + recorded packages','install-not-reached')]:
             with self.subTest(state=state):
                 summary=self.run_pilot({'host':state})
                 self.assertEqual((summary['platformLabel'],summary['hostPackages']['state']),(label,expected))
                 if state=='partial':self.assertEqual(summary['hostPackages']['listedMissingAfter'],[self.ns['PILOT_WEBKIT_PACKAGES'][-1]])
+                if state in ('timeout','killed'):self.assertEqual((summary['hostPackages']['timedOut'],summary['hostPackages']['installTimedOut']),(True,True))
+                if state=='update-timeout':self.assertEqual((summary['hostPackages']['timedOut'],summary['hostPackages']['updateTimedOut'],summary['hostPackages']['installTimedOut']),(True,True,False))
+                if state=='not-attempted':self.assertEqual((summary['hostPackages']['updateAttempted'],summary['hostPackages']['attempted']),(True,False))
         summary=self.run_pilot({})
         self.assertEqual(summary['hostPackages']['listedVersions']['libflite1'],'1.0-libflite1')
         self.assertEqual((summary['hostPackages']['updateExit'],summary['hostPackages']['state']),('100','installed'))
+        self.assertEqual(summary['hostPackages']['fetchHosts'],{'azure.archive.ubuntu.com':2,'archive.ubuntu.com':1})
+        self.assertEqual((summary['hostPackages']['postStepAptProcesses'],summary['hostPackages']['fallback'],summary['hostPackages']['timedOut']),(0,'already-present',False))
+        self.assertEqual(self.run_pilot({'host':'lingering'})['hostPackages']['postStepAptProcesses'],2)
         self.assertIn('libflite1',summary['hostPackages']['added'])
         files=[f['path'] for f in json.loads((self.root/'rt/wasm-custody-pilot/pilot-evidence/manifest.json').read_text())['files']]
-        for name in ('packages.txt','dpkg-before.tsv','dpkg-after.tsv','apt-sources.txt','update-exit.txt','install.log','install-exit.txt'):self.assertIn('host-packages/'+name,files)
+        for name in ('packages.txt','dpkg-before.tsv','dpkg-after.tsv','apt-sources.txt','update-exit.txt','install.log','install-exit.txt',
+                     'install-attempted.txt','step-complete.txt','fallback.txt','post-step-check.txt'):self.assertIn('host-packages/'+name,files)
 
     def test_unit_properties_are_read_back_and_compared(self):
         summary=self.run_pilot({'unit-empty':True})
@@ -1639,12 +1655,12 @@ class CustodyPilotTests(unittest.TestCase):
         trigger=text.split('\non:\n',1)[1].split('\npermissions:',1)[0]
         self.assertEqual(re.findall(r'^  ([a-z_]+):$',trigger,re.M),['pull_request','workflow_dispatch'])
         self.assertNotRegex(text,r'(contents|actions|packages|id-token|pull-requests|issues): write|secrets\.|pull_request_target|workflow_run|schedule:')
-        self.assertEqual(text.count('continue-on-error'),1)
+        self.assertEqual(text.count('continue-on-error'),2) # the apt step and its post-step process check only
         static=text.split('  pilot-static-controls:',1)[1].split('  custody-pilot:',1)[0]
         pilot=text.split('  custody-pilot:',1)[1]
         self.assertNotIn('systemd-run',static);self.assertNotIn('wasm-custody-pilot.py\n',static.replace('ast.parse(open(sys.argv[1]).read())\' tests/composition/fable-game/wasm-custody-pilot.py',''))
         self.assertIn("if: ${{ github.event_name == 'workflow_dispatch' }}",pilot)
-        for required in ('runs-on: ubuntu-24.04','timeout-minutes: 30','contents: read','sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec',
+        for required in ('runs-on: ubuntu-24.04','timeout-minutes: 40','contents: read','sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec',
                          '-p Delegate=yes','-p NoNewPrivileges=yes','-p KillMode=control-group','-p TimeoutStopSec=5','-p TasksMax=4096','-p MemoryMax=8G',
                          '-p RuntimeMaxSec=1800','--setenv=ADMITTED_REF="$ADMITTED_REF"','--setenv=ADMISSION="$ADMISSION"','ref: ${{ github.sha }}',
                          '--setenv=UNIT_NAME="$unit"','--setenv=HOST_EVIDENCE="$RUNNER_TEMP/wasm-custody-pilot-host"','include-hidden-files: true',
@@ -1657,21 +1673,45 @@ class CustodyPilotTests(unittest.TestCase):
         # The only host write is the pre-unit apt step, installing exactly the printed admitted list.
         steps=re.findall(r'^      - name: (.*)$',pilot,re.M)
         self.assertEqual(steps,['Check out the exact dispatched commit','Install and record the admitted WebKit host packages',
-            'Run the admitted pilot in a fresh delegated unit','Retain bounded pilot evidence','Report evidence artifact identity'])
+            'Check that no apt or dpkg process remains','Run the admitted pilot in a fresh delegated unit','Retain bounded pilot evidence','Report evidence artifact identity'])
         apt=pilot.split('Install and record the admitted WebKit host packages',1)[1].split('      - name:',1)[0]
-        self.assertEqual(len(re.findall(r'apt-get install',text)),1);self.assertIn('apt-get install',apt)
+        check=pilot.split('Check that no apt or dpkg process remains',1)[1].split('      - name:',1)[0]
+        self.assertEqual(len(re.findall(r'apt-get .*install',text)),1);self.assertIn('apt-get',apt)
         self.assertIn('--print-webkit-packages >"$host/packages.txt"',apt);self.assertIn('"${packages[@]}"',apt)
-        for evidence in ('dpkg-before.tsv','dpkg-after.tsv','dpkg-diff.txt','apt-sources.txt','update.log','update-exit.txt','install.log','install-exit.txt'):self.assertIn(evidence,apt)
+        for evidence in ('dpkg-before.tsv','dpkg-after.tsv','dpkg-diff.txt','apt-sources.txt','update.log','update-exit.txt','install.log','install-exit.txt',
+                         'update-attempted.txt','install-attempted.txt','step-complete.txt','apt-mirrors-before.txt','apt-mirrors-after.txt','fallback.txt'):
+            self.assertIn(evidence,apt)
         self.assertIn('set +e',apt)
-        self.assertIn("if: ${{ github.run_attempt == '1' }}",apt);self.assertIn('continue-on-error: true',apt);self.assertIn('timeout-minutes: 5',apt)
-        self.assertIn('"$host/dpkg-diff.txt" || true',apt) # diff exits 1 after any install
+        self.assertIn("if: ${{ github.run_attempt == '1' }}",apt);self.assertIn('continue-on-error: true',apt);self.assertIn('timeout-minutes: 10',apt)
+        # Admitted bounds: install under timeout -k 15 480 with retries and a 30 s HTTP timeout; update bounded too.
+        self.assertIn('sudo -n env DEBIAN_FRONTEND=noninteractive timeout -k 15 480 apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y -q --no-install-recommends "${packages[@]}"',apt)
+        self.assertIn('sudo -n timeout -k 10 60 apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update -q',apt)
+        self.assertLessEqual(60+10+480+15,10*60-30) # bounded calls fit the 10-minute step with margin
+        # The trap always writes the exit codes and the dpkg after-state, even on failure.
+        self.assertIn('trap finish EXIT',apt)
+        finish=apt.split('finish() {',1)[1].split('          }',1)[0]
+        for written in ('update-exit.txt','install-exit.txt','dpkg-after.tsv','dpkg-diff.txt','step-complete.txt','apt-mirrors-after.txt','dpkg-settle.txt'):self.assertIn(written,finish)
+        self.assertTrue(finish.lstrip().startswith('local rc=$?')) # the status that ended the step, captured first
+        self.assertIn('''            cp /etc/apt/apt-mirrors.txt "$host/apt-mirrors-after.txt" 2>/dev/null || printf 'absent\\n' >"$host/apt-mirrors-after.txt"\n''',finish)
+        loop='while pgrep -x dpkg >/dev/null 2>&1 && (( waited < 20 )); do sleep 1; waited=$((waited + 1)); done'
+        self.assertIn(loop,finish);self.assertLess(finish.index(loop),finish.index('snapshot >"$host/dpkg-after.tsv"')) # dpkg settles before the after-state
+        self.assertLessEqual(60+10+480+15+20,10*60-10) # bounded calls plus the dpkg settle fit the 10-minute step
+        # Signal traps would defer until the foreground apt call ends and lose the evidence on cancel.
+        self.assertEqual(re.findall(r'^\s*trap .*$',apt,re.M),['          trap finish EXIT'])
+        self.assertIn('''update -q >"$host/update.log" 2>&1\n          printf '%s\\n' "$?" >"$host/update-exit.txt"\n''',apt)
+        self.assertIn('''install -y -q --no-install-recommends "${packages[@]}" >"$host/install.log" 2>&1\n          printf '%s\\n' "$?" >"$host/install-exit.txt"\n''',apt)
+        self.assertIn('''grep -Eq '^[a-z]+://archive\\.ubuntu\\.com/ubuntu/?([[:space:]]|$)' "$mirrors"''',apt)
+        self.assertIn('"$host/dpkg-diff.txt" || true',finish) # diff exits 1 after any install
+        self.assertLess(apt.index('update-attempted.txt'),apt.index('update -q'));self.assertLess(apt.index('install-attempted.txt'),apt.index(' install -y'))
+        # Azure stays first; archive.ubuntu.com is only appended (recorded) when absent.
+        self.assertIn("archive\\.ubuntu\\.com",apt);self.assertIn("printf 'http://archive.ubuntu.com/ubuntu/\\n' | sudo -n tee -a \"$mirrors\"",apt)
+        self.assertNotIn('update -q &&',apt);self.assertLess(apt.index('update-exit.txt" '),apt.index(' install -y'))
+        # Post-step apt termination check, after the apt step and before the unit.
+        self.assertIn("if: ${{ always() && github.run_attempt == '1' }}",check);self.assertIn('post-step-check.txt',check)
+        self.assertIn('/usr/lib/apt/methods/',check);self.assertIn('c!="awk"',check)
         hold=self.ns['PILOT_HOLD_SCRIPT'];self.assertIn('{detached:true,stdio:"ignore"}',hold);self.assertIn('holder.unref()',hold)
         self.assertIn('fs.writeFileSync(ready+".error"',hold);self.assertIn('fs.existsSync(ready+".error")',hold)
-        self.assertIn('sudo -n apt-get update -q >"$host/update.log" 2>&1\n          printf \'%s\\n\' "$?" >"$host/update-exit.txt"\n',apt)
-        self.assertEqual((text.count('sudo -n apt-get update -q'),text.count('sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends')),(1,1))
-        self.assertNotIn('update -q &&',apt) # a failing unrelated apt source must not skip the install
-        self.assertLess(apt.index('update-exit.txt'),apt.index('apt-get install'))
-        self.assertEqual(text.count('sudo -n'),3) # apt update, apt install, systemd-run
+        self.assertEqual(text.count('sudo -n'),4) # apt update, apt install, mirror fallback append, systemd-run
 
     def test_pilot_entry_leaves_installed_c_gates_closed(self):
         caller=WORKFLOW.read_text()
