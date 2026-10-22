@@ -38,6 +38,18 @@ try {
   }
   await click("Verify Noto text");
   await page.waitForFunction(()=>document.querySelector("[role=status]")?.textContent?.includes("reopened offline"));
+  const noto=page.locator("#svg-authoring-studio svg text").filter({hasText:"Offline Noto"});
+  if(await noto.count()!==1||!await noto.isVisible()) throw Error("verified Noto text was not mounted exactly once");
+  const fontProof=await noto.evaluate(async element=>{
+    const family=getComputedStyle(element).fontFamily;
+    const faces=await document.fonts.load('16px "Noto Sans"',"Offline Noto");
+    const canvas=document.createElement("canvas"),context=canvas.getContext("2d");
+    context.font='16px "Noto Sans"';context.fillText("Offline Noto",0,20);
+    return {family,loaded:faces.length,available:document.fonts.check('16px "Noto Sans"',"Offline Noto"),
+      painted:context.getImageData(0,0,canvas.width,canvas.height).data.some(value=>value!==0)};
+  });
+  if(!fontProof.family.includes("Noto Sans")||fontProof.loaded<1||!fontProof.available||!fontProof.painted)
+    throw Error("mounted Noto text did not join a ready browser font and painted glyphs");
   await click("Run Boolean union");
   await page.waitForFunction(()=>document.querySelector("[role=status]")?.textContent?.includes("committed once"));
   await click("Grid snapping");
@@ -49,5 +61,5 @@ try {
   const descriptorValid=await page.evaluate(()=>window.svgGeneratedStudio.descriptorsValid());
   const rendered=await page.locator("[data-fsgg-document-id]").locator("path,rect,ellipse").count();
   if(conflicted.conflicts!==1||undone.conflicts!==1||final.conflicts!==0||final.assets!==2||final.instances!==2||final.entities!==5||final.schema!=="fsgg.svg-scene/1"||!descriptorValid||rendered<3) throw new Error(JSON.stringify({conflicted,undone,final,descriptorValid,rendered}));
-  console.log(JSON.stringify({family,result:"passed",conflicted,undone,final,descriptorValid,rendered}));
+  console.log(JSON.stringify({family,result:"passed",conflicted,undone,final,descriptorValid,rendered,fontProof}));
 } finally { await browser.close(); }

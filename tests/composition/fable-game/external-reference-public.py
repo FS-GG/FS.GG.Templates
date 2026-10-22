@@ -12,21 +12,24 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from zipfile import ZipFile
 
-SOURCE = '6c9f766fdd91483c2de6f061e75589e94852a265'
-CUSTODY_SHA256 = 'ecd0c5d742fd8d19d5659991e413e92971c1d2cb9aea913faa2bb249f53f577d'
-# Raw NuGet repository-signed archive hashes, observed 2026-10-06; NOT lock hashes.
+# Published Rendering 0.32.3: original producer 4ec6 (source run 39509314882/1, artifact
+# 12305198394, custody 7dbd), published byte-for-byte by protected publisher 39817794639/1.
+VERSION = '0.32.3'
+SOURCE = '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd'
+CUSTODY_SHA256 = '7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9'
+# Raw NuGet repository-signed archive hashes, observed 2026-10-22; NOT lock hashes.
 PUBLIC_SHA256 = {
-    'FS.GG.UI.Scene': 'e7ef01527a626a97b64d213274d2ca9e1577bbd25f8beb85c35947b2e7d302c4',
-    'FS.GG.UI.KeyboardInput': 'a5e1a1793fecfe4c05eeebde56660f9752cb7a7fe1111d18f59b2f61ad478b72',
-    'FS.GG.UI.Scene.SvgBrowser': '8eba2376c84ef908d93a67cc379a10accd26a1165ba217393e67669fa2740cc1',
+    'FS.GG.UI.Scene': '9cc74f6af082089fb269d7d12c7f1e7ee7684ae3bdab51918b65e06e072a7ac8',
+    'FS.GG.UI.KeyboardInput': '99aa6564e7a3b323da8346c50894f28eca8b981cc31ac763b8f34b19fd8beb4c',
+    'FS.GG.UI.Scene.SvgBrowser': '8764ce047628f7f58d77e430b2afa0ffafb47560f7633abcf1c8dd12bf8710ad',
 }
 # NuGet signed GetContentHash excludes signature context. Authentic original archives
 # supply these hashes; PackageArchiveReader.GetContentHashForSignedPackage in NuGet.Client
 # delegates to SignedPackageArchiveUtility.GetPackageContentHash. Locked restore verifies.
 LOCK_HASH = {
-    'FS.GG.UI.Scene': '3oifBGdPvhLfZBXgeJVB8ycJfs7PgJEX9xm6UaDQhqhauVtitr4sj1Bzu0l4rZMXZS6vA+j4/77w/rxNtUdm3w==',
-    'FS.GG.UI.KeyboardInput': '3l3iYwmyNSbOl2Ui5QmryOaDUl2r+smp0Dl4VQ55LKaVT4mJw+/JiUnLlrjQAAn/U22QtMUMg8sRiODG1fQHjQ==',
-    'FS.GG.UI.Scene.SvgBrowser': 'eXi251Nj5MNQ0myqDjFBtxB+k6x5gnhh7YhE34ItNg3fwlQvPP65X7SxT7AO+11DsR82t5aDd5nQCIpPz2U1zA==',
+    'FS.GG.UI.Scene': 'CxghwCbdT5kQz3DArIFkFE1zVmtxmS5LCxR21l+hLwX4mu1xQCmPdAcaYDDOggOsIw9vMuOQGWmc1BImrNCPNg==',
+    'FS.GG.UI.KeyboardInput': 'sz7lovxAAfq70N5eACOroVJsElW6zws7ig+NCQtO6E495YvaHgLcYbxaOp9ZXrrnluWx/a9KfMJsTVelVsMbmQ==',
+    'FS.GG.UI.Scene.SvgBrowser': 'VcRGZ+vro3Y0vaLspoWZKsOB1b+2fL5tXeorz8PfsxWRme1gJlIGBX8zkHGAbvBF/a8f4XzpdilcnXPV8jQ9WA==',
 }
 
 
@@ -94,7 +97,7 @@ def validate_archive(path, identity, expected_raw_hash, custody_row):
     spec = ET.fromstring(entries[specs[0]])
     field = lambda n: (spec.find('.//{*}' + n).text or '').strip()
     repository = spec.find('.//{*}repository')
-    if field('id') != identity or field('version') != '0.32.1' or repository is None or repository.attrib.get('commit') != SOURCE:
+    if field('id') != identity or field('version') != VERSION or repository is None or repository.attrib.get('commit') != SOURCE:
         raise ValueError('NuSpec package/source mismatch')
     dependencies = sorted(({'id': d.attrib['id'], 'version': d.attrib['version']} for d in spec.findall('.//{*}dependency')), key=lambda d: (d['id'], d['version']))
     if dependencies != custody_row['dependencies']:
@@ -117,9 +120,9 @@ def acquire(custody_path, output):
     try:
         for identity, raw_hash in PUBLIC_SHA256.items():
             lower = identity.lower()
-            uri = f'https://api.nuget.org/v3-flatcontainer/{lower}/0.32.1/{lower}.0.32.1.nupkg'
+            uri = f'https://api.nuget.org/v3-flatcontainer/{lower}/{VERSION}/{lower}.{VERSION}.nupkg'
             row = {'id': identity, 'uri': uri, 'state': 'started'}; records.append(row)
-            path = output / (identity + '.0.32.1.nupkg')
+            path = output / (identity + '.' + VERSION + '.nupkg')
             try:
                 with urllib.request.urlopen(uri, timeout=20) as response, path.open('xb') as file:
                     row['httpStatus'] = response.status

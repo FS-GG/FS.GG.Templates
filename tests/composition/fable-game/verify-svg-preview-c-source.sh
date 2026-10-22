@@ -61,8 +61,8 @@ from pathlib import Path
 import re,sys
 from xml.etree import ElementTree as ET
 nodes=ET.parse(Path(sys.argv[1])).findall('.//FsGgSvgInputVersion')
-if len(nodes)!=1 or nodes[0].text!='0.32.1':
-    raise SystemExit('source qualification requires the reviewed public Rendering0.32.1 default pin')
+if len(nodes)!=1 or nodes[0].text!='0.32.3':
+    raise SystemExit('source qualification requires the reviewed public Rendering0.32.3 default pin')
 print(nodes[0].text)
 PYSOURCEPIN
 )"
@@ -94,7 +94,7 @@ from pathlib import Path
 import sys
 from xml.etree import ElementTree as ET
 root=ET.parse(Path(sys.argv[1])).getroot();version=sys.argv[2]
-assert version=='0.32.1', 'reviewed public Rendering version required'
+assert version=='0.32.3', 'reviewed public Rendering version required'
 nodes=root.findall('.//FsGgSvgInputVersion')
 assert len(nodes)==1 and nodes[0].text==version, 'generated default pin mismatch'
 refs={node.attrib['Include']:node.attrib['Version'] for node in root.findall('.//PackageReference') if node.attrib.get('Include','').startswith('FS.GG.UI.')}

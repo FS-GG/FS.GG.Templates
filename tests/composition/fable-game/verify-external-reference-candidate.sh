@@ -11,10 +11,14 @@ templates_package="${7:-}"
 templates_package_sha="${8:-}"
 [[ "$#" -le 8 ]]
 [[ -z "$templates_package" && -z "$templates_package_sha" || -n "$templates_package" && "$templates_package_sha" =~ ^[0-9a-f]{64}$ ]] || { echo "external template package requires exact path and SHA256" >&2; exit 1; }
-[[ "$input_mode" == candidate || "$input_mode" == public ]] || { echo "unknown input mode" >&2; exit 1; }
+[[ "$input_mode" == candidate || "$input_mode" == public || "$input_mode" == font-disposal ]] || { echo "unknown input mode" >&2; exit 1; }
 if [[ "$input_mode" == public ]]; then
-  [[ "$version" == 0.32.1 && "$expected_source" == 6c9f766fdd91483c2de6f061e75589e94852a265 ]]
+  [[ "$version" == 0.32.3 && "$expected_source" == 4ec6eafbbbf02264db9b0db4780c590abe0bf9cd ]]
   [[ -z "${FsGgSvgInputVersion:-}" && -z "${FsGgSvgAuthoringVersion:-}" ]] || { echo "public defaults cannot be overridden" >&2; exit 1; }
+fi
+if [[ "$input_mode" == font-disposal ]]; then
+  [[ "$version" == 0.32.3 && "$expected_source" == 4ec6eafbbbf02264db9b0db4780c590abe0bf9cd && -z "$templates_package" ]]
+  [[ -z "${FsGgSvgInputVersion:-}" && -z "${FsGgSvgAuthoringVersion:-}" && -z "${FSGG_SVG_AUTHORING_VERSION:-}" ]]
 fi
 [[ "$expected_source" =~ ^[0-9a-f]{40}$ && "$version" =~ ^[0-9A-Za-z][0-9A-Za-z.+-]*$ && "$version" != 0.31.0 ]]
 [[ ! -e "$out" ]]
@@ -119,16 +123,16 @@ for project in projects:
     path=root/project; tree=ET.parse(path)
     for key in ['FsGgSvgInputVersion','FsGgSvgAuthoringVersion']:
         node=tree.find('.//'+key)
-        if node is not None: assert node.text=='0.32.1'
+        if node is not None: assert node.text==module.VERSION
     for node in tree.findall('.//PackageReference'):
         if node.attrib.get('Include','').startswith('FS.GG.UI.'):
-            assert node.attrib['Version'] in ['[0.32.1]','[$(FsGgSvgInputVersion)]','[$(FsGgSvgAuthoringVersion)]']
+            assert node.attrib['Version'] in ['['+module.VERSION+']','[$(FsGgSvgInputVersion)]','[$(FsGgSvgAuthoringVersion)]']
     module.validate_project_references(tree, project, root)
     lock=json.loads(path.with_name('packages.lock.json').read_text())
     for deps in lock['dependencies'].values():
         for name,row in deps.items():
             if name.startswith('FS.GG.UI.'):
-                assert name in module.LOCK_HASH and row['resolved']=='0.32.1' and row['contentHash']==module.LOCK_HASH[name]
+                assert name in module.LOCK_HASH and row['resolved']==module.VERSION and row['contentHash']==module.LOCK_HASH[name]
 PYPUBLIC
   for project in SvgFoundation/SvgFoundation.fsproj SvgFoundation/Studio/Studio.fsproj SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fsproj Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj Protocol.Tests/cross-runtime/CodecProbe.Fable/CodecProbe.Fable.fsproj; do
     dotnet restore "$out/complete/$project" --locked-mode --configfile "$out/NuGet.Config" >>"$out/public-locked-restore.log" 2>&1
@@ -139,7 +143,7 @@ from pathlib import Path
 cache,helpers,custody=map(Path,sys.argv[1:]);spec=importlib.util.spec_from_file_location('public_input',helpers/'external-reference-public.py');module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 rows={r['id']:r for r in json.loads(custody.read_text())['archives']}
 for identity,sha in module.PUBLIC_SHA256.items():
-    folder=cache/identity.lower()/'0.32.1';module.validate_archive(folder/(identity.lower()+'.0.32.1.nupkg'),identity,sha,rows[identity])
+    folder=cache/identity.lower()/module.VERSION;module.validate_archive(folder/(identity.lower()+'.'+module.VERSION+'.nupkg'),identity,sha,rows[identity])
     assert json.loads((folder/'.nupkg.metadata').read_text())['contentHash']==module.LOCK_HASH[identity]
 PYCACHE
 else
@@ -169,18 +173,41 @@ if [[ "$input_mode" == public ]]; then
   cp "$out/NuGet.Config" "$out/player/NuGet.config"
   dotnet restore "$out/player/SvgFoundation/SvgFoundation.fsproj" --locked-mode --configfile "$out/NuGet.Config" >"$out/public-player-restore.log" 2>&1
 fi
+if [[ "$input_mode" == font-disposal ]]; then
+  # Only generated private locks change; canonical Studio build keeps its real
+  # Fable targetDir, vendor/font/worker assets and npm/Vite launch graph.
+  export FsGgSvgAuthoringVersion="$version" FSGG_SVG_AUTHORING_VERSION="$version" FSGG_SVG_CANDIDATE_FEED="$out/feed"
+  dotnet restore "$out/complete/SvgFoundation/Studio/Studio.fsproj" --force-evaluate -p:RestoreLockedMode=false --configfile "$out/NuGet.Config" -p:FsGgSvgAuthoringVersion="$version" >"$out/studio-restore.log" 2>&1
+  (cd "$out/complete" && bash SvgFoundation/Studio/build.sh) >"$out/studio-build.log" 2>&1
+  python3 - "$out" "$version" <<'PYSTUDIO'
+from pathlib import Path
+import hashlib,json,sys
+root=Path(sys.argv[1]); version=sys.argv[2]
+assets=json.loads((root/'complete/SvgFoundation/Studio/obj/project.assets.json').read_text())
+assert {Path(v).resolve() for v in assets['packageFolders']}=={(root/'complete/.nuget/packages').resolve()}
+for name in ('FS.GG.UI.Scene','FS.GG.UI.KeyboardInput','FS.GG.UI.Scene.SvgBrowser'):
+    assert assets['libraries'][name+'/'+version]['type']=='package'
+    cached=root/'complete/.nuget/packages'/name.lower()/version/(name.lower()+'.'+version+'.nupkg')
+    assert hashlib.sha256(cached.read_bytes()).digest()==hashlib.sha256((root/'feed'/(name+'.'+version+'.nupkg')).read_bytes()).digest()
+assert all(v['type']!='project' for k,v in assets['libraries'].items() if k.startswith('FS.GG.UI.'))
+PYSTUDIO
+fi
 dotnet restore "$out/complete/Server/Server.fsproj" --locked-mode --configfile "$out/NuGet.Config" >"$out/server-restore.log" 2>&1
 dotnet publish "$out/complete/Server/Server.fsproj" -c Release --no-restore -m:1 -p:UseSharedCompilation=false -o "$out/complete/artifacts/authority-server" >"$out/server-publish.log" 2>&1
 (cd "$out/complete/Browser.Tests" && npm ci) >"$out/npm-browser.log" 2>&1
 export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-$out/browsers}"
 (cd "$out/complete/Browser.Tests" && npx playwright install chromium firefox webkit) >"$out/browser-install.log" 2>&1
+selector="$(python3 - "$root" "$input_mode" <<'PYSELECT'
+import runpy,sys
+print(runpy.run_path(sys.argv[1]+'/tests/composition/fable-game/external-reference-orca.py')['browser_selector'](sys.argv[2]))
+PYSELECT
+)"
 for family in chromium firefox webkit; do
-  (cd "$out/complete/Browser.Tests" && PLAYWRIGHT_BROWSER_FAMILY="$family" npm test -- --grep 'external authority reference|FourD reference' --workers=1) >"$out/$family-browser.log" 2>&1
+  (cd "$out/complete/Browser.Tests" && PLAYWRIGHT_BROWSER_FAMILY="$family" npm test -- --grep "$selector" --workers=1) >"$out/$family-browser.log" 2>&1
   cp "$out/complete/Browser.Tests/test-results/browser.json" "$out/$family-browser.json"
-  python3 - "$out/$family-browser.json" <<'PY'
-import json,sys
-report=json.load(open(sys.argv[1])); stats=report['stats']
-assert stats['expected']==8 and stats['unexpected']==0 and stats['skipped']==0 and stats['flaky']==0, stats
+  python3 - "$out/$family-browser.json" "$root" "$input_mode" <<'PY'
+import json,runpy,sys
+runpy.run_path(sys.argv[2]+'/tests/composition/fable-game/external-reference-orca.py')['validate_browser_report'](json.load(open(sys.argv[1])),sys.argv[3])
 PY
 done
 python3 - "$root" "$producer" "$out" "$version" "$producer_feed" "$input_mode" "$templates_package" <<'PY'
@@ -193,7 +220,10 @@ template_input=json.loads((out/'template-package-input.json').read_text()) if sy
 rendering_input=json.loads((out/'producer-package-input.json').read_text()) if template_input else None
 producer_identity={'revision':rendering_input['producerRevision'],'tree':None} if rendering_input else {'revision':git(producer,'HEAD'),'tree':git(producer,'HEAD^{tree}')}
 template_identity={'revision':template_input['producerRevision'],'tree':None} if template_input else {'revision':git(root,'HEAD'),'tree':git(root,'HEAD^{tree}')}
-packet={'schema':'fsgg.external-reference-source-qualification/1','disposition':'passed','templates':template_identity,'producer':{'inputCustody':json.loads((Path(sys.argv[5])/'ROOT-CUSTODY.json').read_text()) if (Path(sys.argv[5])/'ROOT-CUSTODY.json').exists() else None,'custodyManifestSha256':hashlib.sha256((Path(sys.argv[5])/'release-custody.json').read_bytes()).hexdigest() if (Path(sys.argv[5])/'release-custody.json').exists() else None,**producer_identity,'candidateVersion':version,'archives':json.loads((out/'producer-archives.json').read_text()),'sourceEntries':json.loads((out/'producer-source-entries.json').read_text())},'environment':{'dotnet':subprocess.check_output(['dotnet','--info'],text=True),'node':subprocess.check_output(['node','--version'],text=True).strip(),'npm':subprocess.check_output(['npm','--version'],text=True).strip(),'fableLoadedVersion':(out/'fable-version.log').read_text().strip(),'fableLogSha256':hashlib.sha256((out/'fable-build.log').read_bytes()).hexdigest()},'receiver':hashes(out/'complete/SvgFoundation'),'browserFamilies':['chromium','firefox','webkit'],'browserReports':hashes(out/'complete/Browser.Tests/test-results'),'browserReportSha256':{family:hashlib.sha256((out/(family+'-browser.json')).read_bytes()).hexdigest() for family in ['chromium','firefox','webkit']},'passedPerFamily':8,'skipped':0,'domAutomation':True,'actualScreenReader':'not-observed','publication':False,'installedAcceptance':False,'renderingInputSource':'nuget.org' if sys.argv[6]=='public' else 'candidate','renderingPublicInputsQualified':sys.argv[6]=='public','templatesInputSource':'source-built-candidate','publicReadback':json.loads((out/'feed/public-readback.json').read_text()) if sys.argv[6]=='public' else None}
+packet={'schema':'fsgg.external-reference-source-qualification/1','disposition':'passed','templates':template_identity,'producer':{'inputCustody':json.loads((Path(sys.argv[5])/'ROOT-CUSTODY.json').read_text()) if (Path(sys.argv[5])/'ROOT-CUSTODY.json').exists() else None,'custodyManifestSha256':hashlib.sha256((Path(sys.argv[5])/'release-custody.json').read_bytes()).hexdigest() if (Path(sys.argv[5])/'release-custody.json').exists() else None,**producer_identity,'candidateVersion':version,'archives':json.loads((out/'producer-archives.json').read_text()),'sourceEntries':json.loads((out/'producer-source-entries.json').read_text())},'environment':{'dotnet':subprocess.check_output(['dotnet','--info'],text=True),'node':subprocess.check_output(['node','--version'],text=True).strip(),'npm':subprocess.check_output(['npm','--version'],text=True).strip(),'fableLoadedVersion':(out/'fable-version.log').read_text().strip(),'fableLogSha256':hashlib.sha256((out/'fable-build.log').read_bytes()).hexdigest()},'receiver':hashes(out/'complete/SvgFoundation'),'browserFamilies':['chromium','firefox','webkit'],'browserReports':hashes(out/'complete/Browser.Tests/test-results'),'browserReportSha256':{family:hashlib.sha256((out/(family+'-browser.json')).read_bytes()).hexdigest() for family in ['chromium','firefox','webkit']},'qualificationMode':sys.argv[6],'passedPerFamily':15 if sys.argv[6]=='font-disposal' else 8,'skipped':0,'domAutomation':True,'actualScreenReader':'not-observed','publication':False,'installedAcceptance':False,'renderingInputSource':'nuget.org' if sys.argv[6]=='public' else 'candidate','renderingPublicInputsQualified':sys.argv[6]=='public','templatesInputSource':'source-built-candidate','publicReadback':json.loads((out/'feed/public-readback.json').read_text()) if sys.argv[6]=='public' else None}
+if sys.argv[6]=='font-disposal':
+    import runpy
+    packet['studioFontCases']=runpy.run_path(str(root/'tests/composition/fable-game/external-reference-orca.py'))['FONT_CASE_TITLES']
 if sys.argv[6]=='public':
     packet['schema']='fsgg.external-reference-public-input-qualification/1'
     packet['producer']['publishedVersion']=packet['producer'].pop('candidateVersion')

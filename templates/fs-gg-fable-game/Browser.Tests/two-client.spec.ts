@@ -1202,3 +1202,186 @@ test("external authority reference uses production keyboard pointer editing and 
   });
   await expect(reference).toHaveAttribute("data-authority-revision", revision!);
 });
+
+// Wrap the real FontFace/load and Blob APIs. The gate delays or rejects delivery
+// of a genuine native load; it does not substitute a fake font or renderer.
+async function observeStudioFonts(page: Page, mode: "native" | "hold" | "reject") {
+  await page.addInitScript(({ mode }) => {
+    const nativeFace = window.FontFace;
+    const nativeCreate = URL.createObjectURL.bind(URL);
+    const nativeRevoke = URL.revokeObjectURL.bind(URL);
+    const nativeNow = performance.now.bind(performance);
+    const faces: any[] = [], blobs: any[] = [], hashes: Promise<unknown>[] = [];
+    let shift = 0;
+    Object.defineProperty(performance, "now", { value: () => nativeNow() + shift });
+    URL.createObjectURL = blob => {
+      const url = nativeCreate(blob);
+      if (blob.type === "font/woff2") {
+        if (blobs.length >= 8) throw Error("font observation bound");
+        const row: any = { url, revoked: false, sha256: null }; blobs.push(row);
+        hashes.push(blob.arrayBuffer().then(bytes => crypto.subtle.digest("SHA-256", bytes))
+          .then(bytes => row.sha256 = Array.from(new Uint8Array(bytes), b => b.toString(16).padStart(2, "0")).join("")));
+      }
+      return url;
+    };
+    URL.revokeObjectURL = url => {
+      nativeRevoke(url); for (const row of blobs) if (row.url === url) row.revoked = true;
+    };
+    window.FontFace = class extends nativeFace {
+      constructor(family: string, source: ConstructorParameters<typeof nativeFace>[1], descriptors?: FontFaceDescriptors) {
+        super(family, source, descriptors);
+        if (faces.length >= 8) throw Error("font observation bound");
+        const row: any = { face: this, nativeLoaded: false, release: null }; faces.push(row);
+        const load = this.load.bind(this);
+        this.load = () => load().then(face => {
+          row.nativeLoaded = true;
+          if (mode === "reject") throw Error("controlled Noto load diagnostic");
+          if (mode === "hold") return new Promise<FontFace>(resolve => { row.release = () => resolve(face); });
+          return face;
+        });
+      }
+    };
+    (window as any).__studioFonts = {
+      release: async (index: number) => {
+        faces[index].release();
+        // Observe after native promise reactions, not a premature absent sample.
+        await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+      },
+      expire: () => { shift += 6000; },
+      disposalSnapshot: () => ({ present: faces.filter(row => document.fonts.has(row.face)).length,
+        allRevoked: blobs.every(row => row.revoked) }),
+      snapshot: async () => {
+        await Promise.all(hashes);
+        return { faces: faces.map(row => ({ nativeLoaded: row.nativeLoaded, present: document.fonts.has(row.face),
+          status: row.face.status, family: row.face.family, releasable: row.release !== null })), blobs };
+      }
+    };
+  }, { mode });
+}
+const studioFontSnapshot = (page: Page) => page.evaluate(() => (window as any).__studioFonts.snapshot());
+const notoText = (page: Page) => page.locator("#svg-authoring-studio svg text").filter({ hasText: "Offline Noto" });
+
+async function expectMountedNoto(page: Page) {
+  await expect(notoText(page)).toHaveCount(1);
+  await expect(notoText(page)).toBeVisible();
+  await expect(page.locator('#svg-authoring-studio style[data-fsgg-font-id="noto-sans-latin-400"]')).toHaveCount(0);
+  expect(await notoText(page).evaluate(element => getComputedStyle(element).fontFamily)).toContain("Noto Sans");
+  const loaded = await page.evaluate(async () => {
+    const faces = await document.fonts.load('16px "Noto Sans"', "Offline Noto");
+    const canvas = document.createElement("canvas"), context = canvas.getContext("2d")!;
+    context.font = '16px "Noto Sans"'; context.fillText("Offline Noto", 0, 20);
+    return { loaded: faces.length, available: document.fonts.check('16px "Noto Sans"', "Offline Noto"),
+      painted: context.getImageData(0, 0, canvas.width, canvas.height).data.some(value => value !== 0) };
+  });
+  expect(loaded.loaded).toBeGreaterThan(0); expect(loaded.available).toBe(true); expect(loaded.painted).toBe(true);
+  const proof = await studioFontSnapshot(page);
+  expect(proof.faces.filter((f: any) => f.present)).toHaveLength(1);
+  expect(proof.blobs.at(-1).sha256).toBe("09aee8065d25508f23a4c3d92cd777ac869c52d93fd868a88f025d888a7937d6");
+  expect(proof.blobs.at(-1).revoked).toBe(false);
+}
+
+test("Studio awaits genuine Noto readiness and retains the mounted font through replacement and redo", async ({ page }, testInfo) => {
+  test.skip(!hasStudio, "selected composition has no Studio");
+  await observeStudioFonts(page, "native");
+  await page.goto("http://127.0.0.1:5200/");
+  const verify = page.getByRole("button", { name: "Verify Noto text", exact: true });
+  await verify.click();
+  await expect(page.locator("#generated-scene-status")).toHaveText("Verified Noto text exported and reopened offline");
+  await expectMountedNoto(page);
+  await verify.click();
+  await expect.poll(async () => (await studioFontSnapshot(page)).faces.length).toBe(2);
+  await expect.poll(async () => (await studioFontSnapshot(page)).faces[0].present).toBe(false);
+  await expectMountedNoto(page); // Repeated verification replaces rather than duplicates text/resource.
+  await page.getByRole("button", { name: "Start blank game", exact: true }).click();
+  await expect(notoText(page)).toHaveCount(0);
+  await expect.poll(async () => (await studioFontSnapshot(page)).faces.some((f: any) => f.present)).toBe(false);
+  expect((await studioFontSnapshot(page)).blobs.every((b: any) => b.revoked)).toBe(true);
+  await page.getByRole("button", { name: "Undo scene change", exact: true }).click();
+  await expect(page.locator("#generated-scene-status")).toHaveText("Restored Noto text font ready");
+  await expectMountedNoto(page);
+  await page.getByRole("button", { name: "Redo scene change", exact: true }).click();
+  await expect(notoText(page)).toHaveCount(0);
+  await expect.poll(async () => (await studioFontSnapshot(page)).faces.some((f: any) => f.present)).toBe(false);
+  await page.getByRole("button", { name: "Undo scene change", exact: true }).click();
+  await expect(page.locator("#generated-scene-status")).toHaveText("Restored Noto text font ready");
+  await expectMountedNoto(page);
+  await testInfo.attach("genuine-mounted-font-lifetime", { body: Buffer.from(JSON.stringify(await studioFontSnapshot(page))), contentType: "application/json" });
+});
+
+test("Studio does not announce or mount Noto before native readiness is delivered", async ({ page }) => {
+  test.skip(!hasStudio, "selected composition has no Studio");
+  await observeStudioFonts(page, "hold"); await page.goto("http://127.0.0.1:5200/");
+  const before = await page.evaluate(() => (window as any).svgGeneratedStudio.snapshot().contentHash);
+  await page.getByRole("button", { name: "Verify Noto text", exact: true }).click();
+  await expect.poll(async () => (await studioFontSnapshot(page)).faces[0]?.releasable).toBe(true);
+  await expect(page.locator("#generated-scene-status")).toHaveText("Loading verified Noto font");
+  await expect(notoText(page)).toHaveCount(0);
+  expect(await page.evaluate(() => (window as any).svgGeneratedStudio.snapshot().contentHash)).toBe(before);
+  await page.evaluate(() => (window as any).__studioFonts.release(0));
+  await expect(page.locator("#generated-scene-status")).toHaveText("Verified Noto text exported and reopened offline");
+  await expectMountedNoto(page);
+});
+
+test("Studio reports a font diagnostic without committing text and disposes the failed activation", async ({ page }) => {
+  test.skip(!hasStudio, "selected composition has no Studio");
+  await observeStudioFonts(page, "reject"); await page.goto("http://127.0.0.1:5200/");
+  const before = await page.evaluate(() => (window as any).svgGeneratedStudio.snapshot().contentHash);
+  await page.getByRole("button", { name: "Verify Noto text", exact: true }).click();
+  await expect(page.locator("#generated-scene-status")).toContainText("Noto font load failed: controlled Noto load diagnostic");
+  await expect(notoText(page)).toHaveCount(0);
+  expect(await page.evaluate(() => (window as any).svgGeneratedStudio.snapshot().contentHash)).toBe(before);
+  const proof = await studioFontSnapshot(page); expect(proof.faces[0].present).toBe(false); expect(proof.blobs[0].revoked).toBe(true);
+});
+
+for (const cancellation of ["timeout", "replacement"] as const) {
+  test(`Studio ${cancellation} prevents a late genuine font load from mounting or leaking`, async ({ page }) => {
+    test.skip(!hasStudio, "selected composition has no Studio");
+    await observeStudioFonts(page, "hold"); await page.goto("http://127.0.0.1:5200/");
+    await page.getByRole("button", { name: "Verify Noto text", exact: true }).click();
+    await expect.poll(async () => (await studioFontSnapshot(page)).faces[0]?.releasable).toBe(true);
+    if (cancellation === "timeout") {
+      await page.evaluate(() => (window as any).__studioFonts.expire());
+      await expect(page.locator("#generated-scene-status")).toContainText("Noto font readiness timed out");
+    } else await page.getByRole("button", { name: "Start blank game", exact: true }).click();
+    const status = await page.locator("#generated-scene-status").textContent();
+    await page.evaluate(() => (window as any).__studioFonts.release(0));
+    await expect(notoText(page)).toHaveCount(0);
+    await expect(page.locator("#generated-scene-status")).toHaveText(status!);
+    await expect.poll(async () => (await studioFontSnapshot(page)).faces[0].present).toBe(false);
+    expect((await studioFontSnapshot(page)).blobs[0].revoked).toBe(true);
+  });
+}
+
+test("Studio stale font completion cannot replace or cancel a newer activation", async ({ page }) => {
+  test.skip(!hasStudio, "selected composition has no Studio");
+  await observeStudioFonts(page, "hold"); await page.goto("http://127.0.0.1:5200/");
+  const verify = page.getByRole("button", { name: "Verify Noto text", exact: true });
+  await verify.click();
+  await expect.poll(async () => (await studioFontSnapshot(page)).faces[0]?.releasable).toBe(true);
+  await verify.click();
+  await expect.poll(async () => (await studioFontSnapshot(page)).faces[1]?.releasable).toBe(true);
+  await page.evaluate(() => (window as any).__studioFonts.release(0));
+  await expect(page.locator("#generated-scene-status")).toHaveText("Loading verified Noto font");
+  await expect(notoText(page)).toHaveCount(0);
+  expect((await studioFontSnapshot(page)).faces.some((f: any) => f.present)).toBe(false);
+  await page.evaluate(() => (window as any).__studioFonts.release(1));
+  await expect(page.locator("#generated-scene-status")).toHaveText("Verified Noto text exported and reopened offline");
+  await expectMountedNoto(page);
+});
+
+test("Studio unload releases its mounted native font and Blob", async ({ page }) => {
+  test.skip(!hasStudio, "selected composition has no Studio");
+  const disposed: { present: number; allRevoked: boolean }[] = [];
+  await page.exposeBinding("reportStudioFontDisposal", (_source, proof) => { disposed.push(proof); });
+  await observeStudioFonts(page, "native"); await page.goto("http://127.0.0.1:5200/");
+  await page.getByRole("button", { name: "Verify Noto text", exact: true }).click();
+  await expect(page.locator("#generated-scene-status")).toHaveText("Verified Noto text exported and reopened offline");
+  await expectMountedNoto(page);
+  // Register after the product's own unload listener, then observe real page close.
+  await page.evaluate(() => window.addEventListener("beforeunload", () => {
+    (window as any).reportStudioFontDisposal((window as any).__studioFonts.disposalSnapshot());
+  }));
+  const closed = page.waitForEvent("close"); await page.close({ runBeforeUnload: true }); await closed;
+  await expect.poll(() => disposed.length).toBe(1);
+  expect(disposed[0]).toEqual({ present: 0, allRevoked: true });
+});

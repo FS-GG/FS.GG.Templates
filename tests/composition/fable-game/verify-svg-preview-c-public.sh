@@ -210,7 +210,16 @@ npm ci --prefix "$out/direct/Browser.Tests" >/dev/null
 # checkout. Install the browsers selected by the downloaded receiver itself.
 (cd "$out/direct/Browser.Tests" && npx playwright install chromium firefox webkit >/dev/null)
 cp "$root/tests/composition/fable-game/svg-present-player-observe.mjs" "$out/direct/Browser.Tests/"
-cp "$root/tests/composition/fable-game/svg-authoring-observe.mjs" "$out/direct/Browser.Tests/"
+# The frozen0.13/Rendering0.31 receiver owns its original resource-roundtrip
+# contract. Current source keeps the separate strict mounted-font observer.
+python3 "$root/tests/composition/fable-game/historical-provider.py" --bind-authoring-observer \
+  --archive "$template" --version 0.13.0 \
+  --revision 6acdfc5f5da41156db0aeaffcd54885b3b9e66be \
+  --archive-sha256 "$expected_template_sha" \
+  --descriptor-sha256 e3f3aa1c77af9f9e559c376ffe1ad8131e205c0d68d81b4556f617b796636309 \
+  --descriptor "$historical_provider" --rendering-version "$rendering_version" \
+  --rendering-reference "$reference" --receiver "$out/direct" \
+  --output "$out/direct/Browser.Tests/svg-authoring-observe.mjs"
 # Published 0.13 predates retained scene-host attributes after an authored SVG
 # replacement. Exercise its exact tagged observer; the current-source lane owns
 # the stricter post-edit focus assertion.

@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 from zipfile import ZipFile
 
 HERE = Path(__file__).resolve().parent
@@ -115,6 +116,103 @@ class HistoricalProviderTests(unittest.TestCase):
             self.assertEqual(receipt["publicProducers"]["rendering"], "0.32.1")
             self.assertEqual(receipt["apiMirror"]["historicalRenderingVersion"], "0.31.0")
             self.assertFalse(receipt["publication"])
+
+
+class HistoricalAuthoringObserverTests(unittest.TestCase):
+    def subject(self):
+        # Independent fixture: actual immutable identities declared by the public
+        # qualification route, not a current-source metadata tuple relabelled old.
+        return {
+            "templateVersion": "0.13.0",
+            "templateSource": "6acdfc5f5da41156db0aeaffcd54885b3b9e66be",
+            "templateArchiveSha256": "ab72f74a76d59ad4be6f11f367bbdf1b27f8bdedae7a2e3afecbe0e4b3fac10c",
+            "descriptorSha256": "e3f3aa1c77af9f9e559c376ffe1ad8131e205c0d68d81b4556f617b796636309",
+            "renderingVersion": "0.31.0", "receiverRenderingVersion": "0.31.0",
+            "renderingReferenceSha256": "98ba3cf0a2a1db103ca7ac1711017062bf2c3697d59a0880e376c3629c5953b6",
+            "observerSha256": "3c2849f82203f136f73decfae230e2ab9aa06949c7d410307bf910e054298637",
+        }
+
+    def test_exact_receipt_selects_the_frozen_historical_contract_only(self):
+        selected = provider.authoring_contract(self.subject())
+        self.assertEqual(selected, "svg-authoring-observe-v013.mjs")
+        raw = (HERE / selected).read_bytes()
+        self.assertEqual(provider.sha(raw), self.subject()["observerSha256"])
+        self.assertIn(b'fontReadyOrMountedAcceptance:false', raw)
+        self.assertNotIn(b'verified Noto text was not mounted exactly once', raw)
+
+    def test_current_mixed_missing_or_extra_identity_cannot_select_old_contract(self):
+        values = {"templateVersion": "0.19.0", "templateSource": "8952e1c5753b0abc972154c7596ddc8da772b271",
+                  "templateArchiveSha256": "80d537aacb99419c9a6b7b86a003b41fab75e0077331d0e242c1a5ec1cf4e3fd",
+                  "descriptorSha256": "0" * 64, "renderingVersion": "0.32.1", "receiverRenderingVersion": "0.32.1",
+                  "renderingReferenceSha256": "0" * 64,
+                  "observerSha256": provider.sha((HERE / "svg-authoring-observe.mjs").read_bytes())}
+        for key, value in values.items():
+            subject = self.subject(); subject[key] = value
+            with self.subTest(axis=key), self.assertRaises(ValueError):
+                provider.authoring_contract(subject)
+        for change in (lambda x: x.pop("templateSource"), lambda x: x.update(extra="unknown")):
+            subject = self.subject(); change(subject)
+            with self.assertRaises(ValueError): provider.authoring_contract(subject)
+
+    def fixture(self, directory):
+        receiver = directory / "receiver"; project = receiver / "SvgFoundation/Studio/Studio.fsproj"
+        project.parent.mkdir(parents=True)
+        project.write_text('<Project><PropertyGroup><FsGgSvgAuthoringVersion>0.31.0</FsGgSvgAuthoringVersion></PropertyGroup></Project>')
+        archive, descriptor, reference = [directory / name for name in ("archive", "descriptor", "reference")]
+        archive.write_bytes(b"inert archive"); descriptor.write_bytes(b"inert descriptor"); reference.write_bytes(b"inert reference")
+        t = self.subject()
+        args = (archive, t["templateVersion"], t["templateSource"], t["templateArchiveSha256"], t["descriptorSha256"],
+                descriptor, t["renderingVersion"], reference, receiver, directory / "observer.mjs")
+        return args, project
+
+    def test_actual_wrong_archive_bytes_refuse_before_output(self):
+        with tempfile.TemporaryDirectory() as folder:
+            args, _ = self.fixture(Path(folder))
+            with self.assertRaisesRegex(ValueError, "declared hashes"):
+                provider.bind_authoring_observer(*args)
+            self.assertFalse(args[-1].exists())
+
+    def test_binding_copies_verified_bytes_and_refuses_wrong_receiver_or_existing_output(self):
+        # Explicit inert hash port for three custody inputs. The frozen observer
+        # itself still uses its real digest; no network or credentials are used.
+        with tempfile.TemporaryDirectory() as folder:
+            args, project = self.fixture(Path(folder)); t = self.subject(); real_sha = provider.sha
+            identities = {b"inert archive": t["templateArchiveSha256"], b"inert descriptor": t["descriptorSha256"],
+                          b"inert reference": t["renderingReferenceSha256"]}
+            def custody_hash(raw): return identities[raw] if raw in identities else real_sha(raw)
+            with patch.object(provider, "sha", custody_hash):
+                project.write_text(project.read_text().replace("0.31.0", "0.32.1"))
+                with self.assertRaises(ValueError): provider.bind_authoring_observer(*args)
+                self.assertFalse(args[-1].exists())
+                project.write_text(project.read_text().replace("0.32.1", "0.31.0"))
+                provider.bind_authoring_observer(*args)
+                self.assertEqual(args[-1].read_bytes(), (HERE / "svg-authoring-observe-v013.mjs").read_bytes())
+                args[-1].write_bytes(b"authored bytes")
+                with self.assertRaisesRegex(ValueError, "new exact"):
+                    provider.bind_authoring_observer(*args)
+                self.assertEqual(args[-1].read_bytes(), b"authored bytes")
+
+    def test_real_source_copy_and_dispatch_still_selects_strict_observer(self):
+        source = (HERE / "verify-svg-preview-c-source.sh").read_text()
+        copy = next(line for line in source.splitlines() if line.startswith("cp ") and "/svg-authoring-observe.mjs" in line)
+        invoke = next(line.strip() for line in source.splitlines() if "node svg-authoring-observe.mjs " in line)
+        with tempfile.TemporaryDirectory() as folder:
+            out = Path(folder); target = out / "direct/Browser.Tests"; target.mkdir(parents=True)
+            bin = out / "inert-bin"; bin.mkdir(); node = bin / "node"
+            node.write_text('#!/usr/bin/python3\nimport hashlib,json,pathlib,sys\np=pathlib.Path(sys.argv[1]);raw=p.read_bytes()\nrequired=[b"verified Noto text was not mounted exactly once",b"document.fonts.load",b"fontProof.painted"]\nif not all(x in raw for x in required):raise SystemExit(4)\nprint(json.dumps({"dispatchOnly":"strict-current", "sha256":hashlib.sha256(raw).hexdigest()}))\n')
+            node.chmod(0o755)
+            env = {"PATH": str(bin) + ":/usr/bin:/bin", "HOME": "/nonexistent", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8"}
+            setup = 'set -euo pipefail\nroot="$1"\nout="$2"\nfamily=chromium\n'
+            args = ["/bin/bash", "-c", setup + copy + "\n" + invoke, "inert-source-dispatch", str(ROOT), str(out)]
+            result = subprocess.run(args, env=env, capture_output=True, timeout=5)
+            self.assertEqual(result.returncode, 0, "closed source dispatch failed")
+            self.assertEqual((target / "svg-authoring-observe.mjs").read_bytes(), (HERE / "svg-authoring-observe.mjs").read_bytes())
+            observed = json.loads((out / "chromium-authoring.json").read_text())
+            self.assertEqual(observed["dispatchOnly"], "strict-current")
+            (target / "svg-authoring-observe.mjs").write_bytes((HERE / "svg-authoring-observe-v013.mjs").read_bytes())
+            negative = subprocess.run(["/bin/bash", "-c", setup + invoke, "inert-source-dispatch", str(ROOT), str(out)],
+                                      env=env, capture_output=True, timeout=5)
+            self.assertEqual(negative.returncode, 4, "historical observer reached current strict dispatch")
 
 
 if __name__ == "__main__":

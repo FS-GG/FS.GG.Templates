@@ -69,7 +69,7 @@ class PublicInputTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name); self.path = self.root / 'fixture.nupkg'
         self.identity = 'FS.GG.UI.Scene'
-        self.payload = {'fixture.nuspec': f'<package><metadata><id>{self.identity}</id><version>0.32.1</version><repository commit="{public.SOURCE}"/><dependencies><group><dependency id="FSharp.Core" version="10.1.401"/></group></dependencies></metadata></package>'.encode(), 'fable/Source.fs': b'// synthetic only\n'}
+        self.payload = {'fixture.nuspec': f'<package><metadata><id>{self.identity}</id><version>{public.VERSION}</version><repository commit="{public.SOURCE}"/><dependencies><group><dependency id="FSharp.Core" version="10.1.401"/></group></dependencies></metadata></package>'.encode(), 'fable/Source.fs': b'// synthetic only\n'}
         self.row = {'payloadEntries': {n: hashlib.sha256(b).hexdigest() for n, b in self.payload.items()}, 'dependencies': [{'id': 'FSharp.Core', 'version': '10.1.401'}]}
         self.write()
 
@@ -134,7 +134,7 @@ class PublicInputTests(unittest.TestCase):
 
     def test_mode_and_identity_refused_before_receiver_effect(self):
         script = HERE / 'verify-external-reference-candidate.sh'
-        for version, source, mode in [('0.32.1', public.SOURCE, 'unknown'), ('0.31.0', public.SOURCE, 'public'), ('0.32.1', '0' * 40, 'public')]:
+        for version, source, mode in [(public.VERSION, public.SOURCE, 'unknown'), ('0.31.0', public.SOURCE, 'public'), ('0.32.1', public.SOURCE, 'public'), (public.VERSION, '0' * 40, 'public'), (public.VERSION, '6c9f766fdd91483c2de6f061e75589e94852a265', 'public')]:
             output = self.root / 'not-created'
             run = subprocess.run(['bash', str(script), '/missing', '/missing', version, str(output), source, mode], capture_output=True, text=True)
             self.assertNotEqual(run.returncode, 0); self.assertFalse(output.exists())
@@ -153,7 +153,7 @@ class PublicInputTests(unittest.TestCase):
                 current_env = env if selected is None else {**env, override: selected}
                 result = subprocess.run(['bash', str(root / path)], env=current_env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 73)  # actual first command intercepted, no native run
-                value = json.loads(capture.read_text()); version = selected or '0.32.1'
+                value = json.loads(capture.read_text()); version = selected or public.VERSION
                 self.assertEqual(value[field], version)
                 self.assertEqual(value['args'][0], 'restore')
                 self.assertIn('--locked-mode', value['args'])
@@ -165,7 +165,7 @@ class PublicInputTests(unittest.TestCase):
         source = (HERE / 'verify-svg-preview-c-source.sh').read_text()
         match = re.search(r"<<'PYSOURCEPIN'\n(.*?)\nPYSOURCEPIN", source, re.S)
         self.assertIsNotNone(match)
-        for xml, expected in [('<Project><PropertyGroup><FsGgSvgInputVersion>0.32.1</FsGgSvgInputVersion></PropertyGroup></Project>', '0.32.1'), ('<Project><FsGgSvgInputVersion>0.31.0</FsGgSvgInputVersion></Project>', None), ('<Project/>', None), ('<Project><FsGgSvgInputVersion>main</FsGgSvgInputVersion></Project>', None), ('<Project><FsGgSvgInputVersion>0.32.1</FsGgSvgInputVersion><FsGgSvgInputVersion>0.31.0</FsGgSvgInputVersion></Project>', None)]:
+        for xml, expected in [('<Project><PropertyGroup><FsGgSvgInputVersion>0.32.3</FsGgSvgInputVersion></PropertyGroup></Project>', '0.32.3'), ('<Project><FsGgSvgInputVersion>0.32.1</FsGgSvgInputVersion></Project>', None), ('<Project><FsGgSvgInputVersion>0.31.0</FsGgSvgInputVersion></Project>', None), ('<Project/>', None), ('<Project><FsGgSvgInputVersion>main</FsGgSvgInputVersion></Project>', None), ('<Project><FsGgSvgInputVersion>0.32.1</FsGgSvgInputVersion><FsGgSvgInputVersion>0.31.0</FsGgSvgInputVersion></Project>', None)]:
             path = self.root / 'pin.fsproj'; path.write_text(xml)
             result = subprocess.run(['python3', '-', str(path)], input=match.group(1), text=True, capture_output=True)
             if expected is None: self.assertNotEqual(result.returncode, 0)
@@ -175,11 +175,11 @@ class PublicInputTests(unittest.TestCase):
         import re
         code = re.search(r"<<'PYCURRENTPIN'\n(.*?)\nPYCURRENTPIN", (HERE / 'verify-svg-preview-c-source.sh').read_text(), re.S).group(1)
         refs = ''.join(f'<PackageReference Include="{identity}" Version="[$(FsGgSvgInputVersion)]"/>' for identity in ['FS.GG.UI.Scene', 'FS.GG.UI.Scene.SvgBrowser', 'FS.GG.UI.KeyboardInput'])
-        xml = '<Project><FsGgSvgInputVersion>0.32.1</FsGgSvgInputVersion>' + refs + '</Project>'
-        fixtures = [(xml, True), (xml.replace('<FsGgSvgInputVersion>0.32.1', '<FsGgSvgInputVersion>0.31.0'), False), (xml.replace('Include="FS.GG.UI.KeyboardInput"', 'Include="Unrelated"'), False), (xml.replace('Version="[$(FsGgSvgInputVersion)]"', 'Version="[0.31.0]"', 1), False)]
+        xml = '<Project><FsGgSvgInputVersion>0.32.3</FsGgSvgInputVersion>' + refs + '</Project>'
+        fixtures = [(xml, True), (xml.replace('<FsGgSvgInputVersion>0.32.3', '<FsGgSvgInputVersion>0.31.0'), False), (xml.replace('<FsGgSvgInputVersion>0.32.3', '<FsGgSvgInputVersion>0.32.1'), False), (xml.replace('Include="FS.GG.UI.KeyboardInput"', 'Include="Unrelated"'), False), (xml.replace('Version="[$(FsGgSvgInputVersion)]"', 'Version="[0.31.0]"', 1), False)]
         for value, valid in fixtures:
             path = self.root / 'generated.fsproj'; path.write_text(value)
-            result = subprocess.run(['python3', '-', str(path), '0.32.1'], input=code, text=True, capture_output=True)
+            result = subprocess.run(['python3', '-', str(path), '0.32.3'], input=code, text=True, capture_output=True)
             self.assertEqual(result.returncode == 0, valid)
 
     def test_public_route_keeps_locked_resolution_and_candidate_branch(self):
@@ -218,7 +218,7 @@ class PublicInputTests(unittest.TestCase):
             for rows in json.loads(path.read_text())['dependencies'].values():
                 for identity, row in rows.items():
                     if identity in public.LOCK_HASH:
-                        self.assertEqual(row['resolved'], '0.32.1')
+                        self.assertEqual(row['resolved'], public.VERSION)
                         self.assertEqual(row['contentHash'], public.LOCK_HASH[identity])
                         identities.append(identity)
             if identities:

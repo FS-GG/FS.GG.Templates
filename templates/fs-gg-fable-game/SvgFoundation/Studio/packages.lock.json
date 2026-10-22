@@ -35,31 +35,31 @@
       },
       "FS.GG.UI.KeyboardInput": {
         "type": "Direct",
-        "requested": "[0.32.1, 0.32.1]",
-        "resolved": "0.32.1",
-        "contentHash": "3l3iYwmyNSbOl2Ui5QmryOaDUl2r+smp0Dl4VQ55LKaVT4mJw+/JiUnLlrjQAAn/U22QtMUMg8sRiODG1fQHjQ==",
+        "requested": "[0.32.3, 0.32.3]",
+        "resolved": "0.32.3",
+        "contentHash": "sz7lovxAAfq70N5eACOroVJsElW6zws7ig+NCQtO6E495YvaHgLcYbxaOp9ZXrrnluWx/a9KfMJsTVelVsMbmQ==",
         "dependencies": {
-          "FS.GG.UI.Scene": "0.32.1",
+          "FS.GG.UI.Scene": "0.32.3",
           "FSharp.Core": "10.1.401"
         }
       },
       "FS.GG.UI.Scene": {
         "type": "Direct",
-        "requested": "[0.32.1, 0.32.1]",
-        "resolved": "0.32.1",
-        "contentHash": "3oifBGdPvhLfZBXgeJVB8ycJfs7PgJEX9xm6UaDQhqhauVtitr4sj1Bzu0l4rZMXZS6vA+j4/77w/rxNtUdm3w==",
+        "requested": "[0.32.3, 0.32.3]",
+        "resolved": "0.32.3",
+        "contentHash": "CxghwCbdT5kQz3DArIFkFE1zVmtxmS5LCxR21l+hLwX4mu1xQCmPdAcaYDDOggOsIw9vMuOQGWmc1BImrNCPNg==",
         "dependencies": {
           "FSharp.Core": "10.1.401"
         }
       },
       "FS.GG.UI.Scene.SvgBrowser": {
         "type": "Direct",
-        "requested": "[0.32.1, 0.32.1]",
-        "resolved": "0.32.1",
-        "contentHash": "eXi251Nj5MNQ0myqDjFBtxB+k6x5gnhh7YhE34ItNg3fwlQvPP65X7SxT7AO+11DsR82t5aDd5nQCIpPz2U1zA==",
+        "requested": "[0.32.3, 0.32.3]",
+        "resolved": "0.32.3",
+        "contentHash": "VcRGZ+vro3Y0vaLspoWZKsOB1b+2fL5tXeorz8PfsxWRme1gJlIGBX8zkHGAbvBF/a8f4XzpdilcnXPV8jQ9WA==",
         "dependencies": {
-          "FS.GG.UI.KeyboardInput": "0.32.1",
-          "FS.GG.UI.Scene": "0.32.1",
+          "FS.GG.UI.KeyboardInput": "0.32.3",
+          "FS.GG.UI.Scene": "0.32.3",
           "FSharp.Core": "10.1.401",
           "Fable.Browser.Dom": "2.20.0"
         }
