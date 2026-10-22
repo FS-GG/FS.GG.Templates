@@ -1,0 +1,183 @@
+name: WASM installed C (admitted dispatch only)
+
+# Downloaded-only 27-case WASM journey for FS-GG/.github#4710 (C-J1 installed C). HELD in source:
+# admitted_installed_sequence refuses before any acquisition while INSTALLED_ADMISSION is None.
+# A Programme/root admission is bound by a reviewed source PR that sets INSTALLED_ADMISSION to its
+# exact comment URL; it then admits exactly one dispatch of job installed-c at that merge commit.
+# RUNTIME_ADMITTED and the literal-false steps in fable-reference-public.yml stay closed. The
+# recorded WebKit host-package step below is byte-identical to the accepted custody pilot's.
+on:
+  pull_request:
+    paths:
+      - .github/workflows/wasm-installed-c.yml
+      - .github/workflows/wasm-custody-pilot.yml
+      - .github/workflows/fable-reference-public.yml
+      - tests/composition/fable-game/wasm-installed-c.py
+      - tests/composition/fable-game/test-fable-reference-public-preflight.py
+  workflow_dispatch:
+    inputs:
+      admitted_ref:
+        description: Exact admitted main commit; must equal the dispatched commit
+        required: true
+        type: string
+      admission:
+        description: Exact installed-C admission comment URL on FS-GG/.github#4710
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  installed-c-static-controls:
+    name: Installed C static controls (no runtime)
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Check out exact reviewed Templates source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Qualify installed-C source, dispatch validation and holds without runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -c 'import ast,sys; ast.parse(open(sys.argv[1]).read())' tests/composition/fable-game/wasm-installed-c.py
+          python3 tests/composition/fable-game/test-fable-reference-public-preflight.py InstalledAdmissionTests
+
+  installed-c:
+    name: Downloaded-only installed WASM journey (27 cases)
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      EVENT: ${{ github.event_name }}
+      REPOSITORY: ${{ github.repository }}
+      REF: ${{ github.ref }}
+      SHA: ${{ github.sha }}
+      WORKFLOW_REF: ${{ github.workflow_ref }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
+      RUN_ID: ${{ github.run_id }}
+      RUN_ATTEMPT: ${{ github.run_attempt }}
+      ADMITTED_REF: ${{ inputs.admitted_ref }}
+      ADMISSION: ${{ inputs.admission }}
+    steps:
+      - name: Check out the exact dispatched commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      # The only admitted host write: Playwright's pinned ubuntu24.04 WebKit list (plus a recorded
+      # archive.ubuntu.com mirror fallback), on the ephemeral runner, before the unit (NoNewPrivileges
+      # blocks sudo inside it). Every apt call is bounded; a trap always writes the exit codes and the
+      # dpkg after-state, so attempted/timed-out come from this step's own markers. Never fatal.
+      - name: Install and record the admitted WebKit host packages
+        if: ${{ github.run_attempt == '1' }}
+        continue-on-error: true
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          host="$RUNNER_TEMP/wasm-custody-pilot-host"
+          mkdir -m 700 "$host"
+          snapshot() { dpkg-query -W -f='${Package}\t${Version}\t${db:Status-Abbrev}\n' | LC_ALL=C sort; }
+          finish() {
+            local rc=$?
+            [[ -f "$host/update-exit.txt" ]] || printf 'not-run\n' >"$host/update-exit.txt"
+            [[ -f "$host/install-exit.txt" ]] || printf 'not-run\n' >"$host/install-exit.txt"
+            # apt runs dpkg in its own session, out of timeout's reach: let it settle (<=20 s) first.
+            local waited=0
+            while pgrep -x dpkg >/dev/null 2>&1 && (( waited < 20 )); do sleep 1; waited=$((waited + 1)); done
+            printf 'dpkg-wait %s; dpkg-running %s\n' "$waited" "$(pgrep -x dpkg >/dev/null 2>&1 && echo yes || echo no)" >"$host/dpkg-settle.txt"
+            snapshot >"$host/dpkg-after.tsv" 2>"$host/dpkg-after.err" || true
+            diff "$host/dpkg-before.tsv" "$host/dpkg-after.tsv" >"$host/dpkg-diff.txt" || true
+            cp /etc/apt/apt-mirrors.txt "$host/apt-mirrors-after.txt" 2>/dev/null || printf 'absent\n' >"$host/apt-mirrors-after.txt"
+            printf 'step-exit %s\n' "$rc" >"$host/step-complete.txt"
+          }
+          # No TERM/INT traps: bash defers a trapped signal until the foreground apt call ends, so a
+          # cancelled step would be tree-killed before writing anything. Untrapped, SIGTERM ends bash at
+          # once and this EXIT trap still writes the evidence (step-complete then shows the last
+          # command's status; the state comes from the markers: attempted + not-run = interrupted).
+          trap finish EXIT
+          python3 -I tests/composition/fable-game/wasm-custody-pilot.py --print-webkit-packages >"$host/packages.txt"
+          snapshot >"$host/dpkg-before.tsv"
+          for source in /etc/apt/sources.list /etc/apt/sources.list.d/*; do
+            if [[ -f "$source" ]]; then printf '### %s\n' "$source"; cat "$source"; fi
+          done >"$host/apt-sources.txt"
+          # Keep the Azure mirror first; archive.ubuntu.com is only a recorded fallback entry.
+          mirrors=/etc/apt/apt-mirrors.txt
+          cp "$mirrors" "$host/apt-mirrors-before.txt" 2>/dev/null || printf 'absent\n' >"$host/apt-mirrors-before.txt"
+          if [[ ! -f "$mirrors" ]]; then
+            printf 'no-mirror-file\n' >"$host/fallback.txt"
+          elif grep -Eq '^[a-z]+://archive\.ubuntu\.com/ubuntu/?([[:space:]]|$)' "$mirrors"; then
+            printf 'already-present\n' >"$host/fallback.txt"
+          else
+            printf 'http://archive.ubuntu.com/ubuntu/\n' | sudo -n tee -a "$mirrors" >/dev/null
+            printf 'added\n' >"$host/fallback.txt"
+          fi
+          mapfile -t packages <"$host/packages.txt"
+          set +e
+          printf 'attempted\n' >"$host/update-attempted.txt"
+          sudo -n timeout -k 10 60 apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 update -q >"$host/update.log" 2>&1
+          printf '%s\n' "$?" >"$host/update-exit.txt"
+          printf 'attempted\n' >"$host/install-attempted.txt"
+          sudo -n env DEBIAN_FRONTEND=noninteractive timeout -k 15 480 apt-get -o Acquire::Retries=5 -o Acquire::http::Timeout=30 install -y -q --no-install-recommends "${packages[@]}" >"$host/install.log" 2>&1
+          printf '%s\n' "$?" >"$host/install-exit.txt"
+          set -e
+          printf 'update exit %s; install exit %s; %s listed packages\n' "$(cat "$host/update-exit.txt")" "$(cat "$host/install-exit.txt")" "${#packages[@]}"
+      # apt termination evidence: after the bounded install, no apt, dpkg or apt method process may remain.
+      - name: Check that no apt or dpkg process remains
+        if: ${{ always() && github.run_attempt == '1' }}
+        continue-on-error: true
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          set -uo pipefail
+          host="$RUNNER_TEMP/wasm-custody-pilot-host"
+          [[ -d "$host" ]] || exit 0
+          ps -eo pid=,ppid=,etimes=,comm=,args= | awk '{c=$4} c!="awk" && c!="ps" && (c=="apt" || c=="apt-get" || c=="dpkg" || index($0,"/usr/lib/apt/methods/") || (c=="timeout" && index($0,"apt-get")))' >"$host/post-step-processes.txt"
+          printf 'apt-dpkg-processes %s\n' "$(grep -c . "$host/post-step-processes.txt")" >"$host/post-step-check.txt"
+          cat "$host/post-step-check.txt"
+      - name: Run admitted installed C in a fresh delegated unit
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkout_head="$(git rev-parse HEAD)"
+          unit="fsgg-mg-templates-installed-${RUN_ID}-${RUN_ATTEMPT}"
+          sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec \
+            --unit="$unit" \
+            -p Delegate=yes -p User="$(id -un)" -p Group="$(id -gn)" -p NoNewPrivileges=yes \
+            -p KillMode=control-group -p TimeoutStopSec=5 -p TasksAccounting=yes -p MemoryAccounting=yes \
+            -p TasksMax=6144 -p MemoryMax=12G -p RuntimeMaxSec=2400 -p WorkingDirectory="$PWD" \
+            --setenv=PATH=/usr/bin:/bin --setenv=EVENT="$EVENT" --setenv=REPOSITORY="$REPOSITORY" \
+            --setenv=REF="$REF" --setenv=SHA="$SHA" --setenv=WORKFLOW_REF="$WORKFLOW_REF" \
+            --setenv=WORKFLOW_SHA="$WORKFLOW_SHA" --setenv=RUN_ID="$RUN_ID" --setenv=RUN_ATTEMPT="$RUN_ATTEMPT" \
+            --setenv=ADMITTED_REF="$ADMITTED_REF" --setenv=ADMISSION="$ADMISSION" \
+            --setenv=CHECKOUT_HEAD="$checkout_head" --setenv=RUNNER_TEMP="$RUNNER_TEMP" \
+            --setenv=GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+            --setenv=UNIT_NAME="$unit" --setenv=HOST_EVIDENCE="$RUNNER_TEMP/wasm-custody-pilot-host" \
+            --setenv=ImageOS="${ImageOS:-}" --setenv=ImageVersion="${ImageVersion:-}" \
+            --setenv=RUNNER_OS="$RUNNER_OS" --setenv=RUNNER_ARCH="$RUNNER_ARCH" \
+            -- /usr/bin/python3 -I tests/composition/fable-game/wasm-installed-c.py
+      - name: Retain bounded installed-C evidence
+        id: evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: wasm-installed-c-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/wasm-installed-c/installed-evidence/
+          if-no-files-found: error
+          retention-days: 30
+          include-hidden-files: true
+      - name: Report evidence artifact identity
+        if: always()
+        shell: bash
+        env:
+          ARTIFACT_ID: ${{ steps.evidence.outputs.artifact-id }}
+          ARTIFACT_DIGEST: ${{ steps.evidence.outputs.artifact-digest }}
+        run: |
+          printf 'artifact-id=%s\nartifact-digest=%s\n' "$ARTIFACT_ID" "$ARTIFACT_DIGEST" | tee -a "$GITHUB_STEP_SUMMARY"

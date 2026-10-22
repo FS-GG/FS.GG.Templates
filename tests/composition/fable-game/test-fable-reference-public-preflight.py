@@ -857,6 +857,9 @@ def fixture_world(ns, base, owner):
     outputs={'--version':{'dotnet':T['sdk'],'node':'v'+T['node'],'npm':T['npm'],'rustc':'rustc 1.90.0 (1159e78c4 2025-09-14)','cargo':'cargo 1.90.0 (840b83a10 2025-07-30)','dll':'fable'}}
     def play(profile):
         argv=profile['argv'];exe=Path(argv[0]).name;cwd=Path(profile['cwd'])
+        root=Path(profile['root']);tools=root/'tools' # the run's own root, not the world default
+        if exe=='systemctl':
+            return 'TasksMax=6144\nMemoryMax=12884901888\nRuntimeMaxUSec=40min\nDelegate=yes\nNoNewPrivileges=yes\nKillMode=control-group\nTimeoutStopUSec=5s\nUser=runner\n'
         if exe=='rustup-init':
             target=tools/'cargo/bin/rustup';target.parent.mkdir(parents=True);target.write_bytes(rustup);target.chmod(0o700)
         elif argv[1:3]==['target','add']:
@@ -885,7 +888,7 @@ def fixture_world(ns, base, owner):
         elif len(argv)>2 and argv[2]=='test':
             family=owner.env_of(profile)['PLAYWRIGHT_BROWSER_FAMILY']
             if '--list' in argv:return json.dumps(report_for(family))
-            (results/family/'report.json').write_text(json.dumps(report_for(family,True)))
+            (Path(owner.env_of(profile)['FSGG_WASM_RESULTS'])/family/'report.json').write_text(json.dumps(report_for(family,True)))
         return ''
     return {'root':root,'workspace':workspace,'env':env,'acquire':acquire,'play':play,'installed':installed,'results':results}
 
@@ -1339,6 +1342,23 @@ class PilotOwner(FakeOwner):
         if cause:raise FakeGroupFailed(receipt)
         return receipt
 
+def write_host_evidence(ns, host, state):
+    """Fixture of the shared recorded WebKit host-package step's evidence."""
+    if state=='missing' or host.exists():return
+    host.mkdir(mode=0o700);packages=ns['PILOT_WEBKIT_PACKAGES']
+    (host/'packages.txt').write_text('\n'.join(packages)+'\n')
+    (host/'dpkg-before.tsv').write_text('libc6\t2.39-0ubuntu8\tii \nlibgtk-4-1\t4.14.0-1\tii \n')
+    installed=packages if state!='partial' else packages[:-1]
+    (host/'dpkg-after.tsv').write_text('libc6\t2.39-0ubuntu8\tii \n'+''.join(p+'\t1.0-'+p+'\tii \n' for p in sorted(installed)))
+    (host/'apt-sources.txt').write_text('### /etc/apt/sources.list\ndeb http://azure.archive.ubuntu.com/ubuntu noble main\n')
+    (host/'install.log').write_text('Ign:4 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libopus0 1.4\nGet:1 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libflite1 2.2 [1 kB]\nGet:2 http://archive.ubuntu.com/ubuntu noble/main amd64 libopus0 1.4 [2 kB]\nGet:3 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libx11-6 1 [3 kB]\nErr:5 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libz 1\nSetting up libflite1\n')
+    (host/'dpkg-diff.txt').write_text('> libflite1\n');(host/'fallback.txt').write_text('already-present\n')
+    (host/'update-attempted.txt').write_text('attempted\n');(host/'update-exit.txt').write_text('124\n' if state=='update-timeout' else '100\n');(host/'update.log').write_text('W: failed source\n')
+    if state!='not-attempted':(host/'install-attempted.txt').write_text('attempted\n')
+    exits={'failed':'100\n','update-timeout':'100\n','timeout':'124\n','killed':'137\n','interrupted':'not-run\n','not-attempted':'not-run\n'}
+    (host/'install-exit.txt').write_text(exits.get(state,'0\n'));(host/'step-complete.txt').write_text('step-exit 0\n')
+    (host/'post-step-check.txt').write_text('apt-dpkg-processes '+('2' if state=='lingering' else '0')+'\n');(host/'post-step-processes.txt').write_text('')
+
 class CustodyPilotTests(unittest.TestCase):
     """The admitted custody pilot entry on inert fixtures; nothing is downloaded, launched or uploaded."""
     def setUp(self):
@@ -1367,21 +1387,7 @@ class CustodyPilotTests(unittest.TestCase):
         return owner
 
     def host_evidence(self, state):
-        host=self.root/'rt/wasm-custody-pilot-host'
-        if state=='missing' or host.exists():return
-        host.mkdir(mode=0o700);packages=self.ns['PILOT_WEBKIT_PACKAGES']
-        (host/'packages.txt').write_text('\n'.join(packages)+'\n')
-        (host/'dpkg-before.tsv').write_text('libc6\t2.39-0ubuntu8\tii \nlibgtk-4-1\t4.14.0-1\tii \n')
-        installed=packages if state!='partial' else packages[:-1]
-        (host/'dpkg-after.tsv').write_text('libc6\t2.39-0ubuntu8\tii \n'+''.join(p+'\t1.0-'+p+'\tii \n' for p in sorted(installed)))
-        (host/'apt-sources.txt').write_text('### /etc/apt/sources.list\ndeb http://azure.archive.ubuntu.com/ubuntu noble main\n')
-        (host/'install.log').write_text('Ign:4 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libopus0 1.4\nGet:1 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libflite1 2.2 [1 kB]\nGet:2 http://archive.ubuntu.com/ubuntu noble/main amd64 libopus0 1.4 [2 kB]\nGet:3 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libx11-6 1 [3 kB]\nErr:5 http://azure.archive.ubuntu.com/ubuntu noble/main amd64 libz 1\nSetting up libflite1\n')
-        (host/'dpkg-diff.txt').write_text('> libflite1\n');(host/'fallback.txt').write_text('already-present\n')
-        (host/'update-attempted.txt').write_text('attempted\n');(host/'update-exit.txt').write_text('124\n' if state=='update-timeout' else '100\n');(host/'update.log').write_text('W: failed source\n')
-        if state!='not-attempted':(host/'install-attempted.txt').write_text('attempted\n')
-        exits={'failed':'100\n','update-timeout':'100\n','timeout':'124\n','killed':'137\n','interrupted':'not-run\n','not-attempted':'not-run\n'}
-        (host/'install-exit.txt').write_text(exits.get(state,'0\n'));(host/'step-complete.txt').write_text('step-exit 0\n')
-        (host/'post-step-check.txt').write_text('apt-dpkg-processes '+('2' if state=='lingering' else '0')+'\n');(host/'post-step-processes.txt').write_text('')
+        write_host_evidence(self.ns,self.root/'rt/wasm-custody-pilot-host',state)
 
     def test_dispatch_validation_binds_admitted_ref_admission_workflow_and_first_attempt(self):
         source=self.ns['validate_dispatch_source'](self.environ(),'c'*40,self.root/'rt/p')
@@ -1728,6 +1734,143 @@ class CustodyPilotTests(unittest.TestCase):
         owner=self.pilot(validate=module.validate_profile)
         self.assertEqual(self.ns['pilot_sequence'](self.environ(),time.monotonic())['disposition'],'completed')
         self.assertEqual(len(owner.calls),20)
+
+
+INSTALLED_WORKFLOW_FILE=HERE.parents[2]/'.github/workflows/wasm-installed-c.yml'
+INSTALLED_URL='https://github.com/FS-GG/.github/issues/4710#issuecomment-0000000000' # test-only stand-in
+
+class InstalledAdmissionTests(unittest.TestCase):
+    """The held, separately admitted installed-C entry; nothing is downloaded, launched or uploaded."""
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(os.path.realpath(self.temp.name))
+        self.text,self.code=actual_hosted_code()
+        self.ns={'__name__':'installed_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+        self.addCleanup(setattr,sys,'dont_write_bytecode',sys.dont_write_bytecode)
+        self.workflow=INSTALLED_WORKFLOW_FILE.read_text()
+
+    def environ(self, **changes):
+        sha='c'*40
+        value={'EVENT':'workflow_dispatch','REPOSITORY':'FS-GG/FS.GG.Templates','REF':'refs/heads/main','SHA':sha,'ADMITTED_REF':sha,'CHECKOUT_HEAD':sha,
+            'ADMISSION':INSTALLED_URL,'WORKFLOW_REF':'FS-GG/FS.GG.Templates/.github/workflows/wasm-installed-c.yml@refs/heads/main','WORKFLOW_SHA':sha,
+            'RUN_ID':'9','RUN_ATTEMPT':'1','RUNNER_TEMP':str(self.root/'rt'),'UNIT_NAME':'fsgg-mg-templates-installed-9-1',
+            'HOST_EVIDENCE':str(self.root/'rt/wasm-custody-pilot-host'),'GITHUB_WORKSPACE':str(self.root/'world/workspace')}
+        value.update(changes);return value
+
+    def admit(self, host='installed', validate=None):
+        self.ns['INSTALLED_ADMISSION']=INSTALLED_URL
+        (self.root/'world').mkdir();(self.root/'rt').mkdir()
+        owner=FakeOwner(validate=validate)
+        world=fixture_world(self.ns,self.root/'world',owner);owner.stdout=world['play']
+        write_host_evidence(self.ns,self.root/'rt/wasm-custody-pilot-host',host)
+        self.ns['load_owner']=lambda root,deadline:owner;self.ns['download']=world['acquire']
+        return owner
+
+    def test_held_in_source_refuses_before_any_acquisition(self):
+        def forbidden(*args,**kwargs):raise AssertionError('acquired while installed C is held')
+        self.ns['download']=forbidden;self.ns['load_owner']=forbidden;self.ns['fresh_environment']=forbidden
+        with self.assertRaisesRegex(RuntimeError,'installed C not admitted: INSTALLED_ADMISSION is unset'):
+            self.ns['admitted_installed_sequence'](self.environ(),time.monotonic())
+        self.assertFalse((self.root/'rt').exists())
+
+    def test_all_runtime_gates_stay_literal_and_closed(self):
+        tree=ast.parse(self.code)
+        def literal(name):
+            nodes=[n for n in ast.walk(tree) if isinstance(n,ast.Assign) and any(getattr(x,'id',None)==name for x in n.targets)]
+            self.assertEqual(len(nodes),1,name);return nodes[0].value.value
+        self.assertIs(literal('RUNTIME_ADMITTED'),False);self.assertIsNone(literal('INSTALLED_ADMISSION'))
+        self.assertEqual(len(re.findall(r'^        if: \$\{\{ false \}\}$',WORKFLOW.read_text(),re.M)),2)
+        for admitted in (False,True):
+            with self.subTest(admitted=admitted),self.assertRaisesRegex(RuntimeError,'installed C held'):self.ns['custody_gate']({},admitted=admitted)
+        with self.assertRaisesRegex(RuntimeError,'installed C held'):self.ns['custody_gate']({})
+        # Even when admitted, only the dispatch entry passes admitted=True; the PR path never does.
+        self.ns['INSTALLED_ADMISSION']=INSTALLED_URL
+        self.assertEqual(self.ns['custody_gate']({'x':1},admitted=True),{'x':1})
+        with self.assertRaisesRegex(RuntimeError,'installed C held'):self.ns['custody_gate']({})
+        hosted=ast.get_source_segment(self.code,next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='hosted_sequence'))
+        self.assertIn('custody_gate(provisioned)',hosted);self.assertNotIn('admitted',hosted)
+        main=next(n for n in tree.body if isinstance(n,ast.FunctionDef) and n.name=='main')
+        self.assertEqual(ast.unparse(main.body[0].test),'not RUNTIME_ADMITTED')
+
+    def test_dispatch_validation_binds_admission_ref_workflow_unit_and_first_attempt(self):
+        self.ns['INSTALLED_ADMISSION']=INSTALLED_URL
+        source=self.ns['validate_installed_dispatch'](self.environ(),'c'*40,self.root/'rt/x')
+        self.assertEqual((source['ADMISSION'],source['templateVersion']),(INSTALLED_URL,self.ns['TEMPLATE_VERSION']))
+        for key,value in [('EVENT','pull_request'),('REPOSITORY','attacker/fork'),('REF','refs/heads/other'),('ADMITTED_REF','d'*40),('SHA','d'*40),
+                          ('ADMISSION',PILOT_URL),('WORKFLOW_REF','FS-GG/FS.GG.Templates/.github/workflows/wasm-custody-pilot.yml@refs/heads/main'),
+                          ('WORKFLOW_SHA','d'*40),('RUN_ATTEMPT','2'),('UNIT_NAME','fsgg-mg-templates-pilot-9-1'),('HOST_EVIDENCE',str(self.root/'other')),
+                          ('GITHUB_WORKSPACE','relative')]:
+            with self.subTest(key=key),self.assertRaises(ValueError):self.ns['validate_installed_dispatch'](self.environ(**{key:value}),'c'*40,self.root/'rt/x')
+        with self.assertRaisesRegex(ValueError,'admitted_ref'):self.ns['validate_installed_dispatch'](self.environ(),'d'*40,self.root/'rt/x')
+        with self.assertRaisesRegex(ValueError,'re-run refused'): # a consistent re-run is refused for its attempt, not its unit
+            self.ns['validate_installed_dispatch'](self.environ(RUN_ATTEMPT='2',UNIT_NAME='fsgg-mg-templates-installed-9-2'),'c'*40,self.root/'rt/x')
+        self.ns['INSTALLED_ADMISSION']=None
+        with self.assertRaisesRegex(ValueError,'not admitted'):self.ns['validate_installed_dispatch'](self.environ(),'c'*40,self.root/'rt/x')
+
+    def test_admitted_sequence_runs_provisioning_custody_gate_and_27_case_installed_c(self):
+        owner=self.admit();start=time.monotonic()
+        summary=self.ns['admitted_installed_sequence'](self.environ(),start)
+        self.assertEqual(summary['disposition'],'passed')
+        self.assertEqual(set(summary['unit']['matchesAdmission'].values()),{True})
+        self.assertEqual((summary['hostPackages']['state'],summary['platformLabel']),('installed','ubuntu-24.04 + recorded packages'))
+        root=self.root/'rt/wasm-installed-c';receipts=json.loads((root/'managed-receipts.json').read_text())
+        self.assertEqual([r['phase'] for r in receipts],['setup']*19+['installed']*7)
+        self.assertTrue(receipts[0]['executable'].endswith('systemctl'))
+        families=summary['installedC']['families']
+        self.assertEqual({f:(r['listed'],r['stats']['expected']) for f,r in families.items()},{f:(9,9) for f in ('chromium','firefox','webkit')})
+        self.assertEqual(sum(r['stats']['expected'] for r in families.values()),27)
+        for call in owner.calls:self.assertEqual(call['profile']['retirement']['onLeaderExit'],'require-empty')
+        installed_deadlines={c['deadline'] for c,r in zip(owner.calls,receipts) if r['phase']=='installed'}
+        self.assertEqual(len(installed_deadlines),1) # one installed-phase deadline, never renewed
+        manifest=json.loads((root/'installed-evidence/manifest.json').read_text());files=[f['path'] for f in manifest['files']]
+        for name in ('installed-run.json','installed-c.json','managed-receipts.json','host-packages/install-exit.txt','installed/qualification.json','source.json'):
+            self.assertIn(name,files)
+        self.assertLessEqual(manifest['totalBytes'],self.ns['INSTALLED_EVIDENCE_BYTES'])
+        self.assertEqual(json.loads((root/'installed-run.json').read_text())['disposition'],'passed')
+
+    def test_without_recorded_webkit_packages_refuses_before_provisioning(self):
+        for host in ('failed','timeout','missing'):
+            with self.subTest(host=host):
+                shutil.rmtree(self.root/'world',ignore_errors=True);shutil.rmtree(self.root/'rt',ignore_errors=True)
+                self.ns={'__name__':'installed_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+                owner=self.admit(host)
+                def forbidden(*args,**kwargs):raise AssertionError('provisioning acquisition without WebKit packages')
+                self.ns['prepare_inputs']=forbidden
+                with self.assertRaisesRegex(ValueError,'WebKit host packages not installed'):
+                    self.ns['admitted_installed_sequence'](self.environ(),time.monotonic())
+                run=json.loads((self.root/'rt/wasm-installed-c/installed-evidence/installed-run.json').read_text())
+                self.assertEqual(run['disposition'],'failed')
+
+    def test_installed_workflow_is_dispatch_only_bounded_and_shares_the_pilot_host_step(self):
+        text=self.workflow
+        trigger=text.split('\non:\n',1)[1].split('\npermissions:',1)[0]
+        self.assertEqual(re.findall(r'^  ([a-z_]+):$',trigger,re.M),['pull_request','workflow_dispatch'])
+        self.assertNotRegex(text,r'(contents|actions|packages|id-token|pull-requests|issues): write|secrets\.|pull_request_target|workflow_run|schedule:')
+        static=text.split('  installed-c-static-controls:',1)[1].split('  installed-c:',1)[0]
+        job=text.split('\n  installed-c:\n',1)[1]
+        self.assertNotIn('systemd-run',static);self.assertNotIn('apt-get',static)
+        self.assertIn("if: ${{ github.event_name == 'workflow_dispatch' }}",job)
+        for required in ('runs-on: ubuntu-24.04','timeout-minutes: 60','contents: read','-p Delegate=yes','-p NoNewPrivileges=yes','-p KillMode=control-group',
+                         '-p TasksMax=6144','-p MemoryMax=12G','-p RuntimeMaxSec=2400','--setenv=GITHUB_WORKSPACE="$GITHUB_WORKSPACE"',
+                         'unit="fsgg-mg-templates-installed-${RUN_ID}-${RUN_ATTEMPT}"','-- /usr/bin/python3 -I tests/composition/fable-game/wasm-installed-c.py',
+                         'path: ${{ runner.temp }}/wasm-installed-c/installed-evidence/','retention-days: 30','include-hidden-files: true'):
+            with self.subTest(required=required):self.assertIn(required,job)
+        self.assertEqual(re.findall(r'uses: ([^\s]+)',job),['actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1','actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'])
+        self.assertNotIn('${{ inputs.',job.split('    steps:',1)[1])
+        # The recorded WebKit host-package step and its post-step check are the accepted pilot's, byte for byte.
+        pilot=PILOT_WORKFLOW_FILE.read_text()
+        shared=pilot[pilot.index("      # The only admitted host write:"):pilot.index("      - name: Run the admitted pilot in a fresh delegated unit")]
+        self.assertIn(shared,job)
+        self.assertEqual(self.ns['INSTALLED_WORKFLOW'],'FS-GG/FS.GG.Templates/.github/workflows/'+INSTALLED_WORKFLOW_FILE.name+'@refs/heads/main')
+        self.assertEqual(self.ns['INSTALLED_UNIT']['TasksMax'],'6144');self.assertEqual(self.ns['INSTALLED_UNIT']['RuntimeMaxUSec'],'40min')
+
+    @unittest.skipUnless(OWNER_FILE,'set FSGG_MANAGED_GROUP_OWNER to the pinned owner file to validate installed-C profiles')
+    def test_every_installed_call_is_valid_under_the_real_contract(self):
+        source=Path(OWNER_FILE).read_bytes();self.assertEqual(hashlib.sha256(source).hexdigest(),self.ns['OWNER']['sha256'])
+        spec=importlib.util.spec_from_file_location('installed_owner_check',OWNER_FILE);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        owner=self.admit(validate=module.validate_profile)
+        self.assertEqual(self.ns['admitted_installed_sequence'](self.environ(),time.monotonic())['disposition'],'passed')
+        self.assertEqual(len(owner.calls),26)
 
 
 if __name__ == '__main__': unittest.main()

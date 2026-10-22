@@ -747,3 +747,78 @@ admits one final dispatch with the same conditions, with these changes:
   is clearly better.
 - **No fourth run.** If the install again fails to complete, WebKit on hosted runners
   is recorded as a residual.
+
+### Final custody pilot run 39845591542: accepted — custody pilot phase complete — 2026-10-22
+
+This was the single dispatch admitted by
+[6349235037](https://github.com/FS-GG/.github/issues/4710#issuecomment-6349235037), at
+`cbfdb04`. The artifact has zip sha256 `ef9000f4…` and holds 101 files. The
+independent review
+([#4710](https://github.com/FS-GG/.github/issues/4710#issuecomment-6350233291))
+returned **ACCEPTED**.
+
+**WebKit host packages:** the bounded install completed.
+- Update and install both exited 0, with no timeout.
+- 172 packages were added (exactly apt's NEW list), 4 GLib packages were upgraded, and
+  none were removed. All 51 pinned packages are present.
+- All 176 fetches came from the Azure mirror.
+- No apt or dpkg process remained, and dpkg settled immediately.
+
+**Containment:** all 20 groups were contained, and the unit properties match the
+admission.
+
+**WebKit 26.6 cases:**
+- **normal:** a clean stock shutdown, including the webServer;
+- **forced:** the `pw_run.sh` → MiniBrowser → WPE chain, retired by `cgroup.kill`;
+- **leader exit:** the browser exited with its leader;
+- **survivor:** 5 live processes retired by the owner.
+
+**Established across runs 1–3** on GitHub-hosted ubuntu-24.04 (owner `d846dbe1`):
+- **Chromium 1243 and Firefox 1543**, on three runner builds: clean stock shutdown,
+  `cgroup.kill` deadline retirement and owner-performed survivor retirement.
+- **WebKit 2359**, on build `20261012.334.1` with the recorded host packages: the same
+  three behaviours. A stock runner lacks those packages.
+
+**Recorded gaps:**
+- forced cases do not show which processes were alive at the deadline;
+- per-browser argv is not recorded;
+- WebKit was tested on one build with one package set;
+- survivors were still held by a live Playwright holder, so a truly orphaned browser
+  is untested.
+
+### Installed C: held, separately admitted dispatch entry — 2026-10-22
+
+Installed C (the downloaded-only 27-case journey) gets its own dispatch-only workflow,
+`.github/workflows/wasm-installed-c.yml`, job `installed-c`, and its own entry,
+`admitted_installed_sequence`. The PR-triggered `hosted_sequence`, `main()`
+(`RUNTIME_ADMITTED = False`) and both literal-false steps in
+`fable-reference-public.yml` stay closed and are not the lift path.
+
+- **Held in source.** The literal `INSTALLED_ADMISSION = None` makes the entry refuse
+  before any acquisition, root or process. `custody_gate` opens only when
+  `admitted=True` is passed by this entry and `INSTALLED_ADMISSION` is set.
+  `hosted_sequence` still calls `custody_gate(provisioned)` and is held.
+- **Once a reviewed source PR sets `INSTALLED_ADMISSION`,** the entry runs these steps:
+  1. validates the dispatch: main, `admitted_ref` = `SHA` = `WORKFLOW_SHA` = head, the
+     exact admission URL, the workflow identity, attempt 1, the unit name, the host
+     evidence path and the workspace;
+  2. loads the pinned owner and probes containment;
+  3. reads the unit properties back (`TasksMax=6144`, `MemoryMax=12G`,
+     `RuntimeMaxUSec=40min`);
+  4. requires the recorded WebKit host packages to be `installed`, and otherwise
+     refuses before any provisioning acquisition, because the journey needs all three
+     families;
+  5. provisions (`prepare_inputs`) and qualifies tools (`qualify_tools`);
+  6. opens `custody_gate` for itself;
+  7. runs `installed_c`: the checker's downloaded source stage as one group, then each
+     family's Playwright `--list` and `test` invocation as its own `require-empty`
+     group, asserting 9 cases per family, 27 in total;
+  8. collects one evidence tree capped at 150 MiB, with logs truncated to 1 MiB.
+- **WebKit host packages.** The recorded step and its post-step process check are
+  byte-identical to the accepted pilot's, and a test enforces this.
+- **Tests.** The held refusal, every gate literal and the dispatch refusals are
+  tested. An end-to-end admitted run on fixtures puts all 26 groups through the real
+  owner's `validate_profile`. Refusal without recorded packages is tested, as is the
+  workflow structure.
+- **Not in this source:** the Workspace.Template 0.19.2 pins and the admission
+  constant. Both belong to the lift PR, after Programme/root admission.
