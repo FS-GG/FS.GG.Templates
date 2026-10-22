@@ -92,15 +92,28 @@ def main(argv):
         check('contained-and-removed', receipt['custody'] == 'contained' and receipt['cleanup'] == 'observed-empty-removed' and receipt['residualInRoot'] == [], [receipt['custody'], receipt['cleanup']])
         check('receipt-owner-pin', receipt['owner']['sha256'] == caller['OWNER']['sha256'])
         check('require-empty-profile', receipt['profile']['retirement']['onLeaderExit'] == 'require-empty')
+        # Per-group high-water through the real owner's run(control=) hook (recording only).
+        high = receipts[-1].get('highWater') or {}
+        group, unitwide = high.get('group') or {}, high.get('unit') or {}
+        isint = lambda v: isinstance(v, int) and not isinstance(v, bool)
+        check('high-water-group-pids', isint(group.get('pidsPeak')) and group['pidsPeak'] >= 1 and group.get('pidsEventsMax') == 0, group)
+        check('high-water-unit', isint(unitwide.get('pidsPeakCumulative')) and unitwide['pidsPeakCumulative'] >= group.get('pidsPeak', 0)
+              and isint(unitwide.get('memoryPeakBytesCumulative')) and unitwide['memoryPeakBytesCumulative'] > 0
+              and isint(unitwide.get('memoryCurrentMaxBytesSampled')) and unitwide.get('pidsEventsMaxDelta') == 0
+              and unitwide.get('memoryEventsOomKillDelta') == 0, unitwide)
+        check('high-water-observed-without-errors', isint(high.get('polls')) and high['polls'] >= 1 and high.get('errors') == [], high)
         cause = refusal(lambda: execute(['/bin/sh', '-c', 'setsid sleep 60 </dev/null >/dev/null 2>&1 & echo started'], root, env))
         check('detached-leftover-fails', cause is not None and 'leader exited with live contained members' in cause, cause)
         receipt = last_receipt(receipts)
+        leftover = (receipts[-1].get('highWater') or {}).get('group') or {}
+        check('high-water-on-failed-group', isinstance(leftover.get('pidsPeak'), int) and leftover['pidsPeak'] >= 2, leftover)
         check('detached-leftover-retired', receipt['cleanup'] == 'observed-empty-removed' and receipt['residualInRoot'] == [] and bool(receipt['residualAfterLeaderExit']) and (receipt['retirement']['termSignals'] > 0 or receipt['retirement']['cgroupKill']), [receipt['cleanup'], receipt['retirement']])
         bound = identities[shell]
         identities[shell] = {**bound, 'sha256': '0' * 64}
         cause = refusal(lambda: execute(['/bin/sh', '-c', 'echo drifted'], root, env))
         check('drifted-identity-refuses', cause is not None and 'refused: executable-identity-mismatch' in cause, cause)
         check('drift-not-launched', last_receipt(receipts)['launch']['attempted'] is False)
+        check('high-water-refused-group-empty', (receipts[-1].get('highWater') or {}).get('group') is None and receipts[-1]['highWater'].get('errors') == [], receipts[-1].get('highWater'))
         identities[shell] = bound
         count = len(receipts)
         cause = refusal(lambda: execute(['/usr/bin/true'], root, env))

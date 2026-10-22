@@ -239,8 +239,11 @@ WASM_RECEIPT
   resolved="$(printf '%s\n' "${remote_refs[@]}" | awk '$2 ~ /\^\{\}$/ {print $1}')"
   [[ -n "$resolved" ]] || resolved="$(printf '%s\n' "${remote_refs[@]}" | awk '$2 !~ /\^\{\}$/ {print $1}')"
   [[ "$resolved" == "$tag_revision" && "$(printf '%s\n' "$resolved" | wc -l)" -eq 1 ]] || { echo 'WASM public immutable tag mismatch' >&2; exit 1; }
-  curl -q --fail --silent --show-error --location --retry 0 --max-time 15 --max-filesize 8388608 "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/$version/fs.gg.workspace.template.$version.nupkg" -o "$archive"
-  curl -q --fail --silent --show-error --location --retry 0 --max-time 15 --max-filesize 1048576 "https://raw.githubusercontent.com/FS-GG/FS.GG.Templates/$revision/providers/fable-game.providers.yml" -o "$descriptor"
+  # Both fetches are idempotent GETs, retried (bounded: 15 s per attempt, 60 s retry window) so a transient
+  # error cannot spend a single-use admission. Retries restart the output file; the bytes are then
+  # hash-checked below (--sha256 / --descriptor-sha256) exactly as before.
+  curl -q --fail --silent --show-error --location --retry 3 --retry-all-errors --retry-max-time 60 --max-time 15 --max-filesize 8388608 "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/$version/fs.gg.workspace.template.$version.nupkg" -o "$archive"
+  curl -q --fail --silent --show-error --location --retry 3 --retry-all-errors --retry-max-time 60 --max-time 15 --max-filesize 1048576 "https://raw.githubusercontent.com/FS-GG/FS.GG.Templates/$revision/providers/fable-game.providers.yml" -o "$descriptor"
   validator=("$DOTNET_HOST_PATH" run --project "$root/src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj" -c Release --no-build --no-restore --)
   "${validator[@]}" reference-publication-check --template-version "$version" --archive "$archive" --descriptor "$descriptor" --sha256 "$sha" --source-revision "$revision" --tag-revision "$tag_revision" --descriptor-sha256 "$descriptor_sha"
   "$DOTNET_HOST_PATH" nuget verify "$archive" --all >"$evidence/template-signatures.log" 2>&1

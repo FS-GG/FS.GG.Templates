@@ -806,15 +806,25 @@ class FakeGroupFailed(RuntimeError):
 class FakeOwner:
     """Records exactly what the caller hands the contract; never launches anything."""
     Refused=FakeRefused;GroupFailed=FakeGroupFailed
-    def __init__(self, outcome='succeeded', available=True, stdout=None, validate=None):
+    def __init__(self, outcome='succeeded', available=True, stdout=None, validate=None, cgroup=None, events=None):
         self.calls=[];self.outcome=outcome;self.available=available;self.stdout=stdout;self.envs={};self.validate=validate
+        self.cgroup=cgroup;self.events=events or {} # (delegated root, leaf) fixture dirs; event -> mutation before the hook
     def env_of(self, profile):
         return self.envs[id(profile)]
     def probe(self):
         return {'schema':'fsgg.managed-group-contract/1','available':self.available,'refusal':None if self.available else 'delegated-root-invalid'}
-    def run(self, profile, *, env, deadline, out_dir):
+    def hooks(self, control):
+        # The real owner's public hook events, in order; a raising hook is a group failure there too.
+        if control is None:return
+        context={'delegatedRoot':str(self.cgroup[0]) if self.cgroup else None,'leaf':str(self.cgroup[1]) if self.cgroup else None}
+        for event in ('after-birth','poll','before-retire','before-remove','after-cleanup'):
+            if event in self.events:self.events[event]()
+            try:control(event,dict(context))
+            except Exception as error:raise FakeGroupFailed({'outcome':'failed','cleanup':'observed-empty-removed','custody':'contained','firstCause':'hook:'+type(error).__name__})
+    def run(self, profile, *, env, deadline, out_dir, control=None):
         if self.validate:self.validate(profile) # the real schema, at the moment of each run
         self.calls.append({'profile':profile,'env':env,'deadline':deadline,'outDir':out_dir})
+        self.hooks(control)
         self.envs[id(profile)]=env
         os.mkdir(out_dir,0o700)
         receipt={'outcome':'succeeded','cleanup':'observed-empty-removed','custody':'contained','profileSha256':'f'*64,
@@ -1327,7 +1337,7 @@ class PilotOwner(FakeOwner):
     """Fake owner for the custody pilot: plays each case and writes a receipt shaped like the real one."""
     def __init__(self, world, behaviour=None, validate=None):
         super().__init__(validate=validate);self.world=world;self.behaviour=behaviour or {};self.case_calls=[]
-    def run(self, profile, *, env, deadline, out_dir):
+    def run(self, profile, *, env, deadline, out_dir, control=None):
         if self.validate:self.validate(profile)
         self.calls.append({'profile':profile,'env':env,'deadline':deadline,'outDir':out_dir});self.envs[id(profile)]=env
         os.mkdir(out_dir,0o700);argv=profile['argv'];stdout='';stderr='';cause=None;residual=[]
@@ -2029,6 +2039,109 @@ class RestoreControlTests(unittest.TestCase):
                 with self.subTest(row=row):self.assertIn(row,[l.strip() for l in checker])
         self.assertEqual(len(lines['"$DOTNET_HOST_PATH" new ']),3)
         self.assertIn('-p:FsGgWasmPolicyExample="$enabled"',lines['"$DOTNET_HOST_PATH" restore '][0])
+
+
+class ObservabilityTests(unittest.TestCase):
+    """Installed-C run 2 precondition (FS-GG/.github#4710 comment 6352823677): per-group cgroup high-water,
+    per-phase wall-clock, and bounded retries on the checker's idempotent GETs. Recording only."""
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(os.path.realpath(self.temp.name))
+        self.text,self.code=actual_hosted_code()
+        self.ns={'__name__':'observability_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+        self.tool=self.root/'tool';self.tool.write_bytes(b'#!/bin/sh\nexit 0\n');self.tool.chmod(0o700)
+        self.identities={};self.ns['bind_identity'](self.identities,str(self.tool),'verified-archive-member')
+        self.droot=self.root/'cg/unit.service';self.leaf=self.droot/'fsgg-mg-0';self.leaf.mkdir(parents=True)
+
+    def cg(self, directory, **files):
+        for name,value in files.items():(directory/name.replace('_','.')).write_text(value)
+
+    def run_group(self, owner):
+        receipts=[];execute=self.ns['managed_executor'](owner,self.root,time.monotonic()+60,self.identities,'setup',receipts)
+        try:execute([str(self.tool)],self.root,{'PATH':'/usr/bin'})
+        except RuntimeError:pass
+        return receipts[0],json.loads((self.root/'managed-receipts.json').read_text())[0]
+
+    def test_group_and_unit_high_water_is_recorded_for_the_group(self):
+        self.cg(self.droot,pids_peak='12\n',memory_peak='5000\n',memory_current='100\n',pids_events='max 1\n',memory_events='low 0\nhigh 0\nmax 3\noom 0\noom_kill 2\n')
+        self.cg(self.leaf,pids_peak='0\n',pids_events='max 0\n')
+        events={'poll':lambda:self.cg(self.droot,memory_current='4096\n'),
+                'before-remove':lambda:(self.cg(self.leaf,pids_peak='37\n',pids_events='max 0\n'),
+                    self.cg(self.droot,pids_peak='40\n',memory_peak='9000\n',pids_events='max 1\n',memory_events='low 0\nhigh 0\nmax 3\noom 1\noom_kill 3\n'))}
+        entry,written=self.run_group(FakeOwner(cgroup=(self.droot,self.leaf),events=events))
+        self.assertEqual(entry['status'],'succeeded');self.assertEqual(written['highWater'],entry['highWater'])
+        high=entry['highWater']
+        self.assertEqual(high['group'],{'pidsPeak':37,'pidsEventsMax':0,'memoryPeakBytes':None,'memoryEventsMax':None,'memoryEventsOomKill':None})
+        self.assertEqual(high['unit'],{'pidsPeakCumulative':40,'memoryPeakBytesCumulative':9000,'memoryCurrentMaxBytesSampled':4096,
+            'pidsEventsMaxDelta':0,'memoryEventsMaxDelta':0,'memoryEventsOomKillDelta':1})
+        self.assertEqual((high['polls'],high['errors']),(1,[]))
+
+    def test_high_water_is_recorded_for_failed_groups_and_never_affects_custody(self):
+        self.cg(self.droot,pids_events='max 0\n',memory_events='oom_kill 0\n')
+        events={'before-remove':lambda:self.cg(self.droot,pids_events='max 4\n',memory_events='oom_kill 1\n')}
+        entry,_=self.run_group(FakeOwner(outcome='failed',cgroup=(self.droot,self.leaf),events=events))
+        self.assertEqual(entry['status'],'failed')
+        self.assertEqual((entry['highWater']['unit']['pidsEventsMaxDelta'],entry['highWater']['unit']['memoryEventsOomKillDelta']),(4,1))
+
+    def test_observer_never_raises_or_reads_outside_the_delegated_root(self):
+        state,control=self.ns['high_water_observer']()
+        outside=self.root/'elsewhere';outside.mkdir();(outside/'pids.peak').write_text('99\n')
+        for event,context in [('after-birth',{'delegatedRoot':7}),('poll',{'delegatedRoot':str(self.root/'missing')}),
+                ('poll',{'delegatedRoot':None}),('before-remove',{'delegatedRoot':str(self.droot),'leaf':str(outside)}),
+                ('before-remove',{'delegatedRoot':str(self.droot),'leaf':str(self.droot)+'-sibling/x'}),('unknown',{})]+[('poll',{'delegatedRoot':str(self.root/'missing')})]*6:
+            with self.subTest(event=event):control(event,context) # must not raise
+        self.assertIsNone(state['group']);self.assertEqual(len(state['errors']),4)
+        record=self.ns['high_water_record'](state);self.assertIsNone(record['group'])
+        self.assertEqual(self.ns['high_water_record']({'unitBefore':{'pidsEventsMax':'x'},'unitAfter':{'pidsEventsMax':1}})['unit']['pidsEventsMaxDelta'],None)
+        self.assertNotIn('open(os.path.join(droot,"memory.current"),"w',self.code);self.assertNotIn('write_text',ast.get_source_segment(self.code,
+            next(n for n in ast.parse(self.code).body if isinstance(n,ast.FunctionDef) and n.name=='high_water_observer')))
+
+    @unittest.skipUnless(OWNER_FILE,'set FSGG_MANAGED_GROUP_OWNER to the pinned owner file to check its hook events')
+    def test_the_pinned_owner_offers_the_hook_events_used(self):
+        source=Path(OWNER_FILE).read_text();self.assertEqual(hashlib.sha256(source.encode()).hexdigest(),self.ns['OWNER']['sha256'])
+        spec=importlib.util.spec_from_file_location('hook_owner_check',OWNER_FILE);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        import inspect
+        self.assertIn('control',inspect.signature(module.run).parameters)
+        for event in ('after-birth','poll','before-remove'):self.assertIn("hook('"+event+"', context())",source)
+        self.assertIn("'leaf': leaf, 'delegatedRoot': droot",source)
+        self.assertIn("stage('hook', lambda: hook('before-remove', context()))",source) # every launched outcome
+
+    def test_phase_wall_clock_is_recorded_on_pass_and_on_failure(self):
+        case=InstalledAdmissionTests('test_admitted_sequence_runs_provisioning_custody_gate_and_27_case_installed_c');case.setUp()
+        self.addCleanup(case.doCleanups);case.admit()
+        summary=self.ns_run(case)
+        timing=summary['timing']
+        self.assertEqual(timing['budgetSeconds'],case.ns['INSTALLED_BUDGET'])
+        for key in ('setupStartedAt','setupSeconds','installedStartedAt','installedSeconds','checkerSeconds','sequenceSeconds'):
+            with self.subTest(key=key):self.assertIsInstance(timing[key],float)
+        self.assertEqual(set(timing['families']),{'chromium','firefox','webkit'})
+        for row in timing['families'].values():self.assertEqual(set(row),{'listSeconds','testSeconds'})
+        self.assertEqual(summary['installedC']['timing'],timing)
+        root=case.root/'rt/wasm-installed-c'
+        self.assertEqual(json.loads((root/'installed-run.json').read_text())['timing']['sequenceSeconds'],timing['sequenceSeconds'])
+        self.assertTrue(all('highWater' in r for r in json.loads((root/'managed-receipts.json').read_text())))
+        failing=InstalledAdmissionTests('test_admitted_sequence_runs_provisioning_custody_gate_and_27_case_installed_c');failing.setUp()
+        self.addCleanup(failing.doCleanups);owner=failing.admit();owner.outcome='failed'
+        with self.assertRaises((RuntimeError,ValueError)):failing.ns['admitted_installed_sequence'](failing.environ(),time.monotonic())
+        stopped=json.loads((failing.root/'rt/wasm-installed-c/installed-run.json').read_text())['timing']
+        self.assertIn('sequenceSeconds',stopped);self.assertIn('setupSecondsUntilStop',stopped);self.assertNotIn('setupSeconds',stopped)
+
+    def ns_run(self, case):
+        return case.ns['admitted_installed_sequence'](case.environ(),time.monotonic())
+
+    def test_checker_gets_are_bounded_retried_and_still_hash_checked(self):
+        text=CHECKER.read_text();start=text.index('if [[ "$mode" == wasm ]]; then\n  : "${DOTNET_HOST_PATH:?')
+        block=text[start:text.index('\n  exit 0\nfi\n',start)]
+        curls=[l.strip() for l in block.splitlines() if l.strip().startswith('curl ')]
+        self.assertEqual(len(curls),2);self.assertNotIn('--retry 0',block)
+        for line,target in zip(curls,('-o "$archive"','-o "$descriptor"')):
+            with self.subTest(target=target):
+                self.assertIn('--retry 3 --retry-all-errors --retry-max-time 60 --max-time 15 ',line);self.assertTrue(line.endswith(target))
+                self.assertIn('--fail',line);self.assertIn('--max-filesize',line)
+                for verb in (' -X',' --request',' -d ',' --data',' -T ',' --upload-file',' -F ',' --form',' -I ',' --head',' -G '):self.assertNotIn(verb,line) # GET only
+        check=[l for l in block.splitlines() if 'reference-publication-check' in l];self.assertEqual(len(check),1)
+        for flag in ('--archive "$archive"','--descriptor "$descriptor"','--sha256 "$sha"','--descriptor-sha256 "$descriptor_sha"'):self.assertIn(flag,check[0])
+        self.assertLess(block.index('-o "$descriptor"'),block.index('reference-publication-check'))
 
 
 if __name__ == '__main__': unittest.main()
