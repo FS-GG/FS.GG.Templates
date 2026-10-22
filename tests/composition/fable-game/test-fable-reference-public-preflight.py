@@ -1529,6 +1529,28 @@ class CustodyPilotTests(unittest.TestCase):
         summary=self.run_pilot({})
         self.assertEqual(summary['unit']['properties']['MemoryMax'],str(8*1073741824))
 
+    def test_inline_caller_block_keeps_its_yaml_indentation(self):
+        # A line below the block indent ends the YAML scalar: the workflow file breaks and the
+        # extracted code loses characters. Every non-empty line must keep the 10-space indent.
+        lines=WORKFLOW.read_text().split('\n')
+        start=next(i for i,x in enumerate(lines) if "-- /usr/bin/python3 -I - <<'HOSTED_WASM'" in x)
+        end=next(i for i in range(start+1,len(lines)) if lines[i]=='          HOSTED_WASM')
+        self.assertEqual([i+1 for i in range(start+1,end) if lines[i] and not lines[i].startswith(' '*10)],[])
+
+    @unittest.skipUnless(shutil.which('node'),'node is required to syntax-check the pilot scripts')
+    def test_pilot_javascript_is_syntactically_valid(self):
+        for name in ('PILOT_HOLD_SCRIPT','PILOT_SPEC','STOCK_HOST_VALIDATOR'):
+            path=self.root/(name.lower()+'.cjs');path.write_text(self.ns[name])
+            with self.subTest(name=name):
+                result=subprocess.run(['node','--check',str(path)],capture_output=True,text=True)
+                self.assertEqual(result.returncode,0,result.stderr)
+
+    def test_holder_failure_file_is_collected_as_evidence(self):
+        root=self.root/'job';(root/'pilot-ready').mkdir(parents=True);(root/'custody-pilot.json').write_text('{}')
+        (root/'pilot-ready/webkit.json.error').write_text('Error: missing host library')
+        manifest=self.ns['collect_pilot_evidence'](root)
+        self.assertIn('pilot-ready/webkit.json.error',[f['path'] for f in manifest['files']])
+
     def test_admitted_webkit_list_is_the_reviewed_pinned_list(self):
         # Reviewed fingerprint of deps["ubuntu24.04-x64"].webkit in playwright-core 1.63.0 (51 packages).
         packages=list(self.ns['PILOT_WEBKIT_PACKAGES'])

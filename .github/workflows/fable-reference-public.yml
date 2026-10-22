@@ -1192,7 +1192,7 @@ jobs:
           const holder=child.spawn(process.execPath,[__filename,family,"serve",ready],{detached:true,stdio:"ignore"});holder.unref();
           const until=Date.now()+30000;const poll=()=>{if(fs.existsSync(ready)){const v=JSON.parse(fs.readFileSync(ready,"utf8"));console.log(JSON.stringify({...v,leaderPid:process.pid,holderPid:holder.pid}));process.exit(0)}
           if(fs.existsSync(ready+".error")){console.error("holder failed: "+fs.readFileSync(ready+".error","utf8"));process.exit(1)}
-if(Date.now()>until){console.error("holder not ready");process.exit(1)}setTimeout(poll,100)};poll();
+          if(Date.now()>until){console.error("holder not ready");process.exit(1)}setTimeout(poll,100)};poll();
           }else{
           (async()=>{const browser=await pw[family].launch({headless:true});const page=await browser.newPage();await page.goto("about:blank");
           const value={launched:true,family,mode,version:browser.version(),pid:process.pid,descendants:descendants(process.pid)};
