@@ -7,6 +7,8 @@ on:
       - tests/composition/fable-game/verify-fable-reference-public.sh
       - tests/composition/fable-game/test-fable-reference-public-preflight.py
       - tests/composition/fable-game/managed-group-binding-probe.py
+      - tests/composition/fable-game/installed-c-restore-control.py
+      - .github/workflows/installed-c-restore-control.yml
       - tests/composition/fable-game/current-public-descriptor-0.19.0.yml
   workflow_dispatch:
     inputs:
@@ -708,14 +710,8 @@ jobs:
               (root/"browser-host-validation.json").write_text(json.dumps(host_validation,indent=2)+"\n")
               return registered,host_validation
 
-          def prepare_inputs(root, workspace, env, execute, acquire, deadline, identities=None):
-              # Every execute call is one managed group; its executable must already be identity-bound.
-              identities=identities if identities is not None else {}
-              tools=root/"tools"; tools.mkdir(mode=0o700)
-              downloads=root/"downloads"; downloads.mkdir(mode=0o700)
-              records=[];get=acquirer(root,downloads,acquire,deadline,records)
-              # Metadata and archives have separate retained identities. HTTPS metadata is not a detached signature claim.
-              for name,(url,expected,maximum) in ENDPOINTS.items(): get(name,url,expected,maximum)
+          def provision_sdk(get, tools, deadline):
+              # Fixed SDK from authentic release metadata, by its published sha512, unpacked privately.
               metadata=get("dotnet-releases.json","https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json",None,8388608)
               releases=json.loads(metadata.read_bytes())["releases"]
               sdk=[sdk for release in releases for sdk in release.get("sdks",[release.get("sdk",{})]) if sdk.get("version") == TOOLS["sdk"]]
@@ -724,6 +720,34 @@ jobs:
               require(len(files) == 1, "fixed Linux SDK archive ambiguous")
               sdk_file=next(iter(files.values())); sdk_archive=get("dotnet.tar.gz",sdk_file["url"],sdk_file["hash"],536870912,"sha512")
               unpack_tar(sdk_archive,tools/"dotnet",2147483648,deadline)
+              return tools/"dotnet/dotnet"
+
+          def closed_nuget_config(root):
+              config=root/"nuget.config";config.write_text('<configuration><packageSources><clear/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>\n')
+              return config
+
+          def fable_install_argv(dotnet, tools, config):
+              return [dotnet,"tool","install","fable","--version",TOOLS["fable"],"--tool-path",str(tools/"fable"),"--configfile",str(config)]
+
+          def provider_tool_restore_argv(dotnet, project, config):
+              # The ProviderTool lock pins the SDK library-pack FSharp.Core (author-signed only). nuget.org
+              # serves the repository-countersigned archive, whose content hash differs, so this restore keeps
+              # the fixed SDK's implicit library-packs feed. Run 39858275028 failed NU1403 without it.
+              # Generated products disable that feed themselves; their locks pin the nuget.org archive.
+              return [dotnet,"restore",str(project),"--locked-mode","--configfile",str(config),"-p:NuGetAudit=false"]
+
+          def provider_tool_build_argv(dotnet, project):
+              return [dotnet,"build",str(project),"-c","Release","--no-restore","-p:UseSharedCompilation=false","-p:BuildInParallel=false"]
+
+          def prepare_inputs(root, workspace, env, execute, acquire, deadline, identities=None):
+              # Every execute call is one managed group; its executable must already be identity-bound.
+              identities=identities if identities is not None else {}
+              tools=root/"tools"; tools.mkdir(mode=0o700)
+              downloads=root/"downloads"; downloads.mkdir(mode=0o700)
+              records=[];get=acquirer(root,downloads,acquire,deadline,records)
+              # Metadata and archives have separate retained identities. HTTPS metadata is not a detached signature claim.
+              for name,(url,expected,maximum) in ENDPOINTS.items(): get(name,url,expected,maximum)
+              provision_sdk(get,tools,deadline)
               node_root,bin_root=provision_node_npm(get,tools,deadline)
               rust_hash=get("rustup-init.sha256","https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init.sha256",None,1048576)
               rust_digest=rust_hash.read_text().split()[0]; require(re.fullmatch(r"[0-9a-f]{64}",rust_digest),"rustup metadata invalid")
@@ -731,7 +755,7 @@ jobs:
               unpack_tar(downloads/"wasi",tools/"wasi",2147483648,deadline)
               (root/"input-downloads.json").write_text(json.dumps(records,indent=2)+"\n")
               env.update(PATH=str(bin_root)+":"+str(node_root/"bin")+":"+str(tools/"cargo/bin")+":/usr/bin:/bin",DOTNET_ROOT=str(tools/"dotnet"),DOTNET_HOST_PATH=str(tools/"dotnet/dotnet"),RUSTUP_HOME=str(tools/"rustup"),CARGO_HOME=str(tools/"cargo"),FSGG_WASM_SDK_ARCHIVE=str(downloads/"guest"),FSGG_WASM_WASI_ROOT=str(tools/"wasi/wasi-sdk-34.0-x86_64-linux"),FSGG_WASM_NPM_CACHE=str(root/"npm-cache"),PLAYWRIGHT_BROWSERS_PATH=str(root/"browsers"),FSGG_WASM_FIREFOX_PROFILE="content-sandbox-enabled")
-              config=root/"nuget.config";config.write_text('<configuration><packageSources><clear/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>\n');env["FSGG_WASM_NUGET_CONFIG"]=str(config)
+              config=closed_nuget_config(root);env["FSGG_WASM_NUGET_CONFIG"]=str(config)
               _,shell_sha=host_image("/bin/sh")
               bind_identity(identities,str(tools/"dotnet/dotnet"),"verified-archive-member")
               node=bind_identity(identities,os.path.realpath(node_root/"bin/node"),"verified-archive-member")
@@ -748,12 +772,12 @@ jobs:
               for name in ("rustc","cargo"):bind_identity(identities,str(rust_toolchain_bin(root)/name),"installer-output-observed")
               dotnet=env["DOTNET_HOST_PATH"]
               execute([dotnet,"--info"],root,env)
-              execute([dotnet,"tool","install","fable","--version",TOOLS["fable"],"--tool-path",str(tools/"fable"),"--configfile",str(config)],root,env)
+              execute(fable_install_argv(dotnet,tools,config),root,env)
               entries=[p for p in (tools/"fable").rglob("*.dll") if sha(p)==FABLE_SHA]; require(len(entries)==1,"actual Fable entrypoint hash differs");env["FSGG_WASM_FABLE_CORE"]=str(entries[0])
               project=workspace/"src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj"
               # Managed profiles require cwd inside the private root; the project path stays absolute.
-              execute([dotnet,"restore",str(project),"--locked-mode","--configfile",str(config),"-p:NuGetAudit=false","-p:DisableImplicitLibraryPacksFolder=true"],root,env)
-              execute([dotnet,"build",str(project),"-c","Release","--no-restore","-p:UseSharedCompilation=false","-p:BuildInParallel=false"],root,env)
+              execute(provider_tool_restore_argv(dotnet,project,config),root,env)
+              execute(provider_tool_build_argv(dotnet,project),root,env)
               output=project.parent/"bin/Release/net10.0/FS.GG.Templates.ProviderTool.dll";require(output.is_file(),"Release ProviderTool output missing")
               seed=seed_from_package(downloads/"template",root/"npm-seed",deadline)
               for role in ("Client","Browser.Tests"):

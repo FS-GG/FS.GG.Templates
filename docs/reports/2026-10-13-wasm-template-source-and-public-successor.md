@@ -847,3 +847,71 @@ Installed C (the downloaded-only 27-case journey) gets its own dispatch-only wor
   owner is a precondition of admission.
 - **Not in this source:** the admission constant. It belongs to the admission PR,
   after Programme/root admission, together with the reset PR that follows the run.
+
+### Installed-C run 39858275028: failed as evidence; restore fix and always-run control — 2026-10-22
+
+The one admitted run ([39858275028](https://github.com/FS-GG/FS.GG.Templates/actions/runs/39858275028),
+at `056e739`, admission reset by #741) failed in `prepare_inputs` at managed group
+`setup-006-dotnet`, so 0 of the 27 cases ran.
+
+- **What still held:**
+  - all 6 groups that ran were `contained` and `observed-empty-removed`;
+  - the unit-limit and recorded WebKit package readbacks matched the admission;
+  - all 12 pinned acquisitions matched.
+- **First cause (deterministic):** the ProviderTool locked restore passed
+  `-p:DisableImplicitLibraryPacksFolder=true`, and failed with
+  `NU1403: Package content hash validation failed for FSharp.Core.10.1.401`.
+  - `src/FS.GG.Templates.ProviderTool/packages.lock.json` pins contentHash `IGqjL9U8…`. That is
+    the FSharp.Core in the fixed SDK 10.0.401's `FSharp/library-packs`, which carries only the
+    author signature.
+  - nuget.org serves the repository-countersigned archive, contentHash `/lvOK51K…`.
+  - With the library-packs feed removed, the locked restore could only see nuget.org's
+    archive.
+  - The flag belongs to the generated products, whose locks pin the nuget.org archive. It
+    was wrongly applied to the repository's own tool.
+- **Why no gate caught it:** fixture executors never run a real restore, and this was the
+  first hosted execution of `prepare_inputs`.
+- **Fix:** `provider_tool_restore_argv` restores without the flag. The checker's product
+  restores keep it.
+  - The SDK acquisition, the closed NuGet config and the Fable/ProviderTool argv are now named
+    functions (`provision_sdk`, `closed_nuget_config`, `fable_install_argv`,
+    `provider_tool_restore_argv`, `provider_tool_build_argv`). `prepare_inputs` calls
+    each exactly once, so their behaviour is unchanged.
+- **Always-run control:** `.github/workflows/installed-c-restore-control.yml` runs on every
+  pull request and main push, with no path filter, and executes
+  `tests/composition/fable-game/installed-c-restore-control.py`, which:
+  - runs the caller's own `fresh_environment` (fresh HOME, `DOTNET_CLI_HOME`, `NUGET_PACKAGES`
+    and HTTP cache), acquisition and `provision_sdk`;
+  - runs those exact argv;
+  - runs the checker's environment, generation and SvgFoundation restore lines, extracted
+    verbatim, for the default and Complete receivers.
+- **Local results:**
+  - On the fix the control passes in 18 s. ProviderTool FSharp.Core resolves from the SDK
+    library-packs (`IGqjL9U8…`), and both receivers resolve from nuget.org (`/lvOK51K…`).
+  - On the pre-fix argv it reproduces the run's NU1403.
+- **Local rehearsal (2026-10-22, source `e004cd2`): passed 27/27.** It ran in a fresh
+  ubuntu 24.04.5 container that approximates the runner image, with clean caches.
+  - **What ran unchanged:** the recorded apt step and post-step check (verbatim), then the
+    caller's actual `admitted_installed_sequence`:
+    - pinned owner acquisition and import;
+    - `prepare_inputs`, with all 17 pinned acquisitions;
+    - `qualify_tools`, `custody_gate` and `installed_c`;
+    - evidence collection.
+  - **Results:**
+    - all 25 groups succeeded, with no residue;
+    - the ProviderTool restored from the SDK library-packs;
+    - the checker returned `source-passed`, and both receivers resolved from nuget.org;
+    - Chromium, Firefox and WebKit each gave 9 listed / 9 expected, 0 unexpected, flaky or
+      skipped.
+  - **Substituted, because no hosted identity exists locally:**
+    - dispatch validation and the systemd unit readback (both passed hosted in run
+      39858275028);
+    - the owner's cgroup launch: the real `validate_profile` still checked every profile, and
+      leaders started with `no_new_privs` and admitted images; require-empty was approximated
+      by a container-wide live-process scan; pidsMax and memory were not enforced.
+  - **Not representative:**
+    - local timing: 113 s in total, against the 2400 s budget;
+    - the image approximation;
+    - apt's sandbox user (root);
+    - no Azure mirror file.
+  - The evidence is posted on FS-GG/.github#4710.
