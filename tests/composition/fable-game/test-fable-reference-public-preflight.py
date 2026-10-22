@@ -843,7 +843,9 @@ def fixture_world(ns, base, owner):
         path.write_bytes(files[path.name]);return {'url':url,'bytes':path.stat().st_size,'digest':'fixture','observedAt':0}
     fable=b'fable entrypoint fixture';ns['FABLE_SHA']=hashlib.sha256(fable).hexdigest()
     seed_core=root/'npm-seed/Browser.Tests/node_modules'
-    launcher={'playwright-core/lib/coreBundle.js':b'core','playwright/lib/runner/index.js':b'runner','playwright/lib/index.js':b'index',
+    webkit=ns.get('PILOT_WEBKIT_PACKAGES') or []
+    core=('const deps = {\n      "ubuntu24.04-x64": {\n        tools: ["xvfb"],\n        webkit: [\n'+',\n'.join('          '+json.dumps(x) for x in webkit+webkit[:1])+'\n        ],\n        lib2package: {}\n      }\n};\n').encode()
+    launcher={'playwright-core/lib/coreBundle.js':core,'playwright/lib/runner/index.js':b'runner','playwright/lib/index.js':b'index',
               'playwright-core/browsers.json':json.dumps({'browsers':[{'name':n,'revision':d.rsplit('-',1)[1]} for n,d,_ in ns['BROWSER_REGISTRY'].values()]}).encode()}
     ns['STOCK_LAUNCHER_INPUTS']={k:hashlib.sha256(v).hexdigest() for k,v in launcher.items()}
     installed=root/'installed';results=installed/'browser'
@@ -1281,7 +1283,7 @@ class RealOwnerBindingTests(unittest.TestCase):
 
 
 PILOT_WORKFLOW_FILE=HERE.parents[2]/'.github/workflows/wasm-custody-pilot.yml'
-PILOT_URL='https://github.com/FS-GG/.github/issues/4710#issuecomment-6346457201'
+PILOT_URL='https://github.com/FS-GG/.github/issues/4710#issuecomment-6347853904'
 
 class PilotOwner(FakeOwner):
     """Fake owner for the custody pilot: plays each case and writes a receipt shaped like the real one."""
@@ -1295,7 +1297,10 @@ class PilotOwner(FakeOwner):
             'leader':{'image':'admitted','noNewPrivileges':'1'},'members':{'observed':3},'residualAfterLeaderExit':[],'residualInRoot':[],'escaped':[],
             'retirement':{'termSignals':0,'cgroupKill':False},'timing':{'stopSeconds':1.0},'profileSha256':'f'*64,
             'owner':{'sha256':'d846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0'},'firstCause':None}
-        if 'browser-host-validation' in ' '.join(argv):
+        if Path(argv[0]).name=='systemctl':
+            case=('unit',None)
+            stdout='' if self.behaviour.get('unit-empty') else 'TasksMax=4096\nMemoryMax=8589934592\nRuntimeMaxUSec=30min\nDelegate=yes\nNoNewPrivileges=yes\nKillMode=control-group\nTimeoutStopUSec=5s\nUser=runner\n'
+        elif 'browser-host-validation' in ' '.join(argv):
             rows=json.loads(argv[3]);names=[r['name'] for r in rows];case=('host',names[0])
             if self.behaviour.get('webkit-deps') and names==['webkit']:
                 stderr='Error: Host system is missing dependencies to run browsers.\n  libflite1\n';cause='RuntimeError: command failed with exit 1'
@@ -1314,14 +1319,16 @@ class PilotOwner(FakeOwner):
             if self.behaviour.get(case)=='report-unreadable':Path(env['PILOT_RESULTS'],family,'normal-report.json').chmod(0)
             if self.behaviour.get(case)=='leftover':cause='RuntimeError: leader exited with live contained members';residual=[{'pid':9}]
             if self.behaviour.get(case)=='other-failure':cause='RuntimeError: command failed with signal 9'
-        elif len(argv)==4 and argv[1].endswith('.cjs') and argv[3] in ('hold','exit'):
-            family,mode=argv[2],argv[3];case=(mode=='hold' and 'forced' or 'exit',family)
+        elif len(argv) in (4,5) and argv[1].endswith('.cjs') and argv[3] in ('hold','exit','survive'):
+            family,mode=argv[2],argv[3];case=({'hold':'forced','exit':'exit','survive':'survivor'}[mode],family)
+            receipt['members']={'observed':3,'sample':[{'pid':2},{'pid':1}]}
             stdout='' if self.behaviour.get(case)=='no-launch' else json.dumps({'launched':True,'family':family,'mode':mode,'version':'1','descendants':[{'pid':2,'comm':'browser'}]})+'\n'
             if mode=='hold' and self.behaviour.get(case)!='not-held':cause='TimeoutError: original deadline exhausted';receipt['exit']=None
             if mode=='exit' and self.behaviour.get(case)=='leftover':cause='RuntimeError: leader exited with live contained members';residual=[{'pid':7}]
+            if mode=='survive' and self.behaviour.get(case)!='no-survivor':cause='RuntimeError: leader exited with live contained members';residual=[{'pid':2}]
         else:
             case=None;stdout=self.world['play'](profile)
-        if case and case[0]!='host':self.case_calls.append((case,deadline))
+        if case and case[0] not in ('host','unit'):self.case_calls.append((case,deadline))
         if self.behaviour.get(case)=='unknown-cleanup':receipt['cleanup']='unknown';cause=cause or 'RuntimeError: cleanup unqualified: unknown'
         if self.behaviour.get(case)=='escaped':receipt['escaped']=[{'pid':5}]
         Path(out_dir,'stdout.log').write_text(stdout);Path(out_dir,'stderr.log').write_text(stderr)
@@ -1345,7 +1352,8 @@ class CustodyPilotTests(unittest.TestCase):
         sha='c'*40
         value={'EVENT':'workflow_dispatch','REPOSITORY':'FS-GG/FS.GG.Templates','REF':'refs/heads/main','SHA':sha,'ADMITTED_REF':sha,'CHECKOUT_HEAD':sha,
             'ADMISSION':PILOT_URL,'WORKFLOW_REF':'FS-GG/FS.GG.Templates/.github/workflows/wasm-custody-pilot.yml@refs/heads/main','WORKFLOW_SHA':sha,
-            'RUN_ID':'7','RUN_ATTEMPT':'1','RUNNER_TEMP':str(self.root/'rt')}
+            'RUN_ID':'7','RUN_ATTEMPT':'1','RUNNER_TEMP':str(self.root/'rt'),'UNIT_NAME':'fsgg-mg-templates-pilot-7-1',
+            'HOST_EVIDENCE':str(self.root/'rt/wasm-custody-pilot-host')}
         value.update(changes);return value
 
     def pilot(self, behaviour=None, validate=None, owner_available=True):
@@ -1354,14 +1362,28 @@ class CustodyPilotTests(unittest.TestCase):
         owner=PilotOwner(world,behaviour,validate);owner.available=owner_available
         self.ns['load_owner']=lambda root,deadline:owner;self.ns['download']=world['acquire']
         (self.root/'rt').mkdir(exist_ok=True)
+        self.host_evidence((behaviour or {}).get('host','installed'))
         return owner
+
+    def host_evidence(self, state):
+        host=self.root/'rt/wasm-custody-pilot-host'
+        if state=='missing' or host.exists():return
+        host.mkdir(mode=0o700);packages=self.ns['PILOT_WEBKIT_PACKAGES']
+        (host/'packages.txt').write_text('\n'.join(packages)+'\n')
+        (host/'dpkg-before.tsv').write_text('libc6\t2.39-0ubuntu8\tii \nlibgtk-4-1\t4.14.0-1\tii \n')
+        installed=packages if state!='partial' else packages[:-1]
+        (host/'dpkg-after.tsv').write_text('libc6\t2.39-0ubuntu8\tii \n'+''.join(p+'\t1.0-'+p+'\tii \n' for p in sorted(installed)))
+        (host/'apt-sources.txt').write_text('### /etc/apt/sources.list\ndeb http://azure.archive.ubuntu.com/ubuntu noble main\n')
+        (host/'install.log').write_text('Setting up libflite1\n');(host/'dpkg-diff.txt').write_text('> libflite1\n')
+        (host/'install-exit.txt').write_text('0\n' if state!='failed' else '100\n')
 
     def test_dispatch_validation_binds_admitted_ref_admission_workflow_and_first_attempt(self):
         source=self.ns['validate_dispatch_source'](self.environ(),'c'*40,self.root/'rt/p')
         self.assertEqual((source['ADMITTED_REF'],source['ADMISSION']),('c'*40,PILOT_URL))
         for key,value in [('EVENT','pull_request'),('REPOSITORY','attacker/fork'),('REF','refs/heads/other'),('ADMITTED_REF','d'*40),('SHA','d'*40),
                           ('ADMISSION',PILOT_URL+'0'),('WORKFLOW_REF','FS-GG/FS.GG.Templates/.github/workflows/fable-reference-public.yml@refs/heads/main'),
-                          ('WORKFLOW_SHA',''),('WORKFLOW_SHA','d'*40),('RUN_ATTEMPT','2'),('ADMITTED_REF','C'*40)]:
+                          ('WORKFLOW_SHA',''),('WORKFLOW_SHA','d'*40),('RUN_ATTEMPT','2'),('ADMITTED_REF','C'*40),
+                          ('UNIT_NAME','fsgg-mg-templates-pilot-7-2'),('HOST_EVIDENCE',str(self.root/'elsewhere'))]:
             with self.subTest(key=key),self.assertRaises(ValueError):self.ns['validate_dispatch_source'](self.environ(**{key:value}),'c'*40,self.root/'rt/p')
         with self.assertRaisesRegex(ValueError,'admitted_ref'):self.ns['validate_dispatch_source'](self.environ(),'d'*40,self.root/'rt/p')
 
@@ -1381,12 +1403,20 @@ class CustodyPilotTests(unittest.TestCase):
         self.assertEqual(summary['disposition'],'completed',summary.get('reasons'))
         self.assertEqual({k:v['disposition'] for k,v in summary['libraryScan'].items()},{'chromium-headless1243':'support-complete','chromium-full1243':'support-complete'})
         self.assertEqual({f:{c:r['disposition'] for c,r in rows.items()} for f,rows in summary['cases'].items()},
-            {f:{'normal':'clean-stock-shutdown','forced':'deadline-retired','exit':'browser-exited-with-leader'} for f in ('chromium','firefox','webkit')})
+            {f:{'normal':'clean-stock-shutdown','forced':'deadline-retired','exit':'browser-exited-with-leader','survivor':'leftover-retired'} for f in ('chromium','firefox','webkit')})
+        self.assertEqual(summary['platformLabel'],'ubuntu-24.04 + recorded packages')
+        self.assertEqual(summary['hostPackages']['state'],'installed');self.assertTrue(summary['hostPackages']['listedEqualsAdmittedList'])
+        self.assertIs(summary['hostPackages']['admittedListMatchesPinnedPlaywright'],True)
+        self.assertEqual(summary['hostPackages']['changed'],{'libgtk-4-1':['4.14.0-1','1.0-libgtk-4-1']})
+        self.assertEqual(set(summary['unit']['matchesAdmission'].values()),{True})
+        self.assertEqual(summary['cases']['firefox']['forced']['heldBrowserMembers'],[{'pid':2,'comm':'browser'}])
+        self.assertEqual(summary['cases']['webkit']['survivor']['survivingBrowserMembers'],[{'pid':2,'comm':'browser'}])
         root=self.root/'rt/wasm-custody-pilot';receipts=json.loads((root/'managed-receipts.json').read_text())
-        self.assertEqual([r['phase'] for r in receipts],['setup']*5+['custody']*11)
+        self.assertEqual([r['phase'] for r in receipts],['setup']*6+['custody']*14)
+        self.assertTrue(receipts[0]['executable'].endswith('systemctl'))
         self.assertEqual({f:r['state'] for f,r in summary['hostValidation']['families'].items()},{f:'stock-host-validation-passed-runtime-pending' for f in ('chromium','firefox','webkit')})
         cases=[c for c,_ in owner.case_calls]
-        self.assertEqual(cases,[('scan',None)]*2+[(k,f) for f in ('chromium','firefox','webkit') for k in ('normal','forced','exit')])
+        self.assertEqual(cases,[('scan',None)]*2+[(k,f) for f in ('chromium','firefox','webkit') for k in ('normal','forced','exit','survivor')])
         custody=start+self.ns['PILOT_BUDGET']['job']-sum(self.ns['PILOT_BUDGET'][k] for k in ('cleanup','collection','overhead'))
         for (case,family),deadline in owner.case_calls:
             self.assertLessEqual(deadline,custody+1)
@@ -1469,11 +1499,51 @@ class CustodyPilotTests(unittest.TestCase):
         self.assertEqual({r['disposition'] for r in summary['libraryScan'].values()},{'scan-failed'})
         self.assertEqual(summary['disposition'],'incomplete')
 
+    def test_survivor_must_outlive_the_leader_and_be_retired(self):
+        summary=self.run_pilot({('survivor','firefox'):'no-survivor'})
+        self.assertEqual(summary['cases']['firefox']['survivor']['disposition'],'unexpected')
+        self.assertEqual(summary['disposition'],'incomplete')
+        for behaviour in ({('survivor','webkit'):'no-launch'},{('survivor','chromium'):'unknown-cleanup'},{('survivor','chromium'):'escaped'}):
+            with self.subTest(behaviour=behaviour):
+                family=next(iter(behaviour))[1]
+                self.assertEqual(self.run_pilot(behaviour)['cases'][family]['survivor']['disposition'],'unexpected')
+
+    def test_host_package_evidence_states_and_label(self):
+        for state,label,expected in [('missing','ubuntu-24.04','host-evidence-missing'),('failed','ubuntu-24.04 + recorded packages','install-failed'),
+                                     ('partial','ubuntu-24.04 + recorded packages','install-failed')]:
+            with self.subTest(state=state):
+                summary=self.run_pilot({'host':state})
+                self.assertEqual((summary['platformLabel'],summary['hostPackages']['state']),(label,expected))
+                if state=='partial':self.assertEqual(summary['hostPackages']['listedMissingAfter'],[self.ns['PILOT_WEBKIT_PACKAGES'][-1]])
+        summary=self.run_pilot({})
+        self.assertEqual(summary['hostPackages']['listedVersions']['libflite1'],'1.0-libflite1')
+        self.assertIn('libflite1',summary['hostPackages']['added'])
+        files=[f['path'] for f in json.loads((self.root/'rt/wasm-custody-pilot/pilot-evidence/manifest.json').read_text())['files']]
+        for name in ('packages.txt','dpkg-before.tsv','dpkg-after.tsv','apt-sources.txt','install.log','install-exit.txt'):self.assertIn('host-packages/'+name,files)
+
+    def test_unit_properties_are_read_back_and_compared(self):
+        summary=self.run_pilot({'unit-empty':True})
+        self.assertEqual(set(summary['unit']['matchesAdmission'].values()),{False})
+        summary=self.run_pilot({})
+        self.assertEqual(summary['unit']['properties']['MemoryMax'],str(8*1073741824))
+
+    def test_pinned_webkit_list_parser(self):
+        core=self.root/'core.js'
+        core.write_text('x={"ubuntu22.04-x64": {webkit: ["old"]},\n "ubuntu24.04-x64": {\n tools: ["xvfb"],\n webkit: [\n "a1",\n "b2",\n "a1"\n ],\n lib2package:{}}}')
+        self.assertEqual(self.ns['pinned_webkit_packages'](core),['a1','b2'])
+        bundle=os.environ.get('FSGG_PLAYWRIGHT_CORE_BUNDLE')
+        if bundle:
+            self.assertEqual(hashlib.sha256(Path(bundle).read_bytes()).hexdigest(),self.ns['STOCK_LAUNCHER_INPUTS']['playwright-core/lib/coreBundle.js'])
+            self.assertEqual(self.ns['pinned_webkit_packages'](bundle),list(self.ns['PILOT_WEBKIT_PACKAGES']))
+
     def test_one_case_exception_does_not_abort_later_cases(self):
         if os.geteuid()==0:self.skipTest('root can read a mode-0 file')
         summary=self.run_pilot({('normal','chromium'):'report-unreadable'}) # an OSError outside the group itself
         self.assertEqual(summary['cases']['chromium']['normal']['disposition'],'run-failed')
         self.assertIn('PermissionError',summary['cases']['chromium']['normal']['error'])
+        manifest=json.loads((self.root/'rt/wasm-custody-pilot/pilot-evidence/manifest.json').read_text())
+        self.assertEqual([Path(u['path']).name for u in manifest['unreadable']],['normal-report.json'])
+        self.assertIn('custody-pilot.json',[f['path'] for f in manifest['files']])
         self.assertEqual(summary['cases']['webkit']['exit']['disposition'],'browser-exited-with-leader')
         summary=self.run_pilot({('normal','firefox'):'raise'})
         self.assertEqual(summary['cases']['firefox']['normal']['disposition'],'run-failed')
@@ -1482,7 +1552,7 @@ class CustodyPilotTests(unittest.TestCase):
         self.assertEqual(summary['disposition'],'incomplete')
 
     def test_disposition_counts_missing_cases_and_missing_scans(self):
-        full={f:{c:{'disposition':self.ns['PILOT_EXPECTED'][c][0]} for c in ('normal','forced','exit')} for f in ('chromium','firefox','webkit')}
+        full={f:{c:{'disposition':self.ns['PILOT_EXPECTED'][c][0]} for c in ('normal','forced','exit','survivor')} for f in ('chromium','firefox','webkit')}
         scans={a:{'disposition':'support-complete'} for a in ('chromium-headless1243','chromium-full1243')}
         self.assertEqual(self.ns['pilot_disposition']({'cases':full,'libraryScan':scans}),'completed')
         partial=copy.deepcopy(full);del partial['webkit']['exit']
@@ -1499,7 +1569,7 @@ class CustodyPilotTests(unittest.TestCase):
         owner.case_calls.clear();short=time.monotonic()+3
         summary={'cases':{},'libraryScan':{}}
         self.ns['run_custody_pilot'](root,env,owner,identities,receipts,provisioned,short,summary,lambda:None)
-        self.assertEqual(len(owner.case_calls),11)
+        self.assertEqual(len(owner.case_calls),14)
         self.assertTrue(all(deadline<=short for _,deadline in owner.case_calls))
 
     def test_unavailable_containment_fails_before_acquisition_and_still_retains_evidence(self):
@@ -1546,12 +1616,24 @@ class CustodyPilotTests(unittest.TestCase):
         for required in ('runs-on: ubuntu-24.04','timeout-minutes: 30','contents: read','sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec',
                          '-p Delegate=yes','-p NoNewPrivileges=yes','-p KillMode=control-group','-p TimeoutStopSec=5','-p TasksMax=4096','-p MemoryMax=8G',
                          '-p RuntimeMaxSec=1800','--setenv=ADMITTED_REF="$ADMITTED_REF"','--setenv=ADMISSION="$ADMISSION"','ref: ${{ github.sha }}',
+                         '--setenv=UNIT_NAME="$unit"','--setenv=HOST_EVIDENCE="$RUNNER_TEMP/wasm-custody-pilot-host"','include-hidden-files: true',
                          '-- /usr/bin/python3 -I tests/composition/fable-game/wasm-custody-pilot.py','retention-days: 30',
                          'path: ${{ runner.temp }}/wasm-custody-pilot/pilot-evidence/'):
             with self.subTest(required=required):self.assertIn(required,pilot)
         self.assertEqual(re.findall(r'uses: ([^\s]+)',pilot),['actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1','actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9'])
         self.assertNotIn('${{ inputs.',pilot.split('    steps:',1)[1])
         self.assertIn(PILOT_URL,text);self.assertEqual(self.ns['PILOT_ADMISSION'],PILOT_URL)
+        # The only host write is the pre-unit apt step, installing exactly the printed admitted list.
+        steps=re.findall(r'^      - name: (.*)$',pilot,re.M)
+        self.assertEqual(steps,['Check out the exact dispatched commit','Install and record the admitted WebKit host packages',
+            'Run the admitted pilot in a fresh delegated unit','Retain bounded pilot evidence','Report evidence artifact identity'])
+        apt=pilot.split('Install and record the admitted WebKit host packages',1)[1].split('      - name:',1)[0]
+        self.assertEqual(len(re.findall(r'apt-get install',text)),1);self.assertIn('apt-get install',apt)
+        self.assertIn('--print-webkit-packages >"$host/packages.txt"',apt);self.assertIn('"${packages[@]}"',apt)
+        for evidence in ('dpkg-before.tsv','dpkg-after.tsv','dpkg-diff.txt','apt-sources.txt','install.log','install-exit.txt'):self.assertIn(evidence,apt)
+        self.assertIn('set +e',apt);self.assertNotIn('if:',apt)
+        self.assertEqual((text.count('sudo -n apt-get update -q'),text.count('sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends')),(1,1))
+        self.assertEqual(text.count('sudo -n'),3) # apt update, apt install, systemd-run
 
     def test_pilot_entry_leaves_installed_c_gates_closed(self):
         caller=WORKFLOW.read_text()
@@ -1567,7 +1649,7 @@ class CustodyPilotTests(unittest.TestCase):
         spec=importlib.util.spec_from_file_location('pilot_owner_check',OWNER_FILE);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         owner=self.pilot(validate=module.validate_profile)
         self.assertEqual(self.ns['pilot_sequence'](self.environ(),time.monotonic())['disposition'],'completed')
-        self.assertEqual(len(owner.calls),16)
+        self.assertEqual(len(owner.calls),20)
 
 
 if __name__ == '__main__': unittest.main()

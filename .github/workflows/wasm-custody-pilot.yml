@@ -1,9 +1,11 @@
 name: WASM custody pilot (admitted dispatch only)
 
-# Bounded three-family custody pilot for FS-GG/.github#4710 (C-J1), admitted at
-# https://github.com/FS-GG/.github/issues/4710#issuecomment-6346457201 for exactly one
-# dispatch of job custody-pilot at this workflow's merge commit. Pull requests run static
-# controls only. Installed C stays held in fable-reference-public.yml.
+# Bounded three-family custody pilot for FS-GG/.github#4710 (C-J1). Second admitted run:
+# https://github.com/FS-GG/.github/issues/4710#issuecomment-6347853904 admits exactly one
+# dispatch of job custody-pilot at this workflow's merge commit, with Playwright's pinned
+# ubuntu24.04 WebKit package list installed and recorded before the unit (results are labelled
+# "ubuntu-24.04 + recorded packages"). Pull requests run static controls only. Installed C stays
+# held in fable-reference-public.yml. The first run (39828121993) is retained, not re-admitted.
 on:
   pull_request:
     paths:
@@ -18,7 +20,7 @@ on:
         required: true
         type: string
       admission:
-        description: Exact admission comment URL on FS-GG/.github#4710
+        description: Exact admission comment URL on FS-GG/.github#4710 (the second-run admission)
         required: true
         type: string
 
@@ -68,13 +70,35 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      # The only admitted host write: Playwright's pinned ubuntu24.04 WebKit list, on the ephemeral
+      # runner, before the unit (NoNewPrivileges blocks sudo inside it). Recorded, never fatal.
+      - name: Install and record the admitted WebKit host packages
+        shell: bash
+        run: |
+          set -euo pipefail
+          host="$RUNNER_TEMP/wasm-custody-pilot-host"
+          mkdir -m 700 "$host"
+          python3 -I tests/composition/fable-game/wasm-custody-pilot.py --print-webkit-packages >"$host/packages.txt"
+          dpkg-query -W -f='${Package}\t${Version}\t${db:Status-Abbrev}\n' | LC_ALL=C sort >"$host/dpkg-before.tsv"
+          for source in /etc/apt/sources.list /etc/apt/sources.list.d/*; do
+            if [[ -f "$source" ]]; then printf '### %s\n' "$source"; cat "$source"; fi
+          done >"$host/apt-sources.txt"
+          mapfile -t packages <"$host/packages.txt"
+          set +e
+          { sudo -n apt-get update -q && sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends "${packages[@]}"; } >"$host/install.log" 2>&1
+          printf '%s\n' "$?" >"$host/install-exit.txt"
+          set -e
+          dpkg-query -W -f='${Package}\t${Version}\t${db:Status-Abbrev}\n' | LC_ALL=C sort >"$host/dpkg-after.tsv"
+          diff "$host/dpkg-before.tsv" "$host/dpkg-after.tsv" >"$host/dpkg-diff.txt" || true
+          printf 'install exit %s; %s listed packages\n' "$(cat "$host/install-exit.txt")" "${#packages[@]}"
       - name: Run the admitted pilot in a fresh delegated unit
         shell: bash
         run: |
           set -euo pipefail
           checkout_head="$(git rev-parse HEAD)"
+          unit="fsgg-mg-templates-pilot-${RUN_ID}-${RUN_ATTEMPT}"
           sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec \
-            --unit="fsgg-mg-templates-pilot-${RUN_ID}-${RUN_ATTEMPT}" \
+            --unit="$unit" \
             -p Delegate=yes -p User="$(id -un)" -p Group="$(id -gn)" -p NoNewPrivileges=yes \
             -p KillMode=control-group -p TimeoutStopSec=5 -p TasksAccounting=yes -p MemoryAccounting=yes \
             -p TasksMax=4096 -p MemoryMax=8G -p RuntimeMaxSec=1800 -p WorkingDirectory="$PWD" \
@@ -83,6 +107,7 @@ jobs:
             --setenv=WORKFLOW_SHA="$WORKFLOW_SHA" --setenv=RUN_ID="$RUN_ID" --setenv=RUN_ATTEMPT="$RUN_ATTEMPT" \
             --setenv=ADMITTED_REF="$ADMITTED_REF" --setenv=ADMISSION="$ADMISSION" \
             --setenv=CHECKOUT_HEAD="$checkout_head" --setenv=RUNNER_TEMP="$RUNNER_TEMP" \
+            --setenv=UNIT_NAME="$unit" --setenv=HOST_EVIDENCE="$RUNNER_TEMP/wasm-custody-pilot-host" \
             --setenv=ImageOS="${ImageOS:-}" --setenv=ImageVersion="${ImageVersion:-}" \
             --setenv=RUNNER_OS="$RUNNER_OS" --setenv=RUNNER_ARCH="$RUNNER_ARCH" \
             -- /usr/bin/python3 -I tests/composition/fable-game/wasm-custody-pilot.py
@@ -95,6 +120,7 @@ jobs:
           path: ${{ runner.temp }}/wasm-custody-pilot/pilot-evidence/
           if-no-files-found: error
           retention-days: 30
+          include-hidden-files: true
       - name: Report evidence artifact identity
         if: always()
         shell: bash
