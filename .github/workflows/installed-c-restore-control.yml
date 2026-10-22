@@ -1,0 +1,31 @@
+name: Installed C restore control
+
+# Always-run control for FS-GG/.github#4710 (C-J1 installed C). Admitted run 39858275028 failed its
+# first hosted restore (NU1403) because no PR job executed the caller's real restore commands. This
+# job runs them on every pull request and main push, without path filters, from clean caches: the
+# caller's own fresh environment, fixed official SDK and argv, plus the checker's verbatim generation
+# and SvgFoundation restore lines. No browser, managed group, admission or secret is involved.
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  restore-control:
+    name: Installed C exact restore commands (clean caches)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Run the caller's and checker's exact restore commands against clean caches
+        shell: bash
+        run: |
+          set -euo pipefail
+          env -i PATH=/usr/bin:/bin HOME="$RUNNER_TEMP/restore-control-home" TMPDIR="$RUNNER_TEMP" \
+            python3 -I tests/composition/fable-game/installed-c-restore-control.py "$RUNNER_TEMP/installed-c-restore-control"

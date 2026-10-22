@@ -556,8 +556,8 @@ class HostedWasmCallerTests(unittest.TestCase):
 
     def test_release_build_precedes_browser_and_provisioned_is_not_qualified(self):
         body=ast.get_source_segment(self.code,next(n for n in ast.parse(self.code).body if isinstance(n,ast.FunctionDef) and n.name=='prepare_inputs'))
-        self.assertLess(body.index('"--locked-mode"'),body.index('"Release"'))
-        self.assertLess(body.index('"Release"'),body.index('register_browsers(root,downloads,seed,env,execute,get,deadline)'))
+        self.assertLess(body.index('provider_tool_restore_argv(dotnet,project,config)'),body.index('provider_tool_build_argv(dotnet,project)'))
+        self.assertLess(body.index('provider_tool_build_argv(dotnet,project)'),body.index('register_browsers(root,downloads,seed,env,execute,get,deadline)'))
         self.assertIn('browser_inputs=browser_archive_inputs(get)',self.code)
         self.assertIn('provisioned-not-qualified',self.code)
         self.assertIn('observedAt',self.code)
@@ -1970,6 +1970,65 @@ class InstalledAdmissionTests(unittest.TestCase):
         owner=self.admit(validate=module.validate_profile)
         self.assertEqual(self.ns['admitted_installed_sequence'](self.environ(),time.monotonic())['disposition'],'passed')
         self.assertEqual(len(owner.calls),26)
+
+
+RESTORE_CONTROL_WORKFLOW=HERE.parents[2]/'.github/workflows/installed-c-restore-control.yml'
+RESTORE_CONTROL=HERE/'installed-c-restore-control.py'
+CHECKER=HERE/'verify-fable-reference-public.sh'
+
+class RestoreControlTests(unittest.TestCase):
+    """Run 39858275028 (NU1403): the ProviderTool restore keeps the SDK library-packs feed, and an
+    always-run job executes the caller's and checker's exact restore commands from clean caches."""
+    def setUp(self):
+        self.text,self.code=actual_hosted_code()
+        self.ns={'__name__':'restore_control_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+        self.tree=ast.parse(self.code)
+
+    def body(self, name):
+        return ast.get_source_segment(self.code,next(n for n in self.tree.body if isinstance(n,ast.FunctionDef) and n.name==name))
+
+    def test_provider_tool_restore_keeps_the_sdk_library_pack_feed(self):
+        argv=self.ns['provider_tool_restore_argv']('/d/dotnet',Path('/w/P.fsproj'),Path('/r/nuget.config'))
+        self.assertEqual(argv,['/d/dotnet','restore','/w/P.fsproj','--locked-mode','--configfile','/r/nuget.config','-p:NuGetAudit=false'])
+        self.assertNotIn('DisableImplicitLibraryPacksFolder',self.code)
+        self.assertEqual(self.ns['provider_tool_build_argv']('/d/dotnet',Path('/w/P.fsproj')),
+            ['/d/dotnet','build','/w/P.fsproj','-c','Release','--no-restore','-p:UseSharedCompilation=false','-p:BuildInParallel=false'])
+        self.assertEqual(self.ns['fable_install_argv']('/d/dotnet',Path('/t'),Path('/r/nuget.config')),
+            ['/d/dotnet','tool','install','fable','--version',self.ns['TOOLS']['fable'],'--tool-path','/t/fable','--configfile','/r/nuget.config'])
+        # The generated products keep their own discipline: their locks pin the nuget.org archive.
+        restore=[l for l in CHECKER.read_text().splitlines() if l.strip().startswith('"$DOTNET_HOST_PATH" restore ')]
+        self.assertEqual(len(restore),1);self.assertIn('-p:DisableImplicitLibraryPacksFolder=true',restore[0])
+
+    def test_prepare_inputs_runs_exactly_the_shared_argv_and_sdk(self):
+        body=self.body('prepare_inputs')
+        for call in ('provision_sdk(get,tools,deadline)','closed_nuget_config(root)','execute(fable_install_argv(dotnet,tools,config),root,env)',
+                'execute(provider_tool_restore_argv(dotnet,project,config),root,env)','execute(provider_tool_build_argv(dotnet,project),root,env)'):
+            with self.subTest(call=call):self.assertEqual(body.count(call),1)
+        self.assertNotIn('"restore"',body);self.assertNotIn('"build"',body);self.assertNotIn('releases.json',body)
+        self.assertLess(body.index('provision_sdk('),body.index('provision_node_npm('))
+
+    def test_control_job_always_runs_the_exact_commands(self):
+        workflow=RESTORE_CONTROL_WORKFLOW.read_text()
+        on=workflow[workflow.index('\non:\n'):workflow.index('\npermissions:')]
+        self.assertIn('  pull_request:\n',on);self.assertNotIn('paths',on);self.assertNotIn('branches-ignore',on)
+        jobs=workflow[workflow.index('\njobs:\n'):]
+        self.assertNotRegex(jobs,r'\n    if:');self.assertNotIn('continue-on-error',jobs)
+        self.assertIn('python3 -I tests/composition/fable-game/installed-c-restore-control.py "$RUNNER_TEMP/installed-c-restore-control"',jobs)
+        self.assertIn('permissions:\n  contents: read\n',workflow);self.assertNotIn('secrets.',workflow)
+        control=RESTORE_CONTROL.read_text()
+        for name in ('fresh_environment','acquirer','download','provision_sdk','closed_nuget_config','fable_install_argv','provider_tool_restore_argv','provider_tool_build_argv'):
+            with self.subTest(name=name):self.assertIn("caller['"+name+"']",control)
+        self.assertNotIn("'restore'",control);self.assertNotIn('DisableImplicitLibraryPacksFolder',control)
+
+    def test_control_extracts_the_checker_lines_verbatim(self):
+        spec=importlib.util.spec_from_file_location('restore_control',RESTORE_CONTROL)
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        lines=module.checker_lines();checker=CHECKER.read_text().splitlines()
+        for prefix,rows in lines.items():
+            for row in rows:
+                with self.subTest(row=row):self.assertIn(row,[l.strip() for l in checker])
+        self.assertEqual(len(lines['"$DOTNET_HOST_PATH" new ']),3)
+        self.assertIn('-p:FsGgWasmPolicyExample="$enabled"',lines['"$DOTNET_HOST_PATH" restore '][0])
 
 
 if __name__ == '__main__': unittest.main()
