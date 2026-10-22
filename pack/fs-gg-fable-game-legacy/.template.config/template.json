@@ -166,8 +166,49 @@
       "replaces": "FableGameWorkspaceNamespace"
     }
   },
+  "//specialCustomOperations": "Each entry replaces the engine's built-in extension default for that glob with a conditional whose tokens are all empty, so no `#if`/`#else`/`#endif` line is interpreted and the file is delivered byte-for-byte (F# for **/*.fs, FS.GG.Templates#729 for the C family). WITHOUT a **/*.c entry the engine applies C-style conditional processing to .c files and silently deletes preprocessor blocks (e.g. SvgFoundation/Examples/Wasm/guest/policy.c lost POLICY_TRAP/POLICY_LOOP/POLICY_MALFORMED, 1308 -> 1130 bytes). Symbol replacement is unaffected. tests/composition/lib/source-fidelity.sh holds the byte-equality gate and its causal control.",
   "specialCustomOperations": {
     "**/*.fs": {
+      "operations": [
+        {
+          "type": "conditional",
+          "configuration": {
+            "if": [],
+            "else": [],
+            "elseif": [],
+            "endif": [],
+            "actionableIf": [],
+            "actionableElse": [],
+            "actionableElseif": [],
+            "actions": [],
+            "trim": false,
+            "wholeLine": false,
+            "evaluator": "C++"
+          }
+        }
+      ]
+    },
+    "**/*.c": {
+      "operations": [
+        {
+          "type": "conditional",
+          "configuration": {
+            "if": [],
+            "else": [],
+            "elseif": [],
+            "endif": [],
+            "actionableIf": [],
+            "actionableElse": [],
+            "actionableElseif": [],
+            "actions": [],
+            "trim": false,
+            "wholeLine": false,
+            "evaluator": "C++"
+          }
+        }
+      ]
+    },
+    "**/*.h": {
       "operations": [
         {
           "type": "conditional",

@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import unittest
 import ast
+import base64
 import copy
 import hashlib
 import io
@@ -16,6 +17,8 @@ import zipfile
 import stat
 import tarfile
 import signal
+import shutil
+import sys
 from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parent
@@ -36,7 +39,7 @@ class PublicReferencePreflightTests(unittest.TestCase):
         return args
 
     def wasm_args(self):
-        return ['--mode', 'wasm', '--template-version', '0.19.0', '--sha256', 'a'*64,
+        return ['--mode', 'wasm', '--template-version', '0.19.1', '--sha256', 'a'*64,
                 '--descriptor-sha256', 'b'*64, '--source-revision', 'c'*40,
                 '--tag-revision', 'c'*40, '--evidence-dir', str(self.root/'fresh'), '--preflight-only']
 
@@ -58,8 +61,11 @@ class PublicReferencePreflightTests(unittest.TestCase):
     def test_duplicate_version_refused(self): self.run_preflight(self.args()+['--template-version', '0.18.1'], False)
 
     def test_wasm_direct_preflight_has_no_sdd_wizard_or_runtime_effect(self): self.run_preflight(self.wasm_args(), True)
-    def test_wasm_requires_closed_successor(self): self.run_preflight([a.replace('0.19.0','0.18.1') for a in self.wasm_args()], False)
-    def test_historical_route_cannot_claim_successor(self): self.run_preflight([a.replace('0.18.1','0.19.0') for a in self.args()], False)
+    def test_wasm_requires_closed_successor(self): self.run_preflight([a.replace('0.19.1','0.18.1') for a in self.wasm_args()], False)
+    def test_wasm_refuses_superseded_0190_with_truncated_guest(self): self.run_preflight([a.replace('0.19.1','0.19.0') for a in self.wasm_args()], False)
+    def test_historical_route_cannot_claim_successor(self):
+        for successor in ('0.19.0','0.19.1'):
+            with self.subTest(successor=successor): self.run_preflight([a.replace('0.18.1',successor) for a in self.args()], False)
     def test_wasm_refuses_sdd_scope(self): self.run_preflight(self.wasm_args()+['--sdd-version','2.1.0'], False)
     def test_wasm_refuses_wizard_scope(self): self.run_preflight(self.wasm_args()+['--wizard-version','0.16.0'], False)
     def test_wasm_requires_exact_tag_source(self):
@@ -87,7 +93,9 @@ class CurrentPublicPreflightTests(unittest.TestCase):
         self.env = {**os.environ, 'PATH': str(self.bin) + os.pathsep + os.environ['PATH'],
                     'DOTNET_HOST_PATH': str(self.bin/'dotnet'), 'QUINT_BIN': str(self.bin/'quint')}
         self.descriptor = self.root / 'descriptor.yml'
-        self.descriptor.write_bytes((HERE.parents[2]/'providers/fable-game.providers.yml').read_bytes())
+        # The selected current-public provider is published 0.19.0: use its immutable descriptor bytes
+        # (f5fbd06e, d7207cbd...), never the moving working-tree descriptor (0.19.1 since #730).
+        self.descriptor.write_bytes((HERE/'current-public-descriptor-0.19.0.yml').read_bytes())
         self.manifest = self.root / 'inputs.json'
         self.output = self.root / 'fresh'
         self.value = {
@@ -272,7 +280,7 @@ WORKFLOW=HERE.parents[2]/'.github/workflows/fable-reference-public.yml'
 
 def actual_hosted_code():
     text=WORKFLOW.read_text()
-    matches=re.findall(r"          python3 - <<'HOSTED_WASM'\n(.*?)\n          HOSTED_WASM",text,re.S)
+    matches=re.findall(r"            -- /usr/bin/python3 -I - <<'HOSTED_WASM'\n(.*?)\n          HOSTED_WASM",text,re.S)
     if len(matches)!=1: raise AssertionError('exactly one actual hosted caller required')
     code='\n'.join(line[10:] for line in matches[0].splitlines())
     ast.parse(code)
@@ -307,12 +315,15 @@ class HostedWasmCallerTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.ns['phase_deadline'](100,'installed',2400)
         with self.assertRaises(ValueError):self.ns['phase_deadline'](100,'other',100)
     def test_fixed_checker_has_no_sdd_wizard_inputs(self):
-        argv=self.ns['fixed_checker_argv'](self.root,self.root/'installed')
-        self.assertIn('wasm',argv);self.assertIn('0.19.0',argv)
+        argv=self.ns['fixed_checker_argv'](self.root,self.root/'installed','/usr/bin/bash')
+        self.assertEqual(argv[0],'/usr/bin/bash')
+        self.assertIn('wasm',argv);self.assertIn('0.19.1',argv);self.assertNotIn('0.19.0',argv)
         self.assertEqual(argv.count(self.ns['PUBLISHED']),2)
         self.assertNotIn('--sdd-version',argv);self.assertNotIn('--wizard-version',argv)
-    def test_unknown_managed_contract_cannot_acquire_or_start_c(self):
-        with self.assertRaisesRegex(RuntimeError,'managed-group candidate/profile contract not yet bound'):self.ns['main']()
+    def test_literal_runtime_hold_cannot_acquire_or_start_c(self):
+        def forbidden(*args,**kwargs):raise AssertionError('held caller reached the bound sequence')
+        self.ns['hosted_sequence']=forbidden
+        with self.assertRaisesRegex(RuntimeError,'C-J1 runtime held: managed-group contract bound'):self.ns['main']()
     def test_final_environment_is_fresh_and_does_not_inherit_credentials_or_profile(self):
         env=self.ns['fresh_environment'](self.root/'job',{'GH_TOKEN':'sensitive','MOZ_DISABLE_CONTENT_SANDBOX':'1'})
         self.assertNotIn('GH_TOKEN',env);self.assertNotIn('MOZ_DISABLE_CONTENT_SANDBOX',env)
@@ -687,9 +698,14 @@ class HostedWasmCallerTests(unittest.TestCase):
 
     def test_host_validation_calls_stock_validator_without_install_or_forged_marker(self):
         registrations=self.validation_fixture();calls=[]
-        def execute(argv,cwd,env):
-            calls.append(argv);self.assertEqual(argv[1],'-e')
-            script=argv[2];self.assertIn('validateHostRequirementsForExecutablesIfNeeded(actual',script)
+        def execute(argv,cwd,env,inputs=()):
+            calls.append(argv);self.assertEqual(list(map(str,inputs)),[argv[1]])
+            self.assertRegex(argv[1],r'/browser-host-validation\.[0-9a-f]{64}\.cjs$')
+            self.assertEqual(Path(argv[1]).name.split('.')[1],hashlib.sha256(Path(argv[1]).read_bytes()).hexdigest())
+            self.assertEqual(stat.S_IMODE(Path(argv[1]).stat().st_mode),0o400)
+            self.assertFalse(any(ord(c)<32 for arg in argv for c in arg))
+            script=Path(argv[1]).read_text();self.assertIn('validateHostRequirementsForExecutablesIfNeeded(actual',script)
+            self.assertIn('require(process.argv[2]),expected=JSON.parse(process.argv[3])',script)
             self.assertNotIn('writeFile',script);self.assertNotIn('registry.install',script)
             return json.dumps({'platform':'ubuntu24.04-x64','names':[r['name'] for r in registrations],'state':'stock-host-validation-passed-runtime-pending'})
         result=self.ns['validate_registered_browsers'](self.root,{},registrations,execute)
@@ -708,9 +724,9 @@ class HostedWasmCallerTests(unittest.TestCase):
 
     def test_host_validation_failure_does_not_become_runtime_pass(self):
         registrations=self.validation_fixture()
-        def execute(*args):raise RuntimeError('actual missing host dependency')
+        def execute(*args,**kwargs):raise RuntimeError('actual missing host dependency')
         with self.assertRaisesRegex(RuntimeError,'missing host dependency'):self.ns['validate_registered_browsers'](self.root,{},registrations,execute)
-        with self.assertRaisesRegex(RuntimeError,'no provisioning or installed C admitted'):self.ns['main']()
+        with self.assertRaisesRegex(RuntimeError,'no provisioning, custody pilot or installed C admitted'):self.ns['main']()
 
     def test_source_only_pr_job_runs_controls_and_disables_runtime_and_upload(self):
         job=self.text.split('  wasm-installed-c:',1)[1]
@@ -728,11 +744,531 @@ class HostedWasmCallerTests(unittest.TestCase):
         # bypass either the static controls or the two literal runtime holds.
         self.assertEqual(len(steps),4)
         tree=ast.parse(self.code)
+        # The inline refusal is a literal: RUNTIME_ADMITTED is assigned False exactly once and main's
+        # first statement refuses on it before the bound sequence.
+        held=[node for node in ast.walk(tree) if isinstance(node,ast.Assign) and any(isinstance(target,ast.Name) and target.id=='RUNTIME_ADMITTED' for target in node.targets)]
+        self.assertEqual(len(held),1);self.assertIs(held[0].value.value,False)
+        self.assertFalse(any(isinstance(node,ast.Global) and 'RUNTIME_ADMITTED' in node.names for node in ast.walk(tree)))
         main=next(node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=='main')
-        self.assertEqual(len(main.body),1)
-        self.assertIsInstance(main.body[0],ast.Raise)
-        with patch.object(subprocess,'run',side_effect=AssertionError('runtime must stay held')):
-            with self.assertRaisesRegex(RuntimeError,'no provisioning or installed C admitted'):
+        guard=main.body[0]
+        self.assertIsInstance(guard,ast.If);self.assertEqual(ast.unparse(guard.test),'not RUNTIME_ADMITTED')
+        self.assertEqual(len(guard.body),1);self.assertIsInstance(guard.body[0],ast.Raise)
+        with patch.object(subprocess,'run',side_effect=AssertionError('runtime must stay held')),patch.object(subprocess,'Popen',side_effect=AssertionError('runtime must stay held')):
+            with self.assertRaisesRegex(RuntimeError,'no provisioning, custody pilot or installed C admitted'):
                 self.ns['main']()
+
+class FakeRefused(RuntimeError):
+    def __init__(self, code, receipt=None):
+        super().__init__(code);self.code=code;self.receipt=receipt
+
+class FakeGroupFailed(RuntimeError):
+    def __init__(self, receipt):
+        super().__init__(receipt['firstCause']);self.receipt=receipt
+
+class FakeOwner:
+    """Records exactly what the caller hands the contract; never launches anything."""
+    Refused=FakeRefused;GroupFailed=FakeGroupFailed
+    def __init__(self, outcome='succeeded', available=True, stdout=None, validate=None):
+        self.calls=[];self.outcome=outcome;self.available=available;self.stdout=stdout;self.envs={};self.validate=validate
+    def env_of(self, profile):
+        return self.envs[id(profile)]
+    def probe(self):
+        return {'schema':'fsgg.managed-group-contract/1','available':self.available,'refusal':None if self.available else 'delegated-root-invalid'}
+    def run(self, profile, *, env, deadline, out_dir):
+        if self.validate:self.validate(profile) # the real schema, at the moment of each run
+        self.calls.append({'profile':profile,'env':env,'deadline':deadline,'outDir':out_dir})
+        self.envs[id(profile)]=env
+        os.mkdir(out_dir,0o700)
+        receipt={'outcome':'succeeded','cleanup':'observed-empty-removed','custody':'contained','profileSha256':'f'*64,
+                 'owner':{'sha256':'d846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0'},'firstCause':None}
+        if self.outcome=='refused':raise FakeRefused('executable-identity-mismatch',{**receipt,'outcome':'refused','firstCause':'Refused: executable-identity-mismatch'})
+        if self.outcome=='failed':raise FakeGroupFailed({**receipt,'outcome':'failed','firstCause':'RuntimeError: leader exited with live contained members'})
+        if self.outcome=='unclean':receipt['cleanup']='unknown'
+        if self.outcome=='crash':raise OSError('unexpected owner failure')
+        Path(out_dir,'stdout.log').write_text(self.stdout(profile) if self.stdout else 'stdout of '+profile['argv'][0])
+        return receipt
+
+def _tar(path, members):
+    with tarfile.open(path,'w:gz',format=tarfile.USTAR_FORMAT) as out:
+        for name,body in members:
+            info=tarfile.TarInfo(name);info.mode=0o755;info.size=len(body);out.addfile(info,io.BytesIO(body))
+
+def _browser_zip(path, relative):
+    body=b'inert browser executable fixture'
+    with zipfile.ZipFile(path,'w') as z:
+        info=zipfile.ZipInfo(relative);info.create_system=3;info.external_attr=(stat.S_IFREG|0o755)<<16;z.writestr(info,body)
+    rows=[{'name':relative,'mode':stat.S_IFREG|0o755,'bytes':len(body),'link':None}]
+    layout={'members':1,'logicalBytes':len(body),'symlinks':0,'layoutSha256':hashlib.sha256(json.dumps(rows,sort_keys=True,separators=(',',':')).encode()).hexdigest()}
+    return {'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()},layout
+
+def drive_every_call_site(ns, base, owner):
+    """Run the actual provisioning sequence, tool qualification and installed C on inert fixtures.
+
+    Every process the caller would start goes through managed_executor into ``owner`` (a FakeOwner),
+    whose stdout callback plays the tools. Nothing is downloaded or executed."""
+    root=base/'job';workspace=base/'workspace';fixtures=base/'fixtures';fixtures.mkdir()
+    checker=workspace/'tests/composition/fable-game/verify-fable-reference-public.sh';checker.parent.mkdir(parents=True)
+    checker.write_bytes((HERE/'verify-fable-reference-public.sh').read_bytes())
+    env=ns['fresh_environment'](root,{})
+    tools=root/'tools';T=ns['TOOLS'];node_name='node-v'+T['node']+'-linux-x64'
+    # Template archive: seed locks plus the stock template inputs, with fixture digests admitted.
+    template=fixtures/'template.zip';stock={}
+    with zipfile.ZipFile(template,'w') as z:
+        for role,key,version in [('Client','vite','7.3.6'),('Browser.Tests','@playwright/test',T['playwright'])]:
+            prefix='content/templates/fs-gg-fable-game/'+role+'/'
+            lock=json.dumps({'packages':{'':{'devDependencies':{key:version}},'node_modules/'+key:{'resolved':'https://registry.npmjs.org/x/-/x.tgz','integrity':'sha512-abc'}}}).encode()
+            z.writestr(prefix+'package.json','{}');z.writestr(prefix+'package-lock.json',lock)
+            if role=='Browser.Tests':stock['Browser.Tests/package-lock.json']=hashlib.sha256(lock).hexdigest()
+        for name in ('Browser.Tests/playwright.config.ts','SvgFoundation/vite.config.js'):
+            z.writestr('content/templates/fs-gg-fable-game/'+name,name);stock[name]=hashlib.sha256(name.encode()).hexdigest()
+    ns['STOCK_INPUTS']=stock
+    files={'template':template.read_bytes(),'descriptor':b'descriptor','guest':b'guest'}
+    _tar(fixtures/'wasi.tgz',[('wasi-sdk-34.0-x86_64-linux/bin/clang',b'#!/bin/sh\n')]);files['wasi']=(fixtures/'wasi.tgz').read_bytes()
+    files['dotnet-releases.json']=json.dumps({'releases':[{'sdks':[{'version':T['sdk'],'files':[{'rid':'linux-x64','name':'dotnet-sdk-linux-x64.tar.gz','url':'https://builds.dotnet.microsoft.com/dotnet/sdk.tar.gz','hash':'ab'*64}]}]}]}).encode()
+    _tar(fixtures/'dotnet.tgz',[('dotnet',b'#!/bin/sh\n# dotnet\n')]);files['dotnet.tar.gz']=(fixtures/'dotnet.tgz').read_bytes()
+    files['node-SHASUMS256.txt']=('a'*64+'  '+node_name+'.tar.gz\n').encode()
+    _tar(fixtures/'node.tgz',[(node_name+'/bin/node',b'#!/bin/sh\n# node\n')]);files['node.tar.gz']=(fixtures/'node.tgz').read_bytes()
+    files['npm-metadata.json']=json.dumps({'name':'npm','version':T['npm'],'dist':{'tarball':'https://registry.npmjs.org/npm/-/npm-'+T['npm']+'.tgz','integrity':'sha512-'+base64.b64encode(b'x'*64).decode()}}).encode()
+    _tar(fixtures/'npm.tgz',[('package/bin/npm-cli.js',b'// npm')]);files['npm.tgz']=(fixtures/'npm.tgz').read_bytes()
+    rustup=b'#!/bin/sh\n# rustup-init fixture\n';files['rustup-init']=rustup
+    files['rustup-init.sha256']=(hashlib.sha256(rustup).hexdigest()+'  rustup-init\n').encode()
+    for asset,(name,directory,relative) in ns['BROWSER_REGISTRY'].items():
+        identity,layout=_browser_zip(fixtures/(asset+'.zip'),relative)
+        ns['BROWSER_ARCHIVES'][asset]={**ns['BROWSER_ARCHIVES'][asset],**identity};ns['BROWSER_LAYOUTS'][asset]=layout
+        files[asset+'.zip']=(fixtures/(asset+'.zip')).read_bytes()
+    def acquire(url,path,maximum,deadline,expected,algorithm='sha256'):
+        path.write_bytes(files[path.name]);return {'url':url,'bytes':path.stat().st_size,'digest':'fixture','observedAt':0}
+    fable=b'fable entrypoint fixture';ns['FABLE_SHA']=hashlib.sha256(fable).hexdigest()
+    seed_core=root/'npm-seed/Browser.Tests/node_modules'
+    launcher={'playwright-core/lib/coreBundle.js':b'core','playwright/lib/runner/index.js':b'runner','playwright/lib/index.js':b'index',
+              'playwright-core/browsers.json':json.dumps({'browsers':[{'name':n,'revision':d.rsplit('-',1)[1]} for n,d,_ in ns['BROWSER_REGISTRY'].values()]}).encode()}
+    ns['STOCK_LAUNCHER_INPUTS']={k:hashlib.sha256(v).hexdigest() for k,v in launcher.items()}
+    installed=root/'installed';results=installed/'browser'
+    def report_for(family,stats=False):
+        tests=[{'projectName':family,'projectId':family} for _ in range(9)]
+        value={'config':{'projects':[{'name':family}]},'suites':[{'specs':[{'tests':tests}],'suites':[]}]}
+        if stats:value['stats']={'expected':9,'unexpected':0,'flaky':0,'skipped':0}
+        return value
+    outputs={'--version':{'dotnet':T['sdk'],'node':'v'+T['node'],'npm':T['npm'],'rustc':'rustc 1.90.0 (1159e78c4 2025-09-14)','cargo':'cargo 1.90.0 (840b83a10 2025-07-30)','dll':'fable'}}
+    def play(profile):
+        argv=profile['argv'];exe=Path(argv[0]).name;cwd=Path(profile['cwd'])
+        if exe=='rustup-init':
+            target=tools/'cargo/bin/rustup';target.parent.mkdir(parents=True);target.write_bytes(rustup);target.chmod(0o700)
+        elif argv[1:3]==['target','add']:
+            for name in ('rustc','cargo'):
+                target=ns['rust_toolchain_bin'](root)/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b'#!/bin/sh\n');target.chmod(0o700)
+        elif argv[1:3]==['target','list']:return 'wasm32-unknown-unknown\n'
+        elif argv[1:3]==['tool','install']:
+            (tools/'fable').mkdir();(tools/'fable/fable.dll').write_bytes(fable)
+            (tools/'fable/fable.nuspec').write_text('<package><metadata><id>fable</id><version>'+T['fable']+'</version></metadata></package>')
+        elif len(argv)>1 and argv[1]=='build':
+            output=workspace/'src/FS.GG.Templates.ProviderTool/bin/Release/net10.0/FS.GG.Templates.ProviderTool.dll';output.parent.mkdir(parents=True);output.write_bytes(b'dll')
+        elif len(argv)>1 and argv[1]=='ci' and cwd.name=='Browser.Tests':
+            for name,body in launcher.items():
+                target=cwd/'node_modules'/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(body)
+        elif len(argv)>1 and argv[1]=='--list-runtimes':return 'Microsoft.NETCore.App '+T['runtime']+' [/fixture]\n'
+        elif exe=='clang':return 'clang version 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)\n'
+        elif argv[-1]=='--version':return outputs['--version']['dll' if argv[-2].endswith('.dll') else exe]
+        elif 'browser-host-validation' in ' '.join(argv):
+            return json.dumps({'platform':'ubuntu24.04-x64','names':[n for n,_,_ in ns['BROWSER_REGISTRY'].values()],'state':'stock-host-validation-passed-runtime-pending'})
+        elif exe=='verify-fable-reference-public.sh' or (len(argv)>1 and argv[1].endswith('verify-fable-reference-public.sh')):
+            evidence=Path(argv[argv.index('--evidence-dir')+1])
+            # The real shell refuses unless the evidence dir is 0700 and holds only qualification.json.
+            if stat.S_IMODE(evidence.stat().st_mode)!=0o700 or sorted(os.listdir(evidence))!=['qualification.json']:
+                raise RuntimeError('checker usage: evidence dir must be 0700 with only qualification.json')
+            (evidence/'direct/Browser.Tests').mkdir(parents=True)
+        elif len(argv)>2 and argv[2]=='test':
+            family=owner.env_of(profile)['PLAYWRIGHT_BROWSER_FAMILY']
+            if '--list' in argv:return json.dumps(report_for(family))
+            (results/family/'report.json').write_text(json.dumps(report_for(family,True)))
+        return ''
+    owner.stdout=play
+    identities={};receipts=[]
+    setup=ns['managed_executor'](owner,root,time.monotonic()+600,identities,'setup',receipts)
+    provisioned=ns['prepare_inputs'](root,workspace,env,setup,acquire,time.monotonic()+600,identities)
+    ns['qualify_tools'](root,env,setup)
+    installed_run=ns['managed_executor'](owner,root,time.monotonic()+600,identities,'installed',receipts)
+    summary=ns['installed_c'](root,workspace,env,installed_run,identities,provisioned['node'])
+    return root,receipts,summary
+
+class ManagedGroupBindingTests(unittest.TestCase):
+    """Caller-side binding of fsgg.managed-group-contract/1 (C-J1); no tool, browser or network effect."""
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(os.path.realpath(self.temp.name))
+        self.text,self.code=actual_hosted_code()
+        self.ns={'__name__':'binding_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+        self.addCleanup(setattr,sys,'dont_write_bytecode',sys.dont_write_bytecode)
+        self.tool=self.root/'tool';self.tool.write_bytes(b'#!/bin/sh\nexit 0\n');self.tool.chmod(0o700)
+        self.identities={};self.ns['bind_identity'](self.identities,str(self.tool),'verified-archive-member')
+
+    def executor(self, owner, deadline=None, receipts=None, phase='setup'):
+        receipts=[] if receipts is None else receipts
+        return self.ns['managed_executor'](owner,self.root,deadline or time.monotonic()+60,self.identities,phase,receipts),receipts
+
+    def test_owner_pin_is_the_exact_merged_supplier(self):
+        owner=self.ns['OWNER']
+        self.assertEqual(owner,{'repository':'FS-GG/FS.GG.Coordination','commit':'ac22206560f3eddfea524ce8f752ff1d0dfeec4e',
+            'path':'eng/managed_group_owner.py','sha256':'d846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0',
+            'bytes':45315,'contract':'fsgg.managed-group-contract/1'})
+        self.assertEqual(self.ns['public_url'](self.ns['OWNER_URL']),'https://raw.githubusercontent.com/FS-GG/FS.GG.Coordination/ac22206560f3eddfea524ce8f752ff1d0dfeec4e/eng/managed_group_owner.py')
+
+    def fixture_acquire(self, body):
+        def acquire(url,path,maximum,deadline,expected):
+            self.assertEqual(url,self.ns['OWNER_URL']);path.write_bytes(body)
+            return {'url':url,'bytes':len(body),'digest':hashlib.sha256(body).hexdigest()}
+        return acquire
+
+    def test_owner_digest_mismatch_refuses_before_import(self):
+        marker=self.root/'imported'
+        body=('open('+repr(str(marker))+',"w").close()\n').encode()
+        with self.assertRaisesRegex(ValueError,'owner pin differs'):
+            self.ns['load_owner'](self.root,time.monotonic()+10,self.fixture_acquire(body))
+        self.assertFalse(marker.exists());self.assertFalse((self.root/'managed-owner.json').exists())
+
+    def fixture_owner(self, schema):
+        body=('import hashlib,os\nCONTRACT_SCHEMA='+repr(schema)+'\nOWNER_PATH=os.path.abspath(__file__)\n'
+              'import pathlib\nOWNER_SHA256=hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest()\n').encode()
+        self.ns['OWNER']={**self.ns['OWNER'],'sha256':hashlib.sha256(body).hexdigest(),'bytes':len(body)}
+        return body
+
+    def test_owner_import_binds_contract_and_self_hash(self):
+        body=self.fixture_owner('fsgg.managed-group-contract/1')
+        module=self.ns['load_owner'](self.root,time.monotonic()+10,self.fixture_acquire(body))
+        self.assertEqual(module.OWNER_SHA256,self.ns['OWNER']['sha256'])
+        self.assertEqual(stat.S_IMODE((self.root/'owner/managed_group_owner.py').stat().st_mode),0o400)
+        self.assertFalse((self.root/'owner/__pycache__').exists())
+        self.assertEqual(json.loads((self.root/'managed-owner.json').read_text())['commit'],'ac22206560f3eddfea524ce8f752ff1d0dfeec4e')
+        with self.assertRaisesRegex(ValueError,'owner root occupied'):
+            self.ns['load_owner'](self.root,time.monotonic()+10,self.fixture_acquire(body))
+
+    def test_owner_import_refuses_another_contract(self):
+        body=self.fixture_owner('fsgg.managed-group-contract/2')
+        with self.assertRaisesRegex(ValueError,'imported managed-group owner identity differs'):
+            self.ns['load_owner'](self.root,time.monotonic()+10,self.fixture_acquire(body))
+
+    def environ(self):
+        return {'EVENT':'pull_request','REPOSITORY':'FS-GG/FS.GG.Templates','HEAD_REPOSITORY':'FS-GG/FS.GG.Templates',
+          'PR_HEAD':'a'*40,'CHECKOUT_HEAD':'a'*40,'WORKFLOW_REF':'FS-GG/FS.GG.Templates/.github/workflows/fable-reference-public.yml@refs/pull/1/merge',
+          'WORKFLOW_SHA':'b'*40,'RUN_ID':'1','RUN_ATTEMPT':'1','GITHUB_WORKSPACE':str(self.root/'workspace'),'RUNNER_TEMP':str(self.root)}
+
+    def test_unavailable_containment_refuses_before_provisioning_acquisition(self):
+        owner=FakeOwner(available=False);loaded=[]
+        def load(root,deadline):loaded.append(deadline);return owner
+        def provision(*args,**kwargs):raise AssertionError('provisioning acquisition before containment probe')
+        self.ns['load_owner']=load;self.ns['prepare_inputs']=provision
+        with self.assertRaisesRegex(ValueError,'containment unavailable: delegated-root-invalid'):
+            self.ns['hosted_sequence'](self.environ(),time.monotonic())
+        job=self.root/'fable-wasm-installed-c'
+        self.assertEqual(len(loaded),1);self.assertEqual(owner.calls,[])
+        self.assertFalse(json.loads((job/'managed-owner-probe.json').read_text())['available'])
+        self.assertEqual(sorted(p.name for p in job.iterdir()),['checker-http','checker-packages','evidence','home','managed-owner-probe.json','source.json','tmp'])
+
+    def test_available_containment_hands_one_executor_and_setup_deadline_to_provisioning(self):
+        owner=FakeOwner();seen=[]
+        self.ns['load_owner']=lambda root,deadline:owner
+        def provision(root,workspace,env,execute,acquire,deadline,identities):
+            seen.append((root,workspace,deadline,identities,acquire));return {'node':'/node'}
+        def installed(*args,**kwargs):raise AssertionError('installed C ran past the custody gate')
+        self.ns['prepare_inputs']=provision;self.ns['installed_c']=installed;self.ns['qualify_tools']=lambda root,env,execute:None
+        start=time.monotonic()
+        with self.assertRaisesRegex(RuntimeError,'custody pilot remain unadmitted; installed C held'):
+            self.ns['hosted_sequence'](self.environ(),start)
+        root,workspace,deadline,identities,acquire=seen[0]
+        self.assertEqual(root,self.root/'fable-wasm-installed-c');self.assertEqual(workspace,self.root/'workspace')
+        self.assertLessEqual(deadline,start+self.ns['BUDGET']['setup']+1);self.assertEqual(identities,{})
+        self.assertIs(acquire,self.ns['download'])
+
+    def test_executor_builds_exact_contract_profile_and_returns_stdout(self):
+        owner=FakeOwner();deadline=time.monotonic()+60
+        execute,receipts=self.executor(owner,deadline)
+        env={'PATH':'/usr/bin:/bin','HOME':str(self.root),'CI':'true'}
+        self.assertEqual(execute([str(self.tool),'--version'],self.root,env),'stdout of '+str(self.tool))
+        self.assertEqual(execute([str(self.tool),'--info'],self.root,env),'stdout of '+str(self.tool))
+        first,second=owner.calls
+        profile=first['profile']
+        self.assertEqual(set(profile),{'schema','name','root','executable','leaderImages','argv','cwd','environmentKeys','containment','limits','retirement'})
+        self.assertEqual(profile['schema'],'fsgg.managed-group-profile/1');self.assertEqual(profile['containment'],'cgroup2-delegated')
+        self.assertRegex(profile['name'],r'^[a-z0-9][a-z0-9.-]{0,63}$')
+        self.assertEqual(profile['root'],str(self.root));self.assertEqual(profile['cwd'],str(self.root))
+        digest=hashlib.sha256(self.tool.read_bytes()).hexdigest()
+        self.assertEqual(profile['executable'],{'path':str(self.tool),'sha256':digest});self.assertEqual(profile['leaderImages'],[digest])
+        self.assertEqual(profile['argv'],[str(self.tool),'--version']);self.assertEqual(profile['environmentKeys'],['CI','HOME','PATH'])
+        self.assertEqual(first['env'],env)
+        self.assertEqual(profile['retirement'],{'onLeaderExit':'require-empty','leaderExitSettleSeconds':2,'termGraceSeconds':5,'cleanupSeconds':self.ns['BUDGET']['cleanup']})
+        self.assertEqual(set(profile['limits']),{'pidsMax','memoryMaxBytes','stdoutBytes','stderrBytes'})
+        # One original phase deadline for every group: no per-call renewal.
+        self.assertEqual(first['deadline'],deadline);self.assertEqual(second['deadline'],deadline)
+        self.assertNotEqual(first['outDir'],second['outDir'])
+        for call in owner.calls:self.assertEqual(Path(call['outDir']).parent,self.root/'managed')
+        index=json.loads((self.root/'managed-receipts.json').read_text())
+        self.assertEqual([row['status'] for row in index],['succeeded','succeeded'])
+        self.assertEqual(index[0]['identityBasis'],'verified-archive-member')
+
+    def test_executor_resolves_symlinked_argv_to_bound_real_executable(self):
+        alias=self.root/'alias';alias.symlink_to(self.tool)
+        owner=FakeOwner();execute,_=self.executor(owner)
+        execute([str(alias),'x'],self.root,{})
+        profile=owner.calls[0]['profile']
+        self.assertEqual(profile['executable']['path'],str(self.tool));self.assertEqual(profile['argv'],[str(alias),'x'])
+
+    def test_executor_refuses_relative_or_unbound_executable_before_owner(self):
+        owner=FakeOwner();execute,receipts=self.executor(owner)
+        other=self.root/'other';other.write_bytes(b'x');other.chmod(0o700)
+        for argv,message in [(['node','--version'],'must be absolute'),([str(other)],'identity not bound'),([],'exact argv')]:
+            with self.subTest(argv=argv),self.assertRaisesRegex(ValueError,message):execute(argv,self.root,{})
+        self.assertEqual(owner.calls,[]);self.assertEqual(receipts,[]);self.assertFalse((self.root/'managed-receipts.json').exists())
+
+    def test_second_receipt_list_cannot_reuse_groups_or_overwrite_the_index(self):
+        owner=FakeOwner();execute,receipts=self.executor(owner)
+        execute([str(self.tool)],self.root,{})
+        other,_=self.executor(owner,receipts=[],phase='setup')
+        with self.assertRaisesRegex(ValueError,'sequence reused'):other([str(self.tool)],self.root,{})
+        self.assertEqual(len(owner.calls),1)
+        self.assertEqual(len(json.loads((self.root/'managed-receipts.json').read_text())),1)
+        custody,_=self.executor(owner,receipts=receipts,phase='custody')
+        custody([str(self.tool)],self.root,{})
+        self.assertEqual([row['phase'] for row in json.loads((self.root/'managed-receipts.json').read_text())],['setup','custody'])
+
+    def test_executor_retains_receipt_and_raises_first_cause(self):
+        for outcome,message,status in [('refused','refused: executable-identity-mismatch','refused'),
+                                        ('failed','failed: RuntimeError: leader exited with live contained members','failed'),
+                                        ('unclean','receipt differs from contained success','succeeded')]:
+            with self.subTest(outcome=outcome):
+                shutil.rmtree(self.root/'managed',ignore_errors=True)
+                owner=FakeOwner(outcome);execute,receipts=self.executor(owner)
+                with self.assertRaisesRegex(RuntimeError,message) as caught:execute([str(self.tool)],self.root,{})
+                self.assertEqual(receipts[-1]['status'],status)
+                self.assertEqual(json.loads((self.root/'managed-receipts.json').read_text())[-1]['status'],status)
+                if outcome!='unclean':self.assertIsInstance(caught.exception.__cause__,(FakeRefused,FakeGroupFailed))
+
+    def test_unexpected_owner_exception_keeps_a_terminal_index_status(self):
+        execute,receipts=self.executor(FakeOwner('crash'))
+        with self.assertRaisesRegex(OSError,'unexpected owner failure'):execute([str(self.tool)],self.root,{})
+        self.assertEqual(json.loads((self.root/'managed-receipts.json').read_text())[-1]['status'],'error')
+
+    def test_unexpected_owner_exception_keeps_the_first_report_note(self):
+        (self.root/'managed-receipts.json').mkdir() # every index write fails
+        execute,receipts=self.executor(FakeOwner('crash'))
+        with self.assertRaisesRegex(OSError,'unexpected owner failure') as caught:execute([str(self.tool)],self.root,{})
+        notes=[n for n in caught.exception.__notes__ if 'independent managed receipt reporting failure' in n]
+        self.assertEqual(len(notes),2) # the index write before run and the one after
+
+    def test_every_call_site_is_one_bounded_group_and_each_playwright_invocation_its_own(self):
+        owner=FakeOwner()
+        root,receipts,summary=drive_every_call_site(self.ns,self.root,owner)
+        self.assertEqual(summary['disposition'],'passed')
+        self.assertEqual([r['phase'] for r in receipts],['setup']*18+['installed']*7)
+        self.assertEqual([r['status'] for r in receipts],['succeeded']*25)
+        identities=set()
+        for call in owner.calls:
+            profile=call['profile']
+            with self.subTest(argv=profile['argv'][:3]):
+                self.assertTrue(Path(profile['argv'][0]).is_absolute())
+                self.assertFalse(any(ord(c)<32 or ord(c)==127 for arg in profile['argv'] for c in arg))
+                self.assertTrue(profile['cwd']==str(root) or profile['cwd'].startswith(str(root)+'/'))
+                self.assertEqual(profile['retirement']['onLeaderExit'],'require-empty')
+                self.assertEqual(profile['environmentKeys'],sorted(call['env']))
+                identities.add(profile['executable']['path'])
+        self.assertEqual(len({call['outDir'] for call in owner.calls}),25)
+        playwright=[call for call in owner.calls if len(call['profile']['argv'])>2 and call['profile']['argv'][2]=='test']
+        self.assertEqual([(call['env']['PLAYWRIGHT_BROWSER_FAMILY'],'--list' in call['profile']['argv']) for call in playwright],
+            [('chromium',True),('firefox',True),('webkit',True),('chromium',False),('firefox',False),('webkit',False)])
+        for call in playwright:
+            self.assertEqual(call['env']['FSGG_WASM_RESULTS'],str(root/'installed/browser'))
+            self.assertEqual((call['env']['FsGgWasmPolicyExample'],call['env']['FSGG_WASM_POLICY_EXAMPLE']),('true','true'))
+            self.assertEqual(call['env']['FSGG_WASM_FIREFOX_PROFILE'],'content-sandbox-enabled')
+            self.assertNotIn('PLAYWRIGHT_EXECUTABLE_PATH',call['env']);self.assertNotIn('MOZ_DISABLE_CONTENT_SANDBOX',call['env'])
+            self.assertEqual(call['profile']['cwd'],str(root/'installed/direct/Browser.Tests'))
+        checker=[r for r in receipts if r['executable'].endswith('bash')]
+        self.assertEqual(len(checker),1);self.assertEqual(len(checker[0]['inputs']),1)
+        validator=[call['profile']['argv'][1] for call in owner.calls if 'browser-host-validation' in ' '.join(call['profile']['argv'])]
+        self.assertEqual(len(validator),1);self.assertRegex(validator[0],r'browser-host-validation\.[0-9a-f]{64}\.cjs$')
+        self.assertEqual(json.loads((root/'installed-c.json').read_text())['families']['webkit']['stats']['expected'],9)
+
+    def test_shell_checker_no_longer_starts_playwright(self):
+        text=(HERE/'verify-fable-reference-public.sh').read_text()
+        wasm=text[text.index(': "${FSGG_WASM_SDK_ARCHIVE'):text.index(': "${QUINT_BIN')]
+        self.assertNotIn('@playwright/test/cli.js',wasm);self.assertNotIn('PLAYWRIGHT_BROWSER_FAMILY=',wasm)
+        self.assertIn("'browserCases':'managed-groups-in-caller'",wasm);self.assertIn('wasm_status=source-passed',wasm)
+
+    def test_installed_c_refuses_wrong_case_population_or_failed_family(self):
+        report={'config':{'projects':[{'name':'firefox'}]},'suites':[{'specs':[{'tests':[{'projectName':'firefox','projectId':'firefox'}]*8}]}]}
+        with self.assertRaisesRegex(ValueError,'nine definitions'):self.ns['check_wasm_list'](report,'firefox')
+        with self.assertRaisesRegex(ValueError,'exact selected family'):self.ns['check_wasm_list'](report,'webkit')
+        stats={'config':{'projects':[{'name':'webkit'}]},'stats':{'expected':8,'unexpected':1,'flaky':0,'skipped':0}}
+        with self.assertRaisesRegex(ValueError,'family webkit stats differ'):self.ns['check_wasm_result'](stats,'webkit')
+        # A failed Playwright group stops installed C at that family and keeps its receipt.
+        owner=FakeOwner()
+        original=FakeOwner.run
+        def run(self_,profile,**kwargs):
+            if len(profile['argv'])>2 and profile['argv'][2]=='test' and '--list' not in profile['argv']:
+                self_.outcome='failed'
+            return original(self_,profile,**kwargs)
+        with patch.object(FakeOwner,'run',run),self.assertRaisesRegex(RuntimeError,'leader exited with live contained members'):
+            drive_every_call_site(self.ns,self.root,owner)
+        index=json.loads((self.root/'job/managed-receipts.json').read_text())
+        self.assertEqual(index[-1]['status'],'failed');self.assertEqual(len(index),23)
+        self.assertFalse((self.root/'job/installed/browser/chromium/report.json').exists())
+        summary=json.loads((self.root/'job/installed-c.json').read_text())
+        self.assertEqual(summary['disposition'],'failed');self.assertIn('leader exited with live contained members',summary['firstCause'])
+
+    def test_moved_assertions_refuse_each_population_and_stats_drift(self):
+        def listing(name='firefox',project='firefox',ident='firefox',count=9):
+            return {'config':{'projects':[{'name':name}]},'suites':[{'specs':[{'tests':[{'projectName':project,'projectId':ident}]*count}]}]}
+        self.assertEqual(self.ns['check_wasm_list'](listing(),'firefox'),9)
+        for kwargs in ({'project':'chromium'},{'ident':'chromium'}):
+            with self.subTest(**kwargs),self.assertRaisesRegex(ValueError,'wrong selected project population'):self.ns['check_wasm_list'](listing(**kwargs),'firefox')
+        good={'expected':9,'unexpected':0,'flaky':0,'skipped':0}
+        self.assertEqual(self.ns['check_wasm_result']({'config':{'projects':[{'name':'webkit'}]},'stats':good},'webkit'),good)
+        for key in ('unexpected','flaky','skipped'):
+            with self.subTest(key=key),self.assertRaisesRegex(ValueError,'stats differ'):
+                self.ns['check_wasm_result']({'config':{'projects':[{'name':'webkit'}]},'stats':{**good,key:1}},'webkit')
+        with self.assertRaisesRegex(ValueError,'runtime family differs'):
+            self.ns['check_wasm_result']({'config':{'projects':[{'name':'chromium'}]},'stats':good},'webkit')
+
+    def test_installed_c_refuses_an_occupied_evidence_root(self):
+        owner=FakeOwner();execute,_=self.executor(owner)
+        (self.root/'installed').mkdir()
+        with self.assertRaisesRegex(ValueError,'installed evidence root occupied'):
+            self.ns['installed_c'](self.root,self.root,{},execute,self.identities,str(self.tool))
+        self.assertEqual(owner.calls,[])
+
+    def test_hosted_sequence_qualifies_tools_then_hands_installed_c_its_own_phase_deadline(self):
+        owner=FakeOwner();made=[];order=[]
+        self.ns['load_owner']=lambda root,deadline:owner
+        original=self.ns['managed_executor']
+        def executor(owner_,root,deadline,identities,phase,receipts):
+            run=original(owner_,root,deadline,identities,phase,receipts);made.append((phase,deadline,receipts,run));return run
+        self.ns['managed_executor']=executor
+        def provision(root,workspace,env,execute,acquire,deadline,identities):order.append(('provision',execute,deadline));return {'node':'/node'}
+        def qualify(root,env,execute):order.append(('qualify',execute))
+        def gate(provisioned):order.append(('gate',provisioned['node']))
+        def installed(root,workspace,env,execute,identities,node):order.append(('installed',execute,node));return 'installed'
+        self.ns.update(prepare_inputs=provision,qualify_tools=qualify,custody_gate=gate,installed_c=installed)
+        start=time.monotonic()
+        self.assertEqual(self.ns['hosted_sequence'](self.environ(),start),'installed')
+        self.assertEqual([step[0] for step in order],['provision','qualify','gate','installed'])
+        (setup_phase,setup,setup_receipts,setup_run),(installed_phase,deadline,installed_receipts,installed_run)=made
+        self.assertEqual((setup_phase,installed_phase),('setup','installed'))
+        self.assertIs(order[0][1],setup_run);self.assertIs(order[1][1],setup_run);self.assertIs(order[3][1],installed_run)
+        self.assertEqual(order[0][2],setup);self.assertIs(setup_receipts,installed_receipts)
+        budget=self.ns['BUDGET']
+        self.assertLessEqual(deadline,start+budget['job']-budget['cleanup']-budget['collection']-budget['overhead']+1)
+        self.assertNotEqual(deadline,setup);self.assertLessEqual(deadline-time.monotonic(),budget['installed'])
+
+    def test_bind_identity_refuses_symlink_drift_conflict_and_unknown_basis(self):
+        alias=self.root/'alias';alias.symlink_to(self.tool)
+        cases=[((str(alias),'host-observed'),{},'symlink-free'),
+               ((str(self.tool),'verified-download'),{'expected':'0'*64},'bytes differ'),
+               ((str(self.tool),'host-observed'),{},'conflicting'),
+               ((str(self.tool),'trusted'),{},'unknown executable identity basis'),
+               ((str(self.tool),'verified-archive-member'),{'images':[]},'leader images')]
+        for args,kwargs,message in cases:
+            with self.subTest(message=message),self.assertRaisesRegex(ValueError,message):
+                self.ns['bind_identity'](self.identities,*args,**kwargs)
+
+    def test_each_playwright_invocation_is_its_own_group(self):
+        calls=[]
+        def execute(argv,cwd,env):calls.append((argv,cwd,env));return '{}'
+        tests=self.root/'Browser.Tests';node=self.root/'node'
+        for family in ('chromium','firefox','webkit'):
+            self.ns['managed_playwright'](execute,node,tests,family,{'CI':'true'},list_only=True)
+            self.ns['managed_playwright'](execute,node,tests,family,{'CI':'true'})
+        self.assertEqual(len(calls),6)
+        self.assertEqual(calls[0][0],[str(node),str(tests/'node_modules/@playwright/test/cli.js'),'test','--config','wasm-public.generated.config.ts','--list','--reporter=json'])
+        self.assertEqual(calls[1][0][-3:],['--workers=1','--retries=0','--max-failures=1'])
+        self.assertEqual([env['PLAYWRIGHT_BROWSER_FAMILY'] for _,_,env in calls],['chromium','chromium','firefox','firefox','webkit','webkit'])
+        with self.assertRaisesRegex(ValueError,'unselected browser family'):self.ns['managed_playwright'](execute,node,tests,'msedge',{})
+
+    def test_provisioning_binds_identities_and_cwd_inside_profile_root(self):
+        code=self.code
+        self.assertIn('bind_identity(identities,str(rustup),"verified-download",expected=rust_digest)',code)
+        self.assertIn('"installer-copy-of-verified-download",expected=rust_digest',code)
+        self.assertIn('images=[shell_sha,node["sha256"]]',code)
+        self.assertNotRegex(code,r'\],workspace,env\)')
+        for bare in ('["node","--version"]','["npm","--version"]','["rustc","--version"]','["cargo","--version"]'):self.assertNotIn(bare,code)
+
+    def test_receiver_targets_published_0191(self):
+        self.assertEqual(self.ns['TEMPLATE_VERSION'],'0.19.1')
+        self.assertEqual(self.ns['PUBLISHED'],'1e95dddb6326d276773154df1336599907d8dbfe')
+        self.assertEqual(self.ns['PACKAGE_SHA'],'5d1886c37b6e6a0d64c3998ee23e76b4c5ba8b8a0c2136200c377d7bbab7d0c6')
+        self.assertEqual(self.ns['DESCRIPTOR_SHA'],'10b532dacb0fba79c1c9dc666487f78903e1fd1a09fc757932f605a3f055f5f7')
+        url,digest,_=self.ns['ENDPOINTS']['template']
+        self.assertEqual(url,'https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.19.1/fs.gg.workspace.template.0.19.1.nupkg')
+        self.assertEqual(digest,self.ns['PACKAGE_SHA'])
+        self.assertIn('/'+self.ns['PUBLISHED']+'/providers/fable-game.providers.yml',self.ns['ENDPOINTS']['descriptor'][0])
+
+    def test_hosted_step_runs_the_owner_in_a_fresh_delegated_unit_with_hard_limits(self):
+        job=self.text.split('  wasm-installed-c:',1)[1]
+        step=job.split('      - name: Prepare closed hosted WASM caller',1)[1].split("HOSTED_WASM",1)[0]
+        self.assertEqual(re.findall(r'^        if: (.*)$',step,re.M),['${{ false }}'])
+        for required in ('sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec','-p Delegate=yes','-p User="$(id -un)"',
+                         '-p NoNewPrivileges=yes','-p KillMode=control-group','-p TimeoutStopSec=5','-p TasksMax=6144','-p MemoryMax=12G',
+                         '-p RuntimeMaxSec=2400','--setenv=CHECKOUT_HEAD="$checkout_head"','-- /usr/bin/python3 -I - <<'):
+            with self.subTest(required=required):self.assertIn(required,step)
+        self.assertEqual(self.ns['BUDGET']['job'],2400)
+
+    def test_binding_probe_job_is_non_required_and_provisions_nothing(self):
+        probe=self.text.split('  managed-group-binding:',1)[1].split('  wasm-installed-c:',1)[0]
+        self.assertIn('(non-required)',probe)
+        self.assertIn("github.event.pull_request.head.repo.full_name == github.repository",probe)
+        self.assertEqual(re.findall(r'uses: ([^\s]+)',probe),['actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'])
+        self.assertIn('--expect unavailable',probe);self.assertIn('--expect contained',probe)
+        for absent in ('HOSTED_WASM','upload-artifact','prepare_inputs','playwright'):self.assertNotIn(absent,probe)
+        self.assertIn('tests/composition/fable-game/managed-group-binding-probe.py',self.text.split('jobs:',1)[0])
+
+
+OWNER_FILE=os.environ.get('FSGG_MANAGED_GROUP_OWNER')
+
+@unittest.skipUnless(OWNER_FILE,'set FSGG_MANAGED_GROUP_OWNER to the pinned owner file to run real-contract refusals')
+class RealOwnerBindingTests(unittest.TestCase):
+    """The caller's profiles and refusals against the real pinned owner, where no unit is delegated."""
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.root=Path(os.path.realpath(self.temp.name))
+        self.text,self.code=actual_hosted_code()
+        self.ns={'__name__':'real_owner_test'};exec(compile(self.code,'actual-hosted-workflow','exec'),self.ns)
+        self.addCleanup(setattr,sys,'dont_write_bytecode',sys.dont_write_bytecode)
+        source=Path(OWNER_FILE).read_bytes()
+        self.assertEqual(hashlib.sha256(source).hexdigest(),self.ns['OWNER']['sha256'])
+        def copy(url,path,maximum,deadline,expected):
+            path.write_bytes(source);return {'url':url,'bytes':len(source),'digest':hashlib.sha256(source).hexdigest()}
+        self.owner=self.ns['load_owner'](self.root,time.monotonic()+10,copy)
+        self.shell,_=self.ns['host_image']('/bin/sh')
+        self.identities={};self.ns['bind_identity'](self.identities,self.shell,'host-observed')
+        self.receipts=[]
+
+    def test_caller_profile_is_valid_under_the_real_contract(self):
+        captured=FakeOwner();execute=self.ns['managed_executor'](captured,self.root,time.monotonic()+60,self.identities,'setup',[])
+        self.identities[self.shell]={**self.identities[self.shell],'leaderImages':[self.identities[self.shell]['sha256'],'e'*64]}
+        execute(['/bin/sh','-c','true'],self.root,{'PATH':'/usr/bin:/bin'})
+        profile,digest=self.owner.validate_profile(captured.calls[0]['profile'])
+        self.assertRegex(digest,r'^[0-9a-f]{64}$');self.assertEqual(profile['retirement']['onLeaderExit'],'require-empty')
+
+    def test_every_call_site_is_valid_under_the_real_contract(self):
+        # Every provisioning, tool-qualification and installed-C call site, through the real schema.
+        owner=FakeOwner(validate=self.owner.validate_profile)
+        drive_every_call_site(self.ns,self.root,owner)
+        self.assertEqual(len(owner.calls),25)
+
+    def run_refused(self, deadline, code):
+        receipts=self.receipts
+        execute=self.ns['managed_executor'](self.owner,self.root,deadline,self.identities,'setup',receipts)
+        with self.assertRaisesRegex(RuntimeError,'refused: '+code):execute(['/bin/sh','-c','echo launched'],self.root,{'PATH':'/usr/bin:/bin'})
+        receipt=json.loads((Path(receipts[-1]['outDir'])/'receipt.json').read_text())
+        self.assertEqual(receipt['launch'],{'attempted':False,'launched':False,'error':None})
+        self.assertEqual(receipt['owner']['sha256'],self.ns['OWNER']['sha256']);self.assertEqual(receipt['refusal'],code)
+
+    def test_real_contract_refusals_precede_any_launch(self):
+        self.run_refused(time.monotonic()-1,'deadline-exhausted')
+        self.identities[self.shell]={**self.identities[self.shell],'sha256':'0'*64}
+        self.run_refused(time.monotonic()+60,'executable-identity-mismatch')
+
+    def test_real_probe_without_delegated_unit_refuses_containment(self):
+        if self.owner.probe()['available']:self.skipTest('this host delegates a cgroup; the hosted unit probe covers containment')
+        with self.assertRaisesRegex(ValueError,'containment unavailable'):self.ns['probe_containment'](self.owner,self.root)
+        self.run_refused(time.monotonic()+60,'containment-unavailable')
+
 
 if __name__ == '__main__': unittest.main()

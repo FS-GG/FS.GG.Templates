@@ -566,6 +566,19 @@ The automatic PR job runs only the static source controls in this window. Caller
 execution and runtime artifact upload have explicit literal false conditions until
 C-J1 review admits the complete canonical profile; the inline refusal also remains.
 
+C-J1 binds the canonical `fsgg.managed-group-contract/1` (Coordination `ac22206`,
+`eng/managed_group_owner.py`, sha256 `d846dbe1…`) into the held caller. The caller
+pins and imports the owner, probes containment before acquisition, runs every
+provisioning call as one `require-empty` managed group, and runs the job inside a
+delegated `systemd-run` unit that carries the hard limits. On the installed-C path each
+Playwright `--list` and `test` invocation is its own `require-empty` group run by the caller;
+the shell checker now prepares only source and the production graph. Installed C runs only
+after a held custody gate, pending the admitted three-family custody pilot. The WASM
+receiver targets published 0.19.1. The literal step, upload and inline holds remain
+until Programme/root admits the bounded three-family custody pilot. The
+[binding report](../reports/2026-10-13-wasm-template-source-and-public-successor.md#managed-group-contract-binding-c-j1--2026-10-22)
+records the pin, the identity bases and the non-required hosted probe.
+
 
 The first full composition of PR718 failed on the unchanged generated game test
 SignalR.Common 10.0.12 dependency. The prepared narrow successor updates only the

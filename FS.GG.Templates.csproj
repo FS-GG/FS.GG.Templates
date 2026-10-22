@@ -8,11 +8,14 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Workspace.Template</PackageId>
-    <!-- 0.19.0 prepares the coherent Workspace successor with the qualified opt-in
-         WASM policy composition alongside the existing managed Portal example. This is source selection,
-         not publication: fresh occupancy, original-archive release gates, both feed
-         readbacks and public installed/provider acceptance remain separate. -->
-    <Version>0.19.0</Version>
+    <!-- 0.19.1 is the coherent Workspace patch successor that delivers C sources byte-for-byte
+         (FS.GG.Templates#729): the fable-game and legacy template.json files now declare
+         specialCustomOperations for **/*.c and **/*.h, so the engine no longer strips the
+         POLICY_* preprocessor blocks from SvgFoundation/Examples/Wasm/guest/policy.c in a
+         bundle=complete scaffold (1130 bytes scaffolded against 1308 packaged in 0.19.0). This is
+         source selection, not publication: fresh occupancy, original-archive release gates, both
+         feed readbacks and public installed/provider acceptance remain separate. -->
+    <Version>0.19.1</Version>
     <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new workspace templates for FS.GG.SDD: governance, Python, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</Description>
