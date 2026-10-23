@@ -3363,7 +3363,10 @@ def qualify(out, preflight_path, termination, current_public=False):
     require(not termination, termination[0] if termination else "")
     write(directory / "observation.json", receipt)
     # Preserve the candidate result bytes: AT qualification is an additional independently bound receipt.
-    print("PASS external-reference actual Orca keyboard/receipt journey; evidence=" + str(directory / "observation.json"))
+    if current_public:
+        print("PASS current-reference actual Orca in-memory local save/replay journey; evidence=" + str(directory / "observation.json"))
+    else:
+        print("PASS external-reference actual Orca keyboard/receipt journey; evidence=" + str(directory / "observation.json"))
 
 
 def self_test(logging_controls=True):
