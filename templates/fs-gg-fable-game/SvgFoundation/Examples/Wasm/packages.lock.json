@@ -85,19 +85,19 @@
       },
       "FS.GG.Wasm.Browser": {
         "type": "Direct",
-        "requested": "[0.3.0, 0.3.0]",
-        "resolved": "0.3.0",
-        "contentHash": "CwiuMUDYgM1wD/CqFsHlGWz1AKEo5AiFrh1Hr6vdPTaO/TsOP5L/Ucqa7zN4IgaTPWFMHU8mYnyAqbrkTMqxXQ==",
+        "requested": "[0.7.0, 0.7.0]",
+        "resolved": "0.7.0",
+        "contentHash": "AG/nCETlW0BBTGRbb36RgOFtOzQlH4RWhIdVL9ReTs+w71pu2uCJhLPb6MmZyj5LZcBN0eHKk8eGlpCB9rZIQg==",
         "dependencies": {
-          "FS.GG.Wasm.Contracts": "[0.3.0]",
+          "FS.GG.Wasm.Contracts": "[0.7.0]",
           "FSharp.Core": "10.1.302"
         }
       },
       "FS.GG.Wasm.Contracts": {
         "type": "Direct",
-        "requested": "[0.3.0, 0.3.0]",
-        "resolved": "0.3.0",
-        "contentHash": "JBJa0WRPKG1rHiww5TjI6GEsRKYXtSo5/6cPzfmVDN81HlVmqtykTcd4SSBWE/ob92m/DL8ZyYZG8+zrboquGA==",
+        "requested": "[0.7.0, 0.7.0]",
+        "resolved": "0.7.0",
+        "contentHash": "39TdAGF23F03t4s16g9PVdhA/Gq5v1kbIbsMe1NsqIXREW/Wt65podyGXRBg/9iUJ7mlCouREmVa09+uwBK4ZA==",
         "dependencies": {
           "FSharp.Core": "10.1.302"
         }

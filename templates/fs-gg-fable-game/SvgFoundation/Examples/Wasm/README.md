@@ -4,9 +4,9 @@ This source example composes the shared strict SC2 guest profile as an advisor.
 It accepts opaque input/output bytes; the consuming domain owns their meaning.
 Advice grants no native command capability and has no deterministic replay claim.
 
-The interface selection is the coherent Contracts/Browser/guest SDK 0.3.0 set at
-[producer 16a40169](https://github.com/FS-GG/FS.GG.Game/tree/16a401692f4c0dee7f6da1a86d0cd49e6ea3ec2c).
-The published [`Host` interface](https://github.com/FS-GG/FS.GG.Game/blob/16a401692f4c0dee7f6da1a86d0cd49e6ea3ec2c/src/Wasm.Browser/Host.fsi)
+The interface selection is the coherent Contracts/Browser/guest SDK 0.7.0 set at
+[producer 15e287d7](https://github.com/FS-GG/FS.GG.Game/tree/15e287d7c8884f088b7db41140f108f3f0136043) (`wasm/v0.7.0`).
+The published [`Host` interface](https://github.com/FS-GG/FS.GG.Game/blob/15e287d7c8884f088b7db41140f108f3f0136043/src/Wasm.Browser/Host.fsi)
 owns Worker lifecycle. The strict profile rejects legacy direct-URL admission;
 BAR has no advisor role capacity. This example uses default compatibility and
 adds no scheduling or allocation policy.
@@ -14,7 +14,7 @@ adds no scheduling or allocation policy.
 ## Select the optional composition
 
 The nonlegacy Complete bundle contains this example. `FsGgWasmPolicyExample` is
-false by default; explicit true selects the public Contracts/Browser `[0.3.0]`
+false by default; explicit true selects the public Contracts/Browser `[0.7.0]`
 references, the browser adapter and a separate `Examples/Wasm/packages.lock.json`.
 The ordinary player lock and dependencies remain unchanged. The opt-in NuGet
 lock and independent Rust `Cargo.lock` contain actual qualified consumer outputs.
@@ -36,7 +36,7 @@ back, and returns without compiling guests. The included lock was generated
 through this route from the verified SDK layout.
 
 After those prerequisites are accepted, run `bash Examples/Wasm/build-guests.sh` with the authenticated
-SDK 0.3 archive and pinned WASI SDK 34 root. It builds independent C/Rust policy
+SDK 0.7 archive and pinned WASI SDK 34 root. It builds independent C/Rust policy
 inputs and C malformed/trap/loop controls. It acquires no tools or packages.
 `FSGG_WASM_POLICY_EXAMPLE=true ./build.sh` then selects the example through
 restore, Fable and the ordinary Vite production build. The default deployment
@@ -70,6 +70,12 @@ public assets and modules are excluded from template packing.
    complete Worker/ESM and generated policy assets under the deployment base.
 3. Call `LoadConfigured` with a fresh Worker/request/generation identity and the
    selected artifact bytes. Wait for successful current compilation settlement.
+   Since 0.7.0 the strict profile's 250 ms guest deadline starts only when the Worker
+   reports readiness; Worker startup has its own bound (default 5000 ms, refused as
+   `WorkerStartTimeout`). Pass no enclosing deadline to this load: it would also cap
+   startup (FS-GG/FS.GG.Game#727). The 0.7.0 package Worker is one self-contained
+   bundle, and `materialize-assets.py` binds it to the package's `worker-build.json` and
+   refuses any module, dynamic or classic-script import from it.
 4. Call `Initialize` with a fresh request identity for that Worker/generation.
    Wait for successful current initialization settlement before `Invoke`.
 5. Give each invocation its own request identity and use `currentAdvice` with the
@@ -94,10 +100,11 @@ retained output ownership, faults/cleanup, freeze/replacement/disposal and the
 actual host's configured-load/initialization/disposal sequence with inert effects.
 Projection fixtures do not establish successful guest execution.
 
-The opt-in NuGet and Cargo locks were generated from actual public-package and
-verified SDK inputs. The complete enabled player and adapter were typechecked and
-emitted with Fable 5.18.0. The independent C and Rust guests compiled against SDK
-0.3.0 with the pinned WASI and Rust toolchains. The tableless Rust output requires
+The opt-in NuGet and Cargo locks were regenerated for 0.7.0 from nuget.org and the
+verified SDK 0.7.0 archive with clean caches, through `GenerateWasmPolicyLock` and
+`build-guests.sh --generate-lock`. The complete enabled player and adapter were
+typechecked and emitted with Fable 5.18.0. The independent C and Rust guests compiled
+against SDK 0.7.0 with the pinned WASI and Rust toolchains. The tableless Rust output requires
 no normalization; when a table is present, the SDK owns its removal.
 
 The source consumer's production build passed nine browser tests in each of

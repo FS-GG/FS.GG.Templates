@@ -61,8 +61,8 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Update="FSharp.Core" Version="[10.1.401]" />
-    <PackageReference Include="FS.GG.Wasm.Contracts" Version="[0.3.0]" Condition="'$(FsGgWasmPolicyExample)' == 'true'" />
-    <PackageReference Include="FS.GG.Wasm.Browser" Version="[0.3.0]" Condition="'$(FsGgWasmPolicyExample)' == 'true'" />
+    <PackageReference Include="FS.GG.Wasm.Contracts" Version="[0.7.0]" Condition="'$(FsGgWasmPolicyExample)' == 'true'" />
+    <PackageReference Include="FS.GG.Wasm.Browser" Version="[0.7.0]" Condition="'$(FsGgWasmPolicyExample)' == 'true'" />
     <PackageReference Include="Fable.Core" Version="[5.3.0]" />
     <PackageReference Include="Fable.Browser.Dom" Version="[2.20.0]" />
     <PackageReference Include="Thoth.Json" Version="[10.5.1]" />

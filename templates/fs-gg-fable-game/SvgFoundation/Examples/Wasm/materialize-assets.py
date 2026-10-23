@@ -8,7 +8,8 @@ import shutil
 import sys
 import zipfile
 
-PACKAGE_SHA256 = "74a11425bfb64c152ffbeab5be2753434e08f55f806e85113cdc25cacbc86fa5"
+# nuget.org bytes of FS.GG.Wasm.Browser 0.7.0 (repository-countersigned; not the producer original).
+PACKAGE_SHA256 = "bfc28ac97df243aedaae8d913ff555967039b8aef824c48db970d50c14d198cd"
 PREFIX = "contentFiles/any/any/_content/FS.GG.Wasm.Browser/"
 
 
@@ -18,14 +19,14 @@ def materialize(foundation):
     libraries = assets["libraries"]
     if any(value.get("type") == "project" for value in libraries.values()):
         raise ValueError("WASM example refuses source-project dependencies")
-    for package in ("FS.GG.Wasm.Contracts/0.3.0", "FS.GG.Wasm.Browser/0.3.0"):
+    for package in ("FS.GG.Wasm.Contracts/0.7.0", "FS.GG.Wasm.Browser/0.7.0"):
         if package not in libraries or libraries[package].get("type") != "package":
-            raise ValueError("WASM example requires exact public 0.3.0 packages")
+            raise ValueError("WASM example requires exact public 0.7.0 packages")
     roots = list(assets["packageFolders"])
     if len(roots) != 1:
         raise ValueError("WASM example requires one explicitly evaluated package root")
-    package = Path(roots[0]) / libraries["FS.GG.Wasm.Browser/0.3.0"]["path"]
-    archive = package / "fs.gg.wasm.browser.0.3.0.nupkg"
+    package = Path(roots[0]) / libraries["FS.GG.Wasm.Browser/0.7.0"]["path"]
+    archive = package / "fs.gg.wasm.browser.0.7.0.nupkg"
     if archive.is_symlink() or hashlib.sha256(archive.read_bytes()).hexdigest() != PACKAGE_SHA256:
         raise ValueError("Restored Browser archive differs from the selected public bytes")
     records = {}
@@ -76,6 +77,22 @@ def materialize(foundation):
             raise ValueError("Production package ESM import is external or missing: " + name)
         reachable.add(name)
         pending.extend(edges.get(name, []))
+    # 0.5+ ships the Worker as one self-contained esbuild bundle: a cold Worker start fetches no
+    # further module (FS-GG/FS.GG.Game#727). Bind it to the package's own build record and refuse
+    # any static, dynamic or classic-script import that would reintroduce a module graph.
+    if "worker-build.json" not in records:
+        raise ValueError("Package Worker build record is missing")
+    build = json.loads(records["worker-build.json"].decode("utf-8"))
+    worker_output, composition = build.get("output") or {}, build.get("composition") or {}
+    bundle = records["module-worker.mjs"]
+    if (build.get("schema") != "fsgg.wasm.worker-build/1" or worker_output.get("path") != "module-worker.mjs"
+            or worker_output.get("bytes") != len(bundle) or worker_output.get("sha256") != hashlib.sha256(bundle).hexdigest()
+            or composition.get("outputFiles") != 1 or composition.get("externalImports") != 0):
+        raise ValueError("Package Worker bundle differs from its build record")
+    if edges["module-worker.mjs"] or re.search(r"\bimport\s*\(|\bimportScripts\s*\(", bundle.decode("utf-8")):
+        raise ValueError("Package Worker bundle is not self-contained")
+    if reachable != {"module-worker.mjs", "worker-client.mjs"}:
+        raise ValueError("Production Worker graph differs from the self-contained bundle and its client")
     # Owner static assets remain in Vite's ordinary public directory. Generated
     # package/guest content never enters it, so disabling the option ignores stale output.
     owner = foundation / "public"
@@ -92,7 +109,7 @@ def materialize(foundation):
     guests = foundation / "obj/wasm-policy-guests"
     modules = json.loads((guests / "modules.json").read_text())
     names = {"c-normal.wasm", "c-malformed.wasm", "c-trap.wasm", "c-loop.wasm", "rust-normal.wasm"}
-    if guests.is_symlink() or modules.get("sdkSha256") != "8091df6824981c0c37131524ffbcbae9bb8b36f672a20edc2efaddd35664f8c8" or set(modules.get("modules", {})) != names:
+    if guests.is_symlink() or modules.get("sdkSha256") != "090658bd29c79500ed6f3f3defe89a14f7b8330b39586cd01880429258a99cb2" or set(modules.get("modules", {})) != names:
         raise ValueError("Guest build manifest differs from selected independent inputs")
     source = foundation / "Examples/Wasm/guest"
     for field, path in (("cSourceSha256", source / "policy.c"), ("rustSourceSha256", source / "rust/src/lib.rs")):
@@ -129,7 +146,8 @@ def materialize(foundation):
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(payload)
     manifest = {
-        "package": "FS.GG.Wasm.Browser/0.3.0",
+        "package": "FS.GG.Wasm.Browser/0.7.0",
+        "workerBuild": {"output": worker_output, "composition": composition},
         "archiveSha256": PACKAGE_SHA256,
         "files": {name: hashlib.sha256(payload).hexdigest() for name, payload in sorted(records.items())},
         "imports": edges,

@@ -2236,4 +2236,87 @@ class ObservabilityFollowUpTests(unittest.TestCase):
         self.assertNotIn('push',reads[0]);self.assertNotIn('git fetch',block);self.assertNotIn('git clone',block)
 
 
+WASM_EXAMPLE=HERE.parents[2]/'templates/fs-gg-fable-game/SvgFoundation/Examples/Wasm'
+WASM_SDK_SHA='090658bd29c79500ed6f3f3defe89a14f7b8330b39586cd01880429258a99cb2'
+
+class WasmReceiverPinTests(unittest.TestCase):
+    """The receiver selects FS.GG.Wasm 0.7.0 (FS-GG/FS.GG.Game#727) coherently across template source,
+    locks, guest build, asset materialization, the installed-C acquisition and the checker."""
+    def test_receiver_pins_cohere_on_0_7_0(self):
+        fsproj=(WASM_EXAMPLE.parents[1]/'SvgFoundation.fsproj').read_text()
+        self.assertEqual(re.findall(r'Include="(FS\.GG\.Wasm\.[A-Za-z]+)" Version="([^"]+)"',fsproj),[('FS.GG.Wasm.Contracts','[0.7.0]'),('FS.GG.Wasm.Browser','[0.7.0]')])
+        lock=json.loads((WASM_EXAMPLE/'packages.lock.json').read_text())
+        rows={k:v for deps in lock['dependencies'].values() for k,v in deps.items() if k.startswith('FS.GG.Wasm.')}
+        self.assertEqual({k:(v['requested'],v['resolved']) for k,v in rows.items()},{'FS.GG.Wasm.Browser':('[0.7.0, 0.7.0]','0.7.0'),'FS.GG.Wasm.Contracts':('[0.7.0, 0.7.0]','0.7.0')})
+        self.assertIn('name = "fsgg-wasm-guest"\nversion = "0.7.0"',(WASM_EXAMPLE/'guest/rust/Cargo.lock').read_text())
+        guests=(WASM_EXAMPLE/'build-guests.sh').read_text()
+        self.assertEqual(guests.count(WASM_SDK_SHA),2);self.assertIn('sdk="$work/fsgg-wasm-sdk-0.7.0"',guests)
+        materialize=(WASM_EXAMPLE/'materialize-assets.py').read_text()
+        self.assertIn('modules.get("sdkSha256") != "'+WASM_SDK_SHA+'"',materialize)
+        self.assertEqual(re.findall(r'FS\.GG\.Wasm\.\w+/([0-9.]+)',materialize),['0.7.0']*4)
+        text,code=actual_hosted_code();ns={'__name__':'pins'};exec(compile(code,'actual-hosted-workflow','exec'),ns)
+        self.assertEqual(ns['ENDPOINTS']['guest'][:2],('https://github.com/FS-GG/FS.GG.Game/releases/download/wasm/v0.7.0/fsgg-wasm-sdk-0.7.0.tar.gz',WASM_SDK_SHA))
+        self.assertIn("refs['FS.GG.Wasm.Contracts']==refs['FS.GG.Wasm.Browser']=='[0.7.0]'",CHECKER.read_text())
+        for stale in ('8091df6824981c0c37131524ffbcbae9bb8b36f672a20edc2efaddd35664f8c8','fsgg-wasm-sdk-0.3.0'):
+            for path in (WASM_EXAMPLE/'build-guests.sh',WASM_EXAMPLE/'materialize-assets.py',WORKFLOW,CHECKER):
+                with self.subTest(stale=stale,path=path.name):self.assertNotIn(stale,path.read_text())
+
+    def world(self, bundle=None, build=None, extra=None):
+        temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup);root=Path(temp.name)
+        foundation=root/'SvgFoundation';(foundation/'obj').mkdir(parents=True)
+        prefix='contentFiles/any/any/_content/FS.GG.Wasm.Browser/'
+        bundle=bundle if bundle is not None else b'var x = 1;\nexport function run() { return x; }\n'
+        output={'path':'module-worker.mjs','bytes':len(bundle),'sha256':hashlib.sha256(bundle).hexdigest()}
+        build=build if build is not None else {'schema':'fsgg.wasm.worker-build/1','output':output,'composition':{'outputFiles':1,'externalImports':0}}
+        members={'module-worker.mjs':bundle,'worker-client.mjs':b'export const client = () => new Worker(new URL("module-worker.mjs", base));\n',
+                 'worker-build.json':json.dumps(build).encode(),'policy/Host.js':b'export const host = 1;\n',**(extra or {})}
+        package=root/'packages/fs.gg.wasm.browser/0.7.0';package.mkdir(parents=True)
+        archive=package/'fs.gg.wasm.browser.0.7.0.nupkg'
+        with zipfile.ZipFile(archive,'w') as z:
+            for name,body in members.items():z.writestr(prefix+name,body)
+        for name,body in members.items():
+            cached=package/(prefix+name);cached.parent.mkdir(parents=True,exist_ok=True);cached.write_bytes(body)
+        (foundation/'obj/project.assets.json').write_text(json.dumps({'packageFolders':{str(root/'packages'):{}},'libraries':{
+            'FS.GG.Wasm.Contracts/0.7.0':{'type':'package','path':'fs.gg.wasm.contracts/0.7.0'},'FS.GG.Wasm.Browser/0.7.0':{'type':'package','path':'fs.gg.wasm.browser/0.7.0'}}}))
+        guest=foundation/'Examples/Wasm/guest';(guest/'rust/src').mkdir(parents=True);(guest/'policy.c').write_text('int x;');(guest/'rust/src/lib.rs').write_text('fn x(){}')
+        guests=foundation/'obj/wasm-policy-guests';guests.mkdir()
+        modules={}
+        for name in ('c-normal.wasm','c-malformed.wasm','c-trap.wasm','c-loop.wasm','rust-normal.wasm'):
+            (guests/name).write_bytes(name.encode());modules[name]=hashlib.sha256(name.encode()).hexdigest()
+        (guests/'modules.json').write_text(json.dumps({'sdkSha256':WASM_SDK_SHA,'cSourceSha256':hashlib.sha256(b'int x;').hexdigest(),
+            'rustSourceSha256':hashlib.sha256(b'fn x(){}').hexdigest(),'modules':modules}))
+        spec=importlib.util.spec_from_file_location('materialize_fixture',WASM_EXAMPLE/'materialize-assets.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        module.PACKAGE_SHA256=hashlib.sha256(archive.read_bytes()).hexdigest() # fixture archive bytes, not the public ones
+        return module,foundation
+
+    def test_self_contained_bundled_worker_is_materialized_and_recorded(self):
+        module,foundation=self.world();module.materialize(foundation)
+        manifest=json.loads((foundation/'obj/wasm-policy-public/wasm-package-assets.json').read_text())
+        self.assertEqual(manifest['package'],'FS.GG.Wasm.Browser/0.7.0');self.assertEqual(manifest['productionReachable'],['module-worker.mjs','worker-client.mjs'])
+        self.assertEqual(manifest['workerBuild']['composition'],{'outputFiles':1,'externalImports':0})
+        self.assertTrue((foundation/'obj/wasm-policy-public/_content/FS.GG.Wasm.Browser/policy/Host.js').is_file()) # unused library modules still copied
+
+    def test_worker_module_graph_or_build_drift_refuses(self):
+        cases={
+            'static import':(b'import { host } from "./policy/Host.js";\nexport const x = host;\n',None,'not self-contained'),
+            'dynamic import':(b'export const x = () => import("./policy/Host.js");\n',None,'not self-contained'),
+            'classic script':(b'importScripts("policy/Host.js");\n',None,'not self-contained'),
+        }
+        for label,(bundle,build,message) in cases.items():
+            with self.subTest(label=label):
+                module,foundation=self.world(bundle=bundle)
+                with self.assertRaisesRegex(ValueError,message):module.materialize(foundation)
+        good=b'export const ok = 1;\n'
+        drift={'wrong sha':{'schema':'fsgg.wasm.worker-build/1','output':{'path':'module-worker.mjs','bytes':len(good),'sha256':'0'*64},'composition':{'outputFiles':1,'externalImports':0}},
+               'external imports':{'schema':'fsgg.wasm.worker-build/1','output':{'path':'module-worker.mjs','bytes':len(good),'sha256':hashlib.sha256(good).hexdigest()},'composition':{'outputFiles':1,'externalImports':2}},
+               'several outputs':{'schema':'fsgg.wasm.worker-build/1','output':{'path':'module-worker.mjs','bytes':len(good),'sha256':hashlib.sha256(good).hexdigest()},'composition':{'outputFiles':3,'externalImports':0}}}
+        for label,build in drift.items():
+            with self.subTest(label=label):
+                module,foundation=self.world(bundle=good,build=build)
+                with self.assertRaisesRegex(ValueError,'differs from its build record'):module.materialize(foundation)
+        module,foundation=self.world(bundle=good,extra={'worker-client.mjs':b'import "./policy/Host.js";\n'})
+        with self.assertRaisesRegex(ValueError,'Production Worker graph differs'):module.materialize(foundation)
+
+
 if __name__ == '__main__': unittest.main()

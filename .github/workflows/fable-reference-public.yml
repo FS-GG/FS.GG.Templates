@@ -226,6 +226,9 @@ jobs:
           # Published Workspace.Template 0.19.2 (peeled fs-gg-templates/v0.19.2 = d15f085, signed nuget.org
           # archive; release run 39845406998). Same stock inputs, locks and WASM [0.3.0] refs as 0.19.1, with
           # Rendering 0.32.3 adopted. 0.19.0 Complete scaffolds truncate the WASM guest policy.c.
+          # The receiver source now selects FS.GG.Wasm [0.7.0] (FS-GG/FS.GG.Game#727) and the guest SDK
+          # acquisition below is 0.7.0. The four release pins above move together to the Workspace.Template
+          # patch that carries that source; until then installed C stays held (and 0.19.2 would not pass).
           TEMPLATE_VERSION = "0.19.2"
           PUBLISHED = "d15f085ff4d64b7736e09ff263644b3c86a576a6"
           PACKAGE_SHA = "ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a"
@@ -238,7 +241,7 @@ jobs:
           ENDPOINTS = {
               "template":(f"https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/{TEMPLATE_VERSION}/fs.gg.workspace.template.{TEMPLATE_VERSION}.nupkg", PACKAGE_SHA, 8388608),
               "descriptor":(f"https://raw.githubusercontent.com/FS-GG/FS.GG.Templates/{PUBLISHED}/providers/fable-game.providers.yml", DESCRIPTOR_SHA, 1048576),
-              "guest":("https://github.com/FS-GG/FS.GG.Game/releases/download/wasm/v0.3.0/fsgg-wasm-sdk-0.3.0.tar.gz", "8091df6824981c0c37131524ffbcbae9bb8b36f672a20edc2efaddd35664f8c8", 2097152),
+              "guest":("https://github.com/FS-GG/FS.GG.Game/releases/download/wasm/v0.7.0/fsgg-wasm-sdk-0.7.0.tar.gz", "090658bd29c79500ed6f3f3defe89a14f7b8330b39586cd01880429258a99cb2", 2097152),
               "wasi":("https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz", "b761e3a0721dbae9c09a0059e5fdb2bf917d1b4a8a7b430fb3b5aafb0984b2c4", 268435456)}
           # Observed public TLS/raw archive identity only; no publisher signature or build correspondence.
           BROWSER_ARCHIVES = {'chromium-full1243': {'url': 'https://storage.googleapis.com/chrome-for-testing-public/153.0.8010.12/linux64/chrome-linux64.zip',
