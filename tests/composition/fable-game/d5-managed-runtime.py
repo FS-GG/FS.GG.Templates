@@ -217,9 +217,9 @@ def finish_collection(reader, contract, root, summary, inventory, primary, start
         reader.collection_terminal(root,summary,contract)
     except BaseException as reporting:
         deciding=primary or collection_failure
+        print('terminal collection report Unknown: '+str(reporting)[:8192],file=sys.stderr)
         if deciding is None:raise
         deciding.add_note('terminal collection report Unknown: '+str(reporting)[:8192])
-        print('terminal collection report Unknown: '+str(reporting)[:8192],file=sys.stderr)
     if collection_failure is not None:raise collection_failure
 
 
