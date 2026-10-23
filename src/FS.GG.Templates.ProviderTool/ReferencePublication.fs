@@ -150,15 +150,17 @@ let private uniqueObject (element: JsonElement) =
         | _ -> true
     walk element
 
-let validateReceiver (archive: string) (receiver: string) (route: string) (expectedLifecycle: string) (expectedGeneratorVersion: string) (productName: string) =
+let private validateReceiverCore (currentD5: bool) (bundle: string) (archive: string) (receiver: string) (route: string) (expectedLifecycle: string) (expectedGeneratorVersion: string) (productName: string) =
+    let omittedBundle = bundle = "omitted"
+    let bundle = if omittedBundle then "player" else bundle
     if not (File.Exists archive) || not (Directory.Exists receiver) then refuse "receiver-input-missing"
     elif not ([ "direct"; "provider"; "wizard" ] |> List.contains route) then refuse "receiver-route-refused"
-    elif not ([ "none"; "typed-sdd"; "sdd" ] |> List.contains expectedLifecycle) then refuse "receiver-lifecycle-refused"
+    elif not (([ "none"; "typed-sdd"; "sdd" ] @ (if currentD5 then [ "spec-kit" ] else [])) |> List.contains expectedLifecycle) then refuse "receiver-lifecycle-refused"
     elif route = "direct" && expectedLifecycle <> "none" then refuse "receiver-lifecycle-refused"
     // Only the Wizard route may claim `sdd`: Wizard 0.21.0 forwarded it as its omitted default for current
     // fable-game descriptors (0.22.0 forwards the descriptor default typed-sdd, .github#4811), and an explicit
     // --lifecycle sdd is forwarded unchanged. The recorded provenance must still equal it exactly.
-    elif expectedLifecycle = "sdd" && route <> "wizard" then refuse "receiver-lifecycle-refused"
+    elif expectedLifecycle = "sdd" && route <> "wizard" && not currentD5 then refuse "receiver-lifecycle-refused"
     elif not (Regex.IsMatch(productName, "^[A-Za-z_][A-Za-z0-9_']*$", RegexOptions.CultureInvariant)) then refuse "receiver-product-name-refused"
     else
         try
@@ -207,14 +209,25 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
                 && identifierSource.GetString() = "rootNamespaceTrimmed"
                 && identifierFallback.GetString() = "effectiveName"
             if not templateContract then raise (InvalidDataException "template transform contract refused")
+            if currentD5 then
+                let choices (name: string) = symbols.GetProperty(name).GetProperty("choices").EnumerateArray() |> Seq.map (fun row -> row.GetProperty("choice").GetString()) |> Seq.toList
+                if choices "lifecycle" <> [ "none"; "sdd"; "typed-sdd"; "spec-kit" ]
+                   || choices "bundle" <> [ "player"; "studio"; "tactical"; "arcade"; "complete" ]
+                   || symbols.GetProperty("lifecycle").GetProperty("defaultValue").GetString() <> "typed-sdd"
+                   || symbols.GetProperty("bundle").GetProperty("defaultValue").GetString() <> "player" then
+                    raise (InvalidDataException "template transform contract refused")
             let invariant =
-                [ "content/templates/fs-gg-fable-game/SvgFoundation/Examples/ExternalAuthority/reference.json"
-                  "content/templates/fs-gg-fable-game/SvgFoundation/Examples/FourD/reference.json"
-                  "content/templates/fs-gg-fable-game/SvgFoundation/build.sh" ]
+                if currentD5 && bundle <> "complete" then [ prefix + "SvgFoundation/build.sh" ]
+                else
+                    [ "content/templates/fs-gg-fable-game/SvgFoundation/Examples/ExternalAuthority/reference.json"
+                      "content/templates/fs-gg-fable-game/SvgFoundation/Examples/FourD/reference.json"
+                      "content/templates/fs-gg-fable-game/SvgFoundation/build.sh" ]
             let transformed =
-                [ "content/templates/fs-gg-fable-game/SvgFoundation/ExternalAuthorityReference.fs"
-                  "content/templates/fs-gg-fable-game/SvgFoundation/FourDReference.fs"
-                  "content/templates/fs-gg-fable-game/Browser.Tests/two-client.spec.ts" ]
+                if currentD5 && bundle <> "complete" then [ prefix + "Browser.Tests/two-client.spec.ts" ]
+                else
+                    [ "content/templates/fs-gg-fable-game/SvgFoundation/ExternalAuthorityReference.fs"
+                      "content/templates/fs-gg-fable-game/SvgFoundation/FourDReference.fs"
+                      "content/templates/fs-gg-fable-game/Browser.Tests/two-client.spec.ts" ]
             let exact name expected =
                 let entry = package.GetEntry name
                 let relative = name.Substring(prefix.Length)
@@ -238,7 +251,16 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
                         let templateTransform (raw: byte array) (actual: byte array) =
                             let text = UTF8Encoding(false, true).GetString raw
                             same (UTF8Encoding(false).GetBytes(text.Replace("FableGameWorkspaceNamespace", productName, StringComparison.Ordinal).Replace("FableGameWorkspace", productName, StringComparison.Ordinal))) actual
-                        let mismatch = wasmRelative |> List.exists (fun name -> not (exact (prefix + name) templateTransform))
+                        let selectedClosure =
+                            if currentD5 then
+                                (if bundle = "complete" then wasmRelative else
+                                    [ "SvgFoundation/SvgFoundation.fsproj"; "SvgFoundation/Program.fs"; "SvgFoundation/build.sh"
+                                      "SvgFoundation/packages.lock.json"; "SvgFoundation/vite.config.js" ])
+                                @ (if bundle <> "player" then [ "SvgFoundation/Studio/Studio.fsproj"; "SvgFoundation/Studio/Program.fs" ] else [])
+                                @ (if bundle = "tactical" || bundle = "complete" then [ "SvgFoundation/Examples/Tactical/scene.json" ] else [])
+                                @ (if bundle = "arcade" || bundle = "complete" then [ "SvgFoundation/Examples/Arcade/scene.json" ] else [])
+                            else wasmRelative
+                        let mismatch = selectedClosure |> List.exists (fun name -> not (exact (prefix + name) templateTransform))
                         mismatch, (not (List.contains selected currentPublicSuccessors) && route <> "direct")
                     | _ -> false, false
                 | _ -> true, false
@@ -251,6 +273,15 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
             if successorRouteMismatch then refuse "receiver-successor-route-refused"
             elif not (regularFile (Path.Combine(receiver, productName + ".slnx"))) then refuse "receiver-product-name-refused"
             elif mismatched then refuse "receiver-source-closure-refused"
+            elif currentD5 &&
+                 ([ "SvgFoundation/Studio", bundle <> "player"
+                    "SvgFoundation/Examples/Tactical", bundle = "tactical" || bundle = "complete"
+                    "SvgFoundation/Examples/Arcade", bundle = "arcade" || bundle = "complete"
+                    "SvgFoundation/Examples/FourD", bundle = "complete"
+                    "SvgFoundation/Examples/ExternalAuthority", bundle = "complete"
+                    "SvgFoundation/Examples/Wasm", bundle = "complete" ]
+                  |> List.exists (fun (relative, expected) -> Directory.Exists(Path.Combine(receiver, relative)) <> expected)) then
+                refuse "receiver-bundle-contents-refused"
             elif route = "direct" then Ok ()
             else
                 let provenancePath = Path.Combine(receiver, ".fsgg", "scaffold-provenance.json")
@@ -289,11 +320,124 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
                             elif providerName.GetString() <> "fable-game" || templateRef.GetString() <> templateId then refuse "receiver-provider-source-refused"
                             elif lifecycle <> [ expectedLifecycle ] then refuse "receiver-lifecycle-refused"
                             elif parameter "productName" <> [ productName ] then refuse "receiver-product-name-refused"
+                            elif currentD5 && parameter "bundle" <> [ bundle ] && not (omittedBundle && parameter "bundle" = []) then refuse "receiver-bundle-refused"
                             else Ok ()
         with
         | :? JsonException -> refuse "receiver-provenance-json-refused"
         | :? InvalidDataException as ex when ex.Message = "template transform contract refused" -> refuse "receiver-template-contract-refused"
         | :? InvalidDataException -> refuse "archive-format-refused"
+
+
+// Preserve the historical complete-only receiver contract byte-for-byte in behavior.
+let validateReceiver archive receiver route lifecycle generator product =
+    validateReceiverCore false "complete" archive receiver route lifecycle generator product
+
+let currentD5Cases scope =
+    if scope <> "rehearsal" && scope <> "full" then Error "current-d5-scope-refused"
+    else
+        let omitted = [ "provider-omitted", "provider", "omitted", "omitted"; "wizard-omitted", "wizard", "omitted", "omitted" ]
+        let matrix =
+            [ for route in [ "provider"; "wizard" ] do
+                for lifecycle in [ "none"; "sdd"; "typed-sdd"; "spec-kit" ] do
+                    for bundle in [ "player"; "studio"; "tactical"; "arcade"; "complete" ] do
+                        yield route + "-" + lifecycle + "-" + bundle, route, lifecycle, bundle ]
+        Ok (omitted @ (if scope = "full" then matrix else []))
+
+let currentD5AuthorArguments root work cache bindings =
+    if not (List.contains work [ "d5-default"; "d5-refused" ]) then Error "current-d5-work-refused"
+    else Ok [ "typed-sdd"; "author"; "--root"; root; "--work"; work; "--title"; "Current public D5"
+              "--agent"; "composition"; "--session"; "current-public"; "--cache"; cache
+              "--profile"; "fsgg-quint-profile/2"; "--source"; "models/svg-arena/arena-rules.md"; "--bindings"; bindings ]
+
+// Source/provenance seam for synthetic controls; the CLI wrapper below also pins public bytes.
+let validateCurrentD5ReceiverSource archive receiver route lifecycle bundle product =
+    if not (File.Exists archive) then Error "receiver-input-missing"
+    elif not (List.contains bundle [ "omitted"; "player"; "studio"; "tactical"; "arcade"; "complete" ]) then Error "current-d5-bundle-refused"
+    else
+        match validatePackageIdentity archive (sha256 archive) packageId "0.19.3" "7be0bcf5886d39a8161b186beb8cc06e82415f1e" with
+        | Error reason -> Error reason
+        | Ok _ -> validateReceiverCore true bundle archive receiver route lifecycle "2.4.0" product
+
+let validateCurrentD5Receiver archive receiver route lifecycle bundle product =
+    if not (File.Exists archive) then Error "receiver-input-missing"
+    elif sha256 archive <> "9594ec204a26f238a06e016d1cfe1e796a07fda23c16589eceb19366cd4a72a2" then
+        Error "current-d5-public-archive-refused"
+    else validateCurrentD5ReceiverSource archive receiver route lifecycle bundle product
+
+let validateCurrentD5Pins (json: string) =
+    try
+        use doc = JsonDocument.Parse json
+        let root = doc.RootElement
+        let rows =
+            [ "templates", [ "version", "0.19.3"; "sha256", "9594ec204a26f238a06e016d1cfe1e796a07fda23c16589eceb19366cd4a72a2"; "sourceCommit", "7be0bcf5886d39a8161b186beb8cc06e82415f1e"; "providerSha256", "6b3d8f2dcbdcd429e4f622cfd6e1515c439097147bb79f5d5c7969d36c3b5006" ]
+              "sdd", [ "version", "2.4.0"; "sha256", "1df2e74faebd388f90b813ed9d7497f4247f977718469c9247b37111d791921f"; "sourceCommit", "c1fee66a34ec8d222586eb708ddff4973ad5594e" ]
+              "wizard", [ "version", "0.22.0"; "sha256", "caa91285e5370edc7a8a14a5a46f6cfef236d1db95f1e186357e6591b9ec7bd5"; "sourceCommit", "6e6fb9b9f7677e26f0c7d58cab1646323e81df58" ]
+              "overlay", [ "version", "0.18.2"; "sha256", "496aad0e89496719bc543edc6ffbf829a82307862e630ba4e174e374ac11cc4e"; "sourceCommit", "20c009bc6728302f9ed06fdf49cb2e8bd19e417d" ] ]
+        if not (uniqueObject root) || (root.EnumerateObject() |> Seq.length) <> 5
+           || root.GetProperty("schema").GetString() <> "fsgg.svg-release-d5.current-public-pins/1"
+           || (rows |> List.exists (fun (role, fields) ->
+               let value = root.GetProperty role
+               (value.EnumerateObject() |> Seq.length) <> fields.Length
+               || (fields |> List.exists (fun (key, expected) -> value.GetProperty(key).GetString() <> expected)))) then
+            Error "current-d5-pins-refused"
+        else Ok ()
+    with _ -> Error "current-d5-pins-refused"
+
+let validateCurrentD5Backend receiver authorPath inspectPath refusedPath beforePath afterPath =
+    try
+        let read (path: string) = JsonDocument.Parse(File.ReadAllBytes path)
+        use author = read authorPath
+        use inspect = read inspectPath
+        use refused = read refusedPath
+        use before = read beforePath
+        use after = read afterPath
+        use authority = read (Path.Combine(receiver, "readiness/d5-default/typed-authority.json"))
+        let succeeded (doc: JsonDocument) =
+            uniqueObject doc.RootElement && doc.RootElement.GetProperty("outcome").GetString() = "succeeded"
+            && doc.RootElement.GetProperty("classification").GetString() = "quint-specification-v1"
+        let map (doc: JsonDocument) = doc.RootElement.EnumerateObject() |> Seq.map (fun p -> p.Name, p.Value.GetString()) |> Map.ofSeq
+        let manifest = authority.RootElement
+        let prefix = Path.GetFullPath(receiver).TrimEnd(Path.DirectorySeparatorChar) + string Path.DirectorySeparatorChar
+        let artifactBad = manifest.GetProperty("artifacts").EnumerateArray() |> Seq.exists (fun item ->
+            let path = Path.GetFullPath(Path.Combine(receiver, item.GetProperty("path").GetString()))
+            not (path.StartsWith(prefix, StringComparison.Ordinal)) || not (regularFile path)
+            || sha256 path <> item.GetProperty("sha256").GetString())
+        let excluded = Set.ofList [ ".git"; ".nuget"; "node_modules"; "bin"; "obj" ]
+        let rec observedFiles directory = seq {
+            for path in Directory.EnumerateFileSystemEntries directory do
+                if Directory.Exists path then
+                    if not (excluded.Contains(Path.GetFileName path)) then
+                        if (File.GetAttributes path &&& FileAttributes.ReparsePoint) <> enum<FileAttributes> 0 then
+                            raise (InvalidDataException "receiver symlink")
+                        yield! observedFiles path
+                else
+                    if not (regularFile path) then raise (InvalidDataException "receiver nonregular file")
+                    yield Path.GetRelativePath(receiver, path).Replace('\\', '/') }
+        let actualFiles = observedFiles receiver |> Set.ofSeq
+        let refusal = refused.RootElement
+        if not (succeeded author && succeeded inspect && uniqueObject manifest && uniqueObject refusal
+                && uniqueObject before.RootElement && uniqueObject after.RootElement)
+           || manifest.GetProperty("backend").GetString() <> "quint-specification-v1"
+           || manifest.GetProperty("profileIdentity").GetString() <> "fsgg-quint-profile/2"
+           || manifest.GetProperty("packageIdentity").GetString() <> "FS.GG.SDD.Artifacts/2.4.0"
+           || manifest.GetProperty("artifacts").GetArrayLength() = 0 || artifactBad
+           || refusal.GetProperty("outcome").GetString() <> "blocked" || refusal.GetProperty("changedPaths").GetArrayLength() <> 0
+           || not (refusal.GetProperty("diagnostics").EnumerateArray() |> Seq.exists (fun d -> d.GetProperty("id").GetString() = "QUINT-PROFILE-IDENTITY"))
+           || (map before).Count = 0
+           || not ((map before).ContainsKey "readiness/d5-default/typed-authority.json")
+           || not ((map before).ContainsKey ".fsgg/scaffold-provenance.json")
+           || not ((map before).ContainsKey "models/svg-arena/arena-rules.md")
+           || not (map before |> Map.exists (fun key _ -> key.StartsWith("work/d5-default/", StringComparison.Ordinal)))
+           || map before <> map after
+           || actualFiles <> (map after |> Map.toSeq |> Seq.map fst |> Set.ofSeq)
+           || (map after |> Map.exists (fun key expected ->
+               let path = Path.GetFullPath(Path.Combine(receiver, key))
+               not (path.StartsWith(prefix, StringComparison.Ordinal)) || not (regularFile path) || sha256 path <> expected))
+           || Directory.Exists(Path.Combine(receiver, "work/d5-refused")) || File.Exists(Path.Combine(receiver, "work/d5-refused"))
+           || Directory.Exists(Path.Combine(receiver, "readiness/d5-refused")) || File.Exists(Path.Combine(receiver, "readiness/d5-refused")) then
+            Error "current-d5-backend-or-preservation-refused"
+        else Ok ()
+    with _ -> Error "current-d5-backend-or-preservation-refused"
 
 let private descriptorCheck selectedVersion (provider: Provider) =
     let lifecycle = provider.Parameters |> List.filter (fun p -> p.Key = "lifecycle")
