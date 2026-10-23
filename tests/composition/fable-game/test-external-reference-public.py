@@ -4,6 +4,7 @@ import base64
 import hashlib
 import importlib.util
 import json
+import re
 from pathlib import Path
 import subprocess
 import tempfile
@@ -14,6 +15,17 @@ from zipfile import ZipFile
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('public_input', HERE / 'external-reference-public.py')
 public = importlib.util.module_from_spec(spec); spec.loader.exec_module(public)
+
+
+def public_resolution_branches(source):
+    # Match the real closed public/current-public guard, not an arbitrary body
+    # elsewhere in the runner that happens to contain a locked restore.
+    guard=re.escape('if [[ "$input_mode" == public || "$input_mode" == current-public-composition ]]; then')
+    resolution=re.findall(guard+r'\n(  python3 - "\$out/complete".*?)(?:\nelse\n)(  export FsGgSvgInputVersion=.*?)\nfi',source,re.S)
+    configs=re.findall(guard+r'\n(  printf .*?)\nelse\ncat > "\$out/NuGet.Config"',source,re.S)
+    if len(resolution)!=1 or len(configs)!=1:
+        raise ValueError('unique closed public/current-public resolution and config branches required')
+    return resolution[0][0],resolution[0][1],configs[0]
 
 
 class LocalProjectReferenceTests(unittest.TestCase):
@@ -184,14 +196,22 @@ class PublicInputTests(unittest.TestCase):
 
     def test_public_route_keeps_locked_resolution_and_candidate_branch(self):
         source = (HERE / 'verify-external-reference-candidate.sh').read_text()
-        public_block = source.split('if [[ "$input_mode" == public ]]; then\n  python3 -', 1)[1].split('\nelse\n  export FsGgSvgInputVersion', 1)[0]
+        public_block,candidate_block,config=public_resolution_branches(source)
         self.assertIn('--locked-mode --configfile', public_block)
         self.assertNotIn('--force-evaluate', public_block)
         self.assertIn("'.nupkg.metadata'", public_block)
-        self.assertIn('dotnet restore "$out/complete/SvgFoundation/SvgFoundation.fsproj" --force-evaluate', source)
-        config = source.split('if [[ "$input_mode" == public ]]; then\n  printf', 1)[1].split('\nelse', 1)[0]
+        self.assertIn('dotnet restore "$out/complete/SvgFoundation/SvgFoundation.fsproj" --force-evaluate', candidate_block)
         self.assertIn('https://api.nuget.org/v3/index.json', config)
         self.assertNotIn('value="$out/feed"', config)
+
+    def test_resolution_fixture_refuses_missing_or_relabelled_shared_guard(self):
+        source=(HERE/'verify-external-reference-candidate.sh').read_text()
+        guard='if [[ "$input_mode" == public || "$input_mode" == current-public-composition ]]; then'
+        for replacement in ['if [[ "$input_mode" == public ]]; then',
+                            'if [[ "$input_mode" == current-public-composition ]]; then',
+                            'if [[ "$input_mode" == candidate ]]; then']:
+            with self.subTest(replacement=replacement),self.assertRaisesRegex(ValueError,'unique closed'):
+                public_resolution_branches(source.replace(guard,replacement))
 
     def test_shipped_locks_use_original_content_hashes_and_current_defaults(self):
         root = HERE.parents[2] / 'templates/fs-gg-fable-game'
