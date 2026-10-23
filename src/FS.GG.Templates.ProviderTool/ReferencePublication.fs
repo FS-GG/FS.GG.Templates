@@ -439,6 +439,152 @@ let validateCurrentD5Backend receiver authorPath inspectPath refusedPath beforeP
         else Ok ()
     with _ -> Error "current-d5-backend-or-preservation-refused"
 
+// One current public execution selector for the maintained DOM composition consumer.
+// This is source data, not runtime/publication/AT/whole-Delivery acceptance.
+let currentCompositionPlan () =
+    {|
+        schema = "fsgg.current-composition-plan/1"
+        template =
+            {|
+                id = "FS.GG.Workspace.Template"
+                version = "0.19.3"
+                sha256 = "9594ec204a26f238a06e016d1cfe1e796a07fda23c16589eceb19366cd4a72a2"
+                sourceCommit = "7be0bcf5886d39a8161b186beb8cc06e82415f1e"
+                descriptorSha256 = "6b3d8f2dcbdcd429e4f622cfd6e1515c439097147bb79f5d5c7969d36c3b5006"
+            |}
+        selection =
+            {|
+                route = "direct"
+                bundle = "complete"
+                lifecycle = "none"
+                productName = "CurrentComposition"
+                externalReference = true
+                wasmPolicyExample = false
+            |}
+        rendering =
+            {|
+                version = "0.32.3"
+                sourceCommit = "4ec6eafbbbf02264db9b0db4780c590abe0bf9cd"
+                custodySha256 = "7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9"
+                packages =
+                    [
+                        {|
+                            id = "FS.GG.UI.Scene"
+                            sha256 = "9cc74f6af082089fb269d7d12c7f1e7ee7684ae3bdab51918b65e06e072a7ac8"
+                            lockContentHash = "CxghwCbdT5kQz3DArIFkFE1zVmtxmS5LCxR21l+hLwX4mu1xQCmPdAcaYDDOggOsIw9vMuOQGWmc1BImrNCPNg=="
+                        |};
+                        {|
+                            id = "FS.GG.UI.KeyboardInput"
+                            sha256 = "99aa6564e7a3b323da8346c50894f28eca8b981cc31ac763b8f34b19fd8beb4c"
+                            lockContentHash = "sz7lovxAAfq70N5eACOroVJsElW6zws7ig+NCQtO6E495YvaHgLcYbxaOp9ZXrrnluWx/a9KfMJsTVelVsMbmQ=="
+                        |};
+                        {|
+                            id = "FS.GG.UI.Scene.SvgBrowser"
+                            sha256 = "8764ce047628f7f58d77e430b2afa0ffafb47560f7633abcf1c8dd12bf8710ad"
+                            lockContentHash = "VcRGZ+vro3Y0vaLspoWZKsOB1b+2fL5tXeorz8PfsxWRme1gJlIGBX8zkHGAbvBF/a8f4XzpdilcnXPV8jQ9WA=="
+                        |}
+                    ]
+            |}
+        game =
+            {|
+                id = "FS.GG.Game.Core"
+                version = "0.16.0"
+                lockContentHash = "mn66KeVyqj0kphAn8Nm11GbEUbmGcO28uRMFiuX6FdQv87Zvv4kXTV7MqwTVeH3GQtA2Nna56Okd6IaCSHH6Bg=="
+            |}
+        browsers =
+            {|
+                families = [ "chromium"; "firefox"; "webkit" ]
+                retries = 0
+                workers = 1
+                cases =
+                    [
+                        {|
+                            file = "two-client.spec.ts"
+                            suite = [  ]
+                            title = "FourD reference composes local session, normalized input, transformed hit testing and settled disposal"
+                        |};
+                        {|
+                            file = "two-client.spec.ts"
+                            suite = [  ]
+                            title = "external authority reference fences captured snapshots and settles commands independently"
+                        |};
+                        {|
+                            file = "two-client.spec.ts"
+                            suite = [  ]
+                            title = "external authority reference recovers failures and disposes owned resources terminally"
+                        |};
+                        {|
+                            file = "two-client.spec.ts"
+                            suite = [  ]
+                            title = "external authority reference uses production keyboard pointer editing and IME input"
+                        |};
+                        {|
+                            file = "external-command-outcomes.spec.ts"
+                            suite = [ "external authority reference command outcomes" ]
+                            title = "unknown receipt survives projection and reconnect without replay"
+                        |};
+                        {|
+                            file = "external-command-outcomes.spec.ts"
+                            suite = [ "external authority reference command outcomes" ]
+                            title = "explicit reconciliation and rearm retain the original and use a fresh correlation"
+                        |};
+                        {|
+                            file = "external-command-outcomes.spec.ts"
+                            suite = [ "external authority reference command outcomes" ]
+                            title = "old generation completion is inert and abandonment requires explicit rearm"
+                        |};
+                        {|
+                            file = "external-command-outcomes.spec.ts"
+                            suite = [ "external authority reference command outcomes" ]
+                            title = "delayed completion settles once and disposal makes retained controls inert"
+                        |};
+                        {|
+                            file = "two-client.spec.ts"
+                            suite = [  ]
+                            title = "Local save and replay example preserves synthetic state and settles detached controls"
+                        |}
+                    ]
+            |}
+        acceptanceScope = "nine maintained DOM-automation composition cases only; local save remains synthetic in-memory; no durable/product/AT/whole4818 acceptance"
+    |}
+
+let renderCurrentCompositionPlan () =
+    JsonSerializer.Serialize(currentCompositionPlan(), JsonSerializerOptions(WriteIndented = true))
+
+let validateCurrentCompositionPlan (json: string) =
+    try
+        if String.IsNullOrWhiteSpace json || Encoding.UTF8.GetByteCount(json) > 32768 then
+            Error "current-composition-plan-refused"
+        else
+            use document = JsonDocument.Parse json
+            if not (uniqueObject document.RootElement) then Error "current-composition-plan-refused"
+            else
+                use buffer = new MemoryStream()
+                let options = JsonWriterOptions(Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping)
+                use writer = new Utf8JsonWriter(buffer, options)
+                let rec canonical (value: JsonElement) =
+                    match value.ValueKind with
+                    | JsonValueKind.Object ->
+                        writer.WriteStartObject()
+                        value.EnumerateObject()
+                        |> Seq.sortWith (fun left right -> StringComparer.Ordinal.Compare(left.Name, right.Name))
+                        |> Seq.iter (fun property -> writer.WritePropertyName(property.Name); canonical property.Value)
+                        writer.WriteEndObject()
+                    | JsonValueKind.Array ->
+                        writer.WriteStartArray()
+                        value.EnumerateArray() |> Seq.iter canonical
+                        writer.WriteEndArray()
+                    | JsonValueKind.String -> writer.WriteStringValue(value.GetString())
+                    | _ -> value.WriteTo writer
+                canonical document.RootElement
+                writer.Flush()
+                // Independent source-artifact canonical digest, not a hash of this builder.
+                // Six immutable source citations and the selected lock entries were verified.
+                let digest = Convert.ToHexString(SHA256.HashData(buffer.ToArray())).ToLowerInvariant()
+                if digest = "d0eeb826a42bca23f5272fb5835403672f672ed7e989df3cdf83dc8c8e13b4ef" then Ok ()
+                else Error "current-composition-plan-refused"
+    with _ -> Error "current-composition-plan-refused"
+
 let private descriptorCheck selectedVersion (provider: Provider) =
     let lifecycle = provider.Parameters |> List.filter (fun p -> p.Key = "lifecycle")
     if provider.Name <> "fable-game" then refuse "descriptor-provider-identity-refused"
