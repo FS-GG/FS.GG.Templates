@@ -171,6 +171,15 @@ class Controls(unittest.TestCase):
             m.run_rehearsal(self.env,100)
         self.assertFalse(self.root.exists())
 
+    def test_selected_source_admission_binds_exact_owning_literal(self):
+        self.assertEqual(m.ADMISSION,'https://github.com/FS-GG/.github/issues/4816#issuecomment-6373063431')
+        selected={**self.env,'ADMISSION':m.ADMISSION}
+        self.assertEqual(m.validate_admission(selected,m.ADMISSION)['ADMISSION'],m.ADMISSION)
+        with self.assertRaisesRegex(ValueError,'admission input differs'):
+            m.validate_admission(self.env,m.ADMISSION)
+        with patch.dict(os.environ,selected,clear=True),patch.object(m.sys,'argv',['rehearsal','--check-admission']),patch.object(m,'run_rehearsal',side_effect=AssertionError('runtime reached')):
+            self.assertEqual(m.main(),0)
+
     def test_admission_binds_exact_source_without_future_self_sha(self):
         self.assertEqual(m.validate_admission(self.env,self.env['ADMISSION'])['SHA'],'a'*40)
         for key,bad in [('REF','refs/heads/other'),('CHECKOUT_HEAD','b'*40),('WORKFLOW_SHA','b'*40),('ADMITTED_REF','b'*40),('RUN_ATTEMPT','2'),('EVENT','pull_request'),('WORKFLOW_REF',m.WORKFLOW+'other'),('UNIT_NAME','other')]:
