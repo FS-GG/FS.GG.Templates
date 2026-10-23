@@ -24,7 +24,7 @@ WORKFLOW = 'FS-GG/FS.GG.Templates/.github/workflows/svg-release-d5-current-publi
 READER = {'baseRevision': '1d832f2214147065bb56e0afd76d600ed01bd27d',
           'path': 'tests/composition/fable-game/retained-reference-rehearsal.py',
           'baseSha256': '4e4fb76333804a3f16c36ef16ae1fd8aac165fae6b5cf8492157f87f18dcfd43',
-          'sha256': '9148d3f22ab9c52ee46178f9938613b0659123f0f6f41fd29e4e1f8b442aadb7'}
+          'sha256': '42acc6b7953fd8044b2f839813ea45487e29322dffccf29dda088f84f6bda940'}
 OWNER = {'revision': 'ac22206560f3eddfea524ce8f752ff1d0dfeec4e',
          'path': 'eng/managed_group_owner.py', 'bytes': 45315,
          'sha256': 'd846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0'}
