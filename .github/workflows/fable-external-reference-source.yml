@@ -28,6 +28,8 @@ on:
       - 'tests/composition/fable-game/external-reference-orca.py'
       - 'tests/composition/fable-game/external-reference-public.py'
       - 'tests/composition/fable-game/test-external-reference-public.py'
+      - 'tests/composition/fable-game/current-composition-observations.py'
+      - 'tests/composition/fable-game/test-current-composition-observations.py'
       - '.github/workflows/fable-external-reference-source.yml'
 
 permissions:
@@ -51,6 +53,7 @@ jobs:
           persist-credentials: false
       - run: |
           python3 tests/composition/fable-game/verify-external-reference-workflow.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 150s prlimit --as=1073741824 --cpu=120 python3 -B tests/composition/fable-game/test-current-composition-observations.py
           python3 tests/composition/fable-game/test-external-reference-public.py
           python3 tests/composition/fable-game/external-reference-orca.py --self-test
   candidate:
@@ -222,8 +225,8 @@ jobs:
           from pathlib import Path
           with (Path(os.environ['RUNNER_TEMP'])/'provider-composition.log').open(encoding='utf-8') as log:
               count=sum(1 for line in log if line.startswith('PASS '))
-          # Source-derived: 209 preserved assertions + 20 current-D5 assertions; actual CI must confirm.
-          assert count==229, f'ProviderComposition requires exactly229 PASS lines; observed{count}'
+          # Source-derived: 229 native-confirmed baseline + 11 current-composition selector assertions; actual CI must confirm.
+          assert count==240, f'ProviderComposition requires exactly240 PASS lines; observed{count}'
           print(f'ProviderComposition: verified{count} PASS lines after successful command exit')
           PYPROVIDER
           bash tests/composition/fable-game/verify-external-reference-candidate.sh \
