@@ -220,6 +220,23 @@ class ManagedConsumerTests(unittest.TestCase):
         self.assertIn('secondary synthetic collection failure',terminal['additionalFailures'][0])
         original=json.loads((root/'attempt.json').read_text());self.assertEqual(original['additionalFailures'],[])
 
+    def test_terminal_write_failure_is_explicit_unknown_and_preserves_primary(self):
+        import contextlib,io,types
+        def terminal(*args):raise OSError('synthetic terminal write failed')
+        fake=types.SimpleNamespace(collect=lambda *a:{'failures':[]},collection_terminal=terminal)
+        for name,primary in [('first',None),('secondary',ValueError('original setup failure'))]:
+            root=self.root/name;root.mkdir();summary={'disposition':'failed' if primary else 'receiver-checks-complete',
+                'executionDisposition':'failed' if primary else 'receiver-checks-complete',
+                'firstCause':str(primary) if primary else None,'additionalFailures':[],'phases':{}}
+            stderr=io.StringIO()
+            with contextlib.redirect_stderr(stderr):
+                if primary is None:
+                    with self.assertRaisesRegex(OSError,'synthetic terminal write failed'):
+                        D5.finish_collection(fake,{},root,summary,[],primary,D5.time.monotonic())
+                else:D5.finish_collection(fake,{},root,summary,[],primary,D5.time.monotonic())
+            self.assertIn('terminal collection report Unknown',stderr.getvalue())
+            if primary:self.assertIn('original setup failure',str(primary));self.assertIn('Unknown',primary.__notes__[0])
+
     def test_actual_lmt_recipe_preserves_canonical_source_basename_and_literal_argv(self):
         go=self.root/'go/bin/go';source=self.root/'download with spaces/main.go';output=self.root/'tools/lmt'
         args=D5.lmt_build_arguments(go,source,output)
