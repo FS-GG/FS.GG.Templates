@@ -7,6 +7,7 @@ remain outside this entry. Historical installed-C/AT admissions stay unchanged.
 import sys
 sys.dont_write_bytecode = True
 import hashlib
+import datetime
 import importlib.util
 import json
 import math
@@ -119,6 +120,29 @@ def outer_path(env, contract=None):
     return Path(env['RUNNER_TEMP'])/(selected['namespace']+'-'+env['RUN_ID']+'-1-outer')
 
 
+def d5_root_times(env):
+    def parse(value):
+        require(isinstance(value,str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z',value), 'D5 root UTC malformed')
+        return datetime.datetime.fromisoformat(value.replace('Z','+00:00')).timestamp()
+    values={key:parse(env.get(key)) for key in ('SELECTED_UTC','LATEST_START_UTC','OBSERVER_DEADLINE_UTC')}
+    require(values['LATEST_START_UTC']-values['SELECTED_UTC']==300 and values['OBSERVER_DEADLINE_UTC']-values['SELECTED_UTC']==2400, 'D5 root UTC intervals differ')
+    require(values['SELECTED_UTC']<=parse('2026-10-24T00:10:00Z'), 'D5 conditional selection expired')
+    return values
+
+
+def validate_d5_original_clock(clock, env):
+    values=d5_root_times(env)
+    require(clock.get('rootSelection')=={key:env[key] for key in values}, 'D5 original root inputs differ')
+    observed=clock.get('observedUTC')
+    require(isinstance(observed,str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z',observed), 'D5 observed UTC malformed')
+    utc=datetime.datetime.fromisoformat(observed.replace('Z','+00:00')).timestamp()
+    require(values['SELECTED_UTC']<=utc<=values['LATEST_START_UTC'] and values['OBSERVER_DEADLINE_UTC']-utc>=2100, 'D5 original queue/start window expired or before selection')
+    projection=clock.get('observerDeadlineMonotonic')
+    require(type(projection) in (int,float) and math.isfinite(projection)
+            and projection==clock['startedMonotonic']+(values['OBSERVER_DEADLINE_UTC']-utc), 'D5 original UTC monotonic projection differs')
+    require(clock.get('disposition')=='accepted', 'D5 original first clock refused')
+
+
 def original_clock(env, boot, contract=None):
     selected = selected_contract(contract)
     path=Path(env['RUNNER_TEMP'])/(selected['namespace']+'-'+env['RUN_ID']+'-1-clock.json')
@@ -129,6 +153,7 @@ def original_clock(env, boot, contract=None):
     require(clock['scope']=='first-workflow-step' and clock['boot']==boot,'original clock boot/scope differs')
     start=clock['startedMonotonic']
     require(type(start) in (float,int) and math.isfinite(start) and 0<=start<=time.monotonic(),'original clock malformed or ahead')
+    if selected['name']=='d5':validate_d5_original_clock(clock,env)
     return clock
 
 
@@ -270,6 +295,7 @@ def outer_preflight(env, contract=None):
         owner=probe_owner(contract)
         clock=original_clock(env,owner._read('/proc/sys/kernel/random/boot_id').strip(), contract)
         record.update(originalClock=clock,startedMonotonic=clock['startedMonotonic'],deadlineMonotonic=clock['startedMonotonic']+2100)
+        if selected['name']=='d5':record['deadlineMonotonic']=min(record['deadlineMonotonic'],clock['observerDeadlineMonotonic'])
         require(time.monotonic()+1800+5+30 < record['deadlineMonotonic'],'original setup consumed unit/readback reserve')
         record['capacity']={}
         capacity_snapshot(owner,Path(env['RUNNER_TEMP']),facts=record['capacity'])

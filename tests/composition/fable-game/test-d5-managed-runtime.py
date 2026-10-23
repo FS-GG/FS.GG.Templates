@@ -289,4 +289,67 @@ class ManagedConsumerTests(unittest.TestCase):
         p=self.root/D5.READER['path'];p.parent.mkdir(parents=True);p.write_text('raise RuntimeError("must not import")')
         with self.assertRaisesRegex(ValueError,'dependency unavailable'):D5.load_reader(self.root)
 
+class RootClockControls(unittest.TestCase):
+    def setUp(self):
+        import datetime,textwrap
+        self.temp=tempfile.TemporaryDirectory(prefix='d5-root-clock-');self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name);self.reader=D5.load_reader(D5.HERE.parents[2])
+        self.env={'EVENT':'workflow_dispatch','REPOSITORY':'FS-GG/FS.GG.Templates','REF':'refs/heads/main',
+            'SHA':'a'*40,'WORKFLOW_REF':D5.WORKFLOW,'WORKFLOW_SHA':'a'*40,'RUN_ID':'42','RUN_ATTEMPT':'1','UNIT_NAME':'fsgg-mg-templates-d5-42-1',
+            'RUNNER_TEMP':str(self.root),'SELECTED_UTC':'2026-10-23T23:59:59Z','LATEST_START_UTC':'2026-10-24T00:04:59Z','OBSERVER_DEADLINE_UTC':'2026-10-24T00:39:59Z'}
+        workflow=(D5.HERE.parents[2]/'.github/workflows/svg-release-d5-current-public.yml').read_text()
+        code=workflow.split("python3 -I -B <<'PY_CLOCK'\n",1)[1].split('          PY_CLOCK',1)[0]
+        self.producer=textwrap.dedent(code);self.actual=datetime.datetime(2026,10,24,0,0,0,tzinfo=datetime.timezone.utc)
+
+    def produce(self,env=None,now=None):
+        import datetime
+        from unittest.mock import patch
+        actual=self.actual if now is None else now
+        class NativeUTC(datetime.datetime):
+            @classmethod
+            def now(cls,tz=None):return actual
+        with patch.dict(os.environ,self.env if env is None else env,clear=True),patch.object(datetime,'datetime',NativeUTC),patch('time.monotonic',return_value=100):
+            exec(compile(self.producer,'actual-D5-first-clock','exec'),{})
+        return json.loads((self.root/'current-d5-42-1-clock.json').read_text())
+
+    def test_actual_producer_and_reader_preserve_fixed_projection(self):
+        clock=self.produce();self.reader.validate_d5_original_clock(clock,self.env)
+        self.assertEqual(clock['observerDeadlineMonotonic'],2499)
+        from unittest.mock import patch
+        contract=self.reader.caller_contract('d5',D5.ADMISSION)
+        with patch.object(self.reader.time,'monotonic',return_value=150):
+            self.assertEqual(self.reader.original_clock(self.env,clock['boot'],contract),clock)
+        self.assertEqual(clock['observerDeadlineMonotonic'],2499) # no projection from later now
+
+    def test_actual_producer_refuses_late_queue_and_preserves_refusal_clock(self):
+        import datetime
+        with self.assertRaisesRegex(ValueError,'window refused'):self.produce(now=self.actual+datetime.timedelta(seconds=300))
+        clock=json.loads((self.root/'current-d5-42-1-clock.json').read_text());self.assertEqual(clock['disposition'],'refused')
+        self.assertIn('window refused',clock['firstCause'])
+
+    def test_wrong_missing_intervals_and_expired_selection_refuse(self):
+        for updates in [{'LATEST_START_UTC':'2026-10-24T00:05:00Z'},{'SELECTED_UTC':''},
+            {'SELECTED_UTC':'2026-10-24T00:11:00Z','LATEST_START_UTC':'2026-10-24T00:16:00Z','OBSERVER_DEADLINE_UTC':'2026-10-24T00:51:00Z'}]:
+            with self.subTest(updates=updates):
+                with self.assertRaises(ValueError):self.reader.d5_root_times({**self.env,**updates})
+
+    def test_tampered_projection_input_crosssource_run_boot_and_missing_clock_refuse(self):
+        clock=self.produce()
+        for key,value in [('observerDeadlineMonotonic',2500),('observedUTC','2026-10-23T23:59:58Z'),('rootSelection',{}),('disposition','refused')]:
+            with self.subTest(key=key):
+                with self.assertRaises(ValueError):self.reader.validate_d5_original_clock({**clock,key:value},self.env)
+        from unittest.mock import patch
+        contract=self.reader.caller_contract('d5',D5.ADMISSION)
+        for key,value in [('SHA','b'*40),('RUN_ID','43')]:
+            with self.subTest(key=key):
+                with patch.object(self.reader.time,'monotonic',return_value=150):
+                    with self.assertRaises(ValueError):self.reader.original_clock({**self.env,key:value},clock['boot'],contract)
+        with self.assertRaises(ValueError):self.reader.original_clock(self.env,'other-boot',contract)
+        (self.root/'current-d5-42-1-clock.json').unlink()
+        with self.assertRaises(ValueError):self.reader.original_clock(self.env,clock['boot'],contract)
+
+    def test_before_selected_utc_refuses_in_actual_producer(self):
+        import datetime
+        with self.assertRaisesRegex(ValueError,'window refused'):self.produce(now=self.actual-datetime.timedelta(seconds=2))
+
 if __name__=='__main__':unittest.main()

@@ -159,3 +159,18 @@ proves only its real0.13-to0.19.3 materialization/adoption, one locked restore, 
 transaction controls and17 managed-command/outer-retirement joins. It supplies neither
 this sandbox prerequisite nor current SDD2.4 backend acceptance. Its original failure,
 provider physical-disposal Unknown and wider4816 promises remain separate.
+
+Root's final dispatch must supply fixed `selected_utc`, `latest_start_utc` and
+`observer_deadline_utc` inputs, exactly300 and2400 seconds after selection. The earliest
+receiver step records these original values together with native UTC, monotonic time,
+boot and source/run/attempt identity. It refuses an expired or before-selection start,
+a wrong interval, or less than2100 seconds remaining before checkout. The observed
+UTC-to-monotonic observer projection is stored once; later capacity/unit/readback guards
+use the smaller original deadline and never renew it from a later clock read. Refused
+first-clock metadata is retained even when checkout/admission never runs. Existing
+primary failures and bounded terminal metadata remain retainable after expiry.
+
+These checks use Root and native-runner wall-clock trust. Their skew and uncertainty are
+not independently authenticated; this source claims no zero-skew or cryptographic UTC
+guarantee. Contradictory timestamps or missing/cross-source evidence refuse. An expired
+queued original stays in its original custody with no second POST or new clock.

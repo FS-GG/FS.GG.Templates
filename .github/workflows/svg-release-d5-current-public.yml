@@ -26,6 +26,18 @@ on:
         description: Exact root4849 admission comment (source remains held)
         required: true
         type: string
+      selected_utc:
+        description: Fixed Root final-selection UTCZ
+        required: true
+        type: string
+      latest_start_utc:
+        description: Exactly selected_utc plus300 seconds
+        required: true
+        type: string
+      observer_deadline_utc:
+        description: Exactly selected_utc plus2400 seconds
+        required: true
+        type: string
       scope:
         description: Separately admitted small receiver rehearsal or complete declared matrix
         required: true
@@ -83,24 +95,48 @@ jobs:
       ADMISSION: ${{ inputs.admission }}
       PUBLIC_PINS: ${{ inputs.public_pins }}
       SCOPE: ${{ inputs.scope }}
+      SELECTED_UTC: ${{ inputs.selected_utc }}
+      LATEST_START_UTC: ${{ inputs.latest_start_utc }}
+      OBSERVER_DEADLINE_UTC: ${{ inputs.observer_deadline_utc }}
     steps:
       - name: Anchor original first-step clock
+        id: clock
         shell: bash
         run: |
           set -euo pipefail
           python3 -I -B <<'PY_CLOCK'
-          import json, os, re, time
+          import datetime, json, os, re, time
           from pathlib import Path
           env=os.environ
-          if env['RUN_ATTEMPT']!='1' or not re.fullmatch(r'[0-9]+',env['RUN_ID']):
-              raise ValueError('first attempt required')
           keys=('EVENT','REPOSITORY','REF','SHA','WORKFLOW_REF','WORKFLOW_SHA','RUN_ID','RUN_ATTEMPT','UNIT_NAME')
-          record={'scope':'first-workflow-step','startedMonotonic':time.monotonic(),
+          mono=time.monotonic();utc=datetime.datetime.now(datetime.timezone.utc)
+          selection={k:env.get(k,'')[:64] for k in ('SELECTED_UTC','LATEST_START_UTC','OBSERVER_DEADLINE_UTC')}
+          record={'scope':'first-workflow-step','startedMonotonic':mono,
+                  'observedUTC':utc.isoformat(timespec='microseconds').replace('+00:00','Z'),
                   'boot':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
-                  'source':{key:env[key] for key in keys}}
+                  'source':{key:env[key] for key in keys},'rootSelection':selection,
+                  'disposition':'refused','firstCause':None,
+                  'utcTrust':'Root and native runner wall clocks; skew/uncertainty not independently authenticated'}
+          failure=None
+          try:
+              if env['RUN_ATTEMPT']!='1' or not re.fullmatch(r'[0-9]+',env['RUN_ID']):raise ValueError('first attempt required')
+              def parse(value):
+                  if not re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z',value):raise ValueError('Root UTC malformed')
+                  return datetime.datetime.fromisoformat(value.replace('Z','+00:00')).timestamp()
+              selected,latest,deadline=(parse(selection[k]) for k in ('SELECTED_UTC','LATEST_START_UTC','OBSERVER_DEADLINE_UTC'))
+              if latest-selected!=300 or deadline-selected!=2400:raise ValueError('Root intervals differ')
+              if selected>parse('2026-10-24T00:10:00Z'):raise ValueError('conditional source selection expired')
+              if not selected<=utc.timestamp()<=latest or deadline-utc.timestamp()<2100:raise ValueError('original queue/start window refused')
+              record['observerDeadlineMonotonic']=mono+(deadline-utc.timestamp())
+              record['disposition']='accepted'
+          except Exception as error:
+              failure=error;record['firstCause']=type(error).__name__+': '+str(error)
           path=Path(env['RUNNER_TEMP'])/('current-d5-'+env['RUN_ID']+'-1-clock.json')
+          data=json.dumps(record)+'\n'
+          if len(data.encode())>4096:raise ValueError('original clock metadata cap exceeded')
           fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
-          with os.fdopen(fd,'w') as stream:stream.write(json.dumps(record)+'\n')
+          with os.fdopen(fd,'w') as stream:stream.write(data)
+          if failure is not None:raise failure
           PY_CLOCK
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -148,6 +184,7 @@ jobs:
             --setenv=ADMITTED_REF="$ADMITTED_REF" --setenv=ADMISSION="$ADMISSION" --setenv=CHECKOUT_HEAD="$checkout_head" \
             --setenv=RUNNER_TEMP="$RUNNER_TEMP" --setenv=GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
             --setenv=PUBLIC_PINS="$PUBLIC_PINS" --setenv=SCOPE="$SCOPE" \
+            --setenv=SELECTED_UTC="$SELECTED_UTC" --setenv=LATEST_START_UTC="$LATEST_START_UTC" --setenv=OBSERVER_DEADLINE_UTC="$OBSERVER_DEADLINE_UTC" \
             -- /usr/bin/python3 -I -B tests/composition/fable-game/d5-managed-runtime.py --run
           client_exit=$?
           exit "$client_exit"
@@ -156,11 +193,12 @@ jobs:
         timeout-minutes: 1
         run: CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/d5-managed-runtime.py --post-unit
       - name: Retain bounded original D5 evidence
-        if: ${{ always() && steps.admission.outcome == 'success' }}
+        if: ${{ always() && steps.clock.outcome != 'skipped' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: current-d5-${{ inputs.scope }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
+            ${{ runner.temp }}/current-d5-${{ github.run_id }}-1-clock.json
             ${{ runner.temp }}/current-d5-${{ github.run_id }}-1/d5-evidence/
             ${{ runner.temp }}/current-d5-${{ github.run_id }}-1-outer/
           include-hidden-files: true
