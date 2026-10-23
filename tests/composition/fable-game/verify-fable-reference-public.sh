@@ -225,7 +225,7 @@ import json, sys, os
 path, status, version, revision, tag_revision, archive, descriptor = sys.argv[1:]
 with open(path, 'w') as out:
     json.dump({'schema':'fable-reference-public/1','disposition':status,'mode':'wasm',
-      'scope':'direct downloaded Complete WASM source consumer; no provider/Wizard/FourD/AT acceptance',
+      'scope':'direct downloaded Complete WASM source consumer and default WASM-off receiver; no provider/Wizard/FourD/AT acceptance',
       'browserCases':'managed-groups-in-caller',
       'package':'FS.GG.Workspace.Template','version':version,'sourceRevision':revision,
       'tag':'fs-gg-templates/v'+version,'tagRevision':tag_revision,
@@ -299,7 +299,7 @@ WASM_GRAPH
     (cd "$evidence/$receiver/Client" && npm ci "${npm_args[@]}") >"$evidence/$receiver-npm.log" 2>&1
     (cd "$evidence/$receiver" && FSGG_WASM_POLICY_EXAMPLE="$enabled" FsGgWasmPolicyExample="$enabled" ./Client/node_modules/.bin/vite build --config SvgFoundation/vite.config.js) >"$evidence/$receiver-vite.log" 2>&1
     if [[ "$enabled" == false ]]; then
-      [[ ! -e "$foundation/dist/_content/FS.GG.Wasm.Browser" && ! -e "$foundation/dist/wasm-policy-guests" ]] || { echo 'Default build contains WASM assets' >&2; exit 1; }
+      [[ ! -e "$foundation/dist/_content/FS.GG.Wasm.Browser" && ! -e "$foundation/dist/wasm-policy-guests" && ! -e "$foundation/dist/wasm-policy" && ! -e "$foundation/dist/wasm-package-assets.json" ]] || { echo 'Default build contains WASM assets' >&2; exit 1; }
     fi
   done
   sha256sum --check "$evidence/locks.before.sha256"
@@ -345,7 +345,7 @@ WASM_OFF_CONFIG
 import { expect, test, type Page } from "@playwright/test";
 
 // The published default product, built with FsGgWasmPolicyExample=false: the WASM-off browser path.
-const wasmAsset = /\.wasm(?:[?#]|$)|\/_content\/FS\.GG\.Wasm\.|module-worker\.mjs|worker-client\.mjs|\/wasm-policy\/|\/wasm-example\//;
+const wasmAsset = /\.wasm(?:[?#]|$)|\/_content\/FS\.GG\.Wasm\.|module-worker\.mjs|worker-client\.mjs|\/wasm-policy\/|wasm-package-assets\.json/;
 
 async function open(page: Page) {
   const requests: string[] = [];
@@ -391,6 +391,13 @@ test.describe("default WASM-off product", () => {
   test("no Worker or SharedWorker is constructed", async ({ page }) => {
     await open(page);
     expect(await page.evaluate(() => (globalThis as any).__fsggWasmOff)).toMatchObject({ hooked: true, worker: 0, sharedWorker: 0 });
+    // Positive control: the hook observes a construction (an inert Blob Worker, terminated at once).
+    expect(await page.evaluate(() => {
+      const url = URL.createObjectURL(new Blob([""], { type: "text/javascript" }));
+      new Worker(url).terminate();
+      URL.revokeObjectURL(url);
+      return (globalThis as any).__fsggWasmOff.worker;
+    })).toBe(1);
   });
 
   test("no WebAssembly module is compiled, instantiated or validated on the page", async ({ page }) => {
@@ -414,7 +421,7 @@ test.describe("default WASM-off product", () => {
   test("WASM package and guest assets are not served", async ({ page }) => {
     await open(page);
     for (const path of ["/_content/FS.GG.Wasm.Browser/module-worker.mjs", "/_content/FS.GG.Wasm.Browser/worker-client.mjs",
-                        "/wasm-policy/c-normal.wasm", "/wasm-policy/modules.json"]) {
+                        "/wasm-policy/c-normal.wasm", "/wasm-policy/modules.json", "/wasm-package-assets.json"]) {
       const response = await page.request.get(path);
       const type = response.headers()["content-type"] ?? "";
       const body = await response.body();

@@ -2139,6 +2139,10 @@ class WasmOffBrowserPathTests(unittest.TestCase):
         self.assertNotIn('direct/Browser.Tests/wasm-off',block)
         # Generated only after both receivers were built and the default build's asset absence checked.
         self.assertLess(block.index("echo 'Default build contains WASM assets'"),block.index('WASM_OFF_CONFIG'))
+        # The static default-build check covers the real dist names, not only the obj/ staging name.
+        for path in ('dist/_content/FS.GG.Wasm.Browser','dist/wasm-policy"','dist/wasm-package-assets.json'):
+            with self.subTest(path=path):self.assertIn('! -e "$foundation/'+path,block)
+        self.assertNotIn('wasm-example',self.generated('WASM_OFF_SPEC')) # the page URL must not satisfy the asset pattern
         config=self.generated('WASM_OFF_CONFIG')
         self.assertIn('import maintained from "./playwright.config";',config)
         self.assertIn('if (process.env.FsGgWasmPolicyExample !== "false" || process.env.PLAYWRIGHT_EXECUTABLE_PATH) throw',config)
@@ -2149,7 +2153,8 @@ class WasmOffBrowserPathTests(unittest.TestCase):
         self.assertEqual(len(re.findall(r'^  test\(',spec,re.M)),self.ns['WASM_OFF_CASES'])
         self.assertNotRegex(spec,r'test\.(skip|fixme|only|fail)\b')
         for observed in ('page.on("pageerror"','__fsggWasmOff','"compileStreaming", "instantiate", "instantiateStreaming"','["Worker", "worker"], ["SharedWorker", "sharedWorker"]',
-                         'toMatchObject({ hooked: true, worker: 0, sharedWorker: 0 })','toMatchObject({ hooked: true, wasm: 0 })','expect(errors).toEqual([])','WebAssembly.validate(new Uint8Array([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]))','#wasm-policy-example','"Load policy"',
+                         'toMatchObject({ hooked: true, worker: 0, sharedWorker: 0 })','toMatchObject({ hooked: true, wasm: 0 })','expect(errors).toEqual([])',
+                         'new Worker(url).terminate();','"/wasm-package-assets.json"]','wasm-package-assets\\.json/;','WebAssembly.validate(new Uint8Array([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]))','#wasm-policy-example','"Load policy"',
                          '/_content/FS.GG.Wasm.Browser/module-worker.mjs','/wasm-policy/c-normal.wasm'):
             with self.subTest(observed=observed):self.assertIn(observed,spec)
 
