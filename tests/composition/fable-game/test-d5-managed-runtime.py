@@ -175,6 +175,13 @@ class ManagedConsumerTests(unittest.TestCase):
         self.assertEqual(receipt['disposition'],'failed');self.assertEqual(receipt['retirement'],'unqualified')
         self.assertIn('original synthetic setup failure',receipt['firstCause'])
 
+    def test_actual_lmt_recipe_preserves_canonical_source_basename_and_literal_argv(self):
+        go=self.root/'go/bin/go';source=self.root/'download with spaces/main.go';output=self.root/'tools/lmt'
+        args=D5.lmt_build_arguments(go,source,output)
+        self.assertEqual(args,[str(go),'build','-trimpath','-ldflags',D5.LMT['ldflags'],'-o',str(output),str(source)])
+        with self.assertRaises(ValueError):D5.lmt_build_arguments(go,source.with_name('lmt-main.go'),output)
+        with self.assertRaises(ValueError):D5.lmt_build_arguments('relative-go',source,output)
+
     def test_dependency_missing_or_changed_refuses_before_import(self):
         with self.assertRaises(ValueError):D5.load_reader(self.root)
         p=self.root/D5.READER['path'];p.parent.mkdir(parents=True);p.write_text('raise RuntimeError("must not import")')

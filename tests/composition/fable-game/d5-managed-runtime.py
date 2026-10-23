@@ -181,6 +181,14 @@ def wrong_profile(execute, owner, receipts, argv, sdd_core, typed_arguments, cwd
     raise ValueError('wrong-profile author unexpectedly succeeded')
 
 
+def lmt_build_arguments(go, source, output):
+    """Exact canonical file-build recipe; trimpath does not erase the basename."""
+    source=Path(source)
+    require(source.name=='main.go' and source.is_absolute() and Path(go).is_absolute()
+            and Path(output).is_absolute(), 'canonical LMT paths required')
+    return [str(go),'build','-trimpath','-ldflags',LMT['ldflags'],'-o',str(output),str(source)]
+
+
 def write(path, value):
     data=json.dumps(value,indent=2)+'\n'
     require(len(data.encode())<=1048576,'D5 metadata cap exceeded')
@@ -267,8 +275,8 @@ def run_d5(reader, contract, environ):
         caller['unpack_tar'](goarchive,tools/'go-unpacked',1073741824,setup)
         go=tools/'go-unpacked/go/bin/go';caller['bind_identity'](identities,str(go),'verified-archive-member')
         env.update(GOCACHE=str(root/'go-cache'),GOPATH=str(root/'go-path'),CGO_ENABLED='1',GO111MODULE='off')
-        main=get('lmt-main.go','https://raw.githubusercontent.com/driusan/lmt/62fe18f2f6a6e11c158ff2b2209e1082a4fcd59c/main.go',LMT['sourceSha256'],1048576)
-        lmt=tools/'lmt';run([str(go),'build','-trimpath','-ldflags',LMT['ldflags'],'-o',str(lmt),str(main)],root,env,inputs=[main])
+        main=get('main.go','https://raw.githubusercontent.com/driusan/lmt/62fe18f2f6a6e11c158ff2b2209e1082a4fcd59c/main.go',LMT['sourceSha256'],1048576)
+        lmt=tools/'lmt';run(lmt_build_arguments(go,main,lmt),root,env,inputs=[main])
         require(sha(lmt)==LMT['sha256'],'canonical LMT output differs')
         quint=get('quint','https://github.com/quint-co/quint/releases/download/v0.32.0/quint-linux-amd64','939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f',134217728);quint.chmod(0o700)
         unshare,_=caller['host_image']('/usr/bin/unshare');caller['bind_identity'](identities,unshare,'host-observed')
