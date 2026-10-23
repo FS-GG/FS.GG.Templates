@@ -31,21 +31,18 @@ on:
         required: true
         type: choice
         default: rehearsal
-        options: [rehearsal, full]
+        options: [rehearsal]
 
 permissions:
   contents: read
 
 jobs:
   preflight:
+    # Compiled source CI belongs to the PR; manual runtime starts at its own first clock.
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Hold manual runtime before any checkout, SDK or acquisition
-        if: github.event_name == 'workflow_dispatch'
-        run: |
-          echo 'ADMISSION=None; runtime and retirement unqualified'
-          exit 3
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
@@ -66,16 +63,8 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 python3 tests/composition/fable-game/test-d5-managed-runtime.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/composition/fable-game/test-d5-current-public.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/composition/fable-game/test-d5-public-pins.py
-      - name: Refuse wrong current package composition before tool acquisition
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          PUBLIC_PINS: ${{ inputs.public_pins }}
-        run: |
-          printf '%s\n' "$PUBLIC_PINS" >"$RUNNER_TEMP/current-d5-pins.json"
-          dotnet run --project src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj --no-build --no-restore -- current-d5-pins-check --pins "$RUNNER_TEMP/current-d5-pins.json"
 
   receiver:
-    needs: preflight
     # Source-only: exact review/CI/main/profile/native admission still required.
     if: ${{ false }}
     runs-on: ubuntu-24.04

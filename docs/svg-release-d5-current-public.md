@@ -130,3 +130,27 @@ consumer, first-failure handling and causal cross-caller admission/clock/evidenc
 joins. Fixtures are synthetic; they establish no SDK/backend/runtime acceptance. Normal
 source review and CI remain required, followed by a separately admitted first genuine
 rehearsal. The complete4849/4644 acceptance and all historical Unknown holds remain open.
+
+## Preparing the first genuine operation
+
+The compiled preflight now belongs only to pull requests. A manual receiver has no
+compiled-preflight dependency: its own first-step clock and exact source admission
+precede its managed unit and every SDK/Go/package acquisition. Source still carries
+`ADMISSION=None` and a literal-false receiver condition; no operation is selected.
+The first source scope is only `rehearsal`. The raw-plus42-case full selector remains
+intact for a separate later admission; this first grant cannot dispatch it.
+
+The existing managed sandbox probe now precedes all asset acquisition, immediately
+after the owner/unit/capacity guards. It uses the published SDD2.4 launcher and arguments
+(`/usr/bin/unshare --user --map-root-user --net -- /usr/bin/true`) with the backend's
+cleared `LANG=C.UTF-8`, `TZ=UTC` child environment. It changes no host policy. The actual
+new VM's user-namespace, network-namespace, seccomp and AppArmor availability remains
+Unknown until an admitted probe succeeds on that same host. A failure stops the original
+operation; there is no fallback, sysctl toggle or renewed clock. Successful probing alone
+would establish no actual author/inspect/refusal or full D5 acceptance.
+
+The separately accepted [retained rehearsal40032045163/a1](https://github.com/FS-GG/.github/issues/4816#issuecomment-6375942312)
+proves only its real0.13-to0.19.3 materialization/adoption, one locked restore, scoped
+transaction controls and17 managed-command/outer-retirement joins. It supplies neither
+this sandbox prerequisite nor current SDD2.4 backend acceptance. Its original failure,
+provider physical-disposal Unknown and wider4816 promises remain separate.

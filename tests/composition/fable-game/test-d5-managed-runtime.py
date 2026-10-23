@@ -244,6 +244,40 @@ class ManagedConsumerTests(unittest.TestCase):
         with self.assertRaises(ValueError):D5.lmt_build_arguments(go,source.with_name('lmt-main.go'),output)
         with self.assertRaises(ValueError):D5.lmt_build_arguments('relative-go',source,output)
 
+    def test_rehearsal_source_scope_does_not_grant_full_matrix(self):
+        self.assertEqual(D5.runtime_scope({'SCOPE':'rehearsal'}),'rehearsal')
+        for value in ('full','',None):
+            with self.assertRaises(ValueError):D5.runtime_scope({'SCOPE':value})
+
+    def test_actual_sandbox_probe_uses_literal_backend_argv_and_cleared_environment(self):
+        seen=[];identities={}
+        caller={'host_image':lambda path:(path,'synthetic'),
+                'bind_identity':lambda store,path,basis:store.update({path:basis})}
+        result=D5.probe_backend_sandbox(caller,lambda *args:seen.append(args) or 'synthetic',identities,self.root)
+        self.assertEqual(result,'synthetic')
+        self.assertEqual(seen,[(['/usr/bin/unshare','--user','--map-root-user','--net','--','/usr/bin/true'],self.root,{'LANG':'C.UTF-8','TZ':'UTC'})])
+        self.assertEqual(set(identities),{'/usr/bin/unshare','/usr/bin/true'})
+
+    def test_actual_entry_sandbox_refusal_prevents_all_sdk_asset_acquisition(self):
+        import types
+        root=self.root/'current-d5-44-1';events=[]
+        owner=types.SimpleNamespace(OWNER_SHA256=D5.OWNER['sha256'])
+        def fresh(path,environ):path.mkdir();return {'HOME':str(path/'home')}
+        def run(argv,cwd,env):events.append(('probe',argv,env));raise ValueError('original synthetic namespace denied')
+        caller={'fresh_environment':fresh,'load_owner':lambda *a:owner,'probe_containment':lambda *a:None,
+                'managed_executor':lambda *a:run,'host_image':lambda path:(path,'synthetic'),
+                'bind_identity':lambda *a:None,'provision_sdk':lambda *a:events.append('UNEXPECTED SDK')}
+        fake=types.SimpleNamespace(validate_admission=lambda *a:{'synthetic':True},
+            operational_start=lambda *a:{'boot':'synthetic'},normalized_roots=lambda *a:None,no_global_before_create=lambda *a:None,
+            load_file=lambda name,path:types.SimpleNamespace(actual_caller=lambda:caller) if name=='d5_actual_loader' else types.SimpleNamespace(PINS={'synthetic':True}),
+            original_clock=lambda *a:{'startedMonotonic':D5.time.monotonic()},unit_properties=lambda *a:{'synthetic':True},
+            acquisition_capacity=lambda *a:events.append('capacity'),collect=lambda *a:{'failures':[]},collection_terminal=lambda *a:None)
+        env={'RUNNER_TEMP':str(self.root),'RUN_ID':'44','UNIT_NAME':'fsgg-mg-templates-d5-44-1','GITHUB_WORKSPACE':str(D5.HERE.parents[2]),'SCOPE':'rehearsal','PUBLIC_PINS':'{"synthetic":true}'}
+        with self.assertRaisesRegex(ValueError,'original synthetic namespace denied'):D5.run_d5(fake,{},env)
+        self.assertEqual(events[0],'capacity');self.assertEqual(len(events),2)
+        self.assertEqual(events[1][1][0],'/usr/bin/unshare')
+        self.assertIn('original synthetic namespace denied',json.loads((root/'attempt.json').read_text())['firstCause'])
+
     def test_dependency_missing_or_changed_refuses_before_import(self):
         with self.assertRaises(ValueError):D5.load_reader(self.root)
         p=self.root/D5.READER['path'];p.parent.mkdir(parents=True);p.write_text('raise RuntimeError("must not import")')
