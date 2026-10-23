@@ -5,6 +5,8 @@ on:
     paths:
       - '.github/workflows/svg-release-d5-current-public.yml'
       - 'tests/composition/fable-game/d5-current-public.py'
+      - 'tests/composition/fable-game/d5-managed-runtime.py'
+      - 'tests/composition/fable-game/test-d5-managed-runtime.py'
       - 'tests/composition/fable-game/test-d5-current-public.py'
       - 'tests/composition/fable-game/verify-svg-release-d5-current-public.sh'
       - 'tests/composition/fable-game/d5-public-pins.py'
@@ -51,6 +53,7 @@ jobs:
       - name: Pure actual-caller and refusal-preservation controls
         run: |
           bash -n tests/composition/fable-game/verify-svg-release-d5-current-public.sh
+          PYTHONDONTWRITEBYTECODE=1 python3 tests/composition/fable-game/test-d5-managed-runtime.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/composition/fable-game/test-d5-current-public.py
           PYTHONDONTWRITEBYTECODE=1 python3 tests/composition/fable-game/test-d5-public-pins.py
       - name: Refuse wrong current package composition before tool acquisition

@@ -14,6 +14,8 @@ fail() { echo "current D.5: $*" >&2; exit 1; }
 # maintained process-owner retirement are not assembled. No caller flag bypass.
 readonly ADMISSION=None
 [[ "$ADMISSION" != None ]] || { echo 'HELD: runtime admission None; retirement unqualified' >&2; exit 3; }
+# A source literal change alone cannot activate the unassembled outer controller.
+python3 "$root/tests/composition/fable-game/d5-managed-runtime.py" --check-admission
 sha() { sha256sum "$1" | cut -d' ' -f1; }
 : "${DOTNET_HOST_PATH:?qualified absolute dotnet host required}"
 : "${QUINT_BIN:?qualified Quint profile-2 binary required}"
