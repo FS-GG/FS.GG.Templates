@@ -437,7 +437,7 @@ let main _ =
     assertEqual "missing backend observations cannot pass" (Error "current-d5-backend-or-preservation-refused") (validateCurrentD5Backend receiver "missing" "missing" "missing" "missing" "missing")
     assertEqual "synthetic source fixture is not genuine public qualification" (Error "current-d5-public-archive-refused") (validateCurrentD5Receiver d5Archive receiver "provider" "spec-kit" "complete" "ReferenceDirect")
     let backendRoot = Path.Combine(temp, "synthetic-current-backend")
-    let writeBackend relative text =
+    let writeBackend (relative: string) (text: string) =
         let path = Path.Combine(backendRoot, relative)
         Directory.CreateDirectory(Path.GetDirectoryName path) |> ignore
         File.WriteAllText(path, text)
