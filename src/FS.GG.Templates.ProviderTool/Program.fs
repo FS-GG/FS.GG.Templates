@@ -429,6 +429,12 @@ let main argv =
             match ReferencePublication.validateReceiver parsed.["--archive"] parsed.["--receiver"] parsed.["--route"] parsed.["--lifecycle"] parsed.["--sdd-version"] parsed.["--product-name"] with
             | Ok () -> printfn "reference receiver: valid — %s %s" parsed.["--route"] parsed.["--lifecycle"]; 0
             | Error reason -> fail reason
+        | "current-composition-plan" :: tail ->
+            parseClosedOptions [] tail |> ignore
+            let plan = ReferencePublication.renderCurrentCompositionPlan ()
+            match ReferencePublication.validateCurrentCompositionPlan plan with
+            | Ok () -> printfn "%s" plan; 0
+            | Error reason -> fail reason
         | "current-d5-pins-check" :: tail ->
             let parsed = parseClosedOptions [ "--pins" ] tail
             match ReferencePublication.validateCurrentD5Pins (File.ReadAllText parsed.["--pins"]) with

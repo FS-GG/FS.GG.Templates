@@ -11,13 +11,18 @@ templates_package="${7:-}"
 templates_package_sha="${8:-}"
 [[ "$#" -le 8 ]]
 [[ -z "$templates_package" && -z "$templates_package_sha" || -n "$templates_package" && "$templates_package_sha" =~ ^[0-9a-f]{64}$ ]] || { echo "external template package requires exact path and SHA256" >&2; exit 1; }
-[[ "$input_mode" == candidate || "$input_mode" == public || "$input_mode" == font-disposal ]] || { echo "unknown input mode" >&2; exit 1; }
+[[ "$input_mode" == candidate || "$input_mode" == public || "$input_mode" == font-disposal || "$input_mode" == current-public-composition ]] || { echo "unknown input mode" >&2; exit 1; }
 if [[ "$input_mode" == public ]]; then
   [[ "$version" == 0.32.3 && "$expected_source" == 4ec6eafbbbf02264db9b0db4780c590abe0bf9cd ]]
   [[ -z "${FsGgSvgInputVersion:-}" && -z "${FsGgSvgAuthoringVersion:-}" ]] || { echo "public defaults cannot be overridden" >&2; exit 1; }
 fi
 if [[ "$input_mode" == font-disposal ]]; then
   [[ "$version" == 0.32.3 && "$expected_source" == 4ec6eafbbbf02264db9b0db4780c590abe0bf9cd && -z "$templates_package" ]]
+  [[ -z "${FsGgSvgInputVersion:-}" && -z "${FsGgSvgAuthoringVersion:-}" && -z "${FSGG_SVG_AUTHORING_VERSION:-}" ]]
+fi
+if [[ "$input_mode" == current-public-composition ]]; then
+  python3 "$root/tests/composition/fable-game/current-composition-observations.py" --check-admission
+  [[ -n "$templates_package" && "${FSGG_REFERENCE_PROVIDER_TOOL_DLL:-}" = /* && -f "$FSGG_REFERENCE_PROVIDER_TOOL_DLL" ]] || { echo "current composition requires its qualified typed owner and exact template archive" >&2; exit 1; }
   [[ -z "${FsGgSvgInputVersion:-}" && -z "${FsGgSvgAuthoringVersion:-}" && -z "${FSGG_SVG_AUTHORING_VERSION:-}" ]]
 fi
 [[ "$expected_source" =~ ^[0-9a-f]{40}$ && "$version" =~ ^[0-9A-Za-z][0-9A-Za-z.+-]*$ && "$version" != 0.31.0 ]]
@@ -29,17 +34,26 @@ fi
 mkdir -p "$out"/{feed,home,packages,http}
 out="$(realpath "$out")"
 export DOTNET_CLI_HOME="$out/home" NUGET_PACKAGES="$out/packages" NUGET_HTTP_CACHE_PATH="$out/http"
+if [[ "$input_mode" == current-public-composition ]]; then
+  # The separate admitted runtime profile must qualify/bind this actual typed owner.
+  sha256sum "$FSGG_REFERENCE_PROVIDER_TOOL_DLL" >"$out/current-composition-owner.sha256"
+  dotnet "$FSGG_REFERENCE_PROVIDER_TOOL_DLL" current-composition-plan >"$out/current-composition-plan.json"
+  python3 "$root/tests/composition/fable-game/current-composition-observations.py" inputs "$out/current-composition-plan.json" "$version" "$expected_source" "$templates_package_sha"
+fi
 # Each CLR stage is sequential; compilation must fit the integrator's live allocation.
 export DOTNET_PROCESSOR_COUNT=1 MSBUILDDISABLENODEREUSE=1
-if [[ "$input_mode" == public ]]; then
+if [[ "$input_mode" == public || "$input_mode" == current-public-composition ]]; then
   rmdir "$out/feed"
   python3 "$root/tests/composition/fable-game/external-reference-public.py" "$producer_feed/release-custody.json" "$out/feed"
+  if [[ "$input_mode" == current-public-composition ]]; then
+    python3 "$root/tests/composition/fable-game/current-composition-observations.py" public-readback "$out/current-composition-plan.json" "$out/feed/public-readback.json"
+  fi
 else
   for id in FS.GG.UI.Scene FS.GG.UI.KeyboardInput FS.GG.UI.Scene.SvgBrowser; do
     cp "$producer_feed/$id.$version.nupkg" "$out/feed/"
   done
 fi
-if [[ -n "$templates_package" ]]; then
+if [[ -n "$templates_package" && "$input_mode" != current-public-composition ]]; then
   python3 "$root/tests/composition/fable-game/external-reference-template-package.py" rendering "$out/feed" "$version" "$expected_source" "$out/producer-package-input.json"
 fi
 python3 - "$producer" "$out/feed" "$version" "$templates_package" <<'PY'
@@ -62,7 +76,7 @@ with ZipFile(feed/f'FS.GG.UI.Scene.SvgBrowser.{version}.nupkg') as archive:
 (feed.parent/'producer-archives.json').write_text(json.dumps(rows,indent=2)+'\n')
 (feed.parent/'producer-source-entries.json').write_text(json.dumps(source_entries,indent=2)+'\n')
 PY
-if [[ "$input_mode" == public ]]; then
+if [[ "$input_mode" == public || "$input_mode" == current-public-composition ]]; then
   printf '%s\n' '<configuration><packageSources><clear/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>' > "$out/NuGet.Config"
 else
 cat > "$out/NuGet.Config" <<CONFIG
@@ -79,11 +93,32 @@ import sys
 output,controller,rendering=map(lambda value:Path(value).resolve(),sys.argv[1:])
 assert not output.is_relative_to(controller) and not output.is_relative_to(rendering), 'external package output must be outside producer roots'
 PYBOUNDARY
+  if [[ "$input_mode" == current-public-composition ]]; then
+    python3 - "$out/current-composition-plan.json" "$out/template-package-input.json" "$out/producer-package-input.json" <<'CURRENT_INPUTS'
+import json,sys
+from pathlib import Path
+plan=json.loads(Path(sys.argv[1]).read_text());template=plan['template'];rendering=plan['rendering']
+Path(sys.argv[2]).write_text(json.dumps({'producerRevision':template['sourceCommit'],'version':template['version'],'archiveSha256':template['sha256'],'installedAcceptance':False,'feedQualification':'actual download not established by supplied archive identity'})+'\n')
+Path(sys.argv[3]).write_text(json.dumps({'producerRevision':rendering['sourceCommit'],'version':rendering['version']})+'\n')
+CURRENT_INPUTS
+    mapfile -t selected < <(python3 - "$out/current-composition-plan.json" <<'CURRENT_IDENTITY'
+import json,sys
+p=json.load(open(sys.argv[1]))['template']
+for key in ('id','version','sourceCommit'):print(p[key])
+CURRENT_IDENTITY
+)
+    dotnet "$FSGG_REFERENCE_PROVIDER_TOOL_DLL" published-tool-check --archive "$templates_package" --sha256 "$templates_package_sha" --package-id "${selected[0]}" --version "${selected[1]}" --source-revision "${selected[2]}" >"$out/template-typed-identity.log"
+  else
   python3 "$root/tests/composition/fable-game/external-reference-template-package.py" inspect \
     "$templates_package" "$templates_package_sha" "$out/template-package-input.json"
+  fi
   mkdir "$out/template" "$out/template-hive"
-  cp "$templates_package" "$out/template/FS.GG.Workspace.Template.0.18.3.nupkg"
-  archive="$out/template/FS.GG.Workspace.Template.0.18.3.nupkg"
+  if [[ "$input_mode" == current-public-composition ]]; then
+    archive="$out/template/$(basename "$templates_package")"
+  else
+    archive="$out/template/FS.GG.Workspace.Template.0.18.3.nupkg"
+  fi
+  cp "$templates_package" "$archive"
   printf '%s  %s\n' "$templates_package_sha" "$archive" | sha256sum --check --strict
   dotnet new install "$archive" --force --debug:custom-hive "$out/template-hive" >"$out/template-install.log" 2>&1
   template_scope_args=(--debug:custom-hive "$out/template-hive" --debug:disable-sdk-templates --no-update-check --package FS.GG.Workspace.Template)
@@ -96,12 +131,29 @@ else
   [[ "${#archives[@]}" == 1 ]]
   dotnet new install "${archives[0]}" --force >"$out/template-install.log" 2>&1
 fi
-dotnet new fs-gg-fable-game -n ExternalReference -o "$out/complete" --bundle complete --lifecycle none "${template_scope_args[@]}" >"$out/complete-generate.log" 2>&1
+product_name=ExternalReference
+bundle=complete
+lifecycle=none
+if [[ "$input_mode" == current-public-composition ]]; then
+  mapfile -t selection < <(python3 - "$out/current-composition-plan.json" <<'CURRENT_SELECTION'
+import json,sys
+p=json.load(open(sys.argv[1]))['selection']
+for key in ('productName','bundle','lifecycle'):print(p[key])
+for key in ('externalReference','wasmPolicyExample'):print(str(p[key]).lower())
+CURRENT_SELECTION
+)
+  product_name="${selection[0]}";bundle="${selection[1]}";lifecycle="${selection[2]}"
+fi
+dotnet new fs-gg-fable-game -n "$product_name" -o "$out/complete" --bundle "$bundle" --lifecycle "$lifecycle" "${template_scope_args[@]}" >"$out/complete-generate.log" 2>&1
 dotnet new fs-gg-fable-game -n DefaultPlayer -o "$out/player" "${template_scope_args[@]}" >"$out/player-generate.log" 2>&1
 if [[ -n "$templates_package" ]]; then
   python3 "$root/tests/composition/fable-game/external-reference-template-package.py" generated \
     "$out/complete" "$out/template-generated-independent.json"
   printf '%s  %s\n' "$templates_package_sha" "$archive" | sha256sum --check --strict
+fi
+if [[ "$input_mode" == current-public-composition ]]; then
+  python3 "$root/tests/composition/fable-game/current-composition-observations.py" lock "$out/current-composition-plan.json" "$out/complete"
+  dotnet "$FSGG_REFERENCE_PROVIDER_TOOL_DLL" current-d5-receiver-check --archive "$archive" --receiver "$out/complete" --route direct --lifecycle "$lifecycle" --bundle "$bundle" --product-name "$product_name" >"$out/current-composition-receiver.log"
 fi
 [[ -f "$out/complete/SvgFoundation/Examples/ExternalAuthority/reference.json" ]]
 [[ -f "$out/complete/SvgFoundation/Examples/FourD/reference.json" ]]
@@ -111,8 +163,11 @@ grep -F 'ExternalAuthorityReference.install ()' "$out/complete/SvgFoundation/Pro
 # shipped defaults and checked lockfiles with public-only resolution.
 cp "$out/NuGet.Config" "$out/complete/NuGet.config"
 export FsGgExternalReferenceCandidate=true
+if [[ "$input_mode" == current-public-composition ]]; then
+  export FsGgExternalReferenceCandidate="${selection[3]}" FsGgWasmPolicyExample="${selection[4]}"
+fi
 export NUGET_PACKAGES="$out/complete/.nuget/packages"
-if [[ "$input_mode" == public ]]; then
+if [[ "$input_mode" == public || "$input_mode" == current-public-composition ]]; then
   python3 - "$out/complete" "$root/tests/composition/fable-game" <<'PYPUBLIC'
 import importlib.util,json,sys
 from pathlib import Path
@@ -166,7 +221,10 @@ assert {Path(value).resolve() for value in assets['packageFolders']}=={(root/'co
 assert 'SvgExternalSessionHost' in (root/'complete/.nuget/packages/fs.gg.ui.scene.svgbrowser'/version/'fable/SvgExternalSessionHost.fs').read_text()
 assert any((root/'complete/SvgFoundation/output').rglob('SvgExternalSessionHost.fs.js')), 'external host missing from delivered Fable output'
 PY
-if [[ "$input_mode" == public ]]; then
+if [[ "$input_mode" == current-public-composition ]]; then
+  python3 "$root/tests/composition/fable-game/current-composition-observations.py" assets "$out/current-composition-plan.json" "$out/complete"
+fi
+if [[ "$input_mode" == public || "$input_mode" == current-public-composition ]]; then
   (cd "$out/complete" && bash Protocol.Tests/cross-runtime/run-cross-runtime.sh) >"$out/public-codec-build.log" 2>&1
   (cd "$out/complete" && bash SvgFoundation/Studio/build.sh) >"$out/public-studio-build.log" 2>&1
   dotnet run --project "$out/complete/SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fsproj" --no-restore >"$out/public-tactical-build.log" 2>&1
@@ -197,17 +255,38 @@ dotnet publish "$out/complete/Server/Server.fsproj" -c Release --no-restore -m:1
 (cd "$out/complete/Browser.Tests" && npm ci) >"$out/npm-browser.log" 2>&1
 export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-$out/browsers}"
 (cd "$out/complete/Browser.Tests" && npx playwright install chromium firefox webkit) >"$out/browser-install.log" 2>&1
-selector="$(python3 - "$root" "$input_mode" <<'PYSELECT'
+selector="$(python3 - "$root" "$input_mode" "$out/current-composition-plan.json" <<'PYSELECT'
 import runpy,sys
-print(runpy.run_path(sys.argv[1]+'/tests/composition/fable-game/external-reference-orca.py')['browser_selector'](sys.argv[2]))
+if sys.argv[2]=='current-public-composition':
+    import json
+    print(runpy.run_path(sys.argv[1]+'/tests/composition/fable-game/current-composition-observations.py')['selector'](json.load(open(sys.argv[3]))))
+else:print(runpy.run_path(sys.argv[1]+'/tests/composition/fable-game/external-reference-orca.py')['browser_selector'](sys.argv[2]))
 PYSELECT
 )"
-for family in chromium firefox webkit; do
-  (cd "$out/complete/Browser.Tests" && PLAYWRIGHT_BROWSER_FAMILY="$family" npm test -- --grep "$selector" --workers=1) >"$out/$family-browser.log" 2>&1
+families=(chromium firefox webkit)
+browser_args=(--workers=1)
+if [[ "$input_mode" == current-public-composition ]]; then
+  mapfile -t families < <(python3 - "$out/current-composition-plan.json" <<'CURRENT_BROWSERS'
+import json,sys
+for family in json.load(open(sys.argv[1]))['browsers']['families']:print(family)
+CURRENT_BROWSERS
+)
+  mapfile -t browser_settings < <(python3 - "$out/current-composition-plan.json" <<'CURRENT_BROWSER_SETTINGS'
+import json,sys
+p=json.load(open(sys.argv[1]))['browsers']
+for key in ('workers','retries'):print(p[key])
+CURRENT_BROWSER_SETTINGS
+)
+  browser_args=(--workers="${browser_settings[0]}" --retries="${browser_settings[1]}")
+fi
+for family in "${families[@]}"; do
+  (cd "$out/complete/Browser.Tests" && PLAYWRIGHT_BROWSER_FAMILY="$family" npm test -- --grep "$selector" "${browser_args[@]}") >"$out/$family-browser.log" 2>&1
   cp "$out/complete/Browser.Tests/test-results/browser.json" "$out/$family-browser.json"
-  python3 - "$out/$family-browser.json" "$root" "$input_mode" <<'PY'
+  python3 - "$out/$family-browser.json" "$root" "$input_mode" "$out/current-composition-plan.json" "$family" <<'PY'
 import json,runpy,sys
-runpy.run_path(sys.argv[2]+'/tests/composition/fable-game/external-reference-orca.py')['validate_browser_report'](json.load(open(sys.argv[1])),sys.argv[3])
+if sys.argv[3]=='current-public-composition':
+    runpy.run_path(sys.argv[2]+'/tests/composition/fable-game/current-composition-observations.py')['validate_report'](json.load(open(sys.argv[1])),json.load(open(sys.argv[4])),sys.argv[5])
+else:runpy.run_path(sys.argv[2]+'/tests/composition/fable-game/external-reference-orca.py')['validate_browser_report'](json.load(open(sys.argv[1])),sys.argv[3])
 PY
 done
 python3 - "$root" "$producer" "$out" "$version" "$producer_feed" "$input_mode" "$templates_package" <<'PY'
@@ -220,7 +299,7 @@ template_input=json.loads((out/'template-package-input.json').read_text()) if sy
 rendering_input=json.loads((out/'producer-package-input.json').read_text()) if template_input else None
 producer_identity={'revision':rendering_input['producerRevision'],'tree':None} if rendering_input else {'revision':git(producer,'HEAD'),'tree':git(producer,'HEAD^{tree}')}
 template_identity={'revision':template_input['producerRevision'],'tree':None} if template_input else {'revision':git(root,'HEAD'),'tree':git(root,'HEAD^{tree}')}
-packet={'schema':'fsgg.external-reference-source-qualification/1','disposition':'passed','templates':template_identity,'producer':{'inputCustody':json.loads((Path(sys.argv[5])/'ROOT-CUSTODY.json').read_text()) if (Path(sys.argv[5])/'ROOT-CUSTODY.json').exists() else None,'custodyManifestSha256':hashlib.sha256((Path(sys.argv[5])/'release-custody.json').read_bytes()).hexdigest() if (Path(sys.argv[5])/'release-custody.json').exists() else None,**producer_identity,'candidateVersion':version,'archives':json.loads((out/'producer-archives.json').read_text()),'sourceEntries':json.loads((out/'producer-source-entries.json').read_text())},'environment':{'dotnet':subprocess.check_output(['dotnet','--info'],text=True),'node':subprocess.check_output(['node','--version'],text=True).strip(),'npm':subprocess.check_output(['npm','--version'],text=True).strip(),'fableLoadedVersion':(out/'fable-version.log').read_text().strip(),'fableLogSha256':hashlib.sha256((out/'fable-build.log').read_bytes()).hexdigest()},'receiver':hashes(out/'complete/SvgFoundation'),'browserFamilies':['chromium','firefox','webkit'],'browserReports':hashes(out/'complete/Browser.Tests/test-results'),'browserReportSha256':{family:hashlib.sha256((out/(family+'-browser.json')).read_bytes()).hexdigest() for family in ['chromium','firefox','webkit']},'qualificationMode':sys.argv[6],'passedPerFamily':15 if sys.argv[6]=='font-disposal' else 8,'skipped':0,'domAutomation':True,'actualScreenReader':'not-observed','publication':False,'installedAcceptance':False,'renderingInputSource':'nuget.org' if sys.argv[6]=='public' else 'candidate','renderingPublicInputsQualified':sys.argv[6]=='public','templatesInputSource':'source-built-candidate','publicReadback':json.loads((out/'feed/public-readback.json').read_text()) if sys.argv[6]=='public' else None}
+packet={'schema':'fsgg.external-reference-source-qualification/1','disposition':'passed','templates':template_identity,'producer':{'inputCustody':json.loads((Path(sys.argv[5])/'ROOT-CUSTODY.json').read_text()) if (Path(sys.argv[5])/'ROOT-CUSTODY.json').exists() else None,'custodyManifestSha256':hashlib.sha256((Path(sys.argv[5])/'release-custody.json').read_bytes()).hexdigest() if (Path(sys.argv[5])/'release-custody.json').exists() else None,**producer_identity,'candidateVersion':version,'archives':json.loads((out/'producer-archives.json').read_text()),'sourceEntries':json.loads((out/'producer-source-entries.json').read_text())},'environment':{'dotnet':subprocess.check_output(['dotnet','--info'],text=True),'node':subprocess.check_output(['node','--version'],text=True).strip(),'npm':subprocess.check_output(['npm','--version'],text=True).strip(),'fableLoadedVersion':(out/'fable-version.log').read_text().strip(),'fableLogSha256':hashlib.sha256((out/'fable-build.log').read_bytes()).hexdigest()},'receiver':hashes(out/'complete/SvgFoundation'),'browserFamilies':['chromium','firefox','webkit'],'browserReports':hashes(out/'complete/Browser.Tests/test-results'),'browserReportSha256':{family:hashlib.sha256((out/(family+'-browser.json')).read_bytes()).hexdigest() for family in ['chromium','firefox','webkit']},'qualificationMode':sys.argv[6],'passedPerFamily':len(json.loads((out/'current-composition-plan.json').read_text())['browsers']['cases']) if sys.argv[6]=='current-public-composition' else 15 if sys.argv[6]=='font-disposal' else 8,'skipped':0,'domAutomation':True,'actualScreenReader':'not-observed','publication':False,'installedAcceptance':False,'renderingInputSource':'nuget.org' if sys.argv[6] in ('public','current-public-composition') else 'candidate','renderingPublicInputsQualified':sys.argv[6] in ('public','current-public-composition'),'templatesInputSource':'source-built-candidate','publicReadback':json.loads((out/'feed/public-readback.json').read_text()) if sys.argv[6] in ('public','current-public-composition') else None}
 if sys.argv[6]=='font-disposal':
     import runpy
     packet['studioFontCases']=runpy.run_path(str(root/'tests/composition/fable-game/external-reference-orca.py'))['FONT_CASE_TITLES']
@@ -238,6 +317,13 @@ if template_input:
     packet['templateProducerSourceUnavailable']=not (root/'FS.GG.Templates.csproj').exists() and not (root/'templates').exists()
     # Local immutable package installation does not establish released-feed installed adoption.
     assert packet['installedAcceptance'] is False and template_input['installedAcceptance'] is False
+if sys.argv[6]=='current-public-composition':
+    packet['schema']='fsgg.current-composition-source-qualification/1'
+    packet['currentCompositionPlan']=json.loads((out/'current-composition-plan.json').read_text())
+    packet['templatesInputSource']='exact-current-public-archive'
+    packet['localSaveStorage']='synthetic-in-memory'
+    packet['durableSaveAcceptance']=False
+    packet['whole4818Acceptance']=False
 (out/'qualification.json').write_text(json.dumps(packet,indent=2)+'\n')
 PY
 printf 'external-reference-candidate: passed; evidence=%s/qualification.json\n' "$out"

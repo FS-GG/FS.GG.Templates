@@ -477,6 +477,37 @@ let main _ =
     snapshotBackend afterBackend
     File.WriteAllText(succeeded, "malformed")
     assertEqual "malformed actual observation never passes" (Error "current-d5-backend-or-preservation-refused") (checkBackend ())
+    // Fixed selector data; none of these synthetic controls establishes receiver/AT acceptance.
+    let composition = currentCompositionPlan ()
+    let compositionJson = renderCurrentCompositionPlan ()
+    assertEqual "current composition renderer closes exact source DTO" (Ok ()) (validateCurrentCompositionPlan compositionJson)
+    assertEqual "current composition template source and raw pin are fixed"
+        ("0.19.3", "7be0bcf5886d39a8161b186beb8cc06e82415f1e", "9594ec204a26f238a06e016d1cfe1e796a07fda23c16589eceb19366cd4a72a2", "6b3d8f2dcbdcd429e4f622cfd6e1515c439097147bb79f5d5c7969d36c3b5006")
+        (composition.template.version, composition.template.sourceCommit, composition.template.sha256, composition.template.descriptorSha256)
+    assertEqual "current composition Rendering provenance is fixed"
+        ("0.32.3", "4ec6eafbbbf02264db9b0db4780c590abe0bf9cd", "7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9")
+        (composition.rendering.version, composition.rendering.sourceCommit, composition.rendering.custodySha256)
+    let identities = composition.browsers.cases |> List.map (fun row -> row.file, row.suite, row.title)
+    assertEqual "current composition has nine unique full DOM identities" (9, 9) (identities.Length, (Set.ofList identities).Count)
+    use compositionDocument = System.Text.Json.JsonDocument.Parse compositionJson
+    let gameFields = compositionDocument.RootElement.GetProperty("game").EnumerateObject() |> Seq.map (fun row -> row.Name) |> Set.ofSeq
+    assertEqual "Game has exact known lock identity without an invented raw hash" (Set.ofList [ "id"; "version"; "lockContentHash" ]) gameFields
+    let changedComposition (change: System.Text.Json.Nodes.JsonNode -> unit) =
+        let node = System.Text.Json.Nodes.JsonNode.Parse compositionJson
+        change node
+        validateCurrentCompositionPlan (node.ToJsonString())
+    assertEqual "composition template raw hash drift refuses" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["template"].["sha256"] <- System.Text.Json.Nodes.JsonValue.Create(String.replicate 64 "0")))
+    assertEqual "composition Rendering provenance drift refuses" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["rendering"].["sourceCommit"] <- System.Text.Json.Nodes.JsonValue.Create(String.replicate 40 "0")))
+    assertEqual "composition nested suite identity cannot be flattened" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["browsers"].["cases"].[4].["suite"] <- System.Text.Json.Nodes.JsonNode.Parse "[]"))
+    assertEqual "composition missing maintained synthetic local-save case refuses" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["browsers"].["cases"].AsArray().RemoveAt(8)))
+    assertEqual "composition missing literal Game lock identity refuses" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["game"].AsObject().Remove("lockContentHash") |> ignore))
+    assertEqual "composition invented Game archive identity refuses" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["game"].["sha256"] <- System.Text.Json.Nodes.JsonValue.Create("unknown")))
     let toolArchive = Path.Combine(temp, "tool.nupkg")
     use toolZip = ZipFile.Open(toolArchive, ZipArchiveMode.Create)
     let toolNuspec = toolZip.CreateEntry("FS.GG.SDD.Cli.nuspec")
