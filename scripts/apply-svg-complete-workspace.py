@@ -331,8 +331,53 @@ def candidate_bytes(source: Path, logical: str, source_solution: Path,
     return text.encode("utf-8")
 
 
+CURRENT_REFERENCE = {
+    "package": "FS.GG.Workspace.Template", "version": "0.19.3",
+    "sourceHead": "7be0bcf5886d39a8161b186beb8cc06e82415f1e",
+    "publicArchiveSha256": "9594ec204a26f238a06e016d1cfe1e796a07fda23c16589eceb19366cd4a72a2",
+    "descriptorSha256": "6b3d8f2dcbdcd429e4f622cfd6e1515c439097147bb79f5d5c7969d36c3b5006",
+}
+CURRENT_MANIFEST_SCHEMA = "fsgg.svg-current-reference-adoption-manifest/v1"
+
+
+def current_reference_manifest(path: Path, extension: dict) -> dict:
+    """Extend the immutable historical cohort without changing its original gate."""
+    if extension.get("currentPublishedReference") != CURRENT_REFERENCE:
+        fail("current reference requires the exact published 0.19.3 identity")
+    relative = checked_relative(extension.get("baselineManifest", ""), "baseline manifest")
+    if len(PurePosixPath(relative).parts) != 1 or relative == path.name:
+        fail("current reference baseline must be a sibling historical manifest")
+    baseline_path = path.parent / relative
+    reject_symlink_chain(path.parent, baseline_path, "historical baseline manifest")
+    if digest(baseline_path.read_bytes()) != extension.get("baselineManifestSha256"):
+        fail("historical baseline manifest changed")
+    baseline, managed, _, _ = manifest_data(baseline_path)
+    if baseline.get("currentPublishedReference"):
+        fail("current reference cannot extend another successor")
+    additions = extension.get("additionalManagedPaths")
+    if (not isinstance(additions, list) or not additions or additions != sorted(set(additions))
+            or set(additions) & set(managed)):
+        fail("current reference additions must be sorted, unique and new")
+    additions = [checked_relative(value, "current reference managed path") for value in additions]
+    combined = sorted(managed + additions)
+    expected = {logical for logical in combined
+                if not logical.startswith((".agents/skills/", ".claude/skills/"))}
+    canonical = extension.get("candidateCanonicalDigests")
+    if (not isinstance(canonical, dict) or set(canonical) != expected
+            or any(not isinstance(values, list) or not values or values != sorted(set(values))
+                   or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
+                          for value in values) for values in canonical.values())):
+        fail("current reference requires canonical hashes for every managed product file")
+    return {**baseline, "managedPaths": combined,
+            "currentPublishedReference": CURRENT_REFERENCE,
+            "candidateCanonicalDigests": canonical,
+            "sourceCandidates": [CURRENT_REFERENCE]}
+
+
 def manifest_data(path: Path) -> tuple[dict, list[str], list[str], dict[str, set[str]]]:
     manifest = load_json(path)
+    if manifest.get("schema") == CURRENT_MANIFEST_SCHEMA:
+        manifest = current_reference_manifest(path, manifest)
     if manifest.get("schema") != "fsgg.svg-complete-adoption-manifest/v1":
         fail("unsupported baseline manifest schema")
     managed = manifest.get("managedPaths")
@@ -370,6 +415,10 @@ def manifest_data(path: Path) -> tuple[dict, list[str], list[str], dict[str, set
     if not isinstance(candidates, list) or not candidates:
         fail("baseline manifest has no selected candidate custody")
     for candidate in candidates:
+        if manifest.get("currentPublishedReference"):
+            if candidate != CURRENT_REFERENCE:
+                fail("current reference candidate custody is invalid")
+            continue
         if (not isinstance(candidate, dict) or candidate.get("version") != "0.14.0"
                 or not isinstance(candidate.get("sourceHead"), str)
                 or not re.fullmatch(r"[0-9a-f]{40}", candidate["sourceHead"])
@@ -397,6 +446,13 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
         staged = candidate_bytes(candidate, logical, source_solution, source_product, source_namespace,
                                  destination_product, destination_namespace, destination)
         candidate_mode = file_mode(source_path)
+        target_hashes = manifest.get("candidateCanonicalDigests", {}).get(logical)
+        # Authenticate the unmerged candidate, not its receiver-specific skill union.
+        # Hashes are derived from the declared immutable public source, not installed
+        # qualification: the caller still reads back the signed package separately.
+        if target_hashes is not None and canonical_variants(
+                source_path.read_bytes(), source_product, source_namespace).isdisjoint(target_hashes):
+            fail(f"current reference candidate differs from published source: {logical}")
         candidate_hash_rows.append(f"{candidate_mode:o}\t{digest(staged)}\t{logical}\n")
         if destination.is_symlink():
             conflicts.append({"path": logical, "reason": "managed destination is a symlink"})
@@ -491,6 +547,8 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
         "diff": "".join(diff_parts),
         "publicBaselineArchives": manifest.get("sourceArchives", []),
         "selectedCandidateBaselines": manifest.get("sourceCandidates", []),
+        **({"currentPublishedReference": manifest["currentPublishedReference"]}
+           if manifest.get("currentPublishedReference") else {}),
     }
 
 
