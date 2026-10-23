@@ -201,6 +201,15 @@ def operational_start(env):
     return initial
 
 
+def acquisition_capacity(owner, root, initial):
+    facts={}
+    try:
+        capacity_snapshot(owner,root,exclude_memory_under=Path(initial['cgroupPath']),facts=facts)
+        require_capacity(facts)
+    finally:write(root/'capacity-before-acquisition.json',facts)
+    return facts
+
+
 def record_client_exit(env):
     directory=outer_path(env);pre=json.loads((directory/'preflight.json').read_text())
     require(pre['source']==validate_admission(env,ADMISSION),'client source join differs')
@@ -392,7 +401,7 @@ def collect(root, deadline):
     names = ('rehearsal.json','source-seals.json','managed-owner.json','managed-owner-probe.json',
              'managed-receipts.json','input-downloads.json','sdk-member-identities.json',
              'sdd-member-identities.json','native-closure.json','executable-identities.json',
-             'locks-before.json','locks-after.json','template-registrations.json')
+             'locks-before.json','locks-after.json','template-registrations.json','capacity-before-acquisition.json')
     candidates = [root/name for name in names if (root/name).exists()]
     if (root/'managed').is_dir():
         groups = sorted((root/'managed').iterdir())
@@ -536,6 +545,7 @@ def run_rehearsal(environ, start):
         identities = {}
         run = caller['managed_executor'](owner, root, setup, identities, 'setup', receipts)
         summary['unit'] = unit_properties(caller, run, env, identities, initial)
+        summary['acquisitionCapacity'] = acquisition_capacity(owner,root,initial)
         tools = root/'tools'; tools.mkdir(mode=0o700)
         downloads = root/'downloads'; downloads.mkdir(mode=0o700)
         acquisitions = []

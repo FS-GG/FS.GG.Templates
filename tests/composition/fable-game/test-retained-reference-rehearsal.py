@@ -156,7 +156,7 @@ class Controls(unittest.TestCase):
     def drive(self,fail=None):
         world=World(self.root,self.canonical,fail)
         admission=m.validate_admission(self.env,self.env['ADMISSION'])
-        with patch.object(m,'validate_admission',return_value=admission),patch.object(m,'load_file',return_value=types.SimpleNamespace(actual_caller=lambda:world.caller)),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100.5)),patch.object(m,'operational_start',return_value={'properties':{'InvocationID':'a'*32,'ControlGroup':'/system.slice/unit.service','MainPID':'42'}}):
+        with patch.object(m,'validate_admission',return_value=admission),patch.object(m,'load_file',return_value=types.SimpleNamespace(actual_caller=lambda:world.caller)),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100.5)),patch.object(m,'operational_start',return_value={'properties':{'InvocationID':'a'*32,'ControlGroup':'/system.slice/unit.service','MainPID':'42'}}),patch.object(m,'acquisition_capacity',return_value={'synthetic':True}):
             original=m.template_registration
             def synthetic_registration(home,root,version,expected):
                 body=root/'downloads'/m.FILENAMES['baseline' if version=='0.13.0' else 'target']
@@ -306,6 +306,13 @@ class Controls(unittest.TestCase):
         paths={row['path'] for row in result['files']}
         self.assertIn('transaction/apply-backup/journal.json',paths)
         self.assertTrue(all('/.nuget/' not in path and '/obj/' not in path and '/files/' not in path for path in paths))
+
+    def test_acquisition_capacity_refusal_retains_partial_snapshot(self):
+        self.root.mkdir();facts={'complete':False,'ancestors':[{'path':'synthetic'}]}
+        def unavailable(owner,path,exclude_memory_under=None,facts=None):facts.update(complete=False,ancestors=[{'path':'synthetic'}]);raise ValueError('capacity unavailable')
+        with patch.object(m,'capacity_snapshot',side_effect=unavailable),self.assertRaisesRegex(ValueError,'capacity unavailable'):
+            m.acquisition_capacity(object(),self.root,{'cgroupPath':'/synthetic/unit'})
+        self.assertEqual(json.loads((self.root/'capacity-before-acquisition.json').read_text()),facts)
 
     def test_effective_ancestor_capacity_and_unit_memory_exclusion(self):
         data={'/proc/meminfo':'MemTotal: 33554432 kB\nMemAvailable: 20971520 kB\n','/proc/sys/kernel/random/boot_id':'boot-synthetic'}
