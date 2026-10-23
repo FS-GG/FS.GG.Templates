@@ -223,19 +223,15 @@ jobs:
           import contextlib, gzip, signal, struct, threading, base64, hashlib, importlib.util, json, os, pathlib, platform, re, shutil, stat, subprocess, sys, tarfile, time, urllib.parse, urllib.request, xml.etree.ElementTree as ET, zipfile
           if sys.flags.optimize != 0:
               raise RuntimeError("hosted admission requires optimization=0")
-          # Published Workspace.Template 0.19.2 (peeled fs-gg-templates/v0.19.2 = d15f085, signed nuget.org
-          # archive; release run 39845406998). Same stock inputs, locks and WASM [0.3.0] refs as 0.19.1, with
-          # Rendering 0.32.3 adopted. 0.19.0 Complete scaffolds truncate the WASM guest policy.c.
-          # The receiver source now selects FS.GG.Wasm [0.7.0] (FS-GG/FS.GG.Game#727) and the guest SDK
-          # acquisition below is 0.7.0. Workspace.Template 0.19.3 carries that source; the checker's
-          # --mode wasm gate and ReferencePublication already select 0.19.3. From its published bytes the
-          # post-publish pin PR moves TEMPLATE_VERSION, PUBLISHED, PACKAGE_SHA and DESCRIPTOR_SHA here and
-          # fills the checker's 0.19.3 current-public cohort slot, with their tests. Until then installed C
-          # is fenced: a test refuses any admission while TEMPLATE_VERSION is 0.19.2.
-          TEMPLATE_VERSION = "0.19.2"
-          PUBLISHED = "d15f085ff4d64b7736e09ff263644b3c86a576a6"
-          PACKAGE_SHA = "ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a"
-          DESCRIPTOR_SHA = "e8dbf8958f90d522e577378ae36b0e131954e400991d542ae9709ac32c713e3b"
+          # Published Workspace.Template 0.19.3 (annotated fs-gg-templates/v0.19.3 = 386e32b7, peeling to
+          # 7be0bcf5; signed nuget.org archive; release run 39910502481; byte-verified: 512 signature-excluded
+          # entries equal the original). It carries the FS.GG.Wasm [0.7.0] receiver (FS-GG/FS.GG.Game#727) whose
+          # guest SDK is acquired below, with Rendering 0.32.3 defaults unchanged from 0.19.2. 0.19.0 Complete
+          # scaffolds truncate the WASM guest policy.c; 0.19.1/0.19.2 carry the 0.3.0 receiver.
+          TEMPLATE_VERSION = "0.19.3"
+          PUBLISHED = "7be0bcf5886d39a8161b186beb8cc06e82415f1e"
+          PACKAGE_SHA = "9594ec204a26f238a06e016d1cfe1e796a07fda23c16589eceb19366cd4a72a2"
+          DESCRIPTOR_SHA = "6b3d8f2dcbdcd429e4f622cfd6e1515c439097147bb79f5d5c7969d36c3b5006"
           FABLE_SHA = "b586190f1592c3352d7319008a99e1747267dacbc44d6e5bd3753c84390f47a4"
           TOOLS = {"sdk":"10.0.401", "runtime":"10.0.12", "node":"24.20.0", "npm":"11.19.0", "fable":"5.18.0", "rust":"1.90.0", "wasi":"34.0", "playwright":"1.63.0"}
           BUDGET = {"job":2400, "setup":840, "custody":300, "installed":900, "cleanup":30, "collection":180, "overhead":90}
