@@ -189,7 +189,7 @@ $preflight && { [[ ! -e "$evidence" ]] || usage; echo 'fable-reference-public: p
 # no SDK/compiler/browser: all supplied paths must be qualified before invocation.
 if [[ "$mode" == wasm ]]; then
   : "${DOTNET_HOST_PATH:?qualified absolute dotnet host required}"
-  : "${FSGG_WASM_SDK_ARCHIVE:?qualified public SDK 0.3 archive required}"
+  : "${FSGG_WASM_SDK_ARCHIVE:?qualified public SDK 0.7 archive required}"
   : "${FSGG_WASM_WASI_ROOT:?qualified private WASI SDK 34 root required}"
   : "${FSGG_WASM_FABLE_CORE:?qualified private Fable 5.18 entrypoint required}"
   : "${FSGG_WASM_NUGET_CONFIG:?qualified closed application feed config required}"
@@ -282,7 +282,7 @@ assert not value['Items']['ProjectReference'], 'repository/project source fallba
 refs={p['Identity']:p['Version'] for p in value['Items']['PackageReference']}
 assert ('FS.GG.Wasm.Contracts' in refs)==enabled and ('FS.GG.Wasm.Browser' in refs)==enabled
 if enabled:
-    assert refs['FS.GG.Wasm.Contracts']==refs['FS.GG.Wasm.Browser']=='[0.3.0]'
+    assert refs['FS.GG.Wasm.Contracts']==refs['FS.GG.Wasm.Browser']=='[0.7.0]'
     assert value['Properties']['NuGetLockFilePath'].endswith('/Examples/Wasm/packages.lock.json')
 WASM_GRAPH
     if [[ "$enabled" == true ]]; then python3 "$foundation/Examples/Wasm/materialize-assets.py" "$foundation"; fi

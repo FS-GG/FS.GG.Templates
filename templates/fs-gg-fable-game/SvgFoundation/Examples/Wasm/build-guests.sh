@@ -3,10 +3,10 @@ set -euo pipefail
 source_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mode=build
 if [[ "${1:-}" == --generate-lock ]]; then mode=generate-lock; shift; fi
-archive="${1:?usage: build-guests.sh [--generate-lock] <authenticated-sdk-0.3.0.tar.gz> <wasi-sdk-34-root>}"
+archive="${1:?usage: build-guests.sh [--generate-lock] <authenticated-sdk-0.7.0.tar.gz> <wasi-sdk-34-root>}"
 wasi="$(realpath -e "${2:?missing WASI SDK root}")"
 # Acquisition and runtime admission belong to the caller's maintained build route.
-printf '%s  %s\n' 8091df6824981c0c37131524ffbcbae9bb8b36f672a20edc2efaddd35664f8c8 "$archive" | sha256sum --check --status
+printf '%s  %s\n' 090658bd29c79500ed6f3f3defe89a14f7b8330b39586cd01880429258a99cb2 "$archive" | sha256sum --check --status
 [[ "$(rustc --version)" == 'rustc 1.90.0 (1159e78c4 2025-09-14)' ]]
 [[ "$(cargo --version)" == 'cargo 1.90.0 (840b83a10 2025-07-30)' ]]
 [[ "$("$wasi/bin/clang" --version | head -n1)" == 'clang version 23.1.0-wasi-sdk (https://github.com/llvm/llvm-project 895aa2c896ada719451be2e3673c83da8ddf1141)' ]]
@@ -25,7 +25,7 @@ with tarfile.open(sys.argv[1], 'r:gz') as archive:
             raise SystemExit('Unsafe SDK archive member')
 PY
 tar -xzf "$archive" -C "$work"
-sdk="$work/fsgg-wasm-sdk-0.3.0"
+sdk="$work/fsgg-wasm-sdk-0.7.0"
 [[ -d "$sdk" ]]
 (cd "$sdk" && sha256sum --check --strict SHA256SUMS >/dev/null)
 rust="$sdk/examples/wasm/rust/template-policy"
@@ -94,7 +94,7 @@ modules = {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in 
 if set(modules) != {'c-normal.wasm', 'c-malformed.wasm', 'c-trap.wasm', 'c-loop.wasm', 'rust-normal.wasm'}:
     raise SystemExit('Unexpected guest output population')
 (out / 'modules.json').write_text(json.dumps({
-    'sdkSha256': '8091df6824981c0c37131524ffbcbae9bb8b36f672a20edc2efaddd35664f8c8',
+    'sdkSha256': '090658bd29c79500ed6f3f3defe89a14f7b8330b39586cd01880429258a99cb2',
     'cSourceSha256': hashlib.sha256((source / 'guest/policy.c').read_bytes()).hexdigest(),
     'rustSourceSha256': hashlib.sha256((source / 'guest/rust/src/lib.rs').read_bytes()).hexdigest(),
     'modules': modules,
