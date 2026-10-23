@@ -65,8 +65,8 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 python3 tests/composition/fable-game/test-d5-public-pins.py
 
   receiver:
-    # Source-only: exact review/CI/main/profile/native admission still required.
-    if: ${{ false }}
+    # Conditional source selection6376768563; Root still owns exact review/CI/merge/one dispatch.
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == '1' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:

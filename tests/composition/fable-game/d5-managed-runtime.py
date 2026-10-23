@@ -16,7 +16,7 @@ import re
 import time
 
 HERE = Path(__file__).resolve().parent
-ADMISSION = None
+ADMISSION = 'https://github.com/FS-GG/.github/issues/4849#issuecomment-6376768563'
 ADMITTED_SCOPE = 'rehearsal' # First operation only; full43 needs a separate source admission.
 # Closed D5 naming in the existing retained controller; no globals mutation or
 # controller copy. This source selection is not runtime admission.

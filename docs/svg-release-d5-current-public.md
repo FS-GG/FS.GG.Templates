@@ -9,9 +9,11 @@ versions and acceptance. Current [run 39988246429](https://github.com/FS-GG/FS.G
 retains its scoped clean-creation, four-build and dedicated-browser evidence;
 this source does not repeat those product builds or browser runs.
 
-The workflow and direct script are mechanically held with `ADMISSION=None` before
-SDK/profile setup, acquisition, sudo or product invocation. No flag enables them.
-Manual workflow dispatch fails before checkout/setup; the receiver job is disabled.
+The direct script remains mechanically held with `ADMISSION=None`. The workflow
+has a [conditional root source selection](https://github.com/FS-GG/.github/issues/4849#issuecomment-6376768563)
+for one manual/main/attempt1 rehearsal. No local flag grants an operation. Root still
+requires exact source review, CI, protected delivery and one original native intent
+before dispatch. Invalid admission/source/scope refuses before workload effects.
 The direct script's `--preflight-only` reads bounded JSON but explicitly establishes
 no typed qualification. Activating runtime requires a separately reviewed exact
 source/main/attempt-1 admission and the existing maintained process owner with
@@ -77,8 +79,9 @@ The current D5 entry delegates each SDK, tool, generator, validator and backend 
 through the existing `wasm-installed-c.py` actual-caller loader and pinned Coordination
 `eng/managed_group_owner.py` (`ac222065`, SHA256 `d846dbe1…`). It introduces no process
 supervisor or mutable override of the shared caller. The direct shell now delegates to
-this entry instead of retaining an unmanaged current-cohort execution path. Both source
-holds remain: `ADMISSION=None` and the receiver job's literal `if: false`.
+this entry instead of retaining an unmanaged current-cohort execution path. The direct shell keeps its source hold. The workflow is conditionally selected
+only through the fixed root comment and manual/main/attempt1 gates; source delivery
+and a separate original native selection are still required.
 
 The independently reviewed PR765 reader is an explicit source dependency. Its narrow
 caller-contract extension preserves the retained4816 defaults and supports only the
@@ -135,8 +138,10 @@ rehearsal. The complete4849/4644 acceptance and all historical Unknown holds rem
 
 The compiled preflight now belongs only to pull requests. A manual receiver has no
 compiled-preflight dependency: its own first-step clock and exact source admission
-precede its managed unit and every SDK/Go/package acquisition. Source still carries
-`ADMISSION=None` and a literal-false receiver condition; no operation is selected.
+precede its managed unit and every SDK/Go/package acquisition. The fixed [root conditional source grant](https://github.com/FS-GG/.github/issues/4849#issuecomment-6376768563)
+now selects only manual/main/attempt1 rehearsal source. It starts no runtime clock or
+dispatch: exact review/CI/protected delivery and Root's fresh one-send intent remain
+required. An unused selection expires at00:10UTC on2026-10-24.
 The first source scope is only `rehearsal`. The raw-plus42-case full selector remains
 intact for a separate later admission; this first grant cannot dispatch it.
 

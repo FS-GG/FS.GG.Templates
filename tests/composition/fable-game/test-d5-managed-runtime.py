@@ -140,7 +140,7 @@ class ManagedConsumerTests(unittest.TestCase):
             result=subprocess.run([sys.executable,str(HERE/'d5-managed-runtime.py'),*flags],env=env,capture_output=True,text=True,timeout=5)
             self.assertEqual(result.returncode,3)
         self.assertFalse(sent.exists())
-        self.assertIsNone(D5.ADMISSION);self.assertEqual(D5.OUTER_CALLER_CONTRACT,'d5')
+        self.assertEqual(D5.ADMISSION,'https://github.com/FS-GG/.github/issues/4849#issuecomment-6376768563');self.assertEqual(D5.OUTER_CALLER_CONTRACT,'d5')
 
     def test_exact_admission_join_refuses_branches_retries_and_mixed_heads(self):
         admission='https://github.com/FS-GG/.github/issues/4849#issuecomment-1';head='a'*40
