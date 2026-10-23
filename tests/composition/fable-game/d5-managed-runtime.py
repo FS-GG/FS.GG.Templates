@@ -189,9 +189,11 @@ def wrong_profile(execute, owner, receipts, argv, sdd_core, typed_arguments, cwd
 
 def probe_backend_sandbox(caller, run, identities, root):
     """Fixed SDD2.4 sandbox prerequisite, before asset acquisition; no host change."""
-    unshare,_=caller['host_image']('/usr/bin/unshare');caller['bind_identity'](identities,unshare,'host-observed')
-    true,_=caller['host_image']('/usr/bin/true');caller['bind_identity'](identities,true,'host-observed')
+    unshare,unshare_sha=caller['host_image']('/usr/bin/unshare')
+    true,true_sha=caller['host_image']('/usr/bin/true')
     require(unshare=='/usr/bin/unshare' and true=='/usr/bin/true','literal sandbox executable paths differ')
+    caller['bind_identity'](identities,true,'host-observed')
+    caller['bind_identity'](identities,unshare,'host-observed',images=[unshare_sha,true_sha])
     return run([unshare,'--user','--map-root-user','--net','--',true],root,{'LANG':'C.UTF-8','TZ':'UTC'})
 
 

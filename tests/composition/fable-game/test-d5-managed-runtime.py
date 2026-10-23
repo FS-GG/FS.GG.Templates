@@ -258,11 +258,12 @@ class ManagedConsumerTests(unittest.TestCase):
     def test_actual_sandbox_probe_uses_literal_backend_argv_and_cleared_environment(self):
         seen=[];identities={}
         caller={'host_image':lambda path:(path,'synthetic'),
-                'bind_identity':lambda store,path,basis:store.update({path:basis})}
+                'bind_identity':lambda store,path,basis,**kw:store.update({path:kw.get('images',[path])})}
         result=D5.probe_backend_sandbox(caller,lambda *args:seen.append(args) or 'synthetic',identities,self.root)
         self.assertEqual(result,'synthetic')
         self.assertEqual(seen,[(['/usr/bin/unshare','--user','--map-root-user','--net','--','/usr/bin/true'],self.root,{'LANG':'C.UTF-8','TZ':'UTC'})])
         self.assertEqual(set(identities),{'/usr/bin/unshare','/usr/bin/true'})
+        self.assertEqual(identities['/usr/bin/unshare'],['synthetic','synthetic'])
 
     def test_actual_entry_sandbox_refusal_prevents_all_sdk_asset_acquisition(self):
         import types
@@ -272,7 +273,7 @@ class ManagedConsumerTests(unittest.TestCase):
         def run(argv,cwd,env):events.append(('probe',argv,env));raise ValueError('original synthetic namespace denied')
         caller={'fresh_environment':fresh,'load_owner':lambda *a:owner,'probe_containment':lambda *a:None,
                 'managed_executor':lambda *a:run,'host_image':lambda path:(path,'synthetic'),
-                'bind_identity':lambda *a:None,'provision_sdk':lambda *a:events.append('UNEXPECTED SDK')}
+                'bind_identity':lambda *a,**kw:None,'provision_sdk':lambda *a:events.append('UNEXPECTED SDK')}
         fake=types.SimpleNamespace(validate_admission=lambda *a:{'synthetic':True},
             operational_start=lambda *a:{'boot':'synthetic'},normalized_roots=lambda *a:None,no_global_before_create=lambda *a:None,
             load_file=lambda name,path:types.SimpleNamespace(actual_caller=lambda:caller) if name=='d5_actual_loader' else types.SimpleNamespace(PINS={'synthetic':True}),
