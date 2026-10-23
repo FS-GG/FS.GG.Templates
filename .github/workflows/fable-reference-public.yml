@@ -13,7 +13,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Templates-only public proof or full Wizard proof (historical 0.18.1/Wizard 0.16.0, accepted 0.19.2, or current public 0.19.3 once pinned; SDD 2.4.0/Wizard 0.21.0)
+        description: Templates-only public proof or full Wizard proof (historical 0.18.1/Wizard 0.16.0, accepted 0.19.2, or current public 0.19.3 once pinned; SDD 2.4.0/Wizard 0.22.0)
         required: true
         type: choice
         default: templates
