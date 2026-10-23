@@ -20,8 +20,9 @@ import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
 WORKSPACE = HERE.parents[2]
-# Original admission was consumed by run40017741314/a1; successor selection is separate.
-ADMISSION = None
+# Original admission was consumed by run40017741314/a1 and stays retired.
+# This conditional successor source selection does not dispatch; root gates exact CI/main/profile.
+ADMISSION = 'https://github.com/FS-GG/.github/issues/4816#issuecomment-6374878642'
 WORKFLOW = 'FS-GG/FS.GG.Templates/.github/workflows/retained-reference-rehearsal.yml@refs/heads/main'
 SDK_URL = 'https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.401/dotnet-sdk-10.0.401-linux-x64.tar.gz'
 SDK_SHA512 = '51c8b999af9e8dd9998c9edc5944e19a90788862068acd38694e098889054ce8c23d4f0c5cccfa16bf187d044562359e5ee69a9f8ad0bbe913ba90311fbce25b'
