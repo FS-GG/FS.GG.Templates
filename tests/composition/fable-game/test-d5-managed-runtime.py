@@ -167,13 +167,58 @@ class ManagedConsumerTests(unittest.TestCase):
             operational_start=lambda *a:{'boot':'synthetic'},normalized_roots=lambda *a:None,no_global_before_create=lambda *a:None,
             load_file=lambda name,path:types.SimpleNamespace(actual_caller=lambda:caller) if name=='d5_actual_loader' else types.SimpleNamespace(PINS=pins),
             original_clock=lambda *a:{'startedMonotonic':D5.time.monotonic()},
-            collect=lambda *a:{'failures':[]})
+            collect=lambda *a:{'failures':[]},collection_terminal=lambda *a:None)
         env={'RUNNER_TEMP':str(self.root),'RUN_ID':'42','UNIT_NAME':'fsgg-mg-templates-d5-42-1','GITHUB_WORKSPACE':str(D5.HERE.parents[2]),'SCOPE':'rehearsal','PUBLIC_PINS':'{"schema":"synthetic"}'}
         with self.assertRaisesRegex(ValueError,'original synthetic setup failure'):D5.run_d5(fake,{'synthetic':True},env)
         self.assertEqual(events,['owner'])
         receipt=json.loads((root/'attempt.json').read_text())
         self.assertEqual(receipt['disposition'],'failed');self.assertEqual(receipt['retirement'],'unqualified')
         self.assertIn('original synthetic setup failure',receipt['firstCause'])
+
+    def test_actual_collection_finalizer_indexes_success_and_first_failure_without_rewriting_attempt(self):
+        import types
+        reader=D5.load_reader(D5.HERE.parents[2]);contract=reader.caller_contract('d5',None)
+        for name,fail in [('success',False),('first-failure',True)]:
+            root=self.root/name;root.mkdir()
+            summary={'disposition':'receiver-checks-complete','executionDisposition':'receiver-checks-complete',
+                     'firstCause':None,'additionalFailures':[],'phases':{}}
+            def collect(*args):
+                if fail:raise ValueError('original synthetic collector failure')
+                return reader.collect(*args)
+            fake=types.SimpleNamespace(collect=collect,collection_terminal=reader.collection_terminal)
+            if fail:
+                with self.assertRaisesRegex(ValueError,'original synthetic collector failure'):
+                    D5.finish_collection(fake,contract,root,summary,[],None,D5.time.monotonic())
+            else:D5.finish_collection(fake,contract,root,summary,[],None,D5.time.monotonic())
+            original=json.loads((root/'attempt.json').read_text())
+            self.assertEqual((root/'d5-evidence/attempt.json').read_bytes(),(root/'attempt.json').read_bytes())
+            self.assertIsNone(original['firstCause'])
+            terminal=root/'d5-evidence/collection-terminal.json';value=json.loads(terminal.read_text())
+            if fail:self.assertIn('original synthetic collector failure',value['firstCause']);self.assertEqual(value['disposition'],'failed')
+            else:
+                self.assertIsNone(value['firstCause'])
+                self.assertEqual((root/'d5-evidence/attempt.json').read_bytes(),(root/'attempt.json').read_bytes())
+            manifest=json.loads((root/'d5-evidence/manifest.json').read_text())
+            row=next(r for r in manifest['files'] if r['path']=='collection-terminal.json')
+            self.assertEqual(row['sha256'],D5.sha(terminal));self.assertEqual(row['bytes'],terminal.stat().st_size)
+
+    def test_actual_entry_preserves_setup_primary_and_indexes_secondary_collection_failure(self):
+        import types
+        actual=D5.load_reader(D5.HERE.parents[2]);contract=actual.caller_contract('d5',None)
+        root=self.root/'current-d5-43-1'
+        def fresh(path,environ):path.mkdir();return {'HOME':str(path/'home')}
+        def owner(*args):raise ValueError('first synthetic setup failure')
+        def collect(*args):raise ValueError('secondary synthetic collection failure')
+        fake=types.SimpleNamespace(validate_admission=lambda *a:{'synthetic':True},
+            operational_start=lambda *a:{'boot':'synthetic'},normalized_roots=lambda *a:None,no_global_before_create=lambda *a:None,
+            load_file=lambda name,path:types.SimpleNamespace(actual_caller=lambda:{'fresh_environment':fresh,'load_owner':owner}) if name=='d5_actual_loader' else types.SimpleNamespace(PINS={'synthetic':True}),
+            original_clock=lambda *a:{'startedMonotonic':D5.time.monotonic()},collect=collect,collection_terminal=actual.collection_terminal)
+        env={'RUNNER_TEMP':str(self.root),'RUN_ID':'43','UNIT_NAME':'fsgg-mg-templates-d5-43-1','GITHUB_WORKSPACE':str(D5.HERE.parents[2]),'SCOPE':'rehearsal','PUBLIC_PINS':'{"synthetic":true}'}
+        with self.assertRaisesRegex(ValueError,'first synthetic setup failure'):D5.run_d5(fake,contract,env)
+        terminal=json.loads((root/'d5-evidence/collection-terminal.json').read_text())
+        self.assertIn('first synthetic setup failure',terminal['firstCause'])
+        self.assertIn('secondary synthetic collection failure',terminal['additionalFailures'][0])
+        original=json.loads((root/'attempt.json').read_text());self.assertEqual(original['additionalFailures'],[])
 
     def test_actual_lmt_recipe_preserves_canonical_source_basename_and_literal_argv(self):
         go=self.root/'go/bin/go';source=self.root/'download with spaces/main.go';output=self.root/'tools/lmt'

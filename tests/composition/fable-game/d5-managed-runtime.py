@@ -24,7 +24,7 @@ WORKFLOW = 'FS-GG/FS.GG.Templates/.github/workflows/svg-release-d5-current-publi
 READER = {'baseRevision': '1d832f2214147065bb56e0afd76d600ed01bd27d',
           'path': 'tests/composition/fable-game/retained-reference-rehearsal.py',
           'baseSha256': '4e4fb76333804a3f16c36ef16ae1fd8aac165fae6b5cf8492157f87f18dcfd43',
-          'sha256': 'e75c1d1dfdc4112499707218dff085b6a5c508f5e60cafc98c3fcef211d4b0e9'}
+          'sha256': '9148d3f22ab9c52ee46178f9938613b0659123f0f6f41fd29e4e1f8b442aadb7'}
 OWNER = {'revision': 'ac22206560f3eddfea524ce8f752ff1d0dfeec4e',
          'path': 'eng/managed_group_owner.py', 'bytes': 45315,
          'sha256': 'd846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0'}
@@ -195,6 +195,34 @@ def write(path, value):
     Path(path).write_text(data)
 
 
+def finish_collection(reader, contract, root, summary, inventory, primary, start):
+    collection_failure=None
+    try:
+        summary['seconds']=time.monotonic()-start;write(root/'attempt.json',summary)
+        inventory += [str(p.relative_to(root)) for p in root.iterdir() if p.is_file() and p.suffix in ('.json','.log','.tsv','.yml') and p.name!='d5-evidence-inputs.json']
+        write(root/'d5-evidence-inputs.json',sorted(set(inventory)))
+        result=reader.collect(root,min(time.monotonic()+120,start+1770),contract)
+        require(not result['failures'],'D5 collection incomplete')
+    except BaseException as reporting:
+        message=(type(reporting).__name__+': '+str(reporting))[:8192]
+        if primary is None:
+            collection_failure=reporting
+            summary.update(disposition='failed',executionDisposition='failed',firstCause=message)
+        else:
+            summary['additionalFailures'].append('D5 reporting/collection: '+message)
+            primary.add_note('additional D5 reporting/collection failure: '+message)
+        print('D5 reporting/collection failure: '+message,file=sys.stderr)
+    try:
+        # Append a distinct terminal record/index entry; never rewrite the copied attempt.
+        reader.collection_terminal(root,summary,contract)
+    except BaseException as reporting:
+        deciding=primary or collection_failure
+        if deciding is None:raise
+        deciding.add_note('terminal collection report Unknown: '+str(reporting)[:8192])
+        print('terminal collection report Unknown: '+str(reporting)[:8192],file=sys.stderr)
+    if collection_failure is not None:raise collection_failure
+
+
 def run_d5(reader, contract, environ):
     """Fixed D5 sequence; every executable goes through the existing managed owner."""
     source=reader.validate_admission(environ,ADMISSION,contract)
@@ -208,7 +236,7 @@ def run_d5(reader, contract, environ):
     helper=reader.load_file('d5_observations',HERE/'d5-current-public.py')
     start=reader.original_clock(environ,initial['boot'],contract)['startedMonotonic']
     receipts=[]; summary={'schema':'fsgg.current-d5.managed-attempt/1','disposition':'failed','retirement':'unqualified',
-                         'source':source,'scope':environ['SCOPE'],'firstCause':None,'additionalFailures':[],'phases':{}}
+                         'source':source,'scope':environ['SCOPE'],'executionDisposition':'started','firstCause':None,'additionalFailures':[],'phases':{}}
     selected=['d5-managed-runtime.py','d5-current-public.py','verify-svg-release-d5-current-public.sh','retained-reference-rehearsal.py','wasm-installed-c.py']
     write(root/'source-seals.json',{name:sha(HERE/name) for name in selected})
     inventory=['attempt.json','source-seals.json','pins.json','unit.json','input-downloads.json','executable-identities.json']
@@ -327,22 +355,14 @@ def run_d5(reader, contract, environ):
             check(['current-d5-backend-check','--receiver',str(destination),'--author',str(authored),'--inspect',str(inspected),'--refused',str(refused),'--before',str(before),'--after',str(after)])
             for path in destination.rglob('*'):
                 if path.is_file() and not set(path.relative_to(destination).parts)&{'.git','.nuget','node_modules','bin','obj'}:inventory.append(str(path.relative_to(root)))
-        summary['disposition']='receiver-checks-complete'
+        summary['disposition']='receiver-checks-complete';summary['executionDisposition']='receiver-checks-complete'
     except BaseException as error:
         primary=error
+        summary['executionDisposition']='failed'
         summary['firstCause']=type(error).__name__+': '+str(error)
         raise
     finally:
-        try:
-            summary['seconds']=time.monotonic()-start;write(root/'attempt.json',summary)
-            inventory += [str(p.relative_to(root)) for p in root.iterdir() if p.is_file() and p.suffix in ('.json','.log','.tsv','.yml') and p.name!='d5-evidence-inputs.json']
-            write(root/'d5-evidence-inputs.json',sorted(set(inventory)))
-            result=reader.collect(root,min(time.monotonic()+120,start+1770),contract)
-            require(not result['failures'],'D5 collection incomplete')
-        except BaseException as reporting:
-            if primary is None:raise
-            primary.add_note('additional D5 reporting/collection failure: '+str(reporting))
-            print('additional D5 reporting/collection failure: '+str(reporting),file=sys.stderr)
+        finish_collection(reader,contract,root,summary,inventory,primary,start)
     return summary
 
 

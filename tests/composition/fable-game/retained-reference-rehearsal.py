@@ -558,15 +558,35 @@ def collect(root, deadline, contract=None):
     return manifest
 
 
-def collection_terminal(root, summary):
-    evidence = root/'retained-evidence'
+def collection_terminal(root, summary, contract=None):
+    selected = selected_contract(contract)
+    evidence = root/selected['evidence']
+    if selected['name']=='d5':
+        normalized_roots(evidence,WORKSPACE)
+        evidence.mkdir(mode=0o700,exist_ok=True)
     terminal = {key:summary[key] for key in ('disposition','executionDisposition','firstCause','additionalFailures','phases','seconds')}
+    if selected['name']=='d5':
+        require(len(json.dumps(terminal).encode())<=131072, 'terminal collection metadata cap exceeded')
     path = evidence/'collection-terminal.json'
     write(path, terminal)
     manifest_path = evidence/'manifest.json'
-    manifest = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {'capBytes':EVIDENCE_CAP,'files':[],'failures':[{'error':'collection did not finish'}],'totalBytes':0}
+    manifest = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {'capBytes':selected['cap'],'files':[],'failures':[{'error':'collection did not finish'}],'totalBytes':0}
+    if selected['name']=='d5':
+        # A collector may fail before copying/indexing its original attempt. Retain
+        # that exact pre-terminal file; never replace an already copied original.
+        original=root/'attempt.json';copied=evidence/'attempt.json'
+        if original.is_file() and not original.is_symlink():
+            require(original.stat().st_size<=1048576, 'original attempt metadata cap exceeded')
+            if not copied.exists():shutil.copyfile(original,copied)
+            require(not copied.is_symlink() and copied.is_file() and sha(copied)==sha(original), 'original attempt bytes changed')
+            rows=[row for row in manifest['files'] if row['path']=='attempt.json']
+            item={'path':'attempt.json','bytes':copied.stat().st_size,'sha256':sha(copied)}
+            require(not rows or rows==[item], 'original attempt index differs')
+            if not rows:
+                manifest['files'].append(item);manifest['totalBytes']+=item['bytes']
+        else:manifest['failures'].append({'path':'attempt.json','error':'original attempt metadata unavailable'})
     size = path.stat().st_size
-    require(manifest['totalBytes']+size <= EVIDENCE_CAP, 'collection terminal exceeds evidence cap')
+    require(manifest['totalBytes']+size <= selected['cap'], 'collection terminal exceeds evidence cap')
     manifest['files'].append({'path':'collection-terminal.json','bytes':size,'sha256':sha(path)})
     manifest['totalBytes'] += size
     write(manifest_path, manifest)
