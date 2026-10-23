@@ -174,3 +174,9 @@ These checks use Root and native-runner wall-clock trust. Their skew and uncerta
 not independently authenticated; this source claims no zero-skew or cryptographic UTC
 guarantee. Contradictory timestamps or missing/cross-source evidence refuse. An expired
 queued original stays in its original custody with no second POST or new clock.
+
+The current conditional selection6377028965 replaces the unused6376768563 source
+selection before publication. No D5 dispatch, possible-send intent or runtime clock
+began under the earlier selection; no operation clock is renewed. Actual protected
+DOM deliveryb5e72ede is integrated by ancestry. Its functional repairs remain intact;
+only its shared-reader/D5 dependency seals follow this D5 source update.
