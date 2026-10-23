@@ -1,9 +1,8 @@
 name: Retained reference rehearsal (admitted dispatch only)
 
-# Source selection is bound to the exact owning4816 comment. Actual dispatch waits
-# for root CI/protected-main/prior-run/failure-gate checks; reset after the original
-# outcome. Runtime inputs bind the actual main dispatch/attempt. This entry
-# materializes one0.13 typed-SDD receiver, adopts0.19.3 and performs one locked restore.
+# Original run40017741314/a1 consumed its admission and remains retired.
+# The separately selected successor literal binds source only; root gates actual
+# CI/protected-main/profile before dispatch. Reset after that original outcome.
 # It runs no browser, Fable build, native product, apt or historical C/AT admission.
 on:
   workflow_dispatch:
