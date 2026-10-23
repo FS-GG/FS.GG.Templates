@@ -283,7 +283,7 @@ jobs:
           # workflow wasm-installed-c.yml and admitted_installed_sequence. None = held: that entry refuses
           # before any acquisition. A Programme/root admission sets this to its exact comment URL in a
           # reviewed source PR; RUNTIME_ADMITTED and both literal-false steps stay closed even then.
-          INSTALLED_ADMISSION = "https://github.com/FS-GG/.github/issues/4710#issuecomment-6359693961"
+          INSTALLED_ADMISSION = None
           INSTALLED_WORKFLOW = "FS-GG/FS.GG.Templates/.github/workflows/wasm-installed-c.yml@refs/heads/main"
           INSTALLED_UNIT = {"TasksMax":"6144","MemoryMax":str(12*1073741824),"RuntimeMaxUSec":"40min","Delegate":"yes","NoNewPrivileges":"yes","KillMode":"control-group"}
           INSTALLED_EVIDENCE_BYTES = 150 * 1048576
