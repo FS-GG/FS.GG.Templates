@@ -145,11 +145,6 @@ def capacity_snapshot(owner, staging, exclude_memory_under=None, facts=None):
     cursor = leaf
     for _ in range(64):
         row={'path':str(cursor),'memoryExcluded':exclude_memory_under is not None and cursor.is_relative_to(exclude_memory_under)};rows.append(row)
-        def read(name):
-            try:return owner._read(str(cursor/name)).strip()
-            except FileNotFoundError:
-                require(cursor == point, 'ancestor accounting unavailable: '+name)
-                return None
         # A child without CPU delegation has no cpu.max: its bound is inherited,
         # not unlimited. Require actual child/parent facts before walking upward.
         row['cpuControllerFacts']={}
@@ -175,13 +170,41 @@ def capacity_snapshot(owner, staging, exclude_memory_under=None, facts=None):
         if quota is not None:
             parts=quota.split();require(len(parts)==2 and int(parts[1])>0,'CPU accounting malformed')
             if parts[0]!='max':require(int(parts[0])>0,'CPU quota malformed');cpu=min(cpu,int(parts[0])/int(parts[1]))
-        values={name:read(name) for name in ('memory.current','memory.max','memory.high')};row.update(values)
-        if any(value is not None for value in values.values()):
+        values={};row['memoryControllerFacts']={'group':cpu_controls(cursor)}
+        for name in ('memory.current','memory.max','memory.high'):
+            try:values[name]=owner._read(str(cursor/name)).strip()
+            except FileNotFoundError:values[name]=None
+            row[name]=values[name]
+        group_memory='memory' in row['memoryControllerFacts']['group']['cgroup.controllers'].split()
+        if cursor==point:
+            require(group_memory,'root memory controller facts unavailable')
+        else:
+            row['memoryControllerFacts']['parent']=cpu_controls(cursor.parent)
+            parent_memory='memory' in row['memoryControllerFacts']['parent']['cgroup.subtree_control'].split()
+            require(group_memory==parent_memory,'memory delegation facts contradictory')
+        if all(value is None for value in values.values()):
+            if cursor==point:row['memoryAccounting']='root'
+            else:
+                require(not group_memory and not parent_memory,'delegated memory accounting unavailable')
+                require(cursor!=exclude_memory_under,'selected unit memory accounting unavailable')
+                # Missing interfaces must not mask a vanished group or changed delegation.
+                fresh={};row['memoryInheritanceReadback']=fresh
+                fresh['group']=owner._read(str(cursor/'cgroup.controllers')).strip()
+                fresh['parent']=owner._read(str(cursor.parent/'cgroup.subtree_control')).strip()
+                require(fresh['group']==row['memoryControllerFacts']['group']['cgroup.controllers'] and fresh['parent']==row['memoryControllerFacts']['parent']['cgroup.subtree_control'],'memory inheritance facts changed')
+                row['memoryAccounting']='inherited-from-ancestors'
+        else:
             require(all(value is not None for value in values.values()),'memory accounting incomplete')
+            require(group_memory and (cursor==point or parent_memory),'memory accounting contradicts delegation facts')
             current=int(values['memory.current']);require(current>=0,'memory usage malformed')
+            limits={}
+            for name in ('memory.max','memory.high'):
+                limits[name]=None if values[name]=='max' else int(values[name])
+                require(limits[name] is None or limits[name]>=0,'memory limit malformed')
+            row['memoryAccounting']='quota'
             if not row['memoryExcluded']:
-                for name in ('memory.max','memory.high'):
-                    if values[name]!='max':memory=min(memory,max(0,int(values[name])-current))
+                for limit in limits.values():
+                    if limit is not None:memory=min(memory,max(0,limit-current))
         if cursor==point:break
         cursor=cursor.parent
     else:raise ValueError('cgroup ancestor population exceeded')

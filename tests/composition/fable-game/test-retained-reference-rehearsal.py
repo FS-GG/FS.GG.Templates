@@ -384,6 +384,67 @@ class Controls(unittest.TestCase):
         self.assertEqual(facts['availableMemoryBytes'],19*1073741824)
         self.assertEqual(facts['cpuControllerReads']['/cg/parent/unit']['cgroup.subtree_control'],'memory pids')
 
+    def pids_only_fixture(self):
+        data,owner=self.inherited_cpu_fixture()
+        data['/cg/parent/unit/cgroup.subtree_control']='pids'
+        data['/cg/parent/unit/fsgg-supervisor/cgroup.controllers']='pids'
+        for name in ('memory.current','memory.max','memory.high'):
+            del data['/cg/parent/unit/fsgg-supervisor/'+name]
+        return data,owner
+
+    def test_pids_only_child_inherits_cpu_and_memory_without_losing_unit_bounds(self):
+        data,owner=self.pids_only_fixture()
+        with patch.object(m.os,'sched_getaffinity',return_value={0,1,2,3}):
+            facts=m.capacity_snapshot(owner,self.base,Path('/cg/parent/unit'));m.require_capacity(facts)
+        self.assertEqual(facts['effectiveCPUs'],2)
+        self.assertEqual(facts['availableMemoryBytes'],19*1073741824)
+        self.assertEqual(facts['ancestors'][0]['memoryAccounting'],'inherited-from-ancestors')
+
+    def test_pids_only_memory_missing_partial_delegated_or_unreadable_refuses(self):
+        leaf='/cg/parent/unit/fsgg-supervisor'
+        changes=[(leaf+'/memory.current','0'),
+                 ('/cg/parent/unit/cgroup.subtree_control','memory pids'),
+                 (leaf+'/memory.max',PermissionError('synthetic unreadable')),
+                 ('/cg/parent/unit/memory.max',None),
+                 ('/cg/parent/unit/memory.high','corrupt'),
+                 ('/cg/parent/unit/memory.max','-1')]
+        for path,value in changes:
+            data,owner=self.pids_only_fixture()
+            if value is None:del data[path]
+            else:data[path]=value
+            if path=='/cg/parent/unit/cgroup.subtree_control':data[leaf+'/cgroup.controllers']='memory pids'
+            facts={}
+            with self.subTest(path=path,value=str(value)),patch.object(m.os,'sched_getaffinity',return_value={0,1,2,3}),self.assertRaises((ValueError,PermissionError)):
+                m.capacity_snapshot(owner,self.base,Path('/cg/parent/unit'),facts)
+            self.assertFalse(facts['complete']);self.assertTrue(facts['ancestors'])
+
+    def test_selected_unit_memory_family_is_mandatory_even_when_excluded(self):
+        data,owner=self.pids_only_fixture()
+        data['/cg/parent/cgroup.subtree_control']='cpu pids'
+        data['/cg/parent/unit/cgroup.controllers']='cpu pids'
+        for name in ('memory.current','memory.max','memory.high'):del data['/cg/parent/unit/'+name]
+        with patch.object(m.os,'sched_getaffinity',return_value={0,1,2,3}),self.assertRaisesRegex(ValueError,'selected unit memory accounting unavailable'):
+            m.capacity_snapshot(owner,self.base,Path('/cg/parent/unit'))
+
+    def test_pids_only_memory_missing_cannot_hide_disappeared_group(self):
+        data,owner=self.pids_only_fixture();original=owner._read;reads=[]
+        def read(path):
+            if path=='/cg/parent/unit/fsgg-supervisor/cgroup.controllers':
+                reads.append(path)
+                if len(reads)>1:raise FileNotFoundError('synthetic group disappeared after controller snapshot')
+            return original(path)
+        owner._read=read;facts={}
+        with patch.object(m.os,'sched_getaffinity',return_value={0,1,2,3}),self.assertRaises(FileNotFoundError):
+            m.capacity_snapshot(owner,self.base,Path('/cg/parent/unit'),facts)
+        self.assertFalse(facts['complete']);self.assertIn('memoryInheritanceReadback',facts['ancestors'][0])
+
+    def test_pids_only_memory_still_enforces_outer_headroom(self):
+        data,owner=self.pids_only_fixture();data['/cg/parent/memory.current']=str(11*1073741824)
+        with patch.object(m.os,'sched_getaffinity',return_value={0,1,2,3}):
+            facts=m.capacity_snapshot(owner,self.base,Path('/cg/parent/unit'))
+            self.assertEqual(facts['availableMemoryBytes'],9*1073741824)
+            with self.assertRaisesRegex(ValueError,'8GiB\+2GiB'):m.require_capacity(facts)
+
     def test_inherited_child_still_refuses_one_cpu_ancestor(self):
         data,owner=self.inherited_cpu_fixture();data['/cg/parent/cpu.max']='100000 100000'
         with patch.object(m.os,'sched_getaffinity',return_value={0,1,2,3}):
