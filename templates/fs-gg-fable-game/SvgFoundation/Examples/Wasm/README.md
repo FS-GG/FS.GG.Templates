@@ -107,13 +107,17 @@ typechecked and emitted with Fable 5.18.0. The independent C and Rust guests com
 against SDK 0.7.0 with the pinned WASI and Rust toolchains. The tableless Rust output requires
 no normalization; when a table is present, the SDK owns its removal.
 
-The source consumer's production build passed nine browser tests in each of
-Chromium, Firefox and WebKit. These exercised actual package-owned Worker imports,
-C/Rust advice, replacement and retained-advice refusal, shutdown, explicit disposal,
-malformed candidate admission and malformed/trapping/looping invocation refusal.
-The ordinary private Ubuntu qualification used the verified browser archives;
-Firefox alone required `MOZ_DISABLE_CONTENT_SANDBOX=1` because its content sandbox
-could not chroot in that container. This profile makes no product security claim.
+With 0.7.0, the downloaded-only installed path was rehearsed locally: in an Ubuntu
+24.04 container, with clean caches, limited to 4 CPUs by affinity, and from a locally
+packed candidate of this source. Its production build passed the nine browser tests
+in each of Chromium, Firefox and WebKit. These exercised the self-contained
+package Worker, C/Rust advice, replacement and retained-advice refusal, shutdown,
+explicit disposal, malformed candidate admission and malformed/trapping/looping
+invocation refusal. Twenty cold loads per family, each in a fresh browser context,
+all reached `ready`; the p95 from the "Load policy" click to `ready` was 34 ms in
+Chromium, 47 ms in Firefox and 43 ms in WebKit. The rehearsal used the verified
+browser archives, and Firefox ran with its content sandbox enabled. This profile
+makes no product security claim.
 Captured response bodies matched the production output where available; missing
 bodies remain unknown. Owned Worker wrapper counts observe constructor and
 termination calls, not native exit acknowledgments or detached navigation cleanup.
