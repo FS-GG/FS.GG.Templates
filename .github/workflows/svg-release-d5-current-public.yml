@@ -29,9 +29,25 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - name: Hold manual runtime before any checkout, SDK or acquisition
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo 'ADMISSION=None; runtime and retirement unqualified'
+          exit 3
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.401'
+      - name: Typed current receiver policy and preserved historical controls
+        run: |
+          dotnet restore tests/ProviderComposition.Tests/ProviderComposition.Tests.fsproj --source https://api.nuget.org/v3/index.json
+          dotnet run --project tests/ProviderComposition.Tests/ProviderComposition.Tests.fsproj --no-restore
+      - name: Typed pin owner consumes the actual bounded input emitter
+        run: |
+          python3 tests/composition/fable-game/d5-current-public.py pins >"$RUNNER_TEMP/current-d5-source-pins.json"
+          dotnet run --project src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj --no-build --no-restore -- current-d5-pins-check --pins "$RUNNER_TEMP/current-d5-source-pins.json"
       - name: Pure actual-caller and refusal-preservation controls
         run: |
           bash -n tests/composition/fable-game/verify-svg-release-d5-current-public.sh
@@ -43,12 +59,12 @@ jobs:
           PUBLIC_PINS: ${{ inputs.public_pins }}
         run: |
           printf '%s\n' "$PUBLIC_PINS" >"$RUNNER_TEMP/current-d5-pins.json"
-          bash tests/composition/fable-game/verify-svg-release-d5-current-public.sh \
-            "$RUNNER_TEMP/current-d5-pins.json" "$RUNNER_TEMP/preflight-unused" --preflight-only
+          dotnet run --project src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj --no-build --no-restore -- current-d5-pins-check --pins "$RUNNER_TEMP/current-d5-pins.json"
 
   receiver:
     needs: preflight
-    if: github.event_name == 'workflow_dispatch'
+    # ADMISSION=None: source-only until the maintained owner/admission/retirement seam is reviewed.
+    if: ${{ false }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

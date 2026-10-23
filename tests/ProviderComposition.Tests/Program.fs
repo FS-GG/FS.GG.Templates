@@ -383,6 +383,100 @@ let main _ =
     assertEqual "Wizard sdd claim still binds the recorded lifecycle" (Error "receiver-lifecycle-refused") (validateReceiver current192 receiver "wizard" "typed-sdd" "1.2.3" "ReferenceDirect")
     File.WriteAllText(provenance, providerProvenance "fs-gg-fable-game" "fable-game" "typed-sdd" "1.2.3")
     assertEqual "recorded typed-sdd cannot pass as the Wizard sdd default" (Error "receiver-lifecycle-refused") (validateReceiver current192 receiver "wizard" "sdd" "1.2.3" "ReferenceDirect")
+    // Synthetic current-D5 parser/source controls only, not public receiver evidence.
+    assertEqual "missing current pin fields refuse" (Error "current-d5-pins-refused") (validateCurrentD5Pins "{}")
+    assertEqual "duplicate current pin fields refuse" (Error "current-d5-pins-refused") (validateCurrentD5Pins """{"schema":"one","schema":"two"}""")
+    assertEqual "current rehearsal has two omitted orchestration routes" (Ok 2) (currentD5Cases "rehearsal" |> Result.map List.length)
+    assertEqual "current full declared matrix has forty explicit plus two omission cells" (Ok 42) (currentD5Cases "full" |> Result.map List.length)
+    assertEqual "unknown current scope refuses" (Error "current-d5-scope-refused") (currentD5Cases "other")
+    match currentD5AuthorArguments "/receiver" "d5-default" "/cache" "models/svg-arena/arena-rules.bindings.json" with
+    | Ok args ->
+        assertEqual "actual author plan omits backend flag" false (List.contains "--backend" args)
+        assertEqual "actual author plan retains profile2" true (List.contains "fsgg-quint-profile/2" args)
+        assertEqual "actual author plan retains bindings" true (List.contains "models/svg-arena/arena-rules.bindings.json" args)
+    | Error reason -> failwith reason
+    assertEqual "unknown author work refuses" (Error "current-d5-work-refused") (currentD5AuthorArguments "/receiver" "other" "/cache" "bindings")
+    let d5Archive = Path.Combine(temp, "synthetic-current-d5.nupkg")
+    do
+        use input = ZipFile.OpenRead current193
+        use output = ZipFile.Open(d5Archive, ZipArchiveMode.Create)
+        for entry in input.Entries do
+            use reader = new StreamReader(entry.Open(), UTF8Encoding(false, true))
+            let mutable text = reader.ReadToEnd()
+            if entry.FullName.EndsWith(".nuspec") then text <- text.Replace(revision, "7be0bcf5886d39a8161b186beb8cc06e82415f1e")
+            elif entry.FullName.EndsWith("template.json") then
+                let node = System.Text.Json.Nodes.JsonNode.Parse text
+                node.["symbols"].["lifecycle"] <- System.Text.Json.Nodes.JsonNode.Parse """{"defaultValue":"typed-sdd","choices":[{"choice":"none"},{"choice":"sdd"},{"choice":"typed-sdd"},{"choice":"spec-kit"}]}"""
+                node.["symbols"].["bundle"] <- System.Text.Json.Nodes.JsonNode.Parse """{"defaultValue":"player","choices":[{"choice":"player"},{"choice":"studio"},{"choice":"tactical"},{"choice":"arcade"},{"choice":"complete"}]}"""
+                text <- node.ToJsonString()
+            let item = output.CreateEntry entry.FullName
+            use writer = new StreamWriter(item.Open(), UTF8Encoding(false))
+            writer.Write text
+        for relative in [ "SvgFoundation/Studio/Studio.fsproj"; "SvgFoundation/Studio/Program.fs"; "SvgFoundation/Examples/Tactical/scene.json"; "SvgFoundation/Examples/Arcade/scene.json" ] do
+            let entry = output.CreateEntry("content/templates/fs-gg-fable-game/" + relative)
+            use writer = new StreamWriter(entry.Open(), UTF8Encoding(false))
+            writer.Write "fixture"
+    for relative in [ "SvgFoundation/Studio/Studio.fsproj"; "SvgFoundation/Studio/Program.fs"; "SvgFoundation/Examples/Tactical/scene.json"; "SvgFoundation/Examples/Arcade/scene.json" ] do
+        let path = Path.Combine(receiver, relative)
+        Directory.CreateDirectory(Path.GetDirectoryName path) |> ignore
+        File.WriteAllText(path, "fixture")
+    for relative in [ "SvgFoundation/Studio"; "SvgFoundation/Examples/Tactical"; "SvgFoundation/Examples/Arcade" ] do
+        Directory.CreateDirectory(Path.Combine(receiver, relative)) |> ignore
+    let d5Provenance lane bundle =
+        sprintf """{"generator":{"id":"FS.GG.SDD.Artifacts","version":"2.4.0"},"providerName":"fable-game","templateRef":"fs-gg-fable-game","effectiveParameters":[{"key":"productName","value":"ReferenceDirect"},{"key":"lifecycle","value":"%s"},{"key":"bundle","value":"%s"}]}""" lane bundle
+    File.WriteAllText(provenance, d5Provenance "spec-kit" "complete")
+    assertEqual "current explicit frozen token closes source and provenance" (Ok ()) (validateCurrentD5ReceiverSource d5Archive receiver "provider" "spec-kit" "complete" "ReferenceDirect")
+    File.WriteAllText(provenance, d5Provenance "spec-kit" "player")
+    assertEqual "current bundle provenance cannot relabel Complete" (Error "receiver-bundle-refused") (validateCurrentD5ReceiverSource d5Archive receiver "provider" "spec-kit" "complete" "ReferenceDirect")
+    File.WriteAllText(provenance, d5Provenance "spec-kit" "complete")
+    let project = Path.Combine(receiver, "SvgFoundation/SvgFoundation.fsproj")
+    let projectBytes = File.ReadAllBytes project
+    File.WriteAllText(project, "")
+    assertEqual "empty product project cannot pass a current marker check" (Error "receiver-source-closure-refused") (validateCurrentD5ReceiverSource d5Archive receiver "provider" "spec-kit" "complete" "ReferenceDirect")
+    File.WriteAllBytes(project, projectBytes)
+    assertEqual "missing backend observations cannot pass" (Error "current-d5-backend-or-preservation-refused") (validateCurrentD5Backend receiver "missing" "missing" "missing" "missing" "missing")
+    assertEqual "synthetic source fixture is not genuine public qualification" (Error "current-d5-public-archive-refused") (validateCurrentD5Receiver d5Archive receiver "provider" "spec-kit" "complete" "ReferenceDirect")
+    let backendRoot = Path.Combine(temp, "synthetic-current-backend")
+    let writeBackend relative text =
+        let path = Path.Combine(backendRoot, relative)
+        Directory.CreateDirectory(Path.GetDirectoryName path) |> ignore
+        File.WriteAllText(path, text)
+        path
+    let canonical = writeBackend "work/d5-default/specification.md" "owned canonical specification"
+    writeBackend "models/svg-arena/arena-rules.md" "owned model" |> ignore
+    writeBackend ".fsgg/scaffold-provenance.json" "owned config" |> ignore
+    writeBackend "AGENTS.md" "owned instructions" |> ignore
+    let model = writeBackend "readiness/d5-default/quint/model.qnt" "compiled model"
+    writeBackend "readiness/d5-default/typed-authority.json"
+        (sprintf """{"backend":"quint-specification-v1","profileIdentity":"fsgg-quint-profile/2","packageIdentity":"FS.GG.SDD.Artifacts/2.4.0","artifacts":[{"path":"readiness/d5-default/quint/model.qnt","sha256":"%s"}]}""" (digest model)) |> ignore
+    let beforeBackend = Path.Combine(temp, "backend-before.json")
+    let afterBackend = Path.Combine(temp, "backend-after.json")
+    let snapshotBackend path =
+        let rows = System.Collections.Generic.Dictionary<string, string>()
+        for file in Directory.EnumerateFiles(backendRoot, "*", SearchOption.AllDirectories) do
+            rows.Add(Path.GetRelativePath(backendRoot, file).Replace(Path.DirectorySeparatorChar, '/'), digest file)
+        File.WriteAllText(path, System.Text.Json.JsonSerializer.Serialize rows)
+    let succeeded = Path.Combine(temp, "backend-succeeded.json")
+    let refusedBackend = Path.Combine(temp, "backend-refused.json")
+    File.WriteAllText(succeeded, """{"outcome":"succeeded","classification":"quint-specification-v1"}""")
+    File.WriteAllText(refusedBackend, """{"outcome":"blocked","changedPaths":[],"diagnostics":[{"id":"QUINT-PROFILE-IDENTITY"}]}""")
+    let checkBackend () = validateCurrentD5Backend backendRoot succeeded succeeded refusedBackend beforeBackend afterBackend
+    snapshotBackend beforeBackend; snapshotBackend afterBackend
+    assertEqual "synthetic current backend observations close complete owner state" (Ok ()) (checkBackend ())
+    File.AppendAllText(canonical, "corrupt"); snapshotBackend afterBackend
+    assertEqual "canonical work mutation refuses" (Error "current-d5-backend-or-preservation-refused") (checkBackend ())
+    File.Delete canonical; snapshotBackend afterBackend
+    assertEqual "canonical work deletion refuses" (Error "current-d5-backend-or-preservation-refused") (checkBackend ())
+    File.WriteAllText(canonical, "owned canonical specification")
+    let partial = writeBackend "work/d5-refused/specification.md" "partial unaccepted work"
+    snapshotBackend afterBackend
+    assertEqual "new partial refused work refuses" (Error "current-d5-backend-or-preservation-refused") (checkBackend ())
+    File.Delete partial; snapshotBackend afterBackend
+    assertEqual "even an unaccepted refused work directory cannot masquerade as no effect" (Error "current-d5-backend-or-preservation-refused") (checkBackend ())
+    Directory.Delete(Path.GetDirectoryName partial)
+    snapshotBackend afterBackend
+    File.WriteAllText(succeeded, "malformed")
+    assertEqual "malformed actual observation never passes" (Error "current-d5-backend-or-preservation-refused") (checkBackend ())
     let toolArchive = Path.Combine(temp, "tool.nupkg")
     use toolZip = ZipFile.Open(toolArchive, ZipArchiveMode.Create)
     let toolNuspec = toolZip.CreateEntry("FS.GG.SDD.Cli.nuspec")

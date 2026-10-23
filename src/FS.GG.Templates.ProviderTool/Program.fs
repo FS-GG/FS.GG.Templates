@@ -429,6 +429,31 @@ let main argv =
             match ReferencePublication.validateReceiver parsed.["--archive"] parsed.["--receiver"] parsed.["--route"] parsed.["--lifecycle"] parsed.["--sdd-version"] parsed.["--product-name"] with
             | Ok () -> printfn "reference receiver: valid — %s %s" parsed.["--route"] parsed.["--lifecycle"]; 0
             | Error reason -> fail reason
+        | "current-d5-pins-check" :: tail ->
+            let parsed = parseClosedOptions [ "--pins" ] tail
+            match ReferencePublication.validateCurrentD5Pins (File.ReadAllText parsed.["--pins"]) with
+            | Ok () -> printfn "current D5 pins: valid"; 0
+            | Error reason -> fail reason
+        | "current-d5-cases" :: tail ->
+            let parsed = parseClosedOptions [ "--scope" ] tail
+            match ReferencePublication.currentD5Cases parsed.["--scope"] with
+            | Ok rows -> rows |> List.iter (fun (name, route, lifecycle, bundle) -> printfn "%s\t%s\t%s\t%s" name route lifecycle bundle); 0
+            | Error reason -> fail reason
+        | "current-d5-author-args" :: tail ->
+            let p = parseClosedOptions [ "--root"; "--work"; "--cache"; "--bindings" ] tail
+            match ReferencePublication.currentD5AuthorArguments p.["--root"] p.["--work"] p.["--cache"] p.["--bindings"] with
+            | Ok args -> printfn "%s" (System.Text.Json.JsonSerializer.Serialize args); 0
+            | Error reason -> fail reason
+        | "current-d5-receiver-check" :: tail ->
+            let p = parseClosedOptions [ "--archive"; "--receiver"; "--route"; "--lifecycle"; "--bundle"; "--product-name" ] tail
+            match ReferencePublication.validateCurrentD5Receiver p.["--archive"] p.["--receiver"] p.["--route"] p.["--lifecycle"] p.["--bundle"] p.["--product-name"] with
+            | Ok () -> printfn "current D5 receiver: valid"; 0
+            | Error reason -> fail reason
+        | "current-d5-backend-check" :: tail ->
+            let p = parseClosedOptions [ "--receiver"; "--author"; "--inspect"; "--refused"; "--before"; "--after" ] tail
+            match ReferencePublication.validateCurrentD5Backend p.["--receiver"] p.["--author"] p.["--inspect"] p.["--refused"] p.["--before"] p.["--after"] with
+            | Ok () -> printfn "current D5 backend and preservation: valid"; 0
+            | Error reason -> fail reason
         | "feed-occupancy" :: tail ->
             let parsed = parseClosedOptions [ "--version" ] tail
             feedOccupancy parsed.["--version"]
