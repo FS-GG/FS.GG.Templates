@@ -321,9 +321,114 @@ export default defineConfig({ ...maintained, testMatch: "wasm-policy.spec.ts", w
 });
 WASM_CONFIG
   (cd "$evidence/direct/Browser.Tests" && npm ci "${npm_args[@]}") >"$evidence/browser-npm.log" 2>&1
+  # WASM-off (disabled) browser path, FS-GG/.github#4710: the same pattern on the published DEFAULT
+  # product built above with FsGgWasmPolicyExample=false. The generated cases observe the production
+  # page in the browser: it renders without page errors, constructs no Worker/SharedWorker, compiles or
+  # instantiates no WebAssembly (with a positive hook control), requests and serves no WASM/Worker/policy
+  # asset, and mounts no policy UI. They import only the GENERATED maintained config.
+  cat >"$evidence/default/Browser.Tests/wasm-off.generated.config.ts" <<'WASM_OFF_CONFIG'
+import { defineConfig } from "@playwright/test";
+import maintained from "./playwright.config";
+const family = process.env.PLAYWRIGHT_BROWSER_FAMILY;
+const results = process.env.FSGG_WASM_RESULTS;
+if (!["chromium", "firefox", "webkit"].includes(family ?? "") || !results?.startsWith("/")) throw new Error("explicit family/results required");
+if (process.env.FsGgWasmPolicyExample !== "false" || process.env.PLAYWRIGHT_EXECUTABLE_PATH) throw new Error("default WASM-off own-archive profile required");
+export default defineConfig({ ...maintained, testMatch: "wasm-off.generated.spec.ts", workers: 1, retries: 0,
+  timeout: 30000, expect: { timeout: 5000 }, outputDir: `${results}/${family}/test-results`,
+  reporter: [["line"], ["json", { outputFile: `${results}/${family}/report.json` }]],
+  use: { ...maintained.use, trace: "on", screenshot: "only-on-failure", video: "off" },
+  webServer: [{ command: "../Client/node_modules/.bin/vite preview --config vite.config.js --host 127.0.0.1 --port 5100 --strictPort",
+    cwd: "../SvgFoundation", url: "http://127.0.0.1:5100/", timeout: 30000, reuseExistingServer: false }]
+});
+WASM_OFF_CONFIG
+  cat >"$evidence/default/Browser.Tests/wasm-off.generated.spec.ts" <<'WASM_OFF_SPEC'
+import { expect, test, type Page } from "@playwright/test";
+
+// The published default product, built with FsGgWasmPolicyExample=false: the WASM-off browser path.
+const wasmAsset = /\.wasm(?:[?#]|$)|\/_content\/FS\.GG\.Wasm\.|module-worker\.mjs|worker-client\.mjs|\/wasm-policy\/|\/wasm-example\//;
+
+async function open(page: Page) {
+  const requests: string[] = [];
+  const errors: string[] = [];
+  page.on("request", request => requests.push(request.url()));
+  page.on("pageerror", error => errors.push(String(error)));
+  await page.addInitScript(() => {
+    const scope = globalThis as any;
+    const counts = { worker: 0, sharedWorker: 0, wasm: 0, hooked: false };
+    scope.__fsggWasmOff = counts;
+    for (const [name, key] of [["Worker", "worker"], ["SharedWorker", "sharedWorker"]] as const) {
+      const original = scope[name];
+      if (typeof original === "function") {
+        scope[name] = new Proxy(original, { construct(target, args, newTarget) { (counts as any)[key]++; return Reflect.construct(target, args, newTarget); } });
+      }
+    }
+    const wasm = scope.WebAssembly;
+    if (wasm) {
+      for (const name of ["compile", "compileStreaming", "instantiate", "instantiateStreaming", "validate"]) {
+        const original = wasm[name];
+        if (typeof original === "function") wasm[name] = function (this: unknown, ...args: unknown[]) { counts.wasm++; return original.apply(this, args); };
+      }
+      for (const name of ["Module", "Instance"]) {
+        const original = wasm[name];
+        if (typeof original === "function") wasm[name] = new Proxy(original, { construct(target, args, newTarget) { counts.wasm++; return Reflect.construct(target, args, newTarget); } });
+      }
+    }
+    counts.hooked = true;
+  });
+  await page.goto("/");
+  await expect(page.locator("h1")).toHaveText("Cooperative SVG arena");
+  await page.waitForLoadState("networkidle");
+  return { requests, errors };
+}
+
+test.describe("default WASM-off product", () => {
+  test("default production page renders its game surface without page errors", async ({ page }) => {
+    const { errors } = await open(page);
+    await expect(page.locator("svg").first()).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test("no Worker or SharedWorker is constructed", async ({ page }) => {
+    await open(page);
+    expect(await page.evaluate(() => (globalThis as any).__fsggWasmOff)).toMatchObject({ hooked: true, worker: 0, sharedWorker: 0 });
+  });
+
+  test("no WebAssembly module is compiled, instantiated or validated on the page", async ({ page }) => {
+    await open(page);
+    expect(await page.evaluate(() => (globalThis as any).__fsggWasmOff)).toMatchObject({ hooked: true, wasm: 0 });
+    // Positive control: the hook observes a call (validate creates no module or instance).
+    expect(await page.evaluate(() => { WebAssembly.validate(new Uint8Array([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0])); return (globalThis as any).__fsggWasmOff.wasm; })).toBe(1);
+  });
+
+  test("no WASM, Worker or policy asset is requested", async ({ page }) => {
+    const { requests } = await open(page);
+    expect(requests.filter(url => wasmAsset.test(url))).toEqual([]);
+  });
+
+  test("no WASM policy UI is mounted", async ({ page }) => {
+    await open(page);
+    await expect(page.locator("#wasm-policy-example")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Load policy", exact: true })).toHaveCount(0);
+  });
+
+  test("WASM package and guest assets are not served", async ({ page }) => {
+    await open(page);
+    for (const path of ["/_content/FS.GG.Wasm.Browser/module-worker.mjs", "/_content/FS.GG.Wasm.Browser/worker-client.mjs",
+                        "/wasm-policy/c-normal.wasm", "/wasm-policy/modules.json"]) {
+      const response = await page.request.get(path);
+      const type = response.headers()["content-type"] ?? "";
+      const body = await response.body();
+      const asset = response.ok() && (/javascript|wasm|json/.test(type) || body.subarray(0, 4).equals(Buffer.from([0, 0x61, 0x73, 0x6d])));
+      expect(asset, `${path} -> ${response.status()} ${type}`).toBe(false);
+    }
+  });
+});
+WASM_OFF_SPEC
+  (cd "$evidence/default/Browser.Tests" && npm ci "${npm_args[@]}") >"$evidence/browser-off-npm.log" 2>&1
   # Browser cases are not run here. The managed caller runs each Playwright --list/test
-  # invocation as its own require-empty managed group and asserts the 9 cases per family.
-  echo 'WASM public: direct default/opt-in source and production graph passed; the 27 browser cases run as managed groups in the caller; retaining/provider/Wizard/AT/native-exit acceptance not claimed'
+  # invocation as its own require-empty managed group and asserts 9 enabled cases and 6 WASM-off
+  # cases per family.
+  echo 'WASM public: direct default/opt-in source and production graph passed; the 27 enabled and 18 WASM-off browser cases run as managed groups in the caller; retaining/provider/Wizard/AT/native-exit acceptance not claimed'
   exit 0
 fi
 : "${QUINT_BIN:?set QUINT_BIN to qualified Quint 0.32.0}"
