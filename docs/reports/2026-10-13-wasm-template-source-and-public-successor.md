@@ -1013,3 +1013,43 @@ The single dispatch admitted by FS-GG/.github#4710 comment 6352823677 ran at `32
 
   The Done-when receiver is the current published Workspace.Template that carries the fix
   (0.19.2 today, not 0.19.0).
+
+### Installed-C run 3 (39920080680): 27/27 on published 0.19.3; accepted as evidence — 2026-10-23
+
+The path from run 2's failure:
+1. FS.GG.Game#727 fixed by Game#728, published as FS.GG.Wasm 0.7.0 (`wasm/v0.7.0` → `15e287d7`).
+2. The receiver re-pinned to `[0.7.0]` (#748).
+3. Workspace.Template 0.19.3 prepared (#749) and published (release 39910502481; tag `386e32b7` →
+   `7be0bcf5`; signed nuget.org archive `9594ec20…`; 512 signature-excluded entries equal to the
+   original).
+4. The installed-C caller and current-public cohort pinned to it (#750).
+5. A precheck rehearsal against the published bytes passed 27/27.
+6. The single admitted dispatch: FS-GG/.github#4710 comment 6359693961, admission #753 merged as
+   `24f3c30`, reset #754 merged as `91a4e206` 13 min after the conclusion.
+
+**Result: passed 27/27.**
+- Chromium, Firefox and WebKit each had 9 listed and 9 expected, with 0 unexpected, flaky or skipped.
+- All **26** managed groups were contained and `observed-empty-removed` under the real owner.
+- The unit and package readbacks matched.
+- The checker returned `source-passed` on the published bytes.
+- Timing: setup 55.7 s of 840 s, installed 115.7 s of 1230 s.
+- Peaks: 189 tasks and 5.91 GiB, with no oom or pids events.
+- Artifact 12486098844 (`sha256:ddd18627…`).
+
+**Independent acceptance and fdev:** accepted with gaps.
+
+**The merged tree:** unrelated #752 (a Xantham watch) merged between #750 and #753. The run's tree was
+the accepted #753 diff plus #752, which touches no installed-C file; fdev ratified it.
+
+**#4710 stays open** on its Done-when "real enabled/disabled browser path". The default WASM-off
+product was built and statically checked for the absence of WASM assets, but no browser case ran it.
+
+**Recorded limits:**
+- process checks cover the unit cgroup only;
+- no CPU pressure or hosted cold-load timing;
+- per-group memory peaks are null by design;
+- a single run;
+- the provider and Wizard routes are qualified separately (run 39915065069, FS-GG/.github#4709).
+
+The bundled-from-0.7.0 evidence is indirect: the evaluated `[0.7.0]` graph, the published locks, and the
+materializer's archive pin with exit 0.
