@@ -984,8 +984,10 @@ The single dispatch admitted by FS-GG/.github#4710 comment 6352823677 ran at `32
   - Setup took 63.1 s against the 840 s budget; the installed phase took 90.3 s against
     1230 s (stopped at Firefox); the checker took 66.6 s; the whole sequence 153.5 s.
   - `pids.peak` was at most 188 per group, and the unit peaked at 189 against 6144.
-  - The unit's cumulative `memory.peak` was 5.69 GiB, mostly page cache, against 12 GiB.
-  - There were 0 `oom_kill` and 0 `pids.events` max events, so resource limits are ruled out.
+  - The unit's cumulative `memory.peak` was 5,968,453,632 bytes (5.56 GiB; the accepted
+    report's "5.69 GiB" is corrected here), mostly page cache, against 12 GiB.
+  - There were 0 `oom_kill` and 0 `pids.events` max events, so a pids, memory or OOM cause is
+    ruled out; CPU pressure was not recorded.
 - **Not established.**
   - **Firefox:** 0 passed, 1 failed, 8 not run (`--max-failures=1`).
   - **WebKit:** 0 of 9 run.
