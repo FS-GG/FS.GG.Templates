@@ -151,6 +151,14 @@ jobs:
           fi
       - uses: actions/checkout@v7
         if: steps.scope.outputs.run == 'true'
+      - name: Check retaining reference transaction controls
+        if: steps.scope.outputs.run == 'true'
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          set -euo pipefail
+          python3 tests/composition/fable-game/test-current-reference-adoption.py
+          python3 tests/composition/fable-game/test-portal-adoption.py
       - name: Check out exact canonical Python fixture source
         if: steps.scope.outputs.run == 'true'
         uses: actions/checkout@v7

@@ -305,14 +305,58 @@ def tree_observation(root: Path) -> tuple[str, list[dict]]:
     return digest(encoded), rows
 
 
+def current_reference_tools(candidate: bytes, current: bytes | None) -> bytes:
+    """Update the package-owned compiler row without replacing SDD/owner tools."""
+    def unique_object(pairs):
+        value = {}
+        for key, child in pairs:
+            if key in value:
+                raise ValueError(f"duplicate tool manifest key: {key}")
+            value[key] = child
+        return value
+
+    def reject_constant(value):
+        raise ValueError(f"non-JSON constant: {value}")
+
+    def read(data):
+        try:
+            value = json.loads(data, object_pairs_hook=unique_object,
+                               parse_constant=reject_constant)
+        except (UnicodeDecodeError, ValueError) as error:
+            fail(f"current reference tool manifest is ambiguous or malformed: {error}", 3)
+        if (not isinstance(value, dict) or type(value.get("version")) is not int
+                or value["version"] != 1 or value.get("isRoot") is not True
+                or not isinstance(value.get("tools"), dict)):
+            fail("current reference tool manifest root differs from the supported version1/isRoot=true", 3)
+        if len({name.casefold() for name in value["tools"]}) != len(value["tools"]):
+            fail("current reference tool manifest has ambiguous package-id casing", 3)
+        return value
+
+    target = read(candidate)
+    target_fable = {"version": "5.18.0", "commands": ["fable"]}
+    if target["tools"].get("fable") != target_fable:
+        fail("current reference candidate must declare the exact Fable5.18.0 row")
+    existing = target if current is None else read(current)
+    if existing["tools"].get("fable") not in (
+            {"version": "5.13.0", "commands": ["fable"]}, target_fable):
+        fail("current reference Fable row is edited or unsupported", 3)
+    # Other candidate defaults may fill absent tools. Existing co-tenant entries
+    # and root metadata win; only the authenticated Fable row is replaced.
+    merged_tools = {**target["tools"], **existing["tools"], "fable": target_fable}
+    return (json.dumps({**existing, "tools": merged_tools}, indent=2) + "\n").encode()
+
+
 def candidate_bytes(source: Path, logical: str, source_solution: Path,
                     source_product: str, source_namespace: str,
                     destination_product: str, destination_namespace: str,
-                    destination: Path | None = None) -> bytes:
+                    destination: Path | None = None, current_reference: bool = False) -> bytes:
     path = candidate_path(source, logical, source_solution)
     if path.is_symlink() or not path.is_file():
         fail(f"candidate managed file is missing or not regular: {logical}")
-    if logical in {".agents/skills/skill-manifest.json", ".claude/skills/skill-manifest.json"}:
+    if current_reference and logical == ".config/dotnet-tools.json":
+        current = destination.read_bytes() if destination is not None and destination.is_file() else None
+        return current_reference_tools(path.read_bytes(), current)
+    elif logical in {".agents/skills/skill-manifest.json", ".claude/skills/skill-manifest.json"}:
         current = destination.read_bytes() if destination is not None and destination.is_file() else None
         data = package_product_manifest(source, current)
     else:
@@ -368,7 +412,15 @@ def current_reference_manifest(path: Path, extension: dict) -> dict:
                    or any(not isinstance(value, str) or not re.fullmatch(r"[0-9a-f]{64}", value)
                           for value in values) for values in canonical.values())):
         fail("current reference requires canonical hashes for every managed product file")
-    return {**baseline, "managedPaths": combined,
+    extra_baselines = extension.get("additionalBaselineDigests")
+    if (not isinstance(extra_baselines, dict)
+            or set(extra_baselines) != {row["version"] for row in baseline["sourceArchives"]}
+            or any(not isinstance(rows, dict) or not rows or not set(rows) <= set(additions)
+                   for rows in extra_baselines.values())):
+        fail("current reference additional baselines must name only added managed paths")
+    baseline_digests = {version: {**rows, **extra_baselines.get(version, {})}
+                        for version, rows in baseline["baselineDigests"].items()}
+    return {**baseline, "managedPaths": combined, "baselineDigests": baseline_digests,
             "currentPublishedReference": CURRENT_REFERENCE,
             "candidateCanonicalDigests": canonical,
             "sourceCandidates": [CURRENT_REFERENCE]}
@@ -444,7 +496,8 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
         reject_symlink_chain(workspace, destination, "workspace managed")
         managed_actual.add(destination.relative_to(workspace).as_posix())
         staged = candidate_bytes(candidate, logical, source_solution, source_product, source_namespace,
-                                 destination_product, destination_namespace, destination)
+                                 destination_product, destination_namespace, destination,
+                                 current_reference=bool(manifest.get("currentPublishedReference")))
         candidate_mode = file_mode(source_path)
         target_hashes = manifest.get("candidateCanonicalDigests", {}).get(logical)
         # Authenticate the unmerged candidate, not its receiver-specific skill union.
@@ -477,7 +530,8 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
                                        ".claude/skills/skill-manifest.json"}
         admitted_manifest = (manifest_logical
                              and admitted_workspace_skill_manifest(candidate, current, manifest))
-        if (not admitted_manifest and current_canonical.isdisjoint(candidate_canonical)
+        admitted_tools = bool(manifest.get("currentPublishedReference")) and logical == ".config/dotnet-tools.json"
+        if (not admitted_manifest and not admitted_tools and current_canonical.isdisjoint(candidate_canonical)
                 and current_canonical.isdisjoint(allowed[logical])):
             conflicts.append({"path": logical, "reason": "edited or unsupported managed content",
                               "currentCanonicalSha256": sorted(current_canonical)})
@@ -760,7 +814,8 @@ def apply(args: list[str]) -> None:
             staged.parent.mkdir(parents=True, exist_ok=True)
             staged.write_bytes(candidate_bytes(candidate, logical, source_solution, source_product,
                                                 source_namespace, destination_product, destination_namespace,
-                                                destination))
+                                                destination,
+                                                current_reference=bool(current.get("currentPublishedReference"))))
             source_mode = file_mode(candidate_path(candidate, logical, source_solution))
             staged.chmod(source_mode)
             if destination.exists():

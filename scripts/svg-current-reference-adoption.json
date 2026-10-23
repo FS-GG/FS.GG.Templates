@@ -10,6 +10,7 @@
     "descriptorSha256": "6b3d8f2dcbdcd429e4f622cfd6e1515c439097147bb79f5d5c7969d36c3b5006"
   },
   "additionalManagedPaths": [
+    ".config/dotnet-tools.json",
     "Browser.Tests/external-command-outcomes.spec.ts",
     "Browser.Tests/soldier-reference.spec.ts",
     "Browser.Tests/wasm-policy.spec.ts",
@@ -43,6 +44,9 @@
     "SvgFoundation/SoldierReferenceLocal.fs"
   ],
   "candidateCanonicalDigests": {
+    ".config/dotnet-tools.json": [
+      "cf622605d9b06ccacfc5fd98e58783a1cdb2a1d190efdf4a6b4649be493f6374"
+    ],
     ".github/workflows/product-ci.yml": [
       "51a0ca7209e45d3f08fa723d538f94c535081983d603f6c7bf83564906c12deb"
     ],
@@ -531,5 +535,19 @@
     "scripts/prepare-svg-release.sh": [
       "0bd5a3649330fb450efdc79df7cee688a8a66ec24ddf21253e6066e076caa3f3"
     ]
+  },
+  "additionalBaselineDigests": {
+    "0.10.0": {
+      ".config/dotnet-tools.json": "45ec3cd7f134874e2adaa115e27bb6117230e7944064e43b2ff70b34960a2fe6"
+    },
+    "0.11.0": {
+      ".config/dotnet-tools.json": "45ec3cd7f134874e2adaa115e27bb6117230e7944064e43b2ff70b34960a2fe6"
+    },
+    "0.12.0": {
+      ".config/dotnet-tools.json": "45ec3cd7f134874e2adaa115e27bb6117230e7944064e43b2ff70b34960a2fe6"
+    },
+    "0.13.0": {
+      ".config/dotnet-tools.json": "45ec3cd7f134874e2adaa115e27bb6117230e7944064e43b2ff70b34960a2fe6"
+    }
   }
 }

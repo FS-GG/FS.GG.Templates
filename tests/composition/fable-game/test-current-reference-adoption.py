@@ -88,7 +88,11 @@ class CurrentReference(unittest.TestCase):
         current, managed, _, _ = adopter.manifest_data(self.manifest)
         historical, original, _, _ = adopter.manifest_data(self.historical)
         self.assertEqual(current['sourceArchives'], historical['sourceArchives'])
-        self.assertEqual(current['baselineDigests'], historical['baselineDigests'])
+        for version, rows in current['baselineDigests'].items():
+            self.assertEqual({path: sha for path, sha in rows.items() if path != '.config/dotnet-tools.json'},
+                             historical['baselineDigests'][version])
+            if version in self.extension['additionalBaselineDigests']:
+                self.assertEqual(rows['.config/dotnet-tools.json'], '45ec3cd7f134874e2adaa115e27bb6117230e7944064e43b2ff70b34960a2fe6')
         self.assertEqual([row['version'] for row in current['sourceArchives']], ['0.10.0', '0.11.0', '0.12.0', '0.13.0'])
         self.assertEqual(current['currentPublishedReference'], adopter.CURRENT_REFERENCE)
         self.assertEqual(set(managed) - set(original), set(self.extension['additionalManagedPaths']))
@@ -213,6 +217,129 @@ class CurrentReference(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.inventory_receiver()
         self.assertEqual(self.tree(), before)
+
+    def test_original_tool_manifest_upgrades_and_owner_edit_refuses(self):
+        # Exact source bytes shared by the four admitted historical archives.
+        old = b'{\n  "version": 1,\n  "isRoot": true,\n  "tools": {\n    "fable": {\n      "version": "5.13.0",\n      "commands": [ "fable" ]\n    }\n  }\n}\n'
+        path = self.receiver / '.config/dotnet-tools.json'
+        path.write_bytes(old)
+        self.inventory_receiver()
+        self.apply_receiver()
+        tools = json.loads(path.read_text())['tools']
+        self.assertEqual(tools['fable']['version'], '5.18.0')
+        self.assertEqual((self.receiver / '.config/local.json').read_bytes(), b'owner configuration\n')
+        adopter.restore(self.receiver, self.backup)
+        self.assertEqual(path.read_bytes(), old)
+        path.write_bytes(old.replace(b'5.13.0', b'5.12.0'))
+        before = self.tree()
+        with self.assertRaises(SystemExit) as error:
+            self.inventory_receiver()
+        self.assertEqual(error.exception.code, 3)
+        self.assertEqual(self.tree(), before)
+
+    def test_typed_sdd_co_tenants_and_metadata_survive_upgrade_and_recovery(self):
+        # Source-shaped SDD2.0.2 merge, not installed SDD execution.
+        value = {'version': 1, 'isRoot': True, 'ownerNote': {'text': 'SyntheticReference403 stays owner text'},
+                 'tools': {'fable': {'version': '5.13.0', 'commands': ['fable']},
+                           'fs.gg.sdd.cli': {'version': '2.0.2', 'commands': ['fsgg-sdd']},
+                           'fs.gg.coord.cli': {'version': '0.90.0', 'commands': ['fsgg-coord-engine']},
+                           'owner.local': {'version': '7.0.0', 'commands': ['owner-tool'],
+                                           'note': 'SyntheticReference403 remains in this tool row'},
+                           'fantomas': {'version': '7.0.0', 'commands': ['fantomas']}}}
+        path = self.receiver / '.config/dotnet-tools.json'
+        before_bytes = (json.dumps(value, indent=4) + '\n\n').encode()
+        path.write_bytes(before_bytes)
+        path.chmod(0o600)
+        before = self.tree()
+        self.inventory_receiver()
+        self.apply_receiver()
+        merged = json.loads(path.read_bytes())
+        self.assertEqual(merged['ownerNote'], value['ownerNote'])
+        self.assertEqual({key: row for key, row in merged['tools'].items() if key != 'fable'},
+                         {key: row for key, row in value['tools'].items() if key != 'fable'})
+        self.assertEqual(merged['tools']['fable'], {'version': '5.18.0', 'commands': ['fable']})
+        adopter.restore(self.receiver, self.backup)
+        self.assertEqual(path.read_bytes(), before_bytes)
+        self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+        self.assertEqual(self.tree(), before)
+        # The same co-tenant input exercises interrupted apply and rollback recovery.
+        receipt = harness.exercise(self.candidate, self.receiver, self.root / 'typed-controls', self.manifest)
+        self.assertEqual(self.tree(), before)
+        self.assertIn('interrupted-apply-restored', receipt['controls'])
+        self.assertIn('explicit-interrupted-rollback-recovered-and-idempotent', receipt['controls'])
+
+    def test_edited_or_ambiguous_tool_manifest_refuses_before_receiver_write(self):
+        path = self.receiver / '.config/dotnet-tools.json'
+        good = {'version': 1, 'isRoot': True, 'tools': {'fable': {'version': '5.13.0', 'commands': ['fable']}}}
+        cases = [b'{', b'{"version":1,"isRoot":true,"tools":{},"tools":{}}']
+        for change in ['root', 'version', 'fable-version', 'fable-command', 'fable-extra', 'case-variant', 'missing-fable']:
+            value = json.loads(json.dumps(good))
+            if change == 'root': value['isRoot'] = False
+            elif change == 'version': value['version'] = True
+            elif change == 'fable-version': value['tools']['fable']['version'] = '5.12.0'
+            elif change == 'fable-command': value['tools']['fable']['commands'] = ['other']
+            elif change == 'fable-extra': value['tools']['fable']['ownerEdit'] = True
+            elif change == 'case-variant': value['tools']['Fable'] = {'version': '5.12.0', 'commands': ['fable']}
+            else: del value['tools']['fable']
+            cases.append(json.dumps(value).encode())
+        for raw in cases:
+            with self.subTest(raw=raw):
+                path.write_bytes(raw)
+                before = self.tree()
+                with self.assertRaises(SystemExit) as error:
+                    self.inventory_receiver()
+                self.assertEqual(error.exception.code, 3)
+                self.assertEqual(self.tree(), before)
+                self.assertFalse(self.backup.exists())
+
+    def test_output_symlink_ancestor_and_dotdot_overlap_refuse_without_write(self):
+        alias = self.root / 'receiver-alias'
+        alias.symlink_to(self.receiver, target_is_directory=True)
+        for output in [alias / 'out', self.receiver / 'unused/../out']:
+            with self.subTest(output=output):
+                before = self.tree()
+                with self.assertRaises((SystemExit, ValueError)):
+                    harness.exercise(self.candidate, self.receiver, output, self.manifest)
+                self.assertEqual(self.tree(), before)
+                self.assertFalse((self.receiver / 'out').exists())
+                self.assertFalse((self.receiver / 'unused').exists())
+        candidate_alias = self.root / 'candidate-alias'
+        candidate_alias.symlink_to(self.candidate, target_is_directory=True)
+        before = self.tree()
+        with self.assertRaises(SystemExit):
+            harness.exercise(candidate_alias / '.', self.receiver, self.root / 'outside-output', self.manifest)
+        self.assertEqual(self.tree(), before)
+        self.assertFalse((self.root / 'outside-output').exists())
+
+    def test_ci_runs_pure_controls_before_tool_setup_and_fails_closed(self):
+        workflow = (ROOT / '.github/workflows/composition.yml').read_text()
+        title = '      - name: Check retaining reference transaction controls'
+        begin = workflow.index(title)
+        end = workflow.index('\n      - ', begin + len(title))
+        step = workflow[begin:end]
+
+        def check(text):
+            start = text.index(title)
+            finish = text.index('\n      - ', start + len(title))
+            block = text[start:finish]
+            self.assertLess(text.index('      - uses: actions/checkout@v7'), start)
+            self.assertLess(start, text.index('      - uses: actions/setup-dotnet@v6'))
+            self.assertIn("        if: steps.scope.outputs.run == 'true'", block)
+            self.assertIn("          PYTHONDONTWRITEBYTECODE: '1'", block)
+            lines = block.splitlines()
+            self.assertIn('          set -euo pipefail', lines)
+            for test in ['test-current-reference-adoption.py', 'test-portal-adoption.py']:
+                self.assertIn('          python3 tests/composition/fable-game/' + test, lines)
+
+        check(workflow)
+        bad = [workflow.replace("        if: steps.scope.outputs.run == 'true'", '', 2),
+               workflow.replace(step, step.replace('          set -euo pipefail', ''))]
+        moved = workflow.replace(step + '\n', '')
+        insertion = moved.index('      - uses: actions/setup-node@v6')
+        bad.append(moved[:insertion] + step + '\n' + moved[insertion:])
+        for text in bad:
+            with self.assertRaises(AssertionError):
+                check(text)
 
     def test_archive_hash_control_rejects_foreign_body(self):
         path = self.root / 'foreign.nupkg'

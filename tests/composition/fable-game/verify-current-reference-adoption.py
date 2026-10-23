@@ -43,9 +43,15 @@ def public_archive(path: Path, expected_sha: str, version: str) -> dict:
 
 def exercise(candidate: Path, receiver: Path, output: Path, manifest: Path = MANIFEST) -> dict:
     """Exercise copied receivers, leaving one adopted tree for later build gates."""
-    candidate, receiver, output = [path.absolute() for path in (candidate, receiver, output)]
+    def normalized(path):
+        absolute = path.absolute()
+        adopter.reject_symlink_chain(Path(absolute.anchor), absolute, "receiver/output boundary")
+        return Path(os.path.abspath(absolute)).resolve()
+
+    candidate, receiver, output = map(normalized, (candidate, receiver, output))
     require(not output.exists() and not output.is_symlink(), "evidence output must be new")
-    require(not candidate.is_relative_to(output) and not receiver.is_relative_to(output)
+    require(not candidate.is_relative_to(receiver) and not receiver.is_relative_to(candidate)
+            and not candidate.is_relative_to(output) and not receiver.is_relative_to(output)
             and not output.is_relative_to(candidate) and not output.is_relative_to(receiver),
             "output and receiver/candidate must be disjoint")
     require(candidate.is_dir() and receiver.is_dir() and not candidate.is_symlink()

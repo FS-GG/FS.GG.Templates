@@ -8,12 +8,21 @@ adoption, builds and browser qualification remain open.
 
 The historical manifest and Release-D gates retain their original identities.
 The successor verifies the historical manifest's SHA256 and inherits its exact
-0.10.0–0.13.0 archive and path allowlists. It adds the FourD, local-save/replay,
+0.10.0–0.13.0 archive and path allowlists, including the previously selected 0.14 source-candidate
+repair bytes. That inherited source baseline adds no public 0.14 upgrade claim.
+It additionally authenticates the original package-owned
+`.config/dotnet-tools.json` bytes for those four versions and upgrades Fable5.13.0
+to the current manifest's Fable5.18.0. Only the exact historical or current Fable row is replaceable. Edited Fable
+rows, duplicate JSON keys and changed manifest version/root semantics refuse.
+Existing SDD, Coordination, formatter and local tool entries and root metadata
+survive the compiler update; missing current defaults may be added. Other
+configuration files remain preserved. It adds the FourD, local-save/replay,
 external-authority, Soldier and WASM reference files and their browser test
 sources. Every managed product file must match canonical hashes from immutable
 source `7be0bcf5886d39a8161b186beb8cc06e82415f1e`; missing or edited target files
 refuse before adoption. This prevents file-existence guards from silently
-omitting reference modules. The existing skill-manifest merge still authenticates
+omitting reference modules. The tool merge returns its bytes directly, so product-name substitution cannot
+rewrite owner tool metadata. The existing skill-manifest merge still authenticates
 package declarations and bodies and preserves other producers' rows.
 
 The target declaration binds the signed public archive SHA256
@@ -40,6 +49,9 @@ build qualification. Separate copied cases reject old managed-file and new
 reference-path collisions, roll an interrupted apply back, and resume interrupted
 explicit rollback. Its receipt describes transaction controls and lists remaining
 qualification. It does not assert a successful application build or browser run.
+Candidate, receiver and output boundaries are normalized and checked from the
+filesystem root for symlinks before any output is created; resolved overlap
+refuses, including ancestor aliases and `..` spellings.
 The transaction's existing journal, stale-inventory checks, corrupt-backup and
 newer-edit refusals remain in force.
 
@@ -50,15 +62,35 @@ uses copied template source with synthetic identity substitutions and authored
 save, replay, configuration, extension and lifecycle sentinels. It exercises
 manifest identity and historical-hash refusals, complete reference population,
 missing/edited candidate paths, transaction recovery, collisions, stale modes and
-review diffs, symlinks, corrupt backups and newer managed edits. These fixtures
+review diffs, symlinks, corrupt backups and newer managed edits. The typed-SDD fixture mirrors the
+[SDD2.0.2 merge](https://github.com/FS-GG/FS.GG.SDD/blob/83790aedc228e2158c9da7a9ac8e30195bdf9fbe/src/FS.GG.SDD.Commands/CommandWorkflow/ScaffoldMutation.fs):
+`fs.gg.sdd.cli`2.0.2 and `fs.gg.coord.cli`0.90.0 coexist with the historical
+Fable row. A Fable-only whole-file hash would incorrectly refuse that promised
+receiver. Co-tenant metadata containing the candidate's product name survives,
+and rollback restores the entire original tool file bytes and modes. These fixtures
 are explicitly synthetic; they do not substitute for historical public receivers.
 
 The shared adopter is also projected as `PortalExample/manage.py`. Changing its
 bytes initially made the existing Portal suite refuse the old helper digest in
 `source-provenance.json`. The source delivery refreshes that one projected-helper
 digest. It changes no Portal package closure, Game source, scene or API.
-The unchanged Portal suite checks adoption/removal and its stronger late-conflict
+The Portal suite checks adoption/removal and its stronger late-conflict
 controls. First failing source results are retained separately from the repairs.
+
+## CI preflight
+
+The existing composition job runs both pure suites after checkout, before SDK,
+Node and authenticated CLI setup, under its existing source-scope condition.
+A failure stops the job before tool setup. Static controls check that actual
+workflow ordering, both commands, the scope condition and fail-fast shell mode;
+deliberately moved or weakened steps fail those controls. The docs-only scope and
+all later composition stages remain unchanged.
+
+The pipeline preflight choice is static validation plus these small pure suites;
+this linear addition needs no state-machine model. The work is reusable on each
+source composition run, with a ten-minute implementation/validation cap. Local
+pure runs are measured in seconds. Hosted setup time and avoided runner cost are
+unknown; no CI savings or end-to-end hosted qualification is claimed.
 
 ## Remaining installed qualification
 
