@@ -1,6 +1,6 @@
 # Current public D.5 receiver source
 
-This held successor targets the remaining contract in
+This conditionally selected successor targets the remaining contract in
 [organization issue #4849](https://github.com/FS-GG/.github/issues/4849), under
 [the SVG release outcome](https://github.com/FS-GG/.github/issues/4644).
 It selects public Workspace.Template 0.19.3, SDD 2.4.0 and Wizard 0.22.0.
@@ -70,7 +70,7 @@ outcome acceptance remain separate. Historical failures and Unknown effects pers
 Preflight uses typed source controls and small pure actual-caller checks before any
 costly receiver. No new supervisor, shared cache or retry state machine is introduced.
 The corrected four pure controls took 0.547 seconds on the source host; this is local
-validation cost, not measured runner savings. Actual runtime activation and acceptance
+validation cost, not measured runner savings. Actual dispatch and acceptance
 remain pending with Programme/root and the same Delivery owner.
 
 ## Held managed transport
