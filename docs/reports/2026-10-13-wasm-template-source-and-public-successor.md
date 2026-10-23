@@ -1053,3 +1053,50 @@ product was built and statically checked for the absence of WASM assets, but no 
 
 The bundled-from-0.7.0 evidence is indirect: the evaluated `[0.7.0]` graph, the published locks, and the
 materializer's archive pin with exit 0.
+
+### WASM-off browser path and installed-C run 4 (39933243864): 45/45; #4710 closed Done — 2026-10-23
+
+**Source (#756, `666611f`).** The checker's `--mode wasm` now generates `wasm-off.generated.config.ts` and a six-case `wasm-off.generated.spec.ts` into the published **default** receiver's `Browser.Tests`. The config refuses unless `FsGgWasmPolicyExample === "false"`. The default receiver is `dotnet new fs-gg-fable-game` with no `--bundle`, built with `FsGgWasmPolicyExample=false` at base `/`.
+
+The six cases:
+1. The page renders its game surface with no page errors.
+2. No `Worker` or `SharedWorker` is constructed. The hook is checked as installed and has a positive control.
+3. No WebAssembly call happens in the page realm. This case also has a positive control.
+4. No WASM, Worker or policy asset is requested.
+5. No policy UI is mounted.
+6. The package, guest and `wasm-package-assets.json` paths are not served as assets.
+
+The caller's `installed_c` runs a `--list` and a `test` invocation per family on that receiver, after the 27 enabled cases. Each invocation is its own require-empty managed group, and the caller asserts exactly 6 listed and expected per family. A full run is now 32 groups. The default-build static check also refuses the real dist names `dist/wasm-policy` and `dist/wasm-package-assets.json`; before, it checked only the staging name.
+
+**Review history.** The first independent review returned REQUEST CHANGES: the PR reported a 4/6 negative control without saying that variant clicked "Load policy". The enabled product is lazy, so at page load cases 2–4 cannot tell it apart from the default product. With the repaired spec, the negative controls against the published enabled product were:
+- **no click:** 2/6 fail in each family (cases 5 and 6);
+- **after "Load policy":** 4/6 fail in each family (cases 2, 4, 5 and 6).
+
+Case 3 never discriminates, because the enabled product runs WASM inside its Worker. Lesson: state every interaction a negative control performs, and check that each case discriminates against the real alternative at the moment it observes.
+
+**Run 4.** Admission: FS-GG/.github#4710 comment 6361584197.
+- Admission PR #757 merged as `4bcbb016`; its tree equals the reviewed head's, with no intervening merges.
+- One dispatch at 09:37:44Z, attempt 1; success at 09:41:31Z.
+- Reset PR #758 merged as `5fee4cf8` at 10:14:30Z.
+
+**Result: 45/45.**
+- Enabled: 9 per family. WASM-off: 6 per family. 0 unexpected, flaky or skipped.
+- All **32** groups `contained` and `observed-empty-removed` under the owner `d846dbe1`.
+- The unit and the 51 recorded WebKit packages read back as admitted.
+- Peaks: 190 tasks and 5.88 GiB, with 0 oom, memory.max or pids events.
+- Timing: setup 53.1 s; installed 135.1 s, of which the WASM-off groups took about 25.7 s.
+- The checker reported `source-passed` on 0.19.3 (`9594ec20`).
+- Artifact 12493026374 (`sha256:beac8e9f…`).
+
+Independent acceptance: **ACCEPT AS EVIDENCE, Done-when met**. fdev closed #4710 as Done.
+
+**Qualification.** The disabled path qualified here is the published default (player) product built with WASM off. That is the reading fdev selected (6360636006) and admitted (6361584197). The Complete bundle built with the flag `false` is not browser-run; it shares the same flag-false switch in `SvgFoundation.fsproj` and `vite.config.js`.
+
+**Recorded limits:**
+- process checks cover the unit cgroup only;
+- no CPU pressure or hosted cold-load p95;
+- per-group memory peaks are null by design;
+- n=1;
+- no backend (`/api/bootstrap` returns 404 under `vite preview`);
+- case 3 covers the page realm only;
+- no separate receipt of the Browser package hash.
