@@ -2248,11 +2248,19 @@ class WasmReceiverPinTests(unittest.TestCase):
         lock=json.loads((WASM_EXAMPLE/'packages.lock.json').read_text())
         rows={k:v for deps in lock['dependencies'].values() for k,v in deps.items() if k.startswith('FS.GG.Wasm.')}
         self.assertEqual({k:(v['requested'],v['resolved']) for k,v in rows.items()},{'FS.GG.Wasm.Browser':('[0.7.0, 0.7.0]','0.7.0'),'FS.GG.Wasm.Contracts':('[0.7.0, 0.7.0]','0.7.0')})
+        # NuGet content hashes of the nuget.org 0.7.0 packages (signature excluded) and their dependency closure.
+        self.assertEqual({k:v['contentHash'] for k,v in rows.items()},{
+            'FS.GG.Wasm.Browser':'AG/nCETlW0BBTGRbb36RgOFtOzQlH4RWhIdVL9ReTs+w71pu2uCJhLPb6MmZyj5LZcBN0eHKk8eGlpCB9rZIQg==',
+            'FS.GG.Wasm.Contracts':'39TdAGF23F03t4s16g9PVdhA/Gq5v1kbIbsMe1NsqIXREW/Wt65podyGXRBg/9iUJ7mlCouREmVa09+uwBK4ZA=='})
+        self.assertEqual(rows['FS.GG.Wasm.Browser']['dependencies'],{'FS.GG.Wasm.Contracts':'[0.7.0]','FSharp.Core':'10.1.302'})
+        self.assertEqual(rows['FS.GG.Wasm.Contracts']['dependencies'],{'FSharp.Core':'10.1.302'})
         self.assertIn('name = "fsgg-wasm-guest"\nversion = "0.7.0"',(WASM_EXAMPLE/'guest/rust/Cargo.lock').read_text())
         guests=(WASM_EXAMPLE/'build-guests.sh').read_text()
         self.assertEqual(guests.count(WASM_SDK_SHA),2);self.assertIn('sdk="$work/fsgg-wasm-sdk-0.7.0"',guests)
         materialize=(WASM_EXAMPLE/'materialize-assets.py').read_text()
         self.assertIn('modules.get("sdkSha256") != "'+WASM_SDK_SHA+'"',materialize)
+        # The restore-path (nuget.org, repository-countersigned) Browser archive, not the producer original 1d5e9df2.
+        self.assertIn('PACKAGE_SHA256 = "bfc28ac97df243aedaae8d913ff555967039b8aef824c48db970d50c14d198cd"',materialize)
         self.assertEqual(re.findall(r'FS\.GG\.Wasm\.\w+/([0-9.]+)',materialize),['0.7.0']*4)
         text,code=actual_hosted_code();ns={'__name__':'pins'};exec(compile(code,'actual-hosted-workflow','exec'),ns)
         self.assertEqual(ns['ENDPOINTS']['guest'][:2],('https://github.com/FS-GG/FS.GG.Game/releases/download/wasm/v0.7.0/fsgg-wasm-sdk-0.7.0.tar.gz',WASM_SDK_SHA))
@@ -2260,6 +2268,14 @@ class WasmReceiverPinTests(unittest.TestCase):
         for stale in ('8091df6824981c0c37131524ffbcbae9bb8b36f672a20edc2efaddd35664f8c8','fsgg-wasm-sdk-0.3.0'):
             for path in (WASM_EXAMPLE/'build-guests.sh',WASM_EXAMPLE/'materialize-assets.py',WORKFLOW,CHECKER):
                 with self.subTest(stale=stale,path=path.name):self.assertNotIn(stale,path.read_text())
+
+    def test_installed_c_is_fenced_while_the_release_pins_are_split(self):
+        # The guest SDK and checker already select 0.7.0; published 0.19.2 carries 0.3.0. Any admission
+        # before the release pins move would spend a single-use run, so it is refused here.
+        tree=ast.parse(actual_hosted_code()[1])
+        literal=lambda name:next(n.value.value for n in ast.walk(tree) if isinstance(n,ast.Assign) and any(getattr(x,'id',None)==name for x in n.targets))
+        if literal('TEMPLATE_VERSION')=='0.19.2':
+            self.assertIsNone(literal('INSTALLED_ADMISSION'),'release pins still 0.19.2: move them with the 0.7.0 template release first')
 
     def world(self, bundle=None, build=None, extra=None):
         temp=tempfile.TemporaryDirectory();self.addCleanup(temp.cleanup);root=Path(temp.name)
@@ -2300,8 +2316,14 @@ class WasmReceiverPinTests(unittest.TestCase):
     def test_worker_module_graph_or_build_drift_refuses(self):
         cases={
             'static import':(b'import { host } from "./policy/Host.js";\nexport const x = host;\n',None,'not self-contained'),
+            'mid-line import':(b'var q=1;import{x}from"./policy/Host.js";\n',None,'not self-contained'),
             'dynamic import':(b'export const x = () => import("./policy/Host.js");\n',None,'not self-contained'),
+            'commented dynamic import':(b'export const x = () => import /*x*/ ("./policy/Host.js");\n',None,'not self-contained'),
             'classic script':(b'importScripts("policy/Host.js");\n',None,'not self-contained'),
+            'nested worker':(b'export const w = new Worker(new URL("./policy/Host.js", self.location));\n',None,'not self-contained'),
+            'fetched code':(b'fetch("./policy/Host.js").then(r => r.text()).then(t => new Function(t)());\n',None,'not self-contained'),
+            'import.meta':(b'export const u = import.meta.url;\n',None,'not self-contained'),
+            'eval':(b'eval("1");\n',None,'not self-contained'),
         }
         for label,(bundle,build,message) in cases.items():
             with self.subTest(label=label):
@@ -2317,6 +2339,10 @@ class WasmReceiverPinTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError,'differs from its build record'):module.materialize(foundation)
         module,foundation=self.world(bundle=good,extra={'worker-client.mjs':b'import "./policy/Host.js";\n'})
         with self.assertRaisesRegex(ValueError,'Production Worker graph differs'):module.materialize(foundation)
+        module,foundation=self.world(bundle=good,extra={'worker-client.mjs':b'export const later = () => import("./policy/Host.js");\n'})
+        with self.assertRaisesRegex(ValueError,'client loads further code'):module.materialize(foundation)
+        # Quoted text is not code: a WASM import-section name in a string is accepted.
+        module,foundation=self.world(bundle=b'const section = "import";\nexport const s = section;\n');module.materialize(foundation)
 
 
 if __name__ == '__main__': unittest.main()

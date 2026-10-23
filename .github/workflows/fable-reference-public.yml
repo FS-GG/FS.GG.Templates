@@ -227,8 +227,10 @@ jobs:
           # archive; release run 39845406998). Same stock inputs, locks and WASM [0.3.0] refs as 0.19.1, with
           # Rendering 0.32.3 adopted. 0.19.0 Complete scaffolds truncate the WASM guest policy.c.
           # The receiver source now selects FS.GG.Wasm [0.7.0] (FS-GG/FS.GG.Game#727) and the guest SDK
-          # acquisition below is 0.7.0. The four release pins above move together to the Workspace.Template
-          # patch that carries that source; until then installed C stays held (and 0.19.2 would not pass).
+          # acquisition below is 0.7.0. With the Workspace.Template patch that carries that source, move
+          # together: TEMPLATE_VERSION, PUBLISHED, PACKAGE_SHA and DESCRIPTOR_SHA here; the checker's
+          # --mode wasm version gate and comment; ReferencePublication.wasmSuccessors; and their tests.
+          # Until then installed C is fenced: a test refuses any admission while TEMPLATE_VERSION is 0.19.2.
           TEMPLATE_VERSION = "0.19.2"
           PUBLISHED = "d15f085ff4d64b7736e09ff263644b3c86a576a6"
           PACKAGE_SHA = "ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a"

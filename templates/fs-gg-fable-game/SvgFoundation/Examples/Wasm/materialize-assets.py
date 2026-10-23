@@ -11,6 +11,13 @@ import zipfile
 # nuget.org bytes of FS.GG.Wasm.Browser 0.7.0 (repository-countersigned; not the producer original).
 PACKAGE_SHA256 = "bfc28ac97df243aedaae8d913ff555967039b8aef824c48db970d50c14d198cd"
 PREFIX = "contentFiles/any/any/_content/FS.GG.Wasm.Browser/"
+# Code-loading forms a self-contained Worker bundle must not contain (quoted text such as a WASM
+# "import" section name is not code). This is a lexical guard; the archive sha above binds the exact
+# inspected bytes, so any other bundle needs a reviewed source change first.
+BUNDLE_LOADS = re.compile(r"""(?<![\w$."'`])import\s*(?:[{*"'(]|/\*)|(?<![\w$."'`])import\s+[\w$]+\s*(?:,|\bfrom\b)"""
+                          r"""|\bimportScripts\b|\bnew\s+(?:Shared)?Worker\s*\(|(?<![\w$.])fetch\s*\(|\bimport\.meta\b|\beval\s*\(|\bnew\s+Function\s*\(""")
+# The client legitimately builds the bundle Worker from import.meta.url; it must load no further code.
+CLIENT_LOADS = re.compile(r"""(?<![\w$."'`])import\s*(?:\(|/\*)|\bimportScripts\b|(?<![\w$.])fetch\s*\(|\beval\s*\(|\bnew\s+Function\s*\(""")
 
 
 def materialize(foundation):
@@ -89,8 +96,10 @@ def materialize(foundation):
             or worker_output.get("bytes") != len(bundle) or worker_output.get("sha256") != hashlib.sha256(bundle).hexdigest()
             or composition.get("outputFiles") != 1 or composition.get("externalImports") != 0):
         raise ValueError("Package Worker bundle differs from its build record")
-    if edges["module-worker.mjs"] or re.search(r"\bimport\s*\(|\bimportScripts\s*\(", bundle.decode("utf-8")):
+    if edges["module-worker.mjs"] or BUNDLE_LOADS.search(bundle.decode("utf-8")):
         raise ValueError("Package Worker bundle is not self-contained")
+    if CLIENT_LOADS.search(records["worker-client.mjs"].decode("utf-8")):
+        raise ValueError("Package Worker client loads further code")
     if reachable != {"module-worker.mjs", "worker-client.mjs"}:
         raise ValueError("Production Worker graph differs from the self-contained bundle and its client")
     # Owner static assets remain in Vite's ordinary public directory. Generated

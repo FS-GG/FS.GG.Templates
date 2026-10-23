@@ -74,8 +74,11 @@ public assets and modules are excluded from template packing.
    reports readiness; Worker startup has its own bound (default 5000 ms, refused as
    `WorkerStartTimeout`). Pass no enclosing deadline to this load: it would also cap
    startup (FS-GG/FS.GG.Game#727). The 0.7.0 package Worker is one self-contained
-   bundle, and `materialize-assets.py` binds it to the package's `worker-build.json` and
-   refuses any module, dynamic or classic-script import from it.
+   bundle. `materialize-assets.py` binds it to the package's `worker-build.json` and to the
+   exact archive bytes, and refuses the code-loading forms it detects lexically: module
+   imports, dynamic `import()`, `importScripts`, nested Workers, `fetch`,
+   `import.meta`, `eval` and `new Function`. The client may build only the bundle
+   Worker.
 4. Call `Initialize` with a fresh request identity for that Worker/generation.
    Wait for successful current initialization settlement before `Invoke`.
 5. Give each invocation its own request identity and use `currentAdvice` with the
