@@ -1,0 +1,157 @@
+name: Current reference DOM composition (held)
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/current-reference-composition.yml'
+      - 'tests/composition/fable-game/current-composition-managed.py'
+      - 'tests/composition/fable-game/test-current-composition-managed.py'
+      - 'tests/composition/fable-game/current-composition-observations.py'
+      - 'tests/composition/fable-game/retained-reference-rehearsal.py'
+      - 'tests/composition/fable-game/verify-external-reference-candidate.sh'
+      - '.github/workflows/fable-reference-public.yml'
+  workflow_dispatch:
+    inputs:
+      admitted_ref:
+        description: Exact separately admitted protected source (runtime held)
+        required: true
+        type: string
+      admission:
+        description: Exact root4818 conditional admission (runtime held)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Hold manual runtime before checkout or acquisition
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          echo 'ADMISSION=None; composition runtime unqualified'
+          exit 3
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: FS-GG/FS.GG.Coordination
+          ref: ac22206560f3eddfea524ce8f752ff1d0dfeec4e
+          path: .tmp/composition-canonical-owner
+          persist-credentials: false
+          fetch-depth: 1
+          lfs: false
+          submodules: false
+          sparse-checkout: eng/managed_group_owner.py
+          sparse-checkout-cone-mode: false
+      - name: Bounded pure actual caller and held-entry controls
+        env:
+          FSGG_MANAGED_GROUP_OWNER: .tmp/composition-canonical-owner/eng/managed_group_owner.py
+        run: |
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 150s prlimit --as=536870912 --cpu=120 python3 -B tests/composition/fable-game/test-current-composition-managed.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 150s prlimit --as=536870912 --cpu=120 python3 -B tests/composition/fable-game/test-current-composition-observations.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 150s prlimit --as=536870912 --cpu=120 python3 -B tests/composition/fable-game/test-retained-reference-rehearsal.py
+  receiver:
+    needs: preflight
+    # Source-only: exact review/CI/main/profile/native admission still required.
+    if: ${{ false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      EVENT: ${{ github.event_name }}
+      REPOSITORY: ${{ github.repository }}
+      REF: ${{ github.ref }}
+      SHA: ${{ github.sha }}
+      WORKFLOW_REF: ${{ github.workflow_ref }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
+      RUN_ID: ${{ github.run_id }}
+      RUN_ATTEMPT: ${{ github.run_attempt }}
+      UNIT_NAME: fsgg-mg-templates-composition-${{ github.run_id }}-${{ github.run_attempt }}
+      ADMITTED_REF: ${{ inputs.admitted_ref }}
+      ADMISSION: ${{ inputs.admission }}
+    steps:
+      - name: Anchor original first-step clock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B <<'PY_CLOCK'
+          import json, os, re, time
+          from pathlib import Path
+          env=os.environ
+          if env['RUN_ATTEMPT']!='1' or not re.fullmatch(r'[0-9]+',env['RUN_ID']):
+              raise ValueError('first attempt required')
+          keys=('EVENT','REPOSITORY','REF','SHA','WORKFLOW_REF','WORKFLOW_SHA','RUN_ID','RUN_ATTEMPT','UNIT_NAME')
+          record={'scope':'first-workflow-step','startedMonotonic':time.monotonic(),
+                  'boot':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+                  'source':{key:env[key] for key in keys}}
+          path=Path(env['RUNNER_TEMP'])/('current-composition-'+env['RUN_ID']+'-1-clock.json')
+          fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+          with os.fdopen(fd,'w') as stream:stream.write(json.dumps(record)+'\n')
+          PY_CLOCK
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Refuse before capacity checkout or workload effects
+        id: admission
+        run: CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/current-composition-managed.py --check-admission
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: FS-GG/FS.GG.Coordination
+          ref: ac22206560f3eddfea524ce8f752ff1d0dfeec4e
+          path: .tmp/composition-canonical-owner
+          persist-credentials: false
+          fetch-depth: 1
+          lfs: false
+          submodules: false
+          sparse-checkout: eng/managed_group_owner.py
+          sparse-checkout-cone-mode: false
+      - name: Original capacity, clock and unit collision guard
+        id: capacity
+        run: CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/current-composition-managed.py --outer-preflight
+      - name: Fixed DOM composition sequence in the canonical delegated unit
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkout_head="$(git rev-parse HEAD)"
+          client_exit=not-observed
+          finish() {
+            local step_exit=$?
+            CHECKOUT_HEAD="$checkout_head" REHEARSAL_CLIENT_EXIT="$client_exit" REHEARSAL_STEP_EXIT="$step_exit" \
+              python3 -I -B tests/composition/fable-game/current-composition-managed.py --record-client-exit || true
+          }
+          trap finish EXIT
+          set +e
+          sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec \
+            --unit="$UNIT_NAME" -p Delegate=yes -p User="$(id -un)" -p Group="$(id -gn)" \
+            -p NoNewPrivileges=yes -p KillMode=control-group -p TimeoutStopSec=5 \
+            -p TasksAccounting=yes -p MemoryAccounting=yes -p CPUAccounting=yes \
+            -p CPUQuota=200% -p TasksMax=512 -p MemoryMax=8G -p MemorySwapMax=0 -p RuntimeMaxSec=1800 \
+            -p WorkingDirectory="$PWD" --setenv=PATH=/usr/bin:/bin \
+            --setenv=EVENT="$EVENT" --setenv=REPOSITORY="$REPOSITORY" --setenv=REF="$REF" --setenv=SHA="$SHA" \
+            --setenv=WORKFLOW_REF="$WORKFLOW_REF" --setenv=WORKFLOW_SHA="$WORKFLOW_SHA" \
+            --setenv=RUN_ID="$RUN_ID" --setenv=RUN_ATTEMPT="$RUN_ATTEMPT" --setenv=UNIT_NAME="$UNIT_NAME" \
+            --setenv=ADMITTED_REF="$ADMITTED_REF" --setenv=ADMISSION="$ADMISSION" --setenv=CHECKOUT_HEAD="$checkout_head" \
+            --setenv=RUNNER_TEMP="$RUNNER_TEMP" --setenv=GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+            -- /usr/bin/python3 -I -B tests/composition/fable-game/current-composition-managed.py --run
+          client_exit=$?
+          exit "$client_exit"
+      - name: Independent original unit retirement
+        if: ${{ always() && steps.capacity.outcome == 'success' }}
+        timeout-minutes: 1
+        run: CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/current-composition-managed.py --post-unit
+      - name: Retain bounded original DOM composition evidence
+        if: ${{ always() && steps.admission.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: current-composition-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/current-composition-${{ github.run_id }}-1/composition-evidence/
+            ${{ runner.temp }}/current-composition-${{ github.run_id }}-1-outer/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 90
