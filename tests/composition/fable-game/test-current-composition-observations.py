@@ -5,6 +5,7 @@ import importlib.util
 import json
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 import unittest
 
@@ -82,6 +83,14 @@ class Controls(unittest.TestCase):
             elif change=='state':value['records'][0]['state']='started'
             else:value['records'].append(copy.deepcopy(value['records'][0]))
             with self.subTest(change=change),self.assertRaises(ValueError):m.validate_public_readback(self.plan,value)
+
+    def test_actual_current_shell_refuses_before_typed_owner_or_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);output=root/'must-remain-absent'
+            result=subprocess.run(['bash',str(HERE/'verify-external-reference-candidate.sh'),str(root/'no-rendering-source'),str(root/'no-custody'),'fixture-version',str(output),'a'*40,'current-public-composition',str(root/'no-template.nupkg'),'b'*64],capture_output=True,text=True,timeout=5)
+            self.assertNotEqual(result.returncode,0)
+            self.assertIn('current composition held: no source admission',result.stderr)
+            self.assertFalse(output.exists())
 
     def test_current_entry_is_held_before_owner_root_or_acquisition(self):
         self.assertIsNone(m.CURRENT_COMPOSITION_ADMISSION)
