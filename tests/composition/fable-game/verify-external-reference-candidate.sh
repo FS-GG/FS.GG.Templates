@@ -139,6 +139,7 @@ if [[ "$input_mode" == current-public-composition ]]; then
 import json,sys
 p=json.load(open(sys.argv[1]))['selection']
 for key in ('productName','bundle','lifecycle'):print(p[key])
+for key in ('externalReference','wasmPolicyExample'):print(str(p[key]).lower())
 CURRENT_SELECTION
 )
   product_name="${selection[0]}";bundle="${selection[1]}";lifecycle="${selection[2]}"
@@ -162,6 +163,9 @@ grep -F 'ExternalAuthorityReference.install ()' "$out/complete/SvgFoundation/Pro
 # shipped defaults and checked lockfiles with public-only resolution.
 cp "$out/NuGet.Config" "$out/complete/NuGet.config"
 export FsGgExternalReferenceCandidate=true
+if [[ "$input_mode" == current-public-composition ]]; then
+  export FsGgExternalReferenceCandidate="${selection[3]}" FsGgWasmPolicyExample="${selection[4]}"
+fi
 export NUGET_PACKAGES="$out/complete/.nuget/packages"
 if [[ "$input_mode" == public || "$input_mode" == current-public-composition ]]; then
   python3 - "$out/complete" "$root/tests/composition/fable-game" <<'PYPUBLIC'
@@ -267,7 +271,13 @@ import json,sys
 for family in json.load(open(sys.argv[1]))['browsers']['families']:print(family)
 CURRENT_BROWSERS
 )
-  browser_args+=(--retries=0)
+  mapfile -t browser_settings < <(python3 - "$out/current-composition-plan.json" <<'CURRENT_BROWSER_SETTINGS'
+import json,sys
+p=json.load(open(sys.argv[1]))['browsers']
+for key in ('workers','retries'):print(p[key])
+CURRENT_BROWSER_SETTINGS
+)
+  browser_args=(--workers="${browser_settings[0]}" --retries="${browser_settings[1]}")
 fi
 for family in "${families[@]}"; do
   (cd "$out/complete/Browser.Tests" && PLAYWRIGHT_BROWSER_FAMILY="$family" npm test -- --grep "$selector" "${browser_args[@]}") >"$out/$family-browser.log" 2>&1
