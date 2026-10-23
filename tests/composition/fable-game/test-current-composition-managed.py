@@ -240,7 +240,7 @@ class Controls(unittest.TestCase):
         product=self.root/'product';product.mkdir()
         with (product/'fable-build.log').open('wb') as handle:handle.truncate(16777217)
         with self.assertRaisesRegex(ValueError,'member cap'):M.evidence_inventory(self.root)
-        (product/'fable-build.log').unlink();(self.root/'arbitrary-tree').mkdir();(self.root/'arbitrary-tree/private.json').write_text('exclude')
+        (product/'fable-build.log').unlink();(self.root/'arbitrary-tree').mkdir();(self.root/'arbitrary-tree/private.json').write_text('exclude');(self.root/'arbitrary-secret.json').write_text('exclude')
         self.assertEqual(M.evidence_inventory(self.root),[])
 
     def test_workflow_has_real_preflight_watch_hold_and_original_bounds(self):
