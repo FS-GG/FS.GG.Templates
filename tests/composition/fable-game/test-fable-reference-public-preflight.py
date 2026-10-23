@@ -181,7 +181,7 @@ class CurrentPublicPreflightTests(unittest.TestCase):
             'sources': {},
             'selection': {'lifecycle': 'typed-sdd', 'bundle': 'complete'},
             'referenceRenderingVersion': '0.31.0',
-            'defaults': {'wizardLifecycle': 'typed-sdd', 'providerLifecycle': 'typed-sdd', 'templateLifecycle': 'typed-sdd', 'bundle': 'player'},
+            'defaults': {'wizardLifecycle': 'sdd', 'providerLifecycle': 'typed-sdd', 'templateLifecycle': 'typed-sdd', 'bundle': 'player'},
             'parameterKeys': {'name': 'productName', 'identifier': 'rootNamespace'},
         }
         self.value['initialRegistration'] = {'soleWorkspaceRegistration': True, 'package': copy.deepcopy(self.value['packages']['initialOverlay'])}
@@ -239,7 +239,7 @@ class CurrentPublicPreflightTests(unittest.TestCase):
             value = self.creator020(); value['selection'] = dict(lifecycle=lifecycle, bundle=bundle)
             result = self.invoke(value); self.assertEqual(result.returncode, 0, result.stderr)
             plan = json.loads(result.stdout)
-            self.assertEqual(plan['providerParameters']['lifecycle'], lifecycle or 'typed-sdd') # Wizard 0.22.0 omission (.github#4811)
+            self.assertEqual(plan['providerParameters']['lifecycle'], lifecycle or 'sdd')
             self.assertEqual(plan['providerParameters']['bundle'], bundle or 'player')
             self.assertEqual('--lifecycle' in plan['wizardArgv'], lifecycle is not None)
             self.assertIn('--no-coordination', plan['wizardArgv'])
@@ -278,9 +278,8 @@ class CurrentPublicPreflightTests(unittest.TestCase):
         self.assertIn('--pinned', plan['wizardArgv']); self.assertIn('--no-governance', plan['wizardArgv'])
         self.assertFalse(self.output.exists())
 
-    def test_wizard_omission_forwards_descriptor_default_and_explicit_none_stays_none(self):
-        # Wizard 0.22.0 forwards the descriptor's declared omission default typed-sdd (.github#4811); explicit none stays none.
-        for lifecycle, bundle, expected in [(None, None, 'typed-sdd'), ('none', 'player', 'none'), ('sdd', 'studio', 'sdd'), ('typed-sdd', 'complete', 'typed-sdd')]:
+    def test_wizard_omission_and_explicit_none_are_distinct_from_provider_default(self):
+        for lifecycle, bundle, expected in [(None, None, 'sdd'), ('none', 'player', 'none'), ('typed-sdd', 'complete', 'typed-sdd')]:
             value = copy.deepcopy(self.value); value['selection'] = dict(lifecycle=lifecycle, bundle=bundle)
             result = self.invoke(value); self.assertEqual(result.returncode, 0, result.stderr)
             plan = json.loads(result.stdout)
@@ -312,7 +311,7 @@ class CurrentPublicPreflightTests(unittest.TestCase):
             self.descriptor.write_text(original.replace(old, new))
             with self.subTest(old=old): self.assertNotEqual(self.invoke().returncode, 0)
         self.descriptor.write_text(original)
-        for field, key, wrong in [('defaults', 'wizardLifecycle', 'sdd'), ('defaults', 'bundle', 'complete'), ('parameterKeys', 'name', 'name')]:
+        for field, key, wrong in [('defaults', 'wizardLifecycle', 'typed-sdd'), ('defaults', 'bundle', 'complete'), ('parameterKeys', 'name', 'name')]:
             value = copy.deepcopy(self.value); value[field][key] = wrong
             with self.subTest(key=key): self.assertNotEqual(self.invoke(value).returncode, 0)
 

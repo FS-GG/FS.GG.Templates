@@ -465,7 +465,7 @@ The remaining exact fields are:
   "selection": {"lifecycle": "typed-sdd", "bundle": "complete"},
   "referenceRenderingVersion": "0.31.0",
   "defaults": {
-    "wizardLifecycle": "typed-sdd", "providerLifecycle": "typed-sdd",
+    "wizardLifecycle": "sdd", "providerLifecycle": "typed-sdd",
     "templateLifecycle": "typed-sdd", "bundle": "player"
   },
   "parameterKeys": {"name": "productName", "identifier": "rootNamespace"}

@@ -100,7 +100,7 @@ try:
     # are pinned observations, not a claim of re-reading packages or source files.
     descriptor = read(value['sources']['descriptor']['path'], 65536)
     require(hashlib.sha256(descriptor).hexdigest() == sources['descriptor'][2], 'immutable descriptor bytes mismatch')
-    defaults = {'wizardLifecycle': 'typed-sdd', 'providerLifecycle': 'typed-sdd', 'templateLifecycle': 'typed-sdd', 'bundle': 'player'}
+    defaults = {'wizardLifecycle': 'sdd', 'providerLifecycle': 'typed-sdd', 'templateLifecycle': 'typed-sdd', 'bundle': 'player'}
     require(value['defaults'] == defaults, 'route lifecycle/bundle defaults drifted')
     require(value['parameterKeys'] == {'name': 'productName', 'identifier': 'rootNamespace'}, 'provider parameter key join drifted')
     selection = value['selection']
@@ -109,8 +109,8 @@ try:
     require(lifecycle is None or lifecycle in ('none', 'sdd', 'typed-sdd', 'spec-kit'), 'unsupported lifecycle')
     require(bundle is None or bundle in ('player', 'studio', 'tactical', 'arcade', 'complete'), 'unsupported bundle')
     require(value['referenceRenderingVersion'] == '0.31.0', 'historical reference is not Rendering provider UI.Template 0.32.1')
-    # Wizard 0.22.0+ forwards the descriptor's declared omission default (typed-sdd) (.github#4811).
-    effective_lifecycle = lifecycle if lifecycle is not None else 'typed-sdd'
+    # Wizard019/020 forward the same sdd default: the omission rule names only015.
+    effective_lifecycle = lifecycle if lifecycle is not None else 'sdd'
     effective_bundle = bundle if bundle is not None else 'player'
     argv = ['<qualified-installed-Wizard' + wizard_version + '>', str(pathlib.Path(sys.argv[2]) / 'wizard'), 'ReferenceCurrentPublic', '--template', 'fable-game', '--ref', sources['descriptor'][0], '--pinned', '--no-governance', '--no-coordination']
     if lifecycle is not None:
