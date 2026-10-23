@@ -1,0 +1,76 @@
+name: Retained reference rehearsal (admitted dispatch only)
+
+# Held before unit/root/acquisition while ADMISSION is None. Source admission binds
+# one exact main dispatch/attempt; reset it after the original outcome. This entry
+# materializes one0.13 typed-SDD receiver, adopts0.19.3 and performs one locked restore.
+# It runs no browser, Fable build, native product, apt or historical C/AT admission.
+on:
+  workflow_dispatch:
+    inputs:
+      admitted_ref:
+        description: Exact admitted main commit, equal to the dispatched source
+        required: true
+        type: string
+      admission:
+        description: Exact root admission comment URL on FS-GG/.github#4816
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  retained-reference:
+    if: ${{ github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      EVENT: ${{ github.event_name }}
+      REPOSITORY: ${{ github.repository }}
+      REF: ${{ github.ref }}
+      SHA: ${{ github.sha }}
+      WORKFLOW_REF: ${{ github.workflow_ref }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
+      RUN_ID: ${{ github.run_id }}
+      RUN_ATTEMPT: ${{ github.run_attempt }}
+      ADMITTED_REF: ${{ inputs.admitted_ref }}
+      ADMISSION: ${{ inputs.admission }}
+      UNIT_NAME: fsgg-mg-templates-retained-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Check out exact dispatched source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Refuse unless this exact first dispatch is admitted
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/retained-reference-rehearsal.py --check-admission
+      - name: Run the fixed rehearsal in a fresh delegated unit
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkout_head="$(git rev-parse HEAD)"
+          sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec \
+            --unit="$UNIT_NAME" \
+            -p Delegate=yes -p User="$(id -un)" -p Group="$(id -gn)" -p NoNewPrivileges=yes \
+            -p KillMode=control-group -p TimeoutStopSec=5 -p TasksAccounting=yes -p MemoryAccounting=yes \
+            -p CPUAccounting=yes -p CPUQuota=200% -p TasksMax=512 -p MemoryMax=8G -p RuntimeMaxSec=1800 \
+            -p WorkingDirectory="$PWD" \
+            --setenv=PATH=/usr/bin:/bin --setenv=EVENT="$EVENT" --setenv=REPOSITORY="$REPOSITORY" \
+            --setenv=REF="$REF" --setenv=SHA="$SHA" --setenv=WORKFLOW_REF="$WORKFLOW_REF" \
+            --setenv=WORKFLOW_SHA="$WORKFLOW_SHA" --setenv=RUN_ID="$RUN_ID" --setenv=RUN_ATTEMPT="$RUN_ATTEMPT" \
+            --setenv=ADMITTED_REF="$ADMITTED_REF" --setenv=ADMISSION="$ADMISSION" \
+            --setenv=CHECKOUT_HEAD="$checkout_head" --setenv=RUNNER_TEMP="$RUNNER_TEMP" \
+            --setenv=GITHUB_WORKSPACE="$GITHUB_WORKSPACE" --setenv=UNIT_NAME="$UNIT_NAME" \
+            -- /usr/bin/python3 -I -B tests/composition/fable-game/retained-reference-rehearsal.py
+      - name: Retain bounded original rehearsal evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: retained-reference-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/retained-reference-${{ github.run_id }}-1/retained-evidence/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30

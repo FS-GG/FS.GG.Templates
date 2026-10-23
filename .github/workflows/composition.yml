@@ -151,14 +151,29 @@ jobs:
           fi
       - uses: actions/checkout@v7
         if: steps.scope.outputs.run == 'true'
+      - name: Check out exact canonical retained-profile validator
+        if: ${{ steps.scope.outputs.run == 'true' }}
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: FS-GG/FS.GG.Coordination
+          ref: ac22206560f3eddfea524ce8f752ff1d0dfeec4e
+          path: .tmp/retained-canonical-owner
+          persist-credentials: false
+          fetch-depth: 1
+          lfs: false
+          submodules: false
+          sparse-checkout: eng/managed_group_owner.py
+          sparse-checkout-cone-mode: false
       - name: Check retaining reference transaction controls
         if: steps.scope.outputs.run == 'true'
         env:
           PYTHONDONTWRITEBYTECODE: '1'
+          FSGG_MANAGED_GROUP_OWNER: ${{ github.workspace }}/.tmp/retained-canonical-owner/eng/managed_group_owner.py
         run: |
           set -euo pipefail
           python3 tests/composition/fable-game/test-current-reference-adoption.py
           python3 tests/composition/fable-game/test-portal-adoption.py
+          python3 tests/composition/fable-game/test-retained-reference-rehearsal.py
       - name: Check out exact canonical Python fixture source
         if: steps.scope.outputs.run == 'true'
         uses: actions/checkout@v7
