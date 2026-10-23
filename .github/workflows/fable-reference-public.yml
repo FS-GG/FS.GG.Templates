@@ -279,7 +279,7 @@ jobs:
           # three-family custody pilot and installed C stay refused until C-J1 source/profile
           # review and Programme/root admission lift this, the step condition and the upload gate.
           RUNTIME_ADMITTED = False
-          # Installed C (the downloaded-only 27-case journey) runs only through the separate dispatch-only
+          # Installed C (the downloaded-only journey: 27 enabled and 18 WASM-off browser cases) runs only through the separate dispatch-only
           # workflow wasm-installed-c.yml and admitted_installed_sequence. None = held: that entry refuses
           # before any acquisition. A Programme/root admission sets this to its exact comment URL in a
           # reviewed source PR; RUNTIME_ADMITTED and both literal-false steps stay closed even then.
@@ -632,12 +632,13 @@ jobs:
                   return (out_dir/"stdout.log").read_text()
               return execute
 
-          def managed_playwright(execute, node, browser_tests, family, env, list_only=False):
+          def managed_playwright(execute, node, browser_tests, family, env, list_only=False, config="wasm-public.generated.config.ts"):
               # One managed group per Playwright invocation (custody pilot / installed C): detached
               # browser and Vite groups are contained members and require-empty records leftovers.
               require(family in ("chromium","firefox","webkit"),"unselected browser family")
+              require(config in ("wasm-public.generated.config.ts","wasm-off.generated.config.ts"),"unselected Playwright config")
               cli=browser_tests/"node_modules/@playwright/test/cli.js"
-              argv=[str(node),str(cli),"test","--config","wasm-public.generated.config.ts"]+(["--list","--reporter=json"] if list_only else ["--workers=1","--retries=0","--max-failures=1"])
+              argv=[str(node),str(cli),"test","--config",config]+(["--list","--reporter=json"] if list_only else ["--workers=1","--retries=0","--max-failures=1"])
               return execute(argv,browser_tests,{**env,"PLAYWRIGHT_BROWSER_FAMILY":family})
 
           def hosted_sequence(environ, start):
@@ -670,23 +671,27 @@ jobs:
               return [bash,str(workspace/"tests/composition/fable-game/verify-fable-reference-public.sh"),"--mode","wasm","--template-version",TEMPLATE_VERSION,"--sha256",PACKAGE_SHA,"--descriptor-sha256",DESCRIPTOR_SHA,"--source-revision",PUBLISHED,"--tag-revision",PUBLISHED,"--evidence-dir",str(installed)]
 
           WASM_FAMILIES = ("chromium", "firefox", "webkit")
+          # WASM-off (disabled) browser path: the checker's generated cases on the published default product,
+          # built with FsGgWasmPolicyExample=false (FS-GG/.github#4710 Done-when "real enabled/disabled browser path").
+          WASM_OFF_CASES = 6
 
           def wasm_selected_tests(suites):
               return [t for suite in suites for spec in suite.get("specs",[]) for t in spec.get("tests",[])]+[t for suite in suites for t in wasm_selected_tests(suite.get("suites",[]))]
 
-          def check_wasm_list(report, family):
-              # The checker's former --list assertion: exactly the nine definitions of one selected project.
+          def check_wasm_list(report, family, expected=9):
+              # The checker's former --list assertion: exactly the expected definitions of one selected project
+              # (nine enabled WASM cases, or WASM_OFF_CASES on the default product).
               require([p["name"] for p in report["config"]["projects"]]==[family],"exact selected family required")
               selected=wasm_selected_tests(report["suites"])
-              require(len(selected)==9,"exact nine definitions required")
+              require(len(selected)==expected,"exact "+str(expected)+" definitions required")
               require({t["projectName"] for t in selected}=={family} and {t["projectId"] for t in selected}=={family},"wrong selected project population")
               return len(selected)
 
-          def check_wasm_result(report, family):
-              # The checker's former result assertion: nine expected, nothing unexpected, flaky or skipped.
+          def check_wasm_result(report, family, expected=9):
+              # The checker's former result assertion: all expected, nothing unexpected, flaky or skipped.
               require([p["name"] for p in report["config"]["projects"]]==[family],"runtime family differs")
               stats=report["stats"]
-              require(stats["expected"]==9 and stats["unexpected"]==stats["flaky"]==stats["skipped"]==0,"family "+family+" stats differ: "+json.dumps(stats,sort_keys=True))
+              require(stats["expected"]==expected and stats["unexpected"]==stats["flaky"]==stats["skipped"]==0,"family "+family+" stats differ: "+json.dumps(stats,sort_keys=True))
               return stats
 
           def installed_c(root, workspace, env, execute, identities, node, timing=None):
@@ -721,6 +726,25 @@ jobs:
                   for family in WASM_FAMILIES:
                       timed(family,"testSeconds",lambda:managed_playwright(execute,node,tests,family,browser_env))
                       summary["families"][family]["stats"]=check_wasm_result(json.loads((results/family/"report.json").read_bytes()),family);report()
+                  # WASM-off: the checker's generated cases on the published default product (WASM disabled),
+                  # each --list and test invocation again its own require-empty group.
+                  off_tests=installed/"default/Browser.Tests";off_results=installed/"browser-off"
+                  require(off_tests.is_dir() and not off_tests.is_symlink() and (off_tests/"wasm-off.generated.config.ts").is_file(),"generated WASM-off receiver missing")
+                  off_results.mkdir(mode=0o700)
+                  off_env={**env,"FsGgWasmPolicyExample":"false","FSGG_WASM_POLICY_EXAMPLE":"false","FSGG_WASM_RESULTS":str(off_results)}
+                  summary["wasmOff"]={}
+                  def off_timed(family,key,action):
+                      began=time.monotonic()
+                      try:return action()
+                      finally:timing.setdefault("wasmOff",{}).setdefault(family,{})[key]=round(time.monotonic()-began,3)
+                  for family in WASM_FAMILIES:
+                      (off_results/family).mkdir(mode=0o700)
+                      listed=off_timed(family,"listSeconds",lambda:managed_playwright(execute,node,off_tests,family,off_env,list_only=True,config="wasm-off.generated.config.ts"))
+                      (off_results/family/"list.json").write_text(listed)
+                      summary["wasmOff"][family]={"listed":check_wasm_list(json.loads(listed),family,WASM_OFF_CASES)};report()
+                  for family in WASM_FAMILIES:
+                      off_timed(family,"testSeconds",lambda:managed_playwright(execute,node,off_tests,family,off_env,config="wasm-off.generated.config.ts"))
+                      summary["wasmOff"][family]["stats"]=check_wasm_result(json.loads((off_results/family/"report.json").read_bytes()),family,WASM_OFF_CASES);report()
               except BaseException as error:
                   summary["disposition"]="failed";summary["firstCause"]=type(error).__name__+": "+str(error)
                   try:report()
@@ -1627,7 +1651,7 @@ jobs:
                   for note in notes:print(note,file=sys.stderr)
               return summary
 
-          # ---- Admitted installed C (downloaded-only 27-case journey; wasm-installed-c.yml, dispatch only) ----
+          # ---- Admitted installed C (downloaded-only 27 enabled + 18 WASM-off cases; wasm-installed-c.yml, dispatch only) ----
           def installed_deadline(start, phase, now):
               require(phase in ("setup","installed"),"closed installed-C phase required")
               reserved=INSTALLED_BUDGET["cleanup"]+INSTALLED_BUDGET["collection"]+INSTALLED_BUDGET["overhead"]
@@ -1673,7 +1697,8 @@ jobs:
               installed=root/"installed"
               if installed.is_dir():
                   candidates+=sorted(p for p in installed.iterdir() if p.suffix in (".json",".log",".sha256"))
-                  if (installed/"browser").is_dir():candidates+=sorted(p for p in (installed/"browser").rglob("*") if p.suffix in (".json",".md",".zip"))
+                  for name in ("browser","browser-off"):
+                      if (installed/name).is_dir():candidates+=sorted(p for p in (installed/name).rglob("*") if p.suffix in (".json",".md",".zip"))
               manifest={"schema":"fsgg.templates.wasm-installed-c-evidence/1","capBytes":INSTALLED_EVIDENCE_BYTES,"files":[],"skipped":[],"truncated":[],"unreadable":[]};total=0
               for path in candidates:
                   if not path.is_file() or path.is_symlink():continue
@@ -1710,7 +1735,7 @@ jobs:
                   summary["unit"]=pilot_unit_properties(environ,root,env,unit_run,identities,receipts,INSTALLED_UNIT)
                   require(summary["unit"]["error"] is None and all(summary["unit"]["matchesAdmission"].values()),"delegated unit properties differ from the admission")
                   summary["hostPackages"]=pilot_host_packages(environ,root);summary["platformLabel"]=summary["hostPackages"]["label"];write()
-                  # The 27-case journey needs all three families: without the recorded WebKit packages, refuse
+                  # The journey needs all three families in both populations: without the recorded WebKit packages, refuse
                   # before any provisioning acquisition.
                   require(summary["hostPackages"]["state"]=="installed","WebKit host packages not installed: "+str(summary["hostPackages"]["state"]))
                   require(summary["hostPackages"].get("postStepAptProcesses")==0,"apt or dpkg process still running after the host-package step")

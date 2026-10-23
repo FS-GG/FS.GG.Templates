@@ -931,10 +931,10 @@ def fixture_world(ns, base, owner):
               'playwright-core/browsers.json':json.dumps({'browsers':[{'name':n,'revision':d.rsplit('-',1)[1]} for n,d,_ in ns['BROWSER_REGISTRY'].values()]}).encode()}
     ns['STOCK_LAUNCHER_INPUTS']={k:hashlib.sha256(v).hexdigest() for k,v in launcher.items()}
     installed=root/'installed';results=installed/'browser'
-    def report_for(family,stats=False):
-        tests=[{'projectName':family,'projectId':family} for _ in range(9)]
+    def report_for(family,stats=False,count=9):
+        tests=[{'projectName':family,'projectId':family} for _ in range(count)]
         value={'config':{'projects':[{'name':family}]},'suites':[{'specs':[{'tests':tests}],'suites':[]}]}
-        if stats:value['stats']={'expected':9,'unexpected':0,'flaky':0,'skipped':0}
+        if stats:value['stats']={'expected':count,'unexpected':0,'flaky':0,'skipped':0}
         return value
     outputs={'--version':{'dotnet':T['sdk'],'node':'v'+T['node'],'npm':T['npm'],'rustc':'rustc 1.90.0 (1159e78c4 2025-09-14)','cargo':'cargo 1.90.0 (840b83a10 2025-07-30)','dll':'fable'}}
     def play(profile):
@@ -967,10 +967,13 @@ def fixture_world(ns, base, owner):
             if stat.S_IMODE(evidence.stat().st_mode)!=0o700 or sorted(os.listdir(evidence))!=['qualification.json']:
                 raise RuntimeError('checker usage: evidence dir must be 0700 with only qualification.json')
             (evidence/'direct/Browser.Tests').mkdir(parents=True)
+            (evidence/'default/Browser.Tests').mkdir(parents=True)
+            (evidence/'default/Browser.Tests/wasm-off.generated.config.ts').write_text('// generated\n')
         elif len(argv)>2 and argv[2]=='test':
             family=owner.env_of(profile)['PLAYWRIGHT_BROWSER_FAMILY']
-            if '--list' in argv:return json.dumps(report_for(family))
-            (Path(owner.env_of(profile)['FSGG_WASM_RESULTS'])/family/'report.json').write_text(json.dumps(report_for(family,True)))
+            count=6 if 'wasm-off.generated.config.ts' in argv else 9
+            if '--list' in argv:return json.dumps(report_for(family,count=count))
+            (Path(owner.env_of(profile)['FSGG_WASM_RESULTS'])/family/'report.json').write_text(json.dumps(report_for(family,True,count)))
         return ''
     return {'root':root,'workspace':workspace,'env':env,'acquire':acquire,'play':play,'installed':installed,'results':results}
 
@@ -1154,8 +1157,8 @@ class ManagedGroupBindingTests(unittest.TestCase):
         owner=FakeOwner()
         root,receipts,summary=drive_every_call_site(self.ns,self.root,owner)
         self.assertEqual(summary['disposition'],'passed')
-        self.assertEqual([r['phase'] for r in receipts],['setup']*18+['installed']*7)
-        self.assertEqual([r['status'] for r in receipts],['succeeded']*25)
+        self.assertEqual([r['phase'] for r in receipts],['setup']*18+['installed']*13)
+        self.assertEqual([r['status'] for r in receipts],['succeeded']*31)
         identities=set()
         for call in owner.calls:
             profile=call['profile']
@@ -1166,21 +1169,27 @@ class ManagedGroupBindingTests(unittest.TestCase):
                 self.assertEqual(profile['retirement']['onLeaderExit'],'require-empty')
                 self.assertEqual(profile['environmentKeys'],sorted(call['env']))
                 identities.add(profile['executable']['path'])
-        self.assertEqual(len({call['outDir'] for call in owner.calls}),25)
+        self.assertEqual(len({call['outDir'] for call in owner.calls}),31)
         playwright=[call for call in owner.calls if len(call['profile']['argv'])>2 and call['profile']['argv'][2]=='test']
-        self.assertEqual([(call['env']['PLAYWRIGHT_BROWSER_FAMILY'],'--list' in call['profile']['argv']) for call in playwright],
-            [('chromium',True),('firefox',True),('webkit',True),('chromium',False),('firefox',False),('webkit',False)])
-        for call in playwright:
-            self.assertEqual(call['env']['FSGG_WASM_RESULTS'],str(root/'installed/browser'))
-            self.assertEqual((call['env']['FsGgWasmPolicyExample'],call['env']['FSGG_WASM_POLICY_EXAMPLE']),('true','true'))
-            self.assertEqual(call['env']['FSGG_WASM_FIREFOX_PROFILE'],'content-sandbox-enabled')
-            self.assertNotIn('PLAYWRIGHT_EXECUTABLE_PATH',call['env']);self.assertNotIn('MOZ_DISABLE_CONTENT_SANDBOX',call['env'])
-            self.assertEqual(call['profile']['cwd'],str(root/'installed/direct/Browser.Tests'))
+        order=[('chromium',True),('firefox',True),('webkit',True),('chromium',False),('firefox',False),('webkit',False)]
+        self.assertEqual([(call['env']['PLAYWRIGHT_BROWSER_FAMILY'],'--list' in call['profile']['argv']) for call in playwright],order+order)
+        # Enabled (Complete, WASM-on) first, then the default WASM-off product: each its own receiver,
+        # generated config, results root and policy flag.
+        for call,(config,receiver,results,flag) in zip(playwright,[('wasm-public.generated.config.ts','direct','browser','true')]*6+[('wasm-off.generated.config.ts','default','browser-off','false')]*6):
+            with self.subTest(config=config,family=call['env']['PLAYWRIGHT_BROWSER_FAMILY']):
+                self.assertEqual(call['profile']['argv'][3:5],['--config',config])
+                self.assertEqual(call['env']['FSGG_WASM_RESULTS'],str(root/'installed'/results))
+                self.assertEqual((call['env']['FsGgWasmPolicyExample'],call['env']['FSGG_WASM_POLICY_EXAMPLE']),(flag,flag))
+                self.assertEqual(call['env']['FSGG_WASM_FIREFOX_PROFILE'],'content-sandbox-enabled')
+                self.assertNotIn('PLAYWRIGHT_EXECUTABLE_PATH',call['env']);self.assertNotIn('MOZ_DISABLE_CONTENT_SANDBOX',call['env'])
+                self.assertEqual(call['profile']['cwd'],str(root/'installed'/receiver/'Browser.Tests'))
         checker=[r for r in receipts if r['executable'].endswith('bash')]
         self.assertEqual(len(checker),1);self.assertEqual(len(checker[0]['inputs']),1)
         validator=[call['profile']['argv'][1] for call in owner.calls if 'browser-host-validation' in ' '.join(call['profile']['argv'])]
         self.assertEqual(len(validator),1);self.assertRegex(validator[0],r'browser-host-validation\.[0-9a-f]{64}\.cjs$')
-        self.assertEqual(json.loads((root/'installed-c.json').read_text())['families']['webkit']['stats']['expected'],9)
+        written=json.loads((root/'installed-c.json').read_text())
+        self.assertEqual(written['families']['webkit']['stats']['expected'],9)
+        self.assertEqual({f:(r['listed'],r['stats']['expected']) for f,r in written['wasmOff'].items()},{f:(6,6) for f in ('chromium','firefox','webkit')})
 
     def test_shell_checker_no_longer_starts_playwright(self):
         text=(HERE/'verify-fable-reference-public.sh').read_text()
@@ -1190,7 +1199,7 @@ class ManagedGroupBindingTests(unittest.TestCase):
 
     def test_installed_c_refuses_wrong_case_population_or_failed_family(self):
         report={'config':{'projects':[{'name':'firefox'}]},'suites':[{'specs':[{'tests':[{'projectName':'firefox','projectId':'firefox'}]*8}]}]}
-        with self.assertRaisesRegex(ValueError,'nine definitions'):self.ns['check_wasm_list'](report,'firefox')
+        with self.assertRaisesRegex(ValueError,'exact 9 definitions'):self.ns['check_wasm_list'](report,'firefox')
         with self.assertRaisesRegex(ValueError,'exact selected family'):self.ns['check_wasm_list'](report,'webkit')
         stats={'config':{'projects':[{'name':'webkit'}]},'stats':{'expected':8,'unexpected':1,'flaky':0,'skipped':0}}
         with self.assertRaisesRegex(ValueError,'family webkit stats differ'):self.ns['check_wasm_result'](stats,'webkit')
@@ -1347,7 +1356,7 @@ class RealOwnerBindingTests(unittest.TestCase):
         # Every provisioning, tool-qualification and installed-C call site, through the real schema.
         owner=FakeOwner(validate=self.owner.validate_profile)
         drive_every_call_site(self.ns,self.root,owner)
-        self.assertEqual(len(owner.calls),25)
+        self.assertEqual(len(owner.calls),31)
 
     def run_refused(self, deadline, code):
         receipts=self.receipts
@@ -1917,11 +1926,13 @@ class InstalledAdmissionTests(unittest.TestCase):
         self.assertEqual(set(summary['unit']['matchesAdmission'].values()),{True})
         self.assertEqual((summary['hostPackages']['state'],summary['platformLabel']),('installed','ubuntu-24.04 + recorded packages'))
         root=self.root/'rt/wasm-installed-c';receipts=json.loads((root/'managed-receipts.json').read_text())
-        self.assertEqual([r['phase'] for r in receipts],['setup']*19+['installed']*7)
+        self.assertEqual([r['phase'] for r in receipts],['setup']*19+['installed']*13)
         self.assertTrue(receipts[0]['executable'].endswith('systemctl'))
         families=summary['installedC']['families']
         self.assertEqual({f:(r['listed'],r['stats']['expected']) for f,r in families.items()},{f:(9,9) for f in ('chromium','firefox','webkit')})
         self.assertEqual(sum(r['stats']['expected'] for r in families.values()),27)
+        off=summary['installedC']['wasmOff'] # the default WASM-off product, FS-GG/.github#4710 Done-when
+        self.assertEqual({f:(r['listed'],r['stats']['expected']) for f,r in off.items()},{f:(6,6) for f in ('chromium','firefox','webkit')})
         for call in owner.calls:self.assertEqual(call['profile']['retirement']['onLeaderExit'],'require-empty')
         installed_deadlines={c['deadline'] for c,r in zip(owner.calls,receipts) if r['phase']=='installed'}
         self.assertEqual(len(installed_deadlines),1) # one installed-phase deadline, never renewed
@@ -2017,7 +2028,139 @@ class InstalledAdmissionTests(unittest.TestCase):
         spec=importlib.util.spec_from_file_location('installed_owner_check',OWNER_FILE);module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
         owner=self.admit(validate=module.validate_profile)
         self.assertEqual(self.ns['admitted_installed_sequence'](self.environ(),time.monotonic())['disposition'],'passed')
-        self.assertEqual(len(owner.calls),26)
+        self.assertEqual(len(owner.calls),32)
+
+
+class WasmOffBrowserPathTests(unittest.TestCase):
+    """The WASM-off (disabled) browser path of FS-GG/.github#4710's Done-when: the checker-generated
+    cases on the published default product, run per family as managed groups after the enabled cases."""
+    setUp=ManagedGroupBindingTests.setUp
+
+    def checker_block(self):
+        text=CHECKER.read_text();start=text.index('if [[ "$mode" == wasm ]]; then\n  : "${DOTNET_HOST_PATH:?')
+        return text[start:text.index('\n  exit 0\nfi\n',start)]
+
+    def generated(self, marker):
+        block=self.checker_block();head="<<'"+marker+"'\n"
+        return block[block.index(head)+len(head):block.index("\n"+marker+"\n")]
+
+    def test_off_population_is_exact_and_independent_of_the_enabled_population(self):
+        def listing(count):return {'config':{'projects':[{'name':'webkit'}]},'suites':[{'specs':[{'tests':[{'projectName':'webkit','projectId':'webkit'}]*count}]}]}
+        off=self.ns['WASM_OFF_CASES'];self.assertEqual(off,6)
+        self.assertEqual(self.ns['check_wasm_list'](listing(off),'webkit',off),off)
+        for count in (off-1,off+1,9):
+            with self.subTest(count=count),self.assertRaisesRegex(ValueError,'exact 6 definitions'):self.ns['check_wasm_list'](listing(count),'webkit',off)
+        with self.assertRaisesRegex(ValueError,'exact 9 definitions'):self.ns['check_wasm_list'](listing(off),'webkit')
+        good={'expected':off,'unexpected':0,'flaky':0,'skipped':0}
+        self.assertEqual(self.ns['check_wasm_result']({'config':{'projects':[{'name':'webkit'}]},'stats':good},'webkit',off),good)
+        for stats in ({**good,'expected':9},{**good,'expected':5,'skipped':1},{**good,'expected':5,'unexpected':1}):
+            with self.subTest(stats=stats),self.assertRaisesRegex(ValueError,'stats differ'):
+                self.ns['check_wasm_result']({'config':{'projects':[{'name':'webkit'}]},'stats':stats},'webkit',off)
+
+    def test_playwright_config_is_one_of_the_two_generated_configs(self):
+        calls=[];tests=self.root/'Browser.Tests';node=self.root/'node'
+        def execute(argv,cwd,env):calls.append(argv);return '{}'
+        self.ns['managed_playwright'](execute,node,tests,'firefox',{},list_only=True,config='wasm-off.generated.config.ts')
+        self.assertEqual(calls[0][3:5],['--config','wasm-off.generated.config.ts'])
+        for config in ('playwright.config.ts','wasm-off.generated.config.ts --grep x','../wasm-off.generated.config.ts'):
+            with self.subTest(config=config),self.assertRaisesRegex(ValueError,'unselected Playwright config'):
+                self.ns['managed_playwright'](execute,node,tests,'firefox',{},config=config)
+
+    def test_a_failed_off_family_fails_installed_c_and_keeps_the_enabled_results(self):
+        owner=FakeOwner();original=FakeOwner.run
+        def run(self_,profile,**kwargs):
+            argv=profile['argv']
+            if 'wasm-off.generated.config.ts' in argv and '--list' not in argv and kwargs['env']['PLAYWRIGHT_BROWSER_FAMILY']=='firefox':
+                self_.outcome='failed'
+            return original(self_,profile,**kwargs)
+        with patch.object(FakeOwner,'run',run),self.assertRaisesRegex(RuntimeError,'leader exited with live contained members'):
+            drive_every_call_site(self.ns,self.root,owner)
+        summary=json.loads((self.root/'job/installed-c.json').read_text())
+        self.assertEqual(summary['disposition'],'failed')
+        self.assertEqual({f:r['stats']['expected'] for f,r in summary['families'].items()},{f:9 for f in ('chromium','firefox','webkit')})
+        self.assertEqual(summary['wasmOff']['chromium']['stats']['expected'],6);self.assertNotIn('stats',summary['wasmOff']['firefox'])
+        self.assertNotIn('webkit',{f for f,r in summary['wasmOff'].items() if 'stats' in r})
+        self.assertEqual(len(json.loads((self.root/'job/managed-receipts.json').read_text())),18+12) # checker, 6 enabled, 3 off lists, chromium off, failed firefox off
+
+    def test_a_drifted_off_report_fails_installed_c(self):
+        # The written report, not the managed exit, decides: a skipped or extra WASM-off case fails the family.
+        for stats in ({'expected':5,'unexpected':0,'flaky':0,'skipped':1},{'expected':7,'unexpected':0,'flaky':0,'skipped':0}):
+            with self.subTest(stats=stats):
+                base=self.root/('drift-'+str(stats['expected']));base.mkdir()
+                owner=FakeOwner();world=fixture_world(self.ns,base,owner);original=world['play']
+                def play(profile,original=original,stats=stats):
+                    out=original(profile);argv=profile['argv']
+                    if 'wasm-off.generated.config.ts' in argv and '--list' not in argv:
+                        report=Path(owner.env_of(profile)['FSGG_WASM_RESULTS'])/owner.env_of(profile)['PLAYWRIGHT_BROWSER_FAMILY']/'report.json'
+                        value=json.loads(report.read_text());value['stats']=stats;report.write_text(json.dumps(value))
+                    return out
+                owner.stdout=play;identities={};receipts=[]
+                root,workspace,env=world['root'],world['workspace'],world['env']
+                setup=self.ns['managed_executor'](owner,root,time.monotonic()+600,identities,'setup',receipts)
+                provisioned=self.ns['prepare_inputs'](root,workspace,env,setup,world['acquire'],time.monotonic()+600,identities)
+                self.ns['qualify_tools'](root,env,setup)
+                installed=self.ns['managed_executor'](owner,root,time.monotonic()+600,identities,'installed',receipts)
+                with self.assertRaisesRegex(ValueError,'family chromium stats differ'):
+                    self.ns['installed_c'](root,workspace,env,installed,identities,provisioned['node'])
+                summary=json.loads((root/'installed-c.json').read_text())
+                self.assertEqual(summary['disposition'],'failed');self.assertNotIn('stats',summary['wasmOff']['chromium'])
+
+    def test_missing_off_receiver_refuses_after_the_enabled_cases(self):
+        owner=FakeOwner();world=fixture_world(self.ns,self.root,owner);original=world['play']
+        def play(profile):
+            out=original(profile)
+            argv=profile['argv']
+            if len(argv)>1 and argv[1].endswith('verify-fable-reference-public.sh'):
+                (Path(argv[argv.index('--evidence-dir')+1])/'default/Browser.Tests/wasm-off.generated.config.ts').unlink()
+            return out
+        owner.stdout=play;identities={};receipts=[]
+        root,workspace,env=world['root'],world['workspace'],world['env']
+        setup=self.ns['managed_executor'](owner,root,time.monotonic()+600,identities,'setup',receipts)
+        provisioned=self.ns['prepare_inputs'](root,workspace,env,setup,world['acquire'],time.monotonic()+600,identities)
+        self.ns['qualify_tools'](root,env,setup)
+        installed=self.ns['managed_executor'](owner,root,time.monotonic()+600,identities,'installed',receipts)
+        with self.assertRaisesRegex(ValueError,'generated WASM-off receiver missing'):
+            self.ns['installed_c'](root,workspace,env,installed,identities,provisioned['node'])
+        self.assertEqual(json.loads((root/'installed-c.json').read_text())['disposition'],'failed')
+        self.assertFalse((root/'installed/browser-off').exists())
+
+    def test_off_reports_are_collected_into_the_bounded_artifact(self):
+        root=self.root/'collect';(root/'installed/browser-off/webkit').mkdir(parents=True);(root/'installed/browser/webkit').mkdir(parents=True)
+        (root/'installed/browser-off/webkit/report.json').write_text('{}');(root/'installed/browser/webkit/report.json').write_text('{}')
+        self.ns['collect_installed_evidence'](root)
+        files=[f['path'] for f in json.loads((root/'installed-evidence/manifest.json').read_text())['files']]
+        self.assertIn('installed/browser-off/webkit/report.json',files);self.assertIn('installed/browser/webkit/report.json',files)
+
+    def test_checker_generates_the_off_cases_into_the_default_receiver_only(self):
+        block=self.checker_block()
+        self.assertIn('cat >"$evidence/default/Browser.Tests/wasm-off.generated.config.ts" <<\'WASM_OFF_CONFIG\'',block)
+        self.assertIn('cat >"$evidence/default/Browser.Tests/wasm-off.generated.spec.ts" <<\'WASM_OFF_SPEC\'',block)
+        self.assertIn('(cd "$evidence/default/Browser.Tests" && npm ci "${npm_args[@]}")',block)
+        self.assertNotIn('direct/Browser.Tests/wasm-off',block)
+        # Generated only after both receivers were built and the default build's asset absence checked.
+        self.assertLess(block.index("echo 'Default build contains WASM assets'"),block.index('WASM_OFF_CONFIG'))
+        # The static default-build check covers the real dist names, not only the obj/ staging name.
+        for path in ('dist/_content/FS.GG.Wasm.Browser','dist/wasm-policy"','dist/wasm-package-assets.json'):
+            with self.subTest(path=path):self.assertIn('! -e "$foundation/'+path,block)
+        self.assertNotIn('wasm-example',self.generated('WASM_OFF_SPEC')) # the page URL must not satisfy the asset pattern
+        config=self.generated('WASM_OFF_CONFIG')
+        self.assertIn('import maintained from "./playwright.config";',config)
+        self.assertIn('if (process.env.FsGgWasmPolicyExample !== "false" || process.env.PLAYWRIGHT_EXECUTABLE_PATH) throw',config)
+        self.assertIn('testMatch: "wasm-off.generated.spec.ts", workers: 1, retries: 0,',config)
+        self.assertIn('url: "http://127.0.0.1:5100/"',config);self.assertNotIn('wasm-example',config)
+        spec=self.generated('WASM_OFF_SPEC')
+        self.assertEqual(re.findall(r'^import .* from "([^"]+)";$',spec,re.M),['@playwright/test']) # nothing from the producer checkout
+        self.assertEqual(len(re.findall(r'^  test\(',spec,re.M)),self.ns['WASM_OFF_CASES'])
+        self.assertNotRegex(spec,r'test\.(skip|fixme|only|fail)\b')
+        for observed in ('page.on("pageerror"','__fsggWasmOff','"compileStreaming", "instantiate", "instantiateStreaming"','["Worker", "worker"], ["SharedWorker", "sharedWorker"]',
+                         'toMatchObject({ hooked: true, worker: 0, sharedWorker: 0 })','toMatchObject({ hooked: true, wasm: 0 })','expect(errors).toEqual([])',
+                         'new Worker(url).terminate();','"/wasm-package-assets.json"]','wasm-package-assets\\.json/;','WebAssembly.validate(new Uint8Array([0, 0x61, 0x73, 0x6d, 1, 0, 0, 0]))','#wasm-policy-example','"Load policy"',
+                         '/_content/FS.GG.Wasm.Browser/module-worker.mjs','/wasm-policy/c-normal.wasm'):
+            with self.subTest(observed=observed):self.assertIn(observed,spec)
+
+    def test_dispatch_entry_names_both_populations(self):
+        text=(HERE.parents[2]/'.github/workflows/wasm-installed-c.yml').read_text()
+        self.assertIn('name: Downloaded-only installed WASM journey (27 enabled + 18 WASM-off cases)',text)
 
 
 RESTORE_CONTROL_WORKFLOW=HERE.parents[2]/'.github/workflows/installed-c-restore-control.yml'
@@ -2156,6 +2299,8 @@ class ObservabilityTests(unittest.TestCase):
             with self.subTest(key=key):self.assertIsInstance(timing[key],float)
         self.assertEqual(set(timing['families']),{'chromium','firefox','webkit'})
         for row in timing['families'].values():self.assertEqual(set(row),{'listSeconds','testSeconds'})
+        self.assertEqual(set(timing['wasmOff']),{'chromium','firefox','webkit'})
+        for row in timing['wasmOff'].values():self.assertEqual(set(row),{'listSeconds','testSeconds'})
         self.assertEqual(summary['installedC']['timing'],timing)
         root=case.root/'rt/wasm-installed-c'
         self.assertEqual(json.loads((root/'installed-run.json').read_text())['timing']['sequenceSeconds'],timing['sequenceSeconds'])
