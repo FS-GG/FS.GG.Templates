@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Source-selected fixed 0.13 typed-SDD -> 0.19.3 materialization/adopted-restore rehearsal.
+"""Held fixed 0.13 typed-SDD -> 0.19.3 materialization/adopted-restore rehearsal.
 
 No command forwarding interface. Browser/Fable build and other retained cohorts
 remain outside this entry. Historical installed-C/AT admissions stay unchanged.
@@ -20,8 +20,9 @@ import xml.etree.ElementTree as ET
 
 HERE = Path(__file__).resolve().parent
 WORKSPACE = HERE.parents[2]
-# Owning source selection only; root still gates the first actual dispatch.
-ADMISSION = 'https://github.com/FS-GG/.github/issues/4816#issuecomment-6373063431'
+# Original admission was consumed by run40017741314/a1 and stays retired.
+# This conditional successor source selection does not dispatch; root gates exact CI/main/profile.
+ADMISSION = 'https://github.com/FS-GG/.github/issues/4816#issuecomment-6374878642'
 WORKFLOW = 'FS-GG/FS.GG.Templates/.github/workflows/retained-reference-rehearsal.yml@refs/heads/main'
 SDK_URL = 'https://builds.dotnet.microsoft.com/dotnet/Sdk/10.0.401/dotnet-sdk-10.0.401-linux-x64.tar.gz'
 SDK_SHA512 = '51c8b999af9e8dd9998c9edc5944e19a90788862068acd38694e098889054ce8c23d4f0c5cccfa16bf187d044562359e5ee69a9f8ad0bbe913ba90311fbce25b'
@@ -131,25 +132,80 @@ def capacity_snapshot(owner, staging, exclude_memory_under=None, facts=None):
     require(0 < mem.get('MemAvailable',0) <= mem.get('MemTotal',0), 'host memory observation unavailable')
     affinity = sorted(os.sched_getaffinity(0)); require(affinity, 'CPU affinity unavailable')
     cpu = float(len(affinity)); memory = mem['MemAvailable']; rows=facts['ancestors'];facts['affinity']=affinity
+    controls={};facts['cpuControllerReads']=controls
+    def cpu_controls(path):
+        key=str(path)
+        if key not in controls:
+            value={};controls[key]=value
+            for name in ('cgroup.controllers','cgroup.subtree_control'):
+                raw=owner._read(str(path/name)).strip();value[name]=raw
+                tokens=raw.split()
+                require(len(tokens)==len(set(tokens)) and all(re.fullmatch(r'[a-z][a-z0-9_]*',token) for token in tokens),'CPU controller facts malformed')
+            require(set(value['cgroup.subtree_control'].split())<=set(value['cgroup.controllers'].split()),'CPU controller facts contradictory')
+        return controls[key]
     cursor = leaf
     for _ in range(64):
         row={'path':str(cursor),'memoryExcluded':exclude_memory_under is not None and cursor.is_relative_to(exclude_memory_under)};rows.append(row)
-        def read(name):
-            try:return owner._read(str(cursor/name)).strip()
-            except FileNotFoundError:
-                require(cursor == point, 'ancestor accounting unavailable: '+name)
-                return None
-        quota=read('cpu.max'); row['cpu.max']=quota
+        # A child without CPU delegation has no cpu.max: its bound is inherited,
+        # not unlimited. Require actual child/parent facts before walking upward.
+        row['cpuControllerFacts']={}
+        try:quota=owner._read(str(cursor/'cpu.max')).strip()
+        except FileNotFoundError:quota=None
+        row['cpu.max']=quota
+        row['cpuControllerFacts']['group']=cpu_controls(cursor)
+        group_cpu='cpu' in row['cpuControllerFacts']['group']['cgroup.controllers'].split()
+        if cursor==point:
+            require(group_cpu,'root CPU controller facts unavailable')
+            row['cpuAccounting']='root' if quota is None else 'quota'
+        else:
+            row['cpuControllerFacts']['parent']=cpu_controls(cursor.parent)
+            parent_cpu='cpu' in row['cpuControllerFacts']['parent']['cgroup.subtree_control'].split()
+            require(group_cpu==parent_cpu,'CPU delegation facts contradictory')
+            if quota is None:
+                require(not group_cpu and not parent_cpu,'delegated CPU accounting unavailable')
+                require(cursor!=exclude_memory_under,'selected unit CPU accounting unavailable')
+                row['cpuAccounting']='inherited-from-ancestors'
+            else:
+                require(group_cpu and parent_cpu,'CPU quota contradicts delegation facts')
+                row['cpuAccounting']='quota'
         if quota is not None:
             parts=quota.split();require(len(parts)==2 and int(parts[1])>0,'CPU accounting malformed')
             if parts[0]!='max':require(int(parts[0])>0,'CPU quota malformed');cpu=min(cpu,int(parts[0])/int(parts[1]))
-        values={name:read(name) for name in ('memory.current','memory.max','memory.high')};row.update(values)
-        if any(value is not None for value in values.values()):
+        values={};row['memoryControllerFacts']={'group':cpu_controls(cursor)}
+        for name in ('memory.current','memory.max','memory.high'):
+            try:values[name]=owner._read(str(cursor/name)).strip()
+            except FileNotFoundError:values[name]=None
+            row[name]=values[name]
+        group_memory='memory' in row['memoryControllerFacts']['group']['cgroup.controllers'].split()
+        if cursor==point:
+            require(group_memory,'root memory controller facts unavailable')
+        else:
+            row['memoryControllerFacts']['parent']=cpu_controls(cursor.parent)
+            parent_memory='memory' in row['memoryControllerFacts']['parent']['cgroup.subtree_control'].split()
+            require(group_memory==parent_memory,'memory delegation facts contradictory')
+        if all(value is None for value in values.values()):
+            if cursor==point:row['memoryAccounting']='root'
+            else:
+                require(not group_memory and not parent_memory,'delegated memory accounting unavailable')
+                require(cursor!=exclude_memory_under,'selected unit memory accounting unavailable')
+                # Missing interfaces must not mask a vanished group or changed delegation.
+                fresh={};row['memoryInheritanceReadback']=fresh
+                fresh['group']=owner._read(str(cursor/'cgroup.controllers')).strip()
+                fresh['parent']=owner._read(str(cursor.parent/'cgroup.subtree_control')).strip()
+                require(fresh['group']==row['memoryControllerFacts']['group']['cgroup.controllers'] and fresh['parent']==row['memoryControllerFacts']['parent']['cgroup.subtree_control'],'memory inheritance facts changed')
+                row['memoryAccounting']='inherited-from-ancestors'
+        else:
             require(all(value is not None for value in values.values()),'memory accounting incomplete')
+            require(group_memory and (cursor==point or parent_memory),'memory accounting contradicts delegation facts')
             current=int(values['memory.current']);require(current>=0,'memory usage malformed')
+            limits={}
+            for name in ('memory.max','memory.high'):
+                limits[name]=None if values[name]=='max' else int(values[name])
+                require(limits[name] is None or limits[name]>=0,'memory limit malformed')
+            row['memoryAccounting']='quota'
             if not row['memoryExcluded']:
-                for name in ('memory.max','memory.high'):
-                    if values[name]!='max':memory=min(memory,max(0,int(values[name])-current))
+                for limit in limits.values():
+                    if limit is not None:memory=min(memory,max(0,limit-current))
         if cursor==point:break
         cursor=cursor.parent
     else:raise ValueError('cgroup ancestor population exceeded')
