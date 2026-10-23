@@ -61,7 +61,8 @@ class PublicReferencePreflightTests(unittest.TestCase):
     def test_source_newline_refused(self): self.run_preflight([a+'\n' if a=='c'*40 else a for a in self.args()], False)
     def test_duplicate_version_refused(self): self.run_preflight(self.args()+['--template-version', '0.18.1'], False)
 
-    # Current public default cohort (FS-GG/.github#4709): Workspace 0.19.2 + SDD 2.4.0 + Wizard 0.21.0.
+    # Current public cohorts (FS-GG/.github#4709): Workspace + SDD 2.4.0 + Wizard 0.21.0. CURRENT is the
+    # accepted historical 0.19.2 cohort; CURRENT193 is the current public 0.19.3 cohort (published bytes).
     CURRENT = {'--sha256': 'ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a',
                '--descriptor-sha256': 'e8dbf8958f90d522e577378ae36b0e131954e400991d542ae9709ac32c713e3b',
                '--source-revision': 'd15f085ff4d64b7736e09ff263644b3c86a576a6',
@@ -70,9 +71,13 @@ class PublicReferencePreflightTests(unittest.TestCase):
                '--sdd-source-revision': 'c1fee66a34ec8d222586eb708ddff4973ad5594e',
                '--wizard-sha256': '4326f57dc41ab3feaf6b7b693dcdc2867e818b0567af27da505b571aace4e190',
                '--wizard-source-revision': '12480a2083a00e0ccc91f3e0f3111d56108d755c'}
-    def current_args(self, mode='full'):
-        c = self.CURRENT
-        args = ['--mode', mode, '--template-version', '0.19.2', '--sha256', c['--sha256'],
+    CURRENT193 = {**CURRENT, '--sha256': '9594ec204a26f238a06e016d1cfe1e796a07fda23c16589eceb19366cd4a72a2',
+               '--descriptor-sha256': '6b3d8f2dcbdcd429e4f622cfd6e1515c439097147bb79f5d5c7969d36c3b5006',
+               '--source-revision': '7be0bcf5886d39a8161b186beb8cc06e82415f1e',
+               '--tag-revision': '7be0bcf5886d39a8161b186beb8cc06e82415f1e'}
+    def current_args(self, mode='full', version='0.19.2', identities=None):
+        c = identities or (self.CURRENT193 if version == '0.19.3' else self.CURRENT)
+        args = ['--mode', mode, '--template-version', version, '--sha256', c['--sha256'],
                 '--descriptor-sha256', c['--descriptor-sha256'], '--source-revision', c['--source-revision'],
                 '--tag-revision', c['--tag-revision'], '--sdd-version', '2.4.0', '--sdd-sha256', c['--sdd-sha256'],
                 '--sdd-source-revision', c['--sdd-source-revision'], '--evidence-dir', str(self.root/'fresh'), '--preflight-only']
@@ -90,16 +95,35 @@ class PublicReferencePreflightTests(unittest.TestCase):
                     if flag == '--source-revision':
                         tag = mutated.index('--tag-revision'); mutated[tag+1] = mutated[index+1]
                     with self.subTest(flag=flag): self.run_preflight(mutated, False)
-    def test_current_public_0193_refused_until_its_published_pins_are_filled(self):
-        # 0.19.3 adopts the current-public route only through identities read back from its published
-        # bytes (the post-publish pin PR). An unfilled slot refuses; 0.19.2's identities cannot stand in.
+    def test_current_public_0193_cohort_accepted(self):
         for mode in ('full', 'templates'):
-            with self.subTest(mode=mode): self.run_preflight([a.replace('0.19.2', '0.19.3') if a == '0.19.2' else a for a in self.current_args(mode)], False)
+            with self.subTest(mode=mode): self.run_preflight(self.current_args(mode, '0.19.3'), True)
+    def test_current_public_0193_identity_mutations_refused(self):
+        base = self.current_args('full', '0.19.3')
+        for flag in ('--sha256', '--descriptor-sha256', '--source-revision'):
+            mutated = list(base); index = mutated.index(flag); old = mutated[index+1]
+            mutated[index+1] = ('0' if old[0] != '0' else '1') + old[1:]
+            if flag == '--source-revision': mutated[mutated.index('--tag-revision')+1] = mutated[index+1]
+            with self.subTest(flag=flag): self.run_preflight(mutated, False)
+    def test_current_public_cohort_identities_cannot_stand_in_for_each_other(self):
+        # Each version binds its own published bytes: 0.19.2 identities cannot claim 0.19.3, nor the reverse.
+        for mode in ('full', 'templates'):
+            with self.subTest(mode=mode, claim='0.19.3'): self.run_preflight(self.current_args(mode, '0.19.3', self.CURRENT), False)
+            with self.subTest(mode=mode, claim='0.19.2'): self.run_preflight(self.current_args(mode, '0.19.2', self.CURRENT193), False)
         text = (HERE/'verify-fable-reference-public.sh').read_text()
-        for table in ('current_template_shas', 'current_template_revisions', 'current_descriptor_shas'):
+        rows = {'current_template_shas': ('ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a', '9594ec204a26f238a06e016d1cfe1e796a07fda23c16589eceb19366cd4a72a2'),
+                'current_template_revisions': ('d15f085ff4d64b7736e09ff263644b3c86a576a6', '7be0bcf5886d39a8161b186beb8cc06e82415f1e'),
+                'current_descriptor_shas': ('e8dbf8958f90d522e577378ae36b0e131954e400991d542ae9709ac32c713e3b', '6b3d8f2dcbdcd429e4f622cfd6e1515c439097147bb79f5d5c7969d36c3b5006')}
+        for table, (v192, v193) in rows.items():
             with self.subTest(table=table):
-                row = next(l for l in text.splitlines() if l.startswith('declare -A ' + table + '=('))
-                self.assertRegex(row, r'\[0\.19\.2\]=[0-9a-f]{40,64} \[0\.19\.3\]=\)$')
+                self.assertIn('declare -A %s=([0.19.2]=%s [0.19.3]=%s)' % (table, v192, v193), text)
+    def test_current_public_runtime_branches_key_on_cohort_membership(self):
+        # The overlay/Wizard-hive, typed/public-default Wizard and public-default runtime branches apply to
+        # every current-public cohort; none is keyed on a literal version any more.
+        text = (HERE/'verify-fable-reference-public.sh').read_text()
+        self.assertEqual(text.count('\nif [[ "$current_public" == true ]]; then\n'), 2)
+        self.assertEqual(text.count('\nif [[ "$mode" == full && "$current_public" == true ]]; then\n'), 1)
+        self.assertNotRegex(text, r'"\$version" == 0\.19\.[23] *\]\]; then')
     def test_current_public_cross_cohort_refused(self):
         for old, new in (('2.4.0', '2.1.0'), ('0.21.0', '0.16.0'), ('0.21.0', '0.20.0'), ('0.19.2', '0.19.1')):
             with self.subTest(old=old, new=new): self.run_preflight([a.replace(old, new) if a == old else a for a in self.current_args()], False)
@@ -364,7 +388,7 @@ class HostedWasmCallerTests(unittest.TestCase):
     def test_fixed_checker_has_no_sdd_wizard_inputs(self):
         argv=self.ns['fixed_checker_argv'](self.root,self.root/'installed','/usr/bin/bash')
         self.assertEqual(argv[0],'/usr/bin/bash')
-        self.assertIn('wasm',argv);self.assertIn('0.19.2',argv);self.assertNotIn('0.19.1',argv)
+        self.assertIn('wasm',argv);self.assertIn('0.19.3',argv);self.assertNotIn('0.19.2',argv);self.assertNotIn('0.19.1',argv)
         self.assertEqual(argv.count(self.ns['PUBLISHED']),2)
         self.assertNotIn('--sdd-version',argv);self.assertNotIn('--wizard-version',argv)
     def test_literal_runtime_hold_cannot_acquire_or_start_c(self):
@@ -1261,13 +1285,14 @@ class ManagedGroupBindingTests(unittest.TestCase):
         self.assertNotRegex(code,r'\],workspace,env\)')
         for bare in ('["node","--version"]','["npm","--version"]','["rustc","--version"]','["cargo","--version"]'):self.assertNotIn(bare,code)
 
-    def test_receiver_targets_published_0192(self):
-        self.assertEqual(self.ns['TEMPLATE_VERSION'],'0.19.2')
-        self.assertEqual(self.ns['PUBLISHED'],'d15f085ff4d64b7736e09ff263644b3c86a576a6')
-        self.assertEqual(self.ns['PACKAGE_SHA'],'ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a')
-        self.assertEqual(self.ns['DESCRIPTOR_SHA'],'e8dbf8958f90d522e577378ae36b0e131954e400991d542ae9709ac32c713e3b')
+    def test_receiver_targets_published_0193(self):
+        # Published Workspace.Template 0.19.3: signed nuget.org archive, peeled tag commit, descriptor bytes.
+        self.assertEqual(self.ns['TEMPLATE_VERSION'],'0.19.3')
+        self.assertEqual(self.ns['PUBLISHED'],'7be0bcf5886d39a8161b186beb8cc06e82415f1e')
+        self.assertEqual(self.ns['PACKAGE_SHA'],'9594ec204a26f238a06e016d1cfe1e796a07fda23c16589eceb19366cd4a72a2')
+        self.assertEqual(self.ns['DESCRIPTOR_SHA'],'6b3d8f2dcbdcd429e4f622cfd6e1515c439097147bb79f5d5c7969d36c3b5006')
         url,digest,_=self.ns['ENDPOINTS']['template']
-        self.assertEqual(url,'https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.19.2/fs.gg.workspace.template.0.19.2.nupkg')
+        self.assertEqual(url,'https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.19.3/fs.gg.workspace.template.0.19.3.nupkg')
         self.assertEqual(digest,self.ns['PACKAGE_SHA'])
         self.assertIn('/'+self.ns['PUBLISHED']+'/providers/fable-game.providers.yml',self.ns['ENDPOINTS']['descriptor'][0])
 

@@ -147,12 +147,12 @@ fi
 [[ "$mode" == templates || "$mode" == full || "$mode" == wasm ]] || usage
 # Current public cohorts (FS-GG/.github#4709): published Workspace.Template archive, peeled tag/source
 # revision and descriptor, each independently read back from nuget.org/GitHub. 0.19.2 (2026-10-22) is
-# an accepted historical successor. 0.19.3 (FS.GG.Wasm 0.7.0 receiver) is the current public template
-# once published; its identities are filled from the published bytes by the post-publish pin PR, and
-# an unfilled slot refuses every route.
-declare -A current_template_shas=([0.19.2]=ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a [0.19.3]=)
-declare -A current_template_revisions=([0.19.2]=d15f085ff4d64b7736e09ff263644b3c86a576a6 [0.19.3]=)
-declare -A current_descriptor_shas=([0.19.2]=e8dbf8958f90d522e577378ae36b0e131954e400991d542ae9709ac32c713e3b [0.19.3]=)
+# an accepted historical successor. 0.19.3 (FS.GG.Wasm 0.7.0 receiver; release run 39910502481, tag
+# 386e32b7 -> 7be0bcf5, signed nuget.org archive byte-verified 2026-10-23) is the current public template.
+# A version without a complete row refuses every route.
+declare -A current_template_shas=([0.19.2]=ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a [0.19.3]=9594ec204a26f238a06e016d1cfe1e796a07fda23c16589eceb19366cd4a72a2)
+declare -A current_template_revisions=([0.19.2]=d15f085ff4d64b7736e09ff263644b3c86a576a6 [0.19.3]=7be0bcf5886d39a8161b186beb8cc06e82415f1e)
+declare -A current_descriptor_shas=([0.19.2]=e8dbf8958f90d522e577378ae36b0e131954e400991d542ae9709ac32c713e3b [0.19.3]=6b3d8f2dcbdcd429e4f622cfd6e1515c439097147bb79f5d5c7969d36c3b5006)
 current_public=false
 if [[ -n "$version" && -n "${current_template_shas[$version]:-}" && -n "${current_template_revisions[$version]:-}" && -n "${current_descriptor_shas[$version]:-}" ]]; then
   current_public=true
