@@ -249,6 +249,12 @@ class ManagedConsumerTests(unittest.TestCase):
         for value in ('full','',None):
             with self.assertRaises(ValueError):D5.runtime_scope({'SCOPE':value})
 
+    def test_actual_entry_refuses_full_before_unit_or_private_root(self):
+        import types
+        def unexpected(*args):raise AssertionError('full scope reached unit')
+        reader=types.SimpleNamespace(validate_admission=lambda *args:{'synthetic':True},operational_start=unexpected)
+        with self.assertRaisesRegex(ValueError,'rehearsal only'):D5.run_d5(reader,{}, {'SCOPE':'full'})
+
     def test_actual_sandbox_probe_uses_literal_backend_argv_and_cleared_environment(self):
         seen=[];identities={}
         caller={'host_image':lambda path:(path,'synthetic'),

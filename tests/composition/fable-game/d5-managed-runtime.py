@@ -240,6 +240,7 @@ def finish_collection(reader, contract, root, summary, inventory, primary, start
 def run_d5(reader, contract, environ):
     """Fixed D5 sequence; every executable goes through the existing managed owner."""
     source=reader.validate_admission(environ,ADMISSION,contract)
+    runtime_scope(environ)
     require(Path(environ['GITHUB_WORKSPACE'])==HERE.parents[2],'executing checkout differs')
     initial=reader.operational_start(environ,contract)
     root=Path(environ['RUNNER_TEMP'])/('current-d5-'+environ['RUN_ID']+'-1')
@@ -256,7 +257,7 @@ def run_d5(reader, contract, environ):
     inventory=['attempt.json','source-seals.json','pins.json','unit.json','input-downloads.json','executable-identities.json']
     primary=None
     try:
-        require(environ['SCOPE'] in ('rehearsal','full'),'closed D5 scope required')
+        runtime_scope(environ)
         require(len(environ['PUBLIC_PINS'].encode())<=65536,'pin input cap exceeded')
         pins=json.loads(environ['PUBLIC_PINS'],object_pairs_hook=unique)
         write(root/'pins.json',pins)
