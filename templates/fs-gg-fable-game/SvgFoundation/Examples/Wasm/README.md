@@ -77,8 +77,9 @@ public assets and modules are excluded from template packing.
    bundle. `materialize-assets.py` binds it to the package's `worker-build.json` and to the
    exact archive bytes, and refuses the code-loading forms it detects lexically: module
    imports, dynamic `import()`, `importScripts`, nested Workers, `fetch`,
-   `import.meta`, `eval` and `new Function`. The client may build only the bundle
-   Worker.
+   `import.meta`, `eval` and `new Function`; in the client it refuses dynamic `import()`,
+   `importScripts`, `fetch`, `eval` and `new Function`. These are lexical guards; the pinned
+   archive sha binds the exact inspected bytes.
 4. Call `Initialize` with a fresh request identity for that Worker/generation.
    Wait for successful current initialization settlement before `Invoke`.
 5. Give each invocation its own request identity and use `currentAdvice` with the
