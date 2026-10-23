@@ -166,7 +166,7 @@ class Controls(unittest.TestCase):
         return result,world
 
     def test_hold_precedes_io_loader_and_execution(self):
-        with patch.object(m,'load_file',side_effect=AssertionError('loader reached')),self.assertRaisesRegex(ValueError,'held'):
+        with patch.object(m,'ADMISSION',None),patch.object(m,'load_file',side_effect=AssertionError('loader reached')),self.assertRaisesRegex(ValueError,'held'):
             m.run_rehearsal(self.env,100)
         self.assertFalse(self.root.exists())
 
@@ -175,6 +175,10 @@ class Controls(unittest.TestCase):
         for key,bad in [('REF','refs/heads/other'),('CHECKOUT_HEAD','b'*40),('WORKFLOW_SHA','b'*40),('ADMITTED_REF','b'*40),('RUN_ATTEMPT','2'),('EVENT','pull_request'),('WORKFLOW_REF',m.WORKFLOW+'other'),('UNIT_NAME','other')]:
             with self.subTest(key=key),self.assertRaises(ValueError):m.validate_admission({**self.env,key:bad},self.env['ADMISSION'])
         with self.assertRaises(ValueError):m.validate_admission(self.env,'https://github.com/FS-GG/.github/issues/4710#issuecomment-123')
+
+    def test_future_admitted_source_shape_can_pass_precheck_without_running(self):
+        with patch.object(m,'ADMISSION',self.env['ADMISSION']),patch.dict(os.environ,self.env,clear=True),patch.object(m.sys,'argv',['rehearsal','--check-admission']),patch.object(m,'run_rehearsal',side_effect=AssertionError('runtime reached')):
+            self.assertEqual(m.main(),0)
 
     def test_every_fixed_call_validates_real_contract_and_preserves_boundaries(self):
         result,world=self.drive();self.assertEqual(result['disposition'],'passed');self.assertTrue(result['membersQualified'])
@@ -311,7 +315,8 @@ class Controls(unittest.TestCase):
         composition=(m.WORKSPACE/'.github/workflows/composition.yml').read_text()
         self.assertLess(composition.index('python3 tests/composition/fable-game/test-retained-reference-rehearsal.py'),composition.index('actions/setup-dotnet@v6'))
         self.assertIn('ref: ac22206560f3eddfea524ce8f752ff1d0dfeec4e',composition)
-        caller=loader.actual_caller();self.assertIsNone(caller['INSTALLED_ADMISSION']);self.assertIsNone(caller['PILOT_ADMISSION']);self.assertFalse(caller['RUNTIME_ADMITTED']);self.assertIsNone(m.ADMISSION)
+        caller=loader.actual_caller();self.assertIsNone(caller['INSTALLED_ADMISSION']);self.assertIsNone(caller['PILOT_ADMISSION']);self.assertFalse(caller['RUNTIME_ADMITTED'])
+        if m.ADMISSION is not None:self.assertRegex(m.ADMISSION,r'^https://github.com/FS-GG/\.github/issues/4816#issuecomment-[0-9]+$')
         self.assertEqual(sum(m.BUDGET.values()),1800)
         tree=ast.parse((HERE/'retained-reference-rehearsal.py').read_text());function=next(node for node in tree.body if isinstance(node,ast.FunctionDef) and node.name=='run_rehearsal')
         body=ast.get_source_segment((HERE/'retained-reference-rehearsal.py').read_text(),function)

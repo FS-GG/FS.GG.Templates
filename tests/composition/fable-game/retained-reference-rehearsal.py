@@ -66,7 +66,7 @@ def load_file(name, path):
     return module
 
 
-def validate_admission(env, admission=ADMISSION):
+def validate_admission(env, admission=None):
     # No root creation, local imports, acquisition, unit or process before this gate.
     require(admission is not None, 'retained rehearsal held: no source admission')
     require(re.fullmatch(r'https://github.com/FS-GG/\.github/issues/4816#issuecomment-[0-9]+', admission), 'wrong owning admission')
@@ -340,7 +340,7 @@ def native_closure(caller, run, root, tools, env, identities):
 
 
 def run_rehearsal(environ, start):
-    source = validate_admission(environ)
+    source = validate_admission(environ, ADMISSION)
     root = Path(environ['RUNNER_TEMP'])/('retained-reference-'+environ['RUN_ID']+'-1')
     workspace = Path(environ['GITHUB_WORKSPACE'])
     normalized_roots(root, workspace)
@@ -491,7 +491,7 @@ def run_rehearsal(environ, start):
 
 def main():
     require(sys.argv[1:] in ([], ['--check-admission']), 'usage: retained-reference-rehearsal.py [--check-admission]')
-    validate_admission(os.environ)
+    validate_admission(os.environ, ADMISSION)
     if sys.argv[1:]:
         print('retained rehearsal admission bound')
         return 0
