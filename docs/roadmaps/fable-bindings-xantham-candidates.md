@@ -426,3 +426,23 @@ post-return readback SHA-256 is
 [Templates #716](https://github.com/FS-GG/FS.GG.Templates/pull/716) passed normal
 required source checks and delivered at `a82385a1c0e26eb5cf0d68d69feeac9fdbe87ab3`.
 No savings or broader platform acceptance is inferred from this consumer qualification.
+
+## Scheduled upstream watch (Templates #751, carried from #725)
+
+The live FBX-07 upstream assessment is replaced by `.github/workflows/xantham-watch.yml`: weekly
+(Monday 06:00 UTC) and `workflow_dispatch`, `contents: read` plus `issues: write` only, no secrets,
+no upstream checkout, restore or execution. It reads nuget.org metadata (the flat-container indexes
+of `xantham`, `xantham.fable.core`, `xantham.fable.core.ts`, `xantham.fable.node` and
+`xantham.typescript.wire`, plus the nuspec of any version not in the baseline) and the upstream
+default-branch HEAD, and compares them with the committed
+`templates/fs-gg-fable-bindings/xantham/watch-baseline.json`. The baseline changes only by a reviewed
+PR; the workflow never rewrites it.
+
+Signals: a version not in the baseline; a `netstandard2.x` group on `xantham.fable.core.ts`; an
+upstream HEAD different from the baseline. Every run writes a job summary. A signal creates or
+updates one open issue labelled `fbx-07-watch` (deduplicated by a body marker) and stops: no PR,
+branch or pin change, and no adoption. A fetch, size, parse or shape failure fails the run and is
+never reported as "no change". Whether the generator still emits the unused DOM open can only be
+learned by running it and remains a separately admitted manual reassessment. The reviewed
+`release-assessments.json` integration steps stay authoritative for any future adoption.
+Offline tests: `node tests/xantham-watch/xantham-watch.test.mjs`.

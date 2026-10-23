@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-23",
+  "purpose": "Baseline for .github/workflows/xantham-watch.yml (FS.GG.Templates#751). Changes only by a reviewed PR; the workflow never rewrites it.",
+  "packages": {
+    "xantham": {
+      "versions": ["0.1.0-alpha.2", "0.1.0-alpha.3", "0.1.0-alpha.4", "0.1.0-alpha.5", "0.1.0-alpha.6", "0.1.0-alpha.7", "0.1.0"]
+    },
+    "xantham.fable.core": {
+      "versions": ["0.1.0-alpha.1", "0.1.0"]
+    },
+    "xantham.fable.core.ts": {
+      "versions": ["0.1.0-alpha.1", "0.1.0-alpha.2", "0.1.0-alpha.3", "0.1.0-alpha.4", "0.1.0"],
+      "targetFrameworkGroups": {
+        "0.1.0-alpha.1": ["net8.0"],
+        "0.1.0-alpha.2": ["net8.0"],
+        "0.1.0-alpha.3": ["net8.0"],
+        "0.1.0-alpha.4": ["net8.0"],
+        "0.1.0": ["net8.0"]
+      }
+    },
+    "xantham.fable.node": {
+      "versions": ["0.1.0"]
+    },
+    "xantham.typescript.wire": {
+      "versions": ["0.2.0"]
+    }
+  },
+  "upstream": {
+    "repository": "shayanhabibi/Xantham",
+    "head": "594f104185cafbaa79bed3262ffb697c910c79ed",
+    "headShort": "594f104"
+  }
+}
