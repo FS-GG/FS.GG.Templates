@@ -40,7 +40,7 @@ class PublicReferencePreflightTests(unittest.TestCase):
         return args
 
     def wasm_args(self):
-        return ['--mode', 'wasm', '--template-version', '0.19.2', '--sha256', 'a'*64,
+        return ['--mode', 'wasm', '--template-version', '0.19.3', '--sha256', 'a'*64,
                 '--descriptor-sha256', 'b'*64, '--source-revision', 'c'*40,
                 '--tag-revision', 'c'*40, '--evidence-dir', str(self.root/'fresh'), '--preflight-only']
 
@@ -90,17 +90,28 @@ class PublicReferencePreflightTests(unittest.TestCase):
                     if flag == '--source-revision':
                         tag = mutated.index('--tag-revision'); mutated[tag+1] = mutated[index+1]
                     with self.subTest(flag=flag): self.run_preflight(mutated, False)
+    def test_current_public_0193_refused_until_its_published_pins_are_filled(self):
+        # 0.19.3 adopts the current-public route only through identities read back from its published
+        # bytes (the post-publish pin PR). An unfilled slot refuses; 0.19.2's identities cannot stand in.
+        for mode in ('full', 'templates'):
+            with self.subTest(mode=mode): self.run_preflight([a.replace('0.19.2', '0.19.3') if a == '0.19.2' else a for a in self.current_args(mode)], False)
+        text = (HERE/'verify-fable-reference-public.sh').read_text()
+        for table in ('current_template_shas', 'current_template_revisions', 'current_descriptor_shas'):
+            with self.subTest(table=table):
+                row = next(l for l in text.splitlines() if l.startswith('declare -A ' + table + '=('))
+                self.assertRegex(row, r'\[0\.19\.2\]=[0-9a-f]{40,64} \[0\.19\.3\]=\)$')
     def test_current_public_cross_cohort_refused(self):
         for old, new in (('2.4.0', '2.1.0'), ('0.21.0', '0.16.0'), ('0.21.0', '0.20.0'), ('0.19.2', '0.19.1')):
             with self.subTest(old=old, new=new): self.run_preflight([a.replace(old, new) if a == old else a for a in self.current_args()], False)
         historical = [a.replace('0.16.0', '0.21.0') if a == '0.16.0' else a for a in self.args('full')]
         self.run_preflight(historical, False)
     def test_wasm_direct_preflight_has_no_sdd_wizard_or_runtime_effect(self): self.run_preflight(self.wasm_args(), True)
-    def test_wasm_requires_closed_successor(self): self.run_preflight([a.replace('0.19.2','0.18.1') for a in self.wasm_args()], False)
-    def test_wasm_refuses_superseded_0190_with_truncated_guest(self): self.run_preflight([a.replace('0.19.2','0.19.0') for a in self.wasm_args()], False)
-    def test_wasm_refuses_superseded_0191(self): self.run_preflight([a.replace('0.19.2','0.19.1') for a in self.wasm_args()], False)
+    def test_wasm_requires_closed_successor(self): self.run_preflight([a.replace('0.19.3','0.18.1') for a in self.wasm_args()], False)
+    def test_wasm_refuses_superseded_0190_with_truncated_guest(self): self.run_preflight([a.replace('0.19.3','0.19.0') for a in self.wasm_args()], False)
+    def test_wasm_refuses_superseded_0191(self): self.run_preflight([a.replace('0.19.3','0.19.1') for a in self.wasm_args()], False)
+    def test_wasm_refuses_0192_with_the_0_3_0_receiver(self): self.run_preflight([a.replace('0.19.3','0.19.2') for a in self.wasm_args()], False)
     def test_historical_route_cannot_claim_successor(self):
-        for successor in ('0.19.0','0.19.1','0.19.2'):
+        for successor in ('0.19.0','0.19.1','0.19.2','0.19.3'):
             with self.subTest(successor=successor): self.run_preflight([a.replace('0.18.1',successor) for a in self.args()], False)
     def test_wasm_refuses_sdd_scope(self): self.run_preflight(self.wasm_args()+['--sdd-version','2.1.0'], False)
     def test_wasm_refuses_wizard_scope(self): self.run_preflight(self.wasm_args()+['--wizard-version','0.16.0'], False)

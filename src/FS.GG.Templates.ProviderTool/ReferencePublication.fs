@@ -25,13 +25,14 @@ type InstalledTool = { EntryCount: int; CorePath: string }
 
 let private packageId = "FS.GG.Workspace.Template"
 let private version = "0.18.1"
-// Additive WASM successors. 0.19.1 and 0.19.2 carry the byte-exact C guest sources that 0.19.0 Complete
-// scaffolds truncated; both keep the same direct-only scope and source closure.
-let private wasmSuccessors = [ "0.19.0"; "0.19.1"; "0.19.2" ]
-// Current public successor (FS-GG/.github#4709). Published 0.19.2 is the newest public default
-// that Wizard 0.21.0 resolves. It keeps the WASM successors' Complete source closure, but unlike
-// their direct-only scope it is also admitted on the provider and Wizard receiver routes.
-let private currentPublicSuccessors = [ "0.19.2" ]
+// Additive WASM successors. 0.19.1 and later carry the byte-exact C guest sources that 0.19.0 Complete
+// scaffolds truncated; 0.19.3 adopts FS.GG.Wasm 0.7.0 (FS-GG/FS.GG.Game#727). All keep the same
+// source closure.
+let private wasmSuccessors = [ "0.19.0"; "0.19.1"; "0.19.2"; "0.19.3" ]
+// Current public successors (FS-GG/.github#4709). 0.19.3 becomes the newest public default that
+// Wizard 0.21.0 resolves once published; 0.19.2 remains an accepted historical successor. Unlike the
+// direct-only WASM successors, these are also admitted on the provider and Wizard receiver routes.
+let private currentPublicSuccessors = [ "0.19.2"; "0.19.3" ]
 let private supportedVersions = version :: wasmSuccessors
 let private templateId = "fs-gg-fable-game"
 let private hex64 = Regex("^[0-9a-f]{64}$", RegexOptions.CultureInvariant)

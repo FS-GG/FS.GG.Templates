@@ -13,12 +13,12 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Templates-only public proof or full Wizard proof (historical 0.18.1/Wizard 0.16.0 or current public 0.19.2/SDD 2.4.0/Wizard 0.21.0)
+        description: Templates-only public proof or full Wizard proof (historical 0.18.1/Wizard 0.16.0, accepted 0.19.2, or current public 0.19.3 once pinned; SDD 2.4.0/Wizard 0.21.0)
         required: true
         type: choice
         default: templates
         options: [templates, full]
-      template_version: { description: Selected FS.GG.Workspace.Template cohort 0.18.1 or current public 0.19.2, required: true, type: string }
+      template_version: { description: Selected FS.GG.Workspace.Template cohort 0.18.1, 0.19.2 or current public 0.19.3, required: true, type: string }
       archive_sha256: { description: Exact nuget.org FS.GG.Workspace.Template archive SHA-256 for the selected cohort, required: true, type: string }
       descriptor_sha256: { description: Exact protected fable-game provider descriptor SHA-256, required: true, type: string }
       source_revision: { description: Exact protected Templates commit carried by the package, required: true, type: string }
@@ -227,10 +227,11 @@ jobs:
           # archive; release run 39845406998). Same stock inputs, locks and WASM [0.3.0] refs as 0.19.1, with
           # Rendering 0.32.3 adopted. 0.19.0 Complete scaffolds truncate the WASM guest policy.c.
           # The receiver source now selects FS.GG.Wasm [0.7.0] (FS-GG/FS.GG.Game#727) and the guest SDK
-          # acquisition below is 0.7.0. With the Workspace.Template patch that carries that source, move
-          # together: TEMPLATE_VERSION, PUBLISHED, PACKAGE_SHA and DESCRIPTOR_SHA here; the checker's
-          # --mode wasm version gate and comment; ReferencePublication.wasmSuccessors; and their tests.
-          # Until then installed C is fenced: a test refuses any admission while TEMPLATE_VERSION is 0.19.2.
+          # acquisition below is 0.7.0. Workspace.Template 0.19.3 carries that source; the checker's
+          # --mode wasm gate and ReferencePublication already select 0.19.3. From its published bytes the
+          # post-publish pin PR moves TEMPLATE_VERSION, PUBLISHED, PACKAGE_SHA and DESCRIPTOR_SHA here and
+          # fills the checker's 0.19.3 current-public cohort slot, with their tests. Until then installed C
+          # is fenced: a test refuses any admission while TEMPLATE_VERSION is 0.19.2.
           TEMPLATE_VERSION = "0.19.2"
           PUBLISHED = "d15f085ff4d64b7736e09ff263644b3c86a576a6"
           PACKAGE_SHA = "ef5c5c2fb2de372a427c5abaf8bb4cdf91d7776b5628f07c016d4eb9ac87469a"
