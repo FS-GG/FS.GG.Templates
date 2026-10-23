@@ -443,7 +443,7 @@ class Controls(unittest.TestCase):
         with patch.object(m.os,'sched_getaffinity',return_value={0,1,2,3}):
             facts=m.capacity_snapshot(owner,self.base,Path('/cg/parent/unit'))
             self.assertEqual(facts['availableMemoryBytes'],9*1073741824)
-            with self.assertRaisesRegex(ValueError,'8GiB\+2GiB'):m.require_capacity(facts)
+            with self.assertRaisesRegex(ValueError,r'8GiB\+2GiB'):m.require_capacity(facts)
 
     def test_inherited_child_still_refuses_one_cpu_ancestor(self):
         data,owner=self.inherited_cpu_fixture();data['/cg/parent/cpu.max']='100000 100000'
