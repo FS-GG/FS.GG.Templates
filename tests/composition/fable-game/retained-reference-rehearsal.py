@@ -13,6 +13,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+import subprocess
 import time
 import xml.etree.ElementTree as ET
 
@@ -39,7 +40,9 @@ SOURCE_FILES = ('tests/composition/fable-game/retained-reference-rehearsal.py',
                 'scripts/svg-complete-workspace-baselines.json')
 FILENAMES = {'target':'fs.gg.workspace.template.0.19.3.nupkg', 'baseline':'fs.gg.workspace.template.0.13.0.nupkg',
              'sdd':'fs.gg.sdd.cli.2.0.2.nupkg', 'provider':'provider.yml'}
-EVIDENCE_CAP = 128*1048576
+EVIDENCE_CAP = 127*1048576
+OUTER_FIELDS = ("Id","LoadState","ActiveState","SubState","InvocationID","ControlGroup","MainPID","Result","ExecMainCode","ExecMainStatus")
+OWNER_SHA = "d846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0"
 
 
 def require(value, message):
@@ -79,6 +82,170 @@ def validate_admission(env, admission=None):
     require(re.fullmatch(r'[0-9]+', env.get('RUN_ID', '')), 'run identity missing')
     require(env.get('UNIT_NAME') == 'fsgg-mg-templates-retained-' + env['RUN_ID'] + '-1', 'unit identity differs')
     return {key: env[key] for key in ('EVENT', 'REPOSITORY', 'REF', 'SHA', 'ADMITTED_REF', 'CHECKOUT_HEAD', 'WORKFLOW_REF', 'WORKFLOW_SHA', 'RUN_ID', 'RUN_ATTEMPT', 'UNIT_NAME', 'ADMISSION')}
+
+
+def outer_path(env):
+    return Path(env['RUNNER_TEMP'])/('retained-reference-'+env['RUN_ID']+'-1-outer')
+
+
+def outer_write(directory, name, value):
+    require(name in ('preflight.json','initial-unit.json','client-exit.json','post-unit.json'), 'closed outer receipt name required')
+    data = json.dumps(value, indent=2)+'\n'
+    require(len(data.encode()) <= 131072, 'outer receipt size exceeded')
+    (directory/name).write_text(data)
+
+
+def probe_owner():
+    path = WORKSPACE/'.tmp/retained-canonical-owner/eng/managed_group_owner.py'
+    require(path.is_file() and path.stat().st_size == 45315 and sha(path) == OWNER_SHA, 'capacity owner source differs')
+    return load_file('retained_capacity_owner', path)
+
+
+def capacity_snapshot(owner, staging, exclude_memory_under=None, facts=None):
+    # Reuse the pinned owner's cgroup mapping/read primitives. Hidden ancestors
+    # cannot establish effective host headroom and refuse rather than become zero.
+    facts = facts if facts is not None else {}
+    facts.update(complete=False,probeSourceSha256=OWNER_SHA,ancestors=[])
+    mount = owner._cgroup2_mount();facts['cgroupMount']=mount
+    require(mount and mount[1] == '/', 'complete cgroup ancestors unavailable')
+    leaf = Path(owner._cgroup_dir('self', mount))
+    point = Path(mount[0]); require(leaf.is_relative_to(point), 'cgroup mapping differs')
+    mem = {};facts['hostMemory']=mem
+    for line in owner._read('/proc/meminfo').splitlines():
+        if line.startswith(('MemAvailable:','MemTotal:')): mem[line.split(':')[0]] = int(line.split()[1])*1024
+    require(0 < mem.get('MemAvailable',0) <= mem.get('MemTotal',0), 'host memory observation unavailable')
+    affinity = sorted(os.sched_getaffinity(0)); require(affinity, 'CPU affinity unavailable')
+    cpu = float(len(affinity)); memory = mem['MemAvailable']; rows=facts['ancestors'];facts['affinity']=affinity
+    cursor = leaf
+    for _ in range(64):
+        row={'path':str(cursor),'memoryExcluded':exclude_memory_under is not None and cursor.is_relative_to(exclude_memory_under)};rows.append(row)
+        def read(name):
+            try:return owner._read(str(cursor/name)).strip()
+            except FileNotFoundError:
+                require(cursor == point, 'ancestor accounting unavailable: '+name)
+                return None
+        quota=read('cpu.max'); row['cpu.max']=quota
+        if quota is not None:
+            parts=quota.split();require(len(parts)==2 and int(parts[1])>0,'CPU accounting malformed')
+            if parts[0]!='max':require(int(parts[0])>0,'CPU quota malformed');cpu=min(cpu,int(parts[0])/int(parts[1]))
+        values={name:read(name) for name in ('memory.current','memory.max','memory.high')};row.update(values)
+        if any(value is not None for value in values.values()):
+            require(all(value is not None for value in values.values()),'memory accounting incomplete')
+            current=int(values['memory.current']);require(current>=0,'memory usage malformed')
+            if not row['memoryExcluded']:
+                for name in ('memory.max','memory.high'):
+                    if values[name]!='max':memory=min(memory,max(0,int(values[name])-current))
+        if cursor==point:break
+        cursor=cursor.parent
+    else:raise ValueError('cgroup ancestor population exceeded')
+    facts.update({'complete':True,'effectiveCPUs':cpu,'availableMemoryBytes':memory,'hostMemory':mem,'affinity':affinity,'ancestors':rows,
+           'cgroupMount':list(mount),'leaf':str(leaf),'diskFreeBytes':shutil.disk_usage(staging).free,
+           'boot':owner._read('/proc/sys/kernel/random/boot_id').strip(),'probeSourceSha256':OWNER_SHA,'observedMonotonic':time.monotonic()})
+    return facts
+
+
+def require_capacity(facts):
+    require(facts.get('complete') is True,'capacity accounting unavailable')
+    require(facts['effectiveCPUs']>=2,'effective CPU capacity below2')
+    require(facts['availableMemoryBytes']>=10*1073741824,'available memory below8GiB+2GiB headroom')
+    require(facts['diskFreeBytes']>=20*1073741824,'staging below20GiB')
+
+
+def read_unit(unit):
+    # Fixed read-only host command, finite timeout/output. Never stop/reap a name.
+    result=subprocess.run(['/usr/bin/systemctl','show','--no-pager',unit+'.service']+[item for name in OUTER_FIELDS for item in ('-p',name)],
+                          env={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8'},capture_output=True,timeout=3)
+    require(len(result.stdout)+len(result.stderr)<=32768,'unit readback output exceeded')
+    values=dict(line.split('=',1) for line in result.stdout.decode(errors='replace').splitlines() if '=' in line)
+    return {'exit':result.returncode,'properties':values,'stderr':result.stderr.decode(errors='replace')}
+
+
+def outer_preflight(env):
+    source=validate_admission(env, ADMISSION);directory=outer_path(env)
+    normalized_roots(directory,WORKSPACE);require(not directory.exists(),'outer receipt root occupied')
+    directory.mkdir(mode=0o700)
+    record={'source':source,'startedMonotonic':time.monotonic(),'disposition':'refused'}
+    try:
+        owner=probe_owner();record['capacity']={}
+        capacity_snapshot(owner,Path(env['RUNNER_TEMP']),facts=record['capacity'])
+        require_capacity(record['capacity'])
+        record['priorUnit']=read_unit(env['UNIT_NAME'])
+        require(record['priorUnit']['properties'].get('LoadState')=='not-found','unit collision or absence unknown')
+        record['deadlineMonotonic']=record['startedMonotonic']+2100
+        record['disposition']='passed'
+    except BaseException as error:record['firstCause']=str(error);raise
+    finally:outer_write(directory,'preflight.json',record)
+
+
+def operational_start(env):
+    directory=outer_path(env);pre=json.loads((directory/'preflight.json').read_text())
+    require(pre['disposition']=='passed' and pre['source']==validate_admission(env,ADMISSION),'outer source/capacity join missing')
+    initial={'source':pre['source'],'capacityPassed':False,'observedMonotonic':time.monotonic()}
+    try:
+        require(time.monotonic()+1800+5+30 < pre['deadlineMonotonic'],'original outer window cannot fit unit/readback')
+        owner=probe_owner();view=read_unit(env['UNIT_NAME']);props=view['properties'];initial['properties']=props
+        require(view['exit']==0 and props.get('Id')==env['UNIT_NAME']+'.service','initial unit identity unavailable')
+        require(re.fullmatch(r'[0-9a-f]{32}',props.get('InvocationID','')) and int(props.get('MainPID','0'))==os.getpid(),'initial invocation/MainPID differs')
+        mount=owner._cgroup2_mount();require(mount and mount[1]=='/','initial cgroup mapping unavailable')
+        control=props.get('ControlGroup','');require(control.startswith('/') and control!='/' and os.path.normpath(control)==control,'initial control group malformed')
+        group=Path(mount[0])/control.lstrip('/');require(owner._cgroup_dir('self',mount)==str(group),'initial process/cgroup join differs')
+        status=group.stat();birth=owner._stat(os.getpid());require(birth is not None,'initial process birth missing')
+        initial.update(boot=owner._read('/proc/sys/kernel/random/boot_id').strip(),mainStartTicks=birth['start'],cgroupPath=str(group),cgroupDev=status.st_dev,cgroupInode=status.st_ino)
+        capacity={};initial['capacity']=capacity
+        capacity_snapshot(owner,Path(env['RUNNER_TEMP']),exclude_memory_under=group,facts=capacity)
+        require_capacity(capacity)
+        require(capacity['boot']==pre['capacity']['boot'],'boot changed since capacity screen')
+        initial['capacityPassed']=True
+    except BaseException as error:initial['firstCause']=str(error);raise
+    finally:outer_write(directory,'initial-unit.json',initial)
+    return initial
+
+
+def record_client_exit(env):
+    directory=outer_path(env);pre=json.loads((directory/'preflight.json').read_text())
+    require(pre['source']==validate_admission(env,ADMISSION),'client source join differs')
+    value=env.get('REHEARSAL_CLIENT_EXIT','not-observed')
+    require(value=='not-observed' or re.fullmatch(r'[0-9]{1,3}',value),'client exit malformed')
+    outer_write(directory,'client-exit.json',{'source':pre['source'],'clientExit':value,'wrapperExit':env.get('REHEARSAL_STEP_EXIT','unknown'),'observedMonotonic':time.monotonic()})
+
+
+def post_unit(env):
+    directory=outer_path(env);pre=json.loads((directory/'preflight.json').read_text());result={'disposition':'Unknown','source':pre['source'],'observations':[]}
+    try:
+        require(pre['source']==validate_admission(env,ADMISSION),'post source differs')
+        require(time.monotonic()<pre['deadlineMonotonic']-30,'original post-read window expired')
+        client=json.loads((directory/'client-exit.json').read_text());result['originalClientExit']=client['clientExit']
+        initial=json.loads((directory/'initial-unit.json').read_text())
+        require(initial['source']==pre['source']==client['source'],'initial/client source join differs')
+        owner=probe_owner();boot=owner._read('/proc/sys/kernel/random/boot_id').strip();require(boot==initial['boot'],'post boot differs')
+        view=read_unit(env['UNIT_NAME']);props=view['properties'];group=Path(initial['cgroupPath'])
+        sample={'manager':view,'cgroupPresent':group.exists()};result['observations'].append(sample)
+        pid=int(initial['properties']['MainPID'])
+        try:
+            owner._read('/proc/'+str(pid)+'/stat')
+            birth=owner._stat(pid);require(birth is not None,'post process birth unreadable or unstable')
+        except FileNotFoundError:birth=None
+        sample['originalBirthPresent']=birth is not None and birth['start']==initial['mainStartTicks']
+        require(not sample['originalBirthPresent'],'original process birth still present')
+        if group.exists():
+            status=group.stat();require((status.st_dev,status.st_ino)==(initial['cgroupDev'],initial['cgroupInode']),'cgroup identity changed')
+            sample['cgroupEvents']=owner._read(str(group/'cgroup.events')).strip();require('populated 0' in sample['cgroupEvents'].splitlines(),'original cgroup not observed empty')
+        require(time.monotonic()<pre['deadlineMonotonic']-30,'original post-read window expired during observation')
+        if props.get('LoadState')=='not-found':
+            require(not group.exists(),'unit absent but original cgroup remains')
+            result['disposition']='original-unit-absent'
+        else:
+            require(view['exit']==0 and props.get('Id')==initial['properties']['Id'] and props.get('InvocationID')==initial['properties']['InvocationID'] and props.get('ControlGroup')==initial['properties']['ControlGroup'],'post invocation/cgroup join differs')
+            require(props.get('ActiveState') in ('inactive','failed') and props.get('MainPID')=='0','original unit terminal state unavailable')
+            result['disposition']='original-unit-terminal-empty'
+        require(client['clientExit']!='not-observed','original systemd-run exit unavailable')
+        result['originalClientExit']=client['clientExit']
+    except BaseException as error:result['disposition']='Unknown';result['firstCause']=str(error)
+    finally:
+        result['finishedMonotonic']=time.monotonic()
+        outer_write(directory,'post-unit.json',result)
+    require(result['disposition']!='Unknown','post-unit retirement remains Unknown')
+    return result
 
 
 def phase_deadline(start, phase, now):
@@ -291,13 +458,14 @@ def fixed_product_steps(root, dotnet, sdd_entry, inputs):
     ]
 
 
-def unit_properties(caller, run, env, identities):
+def unit_properties(caller, run, env, identities, initial):
     path, _ = caller['host_image']('/usr/bin/systemctl')
     caller['bind_identity'](identities, path, 'host-observed')
-    names = [*UNIT, 'CPUQuotaPerSecUSec']
+    names = [*UNIT, 'CPUQuotaPerSecUSec','InvocationID','ControlGroup','MainPID']
     text = run([path, 'show', '--no-pager', env['UNIT_NAME']] + [item for name in names for item in ('-p', name)], Path(env['PRIVATE_ROOT']), env)
     values = dict(line.split('=', 1) for line in text.splitlines() if '=' in line)
     require(all(values.get(key) == value for key, value in UNIT.items()), 'unit properties differ')
+    require(all(values.get(key)==initial['properties'][key] for key in ('InvocationID','ControlGroup','MainPID')),'unit changed from initial invocation')
     quota = re.fullmatch(r'([0-9]+(?:\.[0-9]+)?)(us|ms|s)', values.get('CPUQuotaPerSecUSec', ''))
     require(quota and float(quota[1])*{'us':1,'ms':1000,'s':1000000}[quota[2]] == 2000000, 'CPU quota differs')
     return values
@@ -347,6 +515,7 @@ def run_rehearsal(environ, start):
     require(workspace == WORKSPACE, 'executing checkout path differs')
     require(shutil.disk_usage(root.parent).free >= 20*1073741824, 'private staging needs 20GiB available')
     no_global_before_create(root)
+    initial = operational_start(environ)
     caller = load_file('retained_caller_loader', HERE/'wasm-installed-c.py').actual_caller()
     env = caller['fresh_environment'](root, environ)
     env.update(UNIT_NAME=environ['UNIT_NAME'], PRIVATE_ROOT=str(root), GIT_CONFIG_NOSYSTEM='1')
@@ -362,7 +531,7 @@ def run_rehearsal(environ, start):
         summary['probe'] = caller['probe_containment'](owner, root)
         identities = {}
         run = caller['managed_executor'](owner, root, setup, identities, 'setup', receipts)
-        summary['unit'] = unit_properties(caller, run, env, identities)
+        summary['unit'] = unit_properties(caller, run, env, identities, initial)
         tools = root/'tools'; tools.mkdir(mode=0o700)
         downloads = root/'downloads'; downloads.mkdir(mode=0o700)
         acquisitions = []
@@ -490,11 +659,13 @@ def run_rehearsal(environ, start):
 
 
 def main():
-    require(sys.argv[1:] in ([], ['--check-admission']), 'usage: retained-reference-rehearsal.py [--check-admission]')
+    require(sys.argv[1:] in ([], ['--check-admission'], ['--outer-preflight'], ['--record-client-exit'], ['--post-unit']), 'closed rehearsal mode required')
     validate_admission(os.environ, ADMISSION)
-    if sys.argv[1:]:
-        print('retained rehearsal admission bound')
-        return 0
+    if sys.argv[1:]==['--check-admission']:
+        print('retained rehearsal admission bound');return 0
+    if sys.argv[1:]==['--outer-preflight']:outer_preflight(os.environ);return 0
+    if sys.argv[1:]==['--record-client-exit']:record_client_exit(os.environ);return 0
+    if sys.argv[1:]==['--post-unit']:post_unit(os.environ);return 0
     summary = run_rehearsal(os.environ, time.monotonic())
     print(json.dumps({'disposition':summary['disposition'], 'scope':summary['scope']}))
     return 0 if summary['disposition'] == 'passed' else 1

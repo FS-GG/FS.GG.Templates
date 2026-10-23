@@ -92,7 +92,7 @@ class World:
             path.write_bytes(data.replace(b'FableGameWorkspaceNamespace',product.encode()).replace(b'FableGameWorkspace',product.encode()))
 
     def response(self, argv, env):
-        if Path(argv[0]).name=='systemctl':return '\n'.join(key+'='+value for key,value in {**m.UNIT,'CPUQuotaPerSecUSec':'2s'}.items())+'\n'
+        if Path(argv[0]).name=='systemctl':return '\n'.join(key+'='+value for key,value in {**m.UNIT,'CPUQuotaPerSecUSec':'2s','InvocationID':'a'*32,'ControlGroup':'/system.slice/unit.service','MainPID':'42'}.items())+'\n'
         if Path(argv[0]).name=='ldd':return 'libfixture.so => '+self.host_image('libfixture.so')[0]+' (0x1234)\n'
         if argv[1:]==['--version']:return '10.0.401\n'
         if argv[1:]==['--info']:return 'SYNTHETIC SDK INFO\n'
@@ -156,7 +156,7 @@ class Controls(unittest.TestCase):
     def drive(self,fail=None):
         world=World(self.root,self.canonical,fail)
         admission=m.validate_admission(self.env,self.env['ADMISSION'])
-        with patch.object(m,'validate_admission',return_value=admission),patch.object(m,'load_file',return_value=types.SimpleNamespace(actual_caller=lambda:world.caller)),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100.5)):
+        with patch.object(m,'validate_admission',return_value=admission),patch.object(m,'load_file',return_value=types.SimpleNamespace(actual_caller=lambda:world.caller)),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100.5)),patch.object(m,'operational_start',return_value={'properties':{'InvocationID':'a'*32,'ControlGroup':'/system.slice/unit.service','MainPID':'42'}}):
             original=m.template_registration
             def synthetic_registration(home,root,version,expected):
                 body=root/'downloads'/m.FILENAMES['baseline' if version=='0.13.0' else 'target']
@@ -306,6 +306,87 @@ class Controls(unittest.TestCase):
         paths={row['path'] for row in result['files']}
         self.assertIn('transaction/apply-backup/journal.json',paths)
         self.assertTrue(all('/.nuget/' not in path and '/obj/' not in path and '/files/' not in path for path in paths))
+
+    def test_effective_ancestor_capacity_and_unit_memory_exclusion(self):
+        data={'/proc/meminfo':'MemTotal: 33554432 kB\nMemAvailable: 20971520 kB\n','/proc/sys/kernel/random/boot_id':'boot-synthetic'}
+        for directory in ['/cg/parent','/cg/parent/unit','/cg/parent/unit/fsgg-supervisor']:
+            data[directory+'/cpu.max']='max 100000'
+            data[directory+'/memory.current']=str(1*1073741824)
+            data[directory+'/memory.max']='max';data[directory+'/memory.high']='max'
+        data['/cg/parent/cpu.max']='400000 100000';data['/cg/parent/memory.max']=str(20*1073741824)
+        data['/cg/parent/unit/cpu.max']='200000 100000';data['/cg/parent/unit/memory.max']=str(8*1073741824)
+        def read(path):
+            if path not in data:raise FileNotFoundError(path)
+            return data[path]
+        owner=types.SimpleNamespace(_read=read,_cgroup2_mount=lambda:('/cg','/'),_cgroup_dir=lambda *args:'/cg/parent/unit/fsgg-supervisor')
+        with patch.object(m.os,'sched_getaffinity',return_value={0,1,2,3}):
+            facts=m.capacity_snapshot(owner,self.base,exclude_memory_under=Path('/cg/parent/unit'));m.require_capacity(facts)
+            self.assertEqual(facts['effectiveCPUs'],2);self.assertEqual(facts['availableMemoryBytes'],19*1073741824)
+            with self.assertRaises(ValueError):m.require_capacity(m.capacity_snapshot(owner,self.base))
+            data['/cg/parent/cpu.max']='100000 100000'
+            with self.assertRaises(ValueError):m.require_capacity(m.capacity_snapshot(owner,self.base,Path('/cg/parent/unit')))
+            data['/cg/parent/cpu.max']='400000 100000';data['/cg/parent/memory.current']=str(19*1073741824)
+            with self.assertRaises(ValueError):m.require_capacity(m.capacity_snapshot(owner,self.base,Path('/cg/parent/unit')))
+            del data['/cg/parent/memory.current'];partial={}
+            with self.assertRaises(ValueError):m.capacity_snapshot(owner,self.base,Path('/cg/parent/unit'),partial)
+            self.assertFalse(partial['complete']);self.assertTrue(partial['ancestors'])
+
+    def post_fixture(self):
+        directory=m.outer_path(self.env);directory.mkdir()
+        source=m.validate_admission(self.env,self.env['ADMISSION'])
+        m.outer_write(directory,'preflight.json',{'source':source,'disposition':'passed','startedMonotonic':10,'deadlineMonotonic':1000,'capacity':{'boot':'boot-synthetic'}})
+        group=self.base/'cgroup';group.mkdir();status=group.stat();(group/'cgroup.events').write_text('populated 0\n')
+        props={'Id':self.env['UNIT_NAME']+'.service','InvocationID':'a'*32,'ControlGroup':'/system.slice/test.service','MainPID':'42424242'}
+        initial={'properties':props,'source':source,'boot':'boot-synthetic','mainStartTicks':123,'cgroupPath':str(group),'cgroupDev':status.st_dev,'cgroupInode':status.st_ino}
+        m.outer_write(directory,'initial-unit.json',initial);m.outer_write(directory,'client-exit.json',{'source':source,'clientExit':'23','wrapperExit':'23'})
+        def read(path):
+            if path=='/proc/sys/kernel/random/boot_id':return 'boot-synthetic'
+            if path.startswith('/proc/'):raise FileNotFoundError(path)
+            return Path(path).read_text()
+        return directory,group,initial,types.SimpleNamespace(_read=read,_stat=lambda pid:None)
+
+    def test_post_unit_joins_original_terminal_state_and_preserves_failed_client(self):
+        directory,group,initial,owner=self.post_fixture()
+        props={**initial['properties'],'MainPID':'0','LoadState':'loaded','ActiveState':'failed','SubState':'failed'}
+        with patch.object(m,'ADMISSION',self.env['ADMISSION']),patch.object(m,'probe_owner',return_value=owner),patch.object(m,'read_unit',return_value={'exit':0,'properties':props}),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100)):
+            result=m.post_unit(self.env)
+        self.assertEqual(result['disposition'],'original-unit-terminal-empty');self.assertEqual(result['originalClientExit'],'23')
+
+    def test_post_unit_changed_identity_and_missing_initial_are_unknown(self):
+        directory,group,initial,owner=self.post_fixture()
+        props={**initial['properties'],'InvocationID':'b'*32,'MainPID':'0','LoadState':'loaded','ActiveState':'inactive'}
+        with patch.object(m,'ADMISSION',self.env['ADMISSION']),patch.object(m,'probe_owner',return_value=owner),patch.object(m,'read_unit',return_value={'exit':0,'properties':props}),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100)):
+            with self.assertRaises(ValueError):m.post_unit(self.env)
+            self.assertEqual(json.loads((directory/'post-unit.json').read_text())['disposition'],'Unknown')
+            (directory/'initial-unit.json').unlink()
+            with self.assertRaises(ValueError):m.post_unit(self.env)
+            result=json.loads((directory/'post-unit.json').read_text());self.assertEqual(result['originalClientExit'],'23');self.assertEqual(result['disposition'],'Unknown')
+
+    def test_post_unit_absence_and_late_read_have_distinct_results(self):
+        directory,group,initial,owner=self.post_fixture();(group/'cgroup.events').unlink();group.rmdir()
+        with patch.object(m,'ADMISSION',self.env['ADMISSION']),patch.object(m,'probe_owner',return_value=owner),patch.object(m,'read_unit',return_value={'exit':1,'properties':{'LoadState':'not-found'}}),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100)):
+            self.assertEqual(m.post_unit(self.env)['disposition'],'original-unit-absent')
+        clock=iter([100,9999,10000])
+        with patch.object(m,'ADMISSION',self.env['ADMISSION']),patch.object(m,'probe_owner',return_value=owner),patch.object(m,'read_unit',return_value={'exit':1,'properties':{'LoadState':'not-found'}}),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:next(clock))):
+            with self.assertRaises(ValueError):m.post_unit(self.env)
+        self.assertEqual(json.loads((directory/'post-unit.json').read_text())['disposition'],'Unknown')
+
+    def test_initial_identity_survives_capacity_refusal_before_owner_acquisition(self):
+        directory,group,initial,owner=self.post_fixture()
+        pre=json.loads((directory/'preflight.json').read_text());pre['deadlineMonotonic']=10000;m.outer_write(directory,'preflight.json',pre)
+        props={**initial['properties'],'ControlGroup':'/cgroup','MainPID':str(os.getpid())}
+        owner._cgroup2_mount=lambda:(str(self.base),'/');owner._cgroup_dir=lambda *args:str(group);owner._stat=lambda pid:{'start':123}
+        def missing(owner,path,exclude_memory_under=None,facts=None):facts.update(complete=False);raise ValueError('capacity missing')
+        with patch.object(m,'ADMISSION',self.env['ADMISSION']),patch.object(m,'probe_owner',return_value=owner),patch.object(m,'read_unit',return_value={'exit':0,'properties':props}),patch.object(m,'capacity_snapshot',side_effect=missing),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100)):
+            with self.assertRaisesRegex(ValueError,'capacity missing'):m.operational_start(self.env)
+        recorded=json.loads((directory/'initial-unit.json').read_text());self.assertFalse(recorded['capacityPassed']);self.assertEqual(recorded['properties']['InvocationID'],'a'*32);self.assertEqual(recorded['mainStartTicks'],123)
+
+    def test_outer_collision_refuses_without_launch_and_retains_capacity(self):
+        facts={'complete':True,'effectiveCPUs':2,'availableMemoryBytes':10*1073741824,'diskFreeBytes':20*1073741824,'boot':'synthetic'}
+        def capacity(owner,path,facts=None,**kwargs):facts.update({'complete':True,'effectiveCPUs':2,'availableMemoryBytes':10*1073741824,'diskFreeBytes':20*1073741824,'boot':'synthetic'})
+        with patch.object(m,'ADMISSION',self.env['ADMISSION']),patch.object(m,'probe_owner',return_value=object()),patch.object(m,'capacity_snapshot',side_effect=capacity),patch.object(m,'read_unit',return_value={'exit':0,'properties':{'LoadState':'loaded'}}):
+            with self.assertRaisesRegex(ValueError,'collision'):m.outer_preflight(self.env)
+        result=json.loads((m.outer_path(self.env)/'preflight.json').read_text());self.assertEqual(result['disposition'],'refused');self.assertEqual(result['capacity']['effectiveCPUs'],2);self.assertFalse(self.root.exists())
 
     def test_workflow_and_ci_wiring_preserve_all_historical_holds(self):
         workflow=(m.WORKSPACE/'.github/workflows/retained-reference-rehearsal.yml').read_text()
