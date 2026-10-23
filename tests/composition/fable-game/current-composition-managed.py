@@ -71,14 +71,109 @@ def source_arguments(bash,root,workspace,plan,template):
     return [bash,str(workspace/'tests/composition/fable-game/verify-external-reference-candidate.sh'),str(root/'absent-rendering-source'),str(root/'public-feed'),plan['rendering']['version'],str(root/'product'),plan['rendering']['sourceCommit'],'current-public-composition',str(template),plan['template']['sha256'],'current-source-stage']
 
 
+# Closed metadata/log inventory: no packages, SDKs, browser assets or recursive trees.
+PRODUCT_EVIDENCE=(
+    'NuGet.Config','current-composition-plan.json','template-package-input.json',
+    'producer-package-input.json','producer-archives.json','producer-source-entries.json',
+    'template-generated-independent.json','current-source-stage.json','feed/public-readback.json',
+    'template-typed-identity.log','template-install.log','complete-generate.log','player-generate.log',
+    'current-composition-receiver.log','public-locked-restore.log','receiver-restore.log',
+    'fable-restore.log','fable-build.log','fable-version.log','npm-client.log','npm-browser.log',
+    'vite-build.log','public-codec-build.log','public-studio-build.log','public-tactical-build.log',
+    'public-player-restore.log','server-restore.log','server-publish.log',
+    'complete/global.json','complete/Directory.Build.props','complete/Directory.Packages.props',
+    'complete/NuGet.Config','complete/.config/dotnet-tools.json',
+    'complete/SvgFoundation/SvgFoundation.fsproj','complete/SvgFoundation/packages.lock.json',
+    'complete/SvgFoundation/obj/project.assets.json',
+    'complete/Browser.Tests/current-composition.generated.config.ts',
+    'complete/Browser.Tests/package.json','complete/Browser.Tests/package-lock.json',
+    'complete/Browser.Tests/playwright.config.ts','complete/Browser.Tests/two-client.spec.ts',
+    'complete/Browser.Tests/external-command-outcomes.spec.ts',
+    'complete/SvgFoundation/ExternalAuthorityReference.fs','complete/SvgFoundation/PlayerInput.fs',
+    'complete/SvgFoundation/Examples/FourD/LocalSaveReplayExample.fs',
+    'complete/SvgFoundation/Examples/FourD/LocalSaveReplayExample.TestEntry.fs',
+    'complete/SvgFoundation/Examples/FourD/LocalSaveReplayExample.Tests.fs',
+    'complete/SvgFoundation/Examples/ExternalAuthority/reference.json',
+    'complete/SvgFoundation/Examples/FourD/reference.json',
+    'complete/Server/Server.fsproj','complete/Server/packages.lock.json',
+    'complete/Server/obj/project.assets.json',
+    'player/SvgFoundation/packages.lock.json','player/SvgFoundation/obj/project.assets.json',
+    'complete/Client/package.json','complete/Client/package-lock.json')
+
+
+def evidence_inventory(root):
+    selected=[str(p.relative_to(root)) for p in root.iterdir()
+              if p.is_file() and not p.is_symlink() and p.suffix in ('.json','.log','.tsv','.yml')
+              and p.name!='d5-evidence-inputs.json']
+    selected += ['product/'+name for name in PRODUCT_EVIDENCE if (root/'product'/name).exists()]
+    require(len(selected)<=128,'closed evidence population exceeded')
+    total=0
+    for name in selected:
+        path=root/name
+        require(not any(parent.is_symlink() for parent in (path,*path.parents)) and path.is_file(),'evidence path refused')
+        size=path.stat().st_size;require(size<=16777216,'evidence member cap exceeded');total+=size
+    require(total<=100663296,'evidence total cap exceeded')
+    return sorted(set(selected))
+
+
+def finish_composition(reader,contract,root,summary,receipts,primary,start):
+    deciding=primary
+    def protected(label,operation):
+        nonlocal deciding
+        try:return operation()
+        except BaseException as error:
+            message=(label+': '+type(error).__name__+': '+str(error))[:8192]
+            summary.update(disposition='failed',executionDisposition='failed')
+            if deciding is None:
+                deciding=error;summary['firstCause']=message
+            else:
+                summary['additionalFailures'].append(message);deciding.add_note(message)
+            print(message,file=sys.stderr)
+    protected('managed receipt index',lambda:write(root/'managed-receipts.json',receipts))
+    def collect():
+        summary['seconds']=time.monotonic()-start
+        write(root/'attempt.json',summary)
+        write(root/'d5-evidence-inputs.json',evidence_inventory(root))
+        result=reader.collect(root,min(time.monotonic()+120,start+1770),contract)
+        require(not result['failures'],'composition collection incomplete')
+    protected('composition reporting/collection',collect)
+    summary['collectionDisposition']='Unknown'
+    protected('terminal collection report Unknown',lambda:reader.collection_terminal(root,summary,contract))
+    if primary is None and deciding is not None:raise deciding
+
+
+def retain_raw(source,target):
+    require(not source.is_symlink() and source.is_file(),'raw report missing or symlink')
+    require(not any(parent.is_symlink() for parent in source.parents),'raw report ancestor refused')
+    require(source.stat().st_size<=16777216,'raw report cap exceeded')
+    target.write_bytes(source.read_bytes())
+
+
 def browser_sequence(caller,run,node,root,env,plan,observations):
     tests=root/'product/complete/Browser.Tests';results={}
     for family in plan['browsers']['families']:
+        require(family in ('chromium','firefox','webkit'),'browser evidence family differs')
         listed=caller['managed_playwright'](run,node,tests,family,env,list_only=True,config='current-composition.generated.config.ts')
-        listing=json.loads(listed);observations.validate_listing(listing,plan,family);write(root/(family+'-list.json'),listing)
-        caller['managed_playwright'](run,node,tests,family,env,config='current-composition.generated.config.ts')
-        report=json.loads((tests/'test-results/browser.json').read_text());observations.validate_report(report,plan,family)
-        write(root/(family+'-report.json'),report);results[family]={'passed':len(plan['browsers']['cases']),'retries':0}
+        require(len(listed.encode())<=16777216,'listing cap exceeded')
+        (root/(family+'-list.json')).write_text(listed)
+        listing=json.loads(listed);observations.validate_listing(listing,plan,family)
+        report_path=tests/'test-results/browser.json'
+        # Clear only the previous family's fixed report; never attribute stale bytes.
+        if report_path.exists():
+            require(report_path.is_file() and not report_path.is_symlink(),'previous raw report refused');report_path.unlink()
+        primary=None
+        try:
+            caller['managed_playwright'](run,node,tests,family,env,config='current-composition.generated.config.ts')
+        except BaseException as error:
+            primary=error;raise
+        finally:
+            try:
+                if report_path.exists():retain_raw(report_path,root/(family+'-report.json'))
+            except BaseException as error:
+                if primary is None:raise
+                primary.add_note(('raw report retention: '+str(error))[:8192])
+        report=json.loads((root/(family+'-report.json')).read_text());observations.validate_report(report,plan,family)
+        results[family]={'passed':len(plan['browsers']['cases']),'retries':0}
     return results
 
 
@@ -95,9 +190,9 @@ def run_composition(reader,collection,contract,environ):
     provider=workspace/'src/FS.GG.Templates.ProviderTool'
     source_paths+=list(provider.glob('*.fs'))+[provider/'FS.GG.Templates.ProviderTool.fsproj',provider/'packages.lock.json']
     source_paths += [workspace/name for name in ('global.json','Directory.Build.props','Directory.Packages.props') if (workspace/name).is_file()]
-    write(root/'source-seals.json',{str(path.relative_to(workspace)):sha(path) for path in source_paths})
     primary=None
     try:
+        write(root/'source-seals.json',{str(path.relative_to(workspace)):sha(path) for path in source_paths})
         setup=deadline(start,'setup',time.monotonic());owner=caller['load_owner'](root,setup);caller['probe_containment'](owner,root)
         def transport(phase,until):
             execute=collection.managed_transport(caller,owner,root,until,identities,{'setup':'setup','build':'generation','browser':'backend'}[phase],receipts)
@@ -167,9 +262,7 @@ def run_composition(reader,collection,contract,environ):
     except BaseException as error:
         primary=error;summary.update(disposition='failed',executionDisposition='failed',firstCause=(type(error).__name__+': '+str(error))[:8192]);raise
     finally:
-        write(root/'managed-receipts.json',receipts)
-        # Existing closed inventory collector/terminal index retains first failure.
-        collection.finish_collection(reader,contract,root,summary,inventory,primary,start)
+        finish_composition(reader,contract,root,summary,receipts,primary,start)
     return summary
 
 

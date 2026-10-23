@@ -158,6 +158,91 @@ class Controls(unittest.TestCase):
         (source/'Fixture.1.nupkg').write_bytes(b'changed')
         with self.assertRaises(ValueError):O.staged_public_feed(plan,source,self.root/'bad')
 
+    def test_reporting_index_and_terminal_failures_preserve_original_and_attempt_terminal(self):
+        reader,collection=M.dependencies();contract=reader.caller_contract('composition',None)
+        for primary in (ValueError('original setup refusal'),None):
+            with self.subTest(primary=primary):
+                root=self.root/('primary' if primary else 'index');root.mkdir();events=[]
+                summary={'disposition':'success','executionDisposition':'complete','firstCause':str(primary) if primary else None,'additionalFailures':[]}
+                fake=types.SimpleNamespace(collect=lambda *a:events.append('collect') or {'failures':[]},collection_terminal=lambda *a:events.append('terminal'))
+                original=M.write
+                def fail(path,value):
+                    if path.name=='managed-receipts.json':raise OSError('index denied')
+                    return original(path,value)
+                with patch.object(M,'write',side_effect=fail):
+                    if primary:M.finish_composition(fake,contract,root,summary,[],primary,M.time.monotonic())
+                    else:
+                        with self.assertRaisesRegex(OSError,'index denied'):M.finish_composition(fake,contract,root,summary,[],None,M.time.monotonic())
+                self.assertIn('terminal',events);self.assertEqual(summary['disposition'],'failed')
+                if primary:self.assertEqual(summary['firstCause'],'original setup refusal');self.assertIn('index denied',str(primary.__notes__))
+        summary={'additionalFailures':[]};fake.collection_terminal=lambda *a:(_ for _ in ()).throw(OSError('terminal denied'))
+        with self.assertRaisesRegex(OSError,'terminal denied'):M.finish_composition(fake,contract,self.root,summary,[],None,M.time.monotonic())
+        self.assertEqual(summary['collectionDisposition'],'Unknown')
+
+    def test_closed_inventory_retains_failed_compiler_log_and_excludes_native_assets(self):
+        reader,_=M.dependencies();contract=reader.caller_contract('composition',None)
+        product=self.root/'product';product.mkdir();(product/'fable-build.log').write_bytes(b'original compiler failed')
+        cache=product/'complete/.nuget/packages';cache.mkdir(parents=True);(cache/'secret.json').write_text('never retain')
+        (self.root/'tools').mkdir();(self.root/'tools/private.json').write_text('never retain')
+        summary={'disposition':'failed','executionDisposition':'failed','firstCause':'compiler original','additionalFailures':[]}
+        M.finish_composition(reader,contract,self.root,summary,[],ValueError('compiler original'),M.time.monotonic())
+        evidence=self.root/'composition-evidence';self.assertEqual((evidence/'product/fable-build.log').read_bytes(),b'original compiler failed')
+        index=json.loads((evidence/'manifest.json').read_text())
+        for row in index['files']:
+            path=evidence/row['path'];self.assertEqual(M.sha(path),row['sha256']);self.assertEqual(path.stat().st_size,row['bytes'])
+        self.assertFalse(any('secret' in row['path'] or 'private' in row['path'] for row in index['files']))
+        (product/'fable-build.log').unlink();(product/'fable-build.log').symlink_to(cache/'secret.json')
+        with self.assertRaisesRegex(ValueError,'path refused'):M.evidence_inventory(self.root)
+
+    def test_failed_browser_keeps_invalid_raw_bytes_before_validation_and_original_error(self):
+        tests=self.root/'product/complete/Browser.Tests/test-results';tests.mkdir(parents=True)
+        plan={'browsers':{'families':['chromium'],'cases':[]}}
+        observation=types.SimpleNamespace(validate_listing=lambda *a:None,validate_report=lambda *a:(_ for _ in ()).throw(ValueError('semantic refusal')))
+        def browser(*args,**kwargs):
+            if kwargs.get('list_only'):return '{}'
+            (tests/'browser.json').write_bytes(b'not JSON: original failed report');raise ValueError('original DOM failure')
+        with self.assertRaisesRegex(ValueError,'original DOM failure'):M.browser_sequence({'managed_playwright':browser},None,'synthetic',self.root,{},plan,observation)
+        self.assertEqual((self.root/'chromium-report.json').read_bytes(),b'not JSON: original failed report')
+        def invalid(*args,**kwargs):
+            if kwargs.get('list_only'):return '{}'
+            (tests/'browser.json').write_bytes(b'{}')
+        with self.assertRaisesRegex(ValueError,'semantic refusal'):M.browser_sequence({'managed_playwright':invalid},None,'synthetic',self.root,{},plan,observation)
+        self.assertEqual((self.root/'chromium-report.json').read_bytes(),b'{}')
+
+    def test_actual_entry_owner_failure_survives_index_and_terminal_failure(self):
+        reader,collection=M.dependencies();contract=reader.caller_contract('composition',None);events=[]
+        def fresh(path,environ):path.mkdir();return {}
+        def fail(*args):raise ValueError('first owner failure')
+        def terminal(*args):events.append('terminal');raise OSError('terminal inaccessible')
+        caller={'fresh_environment':fresh,'load_owner':fail}
+        fake=types.SimpleNamespace(validate_admission=lambda *a:{},operational_start=lambda *a:{'boot':'synthetic'},normalized_roots=lambda *a:None,no_global_before_create=lambda *a:None,
+            load_file=lambda *a:types.SimpleNamespace(actual_caller=lambda:caller),original_clock=lambda *a:{'startedMonotonic':M.time.monotonic()},collect=reader.collect,collection_terminal=terminal)
+        original=M.write
+        def index_fail(path,value):
+            if path.name=='managed-receipts.json':raise OSError('secondary index inaccessible')
+            return original(path,value)
+        env={'GITHUB_WORKSPACE':str(HERE.parents[2]),'RUNNER_TEMP':str(self.root),'RUN_ID':'42','UNIT_NAME':'synthetic'}
+        with patch.object(M,'write',side_effect=index_fail),self.assertRaisesRegex(ValueError,'first owner failure') as caught:M.run_composition(fake,collection,contract,env)
+        self.assertEqual(events,['terminal']);self.assertIn('secondary index inaccessible',str(caught.exception.__notes__));self.assertIn('terminal inaccessible',str(caught.exception.__notes__))
+        self.assertFalse(json.loads((self.root/'current-composition-42-1/composition-evidence/attempt.json').read_text())['completeCompositionAcceptance'])
+
+    def test_actual_provider_compile_failure_retains_partial_log_without_cli(self):
+        calls=[];product=self.root/'product';product.mkdir()
+        def run(argv,*args,**kwargs):
+            calls.append(argv)
+            if argv[1]=='build':
+                (product/'fable-build.log').write_text('first compiler failure bytes');raise ValueError('compiler failed')
+            return ''
+        with self.assertRaisesRegex(ValueError,'compiler failed'):M.qualified_provider(L.actual_caller(),run,'synthetic',self.root,HERE.parents[2],self.root/'config')
+        self.assertEqual(len(calls),2);self.assertIn('product/fable-build.log',M.evidence_inventory(self.root));self.assertFalse((self.root/'current-composition-plan.json').exists())
+
+    def test_inventory_rejects_oversize_metadata_without_copying(self):
+        product=self.root/'product';product.mkdir()
+        with (product/'fable-build.log').open('wb') as handle:handle.truncate(16777217)
+        with self.assertRaisesRegex(ValueError,'member cap'):M.evidence_inventory(self.root)
+        (product/'fable-build.log').unlink();(self.root/'arbitrary-tree').mkdir();(self.root/'arbitrary-tree/private.json').write_text('exclude')
+        self.assertEqual(M.evidence_inventory(self.root),[])
+
     def test_workflow_has_real_preflight_watch_hold_and_original_bounds(self):
         w=(HERE.parents[2]/'.github/workflows/current-reference-composition.yml').read_text()
         self.assertLess(w.index('Hold manual runtime'),w.index('actions/checkout'))
