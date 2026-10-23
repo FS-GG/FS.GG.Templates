@@ -105,7 +105,9 @@ def evidence_inventory(root):
     names=('attempt.json','source-seals.json','managed-receipts.json','unit.json',
            'provider-member-identities.json','current-composition-plan.json',
            'fable-member-identities.json','node-native-closure.json','browser-native-closure.json',
-           'input-downloads.json','executable-identities.json','game-public-observation.json','NuGet.Config')
+           'input-downloads.json','executable-identities.json','game-public-observation.json','NuGet.Config',
+           'browser-archive-inputs.json','browser-extracted-layouts.json',
+           'browser-registration.json','browser-host-validation.json')
     names += tuple(family+'-'+kind+'.json' for family in ('chromium','firefox','webkit') for kind in ('list','report'))
     selected=[name for name in names if (root/name).exists()]
     selected += ['product/'+name for name in PRODUCT_EVIDENCE if (root/'product'/name).exists()]

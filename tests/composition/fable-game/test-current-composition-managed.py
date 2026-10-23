@@ -182,11 +182,15 @@ class Controls(unittest.TestCase):
     def test_closed_inventory_retains_failed_compiler_log_and_excludes_native_assets(self):
         reader,_=M.dependencies();contract=reader.caller_contract('composition',None)
         product=self.root/'product';product.mkdir();(product/'fable-build.log').write_bytes(b'original compiler failed')
+        for name in ('browser-archive-inputs.json','browser-extracted-layouts.json','browser-registration.json','browser-host-validation.json'):(self.root/name).write_text('{}')
         cache=product/'complete/.nuget/packages';cache.mkdir(parents=True);(cache/'secret.json').write_text('never retain')
         (self.root/'tools').mkdir();(self.root/'tools/private.json').write_text('never retain')
-        summary={'disposition':'failed','executionDisposition':'failed','firstCause':'compiler original','additionalFailures':[]}
+        summary={'disposition':'failed','executionDisposition':'failed','firstCause':'compiler original','additionalFailures':[],'phases':{}}
         M.finish_composition(reader,contract,self.root,summary,[],ValueError('compiler original'),M.time.monotonic())
         evidence=self.root/'composition-evidence';self.assertEqual((evidence/'product/fable-build.log').read_bytes(),b'original compiler failed')
+        self.assertTrue((evidence/'collection-terminal.json').is_file())
+        self.assertEqual(json.loads((evidence/'collection-terminal.json').read_text())['firstCause'],'compiler original')
+        for name in ('browser-archive-inputs.json','browser-extracted-layouts.json','browser-registration.json','browser-host-validation.json'):self.assertTrue((evidence/name).is_file())
         index=json.loads((evidence/'manifest.json').read_text())
         for row in index['files']:
             path=evidence/row['path'];self.assertEqual(M.sha(path),row['sha256']);self.assertEqual(path.stat().st_size,row['bytes'])
