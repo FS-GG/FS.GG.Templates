@@ -9,7 +9,9 @@ expected_source="${5:-097e228388375bf27a03ac008627e4a038686c53}"
 input_mode="${6:-candidate}"
 templates_package="${7:-}"
 templates_package_sha="${8:-}"
-[[ "$#" -le 8 ]]
+current_stage="${9:-}"
+[[ "$#" -le 9 ]]
+[[ -z "$current_stage" || "$input_mode" == current-public-composition && "$current_stage" == current-source-stage ]]
 [[ -z "$templates_package" && -z "$templates_package_sha" || -n "$templates_package" && "$templates_package_sha" =~ ^[0-9a-f]{64}$ ]] || { echo "external template package requires exact path and SHA256" >&2; exit 1; }
 [[ "$input_mode" == candidate || "$input_mode" == public || "$input_mode" == font-disposal || "$input_mode" == current-public-composition ]] || { echo "unknown input mode" >&2; exit 1; }
 if [[ "$input_mode" == public ]]; then
@@ -22,6 +24,7 @@ if [[ "$input_mode" == font-disposal ]]; then
 fi
 if [[ "$input_mode" == current-public-composition ]]; then
   python3 "$root/tests/composition/fable-game/current-composition-observations.py" --check-admission
+  [[ "$current_stage" == current-source-stage ]]
   [[ -n "$templates_package" && "${FSGG_REFERENCE_PROVIDER_TOOL_DLL:-}" = /* && -f "$FSGG_REFERENCE_PROVIDER_TOOL_DLL" ]] || { echo "current composition requires its qualified typed owner and exact template archive" >&2; exit 1; }
   [[ -z "${FsGgSvgInputVersion:-}" && -z "${FsGgSvgAuthoringVersion:-}" && -z "${FSGG_SVG_AUTHORING_VERSION:-}" ]]
 fi
@@ -44,7 +47,11 @@ fi
 export DOTNET_PROCESSOR_COUNT=1 MSBUILDDISABLENODEREUSE=1
 if [[ "$input_mode" == public || "$input_mode" == current-public-composition ]]; then
   rmdir "$out/feed"
-  python3 "$root/tests/composition/fable-game/external-reference-public.py" "$producer_feed/release-custody.json" "$out/feed"
+  if [[ "$input_mode" == current-public-composition ]]; then
+    python3 "$root/tests/composition/fable-game/current-composition-observations.py" staged-feed "$out/current-composition-plan.json" "$producer_feed" "$out/feed"
+  else
+    python3 "$root/tests/composition/fable-game/external-reference-public.py" "$producer_feed/release-custody.json" "$out/feed"
+  fi
   if [[ "$input_mode" == current-public-composition ]]; then
     python3 "$root/tests/composition/fable-game/current-composition-observations.py" public-readback "$out/current-composition-plan.json" "$out/feed/public-readback.json"
   fi
@@ -192,6 +199,7 @@ PYPUBLIC
   for project in SvgFoundation/SvgFoundation.fsproj SvgFoundation/Studio/Studio.fsproj SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fsproj Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj Protocol.Tests/cross-runtime/CodecProbe.Fable/CodecProbe.Fable.fsproj; do
     dotnet restore "$out/complete/$project" --locked-mode --configfile "$out/NuGet.Config" >>"$out/public-locked-restore.log" 2>&1
   done
+  if [[ "$input_mode" != current-public-composition ]]; then
   python3 - "$out/complete/.nuget/packages" "$root/tests/composition/fable-game" "$producer_feed/release-custody.json" <<'PYCACHE'
 import importlib.util,json,sys
 from pathlib import Path
@@ -201,11 +209,37 @@ for identity,sha in module.PUBLIC_SHA256.items():
     folder=cache/identity.lower()/module.VERSION;module.validate_archive(folder/(identity.lower()+'.'+module.VERSION+'.nupkg'),identity,sha,rows[identity])
     assert json.loads((folder/'.nupkg.metadata').read_text())['contentHash']==module.LOCK_HASH[identity]
 PYCACHE
+  else
+    python3 - "$out/current-composition-plan.json" "$out/complete/.nuget/packages" <<'CURRENT_CACHE'
+import json,hashlib,sys
+from pathlib import Path
+p=json.load(open(sys.argv[1]));cache=Path(sys.argv[2])
+for row in p['rendering']['packages']:
+    folder=cache/row['id'].lower()/p['rendering']['version']
+    archive=folder/(row['id'].lower()+'.'+p['rendering']['version']+'.nupkg')
+    assert hashlib.sha256(archive.read_bytes()).hexdigest()==row['sha256']
+    assert json.loads((folder/'.nupkg.metadata').read_text())['contentHash']==row['lockContentHash']
+CURRENT_CACHE
+  fi
 else
   export FsGgSvgInputVersion="$version"
   dotnet restore "$out/complete/SvgFoundation/SvgFoundation.fsproj" --force-evaluate -p:RestoreLockedMode=false --configfile "$out/NuGet.Config" -p:FsGgSvgInputVersion="$version" >"$out/receiver-restore.log" 2>&1
 fi
+if [[ "$input_mode" == current-public-composition ]]; then
+  (cd "$out/complete" && dotnet tool restore --configfile "$out/NuGet.Config") >"$out/fable-restore.log" 2>&1
+  python3 - "$out/complete/.nuget/packages" <<'CURRENT_FABLE_MEMBERS'
+import hashlib,json,os,sys
+from pathlib import Path
+cache=Path(sys.argv[1]);expected=os.environ['FSGG_COMPOSITION_FABLE_SHA']
+entries=[p for p in (cache/'fable').rglob('*.dll') if hashlib.sha256(p.read_bytes()).hexdigest()==expected]
+assert len(entries)==1,'actual product Fable core differs'
+actual={str(p.relative_to(entries[0].parent)):{'bytes':p.stat().st_size,'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in entries[0].parent.rglob('*') if p.is_file() and not p.is_symlink()}
+assert actual==json.loads(Path(os.environ['FSGG_COMPOSITION_FABLE_MEMBERS']).read_text()),'actual product Fable member closure differs'
+CURRENT_FABLE_MEMBERS
+  (cd "$out/complete" && dotnet fable SvgFoundation/SvgFoundation.fsproj --outDir SvgFoundation/output --noCache) >"$out/fable-build.log" 2>&1
+else
 (cd "$out/complete" && dotnet tool restore --configfile "$out/NuGet.Config" && dotnet fable SvgFoundation/SvgFoundation.fsproj --outDir SvgFoundation/output --noCache) >"$out/fable-build.log" 2>&1
+fi
 (cd "$out/complete" && dotnet fable --version) >"$out/fable-version.log" 2>&1
 (cd "$out/complete/Client" && npm ci) >"$out/npm-client.log" 2>&1
 (cd "$out/complete" && ./Client/node_modules/.bin/vite build --config SvgFoundation/vite.config.js) >"$out/vite-build.log" 2>&1
@@ -253,6 +287,19 @@ fi
 dotnet restore "$out/complete/Server/Server.fsproj" --locked-mode --configfile "$out/NuGet.Config" >"$out/server-restore.log" 2>&1
 dotnet publish "$out/complete/Server/Server.fsproj" -c Release --no-restore -m:1 -p:UseSharedCompilation=false -o "$out/complete/artifacts/authority-server" >"$out/server-publish.log" 2>&1
 (cd "$out/complete/Browser.Tests" && npm ci) >"$out/npm-browser.log" 2>&1
+if [[ "$input_mode" == current-public-composition ]]; then
+  python3 - "$root" "$out" <<'CURRENT_CONFIG'
+import json,runpy,sys
+from pathlib import Path
+root,out=map(Path,sys.argv[1:]);plan=json.loads((out/'current-composition-plan.json').read_text())
+selector=runpy.run_path(str(root/'tests/composition/fable-game/current-composition-observations.py'))['selector'](plan)
+files=sorted({row["file"] for row in plan["browsers"]["cases"]})
+config='import { defineConfig } from "@playwright/test";\nimport maintained from "./playwright.config";\nexport default defineConfig({...maintained,testMatch:'+json.dumps(files)+',workers:'+str(plan["browsers"]["workers"])+',retries:'+str(plan["browsers"]["retries"])+',grep:new RegExp('+json.dumps(selector)+')});\n'
+(out/'complete/Browser.Tests/current-composition.generated.config.ts').write_text(config)
+(out/'current-source-stage.json').write_text(json.dumps({'disposition':'source-passed','browserExecuted':False,'whole4818Acceptance':False})+'\n')
+CURRENT_CONFIG
+  exit 0
+fi
 export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-$out/browsers}"
 (cd "$out/complete/Browser.Tests" && npx playwright install chromium firefox webkit) >"$out/browser-install.log" 2>&1
 selector="$(python3 - "$root" "$input_mode" "$out/current-composition-plan.json" <<'PYSELECT'
