@@ -159,9 +159,9 @@ if [[ -n "$version" && -n "${current_template_shas[$version]:-}" && -n "${curren
 fi
 current_sdd_sha=1df2e74faebd388f90b813ed9d7497f4247f977718469c9247b37111d791921f
 current_sdd_revision=c1fee66a34ec8d222586eb708ddff4973ad5594e
-current_wizard_sha=4326f57dc41ab3feaf6b7b693dcdc2867e818b0567af27da505b571aace4e190
-current_wizard_revision=12480a2083a00e0ccc91f3e0f3111d56108d755c
-# Wizard 0.21.0 pinned creation of the omitted (typed-sdd) lifecycle admits only the sole exact
+current_wizard_sha=caa91285e5370edc7a8a14a5a46f6cfef236d1db95f1e186357e6591b9ec7bd5
+current_wizard_revision=6e6fb9b9f7677e26f0c7d58cab1646323e81df58
+# Wizard 0.21.0+ pinned creation of the typed-sdd lifecycle (unchanged in 0.22.0, .github#4813) admits only the sole exact
 # public Workspace.Template 0.18.2 project-knowledge registration before any target effect.
 current_overlay_sha=496aad0e89496719bc543edc6ffbf829a82307862e630ba4e174e374ac11cc4e
 if [[ "$mode" == wasm ]]; then
@@ -171,7 +171,7 @@ if [[ "$mode" == wasm ]]; then
   [[ "$version" == 0.19.3 && -z "$sdd_version$sdd_sha$sdd_revision$wizard_version$wizard_sha$wizard_revision" ]] || usage
 else
   # Closed published cohorts. 0.18.1/SDD 2.1.0/Wizard 0.16.0 is historical; a current public
-  # Workspace.Template with SDD 2.4.0/Wizard 0.21.0 is the default the documented install resolves
+  # Workspace.Template with SDD 2.4.0/Wizard 0.22.0 is the default the documented install resolves
   # (FS-GG/.github#4709). The cohort binds every public archive/source identity here, not only inputs.
   [[ ( "$version" == 0.18.1 && "$sdd_version" == 2.1.0 ) \
      || ( "$current_public" == true && "$sha" == "${current_template_shas[$version]}" && "$revision" == "${current_template_revisions[$version]}" \
@@ -181,7 +181,7 @@ fi
 if [[ "$mode" == full ]]; then
   [[ "$wizard_sha" =~ ^[0-9a-f]{64}$ && "$wizard_revision" =~ ^[0-9a-f]{40}$ ]] || usage
   [[ ( "$version" == 0.18.1 && "$wizard_version" == 0.16.0 ) \
-     || ( "$current_public" == true && "$wizard_version" == 0.21.0 && "$wizard_sha" == "$current_wizard_sha" && "$wizard_revision" == "$current_wizard_revision" ) ]] || usage
+     || ( "$current_public" == true && "$wizard_version" == 0.22.0 && "$wizard_sha" == "$current_wizard_sha" && "$wizard_revision" == "$current_wizard_revision" ) ]] || usage
 else
   [[ -z "$wizard_version$wizard_sha$wizard_revision" ]] || usage
 fi
@@ -521,15 +521,12 @@ if [[ "$mode" == full ]]; then
 wizard_home="$DOTNET_CLI_HOME"; wizard_none_home="$DOTNET_CLI_HOME"; wizard_default_lifecycle=typed-sdd
 if [[ "$current_public" == true ]]; then
   # Fresh Wizard hives: the direct route above already registered the archive in the shared hive.
-  # Wizard 0.21.0 pinned creation of an omitted or typed-sdd fable-game lifecycle admits only the
+  # Wizard 0.21.0+ (unchanged in 0.22.0) pinned creation of an omitted or typed-sdd fable-game lifecycle admits only the
   # sole exact public 0.18.2 project-knowledge registration first; explicit none starts empty.
   # Every hive must end on the selected published current-public bytes.
   overlay="$evidence/feed/FS.GG.Workspace.Template.0.18.2.nupkg"
   curl --fail --silent --show-error --location "https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/0.18.2/fs.gg.workspace.template.0.18.2.nupkg" -o "$overlay"
   [[ "$(sha256sum "$overlay" | cut -d' ' -f1)" == "$current_overlay_sha" ]] || { echo 'fable-reference-public: 0.18.2 overlay identity mismatch' >&2; exit 1; }
-  # Wizard 0.21.0 forwards its own omitted default `sdd` to current descriptors; the provider
-  # descriptor's omitted default remains typed-sdd (asserted on the provider route above).
-  wizard_default_lifecycle=sdd
   wizard_home="$evidence/wizard-home"; wizard_none_home="$evidence/wizard-none-home"
   wizard_typed_home="$evidence/wizard-typed-home"; wizard_public_home="$evidence/wizard-public-home"
   mkdir "$wizard_home" "$wizard_none_home" "$wizard_typed_home" "$wizard_public_home"
@@ -560,7 +557,7 @@ root = pathlib.Path(sys.argv[1])
 p = json.loads((root/'.fsgg/scaffold-provenance.json').read_text())
 params = {x['key']: x['value'] for x in p['effectiveParameters']}
 assert p['generator'] == {'id': 'FS.GG.SDD.Artifacts', 'version': '2.4.0'}, 'public default generator drifted'
-assert params.get('lifecycle') == 'sdd' and params.get('bundle') == 'player', 'public default lifecycle/bundle drifted: %r' % params
+assert params.get('lifecycle') == 'typed-sdd' and params.get('bundle') == 'player', 'public default lifecycle/bundle drifted: %r' % params
 assert not (root/'SvgFoundation/Studio').exists() and not (root/'SvgFoundation/Examples/Wasm').exists(), 'player default must omit Studio and WASM'
 assert re.search(r"'\$\(FsGgSvgInputVersion\)' == ''\">0\.32\.3<", (root/'SvgFoundation/SvgFoundation.fsproj').read_text()), 'public default SVG input is not Rendering 0.32.3'
 assert (root/'ReferenceWizardPublic.slnx').is_file() and (root/'.fsgg/knowledge-guide.md').is_file()
@@ -578,7 +575,7 @@ for route in "${provider_routes[@]}"; do
 done
 if [[ "$mode" == full && "$current_public" == true ]]; then
   "${validator[@]}" reference-receiver-check --archive "$archive" --receiver "$evidence/wizard-typed" --route wizard --lifecycle typed-sdd --sdd-version "$sdd_version" --product-name ReferenceWizardTyped
-  # Runtime of the exact public default workspace (player bundle, Wizard sdd lifecycle).
+  # Runtime of the exact public default workspace (player bundle, Wizard typed-sdd lifecycle).
   (cd "$evidence/wizard-public" && QUINT_BIN="$QUINT_BIN" bash build.sh) >"$evidence/wizard-public-build.log" 2>&1
 fi
 receiver_routes=(direct provider); [[ "$mode" != full ]] || receiver_routes+=(wizard)

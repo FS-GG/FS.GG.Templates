@@ -30,7 +30,7 @@ let private version = "0.18.1"
 // source closure.
 let private wasmSuccessors = [ "0.19.0"; "0.19.1"; "0.19.2"; "0.19.3" ]
 // Current public successors (FS-GG/.github#4709). 0.19.3 becomes the newest public default that
-// Wizard 0.21.0 resolves once published; 0.19.2 remains an accepted historical successor. Unlike the
+// the public Wizard (0.22.0) resolves; 0.19.2 remains an accepted historical successor. Unlike the
 // direct-only WASM successors, these are also admitted on the provider and Wizard receiver routes.
 let private currentPublicSuccessors = [ "0.19.2"; "0.19.3" ]
 let private supportedVersions = version :: wasmSuccessors
@@ -155,8 +155,9 @@ let validateReceiver (archive: string) (receiver: string) (route: string) (expec
     elif not ([ "direct"; "provider"; "wizard" ] |> List.contains route) then refuse "receiver-route-refused"
     elif not ([ "none"; "typed-sdd"; "sdd" ] |> List.contains expectedLifecycle) then refuse "receiver-lifecycle-refused"
     elif route = "direct" && expectedLifecycle <> "none" then refuse "receiver-lifecycle-refused"
-    // Wizard 0.21.0 forwards its own omitted default `sdd` for current fable-game descriptors; only
-    // that route may claim it, and the recorded provenance must still equal it exactly.
+    // Only the Wizard route may claim `sdd`: Wizard 0.21.0 forwarded it as its omitted default for current
+    // fable-game descriptors (0.22.0 forwards the descriptor default typed-sdd, .github#4811), and an explicit
+    // --lifecycle sdd is forwarded unchanged. The recorded provenance must still equal it exactly.
     elif expectedLifecycle = "sdd" && route <> "wizard" then refuse "receiver-lifecycle-refused"
     elif not (Regex.IsMatch(productName, "^[A-Za-z_][A-Za-z0-9_']*$", RegexOptions.CultureInvariant)) then refuse "receiver-product-name-refused"
     else
