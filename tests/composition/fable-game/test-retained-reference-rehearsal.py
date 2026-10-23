@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+import textwrap
 import types
 import unittest
 from unittest.mock import patch
@@ -388,10 +389,47 @@ class Controls(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'capacity missing'):m.operational_start(self.env)
         recorded=json.loads((directory/'initial-unit.json').read_text());self.assertFalse(recorded['capacityPassed']);self.assertEqual(recorded['properties']['InvocationID'],'a'*32);self.assertEqual(recorded['mainStartTicks'],123)
 
+    def clock_fixture(self,start):
+        keys=('EVENT','REPOSITORY','REF','SHA','WORKFLOW_REF','WORKFLOW_SHA','RUN_ID','RUN_ATTEMPT','UNIT_NAME')
+        path=self.base/'retained-reference-123-1-clock.json'
+        m.write(path,{'scope':'first-workflow-step','startedMonotonic':start,'boot':'synthetic','source':{key:self.env[key] for key in keys}})
+        return path
+
+    def test_actual_first_step_writer_is_exclusive_and_precedes_both_checkouts(self):
+        workflow=(m.WORKSPACE/'.github/workflows/retained-reference-rehearsal.yml').read_text()
+        self.assertLess(workflow.index('Anchor the original first-step clock'),workflow.index('uses: actions/checkout'))
+        code=textwrap.dedent(workflow.split("python3 -I -B <<'PY'\n",1)[1].split('          PY\n',1)[0])
+        with patch.dict(os.environ,self.env,clear=True),patch('time.monotonic',return_value=100),patch.object(Path,'read_text',return_value='synthetic\n'):
+            exec(compile(code,'actual-workflow-first-step','exec'),{})
+            with self.assertRaises(FileExistsError):exec(compile(code,'actual-workflow-first-step','exec'),{})
+        with patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:200)):
+            clock=m.original_clock(self.env,'synthetic')
+        self.assertEqual(clock['startedMonotonic'],100);self.assertEqual(clock['scope'],'first-workflow-step')
+        self.assertEqual((self.base/'retained-reference-123-1-clock.json').stat().st_mode&0o777,0o600)
+
+    def test_delayed_preflight_cannot_renew_original_outer_budget(self):
+        self.clock_fixture(0)
+        owner=types.SimpleNamespace(_read=lambda path:'synthetic')
+        with patch.object(m,'ADMISSION',self.env['ADMISSION']),patch.object(m,'probe_owner',return_value=owner),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:300)),patch.object(m,'capacity_snapshot',side_effect=AssertionError('late capacity reached')),patch.object(m,'read_unit',side_effect=AssertionError('late unit read reached')):
+            with self.assertRaisesRegex(ValueError,'setup consumed'):m.outer_preflight(self.env)
+        record=json.loads((m.outer_path(self.env)/'preflight.json').read_text())
+        self.assertEqual(record['deadlineMonotonic'],2100);self.assertEqual(record['startedMonotonic'],0);self.assertEqual(record['preflightStartedMonotonic'],300);self.assertEqual(record['disposition'],'refused')
+        self.assertFalse(self.root.exists())
+
+    def test_missing_or_changed_first_step_clock_refuses(self):
+        with self.assertRaisesRegex(ValueError,'unavailable'):m.original_clock(self.env,'synthetic')
+        path=self.clock_fixture(0)
+        with self.assertRaisesRegex(ValueError,'boot/scope'):m.original_clock(self.env,'another-boot')
+        clock=json.loads(path.read_text());clock['source']['SHA']='b'*40;m.write(path,clock)
+        with self.assertRaisesRegex(ValueError,'source differs'):m.original_clock(self.env,'synthetic')
+        clock['source']['SHA']=self.env['SHA'];clock['startedMonotonic']=float('nan');m.write(path,clock)
+        with self.assertRaisesRegex(ValueError,'malformed'):m.original_clock(self.env,'synthetic')
+
     def test_outer_collision_refuses_without_launch_and_retains_capacity(self):
+        self.clock_fixture(m.time.monotonic())
         facts={'complete':True,'effectiveCPUs':2,'availableMemoryBytes':10*1073741824,'diskFreeBytes':20*1073741824,'boot':'synthetic'}
         def capacity(owner,path,facts=None,**kwargs):facts.update({'complete':True,'effectiveCPUs':2,'availableMemoryBytes':10*1073741824,'diskFreeBytes':20*1073741824,'boot':'synthetic'})
-        with patch.object(m,'ADMISSION',self.env['ADMISSION']),patch.object(m,'probe_owner',return_value=object()),patch.object(m,'capacity_snapshot',side_effect=capacity),patch.object(m,'read_unit',return_value={'exit':0,'properties':{'LoadState':'loaded'}}):
+        with patch.object(m,'ADMISSION',self.env['ADMISSION']),patch.object(m,'probe_owner',return_value=types.SimpleNamespace(_read=lambda path:'synthetic')),patch.object(m,'capacity_snapshot',side_effect=capacity),patch.object(m,'read_unit',return_value={'exit':0,'properties':{'LoadState':'loaded'}}):
             with self.assertRaisesRegex(ValueError,'collision'):m.outer_preflight(self.env)
         result=json.loads((m.outer_path(self.env)/'preflight.json').read_text());self.assertEqual(result['disposition'],'refused');self.assertEqual(result['capacity']['effectiveCPUs'],2);self.assertFalse(self.root.exists())
 

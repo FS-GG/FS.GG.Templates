@@ -37,6 +37,27 @@ jobs:
       ADMISSION: ${{ inputs.admission }}
       UNIT_NAME: fsgg-mg-templates-retained-${{ github.run_id }}-${{ github.run_attempt }}
     steps:
+      - name: Anchor the original first-step clock before checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B <<'PY'
+          import json, os, re, time
+          from pathlib import Path
+          # This is the earliest executed step, not an assertion of job start.
+          # The job's own 35-minute timeout remains an independent outer bound.
+          env=os.environ
+          if not re.fullmatch(r'[0-9]+',env['RUN_ID']) or env['RUN_ATTEMPT']!='1':
+              raise ValueError('first-attempt clock identity required')
+          keys=('EVENT','REPOSITORY','REF','SHA','WORKFLOW_REF','WORKFLOW_SHA','RUN_ID','RUN_ATTEMPT','UNIT_NAME')
+          clock={'scope':'first-workflow-step','startedMonotonic':time.monotonic(),
+                 'boot':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+                 'source':{key:env[key] for key in keys}}
+          path=Path(env['RUNNER_TEMP'])/('retained-reference-'+env['RUN_ID']+'-1-clock.json')
+          fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+          with os.fdopen(fd,'w') as stream:
+              stream.write(json.dumps(clock)+'\n')
+          PY
       - name: Check out exact dispatched source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

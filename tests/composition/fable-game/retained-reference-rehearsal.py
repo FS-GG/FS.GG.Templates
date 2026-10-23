@@ -9,6 +9,7 @@ sys.dont_write_bytecode = True
 import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -70,7 +71,8 @@ def load_file(name, path):
 
 
 def validate_admission(env, admission=None):
-    # No root creation, local imports, acquisition, unit or process before this gate.
+    # Only the fixed first-step clock receipt precedes this gate; no workload
+    # root, local imports, acquisition or unit can precede admission.
     require(admission is not None, 'retained rehearsal held: no source admission')
     require(re.fullmatch(r'https://github.com/FS-GG/\.github/issues/4816#issuecomment-[0-9]+', admission), 'wrong owning admission')
     require(env.get('ADMISSION') == admission, 'admission input differs')
@@ -86,6 +88,18 @@ def validate_admission(env, admission=None):
 
 def outer_path(env):
     return Path(env['RUNNER_TEMP'])/('retained-reference-'+env['RUN_ID']+'-1-outer')
+
+
+def original_clock(env, boot):
+    path=Path(env['RUNNER_TEMP'])/('retained-reference-'+env['RUN_ID']+'-1-clock.json')
+    require(path.is_file() and not path.is_symlink() and path.stat().st_size<=4096,'original first-step clock unavailable')
+    clock=json.loads(path.read_text())
+    keys=('EVENT','REPOSITORY','REF','SHA','WORKFLOW_REF','WORKFLOW_SHA','RUN_ID','RUN_ATTEMPT','UNIT_NAME')
+    require(clock['source']=={key:env[key] for key in keys},'original clock source differs')
+    require(clock['scope']=='first-workflow-step' and clock['boot']==boot,'original clock boot/scope differs')
+    start=clock['startedMonotonic']
+    require(type(start) in (float,int) and math.isfinite(start) and 0<=start<=time.monotonic(),'original clock malformed or ahead')
+    return clock
 
 
 def outer_write(directory, name, value):
@@ -164,14 +178,18 @@ def outer_preflight(env):
     source=validate_admission(env, ADMISSION);directory=outer_path(env)
     normalized_roots(directory,WORKSPACE);require(not directory.exists(),'outer receipt root occupied')
     directory.mkdir(mode=0o700)
-    record={'source':source,'startedMonotonic':time.monotonic(),'disposition':'refused'}
+    record={'source':source,'preflightStartedMonotonic':time.monotonic(),'disposition':'refused'}
     try:
-        owner=probe_owner();record['capacity']={}
+        owner=probe_owner()
+        clock=original_clock(env,owner._read('/proc/sys/kernel/random/boot_id').strip())
+        record.update(originalClock=clock,startedMonotonic=clock['startedMonotonic'],deadlineMonotonic=clock['startedMonotonic']+2100)
+        require(time.monotonic()+1800+5+30 < record['deadlineMonotonic'],'original setup consumed unit/readback reserve')
+        record['capacity']={}
         capacity_snapshot(owner,Path(env['RUNNER_TEMP']),facts=record['capacity'])
         require_capacity(record['capacity'])
         record['priorUnit']=read_unit(env['UNIT_NAME'])
         require(record['priorUnit']['properties'].get('LoadState')=='not-found','unit collision or absence unknown')
-        record['deadlineMonotonic']=record['startedMonotonic']+2100
+        require(time.monotonic()+1800+5+30 < record['deadlineMonotonic'],'original setup consumed unit/readback reserve')
         record['disposition']='passed'
     except BaseException as error:record['firstCause']=str(error);raise
     finally:outer_write(directory,'preflight.json',record)
