@@ -10,7 +10,7 @@ retains its scoped clean-creation, four-build and dedicated-browser evidence;
 this source does not repeat those product builds or browser runs.
 
 The direct script remains mechanically held with `ADMISSION=None`. The workflow
-has a [conditional root source selection](https://github.com/FS-GG/.github/issues/4849#issuecomment-6376768563)
+has a [conditional root source selection](https://github.com/FS-GG/.github/issues/4849#issuecomment-6377028965)
 for one manual/main/attempt1 rehearsal. No local flag grants an operation. Root still
 requires exact source review, CI, protected delivery and one original native intent
 before dispatch. Invalid admission/source/scope refuses before workload effects.
@@ -138,10 +138,10 @@ rehearsal. The complete4849/4644 acceptance and all historical Unknown holds rem
 
 The compiled preflight now belongs only to pull requests. A manual receiver has no
 compiled-preflight dependency: its own first-step clock and exact source admission
-precede its managed unit and every SDK/Go/package acquisition. The fixed [root conditional source grant](https://github.com/FS-GG/.github/issues/4849#issuecomment-6376768563)
+precede its managed unit and every SDK/Go/package acquisition. The fixed [root conditional source grant](https://github.com/FS-GG/.github/issues/4849#issuecomment-6377028965)
 now selects only manual/main/attempt1 rehearsal source. It starts no runtime clock or
 dispatch: exact review/CI/protected delivery and Root's fresh one-send intent remain
-required. An unused selection expires at00:10UTC on2026-10-24.
+required. An unused selection expires at01:15UTC on2026-10-24.
 The first source scope is only `rehearsal`. The raw-plus42-case full selector remains
 intact for a separate later admission; this first grant cannot dispatch it.
 

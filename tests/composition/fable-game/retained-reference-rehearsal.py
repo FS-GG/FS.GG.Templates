@@ -126,7 +126,7 @@ def d5_root_times(env):
         return datetime.datetime.fromisoformat(value.replace('Z','+00:00')).timestamp()
     values={key:parse(env.get(key)) for key in ('SELECTED_UTC','LATEST_START_UTC','OBSERVER_DEADLINE_UTC')}
     require(values['LATEST_START_UTC']-values['SELECTED_UTC']==300 and values['OBSERVER_DEADLINE_UTC']-values['SELECTED_UTC']==2400, 'D5 root UTC intervals differ')
-    require(values['SELECTED_UTC']<=parse('2026-10-24T00:10:00Z'), 'D5 conditional selection expired')
+    require(values['SELECTED_UTC']<=parse('2026-10-24T01:15:00Z'), 'D5 conditional selection expired')
     return values
 
 
