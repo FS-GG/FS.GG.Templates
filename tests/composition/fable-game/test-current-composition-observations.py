@@ -92,6 +92,14 @@ class Controls(unittest.TestCase):
             self.assertIn('current composition held: no source admission',result.stderr)
             self.assertFalse(output.exists())
 
+    def test_actual_workflow_watches_and_bounds_mechanical_controls(self):
+        workflow=(HERE.parents[2]/'.github/workflows/fable-external-reference-source.yml').read_text()
+        for path in ('current-composition-observations.py','test-current-composition-observations.py'):
+            self.assertIn("      - 'tests/composition/fable-game/"+path+"'",workflow)
+        static=workflow.split('  static:',1)[1].split('  candidate:',1)[0]
+        self.assertIn('timeout --kill-after=5s 150s prlimit --as=1073741824 --cpu=120 python3 -B tests/composition/fable-game/test-current-composition-observations.py',static)
+        self.assertNotIn('actions/setup-dotnet',static)
+
     def test_current_entry_is_held_before_owner_root_or_acquisition(self):
         self.assertIsNone(m.CURRENT_COMPOSITION_ADMISSION)
         with self.assertRaisesRegex(ValueError,'held'):m.check_admission({})
