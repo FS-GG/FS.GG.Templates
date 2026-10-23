@@ -271,9 +271,21 @@ let main _ =
         (validate (successorRequest successor192Partial "0.19.2"))
     assertEqual "0.19.2 descriptor pin cannot select 0.19.1" (Error "descriptor-source-refused")
         (validate { successorRequest successor192 "0.19.2" with Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::0.19.1" } })
-    let unselected = Path.Combine(temp, "successor-0.19.3.nupkg")
-    makeSuccessorArchive unselected "0.19.3" true
-    assertEqual "unselected 0.19.3 refuses" (Error "selected-version-refused") (validate (successorRequest unselected "0.19.3"))
+    // 0.19.3 adopts FS.GG.Wasm 0.7.0 (FS-GG/FS.GG.Game#727) and becomes the current public successor.
+    let successor193 = Path.Combine(temp, "successor-0.19.3.nupkg")
+    makeSuccessorArchive successor193 "0.19.3" true
+    match validate (successorRequest successor193 "0.19.3") with
+    | Ok _ -> printfn "PASS 0.19.3 successor closes the WASM source closure"
+    | Error x -> failwithf "0.19.3 successor refused: %s" x
+    let successor193Partial = Path.Combine(temp, "successor-0.19.3-partial.nupkg")
+    makeSuccessorArchive successor193Partial "0.19.3" false
+    assertEqual "0.19.3 successor without the WASM source closure refuses" (Error "reference-member-missing")
+        (validate (successorRequest successor193Partial "0.19.3"))
+    assertEqual "0.19.3 descriptor pin cannot select 0.19.2" (Error "descriptor-source-refused")
+        (validate { successorRequest successor193 "0.19.3" with Provider = { parsedProvider with Source = "FS.GG.Workspace.Template::0.19.2" } })
+    let unselected = Path.Combine(temp, "successor-0.19.4.nupkg")
+    makeSuccessorArchive unselected "0.19.4" true
+    assertEqual "unselected 0.19.4 refuses" (Error "selected-version-refused") (validate (successorRequest unselected "0.19.4"))
     let receiver = Path.Combine(temp, "receiver")
     use receiverArchive = ZipFile.OpenRead archive
     for name in requiredEntries.Tail do
@@ -349,10 +361,14 @@ let main _ =
             File.WriteAllText(target, "fixture")
     let wasm191 = successorReceiverArchive "0.19.1"
     let current192 = successorReceiverArchive "0.19.2"
+    let current193 = successorReceiverArchive "0.19.3"
     assertEqual "0.19.1 WASM successor still closes the direct route" (Ok ()) (validateReceiver wasm191 receiver "direct" "none" "1.2.3" "ReferenceDirect")
     assertEqual "0.19.1 WASM successor cannot be relabelled as provider success" (Error "receiver-successor-route-refused") (validateReceiver wasm191 receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
     assertEqual "0.19.2 current successor closes the provider route" (Ok ()) (validateReceiver current192 receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
     assertEqual "0.19.2 current successor closes the Wizard route" (Ok ()) (validateReceiver current192 receiver "wizard" "typed-sdd" "1.2.3" "ReferenceDirect")
+    assertEqual "0.19.3 current successor closes the direct route" (Ok ()) (validateReceiver current193 receiver "direct" "none" "1.2.3" "ReferenceDirect")
+    assertEqual "0.19.3 current successor closes the provider route" (Ok ()) (validateReceiver current193 receiver "provider" "typed-sdd" "1.2.3" "ReferenceDirect")
+    assertEqual "0.19.3 current successor closes the Wizard route" (Ok ()) (validateReceiver current193 receiver "wizard" "typed-sdd" "1.2.3" "ReferenceDirect")
     let guest = Path.Combine(receiver, "SvgFoundation", "Examples", "Wasm", "guest", "policy.c")
     let guestBytes = File.ReadAllBytes guest
     File.AppendAllText(guest, "x")
