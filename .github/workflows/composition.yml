@@ -192,6 +192,11 @@ jobs:
         run: |
           test "$(node --version)" = 'v26.10.0'
           test "$(npm --version)" = '12.1.0'
+      # Offline test of the scheduled Xantham upstream watch (FS.GG.Templates#751): fake fetch and gh,
+      # no network, seconds. The watch workflow itself runs only on schedule / workflow_dispatch.
+      - name: Test the scheduled Xantham upstream watch (offline)
+        if: steps.scope.outputs.run == 'true'
+        run: node tests/xantham-watch/xantham-watch.test.mjs
       # ── EVERY provider floor, graded against the live org registry (FS.GG.Templates#383) ──────
       #
       # This step used to live INSIDE the CLI install below, and it read exactly one descriptor:

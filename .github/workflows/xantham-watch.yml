@@ -1,0 +1,66 @@
+name: xantham-watch
+
+# Scheduled READ-ONLY watch of the upstream Xantham line for FBX-07 (FS.GG.Templates#751, carried
+# from #725). It replaces a live, by-hand upstream assessment: it compares nuget.org metadata and the
+# upstream default-branch HEAD with the committed baseline and reports. It adopts nothing.
+#
+#   Reads (metadata only): the nuget.org flat-container indexes of the five watched packages, the
+#     nuspecs of any version not in the baseline, and the upstream default-branch HEAD commit id.
+#   Signals: a version not in the baseline; a netstandard2.x group on xantham.fable.core.ts; an
+#     upstream HEAD different from the baseline.
+#   Effect: a job summary every run. On a signal, ONE issue labelled fbx-07-watch is created or
+#     updated (deduplicated by a body marker), then the run stops: no PR, branch or pin change.
+#   Bounds: 5-minute timeout; 1 MiB per response; any fetch failure fails the run visibly and is
+#     never reported as "no change".
+#
+# Permissions are the minimum the spec allows. `contents: read` is the checkout of this repository's
+# own script and baseline. `issues: write` exists only for the single create-or-update of the
+# fbx-07-watch issue (and its label). No secrets are used: the job token is the ephemeral
+# GITHUB_TOKEN. Nothing from upstream is checked out, restored, installed or executed.
+#
+# The baseline (templates/fs-gg-fable-bindings/xantham/watch-baseline.json) changes only by a
+# reviewed PR; this workflow never writes it. Whether the generator still emits the unused DOM open
+# can only be learned by running it; that remains a separately admitted manual reassessment.
+on:
+  schedule:
+    - cron: "0 6 * * 1"   # Monday 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: xantham-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/xantham-watch.mjs
+            scripts/xantham-watch-issue.sh
+            templates/fs-gg-fable-bindings/xantham/watch-baseline.json
+          sparse-checkout-cone-mode: false
+
+      - name: Compare upstream with the committed baseline
+        id: watch
+        env:
+          GITHUB_TOKEN: ${{ github.token }}   # raises the api.github.com rate limit for the HEAD read only
+        run: |
+          set -euo pipefail
+          node scripts/xantham-watch.mjs \
+            --baseline templates/fs-gg-fable-bindings/xantham/watch-baseline.json \
+            --result "$RUNNER_TEMP/xantham-watch-result.json" \
+            --issue-body "$RUNNER_TEMP/xantham-watch-issue.md"
+
+      - name: Create or update the one fbx-07-watch issue
+        if: steps.watch.outputs.signal == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/xantham-watch-issue.sh "$RUNNER_TEMP/xantham-watch-issue.md"
