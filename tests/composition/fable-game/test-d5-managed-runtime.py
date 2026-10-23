@@ -328,6 +328,13 @@ class RootClockControls(unittest.TestCase):
         clock=json.loads((self.root/'current-d5-42-1-clock.json').read_text());self.assertEqual(clock['disposition'],'refused')
         self.assertIn('window refused',clock['firstCause'])
 
+    def test_replacement_unused_selection_accepts_later_source_window_without_renewal(self):
+        import datetime
+        env={**self.env,'SELECTED_UTC':'2026-10-24T00:30:00Z','LATEST_START_UTC':'2026-10-24T00:35:00Z','OBSERVER_DEADLINE_UTC':'2026-10-24T01:10:00Z'}
+        clock=self.produce(env,datetime.datetime(2026,10,24,0,30,1,tzinfo=datetime.timezone.utc))
+        self.reader.validate_d5_original_clock(clock,env)
+        self.assertEqual(clock['observerDeadlineMonotonic'],2499)
+
     def test_wrong_missing_intervals_and_expired_selection_refuse(self):
         for updates in [{'LATEST_START_UTC':'2026-10-24T00:05:00Z'},{'SELECTED_UTC':''},
             {'SELECTED_UTC':'2026-10-24T01:16:00Z','LATEST_START_UTC':'2026-10-24T01:21:00Z','OBSERVER_DEADLINE_UTC':'2026-10-24T01:56:00Z'}]:
