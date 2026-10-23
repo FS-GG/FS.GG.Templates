@@ -132,6 +132,25 @@ class Controls(unittest.TestCase):
             else:value['suites'][0]['suites'][0]['specs'].append(copy.deepcopy(row))
             with self.subTest(change=change),self.assertRaises(ValueError):O.validate_listing(value,plan,'synthetic')
 
+    def test_actual_browser_sequence_is_list_then_test_per_family_and_failure_gated(self):
+        tests=self.root/'product/complete/Browser.Tests/test-results';tests.mkdir(parents=True);calls=[]
+        plan={'browsers':{'families':['chromium','firefox','webkit'],'cases':[{'file':'one.spec.ts','suite':[],'title':'one'}]}}
+        def report(family,listed):
+            test={'projectName':family,'status':'expected','results':[] if listed else [{'status':'passed','retry':0}]}
+            return {'stats':{'expected':1,'unexpected':0,'skipped':0,'flaky':0},'suites':[{'title':'one.spec.ts','specs':[{'file':'one.spec.ts','title':'one','ok':True,'tests':[test]}]}]}
+        def run(argv,cwd,env):
+            listed='--list' in argv;family=env['PLAYWRIGHT_BROWSER_FAMILY'];calls.append((family,listed))
+            value=report(family,listed)
+            if listed:return json.dumps(value)
+            (tests/'browser.json').write_text(json.dumps(value));return ''
+        results=M.browser_sequence(L.actual_caller(),run,'/synthetic/node',self.root,{},plan,O)
+        self.assertEqual(calls,[(family,listed) for family in plan['browsers']['families'] for listed in (True,False)])
+        self.assertEqual(sum(row['passed'] for row in results.values()),3)
+        calls.clear()
+        def bad(argv,cwd,env):calls.append(argv);return '{"suites":[]}'
+        with self.assertRaisesRegex(ValueError,'listing identities'):M.browser_sequence(L.actual_caller(),bad,'/synthetic/node',self.root,{},plan,O)
+        self.assertEqual(len(calls),1);self.assertIn('--list',calls[0])
+
     def test_staged_typed_raw_feed_is_not_fabricated_custody_readback(self):
         source=self.root/'input';source.mkdir();raw=b'synthetic public archive; never execute';(source/'Fixture.1.nupkg').write_bytes(raw)
         plan={'rendering':{'version':'1','custodySha256':'reference-only','packages':[{'id':'Fixture','sha256':hashlib.sha256(raw).hexdigest()}]}}
