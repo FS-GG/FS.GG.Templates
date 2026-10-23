@@ -218,9 +218,23 @@ def collect(root, deadline):
     evidence = root/'retained-evidence'
     require(not evidence.exists(), 'evidence output occupied')
     evidence.mkdir(mode=0o700)
-    candidates = sorted(path for path in root.iterdir() if path.is_file() and path.suffix == '.json')
-    candidates += sorted(path for path in (root/'managed').rglob('*') if path.name in ('receipt.json', 'stdout.log', 'stderr.log')) if (root/'managed').exists() else []
-    candidates += sorted(path for path in (root/'transaction').rglob('*') if path.suffix in ('.json', '.diff') and not set(path.relative_to(root/'transaction').parts) & {'files', 'staged'}) if (root/'transaction').exists() else []
+    names = ('rehearsal.json','source-seals.json','managed-owner.json','managed-owner-probe.json',
+             'managed-receipts.json','input-downloads.json','sdk-member-identities.json',
+             'sdd-member-identities.json','native-closure.json','executable-identities.json',
+             'locks-before.json','locks-after.json','template-registrations.json')
+    candidates = [root/name for name in names if (root/name).exists()]
+    if (root/'managed').is_dir():
+        groups = sorted((root/'managed').iterdir())
+        require(len(groups) <= 128, 'managed evidence population exceeded')
+        candidates += [group/name for group in groups for name in ('receipt.json','stdout.log','stderr.log') if (group/name).exists()]
+    transaction = root/'transaction'
+    if transaction.is_dir():
+        candidates += [transaction/'transaction-controls.json']
+        for name in ('apply','managed-conflict','new-reference-conflict','interrupted','rollback'):
+            candidates += [transaction/(name+suffix) for suffix in ('.json','.diff') if (transaction/(name+suffix)).exists()]
+            journal = transaction/(name+'-backup')/'journal.json'
+            if journal.exists(): candidates.append(journal)
+    # No recursion into adopted/.nuget/obj/bin or the copied product trees.
     manifest = {'capBytes': EVIDENCE_CAP, 'files': [], 'failures': []}
     total = 0
     for path in candidates:
@@ -229,7 +243,7 @@ def collect(root, deadline):
             normalized_roots(path, WORKSPACE)
             require(path.is_file() and not path.is_symlink(), 'nonregular evidence refused')
             size = path.stat().st_size
-            require(total + size <= EVIDENCE_CAP, 'evidence byte cap exceeded')
+            require(total + size <= EVIDENCE_CAP-min(262144,EVIDENCE_CAP//8), 'evidence byte cap exceeded')
             target = evidence/path.relative_to(root)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(path, target)
@@ -240,6 +254,32 @@ def collect(root, deadline):
     manifest['totalBytes'] = total
     write(evidence/'manifest.json', manifest)
     return manifest
+
+
+def collection_terminal(root, summary):
+    evidence = root/'retained-evidence'
+    terminal = {key:summary[key] for key in ('disposition','executionDisposition','firstCause','additionalFailures','phases','seconds')}
+    path = evidence/'collection-terminal.json'
+    write(path, terminal)
+    manifest_path = evidence/'manifest.json'
+    manifest = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {'capBytes':EVIDENCE_CAP,'files':[],'failures':[{'error':'collection did not finish'}],'totalBytes':0}
+    size = path.stat().st_size
+    require(manifest['totalBytes']+size <= EVIDENCE_CAP, 'collection terminal exceeds evidence cap')
+    manifest['files'].append({'path':'collection-terminal.json','bytes':size,'sha256':sha(path)})
+    manifest['totalBytes'] += size
+    write(manifest_path, manifest)
+
+
+def template_registration(home, root, version, expected):
+    registry = home/'.templateengine/packages.json'
+    normalized_roots(registry, WORKSPACE)
+    values = json.loads(registry.read_text(encoding='utf-8-sig'))
+    rows = [row for row in values['Packages'] if row['Details'].get('PackageId') == 'FS.GG.Workspace.Template']
+    require(len(rows) == 1 and rows[0]['Details'].get('Version') == version, 'selected template registration differs')
+    archive = Path(rows[0]['MountPointUri'])
+    normalized_roots(archive, WORKSPACE)
+    require(archive.is_relative_to(root) and archive.is_file() and sha(archive) == expected, 'registered template archive differs')
+    return {'home':str(home),'version':version,'registrySha256':sha(registry),'mountPoint':str(archive),'archiveSha256':expected}
 
 
 def fixed_product_steps(root, dotnet, sdd_entry, inputs):
@@ -367,9 +407,18 @@ def run_rehearsal(environ, start):
         provider, count = re.subn(r'source:\s*FS\.GG\.Workspace\.Template::0\.13\.0', 'source: '+str(inputs['baseline']), provider)
         require(count == 1, 'historical provider source replacement ambiguous')
         (root/'retained/.fsgg/providers.yml').write_text(provider)
+        homes = {}
+        for name in ('target','retained'):
+            home = root/(name+'-home'); require(not home.exists(), 'template home occupied'); home.mkdir(mode=0o700)
+            homes[name] = {**env,'DOTNET_CLI_HOME':str(home)}
+        registrations = {}
         for name, argv, cwd in fixed_product_steps(root, dotnet, sdd_entry, inputs):
             no_global_before_create(root if name != 'retained-create' else root/'retained')
-            run(argv, cwd, env, inputs=([sdd_entry] if name == 'retained-create' else []))
+            cohort = 'retained' if name == 'retained-create' else 'target'
+            run(argv, cwd, homes[cohort], inputs=([sdd_entry] if name == 'retained-create' else []))
+            registrations[name] = template_registration(Path(homes[cohort]['DOTNET_CLI_HOME']),root,
+                '0.13.0' if cohort == 'retained' else '0.19.3', INPUTS['baseline' if cohort == 'retained' else 'target'][1])
+            write(root/'template-registrations.json', registrations)
             summary['phases'][name] = time.monotonic()-start
             write(root/'rehearsal.json', summary)
         with zip_inputs(caller, inputs['target'], materialize) as package:
@@ -431,9 +480,10 @@ def run_rehearsal(environ, start):
             summary['additionalFailures'].append('collection: '+type(error).__name__+': '+str(error))
             summary['disposition'] = 'failed'
             print(summary['additionalFailures'][-1], file=sys.stderr)
-            for path in [root/'rehearsal.json', *([root/'retained-evidence/rehearsal.json'] if (root/'retained-evidence').is_dir() else [])]:
-                try: write(path, summary)
-                except BaseException as reporting: print('additional summary reporting failure: '+str(reporting), file=sys.stderr)
+            try:
+                write(root/'rehearsal.json', summary)
+                if (root/'retained-evidence').is_dir(): collection_terminal(root, summary)
+            except BaseException as reporting: print('additional summary reporting failure: '+str(reporting), file=sys.stderr)
             if summary['firstCause'] is None:
                 raise
     return summary

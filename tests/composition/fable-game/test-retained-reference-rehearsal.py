@@ -42,7 +42,7 @@ def synthetic_package(package, version):
 
 class World:
     def __init__(self, root, canonical, fail=None):
-        self.root=root; self.canonical=canonical; self.fail=fail; self.calls=[];self.profiles=[]
+        self.root=root; self.canonical=canonical; self.fail=fail; self.calls=[];self.environments=[];self.profiles=[]
         self.caller=loader.actual_caller()
         self.caller["time"]=types.SimpleNamespace(monotonic=lambda:100.5,time=lambda:0)
         self.packages={'target':synthetic_package('FS.GG.Workspace.Template','0.19.3'),
@@ -91,7 +91,7 @@ class World:
             path=target/name[len(prefix):];path.parent.mkdir(parents=True,exist_ok=True)
             path.write_bytes(data.replace(b'FableGameWorkspaceNamespace',product.encode()).replace(b'FableGameWorkspace',product.encode()))
 
-    def response(self, argv):
+    def response(self, argv, env):
         if Path(argv[0]).name=='systemctl':return '\n'.join(key+'='+value for key,value in {**m.UNIT,'CPUQuotaPerSecUSec':'2s'}.items())+'\n'
         if Path(argv[0]).name=='ldd':return 'libfixture.so => '+self.host_image('libfixture.so')[0]+' (0x1234)\n'
         if argv[1:]==['--version']:return '10.0.401\n'
@@ -103,17 +103,19 @@ class World:
                 path=store/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
             return ''
         if argv[-1:] == ['--version'] and argv[1].endswith('FS.GG.SDD.Cli.dll'):return '2.0.2\n'
-        if argv[1:3]==['new','install']:return ''
+        if argv[1:3]==['new','install']:
+            hive=Path(env['DOTNET_CLI_HOME'])/'.templateengine';hive.mkdir(parents=True,exist_ok=True);m.write(hive/'packages.json',{'Packages':[{'Details':{'PackageId':'FS.GG.Workspace.Template','Version':'0.19.3'},'MountPointUri':argv[3]}]});return ''
         if argv[1:3]==['new','fs-gg-fable-game']:
             if self.fail=='materialize':raise ValueError('original synthetic materialization failure')
             self.materialize('target',self.root/'candidate','Reference4816Current');return ''
         if 'scaffold' in argv:
+            hive=Path(env['DOTNET_CLI_HOME'])/'.templateengine';hive.mkdir(parents=True,exist_ok=True);m.write(hive/'packages.json',{'Packages':[{'Details':{'PackageId':'FS.GG.Workspace.Template','Version':'0.13.0'},'MountPointUri':str(self.root/'downloads'/m.FILENAMES['baseline'])}]})
             self.materialize('baseline',self.root/'retained','Reference4816Retained')
             path=self.root/'retained/.config/dotnet-tools.json';value=json.loads(path.read_text())
             value['tools'].update({'fs.gg.sdd.cli':{'version':'2.0.2','commands':['fsgg-sdd']},'fs.gg.coord.cli':{'version':'0.90.0','commands':['fsgg-coord-engine']}});path.write_text(json.dumps(value))
             path=self.root/'retained/.fsgg/scaffold-provenance.json';path.write_text('{"effectiveParameters":[{"key":"lifecycle","value":"typed-sdd"}]}');return ''
         if len(argv)>3 and Path(argv[3]).name=='verify-current-reference-adoption.py':
-            target=self.root/'transaction/adopted';shutil.copytree(self.root/'retained',target)
+            target=self.root/'transaction/adopted';shutil.copytree(self.root/'retained',target);m.write(self.root/'transaction/transaction-controls.json',{'synthetic':True})
             (target/'global.json').write_bytes((self.root/'candidate/global.json').read_bytes())
             path=target/'.config/dotnet-tools.json';value=json.loads(path.read_text());value['tools']['fable']={'version':'5.18.0','commands':['fable']};path.write_text(json.dumps(value));return ''
         if argv[1:2]==['restore']:
@@ -124,12 +126,12 @@ class World:
     def owner_run(self, profile, env, deadline, out_dir, control):
         # Real canonical validation; no canonical run/probe/native hook ever executes.
         _,digest=self.canonical.validate_profile(profile)
-        self.profiles.append((profile,deadline));self.calls.append(profile['argv'])
+        self.profiles.append((profile,deadline));self.calls.append(profile['argv']);self.environments.append(dict(env))
         out=Path(out_dir);out.mkdir(parents=True)
         receipt={'outcome':'succeeded','cleanup':'observed-empty-removed','custody':'contained','profileSha256':digest,'owner':{'sha256':self.caller['OWNER']['sha256']},'firstCause':None,'synthetic':True}
         try:
             if self.fail=='cleanup':raise ValueError('original synthetic cleanup uncertainty')
-            result=self.response(profile['argv'])
+            result=self.response(profile['argv'],env)
         except ValueError as error:
             receipt.update(outcome='failed',firstCause=str(error),cleanup='unknown' if self.fail=='cleanup' else 'observed-empty-removed');m.write(out/'receipt.json',receipt);(out/'stdout.log').write_text('');(out/'stderr.log').write_text(str(error));raise self.canonical.GroupFailed(receipt)
         (out/'stdout.log').write_text(result);(out/'stderr.log').write_text('');m.write(out/'receipt.json',receipt)
@@ -155,7 +157,12 @@ class Controls(unittest.TestCase):
         world=World(self.root,self.canonical,fail)
         admission=m.validate_admission(self.env,self.env['ADMISSION'])
         with patch.object(m,'validate_admission',return_value=admission),patch.object(m,'load_file',return_value=types.SimpleNamespace(actual_caller=lambda:world.caller)),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100.5)):
-            result=m.run_rehearsal(self.env,100)
+            original=m.template_registration
+            def synthetic_registration(home,root,version,expected):
+                body=root/'downloads'/m.FILENAMES['baseline' if version=='0.13.0' else 'target']
+                return original(home,root,version,m.sha(body))
+            with patch.object(m,'template_registration',side_effect=synthetic_registration):
+                result=m.run_rehearsal(self.env,100)
         return result,world
 
     def test_hold_precedes_io_loader_and_execution(self):
@@ -175,7 +182,12 @@ class Controls(unittest.TestCase):
         for profile,deadline in world.profiles:
             self.assertEqual(profile['retirement']['onLeaderExit'],'require-empty');self.assertEqual(profile['root'],str(self.root));self.assertTrue(Path(profile['cwd']).is_relative_to(self.root))
             self.assertFalse(any('\n' in arg for arg in profile['argv']));self.assertLessEqual(deadline,1600)
-        calls=world.calls;self.assertEqual(sum(argv[1:2]==['restore'] for argv in calls),1)
+        calls=world.calls
+        target_homes=[env['DOTNET_CLI_HOME'] for argv,env in zip(calls,world.environments) if argv[1:2]==['new']]
+        old_homes=[env['DOTNET_CLI_HOME'] for argv,env in zip(calls,world.environments) if 'scaffold' in argv]
+        self.assertEqual(set(target_homes),{str(self.root/'target-home')});self.assertEqual(old_homes,[str(self.root/'retained-home')])
+        registrations=json.loads((self.root/'template-registrations.json').read_text());self.assertEqual(registrations['retained-create']['version'],'0.13.0');self.assertEqual(registrations['target-create']['version'],'0.19.3')
+        self.assertEqual(sum(argv[1:2]==['restore'] for argv in calls),1)
         self.assertEqual(sum('scaffold' in argv for argv in calls),1)
         self.assertFalse(any('5.13.0' in argv or '10.0.400' in argv for argv in calls))
         self.assertFalse(any('fable' in argv or 'build' in argv or 'npm' in argv for argv in calls))
@@ -235,7 +247,10 @@ class Controls(unittest.TestCase):
         def incomplete(root,deadline):
             result=original(root,deadline);result['failures'].append({'synthetic':'collection failure'});return result
         with patch.object(m,'collect',side_effect=incomplete),self.assertRaisesRegex(RuntimeError,'collection incomplete'):self.drive()
-        result=json.loads((self.root/'retained-evidence/rehearsal.json').read_text());self.assertEqual(result['disposition'],'failed');self.assertIsNone(result['firstCause']);self.assertEqual(result['executionDisposition'],'passed');self.assertIn('collection',result['additionalFailures'][0])
+        result=json.loads((self.root/'retained-evidence/collection-terminal.json').read_text());self.assertEqual(result['disposition'],'failed');self.assertIsNone(result['firstCause']);self.assertEqual(result['executionDisposition'],'passed');self.assertIn('collection',result['additionalFailures'][0])
+        manifest=json.loads((self.root/'retained-evidence/manifest.json').read_text())
+        for row in manifest['files']:
+            path=self.root/'retained-evidence'/row['path'];self.assertEqual(m.sha(path),row['sha256']);self.assertEqual(path.stat().st_size,row['bytes'])
 
     def test_cleanup_uncertainty_blocks_dependent_steps_and_preserves_receipt(self):
         with self.assertRaisesRegex(RuntimeError,'original synthetic cleanup uncertainty'):self.drive('cleanup')
@@ -262,9 +277,31 @@ class Controls(unittest.TestCase):
         with zipfile.ZipFile(path) as archive,self.assertRaises(ValueError):m.sdd_payload(archive)
 
     def test_evidence_cap_is_enforced_and_receipt_is_retained(self):
-        self.root.mkdir();m.write(self.root/'rehearsal.json',{'synthetic':True});(self.root/'large.json').write_text('x'*50)
+        self.root.mkdir();m.write(self.root/'rehearsal.json',{'synthetic':True});(self.root/'locks-before.json').write_text('x'*50)
         with patch.object(m,'EVIDENCE_CAP',32):result=m.collect(self.root,m.time.monotonic()+5)
         self.assertTrue(result['failures']);self.assertLessEqual(result['totalBytes'],32);self.assertTrue((self.root/'retained-evidence/manifest.json').exists())
+
+    def test_registration_readback_rejects_wrong_version_and_archive(self):
+        self.root.mkdir();home=self.root/'home';registry=home/'.templateengine/packages.json';registry.parent.mkdir(parents=True)
+        archive=self.root/'template.nupkg';archive.write_bytes(b'synthetic archive')
+        row={'Details':{'PackageId':'FS.GG.Workspace.Template','Version':'0.13.0'},'MountPointUri':str(archive)}
+        m.write(registry,{'Packages':[row]})
+        self.assertEqual(m.template_registration(home,self.root,'0.13.0',m.sha(archive))['version'],'0.13.0')
+        with self.assertRaises(ValueError):m.template_registration(home,self.root,'0.19.3',m.sha(archive))
+        with self.assertRaises(ValueError):m.template_registration(home,self.root,'0.13.0','0'*64)
+        m.write(registry,{'Packages':[row,row]})
+        with self.assertRaises(ValueError):m.template_registration(home,self.root,'0.13.0',m.sha(archive))
+
+    def test_collection_does_not_walk_restore_or_generated_trees(self):
+        self.root.mkdir();m.write(self.root/'rehearsal.json',{'synthetic':True})
+        for relative in ['transaction/adopted/.nuget/packages/library/huge.json','transaction/adopted/obj/project.assets.json','transaction/rollback/obj/generated.json','transaction/apply-backup/files/private.json']:
+            path=self.root/relative;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('do not retain')
+        m.write(self.root/'transaction/transaction-controls.json',{'synthetic':True})
+        m.write(self.root/'transaction/apply-backup/journal.json',{'synthetic':'required journal'})
+        result=m.collect(self.root,m.time.monotonic()+5)
+        paths={row['path'] for row in result['files']}
+        self.assertIn('transaction/apply-backup/journal.json',paths)
+        self.assertTrue(all('/.nuget/' not in path and '/obj/' not in path and '/files/' not in path for path in paths))
 
     def test_workflow_and_ci_wiring_preserve_all_historical_holds(self):
         workflow=(m.WORKSPACE/'.github/workflows/retained-reference-rehearsal.yml').read_text()

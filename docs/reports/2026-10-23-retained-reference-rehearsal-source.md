@@ -32,7 +32,13 @@ executable/native-member hashes from the verified archive, checks native depende
 resolution and observes the required SDK/runtime versions. Host dependencies remain
 host observations; the recorded `ldd` scope does not prove every runtime `dlopen`.
 
-The source-supported401-only order depends on a fresh historical target without
+Target and retained generation use distinct initially empty `DOTNET_CLI_HOME`
+hives. Each selected registration is read back from the maintained
+`.templateengine/packages.json` schema and its mounted archive must match the
+exact downloaded public hash. The old SDD install therefore never attempts a
+downgrade in the target's 0.19.3 hive.
+
+The source-supported 401-only order depends on a fresh historical target without
 `global.json` in its ancestors, the original 0.13 template having no post-actions,
 and SDD 2.0.2 emitting no later SDK process after template creation. Its real CLI
 installs and creates the old template before the400-pinned file is delivered.
@@ -65,7 +71,11 @@ same receipt sequence spans all phases. Download/setup failures block
 materialization; materialization failure blocks restore. Original execution
 failure and later collection/reporting failures remain separate. The controller
 retains bounded metadata, journals, inventories and original managed receipts/logs,
-including hidden files. Incomplete collection cannot report a passed rehearsal.
+including hidden files. Collection selects only known inventories, journals and
+receipts; it never walks adopted restore caches or generated `obj`/`bin` trees.
+The original retained summary stays immutable; a separate collection-terminal
+summary is indexed with its final size/hash if collection fails. Incomplete
+collection cannot report a passed rehearsal.
 
 The enclosing unit owns supervisor-death retirement. If the controller or unit
 dies before terminal collection, missing terminal custody/evidence remains
