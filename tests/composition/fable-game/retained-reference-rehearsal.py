@@ -183,7 +183,7 @@ def operational_start(env):
     initial={'source':pre['source'],'capacityPassed':False,'observedMonotonic':time.monotonic()}
     try:
         require(time.monotonic()+1800+5+30 < pre['deadlineMonotonic'],'original outer window cannot fit unit/readback')
-        owner=probe_owner();view=read_unit(env['UNIT_NAME']);props=view['properties'];initial['properties']=props
+        owner=probe_owner();view=read_unit(env['UNIT_NAME']);props=view['properties'];initial['properties']=props;initial['managerRead']=view
         require(view['exit']==0 and props.get('Id')==env['UNIT_NAME']+'.service','initial unit identity unavailable')
         require(re.fullmatch(r'[0-9a-f]{32}',props.get('InvocationID','')) and int(props.get('MainPID','0'))==os.getpid(),'initial invocation/MainPID differs')
         mount=owner._cgroup2_mount();require(mount and mount[1]=='/','initial cgroup mapping unavailable')
@@ -214,21 +214,25 @@ def post_unit(env):
     try:
         require(pre['source']==validate_admission(env,ADMISSION),'post source differs')
         require(time.monotonic()<pre['deadlineMonotonic']-30,'original post-read window expired')
-        client=json.loads((directory/'client-exit.json').read_text());result['originalClientExit']=client['clientExit']
+        try:client=json.loads((directory/'client-exit.json').read_text())
+        except FileNotFoundError as error:client={'source':pre['source'],'clientExit':'not-observed'};result['clientReadError']=str(error)
+        result['originalClientExit']=client['clientExit']
+        view=read_unit(env['UNIT_NAME']);props=view['properties'];sample={'manager':view};result['observations'].append(sample)
+        require(time.monotonic()<pre['deadlineMonotonic']-30,'original post-read window expired during observation')
         initial=json.loads((directory/'initial-unit.json').read_text())
         require(initial['source']==pre['source']==client['source'],'initial/client source join differs')
-        owner=probe_owner();boot=owner._read('/proc/sys/kernel/random/boot_id').strip();require(boot==initial['boot'],'post boot differs')
-        view=read_unit(env['UNIT_NAME']);props=view['properties'];group=Path(initial['cgroupPath'])
-        sample={'manager':view,'cgroupPresent':group.exists()};result['observations'].append(sample)
+        owner=probe_owner();boot=owner._read('/proc/sys/kernel/random/boot_id').strip();result['boot']=boot;require(boot==initial['boot'],'post boot differs')
+        group=Path(initial['cgroupPath']);sample['cgroupPresent']=group.exists()
         pid=int(initial['properties']['MainPID'])
         try:
             owner._read('/proc/'+str(pid)+'/stat')
             birth=owner._stat(pid);require(birth is not None,'post process birth unreadable or unstable')
         except FileNotFoundError:birth=None
+        sample['observedBirth']=birth
         sample['originalBirthPresent']=birth is not None and birth['start']==initial['mainStartTicks']
         require(not sample['originalBirthPresent'],'original process birth still present')
         if group.exists():
-            status=group.stat();require((status.st_dev,status.st_ino)==(initial['cgroupDev'],initial['cgroupInode']),'cgroup identity changed')
+            status=group.stat();sample['cgroupDev']=status.st_dev;sample['cgroupInode']=status.st_ino;require((status.st_dev,status.st_ino)==(initial['cgroupDev'],initial['cgroupInode']),'cgroup identity changed')
             sample['cgroupEvents']=owner._read(str(group/'cgroup.events')).strip();require('populated 0' in sample['cgroupEvents'].splitlines(),'original cgroup not observed empty')
         require(time.monotonic()<pre['deadlineMonotonic']-30,'original post-read window expired during observation')
         if props.get('LoadState')=='not-found':

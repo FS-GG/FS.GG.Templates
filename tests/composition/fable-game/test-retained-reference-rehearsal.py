@@ -350,7 +350,7 @@ class Controls(unittest.TestCase):
         props={**initial['properties'],'MainPID':'0','LoadState':'loaded','ActiveState':'failed','SubState':'failed'}
         with patch.object(m,'ADMISSION',self.env['ADMISSION']),patch.object(m,'probe_owner',return_value=owner),patch.object(m,'read_unit',return_value={'exit':0,'properties':props}),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100)):
             result=m.post_unit(self.env)
-        self.assertEqual(result['disposition'],'original-unit-terminal-empty');self.assertEqual(result['originalClientExit'],'23')
+        self.assertEqual(result['disposition'],'original-unit-terminal-empty');self.assertEqual(result['originalClientExit'],'23');self.assertEqual(result['boot'],'boot-synthetic');self.assertEqual(result['observations'][0]['cgroupInode'],initial['cgroupInode'])
 
     def test_post_unit_changed_identity_and_missing_initial_are_unknown(self):
         directory,group,initial,owner=self.post_fixture()
