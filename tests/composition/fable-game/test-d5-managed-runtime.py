@@ -257,13 +257,13 @@ class ManagedConsumerTests(unittest.TestCase):
 
     def test_actual_sandbox_probe_uses_literal_backend_argv_and_cleared_environment(self):
         seen=[];identities={}
-        caller={'host_image':lambda path:(path,'synthetic'),
+        caller={'host_image':lambda path:(path,'a'*64 if path.endswith('unshare') else 'b'*64),
                 'bind_identity':lambda store,path,basis,**kw:store.update({path:kw.get('images',[path])})}
         result=D5.probe_backend_sandbox(caller,lambda *args:seen.append(args) or 'synthetic',identities,self.root)
         self.assertEqual(result,'synthetic')
         self.assertEqual(seen,[(['/usr/bin/unshare','--user','--map-root-user','--net','--','/usr/bin/true'],self.root,{'LANG':'C.UTF-8','TZ':'UTC'})])
         self.assertEqual(set(identities),{'/usr/bin/unshare','/usr/bin/true'})
-        self.assertEqual(identities['/usr/bin/unshare'],['synthetic','synthetic'])
+        self.assertEqual(identities['/usr/bin/unshare'],['a'*64,'b'*64])
 
     def test_actual_entry_sandbox_refusal_prevents_all_sdk_asset_acquisition(self):
         import types
