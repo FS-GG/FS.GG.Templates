@@ -72,28 +72,56 @@ def load_file(name, path):
     return module
 
 
-def validate_admission(env, admission=None):
+def caller_contract(name='retained', admission=None):
+    """Closed caller naming only; admission/budgets/capacity/retirement stay external."""
+    require(name in ('retained', 'd5'), 'unsupported managed caller')
+    if name == 'retained':
+        return {'name':name, 'issue':'4816', 'admission':admission,
+                'workflow':WORKFLOW, 'namespace':'retained-reference',
+                'unitPrefix':'fsgg-mg-templates-retained-',
+                'ownerRelative':'.tmp/retained-canonical-owner/eng/managed_group_owner.py',
+                'evidence':'retained-evidence', 'cap':EVIDENCE_CAP}
+    return {'name':name, 'issue':'4849', 'admission':admission,
+            'workflow':'FS-GG/FS.GG.Templates/.github/workflows/svg-release-d5-current-public.yml@refs/heads/main',
+            'namespace':'current-d5', 'unitPrefix':'fsgg-mg-templates-d5-',
+            'ownerRelative':'.tmp/d5-canonical-owner/eng/managed_group_owner.py',
+            'evidence':'d5-evidence', 'cap':1073741824}
+
+
+def selected_contract(contract=None):
+    if contract is None:
+        return caller_contract('retained', ADMISSION)
+    require(isinstance(contract, dict) and contract == caller_contract(contract.get('name'), contract.get('admission')), 'caller contract differs')
+    return contract
+
+
+def validate_admission(env, admission=None, contract=None):
+    selected = selected_contract(contract)
+    if contract is not None:
+        require(admission == selected['admission'], 'caller admission differs')
     # Only the fixed first-step clock receipt precedes this gate; no workload
     # root, local imports, acquisition or unit can precede admission.
     require(admission is not None, 'retained rehearsal held: no source admission')
-    require(re.fullmatch(r'https://github.com/FS-GG/\.github/issues/4816#issuecomment-[0-9]+', admission), 'wrong owning admission')
+    require(re.fullmatch(r'https://github.com/FS-GG/\.github/issues/' + selected['issue'] + r'#issuecomment-[0-9]+', admission), 'wrong owning admission')
     require(env.get('ADMISSION') == admission, 'admission input differs')
     require(env.get('EVENT') == 'workflow_dispatch' and env.get('REPOSITORY') == 'FS-GG/FS.GG.Templates', 'same-repository dispatch required')
     require(env.get('REF') == 'refs/heads/main', 'main dispatch required')
     head = env.get('SHA', '')
     require(re.fullmatch(r'[0-9a-f]{40}', head) and all(env.get(key) == head for key in ('ADMITTED_REF', 'CHECKOUT_HEAD', 'WORKFLOW_SHA')), 'source/checkout/workflow commit differs')
-    require(env.get('WORKFLOW_REF') == WORKFLOW and env.get('RUN_ATTEMPT') == '1', 'workflow identity or attempt differs')
+    require(env.get('WORKFLOW_REF') == selected['workflow'] and env.get('RUN_ATTEMPT') == '1', 'workflow identity or attempt differs')
     require(re.fullmatch(r'[0-9]+', env.get('RUN_ID', '')), 'run identity missing')
-    require(env.get('UNIT_NAME') == 'fsgg-mg-templates-retained-' + env['RUN_ID'] + '-1', 'unit identity differs')
+    require(env.get('UNIT_NAME') == selected['unitPrefix'] + env['RUN_ID'] + '-1', 'unit identity differs')
     return {key: env[key] for key in ('EVENT', 'REPOSITORY', 'REF', 'SHA', 'ADMITTED_REF', 'CHECKOUT_HEAD', 'WORKFLOW_REF', 'WORKFLOW_SHA', 'RUN_ID', 'RUN_ATTEMPT', 'UNIT_NAME', 'ADMISSION')}
 
 
-def outer_path(env):
-    return Path(env['RUNNER_TEMP'])/('retained-reference-'+env['RUN_ID']+'-1-outer')
+def outer_path(env, contract=None):
+    selected = selected_contract(contract)
+    return Path(env['RUNNER_TEMP'])/(selected['namespace']+'-'+env['RUN_ID']+'-1-outer')
 
 
-def original_clock(env, boot):
-    path=Path(env['RUNNER_TEMP'])/('retained-reference-'+env['RUN_ID']+'-1-clock.json')
+def original_clock(env, boot, contract=None):
+    selected = selected_contract(contract)
+    path=Path(env['RUNNER_TEMP'])/(selected['namespace']+'-'+env['RUN_ID']+'-1-clock.json')
     require(path.is_file() and not path.is_symlink() and path.stat().st_size<=4096,'original first-step clock unavailable')
     clock=json.loads(path.read_text())
     keys=('EVENT','REPOSITORY','REF','SHA','WORKFLOW_REF','WORKFLOW_SHA','RUN_ID','RUN_ATTEMPT','UNIT_NAME')
@@ -111,8 +139,9 @@ def outer_write(directory, name, value):
     (directory/name).write_text(data)
 
 
-def probe_owner():
-    path = WORKSPACE/'.tmp/retained-canonical-owner/eng/managed_group_owner.py'
+def probe_owner(contract=None):
+    selected = selected_contract(contract)
+    path = WORKSPACE/selected['ownerRelative']
     require(path.is_file() and path.stat().st_size == 45315 and sha(path) == OWNER_SHA, 'capacity owner source differs')
     return load_file('retained_capacity_owner', path)
 
@@ -231,14 +260,15 @@ def read_unit(unit):
     return {'exit':result.returncode,'properties':values,'stderr':result.stderr.decode(errors='replace')}
 
 
-def outer_preflight(env):
-    source=validate_admission(env, ADMISSION);directory=outer_path(env)
+def outer_preflight(env, contract=None):
+    selected = selected_contract(contract)
+    source=validate_admission(env, selected['admission'], contract);directory=outer_path(env, contract)
     normalized_roots(directory,WORKSPACE);require(not directory.exists(),'outer receipt root occupied')
     directory.mkdir(mode=0o700)
     record={'source':source,'preflightStartedMonotonic':time.monotonic(),'disposition':'refused'}
     try:
-        owner=probe_owner()
-        clock=original_clock(env,owner._read('/proc/sys/kernel/random/boot_id').strip())
+        owner=probe_owner(contract)
+        clock=original_clock(env,owner._read('/proc/sys/kernel/random/boot_id').strip(), contract)
         record.update(originalClock=clock,startedMonotonic=clock['startedMonotonic'],deadlineMonotonic=clock['startedMonotonic']+2100)
         require(time.monotonic()+1800+5+30 < record['deadlineMonotonic'],'original setup consumed unit/readback reserve')
         record['capacity']={}
@@ -252,13 +282,14 @@ def outer_preflight(env):
     finally:outer_write(directory,'preflight.json',record)
 
 
-def operational_start(env):
-    directory=outer_path(env);pre=json.loads((directory/'preflight.json').read_text())
-    require(pre['disposition']=='passed' and pre['source']==validate_admission(env,ADMISSION),'outer source/capacity join missing')
+def operational_start(env, contract=None):
+    selected = selected_contract(contract)
+    directory=outer_path(env, contract);pre=json.loads((directory/'preflight.json').read_text())
+    require(pre['disposition']=='passed' and pre['source']==validate_admission(env,selected['admission'], contract),'outer source/capacity join missing')
     initial={'source':pre['source'],'capacityPassed':False,'observedMonotonic':time.monotonic()}
     try:
         require(time.monotonic()+1800+5+30 < pre['deadlineMonotonic'],'original outer window cannot fit unit/readback')
-        owner=probe_owner();view=read_unit(env['UNIT_NAME']);props=view['properties'];initial['properties']=props;initial['managerRead']=view
+        owner=probe_owner(contract);view=read_unit(env['UNIT_NAME']);props=view['properties'];initial['properties']=props;initial['managerRead']=view
         require(view['exit']==0 and props.get('Id')==env['UNIT_NAME']+'.service','initial unit identity unavailable')
         require(re.fullmatch(r'[0-9a-f]{32}',props.get('InvocationID','')) and int(props.get('MainPID','0'))==os.getpid(),'initial invocation/MainPID differs')
         mount=owner._cgroup2_mount();require(mount and mount[1]=='/','initial cgroup mapping unavailable')
@@ -285,18 +316,20 @@ def acquisition_capacity(owner, root, initial):
     return facts
 
 
-def record_client_exit(env):
-    directory=outer_path(env);pre=json.loads((directory/'preflight.json').read_text())
-    require(pre['source']==validate_admission(env,ADMISSION),'client source join differs')
+def record_client_exit(env, contract=None):
+    selected = selected_contract(contract)
+    directory=outer_path(env, contract);pre=json.loads((directory/'preflight.json').read_text())
+    require(pre['source']==validate_admission(env,selected['admission'], contract),'client source join differs')
     value=env.get('REHEARSAL_CLIENT_EXIT','not-observed')
     require(value=='not-observed' or re.fullmatch(r'[0-9]{1,3}',value),'client exit malformed')
     outer_write(directory,'client-exit.json',{'source':pre['source'],'clientExit':value,'wrapperExit':env.get('REHEARSAL_STEP_EXIT','unknown'),'observedMonotonic':time.monotonic()})
 
 
-def post_unit(env):
-    directory=outer_path(env);pre=json.loads((directory/'preflight.json').read_text());result={'disposition':'Unknown','source':pre['source'],'observations':[]}
+def post_unit(env, contract=None):
+    selected = selected_contract(contract)
+    directory=outer_path(env, contract);pre=json.loads((directory/'preflight.json').read_text());result={'disposition':'Unknown','source':pre['source'],'observations':[]}
     try:
-        require(pre['source']==validate_admission(env,ADMISSION),'post source differs')
+        require(pre['source']==validate_admission(env,selected['admission'], contract),'post source differs')
         require(time.monotonic()<pre['deadlineMonotonic']-30,'original post-read window expired')
         try:client=json.loads((directory/'client-exit.json').read_text())
         except FileNotFoundError as error:client={'source':pre['source'],'clientExit':'not-observed'};result['clientReadError']=str(error)
@@ -305,7 +338,7 @@ def post_unit(env):
         require(time.monotonic()<pre['deadlineMonotonic']-30,'original post-read window expired during observation')
         initial=json.loads((directory/'initial-unit.json').read_text())
         require(initial['source']==pre['source']==client['source'],'initial/client source join differs')
-        owner=probe_owner();boot=owner._read('/proc/sys/kernel/random/boot_id').strip();result['boot']=boot;require(boot==initial['boot'],'post boot differs')
+        owner=probe_owner(contract);boot=owner._read('/proc/sys/kernel/random/boot_id').strip();result['boot']=boot;require(boot==initial['boot'],'post boot differs')
         group=Path(initial['cgroupPath']);sample['cgroupPresent']=group.exists()
         pid=int(initial['properties']['MainPID'])
         try:
@@ -469,8 +502,9 @@ def lock_hashes(root):
             if not set(path.relative_to(root).parts) & {'obj', 'bin', '.nuget'}}
 
 
-def collect(root, deadline):
-    evidence = root/'retained-evidence'
+def collect(root, deadline, contract=None):
+    selected = selected_contract(contract)
+    evidence = root/selected['evidence']
     require(not evidence.exists(), 'evidence output occupied')
     evidence.mkdir(mode=0o700)
     names = ('rehearsal.json','source-seals.json','managed-owner.json','managed-owner-probe.json',
@@ -480,7 +514,7 @@ def collect(root, deadline):
     candidates = [root/name for name in names if (root/name).exists()]
     if (root/'managed').is_dir():
         groups = sorted((root/'managed').iterdir())
-        require(len(groups) <= 128, 'managed evidence population exceeded')
+        require(len(groups) <= (128 if selected['name']=='retained' else 512), 'managed evidence population exceeded')
         candidates += [group/name for group in groups for name in ('receipt.json','stdout.log','stderr.log') if (group/name).exists()]
     transaction = root/'transaction'
     if transaction.is_dir():
@@ -489,8 +523,21 @@ def collect(root, deadline):
             candidates += [transaction/(name+suffix) for suffix in ('.json','.diff') if (transaction/(name+suffix)).exists()]
             journal = transaction/(name+'-backup')/'journal.json'
             if journal.exists(): candidates.append(journal)
+    if selected['name'] == 'd5':
+        # Exact D5 public evidence inventory, written by its fixed caller, never arbitrary paths.
+        inventory_path=root/'d5-evidence-inputs.json'
+        require(inventory_path.is_file() and not inventory_path.is_symlink() and inventory_path.stat().st_size<=1048576, 'D5 evidence inventory refused')
+        inventory = json.loads(inventory_path.read_text())
+        require(isinstance(inventory,list) and len(inventory)<=20000 and len(set(inventory))==len(inventory), 'D5 evidence population exceeded')
+        for relative in inventory:
+            require(isinstance(relative,str) and relative and not Path(relative).is_absolute() and '..' not in Path(relative).parts, 'D5 evidence path refused')
+            path=root/relative
+            normalized_roots(path,WORKSPACE)
+            require(path.is_relative_to(root), 'D5 evidence escaped root')
+            candidates.append(path)
+        candidates=list(dict.fromkeys(candidates))
     # No recursion into adopted/.nuget/obj/bin or the copied product trees.
-    manifest = {'capBytes': EVIDENCE_CAP, 'files': [], 'failures': []}
+    manifest = {'capBytes': selected['cap'], 'files': [], 'failures': []}
     total = 0
     for path in candidates:
         try:
@@ -498,7 +545,7 @@ def collect(root, deadline):
             normalized_roots(path, WORKSPACE)
             require(path.is_file() and not path.is_symlink(), 'nonregular evidence refused')
             size = path.stat().st_size
-            require(total + size <= EVIDENCE_CAP-min(262144,EVIDENCE_CAP//8), 'evidence byte cap exceeded')
+            require(total + size <= selected['cap']-min(262144,selected['cap']//8), 'evidence byte cap exceeded')
             target = evidence/path.relative_to(root)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(path, target)
@@ -546,13 +593,14 @@ def fixed_product_steps(root, dotnet, sdd_entry, inputs):
     ]
 
 
-def unit_properties(caller, run, env, identities, initial):
+def unit_properties(caller, run, env, identities, initial, expected_unit=None):
+    expected_unit = UNIT if expected_unit is None else expected_unit
     path, _ = caller['host_image']('/usr/bin/systemctl')
     caller['bind_identity'](identities, path, 'host-observed')
-    names = [*UNIT, 'CPUQuotaPerSecUSec','InvocationID','ControlGroup','MainPID']
+    names = [*expected_unit, 'CPUQuotaPerSecUSec','InvocationID','ControlGroup','MainPID']
     text = run([path, 'show', '--no-pager', env['UNIT_NAME']] + [item for name in names for item in ('-p', name)], Path(env['PRIVATE_ROOT']), env)
     values = dict(line.split('=', 1) for line in text.splitlines() if '=' in line)
-    require(all(values.get(key) == value for key, value in UNIT.items()), 'unit properties differ')
+    require(all(values.get(key) == value for key, value in expected_unit.items()), 'unit properties differ')
     require(all(values.get(key)==initial['properties'][key] for key in ('InvocationID','ControlGroup','MainPID')),'unit changed from initial invocation')
     quota = re.fullmatch(r'([0-9]+(?:\.[0-9]+)?)(us|ms|s)', values.get('CPUQuotaPerSecUSec', ''))
     require(quota and float(quota[1])*{'us':1,'ms':1000,'s':1000000}[quota[2]] == 2000000, 'CPU quota differs')

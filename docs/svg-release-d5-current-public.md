@@ -70,3 +70,63 @@ costly receiver. No new supervisor, shared cache or retry state machine is intro
 The corrected four pure controls took 0.547 seconds on the source host; this is local
 validation cost, not measured runner savings. Actual runtime activation and acceptance
 remain pending with Programme/root and the same Delivery owner.
+
+## Held managed transport
+
+The current D5 entry delegates each SDK, tool, generator, validator and backend command
+through the existing `wasm-installed-c.py` actual-caller loader and pinned Coordination
+`eng/managed_group_owner.py` (`ac222065`, SHA256 `d846dbe1…`). It introduces no process
+supervisor or mutable override of the shared caller. The direct shell now delegates to
+this entry instead of retaining an unmanaged current-cohort execution path. Both source
+holds remain: `ADMISSION=None` and the receiver job's literal `if: false`.
+
+The independently reviewed PR765 reader is an explicit source dependency. Its narrow
+caller-contract extension preserves the retained4816 defaults and supports only the
+additional D5 admission, workflow, unit, clock, owner checkout and evidence namespace.
+The original first-step clock, complete ancestor capacity screen, selected-unit
+accounting, original InvocationID/process birth/cgroup join and independent post-unit
+readback use that same maintained controller. Its old admission and original failures
+are retained at their own scope. The expanded touch-set was selected after direct reuse
+proved to require impersonating4816 or mutating module globals; neither is used.
+
+The proposed first serial rehearsal has an enforced two-CPU,8GiB,512-task delegated
+unit, no swap, a30-minute runtime and35-minute outer workflow horizon. Setup720s,
+generation360s and backend480s use cumulative original deadlines; collection120s,
+cleanup30s and overhead90s complete the1800s envelope. The capacity screen retains the
+existing two-CPU/10GiB available-memory/20GiB staging floors. These are proposed limits,
+not measured D5 demand or a claim the full matrix fits. Every managed group still needs
+contained, empty-and-removed, reaped and EOF-qualified retirement; the independent outer
+readback cannot infer success from a shell exit. Receipts remain retirement-unqualified
+until that separate readback and root acceptance. Full-matrix resource fit remains a
+separate admission prerequisite.
+
+SDK401 provisioning, validator locked restore/build arguments, public/installed tool
+checks and typed D5 cases are reused. Validator outputs use a private artifacts root.
+The public SDK, NuGet and generator input domains remain closed. Go1.24.1 uses the fixed
+official archive SHA256 `cb2396ba…` with a direct, nonredirecting managed download;
+canonical LMT compilation must reproduce `37e0b036…`. No shared URL allowlist is patched.
+The namespace sandbox must work on the unchanged host; there is no sudo/sysctl fallback.
+Any future host mutation needs its own admission.
+
+The expected wrong-profile command deliberately has a positive nonzero exit. Its
+consumer retains the original failed managed receipt and stdout instead of changing the
+process outcome to success. It accepts only that exact typed `d5-refused` plan, the
+installed-core input hash, matching profile/argv, the ordinary command-exit first cause,
+no additional failure, contained empty retirement, reaping and uncapped EOF streams with
+matching original bytes. Signals, timeout, escape, missing receipts, cleanup/reporting
+failure and unexpected success refuse. This establishes only a transport result. The
+existing F# backend check must still authenticate the actual blocked diagnostic,
+unchanged paths, authored authority and complete owner-file population.
+
+Evidence collection reuses the maintained copier with a separate D5 inventory, a20,000
+file/512-group ceiling and1GiB aggregate cap; retained4816 limits stay unchanged. It keeps
+public input archives, actual group receipts/logs, generated receiver/authority files,
+source seals and before/after observations. Missing or over-budget evidence cannot
+qualify. The rehearsal contains three receivers; the full selector retains raw omission
+plus all42 typed-owner cases. No browser or product build is repeated here.
+
+Pure controls cover the actual held entry, transport delegation, narrow failed-receipt
+consumer, first-failure handling and causal cross-caller admission/clock/evidence/output
+joins. Fixtures are synthetic; they establish no SDK/backend/runtime acceptance. Normal
+source review and CI remain required, followed by a separately admitted first genuine
+rehearsal. The complete4849/4644 acceptance and all historical Unknown holds remain open.

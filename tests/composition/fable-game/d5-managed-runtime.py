@@ -2,7 +2,7 @@
 """Held D5 consumer of the canonical managed owner; this file is not a supervisor.
 
 Transport decisions concern process receipts only. ProviderTool remains the sole
-receiver/backend policy owner. No CLI mode launches a workload.
+receiver/backend policy owner. Current source holds every runtime CLI mode before effects.
 """
 import sys
 sys.dont_write_bytecode = True
@@ -17,13 +17,14 @@ import time
 
 HERE = Path(__file__).resolve().parent
 ADMISSION = None
-# The existing retained outer controller is4816-specific. Do not impersonate4816,
-# patch its module globals, or copy it. A reviewed explicit caller seam is required.
-OUTER_CALLER_CONTRACT = None
+# Closed D5 naming in the existing retained controller; no globals mutation or
+# controller copy. This source selection is not runtime admission.
+OUTER_CALLER_CONTRACT = 'd5'
 WORKFLOW = 'FS-GG/FS.GG.Templates/.github/workflows/svg-release-d5-current-public.yml@refs/heads/main'
-READER = {'revision': '1d832f2214147065bb56e0afd76d600ed01bd27d',
+READER = {'baseRevision': '1d832f2214147065bb56e0afd76d600ed01bd27d',
           'path': 'tests/composition/fable-game/retained-reference-rehearsal.py',
-          'sha256': '4e4fb76333804a3f16c36ef16ae1fd8aac165fae6b5cf8492157f87f18dcfd43'}
+          'baseSha256': '4e4fb76333804a3f16c36ef16ae1fd8aac165fae6b5cf8492157f87f18dcfd43',
+          'sha256': 'e75c1d1dfdc4112499707218dff085b6a5c508f5e60cafc98c3fcef211d4b0e9'}
 OWNER = {'revision': 'ac22206560f3eddfea524ce8f752ff1d0dfeec4e',
          'path': 'eng/managed_group_owner.py', 'bytes': 45315,
          'sha256': 'd846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0'}
@@ -72,29 +73,10 @@ def sha(path):
 
 
 def admission_join(env, selected):
-    """Pure join; production only calls this with the source literal ADMISSION."""
+    """Pure source-join control through the existing parameterized reader."""
     require(selected is not None, 'HELD: runtime admission None; retirement unqualified')
-    require(re.fullmatch(r'https://github.com/FS-GG/\.github/issues/4849#issuecomment-[0-9]+', selected), 'wrong D5 admission')
-    require(env.get('ADMISSION') == selected, 'admission input differs')
-    require(env.get('EVENT') == 'workflow_dispatch' and env.get('REPOSITORY') == 'FS-GG/FS.GG.Templates', 'same-repository dispatch required')
-    require(env.get('REF') == 'refs/heads/main' and env.get('RUN_ATTEMPT') == '1', 'main first attempt required')
-    head = env.get('SHA', '')
-    require(re.fullmatch(r'[0-9a-f]{40}', head) and all(env.get(k) == head for k in ('ADMITTED_REF', 'CHECKOUT_HEAD', 'WORKFLOW_SHA')), 'source/checkout/workflow differs')
-    require(env.get('WORKFLOW_REF') == WORKFLOW and re.fullmatch(r'[0-9]+', env.get('RUN_ID', '')), 'workflow/run identity differs')
-    require(env.get('UNIT_NAME') == 'fsgg-mg-templates-d5-' + env['RUN_ID'] + '-1', 'D5 unit identity differs')
-    return {key: env[key] for key in SOURCE_KEYS}
-
-
-def original_clock(path, source, boot, now):
-    """Validate the actual first-step observation; never start or renew its clock."""
-    value = read_json(path, 4096)
-    keys = tuple(k for k in SOURCE_KEYS if k not in ('ADMISSION', 'ADMITTED_REF', 'CHECKOUT_HEAD'))
-    require(value.get('source') == {key: source[key] for key in keys}, 'first clock source differs')
-    require(value.get('scope') == 'first-workflow-step' and value.get('boot') == boot, 'first clock boot/scope differs')
-    start = value.get('startedMonotonic')
-    require(type(start) in (int, float) and math.isfinite(start) and 0 <= start <= now, 'first clock invalid')
-    require(now + 1800 + 5 + 30 < start + 2100, 'original setup consumed unit/readback reserve')
-    return start
+    reader=load_reader(HERE.parents[2])
+    return reader.validate_admission(env,selected,reader.caller_contract('d5',selected))
 
 
 def phase_deadline(start, phase, now):
@@ -135,7 +117,8 @@ def refusal_receipt(owner, receipt, directory, argv, cwd, env):
     """
     require(receipt.get('schema') == 'fsgg.managed-group-receipt/1'
             and receipt.get('contract') == 'fsgg.managed-group-contract/1', 'wrong process receipt')
-    require(receipt.get('owner', {}).get('sha256') == OWNER['sha256'], 'receipt owner differs')
+    require(receipt.get('owner', {}).get('sha256') == OWNER['sha256']
+            and receipt['owner'].get('path') == owner.OWNER_PATH, 'receipt owner differs')
     require(read_json(Path(directory) / 'receipt.json') == receipt, 'original process receipt differs')
     profile = receipt['profile']
     _, digest = owner.validate_profile(profile)
@@ -145,6 +128,11 @@ def refusal_receipt(owner, receipt, directory, argv, cwd, env):
     require(str(Path(directory).resolve()) == str(Path(directory))
             and Path(directory).is_relative_to(Path(profile['root']))
             and Path(cwd).is_relative_to(Path(profile['root'])), 'receipt root/directory differs')
+    require(re.fullmatch(r'[0-9a-f]{32}',receipt.get('invocationId','')) and isinstance(receipt.get('bootId'),str) and receipt['bootId'], 'original invocation/boot missing')
+    leader=receipt.get('leader') or {}
+    require(all(type(leader.get(k)) is int and leader[k]>0 for k in ('pid','start','pidfdInode'))
+            and leader.get('image')=='admitted' and leader.get('imageSha256') in profile['leaderImages']
+            and leader.get('noNewPrivileges')=='1' and leader.get('cmdline')==argv, 'refusal leader birth/image unqualified')
     require(receipt.get('launch', {}).get('attempted') is True and receipt.get('launch', {}).get('launched') is True, 'refusal command was not launched')
     require(profile['retirement']['onLeaderExit'] == 'require-empty', 'wrong retirement policy')
     require(profile['containment'] == 'cgroup2-delegated', 'wrong containment policy')
@@ -159,7 +147,7 @@ def refusal_receipt(owner, receipt, directory, argv, cwd, env):
     retirement = receipt.get('retirement') or {}
     require(retirement.get('leaderReaped') is True and retirement.get('leafRemoved') is True
             and retirement.get('populatedAfter') is False, 'refusal process not reaped/removed')
-    require(all(row.get('removed') is True for row in receipt.get('createdCgroups', [])), 'created process group remains')
+    require(isinstance(receipt.get('createdCgroups'),list) and all(row.get('removed') is True for row in receipt['createdCgroups']), 'created process group remains')
     for name in ('stdout', 'stderr'):
         stream = receipt.get('streams', {}).get(name, {})
         path = Path(directory) / (name + '.log')
@@ -184,6 +172,7 @@ def wrong_profile(execute, owner, receipts, argv, sdd_core, typed_arguments, cwd
         execute(argv, cwd, env, inputs=[Path(sdd_core)])
     except RuntimeError as failure:
         cause = failure.__cause__
+        require(not getattr(failure,'__notes__',[]) and not getattr(cause,'__notes__',[]), 'managed reporting failure cannot be expected refusal')
         require(isinstance(cause, owner.GroupFailed) and len(receipts) == previous + 1, 'not the original managed command failure')
         entry = receipts[-1]
         require(entry.get('status') == 'failed' and entry.get('executable') == os.path.realpath(argv[0])
@@ -192,13 +181,174 @@ def wrong_profile(execute, owner, receipts, argv, sdd_core, typed_arguments, cwd
     raise ValueError('wrong-profile author unexpectedly succeeded')
 
 
+def write(path, value):
+    data=json.dumps(value,indent=2)+'\n'
+    require(len(data.encode())<=1048576,'D5 metadata cap exceeded')
+    Path(path).write_text(data)
+
+
+def run_d5(reader, contract, environ):
+    """Fixed D5 sequence; every executable goes through the existing managed owner."""
+    source=reader.validate_admission(environ,ADMISSION,contract)
+    require(Path(environ['GITHUB_WORKSPACE'])==HERE.parents[2],'executing checkout differs')
+    initial=reader.operational_start(environ,contract)
+    root=Path(environ['RUNNER_TEMP'])/('current-d5-'+environ['RUN_ID']+'-1')
+    reader.normalized_roots(root,HERE.parents[2]);reader.no_global_before_create(root)
+    caller=reader.load_file('d5_actual_loader',HERE/'wasm-installed-c.py').actual_caller()
+    env=caller['fresh_environment'](root,environ)
+    env.update(UNIT_NAME=environ['UNIT_NAME'],PRIVATE_ROOT=str(root),GIT_CONFIG_NOSYSTEM='1')
+    helper=reader.load_file('d5_observations',HERE/'d5-current-public.py')
+    start=reader.original_clock(environ,initial['boot'],contract)['startedMonotonic']
+    receipts=[]; summary={'schema':'fsgg.current-d5.managed-attempt/1','disposition':'failed','retirement':'unqualified',
+                         'source':source,'scope':environ['SCOPE'],'firstCause':None,'additionalFailures':[],'phases':{}}
+    selected=['d5-managed-runtime.py','d5-current-public.py','verify-svg-release-d5-current-public.sh','retained-reference-rehearsal.py','wasm-installed-c.py']
+    write(root/'source-seals.json',{name:sha(HERE/name) for name in selected})
+    inventory=['attempt.json','source-seals.json','pins.json','unit.json','input-downloads.json','executable-identities.json']
+    primary=None
+    try:
+        require(environ['SCOPE'] in ('rehearsal','full'),'closed D5 scope required')
+        require(len(environ['PUBLIC_PINS'].encode())<=65536,'pin input cap exceeded')
+        pins=json.loads(environ['PUBLIC_PINS'],object_pairs_hook=unique)
+        write(root/'pins.json',pins)
+        setup=phase_deadline(start,'setup',time.monotonic())
+        owner=caller['load_owner'](root,setup);caller['probe_containment'](owner,root)
+        identities={};run=managed_transport(caller,owner,root,setup,identities,'setup',receipts)
+        expected={'TasksMax':'512','MemoryMax':str(8*1073741824),'MemorySwapMax':'0','RuntimeMaxUSec':'30min','Delegate':'yes','NoNewPrivileges':'yes','KillMode':'control-group'}
+        write(root/'unit.json',reader.unit_properties(caller,run,env,identities,initial,expected))
+        reader.acquisition_capacity(owner,root,initial)
+        tools=root/'tools';tools.mkdir();downloads=root/'downloads';downloads.mkdir()
+        acquisitions=[];get=caller['acquirer'](root,downloads,caller['download'],setup,acquisitions)
+        def sdk_get(name,url,expected,maximum,algorithm='sha256'):
+            reader.verify_sdk_selection(name,url,expected,maximum,algorithm)
+            result=get(name,url,expected,maximum,algorithm)
+            if name=='dotnet-releases.json':reader.sdk_metadata(result.read_bytes())
+            return result
+        dotnet=str(caller['provision_sdk'](sdk_get,tools,setup))
+        env.update(DOTNET_ROOT=str(tools/'dotnet'),DOTNET_HOST_PATH=dotnet,PATH=str(tools/'dotnet')+':/usr/bin:/bin')
+        caller['bind_identity'](identities,dotnet,'verified-archive-member')
+        reader.native_closure(caller,run,root,tools,env,identities)
+        require(run([dotnet,'--version'],root,env).strip()=='10.0.401','SDK selection differs')
+        inputs={}
+        for role,package in [('templates','FS.GG.Workspace.Template'),('overlay','FS.GG.Workspace.Template'),('sdd','FS.GG.SDD.Cli'),('wizard','FS.GG.NewSddWorkspace')]:
+            row=helper.PINS[role];name=package+'.'+row['version']+'.nupkg'
+            inputs[role]=get(name,'https://api.nuget.org/v3-flatcontainer/'+package.lower()+'/'+row['version']+'/'+name.lower(),row['sha256'],134217728)
+            inventory.append(str(inputs[role].relative_to(root)))
+        provider=get('provider.yml','https://raw.githubusercontent.com/FS-GG/FS.GG.Templates/'+helper.PINS['templates']['sourceCommit']+'/providers/fable-game.providers.yml',helper.PINS['templates']['providerSha256'],1048576)
+        inventory.append(str(provider.relative_to(root)))
+        config=caller['closed_nuget_config'](root)
+        project=HERE.parents[2]/'src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj'
+        artifacts=root/'validator-artifacts'
+        run(caller['provider_tool_restore_argv'](dotnet,project,config)+['--artifacts-path',str(artifacts),'-m:1'],root,env)
+        run(caller['provider_tool_build_argv'](dotnet,project)+['--artifacts-path',str(artifacts),'--disable-build-servers','-m:1'],root,env)
+        validator=artifacts/'bin/FS.GG.Templates.ProviderTool/release/FS.GG.Templates.ProviderTool.dll'
+        require(validator.is_file(),'owned validator output missing')
+        def check(args):return run([dotnet,str(validator),*args],root,env,inputs=[validator])
+        check(['current-d5-pins-check','--pins',str(root/'pins.json')])
+        # Check exact public identities before installation or generation.
+        cores={}
+        for role,package,command in [('sdd','FS.GG.SDD.Cli','fsgg-sdd'),('wizard','FS.GG.NewSddWorkspace','new-sdd-workspace')]:
+            row=helper.PINS[role];common=['--archive',str(inputs[role]),'--package-id',package,'--version',row['version'],'--sha256',row['sha256'],'--source-revision',row['sourceCommit']]
+            check(['published-tool-check',*common]);store=tools/role
+            run([dotnet,'tool','install',package,'--version',row['version'],'--tool-path',str(store),'--configfile',str(config),'--add-source',str(downloads),'--no-cache'],root,env)
+            core=Path(check(['installed-tool-check',*common,'--tool-root',str(store),'--command-name',command]).strip())
+            require(core.is_relative_to(store/'.store') and core.is_file(),'installed tool core escaped store');cores[role]=core
+        env['PATH']=str(tools/'sdd')+':'+env['PATH']
+        row=helper.PINS['templates'];revision=row['sourceCommit']
+        git,_=caller['host_image']('/usr/bin/git');caller['bind_identity'](identities,git,'host-observed')
+        refs=run([git,'ls-remote','--tags','https://github.com/FS-GG/FS.GG.Templates.git','refs/tags/fs-gg-templates/v0.19.3','refs/tags/fs-gg-templates/v0.19.3^{}'],root,env)
+        values={ref:value for value,ref in (line.split() for line in refs.splitlines())};tag='refs/tags/fs-gg-templates/v0.19.3'
+        require(values.get(tag+'^{}',values.get(tag))==revision,'public tag revision differs')
+        check(['reference-publication-check','--archive',str(inputs['templates']),'--descriptor',str(provider),'--template-version','0.19.3','--sha256',row['sha256'],'--source-revision',revision,'--tag-revision',revision,'--descriptor-sha256',row['providerSha256']])
+        # Fixed official Go URL: no redirect, no mutable global allowlist extension.
+        curl,_=caller['host_image']('/usr/bin/curl');caller['bind_identity'](identities,curl,'host-observed')
+        goarchive=downloads/'go1.24.1.tar.gz'
+        run([curl,'--proto','=https','--fail','--silent','--show-error','--max-time',str(max(1,int(setup-time.monotonic()))),'--max-filesize',str(GO['maximumBytes']),'--output',str(goarchive),'https://dl.google.com/go/go1.24.1.linux-amd64.tar.gz'],root,env)
+        require(sha(goarchive)==GO['sha256'],'Go archive differs')
+        caller['unpack_tar'](goarchive,tools/'go-unpacked',1073741824,setup)
+        go=tools/'go-unpacked/go/bin/go';caller['bind_identity'](identities,str(go),'verified-archive-member')
+        env.update(GOCACHE=str(root/'go-cache'),GOPATH=str(root/'go-path'),CGO_ENABLED='1',GO111MODULE='off')
+        main=get('lmt-main.go','https://raw.githubusercontent.com/driusan/lmt/62fe18f2f6a6e11c158ff2b2209e1082a4fcd59c/main.go',LMT['sourceSha256'],1048576)
+        lmt=tools/'lmt';run([str(go),'build','-trimpath','-ldflags',LMT['ldflags'],'-o',str(lmt),str(main)],root,env,inputs=[main])
+        require(sha(lmt)==LMT['sha256'],'canonical LMT output differs')
+        quint=get('quint','https://github.com/quint-co/quint/releases/download/v0.32.0/quint-linux-amd64','939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f',134217728);quint.chmod(0o700)
+        unshare,_=caller['host_image']('/usr/bin/unshare');caller['bind_identity'](identities,unshare,'host-observed')
+        run([unshare,'--user','--map-root-user','--net','--','/usr/bin/true'],root,env)
+        # No sudo/sysctl or host profile mutation. An unavailable sandbox refuses.
+        write(root/'input-downloads.json',acquisitions);write(root/'executable-identities.json',identities)
+        generation=phase_deadline(start,'generation',time.monotonic());run=managed_transport(caller,owner,root,generation,identities,'generation',receipts)
+        # check closes over run, so all subsequent typed decisions use this phase.
+        run([dotnet,'new','install',str(inputs['templates'])],root,env)
+        raw=root/'raw-omitted';run([dotnet,'new','fs-gg-fable-game','-n','CurrentD5Raw','-o',str(raw)],root,env)
+        check(['current-d5-receiver-check','--archive',str(inputs['templates']),'--receiver',str(raw),'--route','direct','--lifecycle','none','--bundle','omitted','--product-name','CurrentD5Raw'])
+        inventory += [str(p.relative_to(root)) for p in raw.rglob('*') if p.is_file()]
+        cases=check(['current-d5-cases','--scope',environ['SCOPE']]);(root/'cases.tsv').write_text(cases);inventory.append('cases.tsv')
+        rows=[line.split('\t') for line in cases.splitlines()];require(len(rows)==(2 if environ['SCOPE']=='rehearsal' else 42) and all(len(row)==4 for row in rows),'typed D5 cases missing')
+        for name,route,lifecycle,bundle in rows:
+            destination=root/name;effective='typed-sdd' if lifecycle=='omitted' else lifecycle;product='D5'+name.replace('-','')
+            if route=='provider':
+                (destination/'.fsgg').mkdir(parents=True);(destination/'.fsgg/providers.yml').write_bytes(provider.read_bytes())
+                args=['scaffold','--root',str(destination),'--provider','fable-game','--no-update','--json','--param','productName='+product]
+                if lifecycle!='omitted':args+=['--param','lifecycle='+lifecycle]
+                if bundle!='omitted':args+=['--param','bundle='+bundle]
+                report=run([dotnet,str(cores['sdd']),*args],root,env,inputs=[cores['sdd']]);(root/(name+'.json')).write_text(report)
+            else:
+                hive=root/'hives'/name;hive.mkdir(parents=True);wizardenv={**env,'DOTNET_CLI_HOME':str(hive)}
+                if effective=='typed-sdd':run([dotnet,'new','install',str(inputs['overlay'])],root,wizardenv)
+                args=[str(destination),product,'--template','fable-game','--ref','fs-gg-templates/v0.19.3','--pinned','--no-governance','--no-coordination']
+                if lifecycle!='omitted':args+=['--lifecycle',lifecycle]
+                if bundle!='omitted':args+=['--bundle',bundle]
+                run([dotnet,str(cores['wizard']),*args],root,wizardenv,inputs=[cores['wizard']])
+                registry=hive/'.templateengine/packages.json';reader.template_registration(hive,root,'0.19.3',row['sha256'])
+                (root/(name+'-registry.json')).write_bytes(registry.read_bytes())
+            check(['current-d5-receiver-check','--archive',str(inputs['templates']),'--receiver',str(destination),'--route',route,'--lifecycle',effective,'--bundle',bundle,'--product-name',product])
+            inventory += [str(p.relative_to(root)) for p in destination.rglob('*') if p.is_file() and not set(p.relative_to(destination).parts)&{'.git','.nuget','node_modules','bin','obj'}]
+            require(len(set(inventory))<=20000,'D5 evidence file population exceeded')
+        backend=phase_deadline(start,'backend',time.monotonic());run=managed_transport(caller,owner,root,backend,identities,'backend',receipts)
+        cache=root/'quint-cache';run([dotnet,str(cores['sdd']),'typed-sdd','provision','--cache',str(cache),'--quint',str(quint),'--lmt',str(lmt)],root,env,inputs=[cores['sdd']])
+        for name in ('provider-omitted','wizard-omitted'):
+            destination=root/name;helper.extract_model(inputs['templates'],destination/'models/svg-arena')
+            def author_args(work,bindings):return json.loads(check(['current-d5-author-args','--root',str(destination),'--work',work,'--cache',str(cache),'--bindings',bindings]))
+            args=author_args('d5-default','models/svg-arena/arena-rules.bindings.json')
+            authored=root/(name+'-author.json');authored.write_text(run([dotnet,str(cores['sdd']),*args],root,env,inputs=[cores['sdd']]))
+            inspected=root/(name+'-inspect.json');inspected.write_text(run([dotnet,str(cores['sdd']),'typed-sdd','inspect','--root',str(destination),'--work','d5-default'],root,env,inputs=[cores['sdd']]))
+            bindings=destination/'models/svg-arena/refused.bindings.json';value=read_json(destination/'models/svg-arena/arena-rules.bindings.json');value['profile']='fsgg-quint-profile/1';write(bindings,value)
+            before=root/(name+'-before.json');write(before,helper.owner_snapshot(destination))
+            args=author_args('d5-refused','models/svg-arena/refused.bindings.json')
+            refused=wrong_profile(run,owner,receipts,[dotnet,str(cores['sdd']),*args],cores['sdd'],args,root,env)
+            after=root/(name+'-after.json');write(after,helper.owner_snapshot(destination))
+            check(['current-d5-backend-check','--receiver',str(destination),'--author',str(authored),'--inspect',str(inspected),'--refused',str(refused),'--before',str(before),'--after',str(after)])
+            for path in destination.rglob('*'):
+                if path.is_file() and not set(path.relative_to(destination).parts)&{'.git','.nuget','node_modules','bin','obj'}:inventory.append(str(path.relative_to(root)))
+        summary['disposition']='receiver-checks-complete'
+    except BaseException as error:
+        primary=error
+        summary['firstCause']=type(error).__name__+': '+str(error)
+        raise
+    finally:
+        try:
+            summary['seconds']=time.monotonic()-start;write(root/'attempt.json',summary)
+            inventory += [str(p.relative_to(root)) for p in root.iterdir() if p.is_file() and p.suffix in ('.json','.log','.tsv','.yml') and p.name!='d5-evidence-inputs.json']
+            write(root/'d5-evidence-inputs.json',sorted(set(inventory)))
+            result=reader.collect(root,min(time.monotonic()+120,start+1770),contract)
+            require(not result['failures'],'D5 collection incomplete')
+        except BaseException as reporting:
+            if primary is None:raise
+            primary.add_note('additional D5 reporting/collection failure: '+str(reporting))
+            print('additional D5 reporting/collection failure: '+str(reporting),file=sys.stderr)
+    return summary
+
+
 def main(argv=None):
     args = sys.argv[1:] if argv is None else argv
-    require(args == ['--check-admission'], 'usage: d5-managed-runtime.py --check-admission')
-    admission_join(os.environ, ADMISSION)
-    # No environment/CLI bypass; this remains a source integration prerequisite.
-    require(OUTER_CALLER_CONTRACT is not None, 'HELD: canonical D5 outer caller contract unavailable')
-    raise ValueError('HELD: runtime assembly and retirement remain unqualified')
+    require(len(args)==1 and args[0] in ('--check-admission','--outer-preflight','--record-client-exit','--post-unit','--run'), 'closed D5 operation required')
+    require(ADMISSION is not None,'HELD: runtime admission None; retirement unqualified') # before imports/effects
+    reader=load_reader(HERE.parents[2]);contract=reader.caller_contract(OUTER_CALLER_CONTRACT,ADMISSION)
+    reader.validate_admission(os.environ,ADMISSION,contract)
+    if args==['--check-admission']:return
+    if args==['--outer-preflight']:reader.outer_preflight(os.environ,contract)
+    elif args==['--record-client-exit']:reader.record_client_exit(os.environ,contract)
+    elif args==['--post-unit']:reader.post_unit(os.environ,contract)
+    else:run_d5(reader,contract,os.environ)
 
 
 if __name__ == '__main__':

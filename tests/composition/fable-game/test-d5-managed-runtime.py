@@ -19,6 +19,7 @@ D5 = importlib.util.module_from_spec(spec);spec.loader.exec_module(D5)
 
 class SyntheticOwner:
     OWNER_SHA256 = D5.OWNER['sha256']
+    OWNER_PATH = '/synthetic/canonical-owner.py'
     class GroupFailed(Exception):
         def __init__(self, receipt): self.receipt = receipt
     @staticmethod
@@ -41,7 +42,8 @@ class ManagedConsumerTests(unittest.TestCase):
                         'argv':self.argv,'cwd':str(self.cwd),'environmentKeys':sorted(self.env),
                         'containment':'cgroup2-delegated','limits':{},'retirement':{'onLeaderExit':'require-empty'}}
         self.receipt = {'schema':'fsgg.managed-group-receipt/1','contract':'fsgg.managed-group-contract/1',
-                        'owner':{'sha256':D5.OWNER['sha256']},'profile':self.profile,
+                        'owner':{'sha256':D5.OWNER['sha256'],'path':SyntheticOwner.OWNER_PATH},'profile':self.profile,
+                        'invocationId':'b'*32,'bootId':'synthetic','leader':{'pid':7,'start':10,'pidfdInode':12,'image':'admitted','imageSha256':'a'*64,'noNewPrivileges':'1','cmdline':self.argv},
                         'profileSha256':SyntheticOwner.validate_profile(self.profile)[1],
                         'launch':{'attempted':True,'launched':True},'exit':{'code':1,'signal':None},
                         'outcome':'failed','refusal':None,'firstCause':'RuntimeError: command failed with exit 1',
@@ -78,7 +80,7 @@ class ManagedConsumerTests(unittest.TestCase):
                  ('residualInRoot',[{'pid':7}]),('exit',{'code':None,'signal':9}),('exit',{'code':0,'signal':None}),
                  ('exit',{'code':True,'signal':None}),('launch',{'attempted':True,'launched':False}),
                  ('retirement',{'leaderReaped':False,'leafRemoved':True,'populatedAfter':False}),
-                 ('createdCgroups',[{'removed':False}])]
+                 ('createdCgroups',[{'removed':False}]),('leader',None),('invocationId',''),('bootId',None)]
         original=copy.deepcopy(self.receipt)
         for key,value in changes:
             with self.subTest(key=key,value=value):
@@ -102,6 +104,10 @@ class ManagedConsumerTests(unittest.TestCase):
         with self.assertRaises(ValueError):self.consume(lambda *a,**k:'unexpected success')
         def unrelated(*a,**k):raise RuntimeError('unrelated')
         with self.assertRaises(ValueError):self.consume(unrelated)
+        def with_note(*a,**k):
+            error=RuntimeError('wrapped');error.add_note('index reporting failed')
+            raise error from SyntheticOwner.GroupFailed(self.receipt)
+        with self.assertRaises(ValueError):self.consume(with_note)
         def unindexed(*a,**k):raise RuntimeError('wrapped') from SyntheticOwner.GroupFailed(self.receipt)
         with self.assertRaises(ValueError):self.consume(unindexed)
 
@@ -130,11 +136,11 @@ class ManagedConsumerTests(unittest.TestCase):
         for name in ('dotnet','curl','go','sudo','unshare','npm','git'):
             p=bins/name;p.write_text('#!/bin/sh\necho launched >>"$SENTINEL"\nexit 91\n');p.chmod(0o700)
         env={**os.environ,'PATH':str(bins)+':'+os.environ['PATH'],'SENTINEL':str(sent),'ADMISSION':'https://github.com/FS-GG/.github/issues/4849#issuecomment-1'}
-        for flags in [['--check-admission'],['--run'],['--admission',env['ADMISSION']]]:
+        for flags in [['--check-admission'],['--outer-preflight'],['--post-unit'],['--record-client-exit'],['--run'],['--admission',env['ADMISSION']]]:
             result=subprocess.run([sys.executable,str(HERE/'d5-managed-runtime.py'),*flags],env=env,capture_output=True,text=True,timeout=5)
             self.assertEqual(result.returncode,3)
         self.assertFalse(sent.exists())
-        self.assertIsNone(D5.ADMISSION);self.assertIsNone(D5.OUTER_CALLER_CONTRACT)
+        self.assertIsNone(D5.ADMISSION);self.assertEqual(D5.OUTER_CALLER_CONTRACT,'d5')
 
     def test_exact_admission_join_refuses_branches_retries_and_mixed_heads(self):
         admission='https://github.com/FS-GG/.github/issues/4849#issuecomment-1';head='a'*40
@@ -147,6 +153,27 @@ class ManagedConsumerTests(unittest.TestCase):
                 bad={**env,key:value}
                 with self.assertRaises(ValueError):D5.admission_join(bad,admission)
         with self.assertRaises(ValueError):D5.admission_join(env,None)
+
+    def test_first_setup_failure_stops_actual_fixed_caller_and_never_claims_pass(self):
+        import types
+        events=[]
+        root=self.root/'current-d5-42-1'
+        def fresh(path,environ):path.mkdir();return {'HOME':str(path/'home')}
+        def owner(*args):events.append('owner');raise ValueError('original synthetic setup failure')
+        caller={'fresh_environment':fresh,'load_owner':owner}
+        pins={'schema':'synthetic'}
+        fake=types.SimpleNamespace(
+            validate_admission=lambda *a:{'synthetic':True},
+            operational_start=lambda *a:{'boot':'synthetic'},normalized_roots=lambda *a:None,no_global_before_create=lambda *a:None,
+            load_file=lambda name,path:types.SimpleNamespace(actual_caller=lambda:caller) if name=='d5_actual_loader' else types.SimpleNamespace(PINS=pins),
+            original_clock=lambda *a:{'startedMonotonic':D5.time.monotonic()},
+            collect=lambda *a:{'failures':[]})
+        env={'RUNNER_TEMP':str(self.root),'RUN_ID':'42','UNIT_NAME':'fsgg-mg-templates-d5-42-1','GITHUB_WORKSPACE':str(D5.HERE.parents[2]),'SCOPE':'rehearsal','PUBLIC_PINS':'{"schema":"synthetic"}'}
+        with self.assertRaisesRegex(ValueError,'original synthetic setup failure'):D5.run_d5(fake,{'synthetic':True},env)
+        self.assertEqual(events,['owner'])
+        receipt=json.loads((root/'attempt.json').read_text())
+        self.assertEqual(receipt['disposition'],'failed');self.assertEqual(receipt['retirement'],'unqualified')
+        self.assertIn('original synthetic setup failure',receipt['firstCause'])
 
     def test_dependency_missing_or_changed_refuses_before_import(self):
         with self.assertRaises(ValueError):D5.load_reader(self.root)

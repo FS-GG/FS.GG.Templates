@@ -7,6 +7,8 @@ on:
       - 'tests/composition/fable-game/d5-current-public.py'
       - 'tests/composition/fable-game/d5-managed-runtime.py'
       - 'tests/composition/fable-game/test-d5-managed-runtime.py'
+      - 'tests/composition/fable-game/retained-reference-rehearsal.py'
+      - 'tests/composition/fable-game/test-retained-reference-rehearsal.py'
       - 'tests/composition/fable-game/test-d5-current-public.py'
       - 'tests/composition/fable-game/verify-svg-release-d5-current-public.sh'
       - 'tests/composition/fable-game/d5-public-pins.py'
@@ -14,6 +16,14 @@ on:
     inputs:
       public_pins:
         description: Exact current-public-pins/1 JSON emitted by d5-current-public.py pins
+        required: true
+        type: string
+      admitted_ref:
+        description: Exact admitted main commit (source remains held)
+        required: true
+        type: string
+      admission:
+        description: Exact root4849 admission comment (source remains held)
         required: true
         type: string
       scope:
@@ -66,71 +76,104 @@ jobs:
 
   receiver:
     needs: preflight
-    # ADMISSION=None: source-only until the maintained owner/admission/retirement seam is reviewed.
+    # Source-only: exact review/CI/main/profile/native admission still required.
     if: ${{ false }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      EVENT: ${{ github.event_name }}
+      REPOSITORY: ${{ github.repository }}
+      REF: ${{ github.ref }}
+      SHA: ${{ github.sha }}
+      WORKFLOW_REF: ${{ github.workflow_ref }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
+      RUN_ID: ${{ github.run_id }}
+      RUN_ATTEMPT: ${{ github.run_attempt }}
+      UNIT_NAME: fsgg-mg-templates-d5-${{ github.run_id }}-${{ github.run_attempt }}
+      ADMITTED_REF: ${{ inputs.admitted_ref }}
+      ADMISSION: ${{ inputs.admission }}
+      PUBLIC_PINS: ${{ inputs.public_pins }}
+      SCOPE: ${{ inputs.scope }}
     steps:
-      - uses: actions/checkout@v7
+      - name: Anchor original first-step clock
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B <<'PY_CLOCK'
+          import json, os, re, time
+          from pathlib import Path
+          env=os.environ
+          if env['RUN_ATTEMPT']!='1' or not re.fullmatch(r'[0-9]+',env['RUN_ID']):
+              raise ValueError('first attempt required')
+          keys=('EVENT','REPOSITORY','REF','SHA','WORKFLOW_REF','WORKFLOW_SHA','RUN_ID','RUN_ATTEMPT','UNIT_NAME')
+          record={'scope':'first-workflow-step','startedMonotonic':time.monotonic(),
+                  'boot':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+                  'source':{key:env[key] for key in keys}}
+          path=Path(env['RUNNER_TEMP'])/('current-d5-'+env['RUN_ID']+'-1-clock.json')
+          fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+          with os.fdopen(fd,'w') as stream:stream.write(json.dumps(record)+'\n')
+          PY_CLOCK
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ github.sha }}
           persist-credentials: false
-      - uses: actions/setup-dotnet@v6
+      - name: Refuse before capacity checkout or workload effects
+        id: admission
+        run: CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/d5-managed-runtime.py --check-admission
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          dotnet-version: '10.0.401'
-      - uses: actions/setup-go@v7
-        with:
-          go-version: '1.24.1'
-          cache: false
-      # Identical profile-2 tool recipe to the maintained historical D.5 receiver.
-      - name: Acquire exact profile-2 tools
+          repository: FS-GG/FS.GG.Coordination
+          ref: ac22206560f3eddfea524ce8f752ff1d0dfeec4e
+          path: .tmp/d5-canonical-owner
+          persist-credentials: false
+          fetch-depth: 1
+          lfs: false
+          submodules: false
+          sparse-checkout: eng/managed_group_owner.py
+          sparse-checkout-cone-mode: false
+      - name: Original capacity, clock and unit collision guard
+        id: capacity
+        run: CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/d5-managed-runtime.py --outer-preflight
+      - name: Fixed D5 sequence in the canonical delegated unit
+        shell: bash
         run: |
           set -euo pipefail
-          mkdir "$RUNNER_TEMP/current-d5-tools"
-          curl --fail --silent --show-error --location --max-time 120 \
-            https://github.com/quint-co/quint/releases/download/v0.32.0/quint-linux-amd64 \
-            --output "$RUNNER_TEMP/current-d5-tools/quint"
-          echo '939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f  '"$RUNNER_TEMP/current-d5-tools/quint" | sha256sum --check --strict
-          chmod +x "$RUNNER_TEMP/current-d5-tools/quint"
-          curl --fail --silent --show-error --location --max-time 120 \
-            https://raw.githubusercontent.com/driusan/lmt/62fe18f2f6a6e11c158ff2b2209e1082a4fcd59c/main.go \
-            --output "$RUNNER_TEMP/current-d5-tools/main.go"
-          echo '88bc47acae2c26919ab96a5cafa80b12fac762092c57840a2baad1afcc7feda3  '"$RUNNER_TEMP/current-d5-tools/main.go" | sha256sum --check --strict
-          (cd "$RUNNER_TEMP/current-d5-tools" && GO111MODULE=off CGO_ENABLED=1 go build -trimpath -ldflags '-buildid=IvXAt1kJ-3iINki1alCT/Ut12KGabgkWIkwVpw-xO/c4zkZMLAubfWHvjZOY8o/8-oR_8tNNndNgfMVoD8F -B 0x03d1703027f57ed4dd2ba90b7cdfc8cdea2815da' -o lmt main.go)
-          echo '37e0b0365c2641edce40b48605471f61fa12e97c3e2376152f0e849abdc31f10  '"$RUNNER_TEMP/current-d5-tools/lmt" | sha256sum --check --strict
-      - name: Qualify the existing Linux user and network namespace sandbox
-        run: |
-          set -euo pipefail
-          if [[ -r /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
-            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
-          fi
-          /usr/bin/unshare --user --map-root-user --net -- /usr/bin/true
-      - name: Execute only the separately selected current receiver scope
-        env:
-          PUBLIC_PINS: ${{ inputs.public_pins }}
-          SCOPE: ${{ inputs.scope }}
-          QUINT_BIN: ${{ runner.temp }}/current-d5-tools/quint
-          LMT_BIN: ${{ runner.temp }}/current-d5-tools/lmt
-        run: |
-          set -euo pipefail
-          export DOTNET_HOST_PATH="$(readlink -f "$(command -v dotnet)")"
-          printf '%s\n' "$PUBLIC_PINS" >"$RUNNER_TEMP/current-d5-pins.json"
-          args=("$RUNNER_TEMP/current-d5-pins.json" "$RUNNER_TEMP/current-d5-receiver")
-          case "$SCOPE" in rehearsal) args+=(--rehearsal);; full) args+=(--full);; *) exit 2;; esac
-          bash tests/composition/fable-game/verify-svg-release-d5-current-public.sh "${args[@]}"
-      - name: Retain actual current receipts, original public archives and authored authority
-        if: always()
-        uses: actions/upload-artifact@v7
+          checkout_head="$(git rev-parse HEAD)"
+          client_exit=not-observed
+          finish() {
+            local step_exit=$?
+            CHECKOUT_HEAD="$checkout_head" REHEARSAL_CLIENT_EXIT="$client_exit" REHEARSAL_STEP_EXIT="$step_exit" \
+              python3 -I -B tests/composition/fable-game/d5-managed-runtime.py --record-client-exit || true
+          }
+          trap finish EXIT
+          set +e
+          sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec \
+            --unit="$UNIT_NAME" -p Delegate=yes -p User="$(id -un)" -p Group="$(id -gn)" \
+            -p NoNewPrivileges=yes -p KillMode=control-group -p TimeoutStopSec=5 \
+            -p TasksAccounting=yes -p MemoryAccounting=yes -p CPUAccounting=yes \
+            -p CPUQuota=200% -p TasksMax=512 -p MemoryMax=8G -p MemorySwapMax=0 -p RuntimeMaxSec=1800 \
+            -p WorkingDirectory="$PWD" --setenv=PATH=/usr/bin:/bin \
+            --setenv=EVENT="$EVENT" --setenv=REPOSITORY="$REPOSITORY" --setenv=REF="$REF" --setenv=SHA="$SHA" \
+            --setenv=WORKFLOW_REF="$WORKFLOW_REF" --setenv=WORKFLOW_SHA="$WORKFLOW_SHA" \
+            --setenv=RUN_ID="$RUN_ID" --setenv=RUN_ATTEMPT="$RUN_ATTEMPT" --setenv=UNIT_NAME="$UNIT_NAME" \
+            --setenv=ADMITTED_REF="$ADMITTED_REF" --setenv=ADMISSION="$ADMISSION" --setenv=CHECKOUT_HEAD="$checkout_head" \
+            --setenv=RUNNER_TEMP="$RUNNER_TEMP" --setenv=GITHUB_WORKSPACE="$GITHUB_WORKSPACE" \
+            --setenv=PUBLIC_PINS="$PUBLIC_PINS" --setenv=SCOPE="$SCOPE" \
+            -- /usr/bin/python3 -I -B tests/composition/fable-game/d5-managed-runtime.py --run
+          client_exit=$?
+          exit "$client_exit"
+      - name: Independent original unit retirement
+        if: ${{ always() && steps.capacity.outcome == 'success' }}
+        timeout-minutes: 1
+        run: CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/d5-managed-runtime.py --post-unit
+      - name: Retain bounded original D5 evidence
+        if: ${{ always() && steps.admission.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: current-d5-${{ inputs.scope }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
-            ${{ runner.temp }}/current-d5-receiver/*.json
-            ${{ runner.temp }}/current-d5-receiver/*.log
-            ${{ runner.temp }}/current-d5-receiver/*.yml
-            ${{ runner.temp }}/current-d5-receiver/*.tsv
-            ${{ runner.temp }}/current-d5-receiver/*.checked
-            ${{ runner.temp }}/current-d5-receiver/feed/*.nupkg
-            ${{ runner.temp }}/current-d5-receiver/*/readiness/d5-default/**
-            ${{ runner.temp }}/current-d5-receiver/*/.fsgg/scaffold-provenance.json
+            ${{ runner.temp }}/current-d5-${{ github.run_id }}-1/d5-evidence/
+            ${{ runner.temp }}/current-d5-${{ github.run_id }}-1-outer/
           include-hidden-files: true
-          if-no-files-found: warn
+          if-no-files-found: error
           retention-days: 90

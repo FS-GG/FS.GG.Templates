@@ -586,6 +586,67 @@ class Controls(unittest.TestCase):
         for forbidden in ["['prepare_inputs']","['qualify_tools']","['installed_c']","['admitted_installed_sequence']"]:self.assertNotIn(forbidden,body)
 
 
+class CrossCallerControls(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix='d5-caller-synthetic-');self.addCleanup(self.temp.cleanup)
+        self.base=Path(self.temp.name)
+        self.admission='https://github.com/FS-GG/.github/issues/4849#issuecomment-1'
+        self.contract=m.caller_contract('d5',self.admission)
+        self.env={'EVENT':'workflow_dispatch','REPOSITORY':'FS-GG/FS.GG.Templates','REF':'refs/heads/main',
+                  'SHA':'a'*40,'ADMITTED_REF':'a'*40,'CHECKOUT_HEAD':'a'*40,'WORKFLOW_SHA':'a'*40,
+                  'WORKFLOW_REF':self.contract['workflow'],'RUN_ID':'123','RUN_ATTEMPT':'1',
+                  'UNIT_NAME':'fsgg-mg-templates-d5-123-1','ADMISSION':self.admission,'RUNNER_TEMP':str(self.base)}
+
+    def test_closed_namespaces_do_not_grant_foreign_admission(self):
+        self.assertEqual(m.validate_admission(self.env,self.admission,self.contract)['ADMISSION'],self.admission)
+        with self.assertRaises(ValueError):m.validate_admission(self.env,self.admission)
+        with self.assertRaises(ValueError):m.validate_admission(self.env,None,self.contract)
+        with self.assertRaises(ValueError):m.validate_admission({**self.env,'ADMISSION':self.admission+'2'},self.admission+'2',self.contract)
+        for key,value in [('namespace','retained-reference'),('unitPrefix','arbitrary-'),('cap',2**40)]:
+            with self.subTest(key=key):
+                with self.assertRaises(ValueError):m.outer_path(self.env,{**self.contract,key:value})
+        self.assertEqual(m.outer_path(self.env,self.contract).name,'current-d5-123-1-outer')
+        self.assertEqual(m.outer_path(self.env).name,'retained-reference-123-1-outer')
+
+    def test_original_clock_is_scoped_to_actual_caller_without_renewal(self):
+        keys=('EVENT','REPOSITORY','REF','SHA','WORKFLOW_REF','WORKFLOW_SHA','RUN_ID','RUN_ATTEMPT','UNIT_NAME')
+        value={'scope':'first-workflow-step','startedMonotonic':100,'boot':'synthetic','source':{k:self.env[k] for k in keys}}
+        path=self.base/'current-d5-123-1-clock.json';path.write_text(json.dumps(value))
+        with patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:101)):
+            self.assertEqual(m.original_clock(self.env,'synthetic',self.contract)['startedMonotonic'],100)
+            with self.assertRaises(ValueError):m.original_clock(self.env,'synthetic')
+            value['source']['UNIT_NAME']='fsgg-mg-templates-retained-123-1';path.write_text(json.dumps(value))
+            with self.assertRaises(ValueError):m.original_clock(self.env,'synthetic',self.contract)
+
+    def test_d5_evidence_is_bounded_and_cannot_select_foreign_paths(self):
+        root=self.base/'current-d5-123-1';root.mkdir();(root/'author.json').write_text('{"synthetic":true}')
+        (root/'d5-evidence-inputs.json').write_text('["author.json"]')
+        result=m.collect(root,m.time.monotonic()+5,self.contract)
+        self.assertEqual([r['path'] for r in result['files']],['author.json'])
+        self.assertTrue((root/'d5-evidence/author.json').exists());self.assertFalse((root/'retained-evidence').exists())
+        for index,value in enumerate(['../outside','/outside']):
+            other=self.base/str(index);other.mkdir();(other/'d5-evidence-inputs.json').write_text(json.dumps([value]))
+            with self.assertRaises(ValueError):m.collect(other,m.time.monotonic()+5,self.contract)
+
+    def test_d5_post_unit_joins_same_outer_namespace_and_failed_original_client(self):
+        directory=m.outer_path(self.env,self.contract);directory.mkdir()
+        source=m.validate_admission(self.env,self.admission,self.contract)
+        group=self.base/'absent-cgroup'
+        initial={'source':source,'boot':'synthetic','cgroupPath':str(group),'mainStartTicks':10,
+                 'properties':{'Id':self.env['UNIT_NAME']+'.service','InvocationID':'a'*32,'ControlGroup':'/synthetic','MainPID':'7'}}
+        (directory/'preflight.json').write_text(json.dumps({'source':source,'deadlineMonotonic':2100}))
+        (directory/'initial-unit.json').write_text(json.dumps(initial))
+        (directory/'client-exit.json').write_text(json.dumps({'source':source,'clientExit':'7'}))
+        def read(path):
+            if path=='/proc/sys/kernel/random/boot_id':return 'synthetic'
+            raise FileNotFoundError(path)
+        owner=types.SimpleNamespace(_read=read)
+        with patch.object(m,'probe_owner',return_value=owner),patch.object(m,'read_unit',return_value={'exit':1,'properties':{'LoadState':'not-found'}}),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:101)):
+            result=m.post_unit(self.env,self.contract)
+        self.assertEqual(result['disposition'],'original-unit-absent');self.assertEqual(result['originalClientExit'],'7')
+        self.assertFalse(m.outer_path(self.env).exists())
+
+
 if __name__=='__main__':
     print('SYNTHETIC fixed-call graph, archive bodies, executables and receipts; real canonical profile validation only. No native member or runtime executes.')
     unittest.main(verbosity=2,buffer=True)
