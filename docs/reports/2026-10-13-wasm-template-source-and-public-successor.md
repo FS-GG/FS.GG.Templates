@@ -964,3 +964,50 @@ limits and the admission literals are unchanged (`INSTALLED_ADMISSION = None`).
     - the timing comment now names the sequence start correctly.
   - The hosted probe additionally requires real birth/removal memory readings and the
     deltas since the previous group.
+
+### Installed-C run 2 (39874053570): 9/27, failed as evidence; Firefox `DeadlineExpired` — 2026-10-23
+
+The single dispatch admitted by FS-GG/.github#4710 comment 6352823677 ran at `32b6192`
+(admission #745, reset by #746 to `c1b1a23` 11 min after the conclusion). Artifact
+12467901371 (`sha256:068b60c2…`). Independent acceptance and fdev acceptance (comment
+6354169215): **FAILED-AS-EVIDENCE**.
+
+- **Established hosted.**
+  - **All 25 managed groups that ran were contained under the real owner**, including groups
+    7–25 for the first time: `observed-empty-removed`, no escapes or residue.
+  - The unit and package readbacks matched; apt used the Azure mirror.
+  - All 17 acquisitions matched their pins.
+  - The ProviderTool restore and build succeeded, confirming the #742 fix hosted.
+  - The checker returned `source-passed`.
+  - **Chromium passed 9/9.**
+- **Measured.**
+  - Setup took 63.1 s against the 840 s budget; the installed phase took 90.3 s against
+    1230 s (stopped at Firefox); the checker took 66.6 s; the whole sequence 153.5 s.
+  - `pids.peak` was at most 188 per group, and the unit peaked at 189 against 6144.
+  - The unit's cumulative `memory.peak` was 5.69 GiB, mostly page cache, against 12 GiB.
+  - There were 0 `oom_kill` and 0 `pids.events` max events, so resource limits are ruled out.
+- **Not established.**
+  - **Firefox:** 0 passed, 1 failed, 8 not run (`--max-failures=1`).
+  - **WebKit:** 0 of 9 run.
+- **First cause, a product defect, filed as FS-GG/FS.GG.Game#727.**
+  - After "Load policy", the first Firefox case went `preparing` → `refused` with
+    "Refused: DeadlineExpired".
+  - FS.GG.Wasm.Contracts 0.3.0 sets `sc2Limits.MaximumDeadlineMilliseconds = 250` with
+    `Deadline = EndToEndFromEnqueue`.
+  - Wasm.Browser 0.3.0 arms that timer when it posts to a freshly created module Worker,
+    which loads an unbundled Fable graph of about 38 modules.
+  - The trace shows the module graph alone took about 252 ms.
+  - The same case passed locally on a fast host, and Chromium passed every cold load.
+  - It is a race against a fixed budget: one sample, so not proven deterministic.
+  - The producer's package-consumer Playwright config has no `projects`, so it runs Chromium
+    only.
+- **Path to run 3 (fdev):**
+  1. Game#727 fixed: the policy deadline bounds policy work only, and Worker readiness gets its
+     own bounded timeout and refusal;
+  2. new `FS.GG.Wasm.*` versions published;
+  3. the receiver re-pinned, and a Workspace.Template patch release;
+  4. a cold-load timing check in all three browsers;
+  5. then a new admission.
+
+  The Done-when receiver is the current published Workspace.Template that carries the fix
+  (0.19.2 today, not 0.19.0).
