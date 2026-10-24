@@ -140,7 +140,7 @@ class ManagedConsumerTests(unittest.TestCase):
             result=subprocess.run([sys.executable,str(HERE/'d5-managed-runtime.py'),*flags],env=env,capture_output=True,text=True,timeout=5)
             self.assertEqual(result.returncode,3)
         self.assertFalse(sent.exists())
-        self.assertIsNone(D5.ADMISSION);self.assertEqual(D5.OUTER_CALLER_CONTRACT,'d5')
+        self.assertEqual(D5.ADMISSION,'https://github.com/FS-GG/.github/issues/4849#issuecomment-6377028965');self.assertEqual(D5.OUTER_CALLER_CONTRACT,'d5')
 
     def test_exact_admission_join_refuses_branches_retries_and_mixed_heads(self):
         admission='https://github.com/FS-GG/.github/issues/4849#issuecomment-1';head='a'*40
@@ -244,9 +244,120 @@ class ManagedConsumerTests(unittest.TestCase):
         with self.assertRaises(ValueError):D5.lmt_build_arguments(go,source.with_name('lmt-main.go'),output)
         with self.assertRaises(ValueError):D5.lmt_build_arguments('relative-go',source,output)
 
+    def test_rehearsal_source_scope_does_not_grant_full_matrix(self):
+        self.assertEqual(D5.runtime_scope({'SCOPE':'rehearsal'}),'rehearsal')
+        for value in ('full','',None):
+            with self.assertRaises(ValueError):D5.runtime_scope({'SCOPE':value})
+
+    def test_actual_entry_refuses_full_before_unit_or_private_root(self):
+        import types
+        def unexpected(*args):raise AssertionError('full scope reached unit')
+        reader=types.SimpleNamespace(validate_admission=lambda *args:{'synthetic':True},operational_start=unexpected)
+        with self.assertRaisesRegex(ValueError,'rehearsal only'):D5.run_d5(reader,{}, {'SCOPE':'full'})
+
+    def test_actual_sandbox_probe_uses_literal_backend_argv_and_cleared_environment(self):
+        seen=[];identities={}
+        caller={'host_image':lambda path:(path,'a'*64 if path.endswith('unshare') else 'b'*64),
+                'bind_identity':lambda store,path,basis,**kw:store.update({path:kw.get('images',[path])})}
+        result=D5.probe_backend_sandbox(caller,lambda *args:seen.append(args) or 'synthetic',identities,self.root)
+        self.assertEqual(result,'synthetic')
+        self.assertEqual(seen,[(['/usr/bin/unshare','--user','--map-root-user','--net','--','/usr/bin/true'],self.root,{'LANG':'C.UTF-8','TZ':'UTC'})])
+        self.assertEqual(set(identities),{'/usr/bin/unshare','/usr/bin/true'})
+        self.assertEqual(identities['/usr/bin/unshare'],['a'*64,'b'*64])
+
+    def test_actual_entry_sandbox_refusal_prevents_all_sdk_asset_acquisition(self):
+        import types
+        root=self.root/'current-d5-44-1';events=[]
+        owner=types.SimpleNamespace(OWNER_SHA256=D5.OWNER['sha256'])
+        def fresh(path,environ):path.mkdir();return {'HOME':str(path/'home')}
+        def run(argv,cwd,env):events.append(('probe',argv,env));raise ValueError('original synthetic namespace denied')
+        caller={'fresh_environment':fresh,'load_owner':lambda *a:owner,'probe_containment':lambda *a:None,
+                'managed_executor':lambda *a:run,'host_image':lambda path:(path,'synthetic'),
+                'bind_identity':lambda *a,**kw:None,'provision_sdk':lambda *a:events.append('UNEXPECTED SDK')}
+        fake=types.SimpleNamespace(validate_admission=lambda *a:{'synthetic':True},
+            operational_start=lambda *a:{'boot':'synthetic'},normalized_roots=lambda *a:None,no_global_before_create=lambda *a:None,
+            load_file=lambda name,path:types.SimpleNamespace(actual_caller=lambda:caller) if name=='d5_actual_loader' else types.SimpleNamespace(PINS={'synthetic':True}),
+            original_clock=lambda *a:{'startedMonotonic':D5.time.monotonic()},unit_properties=lambda *a:{'synthetic':True},
+            acquisition_capacity=lambda *a:events.append('capacity'),collect=lambda *a:{'failures':[]},collection_terminal=lambda *a:None)
+        env={'RUNNER_TEMP':str(self.root),'RUN_ID':'44','UNIT_NAME':'fsgg-mg-templates-d5-44-1','GITHUB_WORKSPACE':str(D5.HERE.parents[2]),'SCOPE':'rehearsal','PUBLIC_PINS':'{"synthetic":true}'}
+        with self.assertRaisesRegex(ValueError,'original synthetic namespace denied'):D5.run_d5(fake,{},env)
+        self.assertEqual(events[0],'capacity');self.assertEqual(len(events),2)
+        self.assertEqual(events[1][1][0],'/usr/bin/unshare')
+        self.assertIn('original synthetic namespace denied',json.loads((root/'attempt.json').read_text())['firstCause'])
+
     def test_dependency_missing_or_changed_refuses_before_import(self):
         with self.assertRaises(ValueError):D5.load_reader(self.root)
         p=self.root/D5.READER['path'];p.parent.mkdir(parents=True);p.write_text('raise RuntimeError("must not import")')
         with self.assertRaisesRegex(ValueError,'dependency unavailable'):D5.load_reader(self.root)
+
+class RootClockControls(unittest.TestCase):
+    def setUp(self):
+        import datetime,textwrap
+        self.temp=tempfile.TemporaryDirectory(prefix='d5-root-clock-');self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name);self.reader=D5.load_reader(D5.HERE.parents[2])
+        self.env={'EVENT':'workflow_dispatch','REPOSITORY':'FS-GG/FS.GG.Templates','REF':'refs/heads/main',
+            'SHA':'a'*40,'WORKFLOW_REF':D5.WORKFLOW,'WORKFLOW_SHA':'a'*40,'RUN_ID':'42','RUN_ATTEMPT':'1','UNIT_NAME':'fsgg-mg-templates-d5-42-1',
+            'RUNNER_TEMP':str(self.root),'SELECTED_UTC':'2026-10-23T23:59:59Z','LATEST_START_UTC':'2026-10-24T00:04:59Z','OBSERVER_DEADLINE_UTC':'2026-10-24T00:39:59Z'}
+        workflow=(D5.HERE.parents[2]/'.github/workflows/svg-release-d5-current-public.yml').read_text()
+        code=workflow.split("python3 -I -B <<'PY_CLOCK'\n",1)[1].split('          PY_CLOCK',1)[0]
+        self.producer=textwrap.dedent(code);self.actual=datetime.datetime(2026,10,24,0,0,0,tzinfo=datetime.timezone.utc)
+
+    def produce(self,env=None,now=None):
+        import datetime
+        from unittest.mock import patch
+        actual=self.actual if now is None else now
+        class NativeUTC(datetime.datetime):
+            @classmethod
+            def now(cls,tz=None):return actual
+        with patch.dict(os.environ,self.env if env is None else env,clear=True),patch.object(datetime,'datetime',NativeUTC),patch('time.monotonic',return_value=100):
+            exec(compile(self.producer,'actual-D5-first-clock','exec'),{})
+        return json.loads((self.root/'current-d5-42-1-clock.json').read_text())
+
+    def test_actual_producer_and_reader_preserve_fixed_projection(self):
+        clock=self.produce();self.reader.validate_d5_original_clock(clock,self.env)
+        self.assertEqual(clock['observerDeadlineMonotonic'],2499)
+        from unittest.mock import patch
+        contract=self.reader.caller_contract('d5',D5.ADMISSION)
+        with patch.object(self.reader.time,'monotonic',return_value=150):
+            self.assertEqual(self.reader.original_clock(self.env,clock['boot'],contract),clock)
+        self.assertEqual(clock['observerDeadlineMonotonic'],2499) # no projection from later now
+
+    def test_actual_producer_refuses_late_queue_and_preserves_refusal_clock(self):
+        import datetime
+        with self.assertRaisesRegex(ValueError,'window refused'):self.produce(now=self.actual+datetime.timedelta(seconds=300))
+        clock=json.loads((self.root/'current-d5-42-1-clock.json').read_text());self.assertEqual(clock['disposition'],'refused')
+        self.assertIn('window refused',clock['firstCause'])
+
+    def test_replacement_unused_selection_accepts_later_source_window_without_renewal(self):
+        import datetime
+        env={**self.env,'SELECTED_UTC':'2026-10-24T00:30:00Z','LATEST_START_UTC':'2026-10-24T00:35:00Z','OBSERVER_DEADLINE_UTC':'2026-10-24T01:10:00Z'}
+        clock=self.produce(env,datetime.datetime(2026,10,24,0,30,1,tzinfo=datetime.timezone.utc))
+        self.reader.validate_d5_original_clock(clock,env)
+        self.assertEqual(clock['observerDeadlineMonotonic'],2499)
+
+    def test_wrong_missing_intervals_and_expired_selection_refuse(self):
+        for updates in [{'LATEST_START_UTC':'2026-10-24T00:05:00Z'},{'SELECTED_UTC':''},
+            {'SELECTED_UTC':'2026-10-24T01:16:00Z','LATEST_START_UTC':'2026-10-24T01:21:00Z','OBSERVER_DEADLINE_UTC':'2026-10-24T01:56:00Z'}]:
+            with self.subTest(updates=updates):
+                with self.assertRaises(ValueError):self.reader.d5_root_times({**self.env,**updates})
+
+    def test_tampered_projection_input_crosssource_run_boot_and_missing_clock_refuse(self):
+        clock=self.produce()
+        for key,value in [('observerDeadlineMonotonic',2500),('observedUTC','2026-10-23T23:59:58Z'),('rootSelection',{}),('disposition','refused')]:
+            with self.subTest(key=key):
+                with self.assertRaises(ValueError):self.reader.validate_d5_original_clock({**clock,key:value},self.env)
+        from unittest.mock import patch
+        contract=self.reader.caller_contract('d5',D5.ADMISSION)
+        for key,value in [('SHA','b'*40),('RUN_ID','43')]:
+            with self.subTest(key=key):
+                with patch.object(self.reader.time,'monotonic',return_value=150):
+                    with self.assertRaises(ValueError):self.reader.original_clock({**self.env,key:value},clock['boot'],contract)
+        with self.assertRaises(ValueError):self.reader.original_clock(self.env,'other-boot',contract)
+        (self.root/'current-d5-42-1-clock.json').unlink()
+        with self.assertRaises(ValueError):self.reader.original_clock(self.env,clock['boot'],contract)
+
+    def test_before_selected_utc_refuses_in_actual_producer(self):
+        import datetime
+        with self.assertRaisesRegex(ValueError,'window refused'):self.produce(now=self.actual-datetime.timedelta(seconds=2))
 
 if __name__=='__main__':unittest.main()

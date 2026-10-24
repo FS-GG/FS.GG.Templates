@@ -611,6 +611,8 @@ class CrossCallerControls(unittest.TestCase):
     def test_original_clock_is_scoped_to_actual_caller_without_renewal(self):
         keys=('EVENT','REPOSITORY','REF','SHA','WORKFLOW_REF','WORKFLOW_SHA','RUN_ID','RUN_ATTEMPT','UNIT_NAME')
         value={'scope':'first-workflow-step','startedMonotonic':100,'boot':'synthetic','source':{k:self.env[k] for k in keys}}
+        self.env.update(SELECTED_UTC='2026-10-23T23:59:59Z',LATEST_START_UTC='2026-10-24T00:04:59Z',OBSERVER_DEADLINE_UTC='2026-10-24T00:39:59Z')
+        value.update(observedUTC='2026-10-24T00:00:00Z',rootSelection={k:self.env[k] for k in ('SELECTED_UTC','LATEST_START_UTC','OBSERVER_DEADLINE_UTC')},observerDeadlineMonotonic=2499,disposition='accepted')
         path=self.base/'current-d5-123-1-clock.json';path.write_text(json.dumps(value))
         with patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:101)):
             self.assertEqual(m.original_clock(self.env,'synthetic',self.contract)['startedMonotonic'],100)

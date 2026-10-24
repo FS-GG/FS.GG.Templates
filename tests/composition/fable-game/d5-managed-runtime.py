@@ -16,7 +16,8 @@ import re
 import time
 
 HERE = Path(__file__).resolve().parent
-ADMISSION = None
+ADMISSION = 'https://github.com/FS-GG/.github/issues/4849#issuecomment-6377028965'
+ADMITTED_SCOPE = 'rehearsal' # First operation only; full43 needs a separate source admission.
 # Closed D5 naming in the existing retained controller; no globals mutation or
 # controller copy. This source selection is not runtime admission.
 OUTER_CALLER_CONTRACT = 'd5'
@@ -24,7 +25,7 @@ WORKFLOW = 'FS-GG/FS.GG.Templates/.github/workflows/svg-release-d5-current-publi
 READER = {'baseRevision': '1d832f2214147065bb56e0afd76d600ed01bd27d',
           'path': 'tests/composition/fable-game/retained-reference-rehearsal.py',
           'baseSha256': '4e4fb76333804a3f16c36ef16ae1fd8aac165fae6b5cf8492157f87f18dcfd43',
-          'sha256': '42acc6b7953fd8044b2f839813ea45487e29322dffccf29dda088f84f6bda940'}
+          'sha256': 'b768cb4645acdccc2ef863077ab780acb3e195b429847a6b26c0bdce8d11058e'}
 OWNER = {'revision': 'ac22206560f3eddfea524ce8f752ff1d0dfeec4e',
          'path': 'eng/managed_group_owner.py', 'bytes': 45315,
          'sha256': 'd846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0'}
@@ -77,6 +78,11 @@ def admission_join(env, selected):
     require(selected is not None, 'HELD: runtime admission None; retirement unqualified')
     reader=load_reader(HERE.parents[2])
     return reader.validate_admission(env,selected,reader.caller_contract('d5',selected))
+
+
+def runtime_scope(environ):
+    require(environ.get('SCOPE') == ADMITTED_SCOPE, 'source admission permits rehearsal only; full matrix remains separately pending')
+    return ADMITTED_SCOPE
 
 
 def phase_deadline(start, phase, now):
@@ -181,6 +187,16 @@ def wrong_profile(execute, owner, receipts, argv, sdd_core, typed_arguments, cwd
     raise ValueError('wrong-profile author unexpectedly succeeded')
 
 
+def probe_backend_sandbox(caller, run, identities, root):
+    """Fixed SDD2.4 sandbox prerequisite, before asset acquisition; no host change."""
+    unshare,unshare_sha=caller['host_image']('/usr/bin/unshare')
+    true,true_sha=caller['host_image']('/usr/bin/true')
+    require(unshare=='/usr/bin/unshare' and true=='/usr/bin/true','literal sandbox executable paths differ')
+    caller['bind_identity'](identities,true,'host-observed')
+    caller['bind_identity'](identities,unshare,'host-observed',images=[unshare_sha,true_sha])
+    return run([unshare,'--user','--map-root-user','--net','--',true],root,{'LANG':'C.UTF-8','TZ':'UTC'})
+
+
 def lmt_build_arguments(go, source, output):
     """Exact canonical file-build recipe; trimpath does not erase the basename."""
     source=Path(source)
@@ -226,6 +242,7 @@ def finish_collection(reader, contract, root, summary, inventory, primary, start
 def run_d5(reader, contract, environ):
     """Fixed D5 sequence; every executable goes through the existing managed owner."""
     source=reader.validate_admission(environ,ADMISSION,contract)
+    runtime_scope(environ)
     require(Path(environ['GITHUB_WORKSPACE'])==HERE.parents[2],'executing checkout differs')
     initial=reader.operational_start(environ,contract)
     root=Path(environ['RUNNER_TEMP'])/('current-d5-'+environ['RUN_ID']+'-1')
@@ -242,7 +259,7 @@ def run_d5(reader, contract, environ):
     inventory=['attempt.json','source-seals.json','pins.json','unit.json','input-downloads.json','executable-identities.json']
     primary=None
     try:
-        require(environ['SCOPE'] in ('rehearsal','full'),'closed D5 scope required')
+        runtime_scope(environ)
         require(len(environ['PUBLIC_PINS'].encode())<=65536,'pin input cap exceeded')
         pins=json.loads(environ['PUBLIC_PINS'],object_pairs_hook=unique)
         write(root/'pins.json',pins)
@@ -252,6 +269,10 @@ def run_d5(reader, contract, environ):
         expected={'TasksMax':'512','MemoryMax':str(8*1073741824),'MemorySwapMax':'0','RuntimeMaxUSec':'30min','Delegate':'yes','NoNewPrivileges':'yes','KillMode':'control-group'}
         write(root/'unit.json',reader.unit_properties(caller,run,env,identities,initial,expected))
         reader.acquisition_capacity(owner,root,initial)
+        # Match SDD2.4's literal launcher/arguments and cleared child environment.
+        # Test the actual unchanged host before any SDK/Go/public asset acquisition.
+        probe_backend_sandbox(caller,run,identities,root)
+        # No sudo/sysctl or host profile mutation. An unavailable sandbox refuses.
         tools=root/'tools';tools.mkdir();downloads=root/'downloads';downloads.mkdir()
         acquisitions=[];get=caller['acquirer'](root,downloads,caller['download'],setup,acquisitions)
         def sdk_get(name,url,expected,maximum,algorithm='sha256'):
@@ -307,9 +328,6 @@ def run_d5(reader, contract, environ):
         lmt=tools/'lmt';run(lmt_build_arguments(go,main,lmt),root,env,inputs=[main])
         require(sha(lmt)==LMT['sha256'],'canonical LMT output differs')
         quint=get('quint','https://github.com/quint-co/quint/releases/download/v0.32.0/quint-linux-amd64','939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f',134217728);quint.chmod(0o700)
-        unshare,_=caller['host_image']('/usr/bin/unshare');caller['bind_identity'](identities,unshare,'host-observed')
-        run([unshare,'--user','--map-root-user','--net','--','/usr/bin/true'],root,env)
-        # No sudo/sysctl or host profile mutation. An unavailable sandbox refuses.
         write(root/'input-downloads.json',acquisitions);write(root/'executable-identities.json',identities)
         generation=phase_deadline(start,'generation',time.monotonic());run=managed_transport(caller,owner,root,generation,identities,'generation',receipts)
         # check closes over run, so all subsequent typed decisions use this phase.
@@ -370,6 +388,7 @@ def main(argv=None):
     args = sys.argv[1:] if argv is None else argv
     require(len(args)==1 and args[0] in ('--check-admission','--outer-preflight','--record-client-exit','--post-unit','--run'), 'closed D5 operation required')
     require(ADMISSION is not None,'HELD: runtime admission None; retirement unqualified') # before imports/effects
+    runtime_scope(os.environ)
     reader=load_reader(HERE.parents[2]);contract=reader.caller_contract(OUTER_CALLER_CONTRACT,ADMISSION)
     reader.validate_admission(os.environ,ADMISSION,contract)
     if args==['--check-admission']:return
