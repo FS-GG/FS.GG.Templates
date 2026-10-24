@@ -7,6 +7,12 @@ name: Retained reference rehearsal (admitted dispatch only)
 on:
   workflow_dispatch:
     inputs:
+      operation:
+        description: Fixed original0.13 route or separately held earlier-three route
+        required: true
+        type: choice
+        default: retained-13
+        options: [retained-13, earlier-three]
       admitted_ref:
         description: Exact admitted main commit, equal to the dispatched source
         required: true
@@ -21,7 +27,7 @@ permissions:
 
 jobs:
   retained-reference:
-    if: ${{ github.event_name == 'workflow_dispatch' }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'retained-13' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     env:
@@ -130,6 +136,123 @@ jobs:
           path: |
             ${{ runner.temp }}/retained-reference-${{ github.run_id }}-1/retained-evidence/
             ${{ runner.temp }}/retained-reference-${{ github.run_id }}-1-outer/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 30
+
+  # Separate source-held fixed all-three operation. The original0.13 job above
+  # retains1800s/2100s defaults and its consumed admission history. This job
+  # proposes3060s/3300s; cold fit is unmeasured and None admission refuses.
+  earlier-three:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'earlier-three' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      EVENT: ${{ github.event_name }}
+      REPOSITORY: ${{ github.repository }}
+      REF: ${{ github.ref }}
+      SHA: ${{ github.sha }}
+      WORKFLOW_REF: ${{ github.workflow_ref }}
+      WORKFLOW_SHA: ${{ github.workflow_sha }}
+      RUN_ID: ${{ github.run_id }}
+      RUN_ATTEMPT: ${{ github.run_attempt }}
+      ADMITTED_REF: ${{ inputs.admitted_ref }}
+      ADMISSION: ${{ inputs.admission }}
+      UNIT_NAME: fsgg-mg-templates-earlier-three-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - name: Anchor the original first-step clock before checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -I -B <<'PY'
+          import json, os, re, time
+          from pathlib import Path
+          # This is the earliest executed step, not an assertion of job start.
+          # The job's own 55-minute timeout remains an independent outer bound.
+          env=os.environ
+          if not re.fullmatch(r'[0-9]+',env['RUN_ID']) or env['RUN_ATTEMPT']!='1':
+              raise ValueError('first-attempt clock identity required')
+          keys=('EVENT','REPOSITORY','REF','SHA','WORKFLOW_REF','WORKFLOW_SHA','RUN_ID','RUN_ATTEMPT','UNIT_NAME')
+          clock={'scope':'first-workflow-step','startedMonotonic':time.monotonic(),
+                 'boot':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
+                 'source':{key:env[key] for key in keys}}
+          path=Path(env['RUNNER_TEMP'])/('retained-earlier-three-'+env['RUN_ID']+'-1-clock.json')
+          fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+          with os.fdopen(fd,'w') as stream:
+              stream.write(json.dumps(clock)+'\n')
+          PY
+      - name: Check out exact dispatched source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Refuse unless this exact first dispatch is admitted
+        id: admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/retained-reference-rehearsal.py --earlier-three --check-admission
+      - name: Check out the exact read-only capacity probe source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: FS-GG/FS.GG.Coordination
+          ref: ac22206560f3eddfea524ce8f752ff1d0dfeec4e
+          path: .tmp/retained-canonical-owner
+          persist-credentials: false
+          fetch-depth: 1
+          lfs: false
+          submodules: false
+          sparse-checkout: eng/managed_group_owner.py
+          sparse-checkout-cone-mode: false
+      - name: Record original outer capacity and refuse a unit collision
+        id: capacity
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/retained-reference-rehearsal.py --earlier-three --outer-preflight
+      - name: Run the fixed rehearsal in a fresh delegated unit
+        shell: bash
+        run: |
+          set -euo pipefail
+          checkout_head="$(git rev-parse HEAD)"
+          client_exit=not-observed
+          finish() {
+            local step_exit=$?
+            CHECKOUT_HEAD="$checkout_head" REHEARSAL_CLIENT_EXIT="$client_exit" REHEARSAL_STEP_EXIT="$step_exit" \
+              python3 -I -B tests/composition/fable-game/retained-reference-rehearsal.py --earlier-three --record-client-exit || true
+          }
+          trap finish EXIT
+          set +e
+          sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec \
+            --unit="$UNIT_NAME" \
+            -p Delegate=yes -p User="$(id -un)" -p Group="$(id -gn)" -p NoNewPrivileges=yes \
+            -p KillMode=control-group -p TimeoutStopSec=5 -p TasksAccounting=yes -p MemoryAccounting=yes \
+            -p CPUAccounting=yes -p CPUQuota=200% -p TasksMax=512 -p MemoryMax=8G -p RuntimeMaxSec=3060 \
+            -p WorkingDirectory="$PWD" \
+            --setenv=PATH=/usr/bin:/bin --setenv=EVENT="$EVENT" --setenv=REPOSITORY="$REPOSITORY" \
+            --setenv=REF="$REF" --setenv=SHA="$SHA" --setenv=WORKFLOW_REF="$WORKFLOW_REF" \
+            --setenv=WORKFLOW_SHA="$WORKFLOW_SHA" --setenv=RUN_ID="$RUN_ID" --setenv=RUN_ATTEMPT="$RUN_ATTEMPT" \
+            --setenv=ADMITTED_REF="$ADMITTED_REF" --setenv=ADMISSION="$ADMISSION" \
+            --setenv=CHECKOUT_HEAD="$checkout_head" --setenv=RUNNER_TEMP="$RUNNER_TEMP" \
+            --setenv=GITHUB_WORKSPACE="$GITHUB_WORKSPACE" --setenv=UNIT_NAME="$UNIT_NAME" \
+            -- /usr/bin/python3 -I -B tests/composition/fable-game/retained-reference-rehearsal.py --earlier-three
+          client_exit=$?
+          exit "$client_exit"
+      - name: Independently read back the original unit retirement
+        if: ${{ always() && steps.capacity.outcome == 'success' }}
+        timeout-minutes: 1
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/retained-reference-rehearsal.py --earlier-three --post-unit
+      - name: Retain bounded original rehearsal evidence
+        if: ${{ always() && steps.admission.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: retained-earlier-three-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/retained-earlier-three-${{ github.run_id }}-1/earlier-three-evidence/
+            ${{ runner.temp }}/retained-earlier-three-${{ github.run_id }}-1-outer/
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 30

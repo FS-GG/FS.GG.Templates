@@ -649,6 +649,148 @@ class CrossCallerControls(unittest.TestCase):
         self.assertFalse(m.outer_path(self.env).exists())
 
 
+EARLIER_PUBLIC_NUSPECS = {'0.10.0': b'\xef\xbb\xbf<?xml version="1.0" encoding="utf-8"?>\n<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">\n  <metadata>\n    <id>FS.GG.Workspace.Template</id>\n    <version>0.10.0</version>\n    <title>FS.GG workspace templates</title>\n    <authors>FS-GG</authors>\n    <license type="expression">MIT</license>\n    <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>\n    <readme>README.md</readme>\n    <projectUrl>https://github.com/FS-GG/FS.GG.Templates</projectUrl>\n    <description>dotnet new workspace templates for FS.GG.SDD: governance, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</description>\n    <tags>dotnet-new templates fsgg sdd governance console web typescript aspnetcore</tags>\n    <packageTypes>\n      <packageType name="Template" />\n    </packageTypes>\n    <repository type="git" url="https://github.com/FS-GG/FS.GG.Templates" commit="565ad45d2dda386e9d1673071cc0b424cfd02be6" />\n  </metadata>\n</package>', '0.11.0': b'\xef\xbb\xbf<?xml version="1.0" encoding="utf-8"?>\n<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">\n  <metadata>\n    <id>FS.GG.Workspace.Template</id>\n    <version>0.11.0</version>\n    <title>FS.GG workspace templates</title>\n    <authors>FS-GG</authors>\n    <license type="expression">MIT</license>\n    <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>\n    <readme>README.md</readme>\n    <projectUrl>https://github.com/FS-GG/FS.GG.Templates</projectUrl>\n    <description>dotnet new workspace templates for FS.GG.SDD: governance, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</description>\n    <tags>dotnet-new templates fsgg sdd governance console web typescript aspnetcore</tags>\n    <packageTypes>\n      <packageType name="Template" />\n    </packageTypes>\n    <repository type="git" url="https://github.com/FS-GG/FS.GG.Templates" commit="6a66e0a31c33feab4c8f650709b585df6ac3d4c4" />\n  </metadata>\n</package>', '0.12.0': b'\xef\xbb\xbf<?xml version="1.0" encoding="utf-8"?>\n<package xmlns="http://schemas.microsoft.com/packaging/2010/07/nuspec.xsd">\n  <metadata>\n    <id>FS.GG.Workspace.Template</id>\n    <version>0.12.0</version>\n    <title>FS.GG workspace templates</title>\n    <authors>FS-GG</authors>\n    <license type="expression">MIT</license>\n    <licenseUrl>https://licenses.nuget.org/MIT</licenseUrl>\n    <readme>README.md</readme>\n    <projectUrl>https://github.com/FS-GG/FS.GG.Templates</projectUrl>\n    <description>dotnet new workspace templates for FS.GG.SDD: governance, production-shaped F# console workspaces, and neutral F# ASP.NET Core plus TypeScript web workspaces.</description>\n    <tags>dotnet-new templates fsgg sdd governance console web typescript aspnetcore</tags>\n    <packageTypes>\n      <packageType name="Template" />\n    </packageTypes>\n    <repository type="git" url="https://github.com/FS-GG/FS.GG.Templates" commit="7146224843419a10613b0f23c781b38bc88514b8" />\n  </metadata>\n</package>'}
+
+class EarlierWorld(World):
+    """Actual fixed earlier caller with synthetic runtime images/receipts only."""
+    def __init__(self,root,canonical,fail=None):
+        super().__init__(root,canonical,fail)
+        prefix='content/templates/fs-gg-fable-game/'
+        for version in m.EARLIER_VERSIONS:
+            files=synthetic_package('FS.GG.Workspace.Template',version)
+            files['FS.GG.Workspace.Template.nuspec']=EARLIER_PUBLIC_NUSPECS[version]
+            files[prefix+'global.json']=b'{"sdk":{"version":"10.0.400","rollForward":"disable"}}'
+            files[prefix+'.config/dotnet-tools.json']=b'{"version":1,"isRoot":true,"tools":{"fable":{"version":"5.13.0","commands":["fable"]}}}'
+            if fail=='source-'+version:files['FS.GG.Workspace.Template.nuspec']+=b' '
+            self.packages[version]=files
+
+    def download(self,url,path,maximum,deadline,expected=None,algorithm='sha256'):
+        selected=next((v for v in m.EARLIER_VERSIONS if path.name=='fs.gg.workspace.template.'+v+'.nupkg'),None)
+        if selected:
+            with zipfile.ZipFile(path,'w') as archive:
+                for name,data in self.packages[selected].items():archive.writestr(name,data)
+            return {'url':url,'bytes':path.stat().st_size,'digest':m.sha(path),'synthetic':True}
+        return super().download(url,path,maximum,deadline,expected,algorithm)
+
+    def response(self,argv,env):
+        if Path(argv[0]).name=='systemctl':return super().response(argv,env).replace('RuntimeMaxUSec=30min','RuntimeMaxUSec=51min')
+        if argv[1:3]==['new','install']:
+            archive=Path(argv[3]);version=next((v for v in m.EARLIER_VERSIONS if v in archive.name),'0.19.3')
+            home=Path(env['DOTNET_CLI_HOME'])/'.templateengine';home.mkdir(parents=True,exist_ok=True)
+            m.write(home/'packages.json',{'Packages':[{'Details':{'PackageId':'FS.GG.Workspace.Template','Version':version},'MountPointUri':str(archive)}]});return ''
+        if argv[1:3]==['new','fs-gg-fable-game']:
+            destination=Path(argv[argv.index('-o')+1]);key='target' if destination.name=='candidate' else destination.name
+            if self.fail=='generate-'+key:raise ValueError('original earlier generation failure '+key)
+            self.materialize(key,destination,argv[argv.index('-n')+1]);return ''
+        if len(argv)>3 and Path(argv[3]).name=='verify-current-reference-adoption.py':
+            source=Path(argv[argv.index('--receiver')+1]);out=Path(argv[argv.index('--output')+1]);target=out/'adopted';shutil.copytree(source,target)
+            m.write(out/'transaction-controls.json',{'controls':['SYNTHETIC TRANSACTION; existing separate copied-fixture suite covers real helper']})
+            (target/'global.json').write_bytes((self.root/'candidate/global.json').read_bytes())
+            data=json.loads((target/'.config/dotnet-tools.json').read_text());data['tools']['fable']={'version':'5.18.0','commands':['fable']};m.write(target/'.config/dotnet-tools.json',data);return ''
+        if argv[1:2]==['restore']:
+            version=next(v for v in m.EARLIER_VERSIONS if 'V'+v.replace('.','') in argv[2])
+            if self.fail=='restore-'+version:raise ValueError('original earlier restore failure '+version)
+            return 'SYNTHETIC EARLIER LOCKED RESTORE\n'
+        return super().response(argv,env)
+
+
+class EarlierControls(unittest.TestCase):
+    setUpClass=Controls.__dict__["setUpClass"]
+    setUp=Controls.setUp
+    # Reuse only fixture setup/canonical source qualification, not inherited tests.
+    def drive_earlier(self,fail=None):
+        self.root=self.base/'retained-earlier-three-123-1';world=EarlierWorld(self.root,self.canonical,fail)
+        env={**self.env,'UNIT_NAME':'fsgg-mg-templates-earlier-three-123-1'}
+        admission=m.validate_admission(env,env['ADMISSION'],m.caller_contract('earlier-three',env['ADMISSION']))
+        original_registration=m.template_registration
+        def registration(home,root,version,expected):
+            archive=root/'downloads'/('fs.gg.workspace.template.'+version+'.nupkg')
+            return original_registration(home,root,version,m.sha(archive))
+        with patch.object(m,'validate_admission',return_value=admission),patch.object(m,'load_file',return_value=types.SimpleNamespace(actual_caller=lambda:world.caller)),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100.5)),patch.object(m,'original_clock',return_value={'startedMonotonic':100}),patch.object(m,'operational_start',return_value={'boot':'synthetic','properties':{'InvocationID':'a'*32,'ControlGroup':'/system.slice/unit.service','MainPID':'42'}}),patch.object(m,'acquisition_capacity',return_value={'synthetic':True}),patch.object(m,'template_registration',side_effect=registration):
+            result=m.run_earlier_three(env)
+        return result,world
+
+    def test_earlier_hold_precedes_io(self):
+        with patch.object(m,'load_file',side_effect=AssertionError('loader reached')),self.assertRaisesRegex(ValueError,'no source admission'):m.run_earlier_three(self.env)
+        self.assertFalse((self.base/'retained-earlier-three-123-1').exists())
+
+    def test_earlier_fixed_profiles_and_old_defaults(self):
+        self.assertEqual(sum(seconds for _,seconds in m.EARLIER_PHASES),3000)
+        self.assertEqual(m.scope_limits(m.caller_contract('earlier-three',None)),(3060,3300))
+        for name in ('retained','d5','composition'):self.assertEqual(m.scope_limits(m.caller_contract(name,None)),(1800,2100))
+        self.assertEqual(sum(m.BUDGET.values()),1800)
+        self.assertEqual(m.earlier_deadline(100,'0.12.0-restore',101),581)
+        with self.assertRaises(ValueError):m.earlier_deadline(100,'0.12.0-restore',2800)
+        with self.assertRaises(ValueError):m.earlier_steps(self.root,'sdk',{},'0.13.0')
+
+    def test_earlier_actual_three_call_order_independent_hives_and_profiles(self):
+        result,world=self.drive_earlier();self.assertEqual(list(result['cohorts']),list(m.EARLIER_VERSIONS));self.assertEqual(result['disposition'],'passed')
+        self.assertFalse(result['whole4816Acceptance']);self.assertEqual(result['browserCases'],0)
+        creates=[(argv,env) for argv,env in zip(world.calls,world.environments) if argv[1:3]==['new','fs-gg-fable-game']]
+        self.assertEqual(len(creates),4);self.assertEqual(len({env['DOTNET_CLI_HOME'] for _,env in creates}),4)
+        for (argv,_),version in zip(creates[1:],m.EARLIER_VERSIONS):
+            self.assertEqual('--svgFoundation' in argv,version!='0.10.0');self.assertEqual(argv[argv.index('--lifecycle')+1],'none')
+        restores=[argv for argv in world.calls if argv[1:2]==['restore']];self.assertEqual(len(restores),3)
+        self.assertFalse(any('scaffold' in argv or '0.13.0' in ' '.join(argv) for argv in world.calls))
+        self.assertFalse(any('build' in argv or 'npm' in argv or 'fable' in argv for argv in world.calls))
+        for profile,until in world.profiles:
+            self.assertEqual(profile['retirement']['onLeaderExit'],'require-empty');self.assertLessEqual(until,2800)
+            self.assertTrue(Path(profile['cwd']).is_relative_to(self.root))
+        receipts=json.loads((self.root/'managed-receipts.json').read_text());self.assertEqual([row['index'] for row in receipts],list(range(1,len(receipts)+1)))
+        evidence=self.root/'earlier-three-evidence';index=json.loads((evidence/'manifest.json').read_text())
+        for row in index['files']:
+            path=evidence/row['path'];self.assertEqual(m.sha(path),row['sha256']);self.assertEqual(path.stat().st_size,row['bytes'])
+        for version in m.EARLIER_VERSIONS:
+            self.assertEqual(json.loads((self.root/('locks-'+version+'-before.json')).read_text()),json.loads((self.root/('locks-'+version+'-after.json')).read_text()))
+            self.assertTrue((evidence/'transactions'/version/'transaction-controls.json').is_file())
+
+    def test_earlier_source_mismatch_blocks_all_generation(self):
+        with self.assertRaisesRegex(ValueError,'NuSpec bytes differ'):self.drive_earlier('source-0.11.0')
+        self.assertFalse((self.root/'candidate').exists());self.assertFalse((self.root/'receivers').exists())
+        first=json.loads((self.root/'earlier-three-evidence/rehearsal.json').read_text())['firstCause'];self.assertIn('NuSpec bytes differ',first)
+
+    def test_earlier_second_generation_failure_blocks_later_and_keeps_first(self):
+        with self.assertRaisesRegex(RuntimeError,'original earlier generation failure'):self.drive_earlier('generate-0.11.0')
+        record=json.loads((self.root/'earlier-three-evidence/rehearsal.json').read_text());self.assertEqual(record['cohorts']['0.10.0']['disposition'],'materialized-adopted-locked-restore-passed');self.assertNotIn('0.12.0',record['cohorts'])
+        self.assertFalse((self.root/'receivers/0.12.0').exists())
+
+    def test_earlier_second_restore_failure_preserves_after_and_blocks_third(self):
+        with self.assertRaisesRegex(RuntimeError,'original earlier restore failure'):self.drive_earlier('restore-0.11.0')
+        self.assertTrue((self.root/'locks-0.11.0-after.json').is_file());self.assertFalse((self.root/'receivers/0.12.0').exists())
+
+    def test_earlier_real_public_nuspec_fixture_and_edited_metadata_refusal(self):
+        for version in m.EARLIER_VERSIONS:
+            stream=io.BytesIO()
+            with zipfile.ZipFile(stream,'w') as archive:
+                archive.writestr('fixture.nuspec',EARLIER_PUBLIC_NUSPECS[version]);archive.writestr('content/templates/fs-gg-fable-game/.template.config/template.json','{"sources":[],"symbols":{}}')
+            stream.seek(0)
+            with zipfile.ZipFile(stream) as archive:self.assertEqual(m.earlier_metadata(archive,version)['repositoryCommit'],m.EARLIER_SOURCES[version][0])
+        self.assertEqual(set(m.earlier_inputs(m.WORKSPACE)),set(m.EARLIER_VERSIONS))
+
+    def test_earlier_reporting_failure_preserves_first_and_attempts_terminal(self):
+        self.root.mkdir();summary={'disposition':'failed','executionDisposition':'failed','firstCause':'owner first','additionalFailures':[],'phases':{}};primary=ValueError('owner first');events=[]
+        with patch.object(m,'write',side_effect=OSError('secondary index failure')),patch.object(m,'collection_terminal',side_effect=lambda *args:events.append('terminal')):
+            m.finish_earlier(self.root,summary,[],primary,100,m.caller_contract('earlier-three',None))
+        self.assertEqual(events,['terminal']);self.assertEqual(summary['firstCause'],'owner first');self.assertIn('index failure',str(primary.__notes__))
+
+    def test_earlier_actual_late_original_clock_refuses_before_capacity_or_unit(self):
+        env={**self.env,'UNIT_NAME':'fsgg-mg-templates-earlier-three-123-1'};contract=m.caller_contract('earlier-three',env['ADMISSION'])
+        keys=('EVENT','REPOSITORY','REF','SHA','WORKFLOW_REF','WORKFLOW_SHA','RUN_ID','RUN_ATTEMPT','UNIT_NAME')
+        m.write(self.base/'retained-earlier-three-123-1-clock.json',{'scope':'first-workflow-step','startedMonotonic':100,'boot':'synthetic','source':{k:env[k] for k in keys}})
+        with patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:306)),patch.object(m,'probe_owner',return_value=types.SimpleNamespace(_read=lambda p:'synthetic')),patch.object(m,'capacity_snapshot',side_effect=AssertionError('capacity reached')),patch.object(m,'read_unit',side_effect=AssertionError('unit reached')),self.assertRaisesRegex(ValueError,'original setup consumed'):
+            m.outer_preflight(env,contract)
+        pre=json.loads((self.base/'retained-earlier-three-123-1-outer/preflight.json').read_text());self.assertEqual(pre['deadlineMonotonic'],3400);self.assertEqual(pre['disposition'],'refused')
+
+    def test_earlier_workflow_separates_original_budget_and_fixed_held_route(self):
+        source=(m.WORKSPACE/'.github/workflows/retained-reference-rehearsal.yml').read_text()
+        original,earlier=source.split('  earlier-three:\n',1)
+        self.assertIn('timeout-minutes: 35',original);self.assertIn('RuntimeMaxSec=1800',original)
+        self.assertIn('timeout-minutes: 55',earlier);self.assertIn('RuntimeMaxSec=3060',earlier)
+        self.assertIn('retained-reference-rehearsal.py --earlier-three --check-admission',earlier)
+        self.assertLess(earlier.index('Anchor the original'),earlier.index('actions/checkout'))
+        self.assertIn('default: retained-13',source);self.assertNotIn('baseline_version:',source)
+
+
 if __name__=='__main__':
     print('SYNTHETIC fixed-call graph, archive bodies, executables and receipts; real canonical profile validation only. No native member or runtime executes.')
     unittest.main(verbosity=2,buffer=True)

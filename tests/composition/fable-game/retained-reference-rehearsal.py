@@ -75,13 +75,19 @@ def load_file(name, path):
 
 def caller_contract(name='retained', admission=None):
     """Closed caller naming only; admission/budgets/capacity/retirement stay external."""
-    require(name in ('retained', 'd5', 'composition'), 'unsupported managed caller')
+    require(name in ('retained', 'd5', 'composition', 'earlier-three'), 'unsupported managed caller')
     if name == 'retained':
         return {'name':name, 'issue':'4816', 'admission':admission,
                 'workflow':WORKFLOW, 'namespace':'retained-reference',
                 'unitPrefix':'fsgg-mg-templates-retained-',
                 'ownerRelative':'.tmp/retained-canonical-owner/eng/managed_group_owner.py',
                 'evidence':'retained-evidence', 'cap':EVIDENCE_CAP}
+    if name == 'earlier-three':
+        return {'name':name, 'issue':'4816', 'admission':admission,
+                'workflow':WORKFLOW, 'namespace':'retained-earlier-three',
+                'unitPrefix':'fsgg-mg-templates-earlier-three-',
+                'ownerRelative':'.tmp/retained-canonical-owner/eng/managed_group_owner.py',
+                'evidence':'earlier-three-evidence', 'cap':EVIDENCE_CAP}
     if name == 'composition':
         return {'name':name, 'issue':'4818', 'admission':admission,
                 'workflow':'FS-GG/FS.GG.Templates/.github/workflows/current-reference-composition.yml@refs/heads/main',
@@ -100,6 +106,11 @@ def selected_contract(contract=None):
         return caller_contract('retained', ADMISSION)
     require(isinstance(contract, dict) and contract == caller_contract(contract.get('name'), contract.get('admission')), 'caller contract differs')
     return contract
+
+
+def scope_limits(contract=None):
+    # Closed additive earlier-three scope only; all original caller defaults stay.
+    return (3060,3300) if selected_contract(contract)['name']=='earlier-three' else (1800,2100)
 
 
 def validate_admission(env, admission=None, contract=None):
@@ -293,6 +304,7 @@ def read_unit(unit):
 
 def outer_preflight(env, contract=None):
     selected = selected_contract(contract)
+    unit_seconds,outer_seconds=scope_limits(contract)
     source=validate_admission(env, selected['admission'], contract);directory=outer_path(env, contract)
     normalized_roots(directory,WORKSPACE);require(not directory.exists(),'outer receipt root occupied')
     directory.mkdir(mode=0o700)
@@ -300,15 +312,15 @@ def outer_preflight(env, contract=None):
     try:
         owner=probe_owner(contract)
         clock=original_clock(env,owner._read('/proc/sys/kernel/random/boot_id').strip(), contract)
-        record.update(originalClock=clock,startedMonotonic=clock['startedMonotonic'],deadlineMonotonic=clock['startedMonotonic']+2100)
+        record.update(originalClock=clock,startedMonotonic=clock['startedMonotonic'],deadlineMonotonic=clock['startedMonotonic']+outer_seconds)
         if selected['name']=='d5':record['deadlineMonotonic']=min(record['deadlineMonotonic'],clock['observerDeadlineMonotonic'])
-        require(time.monotonic()+1800+5+30 < record['deadlineMonotonic'],'original setup consumed unit/readback reserve')
+        require(time.monotonic()+unit_seconds+5+30 < record['deadlineMonotonic'],'original setup consumed unit/readback reserve')
         record['capacity']={}
         capacity_snapshot(owner,Path(env['RUNNER_TEMP']),facts=record['capacity'])
         require_capacity(record['capacity'])
         record['priorUnit']=read_unit(env['UNIT_NAME'])
         require(record['priorUnit']['properties'].get('LoadState')=='not-found','unit collision or absence unknown')
-        require(time.monotonic()+1800+5+30 < record['deadlineMonotonic'],'original setup consumed unit/readback reserve')
+        require(time.monotonic()+unit_seconds+5+30 < record['deadlineMonotonic'],'original setup consumed unit/readback reserve')
         record['disposition']='passed'
     except BaseException as error:record['firstCause']=str(error);raise
     finally:outer_write(directory,'preflight.json',record)
@@ -316,11 +328,12 @@ def outer_preflight(env, contract=None):
 
 def operational_start(env, contract=None):
     selected = selected_contract(contract)
+    unit_seconds,_=scope_limits(contract)
     directory=outer_path(env, contract);pre=json.loads((directory/'preflight.json').read_text())
     require(pre['disposition']=='passed' and pre['source']==validate_admission(env,selected['admission'], contract),'outer source/capacity join missing')
     initial={'source':pre['source'],'capacityPassed':False,'observedMonotonic':time.monotonic()}
     try:
-        require(time.monotonic()+1800+5+30 < pre['deadlineMonotonic'],'original outer window cannot fit unit/readback')
+        require(time.monotonic()+unit_seconds+5+30 < pre['deadlineMonotonic'],'original outer window cannot fit unit/readback')
         owner=probe_owner(contract);view=read_unit(env['UNIT_NAME']);props=view['properties'];initial['properties']=props;initial['managerRead']=view
         require(view['exit']==0 and props.get('Id')==env['UNIT_NAME']+'.service','initial unit identity unavailable')
         require(re.fullmatch(r'[0-9a-f]{32}',props.get('InvocationID','')) and int(props.get('MainPID','0'))==os.getpid(),'initial invocation/MainPID differs')
@@ -548,13 +561,19 @@ def collect(root, deadline, contract=None):
         groups = sorted((root/'managed').iterdir())
         require(len(groups) <= (128 if selected['name']=='retained' else 512), 'managed evidence population exceeded')
         candidates += [group/name for group in groups for name in ('receipt.json','stdout.log','stderr.log') if (group/name).exists()]
-    transaction = root/'transaction'
-    if transaction.is_dir():
-        candidates += [transaction/'transaction-controls.json']
-        for name in ('apply','managed-conflict','new-reference-conflict','interrupted','rollback'):
-            candidates += [transaction/(name+suffix) for suffix in ('.json','.diff') if (transaction/(name+suffix)).exists()]
-            journal = transaction/(name+'-backup')/'journal.json'
-            if journal.exists(): candidates.append(journal)
+    transactions=[root/'transaction']
+    if selected['name']=='earlier-three':
+        transactions=[root/'transactions'/version for version in EARLIER_VERSIONS]
+        candidates += [root/'earlier-input-provenance.json'] if (root/'earlier-input-provenance.json').exists() else []
+        candidates += [root/('locks-'+version+'-'+stage+'.json') for version in EARLIER_VERSIONS
+                       for stage in ('before','after') if (root/('locks-'+version+'-'+stage+'.json')).exists()]
+    for transaction in transactions:
+        if transaction.is_dir():
+            candidates += [transaction/'transaction-controls.json']
+            for name in ('apply','managed-conflict','new-reference-conflict','interrupted','rollback'):
+                candidates += [transaction/(name+suffix) for suffix in ('.json','.diff') if (transaction/(name+suffix)).exists()]
+                journal = transaction/(name+'-backup')/'journal.json'
+                if journal.exists(): candidates.append(journal)
     if selected['name'] in ('d5','composition'):
         # Exact D5 public evidence inventory, written by its fixed caller, never arbitrary paths.
         inventory_path=root/'d5-evidence-inputs.json'
@@ -593,16 +612,27 @@ def collect(root, deadline, contract=None):
 def collection_terminal(root, summary, contract=None):
     selected = selected_contract(contract)
     evidence = root/selected['evidence']
-    if selected['name'] in ('d5','composition'):
+    if selected['name'] in ('d5','composition','earlier-three'):
         normalized_roots(evidence,WORKSPACE)
         evidence.mkdir(mode=0o700,exist_ok=True)
     terminal = {key:summary[key] for key in ('disposition','executionDisposition','firstCause','additionalFailures','phases','seconds')}
-    if selected['name'] in ('d5','composition'):
+    if selected['name'] in ('d5','composition','earlier-three'):
         require(len(json.dumps(terminal).encode())<=131072, 'terminal collection metadata cap exceeded')
     path = evidence/'collection-terminal.json'
     write(path, terminal)
     manifest_path = evidence/'manifest.json'
     manifest = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {'capBytes':selected['cap'],'files':[],'failures':[{'error':'collection did not finish'}],'totalBytes':0}
+    if selected['name']=='earlier-three':
+        original=root/'rehearsal.json';copied=evidence/'rehearsal.json'
+        if original.is_file() and not original.is_symlink():
+            require(original.stat().st_size<=1048576,'earlier original summary exceeded')
+            if not copied.exists():shutil.copyfile(original,copied)
+            require(copied.is_file() and not copied.is_symlink() and sha(copied)==sha(original),'earlier original summary changed')
+            item={'path':'rehearsal.json','bytes':copied.stat().st_size,'sha256':sha(copied)}
+            rows=[row for row in manifest['files'] if row['path']=='rehearsal.json']
+            require(not rows or rows==[item],'earlier original summary index differs')
+            if not rows:manifest['files'].append(item);manifest['totalBytes']+=item['bytes']
+        else:manifest['failures'].append({'path':'rehearsal.json','error':'original summary unavailable'})
     if selected['name'] in ('d5','composition'):
         # A collector may fail before copying/indexing its original attempt. Retain
         # that exact pre-terminal file; never replace an already copied original.
@@ -847,7 +877,198 @@ def run_rehearsal(environ, start):
     return summary
 
 
+# Fixed promised public cohorts only. Actual archive/NuSpec/source observations
+# were independently acquired before this source selection; no runtime grant.
+EARLIER_ADMISSION = None
+EARLIER_VERSIONS = ('0.10.0', '0.11.0', '0.12.0')
+EARLIER_SOURCES = {
+    '0.10.0': ('565ad45d2dda386e9d1673071cc0b424cfd02be6','7467b12789b433374ec9c95c4d1d81a962363dae1c9bdbe71e6d54264c0962c8'),
+    '0.11.0': ('6a66e0a31c33feab4c8f650709b585df6ac3d4c4','a104d27563fe1485e0e945daf1aa24cb07b314458e99b10a9e69fbec5b211357'),
+    '0.12.0': ('7146224843419a10613b0f23c781b38bc88514b8','28d11e00264630a614d962823f2594e75e8a5472c0e91577d271fff7e2c71044'),
+}
+EARLIER_PHASES = (('setup',720),('target',60)) + tuple(
+    (version+'-'+phase,seconds) for version in EARLIER_VERSIONS
+    for phase,seconds in (('generate',60),('transaction',100),('restore',480))) + (
+    ('collection',120),('cleanup',90),('overhead',90))
+
+
+def earlier_deadline(start, phase, now):
+    names=[name for name,_ in EARLIER_PHASES]
+    require(phase in names and 0<=start<=now, 'earlier-three phase/clock differs')
+    index=names.index(phase);cap=start+sum(seconds for _,seconds in EARLIER_PHASES[:index+1])
+    until=min(now+EARLIER_PHASES[index][1],cap)
+    require(until>now,'earlier-three original phase expired')
+    return until
+
+
+def earlier_inputs(workspace):
+    baseline=workspace/'scripts/svg-complete-workspace-baselines.json'
+    extension=json.loads((workspace/'scripts/svg-current-reference-adoption.json').read_text())
+    require(sha(baseline)==extension['baselineManifestSha256'],'historical manifest changed')
+    rows=json.loads(baseline.read_text())['sourceArchives']
+    require([row['version'] for row in rows]==[*EARLIER_VERSIONS,'0.13.0'],'historical cohort identity changed')
+    return {version:('https://api.nuget.org/v3-flatcontainer/fs.gg.workspace.template/'+version+'/fs.gg.workspace.template.'+version+'.nupkg',
+                     next(row['sha256'] for row in rows if row['version']==version),8*1048576)
+            for version in EARLIER_VERSIONS}
+
+
+def earlier_metadata(package, version):
+    package_identity(package,'FS.GG.Workspace.Template',version);baseline_template(package)
+    entries=package.infolist()
+    require(len(entries)<=2048 and sum(row.file_size for row in entries)<=16*1048576,'historical ZIP population exceeded')
+    names=[row.filename for row in entries if row.filename.endswith('.nuspec')]
+    require(len(names)==1,'historical NuSpec census differs')
+    raw=package.read(names[0]);require(len(raw)<=131072 and b'<!DOCTYPE' not in raw.upper() and b'<!ENTITY' not in raw.upper(),'historical NuSpec refused')
+    nodes=[node for node in ET.fromstring(raw).iter() if node.tag.rsplit('}',1)[-1]=='repository']
+    expected,expected_nuspec=EARLIER_SOURCES[version]
+    require(hashlib.sha256(raw).hexdigest()==expected_nuspec and len(nodes)==1,'historical NuSpec bytes differ')
+    repository=nodes[0].attrib
+    require(repository.get('url')=='https://github.com/FS-GG/FS.GG.Templates' and repository.get('commit')==expected,'historical package/source identity differs')
+    return {'version':version,'repositoryCommit':expected,'nuspecSha256':expected_nuspec,'members':len(entries)}
+
+
+def earlier_steps(root, dotnet, inputs, version=None):
+    require(version is None or version in EARLIER_VERSIONS,'unsupported historical cohort')
+    if version is None:
+        return [([dotnet,'new','install',str(inputs['target']),'--force'],root),
+                ([dotnet,'new','fs-gg-fable-game','-n','Reference4816EarlierCurrent','-o',str(root/'candidate'),'--bundle','complete','--lifecycle','none'],root)]
+    product='Earlier4816V'+version.replace('.','');receiver=root/'receivers'/version
+    args=[dotnet,'new','fs-gg-fable-game','-n',product,'-o',str(receiver),'--lifecycle','none']
+    if version!='0.10.0':args+=['--svgFoundation','true']
+    return [([dotnet,'new','install',str(inputs[version]),'--force'],root),(args,root)]
+
+
+def finish_earlier(root, summary, receipts, primary, start, contract):
+    deciding=primary
+    def protect(label,operation):
+        nonlocal deciding
+        try:return operation()
+        except BaseException as error:
+            message=(label+': '+type(error).__name__+': '+str(error))[:8192]
+            summary.update(disposition='failed',executionDisposition='failed')
+            if deciding is None:deciding=error;summary['firstCause']=message
+            else:summary['additionalFailures'].append(message);deciding.add_note(message)
+            print(message,file=sys.stderr)
+    protect('earlier receipt index',lambda:write(root/'managed-receipts.json',receipts))
+    def reporting():
+        summary['seconds']=time.monotonic()-start;write(root/'rehearsal.json',summary)
+        result=collect(root,min(time.monotonic()+120,start+2820),contract)
+        require(not result['failures'],'earlier-three evidence collection incomplete')
+    protect('earlier collection',reporting)
+    protect('earlier terminal reporting Unknown',lambda:collection_terminal(root,summary,contract))
+    if primary is None and deciding is not None:raise deciding
+
+
+def run_earlier_three(environ):
+    contract=caller_contract('earlier-three',EARLIER_ADMISSION)
+    source=validate_admission(environ,EARLIER_ADMISSION,contract)
+    workspace=Path(environ['GITHUB_WORKSPACE']);require(workspace==WORKSPACE,'earlier checkout differs')
+    root=Path(environ['RUNNER_TEMP'])/('retained-earlier-three-'+environ['RUN_ID']+'-1')
+    normalized_roots(root,workspace);no_global_before_create(root)
+    initial=operational_start(environ,contract)
+    start=original_clock(environ,initial['boot'],contract)['startedMonotonic']
+    receipts=[];identities={};inputs={};homes={};registrations={};acquisitions=[];provenance={}
+    summary={'schema':'fsgg.retained-earlier-three-rehearsal/1','source':source,'disposition':'failed','executionDisposition':'started','firstCause':None,'additionalFailures':[], 'phases':{},'cohorts':{},'scope':'fixed genuine0.10/0.11/0.12 ->published0.19.3 materialization/preserving transactions/three locked restores; no build/Fable/browser/full4816 acceptance','whole4816Acceptance':False,'browserCases':0,'builds':0,'fableBuilds':0}
+    summary.update(inputDownloads=acquisitions,publicInputs=provenance,executableIdentities=identities,templateRegistrations=registrations)
+    primary=None
+    try:
+        caller=load_file('earlier_actual_caller',HERE/'wasm-installed-c.py').actual_caller()
+        env=caller['fresh_environment'](root,environ);env.update(UNIT_NAME=environ['UNIT_NAME'],PRIVATE_ROOT=str(root))
+        write(root/'source-seals.json',{name:sha(workspace/name) for name in SOURCE_FILES})
+        setup=earlier_deadline(start,'setup',time.monotonic());owner=caller['load_owner'](root,setup);caller['probe_containment'](owner,root)
+        def executor(until):return caller['managed_executor'](owner,root,until,identities,'installed',receipts)
+        run=executor(setup)
+        unit_properties(caller,run,env,identities,initial,{**UNIT,'RuntimeMaxUSec':'51min'})
+        acquisition_capacity(owner,root,initial)
+        tools=root/'tools';tools.mkdir();downloads=root/'downloads';downloads.mkdir()
+        get=caller['acquirer'](root,downloads,caller['download'],setup,acquisitions)
+        def sdk_get(name,url,expected,maximum,algorithm='sha256'):
+            verify_sdk_selection(name,url,expected,maximum,algorithm)
+            path=get(name,url,expected,maximum,algorithm)
+            if name=='dotnet-releases.json':sdk_metadata(path.read_bytes())
+            return path
+        dotnet=str(caller['provision_sdk'](sdk_get,tools,setup));env.update(DOTNET_ROOT=str(tools/'dotnet'),DOTNET_HOST_PATH=dotnet,PATH=str(tools/'dotnet')+':/usr/bin:/bin')
+        caller['bind_identity'](identities,dotnet,'verified-archive-member')
+        native_closure(caller,run,root,tools,env,identities)
+        require(run([dotnet,'--version'],root,env).strip()=='10.0.401','earlier SDK differs')
+        summary['sdkInfo']=run([dotnet,'--info'],root,env)
+        require('Microsoft.NETCore.App 10.0.12 [' in run([dotnet,'--list-runtimes'],root,env),'earlier runtime absent')
+        members=[tools/'dotnet/dotnet',tools/'dotnet/host/fxr/10.0.12/libhostfxr.so']+[tools/'dotnet/shared/Microsoft.NETCore.App/10.0.12'/name for name in ('libhostpolicy.so','libcoreclr.so')]
+        write(root/'sdk-member-identities.json',{str(path.relative_to(root)):sha(path) for path in members})
+        rows=earlier_inputs(workspace)
+        inputs['target']=get(FILENAMES['target'],*INPUTS['target'])
+        with zip_inputs(caller,inputs['target'],setup) as package:package_identity(package,'FS.GG.Workspace.Template','0.19.3');baseline_template(package)
+        # Every historical archive/source identity precedes the first generation.
+        for version in EARLIER_VERSIONS:
+            inputs[version]=get('fs.gg.workspace.template.'+version+'.nupkg',*rows[version])
+            with zip_inputs(caller,inputs[version],setup) as package:provenance[version]=earlier_metadata(package,version)
+        write(root/'earlier-input-provenance.json',provenance);write(root/'input-downloads.json',acquisitions)
+        config=caller['closed_nuget_config'](root)
+        for version in ('target',*EARLIER_VERSIONS):
+            home=root/('template-home-'+version);require(not home.exists(),'earlier template home occupied');home.mkdir(mode=0o700)
+            homes[version]={**env,'DOTNET_CLI_HOME':str(home)}
+        summary['phases']['setup']='passed'
+        target_until=earlier_deadline(start,'target',time.monotonic());run=executor(target_until)
+        for argv,cwd in earlier_steps(root,dotnet,inputs):
+            no_global_before_create(root);run(argv,cwd,homes['target'])
+        registrations['target']=template_registration(Path(homes['target']['DOTNET_CLI_HOME']),root,'0.19.3',INPUTS['target'][1])
+        with zip_inputs(caller,inputs['target'],target_until) as package:summary['targetGeneration']=generation_join(caller,package,root/'candidate','Reference4816EarlierCurrent','Reference4816EarlierCurrent')
+        python,_=caller['host_image'](sys.executable);caller['bind_identity'](identities,python,'host-observed')
+        helper=workspace/'tests/composition/fable-game/verify-current-reference-adoption.py'
+        for version in EARLIER_VERSIONS:
+            product='Earlier4816V'+version.replace('.','');receiver=root/'receivers'/version;transaction=root/'transactions'/version
+            case={'disposition':'started','generationFlags':['--lifecycle','none']+([] if version=='0.10.0' else ['--svgFoundation','true'])};summary['cohorts'][version]=case
+            generate_until=earlier_deadline(start,version+'-generate',time.monotonic());run=executor(generate_until)
+            for argv,cwd in earlier_steps(root,dotnet,inputs,version):
+                no_global_before_create(root);run(argv,cwd,homes[version])
+            registrations[version]=template_registration(Path(homes[version]['DOTNET_CLI_HOME']),root,version,rows[version][1]);write(root/'template-registrations.json',registrations)
+            with zip_inputs(caller,inputs[version],generate_until) as package:case['generationJoin']=generation_join(caller,package,receiver,product,product)
+            original_tools=json.loads((receiver/'.config/dotnet-tools.json').read_text())
+            require(original_tools['tools']['fable']=={'version':'5.13.0','commands':['fable']},'earlier compiler row differs')
+            sentinels={'authored/save.json':'{"save":"owner"}\n','authored/replay.json':'{"replay":"owner"}\n','authored/config.json':'{"config":"owner"}\n','authored/extension.fs':'module OwnerExtension\n','.agents/skills/local-owner/SKILL.md':'# Owner skill\n','.fsgg/local-owner.json':'{"owner":"retained"}\n'}
+            for relative,content in sentinels.items():
+                path=receiver/relative;require(not path.exists(),'earlier owner sentinel collision');path.parent.mkdir(parents=True,exist_ok=True);path.write_text(content);path.chmod(0o600)
+            run=executor(earlier_deadline(start,version+'-transaction',time.monotonic()))
+            run([python,'-I','-B',str(helper),'--candidate',str(root/'candidate'),'--receiver',str(receiver),'--baseline-version',version,'--baseline-archive',str(inputs[version]),'--target-archive',str(inputs['target']),'--output',str(transaction)],root,env,inputs=[workspace/name for name in SOURCE_FILES if name.endswith(('.py','.json'))])
+            adopted=transaction/'adopted';require(json.loads((adopted/'global.json').read_text())['sdk']=={'version':'10.0.401','rollForward':'disable'},'earlier adopted SDK differs')
+            changed_tools=json.loads((adopted/'.config/dotnet-tools.json').read_text())
+            require(changed_tools['tools']['fable']=={'version':'5.18.0','commands':['fable']},'earlier adopted compiler differs')
+            require(all(changed_tools['tools'].get(key)==value for key,value in original_tools['tools'].items() if key!='fable'),'earlier co-tenant changed')
+            case['transactions']=json.loads((transaction/'transaction-controls.json').read_text())['controls']
+            before=lock_hashes(adopted);require('Domain/packages.lock.json' in before,'earlier declared lock census absent');write(root/('locks-'+version+'-before.json'),before)
+            run=executor(earlier_deadline(start,version+'-restore',time.monotonic()));restore_failure=None
+            try:run([dotnet,'restore',product+'.slnx','--locked-mode','--configfile',str(config),'-m:1','-nodeReuse:false','-p:UseSharedCompilation=false','-p:BuildInParallel=false'],adopted,homes[version])
+            except BaseException as error:restore_failure=error;raise
+            finally:
+                try:after=lock_hashes(adopted);write(root/('locks-'+version+'-after.json'),after)
+                except BaseException as error:
+                    if restore_failure is None:raise
+                    restore_failure.add_note(('earlier lock readback: '+str(error))[:8192])
+            require(before==after,'earlier locked restore changed reviewed locks');case['disposition']='materialized-adopted-locked-restore-passed'
+            summary['phases'][version]='passed';write(root/'rehearsal.json',summary)
+        summary.update(disposition='passed',executionDisposition='passed')
+    except BaseException as error:
+        primary=error;summary.update(disposition='failed',executionDisposition='failed',firstCause=(type(error).__name__+': '+str(error))[:8192]);raise
+    finally:
+        finish_earlier(root,summary,receipts,primary,start,contract)
+    return summary
+
+
+def earlier_main(args):
+    require(args in ([],['--check-admission'],['--outer-preflight'],['--record-client-exit'],['--post-unit']),'closed earlier-three mode required')
+    contract=caller_contract('earlier-three',EARLIER_ADMISSION)
+    validate_admission(os.environ,EARLIER_ADMISSION,contract)
+    if args==['--check-admission']:return 0
+    if args==['--outer-preflight']:outer_preflight(os.environ,contract);return 0
+    if args==['--record-client-exit']:record_client_exit(os.environ,contract);return 0
+    if args==['--post-unit']:post_unit(os.environ,contract);return 0
+    result=run_earlier_three(os.environ)
+    print(json.dumps({'disposition':result['disposition'],'scope':result['scope']}))
+    return 0 if result['disposition']=='passed' else 1
+
+
 def main():
+    if sys.argv[1:2]==['--earlier-three']:return earlier_main(sys.argv[2:])
     require(sys.argv[1:] in ([], ['--check-admission'], ['--outer-preflight'], ['--record-client-exit'], ['--post-unit']), 'closed rehearsal mode required')
     validate_admission(os.environ, ADMISSION)
     if sys.argv[1:]==['--check-admission']:
