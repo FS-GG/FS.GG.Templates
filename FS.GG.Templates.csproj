@@ -224,6 +224,7 @@
   <!-- One authored metadata/security helper projection; product roots remain SDK-materialized. -->
   <ItemGroup>
     <None Include="template/polyglot-common/security.sh" Pack="true" PackagePath="content/templates/fs-gg-typescript-cli/scripts/security.sh;content/templates/fs-gg-javascript-cli/scripts/security.sh;content/templates/fs-gg-rust-cli/scripts/security.sh;content/templates/fs-gg-go-cli/scripts/security.sh" />
+    <None Include="template/polyglot-common/security-result.py" Pack="true" PackagePath="content/templates/fs-gg-typescript-cli/scripts/security-result.py;content/templates/fs-gg-javascript-cli/scripts/security-result.py;content/templates/fs-gg-rust-cli/scripts/security-result.py;content/templates/fs-gg-go-cli/scripts/security-result.py" />
     <None Include="template/polyglot-common/node-build.sh" Pack="true" PackagePath="content/templates/fs-gg-typescript-cli/scripts/node-build.sh;content/templates/fs-gg-javascript-cli/scripts/node-build.sh" />
   </ItemGroup>
 

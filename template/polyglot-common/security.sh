@@ -24,6 +24,8 @@ security_advisory() {
   (cd "$FSGG_ADVISORY_ROOT" && sha256sum --check --strict "$FSGG_ADVISORY_MANIFEST")
 }
 security() {
+  : "${FSGG_POLYGLOT_PYTHON:?qualified Python3.14.8 image required}" "${FSGG_POLYGLOT_PYTHON_SHA256:?qualified interpreter digest required}"
+  security_image "$FSGG_POLYGLOT_PYTHON" "$FSGG_POLYGLOT_PYTHON_SHA256"
   case "$FSGG_POLYGLOT_PROVIDER" in
     typescript-cli|javascript-cli)
       # info is the lowest severity: every reported vulnerability blocks, never audit fix.
@@ -40,10 +42,18 @@ security() {
       : "${FSGG_GOVULNCHECK:?qualified govulncheck image required}" "${FSGG_GOVULNCHECK_SHA256:?qualified image digest required}"
       security_image "$FSGG_GOVULNCHECK" "$FSGG_GOVULNCHECK_SHA256"
       security_advisory
-      "$FSGG_GOVULNCHECK" -json -db "file://$FSGG_ADVISORY_ROOT" ./... > security-audit.json
+      "$FSGG_GOVULNCHECK" -json -mode=source -scan=symbol -db "file://$FSGG_ADVISORY_ROOT" ./... > security-audit.json
       ;;
     *) echo 'closed provider security binding required' >&2; return 3;;
   esac
   [ -s security-audit.json ] || { echo 'missing raw security result refused' >&2; return 3; }
-  # Qualification additionally parses the exact retained raw format and source/database joins.
+  # A successful foreground scanner command is necessary before this check.
+  # Raw content is not proof of process/EOF retirement;
+  # the independent native owner must still accept original exit/stream custody.
+  if [ "$FSGG_POLYGLOT_PROVIDER" = go-cli ]; then
+    "$FSGG_POLYGLOT_PYTHON" -I -S -B scripts/security-result.py --single "$FSGG_POLYGLOT_PROVIDER" security-audit.json "file://$FSGG_ADVISORY_ROOT"
+  else
+    "$FSGG_POLYGLOT_PYTHON" -I -S -B scripts/security-result.py --single "$FSGG_POLYGLOT_PROVIDER" security-audit.json
+  fi
+  # A refused raw finding cannot reach the operation's real handoff writer.
 }

@@ -5,11 +5,13 @@
     "linux-x64"
   ],
   "tools": {
-    "rust": "1.98.1"
+    "rust": "1.98.1",
+    "python": "3.14.8"
   },
   "security": {
     "scanner": "cargo-audit",
     "version": "0.22.2",
-    "independentAdvisoryInputRequired": true
+    "independentAdvisoryInputRequired": true,
+    "jsonChecker": "one authored scripts/security-result.py before any real handoff"
   }
 }

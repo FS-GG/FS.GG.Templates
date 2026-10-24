@@ -7,11 +7,13 @@
   "tools": {
     "node": "24.20.0",
     "npm": "11.19.0",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "python": "3.14.8"
   },
   "security": {
     "scanner": "npm-audit",
     "version": "11.19.0",
-    "independentAdvisoryInputRequired": true
+    "independentAdvisoryInputRequired": true,
+    "jsonChecker": "one authored scripts/security-result.py before any real handoff"
   }
 }

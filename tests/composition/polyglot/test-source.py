@@ -90,6 +90,11 @@ class SourceContract(unittest.TestCase):
         (self.root / "template/polyglot-common/node-build.sh").unlink()
         with self.assertRaisesRegex(ValueError, "projected product source"):
             contract.expected_archive_members(self.root)
+    def test_removed_actual_product_finding_guard_refuses(self):
+        path = self.root / "template/polyglot-common/security.sh"
+        path.write_text(path.read_text().replace('scripts/security-result.py --single', 'scripts/removed-checker.py --single'))
+        with self.assertRaisesRegex(ValueError, "actual security paths"):
+            contract.validate_source(self.root)
     def test_cached_package_member_refusal(self):
         archive = self.synthetic_archive()
         with zipfile.ZipFile(archive, "a") as package:

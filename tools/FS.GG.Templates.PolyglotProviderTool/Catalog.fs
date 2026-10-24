@@ -18,9 +18,9 @@ module Catalog =
     let private tool id version : ProviderCatalog.ToolRequirement =
         { Id = id; Version = version; Platforms = [ "linux-x64" ] }
     let private tools = function
-        | "typescript-cli" | "javascript-cli" -> [ tool "node" "24.20.0"; tool "npm" "11.19.0"; tool "typescript" "5.9.2" ]
-        | "rust-cli" -> [ tool "rustc" "1.98.1"; tool "cargo" "1.98.1"; tool "cargo-audit" "0.22.2" ]
-        | "go-cli" -> [ tool "go" "1.27.1"; tool "govulncheck" "1.9.0" ]
+        | "typescript-cli" | "javascript-cli" -> [ tool "python" "3.14.8"; tool "node" "24.20.0"; tool "npm" "11.19.0"; tool "typescript" "5.9.2" ]
+        | "rust-cli" -> [ tool "python" "3.14.8"; tool "rustc" "1.98.1"; tool "cargo" "1.98.1"; tool "cargo-audit" "0.22.2" ]
+        | "go-cli" -> [ tool "python" "3.14.8"; tool "go" "1.27.1"; tool "govulncheck" "1.9.0" ]
         | value -> invalidArg "provider" value
     let private skills = function
         | "typescript-cli" -> [ "node-workspace"; "typescript-project"; "node-testing" ]

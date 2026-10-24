@@ -30,12 +30,20 @@ def validate_source(root):
         require(match is not None, "unsupported skill selection")
         expected = {"content/templates/fs-gg-" + value.strip() + "/.agents/skills/" + name + "/" for value in match[1].split(",")}
         require(set(packed.get(source, [])) == expected, "skill package destinations differ: " + name)
+    security_source = (root / 'template/polyglot-common/security.sh').read_text()
+    require(security_source.count('scripts/security-result.py --single "$FSGG_POLYGLOT_PROVIDER" security-audit.json') == 2,
+            'actual security paths must enforce strict raw findings before handoff')
     for provider in PROVIDERS:
         directory = root / "templates" / ("fs-gg-" + provider + "-cli")
         config = json.loads((directory / ".template.config/template.json").read_text())
         require(config["shortName"] == "fs-gg-" + provider + "-cli", "provider identity differs")
         for key in ("rawName", "packageIdentity", "codeIdentifier"):
             require(config["symbols"][key]["isRequired"] is True, "required identity missing: " + provider + ":" + key)
+        operations_source = (directory / 'scripts/operations.sh').read_text()
+        require('. "$work/scripts/security.sh"' in operations_source
+                and operations_source.index('. "$work/scripts/security.sh"') < operations_source.index('case "$operation" in')
+                and operations_source.index('case "$operation" in') < operations_source.index("printf '{"),
+                'product security binding must precede real handoff')
         require(not (directory / ".fsgg").exists(), "provider writes reserved SDD tree")
         require(not any(path.is_symlink() for path in directory.rglob("*")), "linked product source")
         require(all(path.is_dir() or path.is_file() for path in directory.rglob("*")), "non-regular product source")
