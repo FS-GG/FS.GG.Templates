@@ -57,6 +57,39 @@ join is at payload level and the two hashes are never equated. Only a fully succ
 It proves what the original producer packed matches what is published for the three selected packages. It is not
 installed or published-feed acceptance, and the retained read is not reproducible without the same credentialed access.
 
+### Published-feed payload acceptance for all 19 archives
+
+`--published-all` (with `--custody-evidence`) also reads every custody archive from the public NuGet flat container
+(an unauthenticated read into the fresh root; the bytes are verified by the producer's `compare`, not by a pinned hash) and
+requires, per archive, a payload-exact `compare`, exactly one feed `.signature.p7s` entry, a published hash different from the
+custody row, and, for the three typed packages, the typed signed SHA-256. Observed 2026-10-25 for Rendering 0.32.3 (feed content is live,
+so this is a dated observation, not a standing guarantee):
+
+| package | entries | custody bytes | published bytes (+signature) | published sha256 | compare |
+|---|---|---|---|---|---|
+| FS.GG.UI | 4 | 2211 | 15301 (+13090) | `c5c27a8a0ebb7d6ccbe33268d9315eb3f2b7b32a16e8653b4651de93a4608316` | PASS |
+| FS.GG.UI.Build | 8 | 22190 | 35280 (+13090) | `f0a95c0b03a2acc2e79d7ff3f411a281c5f104c8e6d3e05ab443a9c45aa6daf4` | PASS |
+| FS.GG.UI.Canvas | 8 | 37449 | 50538 (+13089) | `684d400c7657f1ad7eaed7d842b7f26c4a07f8bf6908cba6a19ab5d04ba41170` | PASS |
+| FS.GG.UI.Controls | 53 | 748267 | 761356 (+13089) | `df31529336f5c5d9dad4c62a8cc97379447a3065e5dd80459b487f0a1b19549f` | PASS |
+| FS.GG.UI.Controls.Elmish | 10 | 135613 | 148702 (+13089) | `40dcfb502b0a28efd1658a47536d85b5f55dd06e73135dc8f3a60025e10edbb0` | PASS |
+| FS.GG.UI.DesignSystem | 12 | 52041 | 65130 (+13089) | `07743367e1ce2a06e3a402b40cd6c1e43ce5e9e23c97404f6e5e883a949b0a7d` | PASS |
+| FS.GG.UI.Diagnostics | 8 | 42503 | 55592 (+13089) | `4e9acbb11fa38c3a97365491c821057e0126db4dbd9c78d71169bbc43a3a2368` | PASS |
+| FS.GG.UI.Elmish | 10 | 66289 | 79378 (+13089) | `37dc910db99ef78143d9382de8d6bb54c69f443c45fdedc1e93be8c9420d86e9` | PASS |
+| FS.GG.UI.KeyboardInput | 19 | 164597 | 177687 (+13090) | `99aa6564e7a3b323da8346c50894f28eca8b981cc31ac763b8f34b19fd8beb4c` | PASS |
+| FS.GG.UI.Layout | 11 | 118941 | 132031 (+13090) | `321334f31eb3f9b04bdd0bbd8ac14e32f87a8dea994d2c8aca509c8045ec2a5e` | PASS |
+| FS.GG.UI.Scene | 42 | 816681 | 829771 (+13090) | `9cc74f6af082089fb269d7d12c7f1e7ee7684ae3bdab51918b65e06e072a7ac8` | PASS |
+| FS.GG.UI.Scene.SvgBrowser | 37 | 263275 | 276364 (+13089) | `8764ce047628f7f58d77e430b2afa0ffafb47560f7633abcf1c8dd12bf8710ad` | PASS |
+| FS.GG.UI.SkiaViewer | 19 | 2808108 | 2821197 (+13089) | `639643d5db0bb3ede8a81a48411b3e5e47a1220cd5b845df75206e6d6fce401d` | PASS |
+| FS.GG.UI.Symbology | 11 | 124510 | 137599 (+13089) | `76c29f5de289762876b95caddaf06d36cef84913a80b49e4b86ee7fb6c36a735` | PASS |
+| FS.GG.UI.Symbology.Render | 7 | 9045 | 22135 (+13090) | `bb20a7e98cb82c800005d2e6566d83f59098eeb6885b6e8913f27d3dab55550f` | PASS |
+| FS.GG.UI.Template | 2284 | 9037315 | 9050404 (+13089) | `747f33eb0242783f67b2462d8ca137b14f36bb4133bd0a3d4ca98ca8ad93dfe6` | PASS |
+| FS.GG.UI.Testing | 13 | 231440 | 244529 (+13089) | `49f1a0430072af7113e5b07ad0755c3f01cc9c575a84a621c6321384290cc1a3` | PASS |
+| FS.GG.UI.Themes.AntDesign | 8 | 10999 | 24089 (+13090) | `80c55b2364069908b159525e515cce72137244c74412f2b6fdbfb9a399c16e72` | PASS |
+| FS.GG.UI.Themes.Default | 9 | 17678 | 30767 (+13089) | `4e792b9e72844bc157c0e9ac368295dada3e30eb9c5af063dafc6054ae4edc7f` | PASS |
+
+Every package's published archive is its custody archive plus a feed signature of 13,089 or 13,090 bytes (the overhead in parentheses), with all
+payload entries identical. This is published-feed payload agreement with the producer's packed bytes, not installed adoption.
+
 ## Boundaries that remain
 
 - `actualProducerCustodyReadback` is false unless the run is given `--custody-evidence` and `--rendering-source` (the previous section).

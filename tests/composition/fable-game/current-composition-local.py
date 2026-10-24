@@ -151,6 +151,15 @@ def fetch(url, expected, maximum, destination):
     destination.write_bytes(data)
 
 
+def fetch_unpinned(url, maximum, destination):
+    """Unauthenticated public read whose bytes are verified by the producer's payload compare, not by a pinned hash."""
+    require(url.startswith('https://api.nuget.org/v3-flatcontainer/'), 'only the public NuGet flat container is read')
+    with urllib.request.urlopen(url, timeout=300) as response:
+        data = response.read(maximum + 1)
+    require(0 < len(data) <= maximum, 'download exceeds its bound: ' + url)
+    destination.write_bytes(data)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument('--root', required=True, help='fresh private output root (must not exist)')
@@ -164,11 +173,14 @@ def main(argv=None):
     parser.add_argument('--custody-evidence', default='', help='retained read-only acquisition of the original producer artifact '
                         '(receipt.json, rendering-packet.zip, release-custody.json); with --rendering-source it sets '
                         'actualProducerCustodyReadback from an offline join to the typed plan')
+    parser.add_argument('--published-all', action='store_true', help='with --custody-evidence: also read every custody archive from the public feed '
+                        '(unauthenticated) and compare each payload with the producer compare')
     parser.add_argument('--rendering-source', default='', help='local FS.GG.Rendering git checkout containing the typed producer commit')
     parser.add_argument('--allow-dirty', action='store_true', help='record, rather than refuse, uncommitted source')
     args = parser.parse_args(argv)
 
     require(bool(args.custody_evidence) == bool(args.rendering_source), '--custody-evidence and --rendering-source go together')
+    require(not args.published_all or args.custody_evidence, '--published-all needs --custody-evidence')
     families = args.families.split(',')
     require(families and all(f in FAMILIES for f in families) and len(set(families)) == len(families), 'closed browser families required')
     require(1 <= args.cpus <= 3, 'at most 3 CPUs')
@@ -241,8 +253,14 @@ def main(argv=None):
         (root / 'fable-member-identities.json').write_text(json.dumps(member_manifest(cores[0].parent)))
         if args.custody_evidence:
             # Offline and before the expensive stage: the retained producer read must justify the flag first.
+            published_all = None
+            if args.published_all:
+                published_all = root / 'inputs/published-all'
+                published_all.mkdir()
+                for file, url in custody.published_urls(args.custody_evidence):
+                    fetch_unpinned(url, 64 * 1048576, published_all / file)
             summary['producerCustody'] = custody.verify_producer_custody(
-                args.custody_evidence, plan, root / 'inputs/feed', args.rendering_source, root / 'custody')
+                args.custody_evidence, plan, root / 'inputs/feed', args.rendering_source, root / 'custody', published_all)
         stage_env = {**env, 'FSGG_REFERENCE_PROVIDER_TOOL_DLL': str(core),
                      'FSGG_COMPOSITION_FABLE_MEMBERS': str(root / 'fable-member-identities.json'),
                      'FSGG_COMPOSITION_FABLE_SHA': fable_sha()}

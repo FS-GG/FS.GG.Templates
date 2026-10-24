@@ -95,7 +95,13 @@ def binder(script, *args):
     return result.stdout.strip()
 
 
-def verify_producer_custody(evidence, plan, feed, repository, work):
+def published_urls(evidence, template='https://api.nuget.org/v3-flatcontainer/{id}/{version}/{file}'):
+    """(file, url) for every archive named by the retained custody manifest; the caller does the unauthenticated read."""
+    manifest = json.loads((Path(evidence) / 'release-custody.json').read_text())
+    return [(row['file'], template.format(id=row['id'].lower(), version=row['version'], file=row['file'].lower())) for row in manifest['archives']]
+
+
+def verify_producer_custody(evidence, plan, feed, repository, work, published_all=None):
     """Return the facts that justify actualProducerCustodyReadback=true, or raise ValueError."""
     evidence, feed, work = Path(evidence), Path(feed), Path(work)
     receipt = read_receipt(evidence)
@@ -124,7 +130,29 @@ def verify_producer_custody(evidence, plan, feed, repository, work):
         require('payload entries exact' in outcome and 'feed signature=present (excluded)' in outcome,
                 'published archive is not the custody archive plus the feed signature: ' + package['id'])
         compared.append(outcome)
+    published = None
+    if published_all is not None:
+        # Every custody archive against the signed bytes served publicly (the read needs no credential).
+        published_all = Path(published_all)
+        require(sorted(p.name for p in published_all.iterdir()) == sorted(r['file'] for r in manifest['archives']),
+                'published population differs from the custody archives')
+        published = []
+        for row in sorted(manifest['archives'], key=lambda r: r['id']):
+            data = (published_all / row['file']).read_bytes()
+            typed_row = [p for p in typed['packages'] if '%s.%s.nupkg' % (p['id'], typed['version']) == row['file']]
+            require(not typed_row or typed_row[0]['sha256'] == sha256(data), 'published archive differs from the typed SHA-256: ' + row['id'])
+            require(sha256(data) != row['sha256'], 'custody row unexpectedly byte-identical to the signed archive: ' + row['id'])
+            outcome = binder(script, 'compare', '--local', str(packet / row['file']), '--remote', str(published_all / row['file']))
+            require('payload entries exact' in outcome and 'feed signature=present (excluded)' in outcome,
+                    'published archive is not the custody archive plus the feed signature: ' + row['id'])
+            with zipfile.ZipFile(io.BytesIO(data)) as archive:
+                signatures = [n for n in archive.namelist() if n.endswith('.signature.p7s')]
+            require(len(signatures) == 1, 'published archive does not carry exactly one feed signature: ' + row['id'])
+            custody_size = (packet / row['file']).stat().st_size
+            published.append({'id': row['id'], 'custodyBytes': custody_size, 'publishedBytes': len(data), 'signatureOverheadBytes': len(data) - custody_size,
+                              'publishedSha256': sha256(data), 'compare': 'payload-exact'})
     return {
+        'publishedPayload': published,
         'acquisitionAttempts': receipt['attempts'], 'artifactBytes': receipt['bytes'], 'artifactSha256': receipt['zipSha256'],
         'custodyBytes': len(custody), 'custodySha256': sha256(custody), 'version': manifest['version'],
         'sourceCommit': manifest['source']['commit'], 'releasePlanSha256': manifest['releasePlanSha256'],
