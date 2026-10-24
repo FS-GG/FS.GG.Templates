@@ -35,6 +35,10 @@ PHASES = (('setup', 900), ('target', 60)) + tuple(
     for phase, seconds in (('generate', 60), ('transaction', 100), ('restore', 300), ('build', 940))) + (
     ('collection', 120), ('cleanup', 90), ('overhead', 90))
 UNIT_BUILD = {'TasksMax': '1024', 'RuntimeMaxUSec': '2h'}
+# build.sh runs dotnet build/test/publish/fable/vite/playwright; no daemon may outlive its managed group
+# (MSBuild node reuse and the compiler servers otherwise linger ~15 minutes and break require-empty retirement).
+BUILD_DAEMON_OFF = {'MSBUILDDISABLENODEREUSE': '1', 'DOTNET_CLI_USE_MSBUILD_SERVER': '0', 'UseSharedCompilation': 'false',
+                    'DOTNET_CLI_TELEMETRY_OPTOUT': '1', 'DOTNET_NOLOGO': '1'}
 SENTINELS_EARLIER = {'authored/save.json': '{"save":"owner"}\n', 'authored/replay.json': '{"replay":"owner"}\n',
                      'authored/config.json': '{"config":"owner"}\n', 'authored/extension.fs': 'module OwnerExtension\n',
                      '.agents/skills/local-owner/SKILL.md': '# Owner skill\n', '.fsgg/local-owner.json': '{"owner":"retained"}\n'}
@@ -288,7 +292,7 @@ def run_adopted_build(environ):
             # Cases H-K: the adopted tree's own shipped build, run once per cohort in its own managed group.
             build_until = deadline(m, start, version+'-build', time.monotonic()); run = executor(build_until)
             build_env = {**homes[version], 'PATH': build_path, 'QUINT_BIN': str(quint), 'PLAYWRIGHT_EXECUTABLE_PATH': str(chromium),
-                         'npm_config_cache': str(root/'npm-cache'), 'LANG': 'C.UTF-8'}
+                         'npm_config_cache': str(root/'npm-cache'), 'LANG': 'C.UTF-8', **BUILD_DAEMON_OFF}
             build_env.pop('PLAYWRIGHT_BROWSERS_PATH', None)
             output = run([bash, 'build.sh'], adopted, build_env)
             case['build'] = parse_build_output(m, output)
