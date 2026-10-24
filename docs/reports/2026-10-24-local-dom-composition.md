@@ -62,7 +62,7 @@ installed or published-feed acceptance, and the retained read is not reproducibl
 `--published-all` (with `--custody-evidence`) also reads every custody archive from the public NuGet flat container
 (an unauthenticated read into the fresh root; the bytes are verified by the producer's `compare`, not by a pinned hash) and
 requires, per archive, a payload-exact `compare`, exactly one feed `.signature.p7s` entry, a published hash different from the
-custody row, and, for the three typed packages, the typed signed SHA-256. Observed 2026-10-25 for Rendering 0.32.3 (feed content is live,
+custody row, and, for the three typed packages, the typed signed SHA-256. Observed 2026-10-24 (UTC) for Rendering 0.32.3 (feed content is live,
 so this is a dated observation, not a standing guarantee):
 
 | package | entries | custody bytes | published bytes (+signature) | published sha256 | compare |
@@ -101,16 +101,16 @@ from `Browser.Tests` in the generated Complete receiver.
 |---|---|---|
 | local save-replay | `Local save and replay example preserves synthetic state and settles detached controls` | inspect, save, inspect, replay preview, restore, new recording epoch over synthetic in-memory storage |
 | external receipts and reconnect without replay | `unknown receipt survives projection and reconnect without replay`; `explicit reconciliation and rearm retain the original and use a fresh correlation`; `external authority reference fences captured snapshots and settles commands independently`; `external authority reference recovers failures and disposes owned resources terminally` | unknown receipt kept across snapshots and reconnect; reconcile/rearm uses a fresh correlation; no automatic replay |
-| transformed pointer, keyboard, IME, focus | `FourD reference composes local session, normalized input, transformed hit testing and settled disposal`; `external authority reference uses production keyboard pointer editing and IME input` | painted transformed target selects the full cell; Enter and `r` map to the same semantic commands; composition keeps Enter in the textbox; the scene and textbox are focused to receive input (no `toBeFocused` check across an update, see below) |
-| held release | the same two cases | `h` held then window `blur` sets `data-held` false; `blur` plus `visibilitychange` leave the authority revision unchanged |
-| DOM islands | the same two cases | native textboxes (`Encounter note`, `External reference note`) beside retained SVG keep their text and IME state while Enter is routed to the scene, and the scene is replaced around them |
+| transformed pointer, keyboard, IME, focus | `FourD reference composes local session, normalized input, transformed hit testing and settled disposal`; `external authority reference uses production keyboard pointer editing and IME input` | the painted transformed target selects the full cell; pointer and Enter drive the same `external.increment` command (`r` drives a different one); Enter pressed in a native textbox dispatches nothing; with a synthetic `compositionstart` active on the scene, Enter dispatches nothing while plain Enter does; elements are focused to receive input (no `toBeFocused` check across an update, see below). IME evidence is synthetic composition events, not real IME text insertion |
+| held release | the same two cases | `h` held then window `blur` sets `data-held` false (FourD case); in the external case `blur` plus `visibilitychange` are shown only to leave the authority revision unchanged, with no held key released by them |
+| DOM islands | the same two cases | native textboxes (`Encounter note`, `External reference note`) beside the retained SVG accept text and keep Enter for themselves (the FourD note value is asserted right after `fill`; the external note is not re-read). The scene is replaced later in the FourD case, but the note is not asserted across that replacement |
 | command ordering, coalescing, replacement, disposal | `FourD reference ...`; `old generation completion is inert and abandonment requires explicit rearm`; `delayed completion settles once and disposal makes retained controls inert`; the two `external authority reference` cases above | ordered `data-command-order`; burst keeps one projection request; stale-generation reply is inert; disposal settles owned counts to 0, reload remounts independently |
 
 So every named element has an executing case, and none of the nine is a placeholder. What this does not cover, and is therefore the
 final remaining composition piece: **(a) broader DOM panels** (capability map F04), meaning more than one textbox per island (select,
-checkbox, radio, tab order and label association across a retained update); **(b) an explicit template-level assertion that focus
-survives a retained update and a session replacement** (capability map F01; the producer's own focus and MutationObserver cases cover it
-in Rendering, but none of these nine asserts `toBeFocused` across an update); and a fresh installed receiver. Adding that example changes
+checkbox, radio, tab order and label association across a retained update); **(b) an explicit template-level assertion that focus and native
+editing/IME text survive a retained update and a session replacement** (capability map F01 and F04; the producer's own focus and MutationObserver
+cases cover it in Rendering, but none of these nine asserts `toBeFocused` or re-reads the note value across an update); and a fresh installed receiver. Adding that example changes
 shipped template source, so it can only be proven against a source-built template (the runner tests published bytes) and belongs to
 the next Workspace.Template release (Templates#441's 0.20.0) together with the durable reference `localSaved` journey.
 

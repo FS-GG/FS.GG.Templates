@@ -98,6 +98,8 @@ def binder(script, *args):
 def published_urls(evidence, template='https://api.nuget.org/v3-flatcontainer/{id}/{version}/{file}'):
     """(file, url) for every archive named by the retained custody manifest; the caller does the unauthenticated read."""
     manifest = json.loads((Path(evidence) / 'release-custody.json').read_text())
+    for row in manifest['archives']:
+        require(row['file'] == Path(row['file']).name and row['file'].endswith('.nupkg') and row['file'] != '.nupkg', 'custody archive name refused: ' + row['file'])
     return [(row['file'], template.format(id=row['id'].lower(), version=row['version'], file=row['file'].lower())) for row in manifest['archives']]
 
 

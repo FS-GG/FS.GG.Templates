@@ -24,6 +24,7 @@ spec=importlib.util.spec_from_file_location('custody',HERE/'current-composition-
 C=importlib.util.module_from_spec(spec);spec.loader.exec_module(C)
 sha=lambda b:hashlib.sha256(b).hexdigest()
 STUB=('MODE=%r\nimport sys\nfrom pathlib import Path\n'
+      'Path(__file__).with_name("calls.log").open("a").write(" ".join(sys.argv[1:]) + "\\n")\n'
       'print("payload entries exact \u00b7 feed signature=" + ("absent" if MODE=="absent" else "present (excluded)"))\n'
       'sys.exit(1 if MODE=="refuse" else 0)\n')
 
@@ -136,7 +137,15 @@ class Controls(unittest.TestCase):
 
     def test_all_custody_archives_are_compared_with_the_public_feed_bytes(self):
         args,_=self.build();facts=self.verify(args)
-        table=facts['publishedPayload'];self.assertEqual(len(table),19);self.assertEqual([r['id'] for r in table],sorted(r['id'] for r in table))
+        table=facts['publishedPayload'];self.assertEqual(len(table),19)
+        # The stub cannot tell files apart, so check that the binder was really asked about each pair: 19 archives plus the 2 typed ones.
+        log=(Path(args['work'])/'producer-source/scripts/calls.log').read_text().splitlines()
+        compares=[line.split() for line in log if line.startswith('compare')]
+        pairs=[(Path(c[c.index('--local')+1]),Path(c[c.index('--remote')+1])) for c in compares]
+        self.assertEqual(len(pairs),21)
+        published=[(l,r) for l,r in pairs if r.parent==args['published_all']]
+        self.assertEqual(sorted(l.name for l,_ in published),sorted(r.name for _,r in published))
+        self.assertEqual(len({r.name for _,r in published}),19);self.assertTrue(all(l.parent.name=='packet' for l,_ in published));self.assertEqual([r['id'] for r in table],sorted(r['id'] for r in table))
         for row in table:
             self.assertEqual(row['compare'],'payload-exact');self.assertEqual(row['signatureOverheadBytes'],row['publishedBytes']-row['custodyBytes'])
         args,_=self.build();args['published_all']=None;self.assertIsNone(self.verify(args)['publishedPayload'])
@@ -158,6 +167,11 @@ class Controls(unittest.TestCase):
         args,_=self.build();manifest=json.loads((args['evidence']/'release-custody.json').read_text())
         (args['published_all']/'Other3.1.0.0.nupkg').write_bytes(b'unsigned Other3.1.0.0.nupkg')
         with self.assertRaisesRegex(ValueError,'byte-identical'):self.verify(args)
+
+    def test_custody_archive_names_that_could_escape_the_download_directory_are_refused(self):
+        args,_=self.build();path=args['evidence']/'release-custody.json'
+        manifest=json.loads(path.read_text());manifest['archives'][0]['file']='../escape.nupkg';path.write_bytes(json.dumps(manifest).encode())
+        with self.assertRaisesRegex(ValueError,'name refused'):C.published_urls(args['evidence'])
 
     def test_module_makes_no_network_call_and_runner_sets_the_flag_only_from_it(self):
         text=(HERE/'current-composition-custody.py').read_text()

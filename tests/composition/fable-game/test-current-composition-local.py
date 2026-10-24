@@ -244,6 +244,15 @@ class Controls(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,'needs --custody-evidence'):L.main(['--root',str(self.fresh_root()),'--published-all'])
         with self.assertRaisesRegex(ValueError,'only the public NuGet flat container'),tempfile.TemporaryDirectory() as tmp:
             L.fetch_unpinned('https://example.invalid/x.nupkg',1024,Path(tmp)/'x')
+        class Response:
+            def __init__(self,data):self.data=data
+            def __enter__(self):return self
+            def __exit__(self,*a):return False
+            def read(self,limit):return self.data[:limit]
+        with tempfile.TemporaryDirectory() as tmp,mock.patch.object(L.urllib.request,'urlopen',lambda url,timeout:Response(b'x'*10)):
+            target=Path(tmp)/'ok';L.fetch_unpinned('https://api.nuget.org/v3-flatcontainer/a',10,target);self.assertEqual(target.read_bytes(),b'x'*10)
+            with self.assertRaisesRegex(ValueError,'bound'):L.fetch_unpinned('https://api.nuget.org/v3-flatcontainer/a',9,Path(tmp)/'big')
+            self.assertFalse((Path(tmp)/'big').exists())
         seen=[]
         def join(evidence,plan,feed,repository,work,published_all=None):seen.append(sorted(p.name for p in Path(published_all).iterdir()));return {}
         def fake(url,maximum,destination):destination.write_bytes(b'x')

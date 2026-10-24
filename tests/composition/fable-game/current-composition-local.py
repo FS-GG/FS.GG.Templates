@@ -252,7 +252,8 @@ def main(argv=None):
         require(len(cores) == 1, 'Fable core hash differs')
         (root / 'fable-member-identities.json').write_text(json.dumps(member_manifest(cores[0].parent)))
         if args.custody_evidence:
-            # Offline and before the expensive stage: the retained producer read must justify the flag first.
+            # Before the expensive stage: the retained producer read must justify the flag first. Offline except the
+            # optional unauthenticated public-feed reads of --published-all.
             published_all = None
             if args.published_all:
                 published_all = root / 'inputs/published-all'
