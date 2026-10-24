@@ -718,7 +718,9 @@ class EarlierControls(unittest.TestCase):
     def test_earlier_fixed_profiles_and_old_defaults(self):
         self.assertEqual(sum(seconds for _,seconds in m.EARLIER_PHASES),3000)
         self.assertEqual(m.scope_limits(m.caller_contract('earlier-three',None)),(3060,3300))
-        for name in ('retained','d5','composition'):self.assertEqual(m.scope_limits(m.caller_contract(name,None)),(1800,2100))
+        for name in ('retained','d5'):self.assertEqual(m.scope_limits(m.caller_contract(name,None)),(1800,2100))
+        # The hosted DOM composition route was retired (Templates#787); its naming contract no longer exists.
+        with self.assertRaisesRegex(ValueError,'unsupported managed caller'):m.caller_contract('composition',None)
         self.assertEqual(sum(m.BUDGET.values()),1800)
         self.assertEqual(m.earlier_deadline(100,'0.12.0-restore',101),581)
         with self.assertRaises(ValueError):m.earlier_deadline(100,'0.12.0-restore',2800)
