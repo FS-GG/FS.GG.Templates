@@ -484,6 +484,8 @@ class HostedUsernsStepControls(unittest.TestCase):
         self.assertIn('test "${RUNNER_ENVIRONMENT:-}" = github-hosted',body)
         self.assertLess(body.index('before.txt'),body.index('sysctl -w'));self.assertLess(body.index('sysctl -w'),body.index('after.txt'))
         self.assertIn('grep -qx "$key = 0"',body)
+        self.assertIn('set -euo pipefail',body);self.assertIn('mkdir -m 700',body)
+        self.assertNotIn('continue-on-error',self.receiver[step-400:unit])
         self.assertNotIn('if:',body.split('run:',1)[0])
 
     def test_unit_properties_and_literal_probe_stay_unchanged_and_userns_evidence_is_uploaded(self):
