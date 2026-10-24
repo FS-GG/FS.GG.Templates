@@ -6,6 +6,8 @@ produces the plan; native execution and installed acceptance remain separate.
 """
 import json
 import os
+import hashlib
+import shutil
 from pathlib import Path
 import re
 import sys
@@ -76,9 +78,39 @@ def validate_assets(plan, receiver):
 def validate_public_readback(plan, readback):
     expected={row['id']:row['sha256'] for row in plan['rendering']['packages']}
     rows=readback['records']
-    require(readback['custodySha256']==plan['rendering']['custodySha256'],'typed public custody differs')
+    if readback.get('basis')=='typed-plan-exact-public-archives':
+        require(readback['referencedProducerCustodySha256']==plan['rendering']['custodySha256'] and readback['actualCustodyReadback'] is False,'typed producer custody reference differs')
+    else:require(readback['custodySha256']==plan['rendering']['custodySha256'],'typed public custody differs')
     require(len(rows)==len(expected) and len({row['id'] for row in rows})==len(expected),'public archive population differs')
     require(all(row['state']=='matched' and row['rawSha256']==expected[row['id']] for row in rows),'typed public archive identity differs')
+    return True
+
+
+def staged_public_feed(plan, source, output):
+    source=Path(source);output=Path(output);output.mkdir(mode=0o700)
+    records=[]
+    for row in plan['rendering']['packages']:
+        name=row['id']+'.'+plan['rendering']['version']+'.nupkg';path=source/name
+        require(path.is_file() and not path.is_symlink() and path.stat().st_size<=32*1048576,'bounded public archive absent')
+        require(hashlib.sha256(path.read_bytes()).hexdigest()==row['sha256'],'typed public raw archive differs')
+        shutil.copyfile(path,output/name)
+        records.append({'id':row['id'],'state':'matched','rawSha256':row['sha256']})
+    receipt={'basis':'typed-plan-exact-public-archives','actualCustodyReadback':False,
+             'referencedProducerCustodySha256':plan['rendering']['custodySha256'],'records':records}
+    (output/'public-readback.json').write_text(json.dumps(receipt)+'\n')
+    return receipt
+
+
+def validate_listing(report,plan,family):
+    # Playwright --list JSON retains identities/project but has no run results.
+    require(family in plan['browsers']['families'],'unselected browser family')
+    def rows(suite,ancestry=()):
+        return [(row,ancestry) for row in suite.get('specs',[])]+[item for child in suite.get('suites',[]) for item in rows(child,ancestry+(child['title'],))]
+    actual=[item for suite in report['suites'] for item in rows(suite)]
+    identities=[(row['file'],ancestry,row['title']) for row,ancestry in actual]
+    expected=[(row['file'],tuple(row['suite']),row['title']) for row in plan['browsers']['cases']]
+    require(len(identities)==len(expected) and len(set(identities))==len(expected) and set(identities)==set(expected),'browser listing identities differ')
+    require(all(len(row['tests'])==1 and row['tests'][0]['projectName']==family and not row['tests'][0].get('results') for row,_ in actual),'browser listing project/results differ')
     return True
 
 
@@ -90,6 +122,7 @@ def main():
     elif action=='inputs':validate_inputs(plan,*sys.argv[3:6])
     elif action=='lock':validate_locked_graph(plan,sys.argv[3])
     elif action=='assets':validate_assets(plan,sys.argv[3])
+    elif action=='staged-feed':staged_public_feed(plan,sys.argv[3],sys.argv[4])
     elif action=='public-readback':validate_public_readback(plan,json.loads(Path(sys.argv[3]).read_text()))
     elif action=='report':validate_report(json.loads(Path(sys.argv[3]).read_text()),plan,sys.argv[4])
     else:raise ValueError('closed mechanical observation action required')

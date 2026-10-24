@@ -636,7 +636,7 @@ jobs:
               # One managed group per Playwright invocation (custody pilot / installed C): detached
               # browser and Vite groups are contained members and require-empty records leftovers.
               require(family in ("chromium","firefox","webkit"),"unselected browser family")
-              require(config in ("wasm-public.generated.config.ts","wasm-off.generated.config.ts"),"unselected Playwright config")
+              require(config in ("wasm-public.generated.config.ts","wasm-off.generated.config.ts","current-composition.generated.config.ts"),"unselected Playwright config")
               cli=browser_tests/"node_modules/@playwright/test/cli.js"
               argv=[str(node),str(cli),"test","--config",config]+(["--list","--reporter=json"] if list_only else ["--workers=1","--retries=0","--max-failures=1"])
               return execute(argv,browser_tests,{**env,"PLAYWRIGHT_BROWSER_FAMILY":family})
