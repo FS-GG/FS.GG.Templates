@@ -845,6 +845,37 @@ class EarlierClockControls(unittest.TestCase):
         summary=json.loads((root/'earlier-three-evidence/rehearsal.json').read_text());self.assertIn('original synthetic unshare denied',summary['firstCause']);self.assertEqual(summary['sandboxPrerequisite']['disposition'],'started')
 
 
+class HostedUsernsStepControls(unittest.TestCase):
+    """Earlier-three hosted AppArmor prerequisite step: scope, order and nothing else changed."""
+    def setUp(self):
+        workflow=(m.WORKSPACE/'.github/workflows/retained-reference-rehearsal.yml').read_text()
+        self.workflow=workflow
+        self.job=workflow.split('  earlier-three:\n',1)[1]
+        self.original=workflow.split('  earlier-three:\n',1)[0]
+
+    def test_single_hosted_guarded_sysctl_between_capacity_and_unit_in_earlier_three_only(self):
+        self.assertEqual(self.workflow.count('sysctl -w'),1)
+        self.assertNotIn('sysctl',self.original.split('jobs:',1)[1])
+        capacity=self.job.index('id: capacity');step=self.job.index('id: userns')
+        unit=self.job.index('- name: Run the fixed rehearsal in a fresh delegated unit')
+        self.assertLess(capacity,step);self.assertLess(step,unit)
+        body=self.job[step:unit]
+        for token in ('set -euo pipefail','test "${RUNNER_ENVIRONMENT:-}" = github-hosted','mkdir -m 700',
+                      'key=kernel.apparmor_restrict_unprivileged_userns','sudo -n sysctl -w "$key=0"','grep -qx "$key = 0"'):
+            self.assertIn(token,body)
+        self.assertLess(body.index('before.txt'),body.index('sysctl -w'));self.assertLess(body.index('sysctl -w'),body.index('after.txt'))
+        self.assertNotIn('continue-on-error',self.job[step-400:unit])
+        self.assertNotIn('if:',body.split('run:',1)[0])
+
+    def test_unit_properties_unchanged_and_userns_evidence_uploaded(self):
+        unit=self.job.split('- name: Run the fixed rehearsal in a fresh delegated unit',1)[1]
+        for token in ('-p NoNewPrivileges=yes','-p Delegate=yes','-p TasksMax=512','-p MemoryMax=8G','-p RuntimeMaxSec=3060','-p CPUQuota=200%'):
+            self.assertIn(token,unit)
+        self.assertEqual(unit.count('sysctl'),0)
+        self.assertIn('retained-earlier-three-${{ github.run_id }}-1-userns/',self.job.split('- name: Retain bounded original rehearsal evidence',1)[1])
+
+
+
 if __name__=='__main__':
     print('SYNTHETIC fixed-call graph, archive bodies, executables and receipts; real canonical profile validation only. No native member or runtime executes.')
     unittest.main(verbosity=2,buffer=True)

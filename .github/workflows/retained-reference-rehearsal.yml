@@ -243,6 +243,25 @@ jobs:
         run: |
           set -euo pipefail
           CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/retained-reference-rehearsal.py --earlier-three --outer-preflight
+      - name: Hosted prerequisite - lift the AppArmor unprivileged-userns restriction (ephemeral GitHub-hosted VM only)
+        id: userns
+        shell: bash
+        run: |
+          # Root decisions https://github.com/FS-GG/.github/issues/4849#issuecomment-6385676372 and
+          # https://github.com/FS-GG/.github/issues/4849#issuecomment-6387729342 (assigned for #4816). A/B evidence
+          # Templates run 40116649986: the literal unshare probe fails with the restriction on (AppArmor
+          # DENIED capable sys_admin under profile unprivileged_userns) and passes, also under
+          # NoNewPrivileges, with it off. This is the only host change; NNP, namespace flags and
+          # the backend are unchanged. Never applicable to Home or self-hosted machines.
+          set -euo pipefail
+          test "${RUNNER_ENVIRONMENT:-}" = github-hosted
+          out="$RUNNER_TEMP/retained-earlier-three-$RUN_ID-1-userns"
+          mkdir -m 700 "$out"
+          key=kernel.apparmor_restrict_unprivileged_userns
+          { date -u +%Y-%m-%dT%H:%M:%SZ; sysctl "$key"; } >"$out/before.txt"
+          sudo -n sysctl -w "$key=0" >"$out/set.txt" 2>&1
+          { date -u +%Y-%m-%dT%H:%M:%SZ; sysctl "$key"; } >"$out/after.txt"
+          grep -qx "$key = 0" "$out/after.txt"
       - name: Run the fixed rehearsal in a fresh delegated unit
         shell: bash
         run: |
@@ -288,6 +307,7 @@ jobs:
             ${{ runner.temp }}/retained-earlier-three-${{ github.run_id }}-1-clock.json
             ${{ runner.temp }}/retained-earlier-three-${{ github.run_id }}-1/earlier-three-evidence/
             ${{ runner.temp }}/retained-earlier-three-${{ github.run_id }}-1-outer/
+            ${{ runner.temp }}/retained-earlier-three-${{ github.run_id }}-1-userns/
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 30
