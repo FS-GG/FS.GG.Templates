@@ -241,6 +241,69 @@ let mount () : IDisposable =
     label.appendChild editor |> ignore
     root.appendChild label |> ignore
 
+    // A broader DOM island: ordinary labelled native controls (a select, a checkbox and a radio group) beside the retained
+    // scene. Their state is presentation-only; the encounter rules, saves and replay never read it. SvgInputHost already
+    // treats these controls as native-editable targets, so Enter or Space inside them never becomes gameplay input.
+    // The island is created once; retained scene updates and session replacement only rewrite its status text.
+    let options: HTMLElement = document.createElement "fieldset"
+    options.id <- "fourd-reference-options"
+    let optionsLegend = document.createElement "legend"
+    optionsLegend.textContent <- "Encounter options"
+    options.appendChild optionsLegend |> ignore
+
+    let difficultyLabel: HTMLLabelElement = document.createElement ("label") :?> HTMLLabelElement
+    difficultyLabel.htmlFor <- "fourd-reference-difficulty"
+    difficultyLabel.textContent <- "Difficulty"
+    let difficulty: HTMLSelectElement = document.createElement ("select") :?> HTMLSelectElement
+    difficulty.id <- "fourd-reference-difficulty"
+
+    for (value, text) in [ "calm", "Calm"; "standard", "Standard"; "severe", "Severe" ] do
+        let choice: HTMLOptionElement = document.createElement ("option") :?> HTMLOptionElement
+        choice.value <- value
+        choice.textContent <- text
+        difficulty.appendChild choice |> ignore
+
+    difficulty.value <- "standard"
+    options.appendChild difficultyLabel |> ignore
+    options.appendChild difficulty |> ignore
+
+    let hintsLabel = document.createElement "label"
+    let hints: HTMLInputElement = document.createElement ("input") :?> HTMLInputElement
+    hints.id <- "fourd-reference-hints"
+    hints.``type`` <- "checkbox"
+    hintsLabel.appendChild hints |> ignore
+    hintsLabel.appendChild (document.createTextNode "Show hints") |> ignore
+    options.appendChild hintsLabel |> ignore
+
+    let camera = document.createElement "fieldset"
+    let cameraLegend = document.createElement "legend"
+    cameraLegend.textContent <- "Camera"
+    camera.appendChild cameraLegend |> ignore
+
+    let cameraChoice (value: string) (text: string) (selected: bool) =
+        let wrapper = document.createElement "label"
+        let radio: HTMLInputElement = document.createElement ("input") :?> HTMLInputElement
+        radio.``type`` <- "radio"
+        radio.name <- "fourd-reference-camera"
+        radio.value <- value
+        radio.``checked`` <- selected
+        wrapper.appendChild radio |> ignore
+        wrapper.appendChild (document.createTextNode text) |> ignore
+        camera.appendChild wrapper |> ignore
+        radio
+
+    let overviewCamera = cameraChoice "overview" "Overview" true
+    let closeCamera = cameraChoice "close" "Close focus" false
+    options.appendChild camera |> ignore
+
+    let optionsStatus: HTMLElement = document.createElement "output"
+    optionsStatus.id <- "fourd-reference-options-status"
+    optionsStatus.setAttribute ("aria-live", "polite")
+    options.appendChild optionsStatus |> ignore
+    root.appendChild options |> ignore
+
+    let optionListeners = ResizeArray<HTMLElement * (Event -> unit)>()
+
     let canvas: HTMLElement = document.createElement "div"
     canvas.id <- "fourd-reference-canvas"
     root.appendChild canvas |> ignore
@@ -288,7 +351,18 @@ let mount () : IDisposable =
                     selected |> Option.iter selectionHandler)
         |> Result.defaultWith (fun error -> failwithf "FourD reference SVG failed: %A" error)
 
+    let describeOptions () =
+        let camera = if closeCamera.``checked`` then "close" else "overview"
+        let shown = if hints.``checked`` then "on" else "off"
+        root.setAttribute ("data-option-difficulty", difficulty.value)
+        root.setAttribute ("data-option-hints", shown)
+        root.setAttribute ("data-option-camera", camera)
+        // Rewritten on every describe, including each retained scene update and session replacement.
+        optionsStatus.textContent <-
+            $"Options: difficulty {difficulty.value}, hints {shown}, camera {camera}; revision {runtime.Current.Revision}."
+
     let describe () =
+        describeOptions ()
         let cell = runtime.Current.Agent
         root.setAttribute ("data-agent-full-cell", $"{cell.A}:{cell.B}:{cell.C}:{cell.D}")
         root.setAttribute ("data-command-order", String.concat "," commandOrder)
@@ -383,6 +457,11 @@ let mount () : IDisposable =
             // SvgBrowser produced this semantic target through its transform-aware hit test.
             root.setAttribute ("data-hit", target)
             admit (NormalizedBrowserObservation.SemanticTarget target)
+
+    for control in [ difficulty :> HTMLElement; hints :> HTMLElement; overviewCamera :> HTMLElement; closeCamera :> HTMLElement ] do
+        let handler = fun (_: Event) -> describeOptions ()
+        control.addEventListener ("change", handler)
+        optionListeners.Add(control, handler)
 
     let button text action =
         let value = document.createElement "button"
@@ -483,6 +562,11 @@ let mount () : IDisposable =
                 element.removeEventListener ("click", handler)
 
             buttonListeners.Clear()
+
+            for element, handler in optionListeners do
+                element.removeEventListener ("change", handler)
+
+            optionListeners.Clear()
             (input :> IDisposable).Dispose()
             (clock :> IDisposable).Dispose()
             (svg :> IDisposable).Dispose()
