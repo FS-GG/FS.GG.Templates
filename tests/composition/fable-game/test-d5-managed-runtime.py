@@ -11,6 +11,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 HERE = Path(__file__).resolve().parent
 spec = importlib.util.spec_from_file_location('d5_managed', HERE/'d5-managed-runtime.py')
@@ -140,7 +141,7 @@ class ManagedConsumerTests(unittest.TestCase):
             result=subprocess.run([sys.executable,str(HERE/'d5-managed-runtime.py'),*flags],env=env,capture_output=True,text=True,timeout=5)
             self.assertEqual(result.returncode,3)
         self.assertFalse(sent.exists())
-        self.assertEqual(D5.ADMISSION,'https://github.com/FS-GG/.github/issues/4849#issuecomment-6377028965');self.assertEqual(D5.OUTER_CALLER_CONTRACT,'d5')
+        self.assertEqual(D5.ADMISSION,'https://github.com/FS-GG/.github/issues/4849#issuecomment-6378268333');self.assertEqual(D5.OUTER_CALLER_CONTRACT,'d5')
 
     def test_exact_admission_join_refuses_branches_retries_and_mixed_heads(self):
         admission='https://github.com/FS-GG/.github/issues/4849#issuecomment-1';head='a'*40
@@ -280,7 +281,7 @@ class ManagedConsumerTests(unittest.TestCase):
             original_clock=lambda *a:{'startedMonotonic':D5.time.monotonic()},unit_properties=lambda *a:{'synthetic':True},
             acquisition_capacity=lambda *a:events.append('capacity'),collect=lambda *a:{'failures':[]},collection_terminal=lambda *a:None)
         env={'RUNNER_TEMP':str(self.root),'RUN_ID':'44','UNIT_NAME':'fsgg-mg-templates-d5-44-1','GITHUB_WORKSPACE':str(D5.HERE.parents[2]),'SCOPE':'rehearsal','PUBLIC_PINS':'{"synthetic":true}'}
-        with self.assertRaisesRegex(ValueError,'original synthetic namespace denied'):D5.run_d5(fake,{},env)
+        with patch.object(D5,'sandbox_parent_data',return_value={'synthetic':'parent only'}),self.assertRaisesRegex(ValueError,'original synthetic namespace denied'):D5.run_d5(fake,{},env)
         self.assertEqual(events[0],'capacity');self.assertEqual(len(events),2)
         self.assertEqual(events[1][1][0],'/usr/bin/unshare')
         self.assertIn('original synthetic namespace denied',json.loads((root/'attempt.json').read_text())['firstCause'])
@@ -289,6 +290,111 @@ class ManagedConsumerTests(unittest.TestCase):
         with self.assertRaises(ValueError):D5.load_reader(self.root)
         p=self.root/D5.READER['path'];p.parent.mkdir(parents=True);p.write_text('raise RuntimeError("must not import")')
         with self.assertRaisesRegex(ValueError,'dependency unavailable'):D5.load_reader(self.root)
+
+class SandboxParentControls(unittest.TestCase):
+    def setUp(self):
+        self.temp=tempfile.TemporaryDirectory(prefix='d5-parent-pure-');self.addCleanup(self.temp.cleanup)
+        self.root=Path(self.temp.name)
+
+    def test_read_only_fixture_bounds_and_file_links(self):
+        target=self.root/'fixture';target.write_bytes(b'closed fixture')
+        self.assertEqual(D5.sandbox_read(target),b'closed fixture')
+        with self.assertRaisesRegex(ValueError,'byte cap'):D5.sandbox_read(target,3)
+        link=self.root/'link';link.symlink_to(target)
+        with self.assertRaises(OSError):D5.sandbox_read(link)
+        with self.assertRaises(FileNotFoundError):D5.sandbox_read(self.root/'missing')
+        with self.assertRaisesRegex(ValueError,'read-only'):D5.sandbox_prctl(4) # rejects SET before loading libc
+
+    def test_unshare_image_complete_hash_metadata_and_changed_image_refusal(self):
+        import types,stat
+        body=b'synthetic ELF image'
+        info=types.SimpleNamespace(st_mode=stat.S_IFREG|0o755,st_uid=0,st_gid=0,st_size=len(body),st_dev=1,st_ino=2,st_mtime_ns=3)
+        with patch.object(D5.os,'stat',return_value=info),patch.object(D5,'sandbox_read',return_value=body) as read,\
+             patch.object(D5.os,'getxattr',return_value=b'fixture-capability'),patch.object(D5.os.path,'realpath',return_value='/usr/bin/unshare'):
+            value=D5.sandbox_image()
+        self.assertEqual(value['sha256'],hashlib.sha256(body).hexdigest())
+        self.assertEqual(value['fileCapabilities']['hex'],b'fixture-capability'.hex());self.assertIn('Unknown',value['version'])
+        read.assert_called_once_with('/usr/bin/unshare',8388608)
+        changed=types.SimpleNamespace(**{**vars(info),'st_ino':99})
+        with patch.object(D5.os,'stat',side_effect=[info,changed]),patch.object(D5,'sandbox_read',return_value=body),self.assertRaisesRegex(ValueError,'changed'):
+            D5.sandbox_image()
+        with patch.object(D5.os,'stat',return_value=info),patch.object(D5,'sandbox_read',return_value=b'short'),self.assertRaisesRegex(ValueError,'completely read'):
+            D5.sandbox_image()
+
+    def test_actual_collector_closed_paths_parent_scope_and_partial_unknowns(self):
+        seen=[]
+        def read(path,maximum=16384):
+            seen.append(str(path))
+            if path=='/proc/self/status':return b'Uid: 1001 1001 1001 1001\nCapEff: 0000\nNoNewPrivs: 1\nSeccomp: 2\nName: not retained\n'
+            if path=='/proc/self/mountinfo':return b'1 2 0:1 / /proc rw - proc proc rw\n3 2 0:2 / / rw - ext4 root rw\n'
+            if path=='/proc/self/attr/current':raise PermissionError('synthetic LSM label unreadable')
+            if path=='/proc/sys/kernel/unprivileged_userns_clone':raise FileNotFoundError('synthetic absent')
+            return b'fixture'
+        with patch.object(D5,'sandbox_read',side_effect=read),patch.object(D5,'sandbox_prctl',return_value=1),\
+             patch.object(D5,'sandbox_image',return_value={'sha256':'a'*64}),\
+             patch.object(D5.os,'getresuid',return_value=(1001,1001,1001)),patch.object(D5.os,'getresgid',return_value=(1001,1001,1001)),\
+             patch.object(D5.os,'getgroups',return_value=[1001]),patch.object(D5.os,'uname',return_value=('Linux','fixture','kernel','v','x86_64')),\
+             patch.object(D5.os,'readlink',return_value='fixture:[1]'),patch.object(D5.os,'stat',return_value=type('Stat',(),{'st_uid':1001,'st_gid':1001,'st_mode':0o400,'st_dev':1,'st_ino':2})()):
+            value=D5.optional_sandbox_parent(D5.time.monotonic()+10)
+        self.assertEqual(value['status'],'observed');data=value['data']
+        self.assertIn('not post-exec/post-CLONE',data['childState'])
+        self.assertEqual(data['files']['/proc/self/status']['value'],{'Uid':'1001 1001 1001 1001','CapEff':'0000','NoNewPrivs':'1','Seccomp':'2'})
+        self.assertEqual(data['files']['/proc/self/attr/current']['status'],'Unknown')
+        self.assertEqual(data['files']['/proc/sys/kernel/unprivileged_userns_clone']['status'],'Unknown')
+        self.assertEqual(len(data['procMounts']['value']),1)
+        self.assertNotIn('/proc/sys/kernel/randomize_va_space',seen)
+        self.assertEqual(data['unshareImage']['value']['sha256'],'a'*64)
+
+    def test_expired_optional_clock_does_not_read_or_renew(self):
+        with patch.object(D5,'sandbox_read',side_effect=AssertionError('expired read')),patch.object(D5,'sandbox_prctl',side_effect=AssertionError('expired syscall')),patch.object(D5,'sandbox_image',side_effect=AssertionError('expired image')):
+            value=D5.optional_sandbox_parent(0)['data']
+        self.assertEqual(value['dumpable']['status'],'Unknown')
+        self.assertIn('deadline expired',value['dumpable']['reason'])
+
+    def test_actual_entry_optional_failure_overflow_and_missing_metadata_preserve_original_streams_terminal_upload(self):
+        import types
+        reader=D5.load_reader(D5.HERE.parents[2]);contract=reader.caller_contract('d5',None)
+        workflow=(D5.HERE.parents[2]/'.github/workflows/svg-release-d5-current-public.yml').read_text()
+        upload=workflow.split('- name: Retain bounded original D5 evidence',1)[1]
+        self.assertIn("always() && steps.clock.outcome != 'skipped'",upload)
+        self.assertNotIn('steps.receipt.outcome',upload)
+        cases=[('exception',OSError('optional synthetic read failed')),('overflow',json.loads('{"value":1e999}')),
+               ('nan',{'value':float('nan')}),('oversize',{'value':'x'*131073}),
+               ('missing',{'files':{'label':{'status':'Unknown','reason':'missing'}}}),('normal',{'synthetic':'parent only'})]
+        for ordinal,(name,observation) in enumerate(cases):
+            with self.subTest(name=name):
+                root=self.root/('current-d5-'+str(90+ordinal)+'-1');events=[]
+                def fresh(path,environ):
+                    path.mkdir();(path/'input-downloads.json').write_text('[]');(path/'executable-identities.json').write_text('{}')
+                    return {'HOME':str(path/'home')}
+                def run(argv,cwd,env):
+                    events.append(('probe',argv,env));group=root/'managed'/'probe';group.mkdir(parents=True)
+                    (group/'stderr.log').write_text('unshare: write failed /proc/self/uid_map: Operation not permitted\n')
+                    (group/'stdout.log').write_text('');(group/'receipt.json').write_text('{"outcome":"failed"}')
+                    raise ValueError('original synthetic uid_map denied')
+                caller={'fresh_environment':fresh,'load_owner':lambda *a:types.SimpleNamespace(OWNER_SHA256=D5.OWNER['sha256']),
+                    'probe_containment':lambda *a:None,'managed_executor':lambda *a:run,'host_image':lambda path:(path,'synthetic'),
+                    'bind_identity':lambda *a,**kw:None,'provision_sdk':lambda *a:events.append('UNEXPECTED SDK')}
+                fake=types.SimpleNamespace(validate_admission=lambda *a:{'synthetic':True},operational_start=lambda *a:{'boot':'synthetic'},
+                    normalized_roots=lambda *a:None,no_global_before_create=lambda *a:None,
+                    load_file=lambda name,path:types.SimpleNamespace(actual_caller=lambda:caller) if name=='d5_actual_loader' else types.SimpleNamespace(PINS={'synthetic':True}),
+                    original_clock=lambda *a:{'startedMonotonic':D5.time.monotonic()},unit_properties=lambda *a:{'synthetic':True},
+                    acquisition_capacity=lambda *a:events.append('capacity'),collect=reader.collect,collection_terminal=reader.collection_terminal)
+                env={'RUNNER_TEMP':str(self.root),'RUN_ID':str(90+ordinal),'UNIT_NAME':'synthetic','GITHUB_WORKSPACE':str(D5.HERE.parents[2]),'SCOPE':'rehearsal','PUBLIC_PINS':'{"synthetic":true}'}
+                options={'side_effect':observation} if isinstance(observation,Exception) else {'return_value':observation}
+                with patch.object(D5,'sandbox_parent_data',**options),self.assertRaisesRegex(ValueError,'original synthetic uid_map denied'):
+                    D5.run_d5(fake,contract,env)
+                value=json.loads((root/'d5-evidence'/'attempt.json').read_text())
+                self.assertIn('original synthetic uid_map denied',value['firstCause'])
+                self.assertEqual(value['sandboxParentObservation']['status'],'Unknown' if ordinal<4 else 'observed')
+                self.assertEqual((root/'managed/probe/stderr.log').read_bytes(),(root/'d5-evidence/managed/probe/stderr.log').read_bytes())
+                terminal=json.loads((root/'d5-evidence/collection-terminal.json').read_text())
+                self.assertIn('original synthetic uid_map denied',terminal['firstCause']);self.assertEqual(terminal['additionalFailures'],[])
+                manifest=json.loads((root/'d5-evidence/manifest.json').read_text());self.assertEqual(manifest['failures'],[])
+                self.assertEqual(events[0],'capacity');self.assertEqual(len(events),2)
+                self.assertEqual(events[1][1],['/usr/bin/unshare','--user','--map-root-user','--net','--','/usr/bin/true'])
+                self.assertEqual(events[1][2],{'LANG':'C.UTF-8','TZ':'UTC'})
+
 
 class RootClockControls(unittest.TestCase):
     def setUp(self):
@@ -337,7 +443,7 @@ class RootClockControls(unittest.TestCase):
 
     def test_wrong_missing_intervals_and_expired_selection_refuse(self):
         for updates in [{'LATEST_START_UTC':'2026-10-24T00:05:00Z'},{'SELECTED_UTC':''},
-            {'SELECTED_UTC':'2026-10-24T01:16:00Z','LATEST_START_UTC':'2026-10-24T01:21:00Z','OBSERVER_DEADLINE_UTC':'2026-10-24T01:56:00Z'}]:
+            {'SELECTED_UTC':'2026-10-24T03:31:00Z','LATEST_START_UTC':'2026-10-24T03:36:00Z','OBSERVER_DEADLINE_UTC':'2026-10-24T04:11:00Z'}]:
             with self.subTest(updates=updates):
                 with self.assertRaises(ValueError):self.reader.d5_root_times({**self.env,**updates})
 

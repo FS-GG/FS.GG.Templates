@@ -13,8 +13,8 @@ import time
 HERE=Path(__file__).resolve().parent
 ADMISSION=None
 BUDGET={'setup':720,'build':660,'browser':180,'collection':120,'cleanup':30,'overhead':90}
-READER_SHA='b768cb4645acdccc2ef863077ab780acb3e195b429847a6b26c0bdce8d11058e'
-D5_SHA='92c958097a42830dab0f605d1afe16c7e6d30e2eed55c0ad284fd1466cfe996e'
+READER_SHA='39f1e667d967e9a9cdc974d1f6ff30bfb76c299f1c5b483cdb115307ecc8e528'
+D5_SHA='aa1d4fde35d82161299046ad24cb391c6f1b0398b029e707b7c7e732c2c7587a'
 WORKFLOW='FS-GG/FS.GG.Templates/.github/workflows/current-reference-composition.yml@refs/heads/main'
 
 
