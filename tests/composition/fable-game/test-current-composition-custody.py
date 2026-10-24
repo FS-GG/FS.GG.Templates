@@ -24,18 +24,27 @@ spec=importlib.util.spec_from_file_location('custody',HERE/'current-composition-
 C=importlib.util.module_from_spec(spec);spec.loader.exec_module(C)
 sha=lambda b:hashlib.sha256(b).hexdigest()
 STUB=('MODE=%r\nimport sys\nfrom pathlib import Path\n'
+      'Path(__file__).with_name("calls.log").open("a").write(" ".join(sys.argv[1:]) + "\\n")\n'
       'print("payload entries exact \u00b7 feed signature=" + ("absent" if MODE=="absent" else "present (excluded)"))\n'
       'sys.exit(1 if MODE=="refuse" else 0)\n')
 
 
 class Controls(unittest.TestCase):
-    def build(self,*,binder='ok',attempts=1,extra_member=None,version='1.0.0',manifest_commit=None,zip_custody=None,rename=None,symlink=False):
+    def build(self,*,binder='ok',attempts=1,extra_member=None,version='1.0.0',manifest_commit=None,zip_custody=None,rename=None,symlink=False,published_bad=None,published_signatures=1):
         tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup);root=Path(tmp.name)
         names=['Fixture.UI.1.0.0.nupkg','Fixture.Input.1.0.0.nupkg']+['Other%d.1.0.0.nupkg'%i for i in range(17)]
         unsigned={n:('unsigned '+n).encode() for n in names}
         feed=root/'feed';feed.mkdir()
-        signed={n:unsigned[n]+b' +signature' for n in names[:2]}
-        for n,d in signed.items():(feed/n).write_bytes(d)
+        def signed_zip(n,signatures=1):
+            buffer=io.BytesIO()
+            with zipfile.ZipFile(buffer,'w') as z:
+                z.writestr('payload',unsigned[n])
+                for i in range(signatures):z.writestr('.signature.p7s' if i==0 else 'extra/.signature.p7s','sig')
+            return buffer.getvalue()
+        signed={n:signed_zip(n) for n in names}
+        for n in names[:2]:(feed/n).write_bytes(signed[n])
+        published=root/'published';published.mkdir()
+        for n in names:(published/n).write_bytes(signed[n] if n!=published_bad else signed_zip(n,signatures=published_signatures))
         repo=root/'rendering';(repo/'scripts').mkdir(parents=True);(repo/'eng/release').mkdir(parents=True)
         plan_bytes=b'{"plan":true}';(repo/'eng/release/plan.json').write_bytes(plan_bytes)
         (repo/'scripts/release-custody.py').write_text(STUB%binder)
@@ -43,7 +52,7 @@ class Controls(unittest.TestCase):
         git('init','-q');git('add','-A');git('-c','user.name=t','-c','user.email=t@t','commit','-q','-m','x')
         commit=subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True).strip()
         manifest={'schema':C.SCHEMA,'version':version,'source':{'commit':manifest_commit or commit},'releasePlanSha256':sha(plan_bytes),
-                  'archives':[{'file':n,'sha256':sha(unsigned[n])} for n in names]}
+                  'archives':[{'file':n,'id':n[:-len('.1.0.0.nupkg')],'version':'1.0.0','sha256':sha(unsigned[n])} for n in names]}
         custody=json.dumps(manifest).encode()
         evidence=root/'evidence';evidence.mkdir()
         with zipfile.ZipFile(evidence/'rendering-packet.zip','w') as z:
@@ -60,9 +69,9 @@ class Controls(unittest.TestCase):
         (evidence/'receipt.json').write_text(json.dumps(receipt))
         plan={'rendering':{'version':'1.0.0','sourceCommit':commit,'custodySha256':sha(custody),
                            'packages':[{'id':'Fixture.UI','sha256':sha(signed[names[0]])},{'id':'Fixture.Input','sha256':sha(signed[names[1]])}]}}
-        return dict(evidence=evidence,plan=plan,feed=feed,repository=repo,work=root/'work'),root
+        return dict(evidence=evidence,plan=plan,feed=feed,repository=repo,work=root/'work',published_all=published),root
 
-    def verify(self,args):return C.verify_producer_custody(args['evidence'],args['plan'],args['feed'],args['repository'],args['work'])
+    def verify(self,args):return C.verify_producer_custody(args['evidence'],args['plan'],args['feed'],args['repository'],args['work'],args.get('published_all'))
 
     def test_matching_evidence_returns_the_facts_that_justify_the_flag(self):
         args,_=self.build();facts=self.verify(args)
@@ -125,6 +134,54 @@ class Controls(unittest.TestCase):
         def spy(argv,**kw):seen.append(kw.get('env'));return real(argv,**kw)
         with mock.patch.dict(os.environ,{'GH_TOKEN':'secret','NUGET_API_KEY':'secret'}),mock.patch.object(C.subprocess,'run',spy):self.verify(args)
         self.assertTrue(seen and all(env is not None and 'GH_TOKEN' not in env and 'NUGET_API_KEY' not in env for env in seen))
+
+    def test_all_custody_archives_are_compared_with_the_public_feed_bytes(self):
+        args,_=self.build();facts=self.verify(args)
+        table=facts['publishedPayload'];self.assertEqual(len(table),19)
+        # The stub cannot tell files apart, so check that the binder was really asked about each pair: 19 archives plus the 2 typed ones.
+        log=(Path(args['work'])/'producer-source/scripts/calls.log').read_text().splitlines()
+        compares=[line.split() for line in log if line.startswith('compare')]
+        pairs=[(Path(c[c.index('--local')+1]),Path(c[c.index('--remote')+1])) for c in compares]
+        self.assertEqual(len(pairs),21)
+        published=[(l,r) for l,r in pairs if r.parent==args['published_all']]
+        self.assertEqual(sorted(l.name for l,_ in published),sorted(r.name for _,r in published))
+        self.assertEqual(len({r.name for _,r in published}),19);self.assertTrue(all(l.parent.name=='packet' for l,_ in published));self.assertEqual([r['id'] for r in table],sorted(r['id'] for r in table))
+        for row in table:
+            self.assertEqual(row['compare'],'payload-exact');self.assertEqual(row['signatureOverheadBytes'],row['publishedBytes']-row['custodyBytes'])
+        args,_=self.build();args['published_all']=None;self.assertIsNone(self.verify(args)['publishedPayload'])
+        urls=C.published_urls(args['evidence']);self.assertEqual(len(urls),19)
+        self.assertTrue(all(u.startswith('https://api.nuget.org/v3-flatcontainer/') and u.endswith(f.lower()) for f,u in urls))
+
+    def test_a_published_archive_compare_without_exact_payload_or_signature_is_refused_on_the_all_archive_path(self):
+        for replaced in ('payload entries exact','feed signature=present (excluded)'):
+            with self.subTest(missing=replaced):
+                args,_=self.build();real=C.binder;published=str(args['published_all'])
+                def altered(script,*a,replaced=replaced):
+                    out=real(script,*a)
+                    # Exit 0 with a different message, only for a pair whose remote is NOT one of the two typed copies in the typed feed dir.
+                    return out.replace(replaced,'-') if a[0]=='compare' and a[a.index('--remote')+1].startswith(published) and a[a.index('--remote')+1].endswith('Other3.1.0.0.nupkg') else out
+                with mock.patch.object(C,'binder',altered),self.assertRaisesRegex(ValueError,'plus the feed signature'):self.verify(args)
+
+    def test_published_population_and_signature_refusals(self):
+        args,_=self.build();(args['published_all']/'Other3.1.0.0.nupkg').unlink()
+        with self.assertRaisesRegex(ValueError,'population differs'):self.verify(args)
+        args,_=self.build();(args['published_all']/'stray.nupkg').write_bytes(b'x')
+        with self.assertRaisesRegex(ValueError,'population differs'):self.verify(args)
+        for signatures in (0,2):
+            with self.subTest(signatures=signatures):
+                args,_=self.build(published_bad='Other3.1.0.0.nupkg',published_signatures=signatures)
+                with self.assertRaises(ValueError):self.verify(args)
+        args,_=self.build();(args['published_all']/'Fixture.UI.1.0.0.nupkg').write_bytes((args['published_all']/'Other3.1.0.0.nupkg').read_bytes())
+        with self.assertRaisesRegex(ValueError,'typed SHA-256'):self.verify(args)
+        # A published archive byte-identical to the unsigned custody archive hides the signature the join is about.
+        args,_=self.build();manifest=json.loads((args['evidence']/'release-custody.json').read_text())
+        (args['published_all']/'Other3.1.0.0.nupkg').write_bytes(b'unsigned Other3.1.0.0.nupkg')
+        with self.assertRaisesRegex(ValueError,'byte-identical'):self.verify(args)
+
+    def test_custody_archive_names_that_could_escape_the_download_directory_are_refused(self):
+        args,_=self.build();path=args['evidence']/'release-custody.json'
+        manifest=json.loads(path.read_text());manifest['archives'][0]['file']='../escape.nupkg';path.write_bytes(json.dumps(manifest).encode())
+        with self.assertRaisesRegex(ValueError,'name refused'):C.published_urls(args['evidence'])
 
     def test_module_makes_no_network_call_and_runner_sets_the_flag_only_from_it(self):
         text=(HERE/'current-composition-custody.py').read_text()

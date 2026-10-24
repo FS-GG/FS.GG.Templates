@@ -226,7 +226,7 @@ class Controls(unittest.TestCase):
         root=self.fresh_root();self.run_main(root,env={'GITHUB_ACTIONS':''})
         self.assertIs(json.loads((root/'local-summary.json').read_text())['actualProducerCustodyReadback'],False)
         seen=[]
-        def join(evidence,plan,feed,repository,work):seen.append((evidence,str(repository)));return {'custodySha256':'x'}
+        def join(evidence,plan,feed,repository,work,published_all=None):seen.append((evidence,str(repository)));return {'custodySha256':'x'}
         root=self.fresh_root()
         with mock.patch.object(L.custody,'verify_producer_custody',join):
             self.run_main(root,extra=['--custody-evidence','/retained','--rendering-source','/rendering'])
@@ -239,6 +239,27 @@ class Controls(unittest.TestCase):
         self.assertFalse([c for c in self.calls if c[0][0]=='bash'],'no stage after a refused custody join')
         refused=json.loads((root/'local-summary.json').read_text())
         self.assertEqual((refused['disposition'],refused['actualProducerCustodyReadback']),('failed',False))
+
+    def test_published_all_needs_custody_evidence_and_reads_only_the_public_flat_container(self):
+        with self.assertRaisesRegex(ValueError,'needs --custody-evidence'):L.main(['--root',str(self.fresh_root()),'--published-all'])
+        with self.assertRaisesRegex(ValueError,'only the public NuGet flat container'),tempfile.TemporaryDirectory() as tmp:
+            L.fetch_unpinned('https://example.invalid/x.nupkg',1024,Path(tmp)/'x')
+        class Response:
+            def __init__(self,data):self.data=data
+            def __enter__(self):return self
+            def __exit__(self,*a):return False
+            def read(self,limit):return self.data[:limit]
+        with tempfile.TemporaryDirectory() as tmp,mock.patch.object(L.urllib.request,'urlopen',lambda url,timeout:Response(b'x'*10)):
+            target=Path(tmp)/'ok';L.fetch_unpinned('https://api.nuget.org/v3-flatcontainer/a',10,target);self.assertEqual(target.read_bytes(),b'x'*10)
+            with self.assertRaisesRegex(ValueError,'bound'):L.fetch_unpinned('https://api.nuget.org/v3-flatcontainer/a',9,Path(tmp)/'big')
+            self.assertFalse((Path(tmp)/'big').exists())
+        seen=[]
+        def join(evidence,plan,feed,repository,work,published_all=None):seen.append(sorted(p.name for p in Path(published_all).iterdir()));return {}
+        def fake(url,maximum,destination):destination.write_bytes(b'x')
+        root=self.fresh_root()
+        with mock.patch.object(L.custody,'verify_producer_custody',join),mock.patch.object(L.custody,'published_urls',lambda e:[('a.nupkg','https://api.nuget.org/v3-flatcontainer/a')]),mock.patch.object(L,'fetch_unpinned',fake):
+            self.run_main(root,extra=['--custody-evidence','/retained','--rendering-source','/rendering','--published-all'])
+        self.assertEqual(seen,[['a.nupkg']])
 
     def test_dirty_checkout_and_hosted_runner_refuse_before_any_process(self):
         root=self.fresh_root()
