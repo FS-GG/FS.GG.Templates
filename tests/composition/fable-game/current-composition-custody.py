@@ -13,13 +13,21 @@ No network call is made. The acquisition itself is a separate, once-only, creden
 retained result (receipt.json, rendering-packet.zip, release-custody.json) is the input here.
 """
 import hashlib
+import io
 import json
+import os
+import re
 import subprocess
 import zipfile
 from pathlib import Path
 
 SCHEMA = 'fsgg.rendering.release-custody/v1'
 PLAN_DIRECTORY = 'eng/release'
+
+
+def child_env():
+    """Local git/tar/python children need no credential, global git configuration or home directory."""
+    return {'PATH': os.environ.get('PATH', ''), 'LANG': 'C.UTF-8', 'GIT_CONFIG_NOSYSTEM': '1', 'GIT_CONFIG_GLOBAL': os.devnull}
 
 
 def require(ok, message):
@@ -38,11 +46,11 @@ def read_receipt(evidence):
     return receipt
 
 
-def extract_packet(archive_path, destination, custody_bytes):
+def extract_packet(archive_bytes, destination, custody_bytes):
     """Extract the closed 19-archive-plus-manifest population into a flat directory."""
     destination = Path(destination)
     destination.mkdir(parents=True)
-    with zipfile.ZipFile(archive_path) as archive:
+    with zipfile.ZipFile(io.BytesIO(archive_bytes)) as archive:
         require(archive.testzip() is None, 'producer artifact archive integrity failed')
         infos = archive.infolist()
         names = [info.filename for info in infos]
@@ -62,22 +70,27 @@ def extract_packet(archive_path, destination, custody_bytes):
 
 
 def release_plan(repository, commit, plan_digest, work):
-    """Materialize the producer's scripts and the release plan whose digest the manifest binds."""
-    run = lambda *args: subprocess.run(['git', '-C', str(repository), *args], capture_output=True, check=True)
-    require(run('cat-file', '-t', commit).stdout.strip() == b'commit', 'producer source commit is not present')
+    """Read the producer's script and the release plan whose digest the manifest binds, as exact blobs at the commit."""
+    require(re.fullmatch(r'[0-9a-f]{40}', commit) is not None, 'producer source commit is not a full SHA')
+    git = lambda *args: subprocess.run(['git', '-C', str(repository), *args], capture_output=True, check=True, env=child_env()).stdout
+    require(git('cat-file', '-t', commit).strip() == b'commit', 'producer source commit is not present')
     work = Path(work)
-    work.mkdir(parents=True)
-    archive = subprocess.run(['git', '-C', str(repository), 'archive', commit, 'scripts', PLAN_DIRECTORY], capture_output=True, check=True)
-    subprocess.run(['tar', '-x', '-C', str(work)], input=archive.stdout, check=True)
-    plans = [path for path in sorted((work / PLAN_DIRECTORY).glob('*.json')) if sha256(path.read_bytes()) == plan_digest]
+    (work / 'scripts').mkdir(parents=True)
+    (work / PLAN_DIRECTORY).mkdir(parents=True)
+    (work / 'scripts/release-custody.py').write_bytes(git('show', commit + ':scripts/release-custody.py'))
+    plans = []
+    for name in git('ls-tree', '--name-only', commit, PLAN_DIRECTORY + '/').decode().split():
+        if name.endswith('.json'):
+            blob = git('show', commit + ':' + name)
+            if sha256(blob) == plan_digest:
+                plans.append(work / name)
+                plans[-1].write_bytes(blob)
     require(len(plans) == 1, 'the release plan bound by the manifest is not uniquely present at the producer commit')
-    script = work / 'scripts/release-custody.py'
-    require(script.is_file(), 'producer custody script absent at the producer commit')
-    return script, plans[0]
+    return work / 'scripts/release-custody.py', plans[0]
 
 
 def binder(script, *args):
-    result = subprocess.run(['python3', '-I', '-B', str(script), *args], capture_output=True, text=True, timeout=300)
+    result = subprocess.run(['python3', '-I', '-B', str(script), *args], capture_output=True, text=True, timeout=300, env=child_env())
     require(result.returncode == 0, 'producer custody binder refused: ' + (result.stderr or result.stdout)[-1000:])
     return result.stdout.strip()
 
@@ -96,7 +109,7 @@ def verify_producer_custody(evidence, plan, feed, repository, work):
     manifest = json.loads(custody)
     require(manifest.get('schema') == SCHEMA and manifest['version'] == typed['version']
             and manifest['source']['commit'] == typed['sourceCommit'], 'custody names a different version or source')
-    packet = extract_packet(archive_path, work / 'packet', custody)
+    packet = extract_packet(archive_bytes, work / 'packet', custody)
     script, release = release_plan(repository, typed['sourceCommit'], manifest['releasePlanSha256'], work / 'producer-source')
     verified = binder(script, 'verify', '--plan', str(release), '--archives', str(packet), '--manifest', str(packet / 'release-custody.json'),
                       '--source-sha', typed['sourceCommit'])
@@ -107,11 +120,14 @@ def verify_producer_custody(evidence, plan, feed, repository, work):
         require(published.is_file() and sha256(published.read_bytes()) == package['sha256'], 'published archive differs from the typed SHA-256: ' + package['id'])
         row = [r for r in manifest['archives'] if r['file'] == name]
         require(len(row) == 1 and row[0]['sha256'] != package['sha256'], 'custody row absent or unexpectedly byte-identical to the signed archive: ' + package['id'])
-        compared.append(binder(script, 'compare', '--local', str(packet / name), '--remote', str(published)))
+        outcome = binder(script, 'compare', '--local', str(packet / name), '--remote', str(published))
+        require('payload entries exact' in outcome and 'feed signature=present (excluded)' in outcome,
+                'published archive is not the custody archive plus the feed signature: ' + package['id'])
+        compared.append(outcome)
     return {
         'acquisitionAttempts': receipt['attempts'], 'artifactBytes': receipt['bytes'], 'artifactSha256': receipt['zipSha256'],
         'custodyBytes': len(custody), 'custodySha256': sha256(custody), 'version': manifest['version'],
         'sourceCommit': manifest['source']['commit'], 'releasePlanSha256': manifest['releasePlanSha256'],
         'archivesVerified': len(manifest['archives']), 'binder': verified, 'payloadJoin': compared,
-        'equality': 'payload-entry level; the typed signed archives and the custody pre-signing archives differ only by the feed signature',
+        'equality': 'payload-entry level: every entry of the custody archive is identical in the published archive, which adds only the feed signature entry',
     }
