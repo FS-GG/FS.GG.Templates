@@ -190,6 +190,15 @@ class CurrentAtTests(unittest.TestCase):
                 O.current_public_inputs(out, packet, preflight, controller)
 
     def test_assembled_current_receipt_preserves_original_common_binder(self):
+        self.assembled_current_receipt()
+
+    def test_original_journey_boolean_projection_mutants_refuse(self):
+        self.assembled_current_receipt(True)
+
+    def test_original_journey_float_projection_mutants_refuse(self):
+        self.assembled_current_receipt(1.0)
+
+    def assembled_current_receipt(self, numeric_mutant=None):
         packet, preflight, controller = inputs()
         with tempfile.TemporaryDirectory() as temp:
             directory = Path(temp)
@@ -221,6 +230,23 @@ class CurrentAtTests(unittest.TestCase):
                        "nativeImeAcceptance": False, "whole4817Acceptance": False,
                        "evidenceSha256": {name: O.digest(directory / name) for name in names}}
             self.assertTrue(O.validate(receipt, packet, preflight, directory))
+            if numeric_mutant is not None:
+                originals = {path.name: path.read_bytes() for path in directory.iterdir() if path.is_file()}
+                for field in ["rootCount", "eventSequence", "transportOutcome"]:
+                    altered = copy.deepcopy(receipt)
+                    if field == "rootCount":
+                        self.assertIs(type(receipt["observations"]["initial"][field]), int)
+                        altered["observations"]["initial"][field] = numeric_mutant
+                    elif field == "eventSequence":
+                        self.assertIs(type(receipt["actions"][0][field]), int)
+                        altered["actions"][0][field] = numeric_mutant
+                    else:
+                        altered["browser"][field] = {"reported": 0 if type(numeric_mutant) is bool else 0.0,
+                                                      "stage": "not-observed"}
+                    with self.subTest(field=field), self.assertRaisesRegex(RuntimeError, "original journey projection|derived transport projection"):
+                        O.validate(altered, packet, preflight, directory)
+                self.assertEqual(originals, {path.name: path.read_bytes() for path in directory.iterdir() if path.is_file()})
+                return
             derived = copy.deepcopy(receipt)
             derived["browser"]["transportOutcome"] = {"reported": False, "stage": "not-observed"}
             self.assertTrue(O.validate(derived, packet, preflight, directory))

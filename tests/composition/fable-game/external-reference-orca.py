@@ -1382,15 +1382,26 @@ def validate(receipt, packet, preflight, directory):
         # completion/inner-result chain. Receipt projections must be those bytes'
         # values, not a second independently plausible sequence of observations.
         journey = completion_record(directory / "journey.json")
+        def canonical_projection(value):
+            # Python equality merges bool/int/float values; JSON preserves their
+            # distinct spellings and refuses nonfinite values rather than coercing.
+            return json.dumps(value, sort_keys=True, allow_nan=False, separators=(",", ":"))
         for key in ("actions", "observations", "journey", "firstCause", "process"):
-            require(key in journey and receipt.get(key) == journey[key],
+            require(key in journey and canonical_projection(receipt.get(key)) == canonical_projection(journey[key]),
                     "current original journey projection differs: " + key)
         browser = dict(receipt["browser"])
         browser.pop("transportOutcome", None)
-        require("transportOutcome" not in journey["browser"] and browser == journey["browser"],
+        require("transportOutcome" not in journey["browser"] and
+                canonical_projection(browser) == canonical_projection(journey["browser"]),
                 "current original journey projection differs: browser")
         # Only transportOutcome is derived after the original journey completes;
-        # route_evidence already binds its exact value to original browser records.
+        # Keep that derived comparison type-strict as well, without changing the
+        # legacy browser binder's behavior.
+        companion = next(value for value in json.loads((directory / "resource-leaders.json").read_text())
+                         if value["resource"] == "browser-companion")
+        outcome = browser_transport_outcome(directory, completion_record(directory / "browser-launch.json"), companion)
+        require(canonical_projection(receipt["browser"].get("transportOutcome", {"reported": False, "stage": "not-observed"})) ==
+                canonical_projection(outcome), "current derived transport projection differs")
     sequences = [e["eventSequence"] for e in receipt["actions"]]
     require(sequences == sorted(set(sequences)), "keyboard event replay or ordering drift")
     speech_path = directory / "orca-debug.log"
