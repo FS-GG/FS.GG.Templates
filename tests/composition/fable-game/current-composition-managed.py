@@ -14,7 +14,7 @@ HERE=Path(__file__).resolve().parent
 ADMISSION=None
 BUDGET={'setup':720,'build':660,'browser':180,'collection':120,'cleanup':30,'overhead':90}
 READER_SHA='b768cb4645acdccc2ef863077ab780acb3e195b429847a6b26c0bdce8d11058e'
-D5_SHA='92c958097a42830dab0f605d1afe16c7e6d30e2eed55c0ad284fd1466cfe996e'
+D5_SHA='1dbec561eef22155562c33d02647fcdfd428726b5943a9e61529b2182f65e581'
 WORKFLOW='FS-GG/FS.GG.Templates/.github/workflows/current-reference-composition.yml@refs/heads/main'
 
 
