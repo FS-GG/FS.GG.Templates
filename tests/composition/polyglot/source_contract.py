@@ -38,6 +38,7 @@ def validate_source(root):
             require(config["symbols"][key]["isRequired"] is True, "required identity missing: " + provider + ":" + key)
         require(not (directory / ".fsgg").exists(), "provider writes reserved SDD tree")
         require(not any(path.is_symlink() for path in directory.rglob("*")), "linked product source")
+        require(all(path.is_dir() or path.is_file() for path in directory.rglob("*")), "non-regular product source")
         require("artifacts" in " ".join(config["sources"][0]["exclude"]), "artifact exclusion missing")
         if provider in ("typescript", "javascript"):
             package = json.loads((directory / "package.json").read_text())

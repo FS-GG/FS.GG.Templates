@@ -3,6 +3,7 @@ import sys
 sys.dont_write_bytecode = True
 import importlib.util
 import json
+import os
 from pathlib import Path
 import shutil
 import tempfile
@@ -109,6 +110,11 @@ class SourceContract(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate"):
             contract.validate_archive(self.root, archive)
 
+    def test_nonregular_source_refusal(self):
+        path = self.root / "templates/fs-gg-go-cli/source-fifo"
+        os.mkfifo(path, 0o600)
+        with self.assertRaisesRegex(ValueError, "non-regular"):
+            contract.validate_source(self.root)
     def test_missing_cargo_lock_refusal(self):
         (self.root / "templates/fs-gg-rust-cli/Cargo.lock").unlink()
         with self.assertRaisesRegex(ValueError, "Cargo lock"):
