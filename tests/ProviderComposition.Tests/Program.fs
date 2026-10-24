@@ -442,8 +442,9 @@ let main _ =
         Directory.CreateDirectory(Path.GetDirectoryName path) |> ignore
         File.WriteAllText(path, text)
         path
-    let canonical = writeBackend "work/d5-default/specification.md" "owned canonical specification"
-    writeBackend "models/svg-arena/arena-rules.md" "owned model" |> ignore
+    // SDD 2.4.0 typed-sdd author keeps the owned canonical specification at the model path and
+    // writes readiness/<work>/ only; there is no work/<work>/ tree (current public run 40121103111).
+    let canonical = writeBackend "models/svg-arena/arena-rules.md" "owned canonical specification"
     writeBackend ".fsgg/scaffold-provenance.json" "owned config" |> ignore
     writeBackend "AGENTS.md" "owned instructions" |> ignore
     let model = writeBackend "readiness/d5-default/quint/model.qnt" "compiled model"
