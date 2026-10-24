@@ -26,6 +26,7 @@ on:
       - 'tests/composition/fable-game/verify-external-reference-workflow.py'
       - 'tests/composition/fable-game/observe-external-reference-orca.sh'
       - 'tests/composition/fable-game/external-reference-orca.py'
+      - 'tests/composition/fable-game/test-current-reference-at.py'
       - 'tests/composition/fable-game/external-reference-public.py'
       - 'tests/composition/fable-game/test-external-reference-public.py'
       - 'tests/composition/fable-game/current-composition-observations.py'
@@ -56,6 +57,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 150s prlimit --as=1073741824 --cpu=120 python3 -B tests/composition/fable-game/test-current-composition-observations.py
           python3 tests/composition/fable-game/test-external-reference-public.py
           python3 tests/composition/fable-game/external-reference-orca.py --self-test
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --cpu=120 --fsize=16777216 python3 -I -B tests/composition/fable-game/test-current-reference-at.py
   candidate:
     if: github.repository != 'FS-GG/FS.GG.Templates' || inputs.templates-source != ''
     name: External reference immutable preflight and optional full qualification
@@ -107,6 +109,7 @@ jobs:
           python3 tests/composition/fable-game/verify-external-reference-workflow.py
           python3 tests/composition/fable-game/test-external-reference-public.py
           python3 tests/composition/fable-game/external-reference-orca.py --self-test
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --cpu=120 --fsize=16777216 python3 -I -B tests/composition/fable-game/test-current-reference-at.py
       - name: Verify native producer run and authenticated archive before compilation
         env:
           GH_TOKEN: ${{ github.token }}

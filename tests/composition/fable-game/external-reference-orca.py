@@ -24,6 +24,10 @@ import time
 
 ROOT = Path(__file__).resolve().parents[3]
 SCHEMA = "fsgg.external-reference-orca-observation/1"
+# Source-only extension. Activation and the authenticated current-public caller
+# remain separate work; no environment value can lift this None gate.
+CURRENT_PUBLIC_AT_ADMISSION = None
+LOCAL_SAVE_JOURNEY = "current-public-local-save"
 PHRASES = {
     "unknown": "Command sample:1 outcome is unknown.",
     "reconciled": "Original command sample:1 was confirmed accepted.",
@@ -32,6 +36,79 @@ PHRASES = {
 }
 TOOLS = ["dbus-run-session", "Xvfb", "openbox", "xdotool", "xprop", "xdpyinfo", "gsettings",
          "pulseaudio", "speech-dispatcher", "orca", "node", "dotnet"]
+
+
+def current_public_at_admission(environment):
+    require(CURRENT_PUBLIC_AT_ADMISSION is not None,
+            "current public AT held: no selected source admission")
+    require(environment.get("FSGG_CURRENT_PUBLIC_AT_ADMISSION") == CURRENT_PUBLIC_AT_ADMISSION,
+            "current public AT owning admission differs")
+
+
+def current_public_identity(packet, preflight, controller, plan_sha256, observer_sha256, mechanical_sha256):
+    """Join an authenticated full caller's facts; this does not authenticate its origin.
+
+    The current DOM-only receipt is deliberately insufficient. The future caller
+    must supply actual custody and the typed-plan digest before this route can run.
+    No current package/version/case registry is introduced here.
+    """
+    plan = packet["currentCompositionPlan"]
+    template = plan["template"]
+    require(preflight["atJourney"] == LOCAL_SAVE_JOURNEY and
+            preflight["renderingInputSource"] == "current-public-composition" and
+            packet["qualificationMode"] == "current-public-composition",
+            "current AT journey/input selection differs")
+    require(preflight["templates"] == controller and
+            re.fullmatch(r"[0-9a-f]{40}", controller["revision"]) and
+            re.fullmatch(r"[0-9a-f]{40}", controller["tree"]),
+            "current observer/controller identity differs")
+    require(preflight["observerSourceSha256"] == observer_sha256 and
+            re.fullmatch(r"[0-9a-f]{64}", observer_sha256), "authenticated observer bytes differ")
+    require(preflight["mechanicalObserverSha256"] == mechanical_sha256 and
+            re.fullmatch(r"[0-9a-f]{64}", mechanical_sha256), "authenticated mechanical observer bytes differ")
+    require(preflight["currentCompositionPlanSha256"] == plan_sha256 and
+            re.fullmatch(r"[0-9a-f]{64}", plan_sha256), "authenticated typed plan differs")
+    require(packet["templates"] == {"revision": template["sourceCommit"], "tree": None} and
+            packet["templatesInputSource"] == "exact-current-public-archive",
+            "published template producer identity differs")
+    package = packet["templatePackageInput"]
+    require(package == preflight["templatePackageInput"] and
+            package["producerRevision"] == template["sourceCommit"] and
+            package["version"] == template["version"] and
+            package["archiveSha256"] == template["sha256"],
+            "authenticated template archive differs")
+    require(packet.get("actualProducerCustodyReadback") is True and
+            preflight.get("actualProducerCustodyReadback") is True and
+            packet["producer"]["revision"] == preflight["producer"]["revision"] == plan["rendering"]["sourceCommit"] and
+            packet["producer"]["custodyManifestSha256"] == preflight["producer"]["custodySha256"] == plan["rendering"]["custodySha256"],
+            "current DOM reference-only custody is insufficient for AT")
+    return {"journey": LOCAL_SAVE_JOURNEY, "controller": controller,
+            "templatePackageInput": package, "planSha256": plan_sha256,
+            "observerSourceSha256": observer_sha256, "mechanicalObserverSha256": mechanical_sha256,
+            "actualProducerCustodyReadback": True}
+
+
+def current_public_inputs(out, packet, preflight, controller):
+    plan_path = out / "current-composition-plan.json"
+    plan = completion_record(plan_path)
+    require(plan == packet["currentCompositionPlan"], "typed plan/qualification correspondence differs")
+    mechanical_path = ROOT / "tests/composition/fable-game/current-composition-observations.py"
+    with mechanical_path.open("rb") as stream:
+        mechanical_source = stream.read(65537)
+    require(len(mechanical_source) <= 65536, "mechanical observer source exceeded")
+    identity = current_public_identity(packet, preflight, controller, digest(plan_path), digest(Path(__file__).resolve()),
+                                       hashlib.sha256(mechanical_source).hexdigest())
+    # Read the maintained mechanical validator, not a copied case/version registry.
+    # Execute the exact verified bytes; do not reopen the path after the pin check.
+    observer = {"__name__": "current_at_mechanical_observer", "__file__": str(mechanical_path)}
+    exec(compile(mechanical_source, str(mechanical_path), "exec"), observer)
+    for family in plan["browsers"]["families"]:
+        require(family in ["chromium", "firefox", "webkit"], "closed current browser family required")
+        path = out / (family + "-browser.json")
+        report = completion_record(path)
+        require(digest(path) == packet["browserReportSha256"][family], "current original browser report changed")
+        observer["validate_report"](report, plan, family)
+    return identity
 
 
 def digest(path):
@@ -1217,6 +1294,14 @@ def validate_browser_report(report, mode):
 
 def browser_prerequisite(packet, preflight):
     mode = preflight.get("renderingInputSource", "candidate")
+    if mode == "current-public-composition":
+        plan = packet["currentCompositionPlan"]
+        cases = [(row["file"], tuple(row["suite"]), row["title"]) for row in plan["browsers"]["cases"]]
+        return (preflight.get("atJourney") == LOCAL_SAVE_JOURNEY and
+                packet.get("qualificationMode") == mode and cases and len(set(cases)) == len(cases) and
+                packet["passedPerFamily"] == len(cases) and packet["skipped"] == 0 and
+                packet["browserFamilies"] == plan["browsers"]["families"] == ["chromium", "firefox", "webkit"] and
+                plan["browsers"]["workers"] == 1 and plan["browsers"]["retries"] == 0)
     browser_selector(mode)
     if mode == "font-disposal":
         return (packet.get("qualificationMode") == mode and packet["producer"].get("candidateVersion") == "0.32.3" and
@@ -1225,11 +1310,15 @@ def browser_prerequisite(packet, preflight):
     return packet.get("qualificationMode", mode) == mode and packet["passedPerFamily"] == 8 and packet["skipped"] == 0 and packet["browserFamilies"] == ["chromium", "firefox", "webkit"]
 
 
-def prerequisites(packet, preflight, available):
+def prerequisites(packet, preflight, available, current_identity=None):
     errors = []
     checks = [
         (lambda: packet["disposition"] == "passed", "generated candidate failed/unknown"),
-        (lambda: packet["templates"] == preflight["templates"], "consumer identity mismatch"),
+        (lambda: packet["templates"] == preflight["templates"] if current_identity is None else
+         current_identity["controller"] == preflight["templates"] and current_identity["journey"] == LOCAL_SAVE_JOURNEY,
+         "consumer identity mismatch"),
+        (lambda: (preflight.get("atJourney") == LOCAL_SAVE_JOURNEY) == (current_identity is not None),
+         "current journey requires authenticated controller/package joins"),
         (lambda: packet["producer"]["revision"] == preflight["producer"]["revision"], "producer identity mismatch"),
         (lambda: packet["producer"]["custodyManifestSha256"] == preflight["producer"]["custodySha256"], "producer custody mismatch"),
         (lambda: preflight["caller"]["repository"] == "FS-GG/FS.GG.Rendering" and re.fullmatch("[0-9a-f]{40}", preflight["caller"]["revision"]) and int(preflight["caller"]["run"]) > 0 and preflight["caller"]["attempt"] == "1", "caller identity unsupported"),
@@ -1249,7 +1338,25 @@ def prerequisites(packet, preflight, available):
 def validate(receipt, packet, preflight, directory):
     """The actual runtime binder, also exercised by finite negative fixtures."""
     require(receipt["schema"] == SCHEMA and receipt["result"] == "passed", "AT result incomplete")
-    require(receipt["templates"] == packet["templates"] == preflight["templates"], "consumer mismatch")
+    current = preflight.get("atJourney") == LOCAL_SAVE_JOURNEY
+    if current:
+        require(receipt["templates"] == packet["templates"], "published consumer mismatch")
+        identity = current_public_identity(packet, preflight, receipt["currentPublicAt"]["controller"],
+                                           digest(directory / "current-composition-plan.json"), digest(Path(__file__).resolve()),
+                                           digest(ROOT / "tests/composition/fable-game/current-composition-observations.py"))
+        require(identity == receipt["currentPublicAt"] == completion_record(directory / "current-public-at.json"),
+                "current controller/package evidence mismatch")
+        require(completion_record(directory / "current-composition-plan.json") == packet["currentCompositionPlan"],
+                "current typed plan changed")
+        require(receipt.get("journey") == LOCAL_SAVE_JOURNEY and receipt.get("firstCause") is None,
+                "current local journey incomplete")
+        require(receipt.get("localSaveStorage") == "synthetic-in-memory" and all(receipt.get(key) is False for key in
+                ["durableSaveAcceptance", "providerMatrixAcceptance", "nativeImeAcceptance", "whole4817Acceptance"]),
+                "local AT receipt claims unsupported broader acceptance")
+        for name in ["current-public-at.json", "current-composition-plan.json"]:
+            require(name in receipt["evidenceSha256"], "current identity evidence unbound")
+    else:
+        require(receipt["templates"] == packet["templates"] == preflight["templates"], "consumer mismatch")
     require(receipt["caller"] == preflight["caller"], "caller mismatch")
     require(receipt["producer"] == preflight["producer"], "original producer mismatch")
     require(receipt["process"]["name"] == "orca" and receipt["process"]["pid"] > 0, "actual Orca identity absent")
@@ -1270,10 +1377,38 @@ def validate(receipt, packet, preflight, directory):
                  "session-contract-state.json", "session-budget.json", "journey.json", *FINISH_FILES, *BROWSER_FILES]:
         require(name in receipt["evidenceSha256"], "owned private route evidence unbound")
     route_evidence(directory, activation, receipt)
+    if current:
+        # The route above authenticates the immutable journey through the original
+        # completion/inner-result chain. Receipt projections must be those bytes'
+        # values, not a second independently plausible sequence of observations.
+        journey = completion_record(directory / "journey.json")
+        def canonical_projection(value):
+            # Python equality merges bool/int/float values; JSON preserves their
+            # distinct spellings and refuses nonfinite values rather than coercing.
+            return json.dumps(value, sort_keys=True, allow_nan=False, separators=(",", ":"))
+        for key in ("actions", "observations", "journey", "firstCause", "process"):
+            require(key in journey and canonical_projection(receipt.get(key)) == canonical_projection(journey[key]),
+                    "current original journey projection differs: " + key)
+        browser = dict(receipt["browser"])
+        browser.pop("transportOutcome", None)
+        require("transportOutcome" not in journey["browser"] and
+                canonical_projection(browser) == canonical_projection(journey["browser"]),
+                "current original journey projection differs: browser")
+        # Only transportOutcome is derived after the original journey completes;
+        # Keep that derived comparison type-strict as well, without changing the
+        # legacy browser binder's behavior.
+        companion = next(value for value in json.loads((directory / "resource-leaders.json").read_text())
+                         if value["resource"] == "browser-companion")
+        outcome = browser_transport_outcome(directory, completion_record(directory / "browser-launch.json"), companion)
+        require(canonical_projection(receipt["browser"].get("transportOutcome", {"reported": False, "stage": "not-observed"})) ==
+                canonical_projection(outcome), "current derived transport projection differs")
     sequences = [e["eventSequence"] for e in receipt["actions"]]
     require(sequences == sorted(set(sequences)), "keyboard event replay or ordering drift")
     speech_path = directory / "orca-debug.log"
     observations = receipt["observations"]
+    if current:
+        return validate_local_save(observations, receipt["actions"],
+                                   lambda start, end: speech_range(speech_path, start, end)[0])
     for phase, phrase in PHRASES.items():
         entry = observations[phase]
         require(entry["rootCount"] == 1 and entry["statusCount"] == 1, "reference/status identity ambiguous")
@@ -1385,6 +1520,26 @@ async function attachOwnedPage(chromium,transport,remaining,artifactsDir){
   await page.getByRole('button',{name:'Mount external authority reference',exact:true}).waitFor({timeout:remaining()});
  return page;
 }
+function referenceDomSnapshot(){
+   const localRoot=document.querySelector('#fourd-reference');
+   const local={rootCount:document.querySelectorAll('#fourd-reference').length,statusCount:0,directButtons:[]};
+   if(localRoot){
+    const statuses=localRoot.querySelectorAll(':scope > #local-save-replay-status');
+    const buttons=localRoot.querySelectorAll(':scope > button');
+    if(buttons.length>16||statuses.length>1)throw Error('local observation population exceeded');
+    local.statusCount=statuses.length;
+    local.status=statuses[0]?.textContent||'';
+    local.statusLive=statuses[0]?.getAttribute('aria-live')||null;
+    if(local.statusLive!==null&&local.statusLive.length>32)throw Error('local live-region attribute exceeded');
+    if(local.status.length>512)throw Error('local status exceeded');
+    local.directButtons=[...buttons].map(button=>{const text=button.textContent||'';if(text.length>160)throw Error('local button label exceeded');return text});
+    for(const [key,attribute] of [['localAgent','data-local-agent'],['agentFullCell','data-agent-full-cell'],['localAccepted','data-local-accepted'],['localSaved','data-local-saved'],['localReplayCount','data-local-replay-count']]){
+     const value=localRoot.getAttribute(attribute);if(value!==null&&value.length>128)throw Error('local counter exceeded');local[key]=value;
+    }
+   }
+   const root=document.querySelector('#external-authority-reference'),active=document.activeElement;
+   return {documentHasFocus:document.hasFocus(),active:{text:active?.textContent?.trim(),id:active?.id,parentId:active?.parentElement?.id},reference:root?{...Object.fromEntries([...root.attributes].filter(a=>a.name.startsWith('data-')).map(a=>[a.name.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase()),a.value])),rootCount:document.querySelectorAll('#external-authority-reference').length,statusCount:root.querySelectorAll(':scope > [role="status"]').length,status:root.querySelector(':scope > [role="status"]')?.textContent,directButtons:[...root.querySelectorAll(':scope > button')].map(b=>b.textContent)}:null,localReference:local,keys:window.__externalKeys};
+}
 async function runCompanion(argv,{getChromium,Socket,clock=()=>performance.now(),now=Date.now}={}){
  demand(process.version==='v26.10.0','selected Node runtime differs');
  const [receiver,out,launchPath,remainingText,issuedText]=argv,started=clock();
@@ -1404,10 +1559,7 @@ async function runCompanion(argv,{getChromium,Socket,clock=()=>performance.now()
   const chromium=getChromium?getChromium():require(path.join(receiver,'Browser.Tests/node_modules/@playwright/test')).chromium;
   const page=await attachOwnedPage(chromium,transport,left,path.dirname(out));
   let sequence=0,sampling=false,pendingSample=null;
-  async function sample(){if(stopping||sampling)return;sampling=true;try{left();demand(sameBirth(readBirth(browser.pid),browser),'original browser birth changed during sampling');const value=await page.evaluate(()=>{
-   const root=document.querySelector('#external-authority-reference'),active=document.activeElement;
-   return {documentHasFocus:document.hasFocus(),active:{text:active?.textContent?.trim(),id:active?.id,parentId:active?.parentElement?.id},reference:root?{...Object.fromEntries([...root.attributes].filter(a=>a.name.startsWith('data-')).map(a=>[a.name.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase()),a.value])),rootCount:document.querySelectorAll('#external-authority-reference').length,statusCount:root.querySelectorAll(':scope > [role="status"]').length,status:root.querySelector(':scope > [role="status"]')?.textContent,directButtons:[...root.querySelectorAll(':scope > button')].map(b=>b.textContent)}:null,keys:window.__externalKeys};
-  });left();atomic(out,{sequence:++sequence,at:now(),...value})}finally{sampling=false}}
+  async function sample(){if(stopping||sampling)return;sampling=true;try{left();demand(sameBirth(readBirth(browser.pid),browser),'original browser birth changed during sampling');const value=await page.evaluate(referenceDomSnapshot);left();atomic(out,{sequence:++sequence,at:now(),...value})}finally{sampling=false}}
   await sample();demand(page.url()==='http://127.0.0.1:5100/','owned server navigation changed');
   atomic(path.join(path.dirname(out),'browser-companion-ready.json'),{schema:SCHEMA,launchSha256:hash(raw),browserBirth:browser,companionBirth:birth,endpoint,profile:launch.profile,sourceSha256:hash(fs.readFileSync(__filename)),noDefaults:true,contexts:1,initialPages:1,initialURL:'about:blank',pageURL:page.url(),sampleSequence:sequence,setupMilliseconds:clock()-started});
   timer=setInterval(()=>{if(stopping||sampling)return;pendingSample=sample();pendingSample.catch(error=>{fail(error.message);transport.close();process.exitCode=1})},100);
@@ -1448,6 +1600,19 @@ async function adapterSelfTest(){
    realKeyRecorder();const event={key:'Return',target:{textContent:'actual control',id:'id',parentElement:{id:'parent'}}};listener({...event,isTrusted:false});demand(window.__externalKeys.length===0,'synthetic keyboard accepted');listener({...event,isTrusted:true});demand(window.__externalKeys.length===1&&window.__externalKeys[0].sequence===1,'trusted key not observed');
   }finally{globalThis.window=previousWindow;globalThis.document=previousDocument}
  });
+ caseName('adapter-local-snapshot-actual-handler-and-bounds',()=>{
+  const previousWindow=globalThis.window,previousDocument=globalThis.document;
+  let removed=false,status='actual status',label='Synthetic inspect full cell',counter='1',population=1;
+  const local={querySelectorAll:selector=>selector.includes('status')?[{textContent:status,getAttribute:()=> 'polite'}]:Array(population).fill({textContent:label}),getAttribute:()=>counter};
+  try{globalThis.window={__externalKeys:[]};globalThis.document={activeElement:null,hasFocus:()=>true,querySelector:selector=>selector==='#fourd-reference'&&!removed?local:null,querySelectorAll:selector=>selector==='#fourd-reference'&&!removed?[local]:[]};
+   const seen=referenceDomSnapshot();demand(seen.localReference.localAccepted==='1'&&seen.localReference.status==='actual status'&&seen.localReference.directButtons[0]===label&&seen.reference===null,'actual local handler lost observation');
+   status='x'.repeat(513);refused(referenceDomSnapshot);status='actual status';
+   label='x'.repeat(161);refused(referenceDomSnapshot);label='Synthetic inspect full cell';
+   counter='x'.repeat(129);refused(referenceDomSnapshot);counter='1';
+   population=17;refused(referenceDomSnapshot);population=1;
+   removed=true;const absent=referenceDomSnapshot().localReference;demand(absent.rootCount===0&&absent.statusCount===0&&absent.directButtons.length===0&&!('localAccepted' in absent),'removed local state retained');
+  }finally{globalThis.window=previousWindow;globalThis.document=previousDocument}
+ });
  const trace=[];
  function model(contextCount=1,pageCount=1,url='about:blank'){
   const page={url:()=>url,addInitScript:async()=>trace.push('instrument'),goto:async(target,options)=>{demand(options.timeout>0,'navigation unbounded');trace.push('navigate');url=target},getByRole:()=>({waitFor:async options=>{demand(options.timeout>0,'readiness unbounded');trace.push('ready')}})};
@@ -1464,7 +1629,7 @@ async function adapterSelfTest(){
  }
  console.log(JSON.stringify({schema:'fsgg.at-browser-adapter-controls/1',names:checked,count:checked.length,network:0,browserLaunches:0}));return checked;
 }
-module.exports={drainSample,attachOwnedPage,transportAdapter,deadlineFromBudget,endpointIdentity,runCompanion,adapterSelfTest};
+module.exports={referenceDomSnapshot,drainSample,attachOwnedPage,transportAdapter,deadlineFromBudget,endpointIdentity,runCompanion,adapterSelfTest};
 if(require.main===module){(process.argv[2]==='--self-test'?adapterSelfTest():runCompanion(process.argv.slice(2))).catch(error=>{console.error('BROWSER_COMPANION_FIRST_CAUSE '+error.message);process.exitCode=1})}
 
 '''
@@ -2377,26 +2542,27 @@ def client_library_mapping(pid, object_identity, client):
     return {"birth": identity, "object": object_identity}
 
 
-def reference_control_matches(value, name):
+def reference_control_matches(value, name, root_id='external-authority-reference'):
     active = value['active']
-    direct = (name == 'Mount external authority reference' and
-              active['id'] == 'mount-external-authority-reference') or active['parentId'] == 'external-authority-reference'
+    direct = (root_id == 'external-authority-reference' and name == 'Mount external authority reference' and
+              active['id'] == 'mount-external-authority-reference') or active['parentId'] == root_id
     return value['documentHasFocus'] and active['text'] == name and direct
 
 
-def reference_navigation_key(value, name):
+def reference_navigation_key(value, name, root_id='external-authority-reference', reference_key='reference'):
     active = value['active']
     if name == 'Mount external authority reference':
         return 'Tab'
-    buttons = value['reference']['directButtons']
+    buttons = value[reference_key]['directButtons']
     require(buttons.count(name) == 1, 'direct reference button identity ambiguous or absent')
-    if active['parentId'] == 'external-authority-reference' and active['text'] in buttons:
+    if active['parentId'] == root_id and active['text'] in buttons:
         require(buttons.count(active['text']) == 1, 'active direct reference button identity ambiguous')
         return 'shift+Tab' if buttons.index(name) < buttons.index(active['text']) else 'Tab'
     return 'Tab'
 
 
-def activate_reference_control(name, dom, focused, actions, clock=None, pause=None, key=None):
+def activate_reference_control(name, dom, focused, actions, clock=None, pause=None, key=None,
+                               root_id='external-authority-reference', reference_key='reference'):
     # Real keyboard navigation only; a matching DOM target is held while AT-SPI settles.
     clock = time.monotonic if clock is None else clock
     pause = time.sleep if pause is None else pause
@@ -2407,36 +2573,38 @@ def activate_reference_control(name, dom, focused, actions, clock=None, pause=No
     for _ in range(240):
         value = dom()
         active = value['active']
-        entered = entered or active['parentId'] == 'external-authority-reference'
+        entered = entered or active['parentId'] == root_id
         require(not entered or value['documentHasFocus'], 'document focus lost after entering reference controls')
-        if reference_control_matches(value, name):
+        if reference_control_matches(value, name, root_id):
             if name != 'Mount external authority reference':
-                require(value['reference']['directButtons'].count(name) == 1, 'direct reference button identity ambiguous')
+                require(value[reference_key]['directButtons'].count(name) == 1, 'direct reference button identity ambiguous')
             settle = clock() + 2
             while not focused(name):
                 require(clock() < settle, 'bounded AT-SPI focus agreement unavailable for exact reference control: '+name)
                 pause(.1)
                 value = dom()
-                require(reference_control_matches(value, name), 'exact reference DOM focus changed while AT-SPI settled')
+                require(reference_control_matches(value, name, root_id), 'exact reference DOM focus changed while AT-SPI settled')
             require(clock() <= settle, 'bounded AT-SPI focus agreement arrived after deadline: '+name)
             # Synchronous AT-SPI remains overall-owner bounded; refuse a late returned success.
             # The AT-SPI read can overlap a DOM update. Revalidate before Return.
             value = dom()
-            require(reference_control_matches(value, name), 'exact reference DOM focus changed before activation')
+            require(reference_control_matches(value, name, root_id), 'exact reference DOM focus changed before activation')
             if name != 'Mount external authority reference':
-                require(value['reference']['directButtons'].count(name) == 1, 'direct reference button identity ambiguous before activation')
+                require(value[reference_key]['directButtons'].count(name) == 1, 'direct reference button identity ambiguous before activation')
             before_key = max([k['sequence'] for k in value['keys']], default=0)
             key('Return')
             pause(.3)
             after = dom()
             events = [k for k in after['keys'] if k['sequence'] > before_key and k['key'] == 'Enter' and
-                      k['text'] == name and (k['parentId'] == 'external-authority-reference' or
-                                            k['id'] == 'mount-external-authority-reference')]
+                      k['text'] == name and (k['parentId'] == root_id or
+                                            root_id == 'external-authority-reference' and k['id'] == 'mount-external-authority-reference')]
             require(len(events) == 1, 'fresh unique activation key absent')
             actions.append({'name': name, 'key': 'Return', 'atspiFocused': True,
                             'directReferenceControl': True, 'eventSequence': events[0]['sequence']})
+            if root_id != 'external-authority-reference':
+                actions[-1]['controlRoot'] = root_id
             return
-        key(reference_navigation_key(value, name))
+        key(reference_navigation_key(value, name, root_id, reference_key))
         pause(.15)
     raise RuntimeError('keyboard focus did not reach exact reference control: '+name)
 
@@ -2545,6 +2713,107 @@ def reference_navigation_self_test():
     return names
 
 
+LOCAL_SAVE_STEPS = (
+    ("inspect1", "Synthetic inspect full cell", "inspection accepted", "1", "false", "none"),
+    ("save", "Save synthetic local snapshot", "snapshot saved in memory", "1", "true", "none"),
+    ("inspect2", "Synthetic inspect full cell", "inspection accepted", "2", "true", "none"),
+    ("replay2", "Replay synthetic local recording", "replay preview completed", "2", "true", "2"),
+    ("restore", "Restore synthetic local snapshot", "snapshot restored; new recording epoch", "1", "true", "none"),
+    ("replay1", "Replay synthetic local recording", "replay preview completed", "1", "true", "1"),
+)
+LOCAL_SAVE_BUTTONS = tuple(dict.fromkeys(row[1] for row in LOCAL_SAVE_STEPS))
+
+
+def local_save_state(result, accepted, saved, replay):
+    return {"rootCount": 1, "statusCount": 1, "statusLive": "polite", "localAgent": "-7:23:-41:89",
+            "agentFullCell": "0:0:0:0", "localAccepted": accepted,
+            "localSaved": saved, "localReplayCount": replay,
+            "status": f"Synthetic local save/replay: {result}; accepted inspections {accepted}. Agent -7, 23, -41, 89."}
+
+
+def local_state_matches(value, expected):
+    return all(value.get(key) == wanted for key, wanted in expected.items())
+
+
+def observe_local_save(press, dom, wait, speech, speech_offset, controls_absent, observations):
+    """Actual key route; speech reads only original bytes emitted after each action.
+
+    Replay is a preview, restore is in-memory, and removed controls cannot be
+    activated by a user. Detached handler inertness remains the DOM prerequisite.
+    """
+    initial = dom()
+    require(local_state_matches(initial["localReference"], local_save_state("ready", "0", "false", "none")),
+            "local save initial state differs")
+    observations["initial"] = {**initial["localReference"], "sampleSequence": initial["sequence"]}
+    for phase, name, result, accepted, saved, replay in LOCAL_SAVE_STEPS:
+        expected = local_save_state(result, accepted, saved, replay)
+        start = speech_offset()
+        press(name)
+        wait(lambda value: local_state_matches(value["localReference"], expected))
+        window = speech(phase, start, expected["status"])
+        value = dom()
+        require(local_state_matches(value["localReference"], expected), "local state changed during speech: " + phase)
+        observations[phase] = {**value["localReference"], "sampleSequence": value["sequence"], **window}
+    press("Dispose FourD reference")
+    absent = {"rootCount": 0, "statusCount": 0, "directButtons": []}
+    removed = wait(lambda value: local_state_matches(value["localReference"], absent))
+    observations["disposed"] = {**removed["localReference"], "sampleSequence": removed["sequence"]}
+    later = wait(lambda value: value["sequence"] > removed["sequence"] and
+                 local_state_matches(value["localReference"], absent))
+    require(controls_absent(), "disposed local controls remain in the actual AT tree")
+    observations["afterDisposal"] = {**later["localReference"], "sampleSequence": later["sequence"],
+                                      "atControlsAbsent": True}
+
+
+def validate_local_save(observations, actions, read_speech):
+    require(local_state_matches(observations["initial"], local_save_state("ready", "0", "false", "none")),
+            "initial local state mismatch")
+    prior_sample = observations["initial"]["sampleSequence"]
+    prior_end = 0
+    for phase, name, result, accepted, saved, replay in LOCAL_SAVE_STEPS:
+        entry = observations[phase]
+        require(local_state_matches(entry, local_save_state(result, accepted, saved, replay)),
+                "local state/counter/coordinate mismatch: " + phase)
+        require(type(entry["sampleSequence"]) is int and entry["sampleSequence"] > prior_sample,
+                "local observation sequence replayed")
+        start, end = entry["speechStart"], entry["speechEnd"]
+        require(type(start) is int and type(end) is int and prior_end <= start < end,
+                "local speech windows overlap, replay or are empty")
+        require(entry["status"] in read_speech(start, end), "actual local Orca announcement absent: " + phase)
+        prior_sample, prior_end = entry["sampleSequence"], end
+    for phase in ["disposed", "afterDisposal"]:
+        entry = observations[phase]
+        require(local_state_matches(entry, {"rootCount": 0, "statusCount": 0, "directButtons": []}) and
+                type(entry["sampleSequence"]) is int and entry["sampleSequence"] > prior_sample,
+                "local disposal missing or stale")
+        prior_sample = entry["sampleSequence"]
+    require(observations["afterDisposal"].get("atControlsAbsent") is True, "actual AT removal absent")
+    names = [row[1] for row in LOCAL_SAVE_STEPS] + ["Dispose FourD reference"]
+    require([row["name"] for row in actions] == names and all(
+        row["key"] == "Return" and row["atspiFocused"] is True and row["directReferenceControl"] is True and
+        row.get("controlRoot") == "fourd-reference" for row in actions), "local real key/focus action order differs")
+    return True
+
+
+def record_local_observation(observe_action, record):
+    """Retain partial observations without letting a reporting error mask the first cause."""
+    try:
+        observe_action()
+    except BaseException as primary:
+        try:
+            record(type(primary).__name__ + ": " + str(primary))
+        except BaseException as secondary:
+            note = "local AT evidence reporting failed: " + type(secondary).__name__ + ": " + str(secondary)[:512]
+            primary.add_note(note)
+            try:
+                print(note, file=sys.stderr, flush=True)
+            except BaseException:
+                pass
+        raise
+    else:
+        record(None)
+
+
 def observe_command_recovery(press, dom, wait, speech, speech_offset, observations):
     """Exercise the real key/speech route without reconciling an obsolete generation."""
     press("Mount external authority reference")
@@ -2649,6 +2918,7 @@ def observe(directory, orca_pid, browser_pid, health=lambda: None):
     from gi.repository import Atspi
     actions = []
     observations = {}
+    current = (directory / "current-public-at.json").is_file()
 
     def dom():
         health()
@@ -2663,6 +2933,7 @@ def observe(directory, orca_pid, browser_pid, health=lambda: None):
             try:
                 value = dom()
                 if predicate(value):
+                    require(not current or time.monotonic() < end, "local DOM observation returned after deadline")
                     return value
             except (FileNotFoundError, json.JSONDecodeError) as ex:
                 last = str(ex)
@@ -2680,7 +2951,11 @@ def observe(directory, orca_pid, browser_pid, health=lambda: None):
                    for item in walk(Atspi.get_desktop(0)))
 
     def press(name):
-        activate_reference_control(name, dom, focused, actions)
+        if current:
+            activate_reference_control(name, dom, focused, actions,
+                                       root_id="fourd-reference", reference_key="localReference")
+        else:
+            activate_reference_control(name, dom, focused, actions)
 
     def speech_offset():
         return (directory / "orca-debug.log").stat().st_size
@@ -2697,6 +2972,29 @@ def observe(directory, orca_pid, browser_pid, health=lambda: None):
                 return
             time.sleep(.1)
         raise RuntimeError("actual Orca " + phase + " announcement not observed")
+
+    def local_speech(phase, start, expected):
+        end = time.monotonic() + 15
+        while time.monotonic() < end:
+            health()
+            spoken, speech_end = speech_range(directory / "orca-debug.log", start)
+            require(time.monotonic() < end, "local speech observation returned after deadline")
+            if expected in spoken:
+                return {"speechStart": start, "speechEnd": speech_end}
+            time.sleep(.1)
+        raise RuntimeError("actual local Orca " + phase + " announcement not observed")
+
+    def local_controls_absent():
+        names = {*LOCAL_SAVE_BUTTONS, "Dispose FourD reference"}
+        end = time.monotonic() + 2
+        while time.monotonic() < end:
+            health()
+            absent = not any((item.get_name() or "") in names for item in walk(Atspi.get_desktop(0)))
+            require(time.monotonic() < end, "AT removal observation returned after deadline")
+            if absent:
+                return True
+            time.sleep(.1)
+        return False
 
     wait(lambda d: d["sequence"] > 0)
     windows = subprocess.check_output(["xdotool", "search", "--sync", "--onlyvisible", "--class", "chromium"], text=True, timeout=15).split()
@@ -2720,9 +3018,20 @@ def observe(directory, orca_pid, browser_pid, health=lambda: None):
     runtime = json.loads((directory / "owned-bus-runtime.json").read_text())
     runtime["mappedLibraries"] = mappings
     write(directory / "owned-bus-runtime.json", runtime)
-    observe_command_recovery(press, dom, wait, speech, speech_offset, observations)
-    write(directory / "journey.json", {"process": {"name": "orca", "pid": orca_pid},
-          "browser": {"family": "chromium", "pid": actual_browser_pid, "launcherPid": browser_pid, "companionPid": next(v["pid"] for v in json.loads((directory / "resource-leaders.json").read_text()) if v["resource"] == "browser-companion")}, "actions": actions, "observations": observations})
+    def record(first_cause=None):
+        value = {"process": {"name": "orca", "pid": orca_pid},
+          "browser": {"family": "chromium", "pid": actual_browser_pid, "launcherPid": browser_pid, "companionPid": next(v["pid"] for v in json.loads((directory / "resource-leaders.json").read_text()) if v["resource"] == "browser-companion")}, "actions": actions, "observations": observations}
+        if current:
+            value.update(journey=LOCAL_SAVE_JOURNEY, firstCause=first_cause)
+        write(directory / "journey.json", value)
+    if current:
+        require(json.loads((directory / "current-public-at.json").read_text())["journey"] == LOCAL_SAVE_JOURNEY,
+                "local journey selection differs")
+        record_local_observation(lambda: observe_local_save(press, dom, wait, local_speech, speech_offset,
+                                                            local_controls_absent, observations), record)
+    else:
+        observe_command_recovery(press, dom, wait, speech, speech_offset, observations)
+        record()
 
 
 def activation_packet(manifest, versions, read, resolve, clock=time.monotonic, deadline=None, retained=None):
@@ -2983,11 +3292,18 @@ def execute_session(receiver, directory, env, termination):
     return child.returncode, result
 
 
-def qualify(out, preflight_path, termination):
+def qualify(out, preflight_path, termination, current_public=False):
+    if current_public:
+        current_public_at_admission(os.environ)
     packet_path = out / "qualification.json"
     packet = json.loads(packet_path.read_text())
     preflight = json.loads(preflight_path.read_text())
-    errors = prerequisites(packet, preflight, shutil.which)
+    current_identity = None
+    if current_public:
+        controller = {key: subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", selector], text=True).strip()
+                      for key, selector in [("revision", "HEAD"), ("tree", "HEAD^{tree}")]}
+        current_identity = current_public_inputs(out, packet, preflight, controller)
+    errors = prerequisites(packet, preflight, shutil.which, current_identity)
     receiver = out / "complete"
     for row in packet.get("receiver", []):
         try:
@@ -2997,7 +3313,8 @@ def qualify(out, preflight_path, termination):
             errors.append("generated receiver prerequisite malformed/missing: " + str(ex))
     if not packet.get("receiver"):
         errors.append("generated receiver manifest absent")
-    require(subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip() == packet["templates"]["revision"], "checked-out consumer mismatch")
+    if not current_public:
+        require(subprocess.check_output(["git", "-C", str(ROOT), "rev-parse", "HEAD"], text=True).strip() == packet["templates"]["revision"], "checked-out consumer mismatch")
     missing = ["tool:" + name for name in TOOLS if not shutil.which(name)]
     missing += ["Python module:" + name for name in ["gi", "speechd"] if importlib.util.find_spec(name) is None]
     missing += ["file:" + name for name in ["/etc/speech-dispatcher/speechd.conf", "/etc/speech-dispatcher/modules/espeak-ng.conf"] if not Path(name).is_file()]
@@ -3012,6 +3329,9 @@ def qualify(out, preflight_path, termination):
     directory = out / "orca"
     directory.mkdir(mode=0o700)
     shutil.copyfile(packet_path, directory / "source-qualification.json")
+    if current_public:
+        write(directory / "current-public-at.json", current_identity)
+        shutil.copyfile(out / "current-composition-plan.json", directory / "current-composition-plan.json")
     shutil.copyfile(activation, directory / "activation-provenance.json")
     # A short fresh mode0700 root avoids UNIX socket path truncation. Retain it on unknown cleanup.
     socket_root = Path(tempfile.mkdtemp(prefix="fsgg-at-", dir="/tmp"))
@@ -3051,6 +3371,12 @@ def qualify(out, preflight_path, termination):
                "physicalAudioHardware": "not-observed", "cleanup": result, "sourceQualificationSha256": digest(packet_path),
                "servedAssemblySha256": served_digest,
                "evidenceSha256": {name: digest(directory / name) for name in ["orca.log", "orca-debug.log", "journey.json", "process-result.json", "speech-preflight.json", "tool-identities.json", "source-qualification.json", "host-packages.txt", "resource-leaders.json", "activation-provenance.json", "owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf", "session-contract-state.json", "session-budget.json", *FINISH_FILES, *BROWSER_FILES]}}
+    if current_public:
+        receipt["currentPublicAt"] = current_identity
+        receipt["evidenceSha256"].update({name: digest(directory / name) for name in
+                                         ["current-public-at.json", "current-composition-plan.json"]})
+        receipt.update(localSaveStorage="synthetic-in-memory", durableSaveAcceptance=False,
+                       providerMatrixAcceptance=False, nativeImeAcceptance=False, whole4817Acceptance=False)
     try:
         validate(receipt, packet, preflight, directory)
     except BaseException as ex:
@@ -3062,7 +3388,10 @@ def qualify(out, preflight_path, termination):
     require(not termination, termination[0] if termination else "")
     write(directory / "observation.json", receipt)
     # Preserve the candidate result bytes: AT qualification is an additional independently bound receipt.
-    print("PASS external-reference actual Orca keyboard/receipt journey; evidence=" + str(directory / "observation.json"))
+    if current_public:
+        print("PASS current-reference actual Orca in-memory local save/replay journey; evidence=" + str(directory / "observation.json"))
+    else:
+        print("PASS external-reference actual Orca keyboard/receipt journey; evidence=" + str(directory / "observation.json"))
 
 
 def self_test(logging_controls=True):
@@ -5415,6 +5744,7 @@ def main():
     modes.add_argument("--inner", action="store_true")
     modes.add_argument("--owned-status", action="store_true")
     modes.add_argument("--capture-activation", action="store_true")
+    modes.add_argument("--current-public-local-save", action="store_true")
     parser.add_argument("first", nargs="?")
     parser.add_argument("second", nargs="?")
     args = parser.parse_args()
@@ -5446,8 +5776,13 @@ def main():
             raise RuntimeError(first) from ex
     else:
         require(args.first and args.second, "candidate directory and authenticated preflight required")
+        if args.current_public_local_save:
+            current_public_at_admission(os.environ)
         with capture_termination() as termination:
-            qualify(Path(args.first).resolve(), Path(args.second).resolve(), termination)
+            if args.current_public_local_save:
+                qualify(Path(args.first).resolve(), Path(args.second).resolve(), termination, current_public=True)
+            else:
+                qualify(Path(args.first).resolve(), Path(args.second).resolve(), termination)
 
 
 if __name__ == "__main__":

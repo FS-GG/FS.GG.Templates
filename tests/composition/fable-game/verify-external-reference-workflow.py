@@ -16,6 +16,20 @@ from zipfile import ZipFile
 INERT_ENV={'PATH':'/usr/bin:/bin','LANG':'C.UTF-8','LC_ALL':'C.UTF-8','PYTHONDONTWRITEBYTECODE':'1','PYTHONNOUSERSITE':'1'}
 root=Path(__file__).resolve().parents[3]
 text=(root/'.github/workflows/fable-external-reference-source.yml').read_text()
+
+def validate_current_at_registration(workflow):
+    command = 'PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --cpu=120 --fsize=16777216 python3 -I -B tests/composition/fable-game/test-current-reference-at.py'
+    assert "      - 'tests/composition/fable-game/test-current-reference-at.py'" in workflow, 'AT pure test path is not watched'
+    static, candidate = workflow.split('\n  candidate:\n', 1)
+    assert static.count(command) == 1, 'AT pure controls missing from PR static job'
+    start = candidate.index('      - name: Verify existing external reference static controls')
+    stop = candidate.index('\n      - ', start + 1)
+    section = candidate[start:stop]
+    assert section.count(command) == 1 and 'if:' not in section, 'AT pure controls missing from reusable preflight'
+    assert stop <= candidate.index('      - name: Verify native producer run'), 'AT pure controls occur after acquisition'
+    return True
+
+validate_current_at_registration(text)
 blocks=re.findall(r"          python3 - <<'(PY(?:INPUT)?)'\n(.*?)\n          \1",text,re.S)
 codes=[ '\n'.join(line[10:] for line in code.splitlines()) for _,code in blocks ]
 for code in codes:
