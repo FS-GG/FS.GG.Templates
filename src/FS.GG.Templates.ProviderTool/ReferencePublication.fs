@@ -427,7 +427,7 @@ let validateCurrentD5Backend receiver authorPath inspectPath refusedPath beforeP
            || not ((map before).ContainsKey "readiness/d5-default/typed-authority.json")
            || not ((map before).ContainsKey ".fsgg/scaffold-provenance.json")
            || not ((map before).ContainsKey "models/svg-arena/arena-rules.md")
-           || not (map before |> Map.exists (fun key _ -> key.StartsWith("work/d5-default/", StringComparison.Ordinal)))
+           || not (map before |> Map.exists (fun key _ -> key.StartsWith("readiness/d5-default/quint/", StringComparison.Ordinal)))
            || map before <> map after
            || actualFiles <> (map after |> Map.toSeq |> Seq.map fst |> Set.ofSeq)
            || (map after |> Map.exists (fun key expected ->
