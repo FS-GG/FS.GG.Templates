@@ -100,6 +100,30 @@ class Controls(unittest.TestCase):
         self.assertIn('timeout --kill-after=5s 150s prlimit --as=1073741824 --cpu=120 python3 -B tests/composition/fable-game/test-current-composition-observations.py',static)
         self.assertNotIn('actions/setup-dotnet',static)
 
+    def test_browser_processes_receive_the_typed_selection_not_only_the_build(self):
+        plan={'selection':{'externalReference':True,'wasmPolicyExample':False}}
+        self.assertEqual(m.browser_environment(plan),{'FsGgExternalReferenceCandidate':'true','FsGgWasmPolicyExample':'false'})
+        plan['selection']['externalReference']=False
+        self.assertEqual(m.browser_environment(plan)['FsGgExternalReferenceCandidate'],'false')
+        for bad in ('true',None,1):
+            with self.subTest(bad=bad),self.assertRaises(ValueError):m.browser_environment({'selection':{'externalReference':bad,'wasmPolicyExample':False}})
+        # The shipped specs read this variable (or the fsproj) to register the four command-outcome cases.
+        self.assertEqual(m.browser_environment({'selection':{'externalReference':True,'wasmPolicyExample':False}})['FsGgExternalReferenceCandidate'],'true')
+
+    def test_local_verification_gate_is_distinct_from_hosted_admission_and_refuses_credentials_and_runners(self):
+        marker={'FSGG_CURRENT_COMPOSITION_LOCAL_VERIFICATION':m.LOCAL_VERIFICATION}
+        self.assertIsNone(m.check_admission(dict(marker)))
+        self.assertIsNone(m.CURRENT_COMPOSITION_ADMISSION)
+        for name in m.CREDENTIAL_VARIABLES:
+            with self.subTest(name=name),self.assertRaisesRegex(ValueError,'credentials'):m.check_admission({**marker,name:'x'})
+        with self.assertRaisesRegex(ValueError,'hosted'):m.check_admission({**marker,'GITHUB_ACTIONS':'true'})
+        for wrong in ('','true','adr-0096'):
+            with self.subTest(wrong=wrong),self.assertRaisesRegex(ValueError,'held'):m.check_admission({'FSGG_CURRENT_COMPOSITION_LOCAL_VERIFICATION':wrong})
+        # The hosted workflow stays held independent of the local gate.
+        workflow=(HERE.parents[2]/'.github/workflows/current-reference-composition.yml').read_text()
+        self.assertIn('if: ${{ false }}',workflow)
+        self.assertNotIn('LOCAL_VERIFICATION',workflow)
+
     def test_current_entry_is_held_before_owner_root_or_acquisition(self):
         self.assertIsNone(m.CURRENT_COMPOSITION_ADMISSION)
         with self.assertRaisesRegex(ValueError,'held'):m.check_admission({})
@@ -109,6 +133,7 @@ class Controls(unittest.TestCase):
         self.assertIn('external-reference-template-package.py" inspect',shell)
         self.assertIn('external-reference-template-package.py" rendering',shell)
         self.assertIn('current-d5-receiver-check',shell)
+        self.assertIsNone(re.search(r'--package(?![-\w])',shell))  # not an option of `dotnet new <template>`; the custom hive scopes the one installed package
         self.assertIn("packet['whole4818Acceptance']=False",shell)
 
 

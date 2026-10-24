@@ -156,6 +156,7 @@ def retain_raw(source,target):
 
 def browser_sequence(caller,run,node,root,env,plan,observations):
     tests=root/'product/complete/Browser.Tests';results={}
+    env={**env,**observations.browser_environment(plan)}
     for family in plan['browsers']['families']:
         require(family in ('chromium','firefox','webkit'),'browser evidence family differs')
         listed=caller['managed_playwright'](run,node,tests,family,env,list_only=True,config='current-composition.generated.config.ts')

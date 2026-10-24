@@ -145,7 +145,7 @@ class PackageControls(unittest.TestCase):
             self.assertEqual(result.returncode,9,result.stderr)
             rows=[json.loads(line)for line in calls.read_text().splitlines()];self.assertEqual(len(rows),2)
             self.assertIn('--debug:custom-hive',rows[0]['args']);self.assertIn(str(out/'template-hive'),rows[0]['args'])
-            self.assertIn('--package',rows[1]['args']);self.assertEqual(rows[0]['home'],str(out/'home'));self.assertEqual(rows[0]['cache'],str(out/'packages'))
+            self.assertNotIn('--package',rows[1]['args']);self.assertIn('--debug:disable-sdk-templates',rows[1]['args']);self.assertIn(str(out/'template-hive'),rows[1]['args']);self.assertEqual(rows[0]['home'],str(out/'home'));self.assertEqual(rows[0]['cache'],str(out/'packages'))
             self.assertFalse((base/'controller/FS.GG.Templates.csproj').exists());self.assertFalse((base/'controller/templates').exists())
             self.assertFalse(producer.exists())
             bad_out=base/'bad'

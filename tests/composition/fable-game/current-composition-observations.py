@@ -16,7 +16,23 @@ import sys
 CURRENT_COMPOSITION_ADMISSION = None
 
 
+# ADR-0096 ordinary development verification: a local build and test of unpublished source in a
+# fresh private root. It is neither the hosted runtime admission above nor installed/published/AT
+# acceptance, and it refuses ambient credentials and hosted runners.
+LOCAL_VERIFICATION = 'adr-0096-local-unpublished-source'
+CREDENTIAL_VARIABLES = ('GH_TOKEN', 'GITHUB_TOKEN', 'NUGET_API_KEY', 'NUGET_AUTH_TOKEN', 'VSS_NUGET_EXTERNAL_FEED_ENDPOINTS',
+                        'AZURE_DEVOPS_EXT_PAT', 'NPM_TOKEN', 'NODE_AUTH_TOKEN', 'ANTHROPIC_API_KEY')
+
+
+def local_verification(env):
+    return env.get('FSGG_CURRENT_COMPOSITION_LOCAL_VERIFICATION') == LOCAL_VERIFICATION
+
+
 def check_admission(env):
+    if local_verification(env):
+        require(not env.get('GITHUB_ACTIONS'), 'local verification is not a hosted-runner admission')
+        require(not [name for name in CREDENTIAL_VARIABLES if env.get(name)], 'local verification refuses ambient credentials')
+        return
     require(CURRENT_COMPOSITION_ADMISSION is not None, 'current composition held: no source admission')
     require(env.get('FSGG_CURRENT_COMPOSITION_ADMISSION') == CURRENT_COMPOSITION_ADMISSION, 'current composition owning admission differs')
 
@@ -28,6 +44,18 @@ def require(ok, message):
 
 def selector(plan):
     return '|'.join('(?:^| )'+re.escape(row['title'])+'$' for row in plan['browsers']['cases'])
+
+
+def browser_environment(plan):
+    """The typed selection the Playwright specs read from the process environment.
+
+    The source stage exports these for its build only; the browser phase runs in separate processes,
+    so without them the opt-in command-outcome specs register no cases and the listing is short.
+    """
+    selection=plan['selection']
+    require(isinstance(selection['externalReference'],bool) and isinstance(selection['wasmPolicyExample'],bool),'typed selection flags differ')
+    return {'FsGgExternalReferenceCandidate':str(selection['externalReference']).lower(),
+            'FsGgWasmPolicyExample':str(selection['wasmPolicyExample']).lower()}
 
 
 def validate_report(report, plan, family):
