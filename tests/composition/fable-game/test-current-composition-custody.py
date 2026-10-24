@@ -24,9 +24,8 @@ spec=importlib.util.spec_from_file_location('custody',HERE/'current-composition-
 C=importlib.util.module_from_spec(spec);spec.loader.exec_module(C)
 sha=lambda b:hashlib.sha256(b).hexdigest()
 STUB=('MODE=%r\nimport sys\nfrom pathlib import Path\n'
-      'ok=MODE=="ok"\n'
-      'print("payload entries exact \u00b7 feed signature=" + ("present (excluded)" if ok else "absent"))\n'
-      'sys.exit(0 if ok else 1)\n')
+      'print("payload entries exact \u00b7 feed signature=" + ("absent" if MODE=="absent" else "present (excluded)"))\n'
+      'sys.exit(1 if MODE=="refuse" else 0)\n')
 
 
 class Controls(unittest.TestCase):
@@ -77,12 +76,15 @@ class Controls(unittest.TestCase):
           'nested member':dict(extra_member='dir/inner.nupkg'),
           # Census stays at 20, so only the name/type guard can refuse these.
           'renamed traversal':dict(rename='../escape.nupkg'),'renamed nested':dict(rename='dir/inner.nupkg'),'symlink member':dict(symlink=True),
-          'binder refuses':dict(binder='refuse'),'wrong version':dict(version='9.9.9'),
+          'binder exits non-zero while printing success output':dict(binder='refuse'),'binder reports no feed signature':dict(binder='absent'),'wrong version':dict(version='9.9.9'),
         }
         for name,kwargs in cases.items():
             with self.subTest(name):
                 args,_=self.build(**kwargs)
                 with self.assertRaises(ValueError):self.verify(args)
+        # A ref name instead of a full SHA, consistently in manifest and typed plan, is refused before git or the binder see it.
+        args,_=self.build(manifest_commit='HEAD');args['plan']['rendering']['sourceCommit']='HEAD'
+        with self.assertRaisesRegex(ValueError,'full SHA'):self.verify(args)
         args,_=self.build();args['plan']['rendering']['custodySha256']='0'*64
         with self.assertRaisesRegex(ValueError,'typed SHA-256'):self.verify(args)
         args,_=self.build();args['plan']['rendering']['sourceCommit']='f'*40
@@ -109,12 +111,13 @@ class Controls(unittest.TestCase):
         args['plan']['rendering']['packages'][0]['sha256']=row['sha256']
         with self.assertRaisesRegex(ValueError,'unexpectedly byte-identical'):self.verify(args)
 
-    def test_a_compare_that_does_not_show_the_feed_signature_is_refused(self):
-        args,_=self.build(binder='ok')
-        real=C.binder
-        def unsigned(script,*a):
-            out=real(script,*a);return out.replace('feed signature=present (excluded)','feed signature=absent') if a[0]=='compare' else out
-        with mock.patch.object(C,'binder',unsigned),self.assertRaisesRegex(ValueError,'plus the feed signature'):self.verify(args)
+    def test_a_compare_that_does_not_show_exact_payload_and_the_feed_signature_is_refused(self):
+        for replaced in ('payload entries exact','feed signature=present (excluded)'):
+            with self.subTest(missing=replaced):
+                args,_=self.build(binder='ok');real=C.binder
+                def altered(script,*a,replaced=replaced):
+                    out=real(script,*a);return out.replace(replaced,'-') if a[0]=='compare' else out
+                with mock.patch.object(C,'binder',altered),self.assertRaisesRegex(ValueError,'plus the feed signature'):self.verify(args)
 
     def test_children_get_no_ambient_credential_or_global_git_config(self):
         args,_=self.build();seen=[]
