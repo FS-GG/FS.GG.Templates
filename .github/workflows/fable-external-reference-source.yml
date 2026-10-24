@@ -33,6 +33,9 @@ on:
       - 'tests/composition/fable-game/test-current-composition-observations.py'
       - 'tests/composition/fable-game/current-composition-local.py'
       - 'tests/composition/fable-game/test-current-composition-local.py'
+      - 'tests/composition/fable-game/current-composition-custody.py'
+      - 'tests/composition/fable-game/test-current-composition-custody.py'
+      - '.github/workflows/fable-reference-public.yml'
       - '.github/workflows/fable-external-reference-source.yml'
 
 permissions:
@@ -58,6 +61,7 @@ jobs:
           python3 tests/composition/fable-game/verify-external-reference-workflow.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 150s prlimit --as=1073741824 --cpu=120 python3 -B tests/composition/fable-game/test-current-composition-observations.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 150s prlimit --as=1073741824 --cpu=120 python3 -B tests/composition/fable-game/test-current-composition-local.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 150s prlimit --as=1073741824 --cpu=120 python3 -B tests/composition/fable-game/test-current-composition-custody.py
           python3 tests/composition/fable-game/test-external-reference-public.py
           python3 tests/composition/fable-game/external-reference-orca.py --self-test
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --cpu=120 --fsize=16777216 python3 -I -B tests/composition/fable-game/test-current-reference-at.py

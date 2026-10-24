@@ -33,7 +33,7 @@ def check_admission(env):
         require(not env.get('GITHUB_ACTIONS'), 'local verification is not a hosted-runner admission')
         require(not [name for name in CREDENTIAL_VARIABLES if env.get(name)], 'local verification refuses ambient credentials')
         return
-    raise ValueError('current composition runs only through the local ADR-0096 runner (the hosted route is retired)')
+    raise ValueError('current composition needs the local ADR-0096 verification gate (the hosted route is retired)')
 
 
 def require(ok, message):

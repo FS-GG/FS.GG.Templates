@@ -221,6 +221,25 @@ class Controls(unittest.TestCase):
             while alive() and time.monotonic()<deadline:time.sleep(0.05)
             self.assertFalse(alive(),'the grandchild survived the timeout')
 
+    def test_producer_custody_flag_is_set_only_by_a_passing_join_and_a_successful_run(self):
+        with self.assertRaisesRegex(ValueError,'go together'):L.main(['--root',str(self.fresh_root()),'--custody-evidence','/x'])
+        root=self.fresh_root();self.run_main(root,env={'GITHUB_ACTIONS':''})
+        self.assertIs(json.loads((root/'local-summary.json').read_text())['actualProducerCustodyReadback'],False)
+        seen=[]
+        def join(evidence,plan,feed,repository,work):seen.append((evidence,str(repository)));return {'custodySha256':'x'}
+        root=self.fresh_root()
+        with mock.patch.object(L.custody,'verify_producer_custody',join):
+            self.run_main(root,extra=['--custody-evidence','/retained','--rendering-source','/rendering'])
+        summary=json.loads((root/'local-summary.json').read_text())
+        self.assertEqual(seen,[('/retained','/rendering')]);self.assertIs(summary['actualProducerCustodyReadback'],True);self.assertEqual(summary['producerCustody'],{'custodySha256':'x'})
+        root=self.fresh_root()  # a refused join stops the run before the stage and leaves the flag false
+        def refuse(*a):raise ValueError('custody manifest differs from the typed SHA-256')
+        with mock.patch.object(L.custody,'verify_producer_custody',refuse),self.assertRaisesRegex(ValueError,'typed SHA-256'):
+            self.run_main(root,extra=['--custody-evidence','/retained','--rendering-source','/rendering'])
+        self.assertFalse([c for c in self.calls if c[0][0]=='bash'],'no stage after a refused custody join')
+        refused=json.loads((root/'local-summary.json').read_text())
+        self.assertEqual((refused['disposition'],refused['actualProducerCustodyReadback']),('failed',False))
+
     def test_dirty_checkout_and_hosted_runner_refuse_before_any_process(self):
         root=self.fresh_root()
         with self.assertRaisesRegex(ValueError,'clean checkout'):self.run_main(root,dirty=' M tests/x')

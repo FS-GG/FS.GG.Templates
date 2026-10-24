@@ -44,6 +44,7 @@ def load(name, path):
 
 
 observations = load('composition_observations', HERE / 'current-composition-observations.py')
+custody = load('composition_custody', HERE / 'current-composition-custody.py')
 require = observations.require
 
 
@@ -160,9 +161,14 @@ def main(argv=None):
     parser.add_argument('--container', default='', help='podman image carrying Playwright host libraries '
                         '(see current-composition-local-image.sh); runs the browser phase inside it with '
                         'Node, .NET, the receiver and the browsers bind-mounted. Needed on hosts lacking the libraries.')
+    parser.add_argument('--custody-evidence', default='', help='retained read-only acquisition of the original producer artifact '
+                        '(receipt.json, rendering-packet.zip, release-custody.json); with --rendering-source it sets '
+                        'actualProducerCustodyReadback from an offline join to the typed plan')
+    parser.add_argument('--rendering-source', default='', help='local FS.GG.Rendering git checkout containing the typed producer commit')
     parser.add_argument('--allow-dirty', action='store_true', help='record, rather than refuse, uncommitted source')
     args = parser.parse_args(argv)
 
+    require(bool(args.custody_evidence) == bool(args.rendering_source), '--custody-evidence and --rendering-source go together')
     families = args.families.split(',')
     require(families and all(f in FAMILIES for f in families) and len(set(families)) == len(families), 'closed browser families required')
     require(1 <= args.cpus <= 3, 'at most 3 CPUs')
@@ -233,6 +239,10 @@ def main(argv=None):
         cores = [path for path in (root / 'tools/fable').rglob('*.dll') if sha256(path) == fable_sha()]
         require(len(cores) == 1, 'Fable core hash differs')
         (root / 'fable-member-identities.json').write_text(json.dumps(member_manifest(cores[0].parent)))
+        if args.custody_evidence:
+            # Offline and before the expensive stage: the retained producer read must justify the flag first.
+            summary['producerCustody'] = custody.verify_producer_custody(
+                args.custody_evidence, plan, root / 'inputs/feed', args.rendering_source, root / 'custody')
         stage_env = {**env, 'FSGG_REFERENCE_PROVIDER_TOOL_DLL': str(core),
                      'FSGG_COMPOSITION_FABLE_MEMBERS': str(root / 'fable-member-identities.json'),
                      'FSGG_COMPOSITION_FABLE_SHA': fable_sha()}
@@ -283,6 +293,7 @@ def main(argv=None):
             summary['families'][family] = {'passed': stats['expected'], 'retries': plan['browsers']['retries'], 'skipped': stats['skipped'],
                                            'reportSha256': sha256(root / (family + '-report.json'))}
         summary['runtimeCases'] = sum(entry['passed'] for entry in summary['families'].values())
+        summary['actualProducerCustodyReadback'] = 'producerCustody' in summary  # only when the whole run succeeded
         summary['disposition'] = 'dom-observed-local-reference-only'
     except BaseException as error:
         summary['firstCause'] = (type(error).__name__ + ': ' + str(error))[:8192]
