@@ -817,10 +817,10 @@ class EarlierClockControls(unittest.TestCase):
         source=(m.WORKSPACE/'.github/workflows/retained-reference-rehearsal.yml').read_text().split('  earlier-three:\n',1)[1]
         self.assertIn("always() && steps.clock.outcome != 'skipped'",source);self.assertIn('1-clock.json',source)
     def test_wrong_intervals_cutoff_and_old_grants_refuse(self):
-        for change in ({'LATEST_START_UTC':'2026-10-24T02:05:00Z'},{'OBSERVER_DEADLINE_UTC':'2026-10-24T02:39:59Z'},{'SELECTED_UTC':''},{'SELECTED_UTC':'2026-10-24T03:31:00Z','LATEST_START_UTC':'2026-10-24T03:36:00Z','OBSERVER_DEADLINE_UTC':'2026-10-24T04:31:00Z'}):
+        for change in ({'LATEST_START_UTC':'2026-10-24T02:05:00Z'},{'OBSERVER_DEADLINE_UTC':'2026-10-24T02:39:59Z'},{'SELECTED_UTC':''},{'SELECTED_UTC':'2026-10-25T09:00:01Z','LATEST_START_UTC':'2026-10-25T09:05:01Z','OBSERVER_DEADLINE_UTC':'2026-10-25T10:00:01Z'}):
             with self.subTest(change=change),self.assertRaises(ValueError):m.earlier_root_times({**self.env,**change})
         contract=m.caller_contract('earlier-three',m.EARLIER_ADMISSION)
-        for old in (m.ADMISSION,'https://github.com/FS-GG/.github/issues/4849#issuecomment-6378268333'):
+        for old in (m.ADMISSION,'https://github.com/FS-GG/.github/issues/4816#issuecomment-6378268057','https://github.com/FS-GG/.github/issues/4849#issuecomment-6388209473'):
             with self.assertRaises(ValueError):m.validate_admission({**self.env,'ADMISSION':old},m.EARLIER_ADMISSION,contract)
     def test_projection_source_boot_and_input_tamper_refuse(self):
         clock=self.produce()

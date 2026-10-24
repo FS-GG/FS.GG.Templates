@@ -201,7 +201,7 @@ jobs:
                   return datetime.datetime.fromisoformat(value.replace('Z','+00:00')).timestamp()
               selected,latest,deadline=(parse(selection[k]) for k in ('SELECTED_UTC','LATEST_START_UTC','OBSERVER_DEADLINE_UTC'))
               if latest-selected!=300 or deadline-selected!=3600:raise ValueError('Root intervals differ')
-              if selected>parse('2026-10-24T03:30:00Z'):raise ValueError('conditional source selection expired')
+              if selected>parse('2026-10-25T09:00:00Z'):raise ValueError('conditional source selection expired')
               if not selected<=utc.timestamp()<=latest or deadline-utc.timestamp()<3300:raise ValueError('original queue/start window refused')
               record['observerDeadlineMonotonic']=mono+(deadline-utc.timestamp())
               record['disposition']='accepted'
