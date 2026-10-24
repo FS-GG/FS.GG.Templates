@@ -55,13 +55,13 @@ def parse(provider, raw, expected_go_db=None, expected_go_module=None):
     elif provider == 'go-cli':
         reader = decoder()
         messages = []
-        rest = text.strip()
+        rest = text.strip(' \t\r\n')
         while rest:
             value, position = reader.raw_decode(rest)
             require(isinstance(value, dict) and len(value) == 1 and len(messages) < 65536,
                     'malformed/oversize Go message stream')
             messages.append(value)
-            rest = rest[position:].lstrip()
+            rest = rest[position:].lstrip(' \t\r\n')
         require(messages and set(messages[0]) == {'config'}, 'missing Go configuration')
         config = messages[0]['config']
         require(config.get('protocol_version') == 'v1.0.0' and config.get('scanner_name') == 'govulncheck'

@@ -92,6 +92,10 @@ class SecurityResults(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'finding'):
                 checker.single('go-cli', str(report), 'file:///synthetic-db')
 
+    def test_non_json_unicode_stream_separator_refuses(self):
+        with self.assertRaises(ValueError):
+            checker.parse('go-cli', self.go().replace(b'\n', b'\xc2\xa0', 1), 'file:///synthetic-db', 'example.org/synthetic')
+
 
 if __name__ == '__main__':
     unittest.main()
