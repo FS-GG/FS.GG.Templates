@@ -134,12 +134,14 @@ class Controls(unittest.TestCase):
 
     def test_actual_browser_sequence_is_list_then_test_per_family_and_failure_gated(self):
         tests=self.root/'product/complete/Browser.Tests/test-results';tests.mkdir(parents=True);calls=[]
-        plan={'browsers':{'families':['chromium','firefox','webkit'],'cases':[{'file':'one.spec.ts','suite':[],'title':'one'}]}}
+        plan={'selection':{'externalReference':True,'wasmPolicyExample':False},'browsers':{'families':['chromium','firefox','webkit'],'cases':[{'file':'one.spec.ts','suite':[],'title':'one'}]}}
         def report(family,listed):
             test={'projectName':family,'status':'expected','results':[] if listed else [{'status':'passed','retry':0}]}
             return {'stats':{'expected':1,'unexpected':0,'skipped':0,'flaky':0},'suites':[{'title':'one.spec.ts','specs':[{'file':'one.spec.ts','title':'one','ok':True,'tests':[test]}]}]}
         def run(argv,cwd,env):
             listed='--list' in argv;family=env['PLAYWRIGHT_BROWSER_FAMILY'];calls.append((family,listed))
+            # The opt-in command-outcome specs register cases only when the typed selection reaches the browser process.
+            self.assertEqual((env['FsGgExternalReferenceCandidate'],env['FsGgWasmPolicyExample']),('true','false'))
             value=report(family,listed)
             if listed:return json.dumps(value)
             (tests/'browser.json').write_text(json.dumps(value));return ''
@@ -200,8 +202,8 @@ class Controls(unittest.TestCase):
 
     def test_failed_browser_keeps_invalid_raw_bytes_before_validation_and_original_error(self):
         tests=self.root/'product/complete/Browser.Tests/test-results';tests.mkdir(parents=True)
-        plan={'browsers':{'families':['chromium'],'cases':[]}}
-        observation=types.SimpleNamespace(validate_listing=lambda *a:None,validate_report=lambda *a:(_ for _ in ()).throw(ValueError('semantic refusal')))
+        plan={'selection':{'externalReference':True,'wasmPolicyExample':False},'browsers':{'families':['chromium'],'cases':[]}}
+        observation=types.SimpleNamespace(browser_environment=O.browser_environment,validate_listing=lambda *a:None,validate_report=lambda *a:(_ for _ in ()).throw(ValueError('semantic refusal')))
         def browser(*args,**kwargs):
             if kwargs.get('list_only'):return '{}'
             (tests/'browser.json').write_bytes(b'not JSON: original failed report');raise ValueError('original DOM failure')
