@@ -29,7 +29,10 @@ security() {
   case "$FSGG_POLYGLOT_PROVIDER" in
     typescript-cli|javascript-cli)
       # info is the lowest severity: every reported vulnerability blocks, never audit fix.
-      npm audit --json --audit-level=info --ignore-scripts --userconfig=/dev/null --globalconfig=/dev/null --registry=https://registry.npmjs.org > security-audit.json
+      # Distinct empty user/global configs: npm refuses one file loaded in both roles.
+      : > "$PWD/.npm-audit-user-empty.config"
+      : > "$PWD/.npm-audit-global-empty.config"
+      npm audit --json --audit-level=info --ignore-scripts --userconfig="$PWD/.npm-audit-user-empty.config" --globalconfig="$PWD/.npm-audit-global-empty.config" --registry=https://registry.npmjs.org > security-audit.json
       ;;
     rust-cli)
       : "${FSGG_CARGO_AUDIT:?qualified cargo-audit image required}" "${FSGG_CARGO_AUDIT_SHA256:?qualified image digest required}"

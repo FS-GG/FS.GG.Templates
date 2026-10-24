@@ -42,6 +42,11 @@ class SourceContract(unittest.TestCase):
         self.edit("templates/fs-gg-typescript-cli/package-lock.json", lambda value: value["packages"]["node_modules/typescript"].update(integrity=""))
         with self.assertRaisesRegex(ValueError, "integrity"):
             contract.validate_source(self.root)
+    def test_shared_npm_null_config_refusal(self):
+        path = self.root / "template/polyglot-common/node-build.sh"
+        path.write_text(path.read_text() + "\nnpm pack --userconfig=/dev/null --globalconfig=/dev/null\n")
+        with self.assertRaisesRegex(ValueError, "distinct files"):
+            contract.validate_source(self.root)
     def test_skill_digest_refusal(self):
         path = self.root / "template/product-skills/node-workspace/SKILL.md"
         path.write_text(path.read_text() + "drift")

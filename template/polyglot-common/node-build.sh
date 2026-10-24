@@ -1,6 +1,10 @@
 # Shared authored Node implementation; the two source-language contracts stay distinct.
+# npm refuses to load the same file (such as /dev/null) as both user and global configuration, so each
+# operation owns two distinct empty files in its exclusive work directory.
 node_prepare() {
-  npm ci --offline --ignore-scripts --no-audit --no-fund --userconfig=/dev/null --globalconfig=/dev/null --cache "${NPM_CONFIG_CACHE:?selected private locked cache required}"
+  : > "$PWD/.npm-user-empty.config"
+  : > "$PWD/.npm-global-empty.config"
+  npm ci --offline --ignore-scripts --no-audit --no-fund --userconfig="$PWD/.npm-user-empty.config" --globalconfig="$PWD/.npm-global-empty.config" --cache "${NPM_CONFIG_CACHE:?selected private locked cache required}"
 }
 node_build() {
   node node_modules/typescript/bin/tsc --project tsconfig.json
@@ -16,4 +20,4 @@ node_surface() {
   case "$FSGG_POLYGLOT_PROVIDER" in typescript-cli) entry=dist/main.js ;; javascript-cli) entry=src/main.js ;; *) return 3;; esac
   [ "$(node "$entry" hello 'surface text')" = 'hello surface text' ]
 }
-node_package() { npm pack --ignore-scripts --userconfig=/dev/null --globalconfig=/dev/null --json --pack-destination . > package-result.json; }
+node_package() { npm pack --ignore-scripts --userconfig="$PWD/.npm-user-empty.config" --globalconfig="$PWD/.npm-global-empty.config" --json --pack-destination . > package-result.json; }

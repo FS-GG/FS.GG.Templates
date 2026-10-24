@@ -2,6 +2,7 @@ namespace FS.GG.Templates.PolyglotProviderTool
 
 open System.IO
 open System.Text.Json
+open Fsgg
 open FS.GG.SDD.Artifacts
 
 /// Mechanical readback of the public schema, not an execution acceptance claim.

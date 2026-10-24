@@ -68,9 +68,29 @@ module Catalog =
         | [] -> ()
         | errors -> failwithf "Invalid producer catalog: %A" errors
         let canonical = ProviderCatalogIntegrity.catalogBytes catalog
-        let node = JsonNode.Parse(Encoding.UTF8.GetString canonical)
-        if isNull node then failwith "Public canonical catalog is absent."
+        let node =
+            match JsonNode.Parse(Encoding.UTF8.GetString canonical) with
+            | null -> failwith "Public canonical catalog is absent."
+            | parsed -> parsed
         node["digest"] <- JsonValue.Create(ProviderCatalogIntegrity.digest canonical)
+        // The published canonical writer emits `"default": null` for an absent default, which the published
+        // parser refuses as a non-null scalar. Omission is the supported hand-authored form and keeps the same
+        // semantic digests because verification re-encodes parsed absent defaults the same way.
+        match node["providers"] with
+        | :? JsonArray as providers ->
+            for provider in providers do
+                match provider with
+                | :? JsonObject as providerFields ->
+                    match providerFields["parameters"] with
+                    | :? JsonArray as parameters ->
+                        for parameter in parameters do
+                            match parameter with
+                            | :? JsonObject as fields when fields.ContainsKey "default" && isNull fields["default"] ->
+                                fields.Remove "default" |> ignore
+                            | _ -> ()
+                    | _ -> failwith "Public canonical provider parameters are absent."
+                | _ -> failwith "Public canonical provider is not an object."
+        | _ -> failwith "Public canonical providers are absent."
         let result = Encoding.UTF8.GetBytes(node.ToJsonString())
         ProviderCatalogIntegrity.verify (ProviderCatalogIntegrity.digest result) result |> require |> ignore
         // Use the actual production prepare route, including all original required parameters.

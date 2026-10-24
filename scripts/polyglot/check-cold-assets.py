@@ -21,7 +21,7 @@ def check(stage):
     require(lock['version'] == 1, 'unsupported NuGet lock format')
     restore = assets['project']['restore']
     require(set(restore['sources']) == {'https://api.nuget.org/v3/index.json'}, 'non-public package source')
-    require(set(assets['packageFolders']) == {str(root / 'packages') + '/'}, 'foreign package folder')
+    require({folder.rstrip('/') for folder in assets['packageFolders']} == {str(root / 'packages')}, 'foreign package folder')
     require(not restore.get('fallbackFolders'), 'fallback package folders refused')
     direct = {'FS.GG.Contracts': '7.6.0', 'FS.GG.SDD.Artifacts': '2.4.0',
               'FS.GG.SDD.Commands': '2.4.0', 'FSharp.Core': '10.1.401'}

@@ -33,6 +33,11 @@ def validate_source(root):
     security_source = (root / 'template/polyglot-common/security.sh').read_text()
     require(security_source.count('scripts/security-result.py --single "$FSGG_POLYGLOT_PROVIDER" security-audit.json') == 2,
             'actual security paths must enforce strict raw findings before handoff')
+    node_source = (root / 'template/polyglot-common/node-build.sh').read_text()
+    for name, text in (('node-build.sh', node_source), ('security.sh', security_source)):
+        # Observed with npm 11.19.0: one /dev/null file loaded as both user and global config is refused.
+        require('--globalconfig=/dev/null' not in text and '--userconfig=/dev/null' not in text,
+                'npm user/global configuration must be distinct files: ' + name)
     for provider in PROVIDERS:
         directory = root / "templates" / ("fs-gg-" + provider + "-cli")
         config = json.loads((directory / ".template.config/template.json").read_text())

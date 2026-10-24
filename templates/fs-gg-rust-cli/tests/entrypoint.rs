@@ -15,5 +15,8 @@ fn actual_cli() {
         .output()
         .unwrap();
     assert_eq!(bad.status.code(), Some(2));
-    assert_eq!(String::from_utf8(bad.stderr).unwrap(), "requested failure\n");
+    assert_eq!(
+        String::from_utf8(bad.stderr).unwrap(),
+        "requested failure\n"
+    );
 }

@@ -9,13 +9,16 @@ fn main() {
         eprintln!("requested failure");
         std::process::exit(2);
     }
-    println!("{}", polyglot_greet(&args.next().unwrap_or_else(|| "world".into())));
+    let name = args.next().unwrap_or_else(|| "world".into());
+    let message = polyglot_greet(&name);
+    println!("{message}");
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn literal_domain() {
-        assert_eq!(polyglot_greet("$(literal);& with spaces"), "hello $(literal);& with spaces");
+        let message = polyglot_greet("$(literal);& with spaces");
+        assert_eq!(message, "hello $(literal);& with spaces");
     }
 }

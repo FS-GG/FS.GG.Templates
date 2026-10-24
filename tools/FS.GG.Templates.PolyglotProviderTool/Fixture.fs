@@ -48,7 +48,7 @@ module Fixture =
             | "rust-cli" -> "rustc", "1.98.1"
             | _ -> "go", "1.27.1"
         let fixture =
-            {| generatorAssemblySha256 = ProviderCatalogIntegrity.digest (File.ReadAllBytes System.Reflection.Assembly.GetExecutingAssembly().Location) |> fun value -> value.Substring(7)
+            {| generatorAssemblySha256 = ProviderCatalogIntegrity.digest (File.ReadAllBytes(System.Reflection.Assembly.GetExecutingAssembly().Location)) |> fun value -> value.Substring(7)
                catalog = catalogPath; catalogDigest = ProviderCatalogIntegrity.digest raw
                policy = policyPath; policyDigest = ProviderCatalogIntegrity.digest policyBytes
                archive = archivePath; archiveDigest = ProviderCatalogIntegrity.digest archiveBytes
