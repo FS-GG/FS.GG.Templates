@@ -143,6 +143,41 @@ def container_prefix(image, root, cpus, family_env, memory_gib=8):
     return argv + [image, '/entry.sh']
 
 
+def pack_source_template(root, env, coordination_source):
+    """Pack Workspace.Template from the exact checked-out commit, in a copy under the private root.
+
+    The pack target needs the Coordination Python fixture at the revision the source names, as a git checkout; it is
+    taken from a local clone (`--coordination-source`), never fetched. Nothing is written inside the checkout.
+    """
+    head = git('rev-parse', 'HEAD')
+    source = root / 'source'
+    source.mkdir(mode=0o700)
+    archive = subprocess.run(['git', '-C', str(WORKSPACE), 'archive', head], capture_output=True, check=True)
+    subprocess.run(['tar', '-x', '-C', str(source)], input=archive.stdout, check=True)
+    fixture = json.loads((source / 'eng/portable-workspace/python-fixture-source.json').read_text())
+    revision = fixture['revision']
+    require(re.fullmatch(r'[0-9a-f]{40}', revision) is not None, 'python fixture revision malformed')
+    coordination = root / 'coordination'
+    subprocess.run(['git', 'clone', '-q', '--shared', '--no-checkout', str(coordination_source), str(coordination)], check=True, env={'PATH': env['PATH']})
+    subprocess.run(['git', '-C', str(coordination), 'checkout', '-q', '--detach', revision], check=True, env={'PATH': env['PATH']})
+    feed = root / 'template-feed'
+    feed.mkdir(mode=0o700)
+    pack_env = {**env, 'FSGG_PYTHON_COORDINATION_ROOT': str(coordination)}
+    seconds = run(['dotnet', 'pack', source / 'FS.GG.Templates.csproj', '-c', 'Release', '-o', feed, '-m:1', '-p:UseSharedCompilation=false'],
+                  source, pack_env, root / 'template-pack.log', 900)
+    packages = sorted(feed.glob('*.nupkg'))
+    require(len(packages) == 1 and packages[0].name.startswith('FS.GG.Workspace.Template.'), 'exactly one Workspace.Template package expected')
+    data = packages[0].read_bytes()
+    return {'package': packages[0], 'packageSha256': hashlib.sha256(data).hexdigest(), 'packageBytes': len(data),
+            'sourceCommit': head, 'sourceTree': git('rev-parse', 'HEAD^{tree}'), 'pythonFixtureRevision': revision, 'seconds': seconds}
+
+
+def protected_main(head):
+    """True when the checkout is already on the local copy of the protected default branch."""
+    result = subprocess.run(['git', '-C', str(WORKSPACE), 'merge-base', '--is-ancestor', head, 'refs/remotes/origin/main'], capture_output=True)
+    return result.returncode == 0
+
+
 def fetch(url, expected, maximum, destination):
     with urllib.request.urlopen(url, timeout=120) as response:
         data = response.read(maximum + 1)
@@ -176,10 +211,15 @@ def main(argv=None):
     parser.add_argument('--published-all', action='store_true', help='with --custody-evidence: also read every custody archive from the public feed '
                         '(unauthenticated) and compare each payload with the producer compare')
     parser.add_argument('--rendering-source', default='', help='local FS.GG.Rendering git checkout containing the typed producer commit')
+    parser.add_argument('--source-built', action='store_true', help='pack Workspace.Template from the checked-out source commit into a private '
+                        'feed and run the typed cases against it; the verdict is labelled source-built, never published')
+    parser.add_argument('--coordination-source', default='', help='local FS.GG.Coordination clone holding the revision named by '
+                        'eng/portable-workspace/python-fixture-source.json (required with --source-built)')
     parser.add_argument('--allow-dirty', action='store_true', help='record, rather than refuse, uncommitted source')
     args = parser.parse_args(argv)
 
     require(bool(args.custody_evidence) == bool(args.rendering_source), '--custody-evidence and --rendering-source go together')
+    require(bool(args.source_built) == bool(args.coordination_source), '--source-built and --coordination-source go together')
     require(not args.published_all or args.custody_evidence, '--published-all needs --custody-evidence')
     families = args.families.split(',')
     require(families and all(f in FAMILIES for f in families) and len(set(families)) == len(families), 'closed browser families required')
@@ -206,6 +246,7 @@ def main(argv=None):
         'cpus': args.cpus, 'browserHost': args.container or 'host', 'families': {}, 'seconds': {},
         'hostedRuntimeAdmission': False, 'installedAcceptance': False, 'actualProducerCustodyReadback': False,
         'durableSaveAcceptance': False, 'actualAT': False, 'whole4818Acceptance': False,
+        'origin': 'source-built' if args.source_built else 'published', 'publishedAcceptance': False,
     }
     summary_path = root / 'local-summary.json'
     try:
@@ -223,7 +264,7 @@ def main(argv=None):
             WORKSPACE, env, root / 'typed-owner-build.log', 900)
         core = artifacts / 'bin/FS.GG.Templates.ProviderTool/release/FS.GG.Templates.ProviderTool.dll'
         require(core.is_file(), 'typed owner output absent')
-        plan_text = subprocess.check_output(['dotnet', core, 'current-composition-plan'], env=env, text=True, cwd=str(root))
+        plan_text = subprocess.check_output(['dotnet', core, 'source-built-composition-plan' if args.source_built else 'current-composition-plan'], env=env, text=True, cwd=str(root))
         require(len(plan_text.encode()) <= 32768, 'typed plan exceeded its bound')
         plan = json.loads(plan_text)
         (root / 'current-composition-plan.json').write_text(plan_text)
@@ -231,11 +272,20 @@ def main(argv=None):
         summary['fableCoreSha256'] = fable_sha()
         summary['planSha256'] = hashlib.sha256(plan_text.encode()).hexdigest()
 
-        row = plan['template']
-        identity = row['id'].lower()
-        template = root / 'inputs' / (row['id'] + '.' + row['version'] + '.nupkg')
-        fetch('https://api.nuget.org/v3-flatcontainer/%s/%s/%s.%s.nupkg' % (identity, row['version'], identity, row['version']),
-              row['sha256'], 8388608, template)
+        if args.source_built:
+            built = pack_source_template(root, env, args.coordination_source)
+            template, template_sha = built['package'], built['packageSha256']
+            summary['sourceBuilt'] = {key: value for key, value in built.items() if key not in ('package', 'seconds')}
+            summary['sourceBuilt']['package'] = built['package'].name
+            summary['sourceBuilt']['protectedMain'] = protected_main(built['sourceCommit'])
+            summary['seconds']['templatePack'] = built['seconds']
+        else:
+            row = plan['template']
+            identity = row['id'].lower()
+            template = root / 'inputs' / (row['id'] + '.' + row['version'] + '.nupkg')
+            fetch('https://api.nuget.org/v3-flatcontainer/%s/%s/%s.%s.nupkg' % (identity, row['version'], identity, row['version']),
+                  row['sha256'], 8388608, template)
+            template_sha = row['sha256']
         version = plan['rendering']['version']
         for package in plan['rendering']['packages']:
             name = package['id'] + '.' + version + '.nupkg'
@@ -265,11 +315,14 @@ def main(argv=None):
         stage_env = {**env, 'FSGG_REFERENCE_PROVIDER_TOOL_DLL': str(core),
                      'FSGG_COMPOSITION_FABLE_MEMBERS': str(root / 'fable-member-identities.json'),
                      'FSGG_COMPOSITION_FABLE_SHA': fable_sha()}
-        summary['seconds']['sourceStage'] = run(
-            ['bash', WORKSPACE / 'tests/composition/fable-game/verify-external-reference-candidate.sh',
-             root / 'absent-rendering-source', root / 'inputs/feed', version, root / 'product',
-             plan['rendering']['sourceCommit'], 'current-public-composition', template, row['sha256'], 'current-source-stage'],
-            WORKSPACE, stage_env, root / 'source-stage.log', 2400)
+        if args.source_built:
+            stage_args = ['bash', WORKSPACE / 'tests/composition/fable-game/verify-source-built-composition.sh', root / 'inputs/feed', root / 'product',
+                          root / 'current-composition-plan.json', template, template_sha]
+        else:
+            stage_args = ['bash', WORKSPACE / 'tests/composition/fable-game/verify-external-reference-candidate.sh',
+                          root / 'absent-rendering-source', root / 'inputs/feed', version, root / 'product',
+                          plan['rendering']['sourceCommit'], 'current-public-composition', template, template_sha, 'current-source-stage']
+        summary['seconds']['sourceStage'] = run(stage_args, WORKSPACE, stage_env, root / 'source-stage.log', 2400)
         stage = json.loads((root / 'product/current-source-stage.json').read_text())
         require(stage['disposition'] == 'source-passed' and stage['browserExecuted'] is False, 'source stage incomplete')
 
@@ -313,7 +366,7 @@ def main(argv=None):
                                            'reportSha256': sha256(root / (family + '-report.json'))}
         summary['runtimeCases'] = sum(entry['passed'] for entry in summary['families'].values())
         summary['actualProducerCustodyReadback'] = 'producerCustody' in summary  # only when the whole run succeeded
-        summary['disposition'] = 'dom-observed-local-reference-only'
+        summary['disposition'] = 'dom-observed-source-built-reference-only' if args.source_built else 'dom-observed-local-reference-only'
     except BaseException as error:
         summary['firstCause'] = (type(error).__name__ + ': ' + str(error))[:8192]
         raise

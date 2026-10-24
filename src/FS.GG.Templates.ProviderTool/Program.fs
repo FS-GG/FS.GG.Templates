@@ -435,6 +435,12 @@ let main argv =
             match ReferencePublication.validateCurrentCompositionPlan plan with
             | Ok () -> printfn "%s" plan; 0
             | Error reason -> fail reason
+        | "source-built-composition-plan" :: tail ->
+            parseClosedOptions [] tail |> ignore
+            let plan = ReferencePublication.renderSourceBuiltCompositionPlan ()
+            match ReferencePublication.validateSourceBuiltCompositionPlan plan with
+            | Ok () -> printfn "%s" plan; 0
+            | Error reason -> fail reason
         | "current-d5-pins-check" :: tail ->
             let parsed = parseClosedOptions [ "--pins" ] tail
             match ReferencePublication.validateCurrentD5Pins (File.ReadAllText parsed.["--pins"]) with
