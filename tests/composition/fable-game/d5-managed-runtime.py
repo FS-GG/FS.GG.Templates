@@ -17,8 +17,9 @@ import stat
 import time
 
 HERE = Path(__file__).resolve().parent
-# Original6377028965 admission is retired. This successor source binding is not actual runtime selection.
-ADMISSION = 'https://github.com/FS-GG/.github/issues/4849#issuecomment-6378268333'
+# Original6377028965 and 6378268333 selections are retired. This successor source binding (Root 6387729342,
+# first dispatch no later than 2026-10-25T06:00:00Z) is not itself an actual runtime selection.
+ADMISSION = 'https://github.com/FS-GG/.github/issues/4849#issuecomment-6387729342'
 ADMITTED_SCOPE = 'rehearsal' # First operation only; full43 needs a separate source admission.
 # Closed D5 naming in the existing retained controller; no globals mutation or
 # controller copy. This source selection is not runtime admission.
@@ -27,7 +28,7 @@ WORKFLOW = 'FS-GG/FS.GG.Templates/.github/workflows/svg-release-d5-current-publi
 READER = {'baseRevision': '1d832f2214147065bb56e0afd76d600ed01bd27d',
           'path': 'tests/composition/fable-game/retained-reference-rehearsal.py',
           'baseSha256': '4e4fb76333804a3f16c36ef16ae1fd8aac165fae6b5cf8492157f87f18dcfd43',
-          'sha256': '39f1e667d967e9a9cdc974d1f6ff30bfb76c299f1c5b483cdb115307ecc8e528'}
+          'sha256': '01f72c0d6bde430148e0ee09a0c2e4993c9a18bfee7937e04d49edfd44dd1082'}
 OWNER = {'revision': 'ac22206560f3eddfea524ce8f752ff1d0dfeec4e',
          'path': 'eng/managed_group_owner.py', 'bytes': 45315,
          'sha256': 'd846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0'}
