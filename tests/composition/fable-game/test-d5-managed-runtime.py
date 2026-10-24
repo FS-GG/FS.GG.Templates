@@ -466,4 +466,34 @@ class RootClockControls(unittest.TestCase):
         import datetime
         with self.assertRaisesRegex(ValueError,'window refused'):self.produce(now=self.actual-datetime.timedelta(seconds=2))
 
+class HostedUsernsStepControls(unittest.TestCase):
+    """The A/B-proven hosted prerequisite step: scope, order and nothing else changed."""
+    def setUp(self):
+        self.workflow=(D5.HERE.parents[2]/'.github/workflows/svg-release-d5-current-public.yml').read_text()
+        self.receiver=self.workflow.split('  receiver:\n',1)[1]
+
+    def test_only_one_hosted_guarded_sysctl_between_capacity_and_unit(self):
+        import re
+        self.assertEqual(self.workflow.count('sysctl -w'),1)
+        self.assertEqual(re.findall(r'sudo -n sysctl -w ("\$key=0")',self.workflow),['"$key=0"'])
+        self.assertIn('key=kernel.apparmor_restrict_unprivileged_userns',self.workflow)
+        capacity=self.receiver.index('id: capacity');step=self.receiver.index('id: userns')
+        unit=self.receiver.index('- name: Fixed D5 sequence in the canonical delegated unit')
+        self.assertLess(capacity,step);self.assertLess(step,unit)
+        body=self.receiver[step:unit]
+        self.assertIn('test "${RUNNER_ENVIRONMENT:-}" = github-hosted',body)
+        self.assertLess(body.index('before.txt'),body.index('sysctl -w'));self.assertLess(body.index('sysctl -w'),body.index('after.txt'))
+        self.assertIn('grep -qx "$key = 0"',body)
+        self.assertIn('set -euo pipefail',body);self.assertIn('mkdir -m 700',body)
+        self.assertNotIn('continue-on-error',self.receiver[step-400:unit])
+        self.assertNotIn('if:',body.split('run:',1)[0])
+
+    def test_unit_properties_and_literal_probe_stay_unchanged_and_userns_evidence_is_uploaded(self):
+        unit=self.receiver.split('- name: Fixed D5 sequence in the canonical delegated unit',1)[1]
+        for token in ('-p NoNewPrivileges=yes','-p Delegate=yes','-p TasksMax=512','-p MemoryMax=8G','-p RuntimeMaxSec=1800','-p CPUQuota=200%'):
+            self.assertIn(token,unit)
+        self.assertIn("current-d5-${{ github.run_id }}-1-userns/",self.workflow.split('- name: Retain bounded original D5 evidence',1)[1])
+        self.assertEqual(unit.count('sysctl'),0)
+
+
 if __name__=='__main__':unittest.main()

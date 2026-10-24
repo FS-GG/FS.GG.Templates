@@ -159,6 +159,24 @@ jobs:
       - name: Original capacity, clock and unit collision guard
         id: capacity
         run: CHECKOUT_HEAD="$(git rev-parse HEAD)" python3 -I -B tests/composition/fable-game/d5-managed-runtime.py --outer-preflight
+      - name: Hosted prerequisite - lift the AppArmor unprivileged-userns restriction (ephemeral GitHub-hosted VM only)
+        id: userns
+        shell: bash
+        run: |
+          # Root decision https://github.com/FS-GG/.github/issues/4849#issuecomment-6385676372; A/B evidence
+          # Templates run 40116649986: the literal unshare probe fails with the restriction on (AppArmor
+          # DENIED capable sys_admin under profile unprivileged_userns) and passes, also under
+          # NoNewPrivileges, with it off. This is the only host change; NNP, namespace flags and
+          # the backend are unchanged. Never applicable to Home or self-hosted machines.
+          set -euo pipefail
+          test "${RUNNER_ENVIRONMENT:-}" = github-hosted
+          out="$RUNNER_TEMP/current-d5-$RUN_ID-1-userns"
+          mkdir -m 700 "$out"
+          key=kernel.apparmor_restrict_unprivileged_userns
+          { date -u +%Y-%m-%dT%H:%M:%SZ; sysctl "$key"; } >"$out/before.txt"
+          sudo -n sysctl -w "$key=0" >"$out/set.txt" 2>&1
+          { date -u +%Y-%m-%dT%H:%M:%SZ; sysctl "$key"; } >"$out/after.txt"
+          grep -qx "$key = 0" "$out/after.txt"
       - name: Fixed D5 sequence in the canonical delegated unit
         shell: bash
         run: |
@@ -201,6 +219,7 @@ jobs:
             ${{ runner.temp }}/current-d5-${{ github.run_id }}-1-clock.json
             ${{ runner.temp }}/current-d5-${{ github.run_id }}-1/d5-evidence/
             ${{ runner.temp }}/current-d5-${{ github.run_id }}-1-outer/
+            ${{ runner.temp }}/current-d5-${{ github.run_id }}-1-userns/
           include-hidden-files: true
           if-no-files-found: error
           retention-days: 90
