@@ -141,7 +141,7 @@ class ManagedConsumerTests(unittest.TestCase):
             result=subprocess.run([sys.executable,str(HERE/'d5-managed-runtime.py'),*flags],env=env,capture_output=True,text=True,timeout=5)
             self.assertEqual(result.returncode,3)
         self.assertFalse(sent.exists())
-        self.assertEqual(D5.ADMISSION,'https://github.com/FS-GG/.github/issues/4849#issuecomment-6387729342');self.assertEqual(D5.OUTER_CALLER_CONTRACT,'d5')
+        self.assertEqual(D5.ADMISSION,'https://github.com/FS-GG/.github/issues/4849#issuecomment-6388209473');self.assertEqual(D5.OUTER_CALLER_CONTRACT,'d5')
 
     def test_exact_admission_join_refuses_branches_retries_and_mixed_heads(self):
         admission='https://github.com/FS-GG/.github/issues/4849#issuecomment-1';head='a'*40
@@ -443,7 +443,7 @@ class RootClockControls(unittest.TestCase):
 
     def test_wrong_missing_intervals_and_expired_selection_refuse(self):
         for updates in [{'LATEST_START_UTC':'2026-10-24T00:05:00Z'},{'SELECTED_UTC':''},
-            {'SELECTED_UTC':'2026-10-25T06:00:01Z','LATEST_START_UTC':'2026-10-25T06:05:01Z','OBSERVER_DEADLINE_UTC':'2026-10-25T06:40:01Z'}]:
+            {'SELECTED_UTC':'2026-10-25T09:00:01Z','LATEST_START_UTC':'2026-10-25T09:05:01Z','OBSERVER_DEADLINE_UTC':'2026-10-25T09:40:01Z'}]:
             with self.subTest(updates=updates):
                 with self.assertRaises(ValueError):self.reader.d5_root_times({**self.env,**updates})
 
