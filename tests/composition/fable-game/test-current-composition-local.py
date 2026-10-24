@@ -77,9 +77,9 @@ class Controls(unittest.TestCase):
                 if 'current-composition-local' in line and 'test-current-composition-local' not in line:
                     self.assertTrue(line.lstrip().startswith("- 'tests/composition/fable-game/"),workflow.name+': '+line)
 
-    def test_local_runner_cannot_open_the_hosted_receiver(self):
-        workflow=(HERE.parents[2]/'.github/workflows/current-reference-composition.yml').read_text()
-        self.assertIn('ADMISSION=None',workflow);self.assertIn('if: ${{ false }}',workflow)
+    def test_hosted_original_operation_route_is_retired(self):
+        self.assertFalse((HERE.parents[2]/'.github/workflows/current-reference-composition.yml').exists())
+        self.assertFalse((HERE/'current-composition-managed.py').exists())
 
 
     # --- orchestration: the decisive sequence, with every process, download and git read faked ---------------------

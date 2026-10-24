@@ -13,12 +13,9 @@ import re
 import sys
 
 
-CURRENT_COMPOSITION_ADMISSION = None
-
-
-# ADR-0096 ordinary development verification: a local build and test of unpublished source in a
-# fresh private root. It is neither the hosted runtime admission above nor installed/published/AT
-# acceptance. This is a declaration of intent, not a security boundary: the stage script calls it with
+# ADR-0096 ordinary development verification: a local build and test in a fresh private root.
+# The held hosted original-operation route that once guarded this entry is retired (#4818); the only
+# way into the stage script is this local gate. It is not installed/published/AT acceptance. This is a declaration of intent, not a security boundary: the stage script calls it with
 # its real environment, and the runner builds a closed child environment and refuses hosted runners.
 LOCAL_VERIFICATION = 'adr-0096-local-development-verification'
 CREDENTIAL_VARIABLES = ('GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'ACTIONS_RUNTIME_TOKEN', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN',
@@ -36,8 +33,7 @@ def check_admission(env):
         require(not env.get('GITHUB_ACTIONS'), 'local verification is not a hosted-runner admission')
         require(not [name for name in CREDENTIAL_VARIABLES if env.get(name)], 'local verification refuses ambient credentials')
         return
-    require(CURRENT_COMPOSITION_ADMISSION is not None, 'current composition held: no source admission')
-    require(env.get('FSGG_CURRENT_COMPOSITION_ADMISSION') == CURRENT_COMPOSITION_ADMISSION, 'current composition owning admission differs')
+    raise ValueError('current composition runs only through the local ADR-0096 runner (the hosted route is retired)')
 
 
 def require(ok, message):

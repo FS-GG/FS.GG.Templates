@@ -56,7 +56,7 @@ def git(*args):
 
 
 def pinned_tools():
-    """The hosted caller's declared tool versions; the local run must use the same ones."""
+    """The shared hosted workflow's declared tool versions; the local run must use the same ones."""
     text = (WORKSPACE / '.github/workflows/fable-reference-public.yml').read_text()
     match = re.search(r'^\s*TOOLS = (\{.*\})$', text, re.M)
     require(match is not None, 'declared tool versions absent')

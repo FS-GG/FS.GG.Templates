@@ -13,10 +13,12 @@ set -euo pipefail
 node_root="$(realpath "${1:?unpacked Node distribution required}")"
 image="${2:-localhost/fsgg-pw-host-libs:1.63}"
 playwright=1.63.0
+# Pinned by digest (the multi-arch index behind ubuntu:24.04 on 2026-10-24); the image is rebuilt for each use, not kept shared.
+ubuntu=docker.io/library/ubuntu@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
 [[ -x "$node_root/bin/npx" ]]
 name="fsgg-pw-host-libs-build-$$"
 trap 'podman rm -f "$name" >/dev/null 2>&1 || true' EXIT
-podman run --name "$name" -v "$node_root:/opt/node:ro" docker.io/library/ubuntu:24.04 bash -c "
+podman run --name "$name" -v "$node_root:/opt/node:ro" "$ubuntu" bash -c "
   set -euo pipefail
   export DEBIAN_FRONTEND=noninteractive HOME=/tmp/home PATH=/opt/node/bin:\$PATH
   mkdir -p \$HOME
