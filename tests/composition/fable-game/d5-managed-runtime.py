@@ -13,10 +13,11 @@ import math
 import os
 from pathlib import Path
 import re
+import stat
 import time
 
 HERE = Path(__file__).resolve().parent
-ADMISSION = 'https://github.com/FS-GG/.github/issues/4849#issuecomment-6377028965'
+ADMISSION = None # Successor needs a new source-bound Root grant and original clock.
 ADMITTED_SCOPE = 'rehearsal' # First operation only; full43 needs a separate source admission.
 # Closed D5 naming in the existing retained controller; no globals mutation or
 # controller copy. This source selection is not runtime admission.
@@ -187,6 +188,107 @@ def wrong_profile(execute, owner, receipts, argv, sdd_core, typed_arguments, cwd
     raise ValueError('wrong-profile author unexpectedly succeeded')
 
 
+def sandbox_read(path, maximum=16384):
+    """Closed callers only: bounded, read-only final object; never follow a file link."""
+    fd=os.open(path,os.O_RDONLY|os.O_CLOEXEC|os.O_NOFOLLOW|os.O_NONBLOCK)
+    try:
+        data=bytearray()
+        while True:
+            block=os.read(fd,min(65536,maximum+1-len(data)))
+            if not block:return bytes(data)
+            data.extend(block)
+            require(len(data)<=maximum,'optional parent observation byte cap exceeded')
+    finally:os.close(fd)
+
+
+def sandbox_prctl(option):
+    # GET_DUMPABLE=3 / GET_SECUREBITS=27 only; no SET operation or executable.
+    require(option in (3,27),'read-only parent prctl required')
+    import ctypes
+    libc=ctypes.CDLL(None,use_errno=True)
+    result=libc.prctl(option,0,0,0,0)
+    if result<0:raise OSError(ctypes.get_errno(),'read-only parent prctl failed')
+    return result
+
+
+def sandbox_image():
+    path='/usr/bin/unshare';info=os.stat(path,follow_symlinks=False)
+    require(stat.S_ISREG(info.st_mode),'regular unshare image required')
+    body=sandbox_read(path,8388608);after=os.stat(path,follow_symlinks=False)
+    require((info.st_dev,info.st_ino,info.st_size,info.st_mtime_ns)==
+            (after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns) and len(body)==info.st_size,
+            'unshare image changed or was not completely read')
+    value={'path':path,'resolved':os.path.realpath(path),'uid':info.st_uid,'gid':info.st_gid,
+           'mode':oct(info.st_mode&0o7777),'bytes':info.st_size,
+           'sha256':hashlib.sha256(body).hexdigest(),
+           'version':'Unknown: binary hash alone does not establish util-linux version'}
+    try:value['fileCapabilities']={'status':'observed','hex':os.getxattr(path,'security.capability').hex()}
+    except OSError as error:value['fileCapabilities']={'status':'Unknown','reason':type(error).__name__+': '+str(error)[:512]}
+    return value
+
+
+def sandbox_parent_data(deadline):
+    """Read current collector only. Never infer post-exec/post-CLONE child state."""
+    started=time.monotonic();end=min(deadline,started+5)
+    def observe(read):
+        try:
+            require(time.monotonic()<end,'optional parent observation deadline expired')
+            value=read()
+            require(time.monotonic()<=end,'optional parent observation deadline expired')
+            return {'status':'observed','value':value}
+        except Exception as error:
+            return {'status':'Unknown','reason':type(error).__name__+': '+str(error)[:512]}
+    result={'schema':'fsgg.d5.sandbox-parent/1','scope':'current D5 collector before literal probe',
+            'childState':'Unknown: not post-exec/post-CLONE unshare state; no cause attribution',
+            'startedMonotonic':started,'originalPhaseDeadline':deadline,
+            'identity':observe(lambda:{'pid':os.getpid(),'ppid':os.getppid(),'uid':list(os.getresuid()),
+                                      'gid':list(os.getresgid()),'groups':os.getgroups()}),
+            'kernel':observe(lambda:list(os.uname())),
+            'dumpable':observe(lambda:sandbox_prctl(3)),
+            'securebits':observe(lambda:sandbox_prctl(27)),
+            'unitObservation':'unit.json; unchanged canonical unit reader',
+            'imageEnvironment':{k:os.environ.get(k,'Unknown: not propagated into unit')[:128]
+                                for k in ('ImageOS','ImageVersion')},
+            'unshareImage':observe(sandbox_image),'files':{},'namespaces':{},'procOwnership':{}}
+    paths=('/proc/self/status','/proc/self/uid_map','/proc/self/gid_map','/proc/self/setgroups',
+           '/proc/self/cgroup','/proc/self/attr/current','/proc/sys/fs/suid_dumpable',
+           '/proc/sys/kernel/unprivileged_userns_clone','/proc/sys/user/max_user_namespaces',
+           '/proc/sys/kernel/apparmor_restrict_unprivileged_userns',
+           '/proc/sys/kernel/apparmor_restrict_unprivileged_unconfined',
+           '/sys/kernel/security/lsm','/sys/module/apparmor/parameters/enabled',
+           '/proc/sys/kernel/random/boot_id','/usr/lib/os-release')
+    status_fields={'Uid','Gid','CapInh','CapPrm','CapEff','CapBnd','CapAmb','NoNewPrivs','Seccomp','NSpid','Groups'}
+    def text(path):
+        value=sandbox_read(path).decode('utf-8','strict')
+        if path=='/proc/self/status':
+            return {k:v.strip() for line in value.splitlines() if ':' in line
+                    for k,v in [line.split(':',1)] if k in status_fields}
+        return value
+    for path in paths:result['files'][path]=observe(lambda path=path:text(path))
+    for name in ('user','mnt','pid','net','cgroup'):
+        result['namespaces'][name]=observe(lambda name=name:os.readlink('/proc/self/ns/'+name))
+    for path in ('/proc','/proc/self','/proc/self/uid_map','/proc/self/ns/net'):
+        def ownership(path=path):
+            info=os.stat(path)
+            return {'uid':info.st_uid,'gid':info.st_gid,'mode':oct(info.st_mode&0o7777),'device':info.st_dev,'inode':info.st_ino}
+        result['procOwnership'][path]=observe(ownership)
+    result['procMounts']=observe(lambda:[line for line in sandbox_read('/proc/self/mountinfo',65536).decode().splitlines()
+                                        if ' - proc ' in line])
+    return result
+
+
+def optional_sandbox_parent(deadline):
+    """Keep diagnostic failure/overflow secondary inside the canonical attempt JSON."""
+    try:
+        value=sandbox_parent_data(deadline)
+        data=json.dumps(value,allow_nan=False)
+        require(len(data.encode())<=131072,'optional parent metadata cap exceeded')
+        return {'status':'observed','data':value}
+    except Exception as error:
+        return {'status':'Unknown','reason':type(error).__name__+': '+str(error)[:512],
+                'childState':'Unknown; original probe/terminal collection remain authoritative'}
+
+
 def probe_backend_sandbox(caller, run, identities, root):
     """Fixed SDD2.4 sandbox prerequisite, before asset acquisition; no host change."""
     unshare,unshare_sha=caller['host_image']('/usr/bin/unshare')
@@ -271,6 +373,7 @@ def run_d5(reader, contract, environ):
         reader.acquisition_capacity(owner,root,initial)
         # Match SDD2.4's literal launcher/arguments and cleared child environment.
         # Test the actual unchanged host before any SDK/Go/public asset acquisition.
+        summary['sandboxParentObservation']=optional_sandbox_parent(setup)
         probe_backend_sandbox(caller,run,identities,root)
         # No sudo/sysctl or host profile mutation. An unavailable sandbox refuses.
         tools=root/'tools';tools.mkdir();downloads=root/'downloads';downloads.mkdir()
