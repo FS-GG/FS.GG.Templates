@@ -112,3 +112,51 @@ acceptance, old Release-D/AT runs and package publication grant no runtime repla
 
 The whole #4816 promise remains open after source delivery. FourD/SC2/BAR product
 adoption and native acceptance remain with their owners under the staged plan.
+
+
+## Fixed earlier-three source successor
+
+The held earlier-three entry selects only the already declared public0.10.0,
+0.11.0 and0.12.0 cohorts. Actual bounded NuGet archive readbacks matched the
+historical manifest, and each NuSpec repository commit joined a primary GitHub
+commit readback: respectively `565ad45d2dda386e9d1673071cc0b424cfd02be6`,
+`6a66e0a31c33feab4c8f650709b585df6ac3d4c4` and
+`7146224843419a10613b0f23c781b38bc88514b8`. These input observations establish no
+materialization or runtime result. The accepted0.13 typed-SDD run40032045163 is
+reused as scoped prior evidence and is not replayed.
+
+The new fixed operation shares qualified SDK401/runtime12 and one current0.19.3
+candidate. Four empty template homes and three independent receivers, transaction
+copies, journals and adopted lock censuses prevent registration or mutable-fixture
+reuse. The0.10 receiver uses lifecycle none without an SVG argument;0.11/0.12 use
+lifecycle none with `--svgFoundation true`. No SDD/Wizard install is added to these
+historical routes. Old roots receive no SDK invocation before adoption. Each
+adopted workspace retains its product-owned private package cache; no shared
+package-restore saving or cold fit is asserted.
+
+The source proposes one original finite3000-second graph: setup720, target60,
+three cohorts each generation60/transactions100/locked-restore480, collection120,
+cleanup90 and overhead90. Its separate job has a3060-second unit and3300-second
+original first-step horizon,5-second stop and30-second independent post-read
+reservation. CPU2,8GiB unit memory,512 tasks,10GiB available ancestor memory and
+20GiB staging floors remain. The original0.13 job/default1800/2100 limits and all
+D5/DOM defaults remain unchanged. `EARLIER_ADMISSION=None` refuses before effects;
+fit is unmeasured and expired reserves refuse without renewal. There is no version
+or arbitrary command input.
+
+Fifty-two synthetic retained/earlier controls passed after a causal workflow-path
+repair. A subsequent existing17-test transaction suite did not pass: the private
+source-check wrapper's restrictive fixture umask made a0600 mode-change control
+inert. The exact affected stale-mode method passed separately with the intended
+0644-to0600 fixture transition inside a private0700 root; the original failed suite
+is retained, not relabeled. An accidental Python-only source-check child also
+lacks original birth/wait/EOF custody and remains a separate Unknown. Later process
+absence does not clear it. No Node, compiler, SDK, browser or native unit executed
+in these source checks. Coupled DOM/D5 suites were not repeated in this stage;
+normal exact-head CI and independent review remain required.
+
+All three genuine materializations, preserving transactions and locked restores
+remain unobserved. Their solution/Fable builds, adopted browser acceptance,
+durable/product-save and broader4816 obligations remain open. Source delivery
+must integrate the actual protected D5 squash before first push; a pending source
+ancestor is not that delivery proof.
