@@ -46,6 +46,15 @@ class SourceContract(unittest.TestCase):
         path.write_text(path.read_text() + "drift")
         with self.assertRaisesRegex(ValueError, "digest"):
             contract.validate_source(self.root)
+    def test_crlf_skill_mutation_refuses_lf_manifest_digest(self):
+        path = self.root / "template/product-skills/node-workspace/SKILL.md"
+        path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+        with self.assertRaisesRegex(ValueError, "digest"):
+            contract.validate_source(self.root)
+    def test_utf8_bom_preserves_file_readalltext_digest(self):
+        path = self.root / "template/product-skills/node-workspace/SKILL.md"
+        path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
+        self.assertEqual(len(contract.validate_source(self.root)), 14)
     def test_skill_destination_refusal(self):
         path = self.root / "FS.GG.Templates.csproj"
         path.write_text(path.read_text().replace("content/templates/fs-gg-go-cli/.agents/skills/go-testing/", "content/templates/fs-gg-rust-cli/.agents/skills/go-testing/"))

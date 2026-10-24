@@ -25,7 +25,7 @@ def validate_source(root):
         name = row["id"]
         source = "template/product-skills/" + name + "/SKILL.md"
         require(row["scope"] == "product" and row["supplied-by"] == "template/product-skills/" + name + "/", "skill ownership differs: " + name)
-        require(hashlib.sha256(authored[name].read_text(encoding="utf-8-sig").encode()).hexdigest() == row["sha256"], "skill body digest differs: " + name)
+        require(hashlib.sha256(authored[name].read_bytes().decode("utf-8-sig").encode("utf-8")).hexdigest() == row["sha256"], "skill body digest differs: " + name)
         match = re.fullmatch(r"template in \[(.*?)\]", row["materializes-when"])
         require(match is not None, "unsupported skill selection")
         expected = {"content/templates/fs-gg-" + value.strip() + "/.agents/skills/" + name + "/" for value in match[1].split(",")}
