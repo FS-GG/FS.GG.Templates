@@ -43,9 +43,22 @@ The held source passed its pure controls but had never reached a real SDK or bro
 | The source stage exports `FsGgExternalReferenceCandidate` for the build only | The four opt-in command-outcome specs register no case in the separate Playwright process, so the listing held 5 of 9 identities and the managed route would have refused at its first family. | `browser_environment(plan)` derives both flags from the typed selection and is applied to every Playwright process in the managed route and the local runner. Controls assert the managed route passes them. |
 | The Fable member-closure join needs an independent install | Not a defect of the held route (the managed caller supplies it); the local runner repeats it. | Installed by the runner from the pinned version and core hash. |
 
+## Producer-custody readback (`current-composition-custody.py`)
+
+The original Rendering custody manifest (361,215 bytes, SHA-256 `7dbd4329...98c9`) lives in Actions artifact 12305198394 of
+run 39509314882, so reading it is a credentialed GET and stays outside ordinary verification. It was read once, with
+no retry, into a fresh private root (receipt, 15,073,469-byte ZIP and the manifest) and read back independently offline.
+`--custody-evidence DIR --rendering-source CHECKOUT` joins that retained read to the typed plan with no network call:
+the manifest equals the typed SHA-256 and names the typed version and source commit; the producer's own unchanged
+`scripts/release-custody.py verify` accepts the 19 archives and the bound release plan at the typed producer commit; and
+the producer's `compare` matches each typed package to its custody archive entry for entry. The typed plan pins the signed
+nuget.org bytes and the custody records the pre-signing archives, which differ only by the feed's `.signature.p7s`, so the
+join is at payload level and the two hashes are never equated. Only a fully successful run sets the flag.
+It proves what the original producer packed matches what is published for the three selected packages. It is not
+installed or published-feed acceptance, and the retained read is not reproducible without the same credentialed access.
+
 ## Boundaries that remain
 
-- `actualProducerCustodyReadback` stays false: the typed plan's archive hashes are compared with the published packages and
-  the original Rendering custody JSON is a reference only.
+- `actualProducerCustodyReadback` is false unless the run is given `--custody-evidence` and `--rendering-source` (next section).
 - `localSaved` is the synthetic in-memory journey. Durable product save and the AT journey are separate obligations.
 - Host-library gaps are solved by the container, not by weakening a case; a missing library fails the listing or run.
