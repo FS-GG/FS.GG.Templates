@@ -77,7 +77,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 python3 tests/composition/fable-game/test-d5-public-pins.py
 
   receiver:
-    # Conditional source selection 6387729342 (first dispatch by 2026-10-25T06:00:00Z); replaces expired 6378268333.
+    # Conditional source selection 6388209473 (first dispatch by 2026-10-25T09:00:00Z); replaces 6387729342, consumed by run 40121103111.
     # Root delegated the single dispatch to the #4849 owner after review, CI, protected merge and fresh joins.
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && github.run_attempt == '1' }}
     runs-on: ubuntu-24.04
@@ -126,7 +126,7 @@ jobs:
                   return datetime.datetime.fromisoformat(value.replace('Z','+00:00')).timestamp()
               selected,latest,deadline=(parse(selection[k]) for k in ('SELECTED_UTC','LATEST_START_UTC','OBSERVER_DEADLINE_UTC'))
               if latest-selected!=300 or deadline-selected!=2400:raise ValueError('Root intervals differ')
-              if selected>parse('2026-10-25T06:00:00Z'):raise ValueError('conditional source selection expired')
+              if selected>parse('2026-10-25T09:00:00Z'):raise ValueError('conditional source selection expired')
               if not selected<=utc.timestamp()<=latest or deadline-utc.timestamp()<2100:raise ValueError('original queue/start window refused')
               record['observerDeadlineMonotonic']=mono+(deadline-utc.timestamp())
               record['disposition']='accepted'
