@@ -1,0 +1,23 @@
+{
+  "schema": "fsgg.polyglot-toolchain/1",
+  "provider": "go-cli",
+  "platforms": [
+    "linux-x64"
+  ],
+  "tools": {
+    "go": "1.27.1",
+    "python": "3.14.8"
+  },
+  "security": {
+    "scanner": "govulncheck",
+    "version": "1.9.0",
+    "independentAdvisoryInputRequired": true,
+    "jsonChecker": "one authored scripts/security-result.py before any real handoff"
+  },
+  "race": {
+    "required": true,
+    "CGO_ENABLED": "1",
+    "compilerRole": "dedicated-carrier frozen signed transaction",
+    "compilerByteVersionIdentity": "must be independently qualified before execution; no fake pin"
+  }
+}

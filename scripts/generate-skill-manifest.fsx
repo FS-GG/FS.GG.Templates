@@ -95,7 +95,7 @@ if hasFlag "--list" then
     exit 0
 
 /// id, owner source (the ONE authored file), and the templateIds whose packed payload receives it.
-let catalog =
+let legacyCatalog =
     [
         "fable-project",
         "template/product-skills/fable-project/SKILL.md",
@@ -110,6 +110,20 @@ let catalog =
         [ "fs-gg-fable-game"; "fs-gg-fable-bindings" ]
         "fable-bindings", "template/product-skills/fable-bindings/SKILL.md", [ "fs-gg-fable-bindings" ]
     ]
+
+// Templates441 extends the same upper-bound producer catalog; existing six rows remain unchanged.
+let catalog =
+    legacyCatalog
+    @ [
+        "node-workspace", "template/product-skills/node-workspace/SKILL.md", [ "fs-gg-typescript-cli"; "fs-gg-javascript-cli" ]
+        "typescript-project", "template/product-skills/typescript-project/SKILL.md", [ "fs-gg-typescript-cli" ]
+        "javascript-project", "template/product-skills/javascript-project/SKILL.md", [ "fs-gg-javascript-cli" ]
+        "node-testing", "template/product-skills/node-testing/SKILL.md", [ "fs-gg-typescript-cli"; "fs-gg-javascript-cli" ]
+        "rust-workspace", "template/product-skills/rust-workspace/SKILL.md", [ "fs-gg-rust-cli" ]
+        "rust-safety", "template/product-skills/rust-safety/SKILL.md", [ "fs-gg-rust-cli" ]
+        "go-workspace", "template/product-skills/go-workspace/SKILL.md", [ "fs-gg-go-cli" ]
+        "go-testing", "template/product-skills/go-testing/SKILL.md", [ "fs-gg-go-cli" ]
+      ]
 
 let templateIds =
     catalog |> List.collect (fun (_, _, t) -> t) |> List.distinct |> List.sort

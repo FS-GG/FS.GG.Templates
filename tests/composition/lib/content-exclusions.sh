@@ -384,7 +384,19 @@ print("\n".join(s[0].get("exclude",[])) if s else "")
       bad "exclusions: $id did not install from its source folder, so leg 3 measured nothing for it (see $log/install-$id.log)"
       continue
     fi
-    if ! ( cd "$out" && dotnet new "$id" -n "Probe386" -o "$id" ) >"$log/new-$id.log" 2>&1; then
+    # A template may declare REQUIRED parameter symbols (the four polyglot CLI providers do); the engine
+    # refuses to instantiate it without them, which would measure nothing. Supply a fixed value for
+    # each required symbol, read from the template's own declaration, so the product is still
+    # instantiated and graded — the values are inert text here, never validated by this leg.
+    local -a required_args=()
+    mapfile -t required_args < <(python3 -c '
+import json,sys
+values={"rawName":"Probe386 display","packageIdentity":"example.org/probe386/product","codeIdentifier":"probe386_greet"}
+for name,symbol in sorted((json.load(open(sys.argv[1])).get("symbols") or {}).items()):
+    if symbol.get("type")=="parameter" and symbol.get("isRequired") is True:
+        print("--"+name); print(values.get(name,"probe386"))
+' "${tdir}.template.config/template.json" 2>/dev/null)
+    if ! ( cd "$out" && dotnet new "$id" -n "Probe386" -o "$id" "${required_args[@]}" ) >"$log/new-$id.log" 2>&1; then
       bad "exclusions: $id did not instantiate, so leg 3 measured nothing for it (see $log/new-$id.log)"
       continue
     fi

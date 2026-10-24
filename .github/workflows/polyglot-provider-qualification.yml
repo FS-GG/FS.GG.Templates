@@ -1,0 +1,25 @@
+name: Polyglot provider qualification (held)
+
+on:
+  workflow_dispatch:
+    inputs:
+      admitted_ref:
+        description: Exact protected source selected by the owning operation
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+# Physical carrier and one original operation profile are not yet admitted.
+# A manual event cannot turn this source boundary into runtime authority.
+jobs:
+  qualification:
+    if: ${{ false }}
+    runs-on:
+      group: fsgg-native-qualification
+      labels: fsgg-native-linux-x64-v1
+    timeout-minutes: 160
+    steps:
+      - name: Held until exact source, inputs, carrier and original clock are selected
+        run: exit 3

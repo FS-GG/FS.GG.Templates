@@ -53,6 +53,7 @@ on:
       - 'FS.GG.Templates.csproj'
       - 'providers/**'
       - 'src/FS.GG.Templates.ProviderTool/**'
+      - 'tools/FS.GG.Templates.PolyglotProviderTool/**'
       - 'tests/ProviderComposition.Tests/**'
       - 'templates/**'
       - 'tests/composition/**'
@@ -453,6 +454,10 @@ jobs:
           cd artifacts
           sha256sum --check SHA256SUMS
 
+      - name: Require genuine same-archive four-product qualification before publication
+        if: needs.route.outputs.publish == 'true'
+        run: python3 tests/composition/polyglot/verify-release-qualification.py "artifacts/${{ needs.pack.outputs.package-file }}"
+
       # The release gate must grade the same provider-owned floor as composition.yml. In
       # particular, "latest stable" is not sufficient when a provider deliberately declares a
       # prerelease floor: the latest stable may be older and unable to render that provider.
@@ -544,7 +549,7 @@ jobs:
         if: needs.route.outputs.publish == 'true'
         env:
           FSGG_TEMPLATES_NUPKG: ${{ github.workspace }}/artifacts/${{ needs.pack.outputs.package-file }}
-          COMPOSITION_LANES: console web fable-bindings fable-game python
+          COMPOSITION_LANES: console web fable-bindings fable-game python polyglot
         run: tests/composition/run.sh
 
   publish:

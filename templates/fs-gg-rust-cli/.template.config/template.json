@@ -1,0 +1,54 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "FS-GG",
+  "classifications": [
+    "rust",
+    "CLI",
+    "Workspace"
+  ],
+  "identity": "FS.GG.Workspace.RustCli",
+  "name": "FS-GG rust CLI workspace",
+  "shortName": "fs-gg-rust-cli",
+  "preferNameDirectory": true,
+  "sources": [
+    {
+      "source": "./",
+      "target": "./",
+      "exclude": [
+        "**/[Bb]in/**",
+        "**/[Oo]bj/**",
+        "**/.template.config/**",
+        "**/*.filelist",
+        "**/*.user",
+        "**/node_modules/**",
+        "**/.nuget/**",
+        "**/target/**",
+        "**/dist/**",
+        "**/artifacts/**"
+      ]
+    }
+  ],
+  "symbols": {
+    "rawName": {
+      "type": "parameter",
+      "datatype": "text",
+      "isRequired": true,
+      "description": "Human display name, independent of package and code identity.",
+      "replaces": "Polyglot CLI display name"
+    },
+    "packageIdentity": {
+      "type": "parameter",
+      "datatype": "text",
+      "isRequired": true,
+      "description": "Explicit ecosystem package identity; Go requires a module path.",
+      "replaces": "polyglot-product"
+    },
+    "codeIdentifier": {
+      "type": "parameter",
+      "datatype": "text",
+      "isRequired": true,
+      "description": "Explicit language-valid function identifier; no F# transform is applied.",
+      "replaces": "polyglot_greet"
+    }
+  }
+}

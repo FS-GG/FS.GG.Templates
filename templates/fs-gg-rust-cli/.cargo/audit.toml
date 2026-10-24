@@ -1,0 +1,14 @@
+# Fixed project configuration takes precedence over any task-home audit defaults.
+[advisories]
+ignore = []
+informational_warnings = ["unmaintained", "unsound"]
+severity_threshold = "none"
+[database]
+fetch = false
+stale = false
+[output]
+deny = ["warnings"]
+format = "json"
+[yanked]
+enabled = true
+update_index = false
