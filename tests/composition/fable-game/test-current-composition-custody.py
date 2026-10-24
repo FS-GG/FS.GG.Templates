@@ -152,6 +152,16 @@ class Controls(unittest.TestCase):
         urls=C.published_urls(args['evidence']);self.assertEqual(len(urls),19)
         self.assertTrue(all(u.startswith('https://api.nuget.org/v3-flatcontainer/') and u.endswith(f.lower()) for f,u in urls))
 
+    def test_a_published_archive_compare_without_exact_payload_or_signature_is_refused_on_the_all_archive_path(self):
+        for replaced in ('payload entries exact','feed signature=present (excluded)'):
+            with self.subTest(missing=replaced):
+                args,_=self.build();real=C.binder;published=str(args['published_all'])
+                def altered(script,*a,replaced=replaced):
+                    out=real(script,*a)
+                    # Exit 0 with a different message, only for a pair whose remote is NOT one of the two typed copies in the typed feed dir.
+                    return out.replace(replaced,'-') if a[0]=='compare' and a[a.index('--remote')+1].startswith(published) and a[a.index('--remote')+1].endswith('Other3.1.0.0.nupkg') else out
+                with mock.patch.object(C,'binder',altered),self.assertRaisesRegex(ValueError,'plus the feed signature'):self.verify(args)
+
     def test_published_population_and_signature_refusals(self):
         args,_=self.build();(args['published_all']/'Other3.1.0.0.nupkg').unlink()
         with self.assertRaisesRegex(ValueError,'population differs'):self.verify(args)
