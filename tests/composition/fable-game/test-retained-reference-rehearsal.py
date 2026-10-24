@@ -9,6 +9,7 @@ import os
 from pathlib import Path
 import shutil
 import tempfile
+import time
 import textwrap
 import types
 import unittest
@@ -850,11 +851,14 @@ class HostedUsernsStepControls(unittest.TestCase):
     def setUp(self):
         workflow=(m.WORKSPACE/'.github/workflows/retained-reference-rehearsal.yml').read_text()
         self.workflow=workflow
-        self.job=workflow.split('  earlier-three:\n',1)[1]
+        tail=workflow.split('  earlier-three:\n',1)[1]
+        marker='  # Held fixed retained-upgrade build/Fable/browser'
+        self.job=tail.split(marker,1)[0]
         self.original=workflow.split('  earlier-three:\n',1)[0]
 
     def test_single_hosted_guarded_sysctl_between_capacity_and_unit_in_earlier_three_only(self):
-        self.assertEqual(self.workflow.count('sysctl -w'),1)
+        self.assertEqual(self.workflow.count('sysctl -w'),2)  # earlier-three and adopted-build only
+        self.assertEqual(self.job.count('sysctl -w'),1)
         self.assertNotIn('sysctl',self.original.split('jobs:',1)[1])
         capacity=self.job.index('id: capacity');step=self.job.index('id: userns')
         unit=self.job.index('- name: Run the fixed rehearsal in a fresh delegated unit')
@@ -874,6 +878,170 @@ class HostedUsernsStepControls(unittest.TestCase):
         self.assertEqual(unit.count('sysctl'),0)
         self.assertIn('retained-earlier-three-${{ github.run_id }}-1-userns/',self.job.split('- name: Retain bounded original rehearsal evidence',1)[1])
 
+
+
+class AdoptedBuildControls(unittest.TestCase):
+    """Held retained-upgrade build/Fable/browser operation (#4816 cases H-K), source controls only."""
+    @classmethod
+    def setUpClass(cls):
+        spec=importlib.util.spec_from_file_location('adopted_build',HERE/'retained-adopted-build.py')
+        cls.ab=importlib.util.module_from_spec(spec);spec.loader.exec_module(cls.ab)
+        cls.workflow=(m.WORKSPACE/'.github/workflows/retained-reference-rehearsal.yml').read_text()
+        cls.job=cls.workflow.split('  # Held fixed retained-upgrade build/Fable/browser',1)[1]
+        cls.earlier=cls.workflow.split('  earlier-three:\n',1)[1].split('  # Held fixed retained-upgrade build/Fable/browser',1)[0]
+
+    def env(self,**changes):
+        base={'EVENT':'workflow_dispatch','REPOSITORY':'FS-GG/FS.GG.Templates','REF':'refs/heads/main','SHA':'a'*40,'ADMITTED_REF':'a'*40,
+              'CHECKOUT_HEAD':'a'*40,'WORKFLOW_SHA':'a'*40,'WORKFLOW_REF':m.WORKFLOW,'RUN_ID':'42','RUN_ATTEMPT':'1',
+              'UNIT_NAME':'fsgg-mg-templates-adopted-build-42-1','ADMISSION':self.ab.ADMISSION}
+        return {**base,**changes}
+
+    def test_contract_admission_and_unit_identity_are_closed(self):
+        contract=m.caller_contract('adopted-build',self.ab.ADMISSION)
+        self.assertEqual(contract['issue'],'4816');self.assertEqual(contract['evidence'],'adopted-build-evidence')
+        self.assertEqual(self.ab.ADMISSION,'https://github.com/FS-GG/.github/issues/4816#issuecomment-6389185539')
+        m.validate_admission(self.env(),self.ab.ADMISSION,contract)
+        for old in ('https://github.com/FS-GG/.github/issues/4816#issuecomment-6388444265','https://github.com/FS-GG/.github/issues/4816#issuecomment-6374878642',
+                    'https://github.com/FS-GG/.github/issues/4849#issuecomment-6388444491'):
+            with self.assertRaises(ValueError):m.validate_admission(self.env(ADMISSION=old),self.ab.ADMISSION,contract)
+        for change in ({'UNIT_NAME':'fsgg-mg-templates-earlier-three-42-1'},{'RUN_ATTEMPT':'2'},{'REF':'refs/heads/other'}):
+            with self.assertRaises(ValueError):m.validate_admission(self.env(**change),self.ab.ADMISSION,contract)
+
+    def test_limits_intervals_and_cutoff_are_distinct_per_scope(self):
+        self.assertEqual(m.scope_limits(m.caller_contract('adopted-build',self.ab.ADMISSION)),(7200,7500))
+        self.assertEqual(m.scope_limits(m.caller_contract('earlier-three',m.EARLIER_ADMISSION)),(3060,3300))
+        self.assertEqual(m.scope_limits(m.caller_contract('retained',m.ADMISSION)),(1800,2100))
+        good={'SELECTED_UTC':'2026-10-25T18:00:00Z','LATEST_START_UTC':'2026-10-25T18:05:00Z','OBSERVER_DEADLINE_UTC':'2026-10-25T20:15:00Z'}
+        m.earlier_root_times(good,'adopted-build')
+        with self.assertRaises(ValueError):m.earlier_root_times(good)  # earlier-three interval 3600 and cutoff 09:00
+        for change in ({'SELECTED_UTC':'2026-10-25T18:00:01Z','LATEST_START_UTC':'2026-10-25T18:05:01Z','OBSERVER_DEADLINE_UTC':'2026-10-25T20:15:01Z'},
+                       {'OBSERVER_DEADLINE_UTC':'2026-10-25T19:00:00Z'},{'LATEST_START_UTC':'2026-10-25T18:04:59Z'},{'SELECTED_UTC':''}):
+            with self.subTest(change=change),self.assertRaises(ValueError):m.earlier_root_times({**good,**change},'adopted-build')
+        self.assertEqual(m.EARLIER_CONDITIONAL_CUTOFF_UTC,'2026-10-25T09:00:00Z')
+
+    def test_actual_workflow_clock_producer_joins_reader_literals(self):
+        import datetime,textwrap
+        producer=textwrap.dedent(self.job.split("python3 -I -B <<'PY_ADOPTED_CLOCK'\n",1)[1].split('          PY_ADOPTED_CLOCK',1)[0])
+        self.assertIn(m.FAMILY_LIMITS['adopted-build'][3],producer);self.assertIn('8100',producer);self.assertIn('7500',producer)
+        with tempfile.TemporaryDirectory(prefix='adopted-clock-') as folder:
+            env={**self.env(),'RUNNER_TEMP':folder,'SELECTED_UTC':'2026-10-25T10:00:00Z','LATEST_START_UTC':'2026-10-25T10:05:00Z','OBSERVER_DEADLINE_UTC':'2026-10-25T12:15:00Z'}
+            now=datetime.datetime(2026,10,25,10,0,2,tzinfo=datetime.timezone.utc)
+            class SyntheticUTC(datetime.datetime):
+                @classmethod
+                def now(cls,tz=None):return now
+            with patch.dict(os.environ,env,clear=True),patch.object(datetime,'datetime',SyntheticUTC),patch('time.monotonic',return_value=100):
+                exec(compile(producer,'actual-adopted-first-clock','exec'),{})
+            clock=json.loads((Path(folder)/'retained-adopted-build-42-1-clock.json').read_text())
+            m.validate_earlier_original_clock(clock,env,'adopted-build');self.assertEqual(clock['observerDeadlineMonotonic'],100+8098)
+            with self.assertRaises(ValueError):m.validate_earlier_original_clock(clock,env)  # not an earlier-three clock
+
+    def test_workflow_job_is_hosted_gated_managed_and_unchanged_elsewhere(self):
+        self.assertIn("inputs.operation == 'adopted-build'",self.job)
+        capacity=self.job.index('id: capacity');step=self.job.index('id: userns');unit=self.job.index('- name: Run the fixed rehearsal in a fresh delegated unit')
+        self.assertLess(capacity,step);self.assertLess(step,unit)
+        body=self.job[step:unit]
+        for token in ('set -euo pipefail','test "${RUNNER_ENVIRONMENT:-}" = github-hosted','mkdir -m 700','sudo -n sysctl -w "$key=0"','grep -qx "$key = 0"'):
+            self.assertIn(token,body)
+        self.assertEqual(self.job.count('sysctl -w'),1)
+        for token in ('-p NoNewPrivileges=yes','-p Delegate=yes','-p TasksMax=1024','-p MemoryMax=8G','-p RuntimeMaxSec=7200','-p CPUQuota=200%','timeout-minutes: 140'):
+            self.assertIn(token,self.job)
+        self.assertNotIn('--earlier-three',self.job);self.assertNotIn('retained-reference-rehearsal.py',self.job)
+        for flag in ('--check-admission','--outer-preflight','--record-client-exit','--post-unit'):self.assertIn('retained-adopted-build.py '+flag,self.job)
+        self.assertIn('-- /usr/bin/python3 -I -B tests/composition/fable-game/retained-adopted-build.py\n',self.job)
+        upload=self.job.split('- name: Retain bounded original rehearsal evidence',1)[1]
+        for token in ('adopted-build-evidence/','-1-userns/','-1-outer/','-1-clock.json',"always() && steps.clock.outcome != 'skipped'"):
+            self.assertIn(token,upload)
+        # the consumed earlier-three job keeps its own profile and flags
+        for token in ('-p TasksMax=512','-p RuntimeMaxSec=3060','retained-reference-rehearsal.py --earlier-three','timeout-minutes: 55'):self.assertIn(token,self.earlier)
+        self.assertIn('adopted-build]',self.workflow.split('jobs:',1)[0])
+
+    def test_phase_plan_fits_the_unit_and_deadlines_cap_cumulatively(self):
+        names=[name for name,_ in self.ab.PHASES];total=sum(seconds for _,seconds in self.ab.PHASES)
+        self.assertEqual(total,6860);self.assertLess(total+5+30,7200)
+        self.assertEqual([n for n in names if n.endswith('-build')],[v+'-build' for v in self.ab.VERSIONS])
+        self.assertEqual(self.ab.deadline(m,0,'setup',0.0),900.0)
+        self.assertEqual(self.ab.deadline(m,0,'0.13.0-build',5000.0),5940.0)
+        self.assertEqual(self.ab.deadline(m,0,'0.13.0-build',6500.0),6560.0)
+        with self.assertRaises(ValueError):self.ab.deadline(m,0,'0.13.0-build',6560.0)
+        with self.assertRaises(ValueError):self.ab.deadline(m,0,'unknown',0.0)
+
+    def test_pins_match_the_reviewed_hosted_caller_and_d5(self):
+        caller=m.load_file('adopted_caller_pins',HERE/'wasm-installed-c.py').actual_caller()
+        self.assertEqual(self.ab.QUINT['sha256'],'939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f')
+        self.assertIn('/v0.32.0/',self.ab.QUINT['url'])
+        spec=caller['BROWSER_ARCHIVES'][self.ab.CHROMIUM['asset']];self.assertEqual(spec['sha256'],'a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d')
+        self.assertEqual(caller['BROWSER_LAYOUTS'][self.ab.CHROMIUM['asset']]['members'],287)
+        self.assertIn('provision_node_npm',caller);self.assertEqual(caller['TOOLS']['node'],'24.20.0');self.assertEqual(caller['TOOLS']['npm'],'11.19.0')
+        self.assertEqual(self.ab.VERSIONS,('0.10.0','0.11.0','0.12.0','0.13.0'));self.assertEqual(m.ADOPTED_VERSIONS,self.ab.VERSIONS)
+
+    def test_build_environment_disables_every_build_daemon_and_pins_tools(self):
+        # MSBuild node reuse otherwise outlives build.sh unless disabled; fresh_environment sets part of it, the module sets all.
+        self.assertEqual(self.ab.BUILD_DAEMON_OFF['MSBUILDDISABLENODEREUSE'],'1');self.assertEqual(self.ab.BUILD_DAEMON_OFF['DOTNET_CLI_USE_MSBUILD_SERVER'],'0')
+        self.assertEqual(self.ab.BUILD_DAEMON_OFF['UseSharedCompilation'],'false')
+        source=(HERE/'retained-adopted-build.py').read_text()
+        for token in ("**BUILD_DAEMON_OFF}","'QUINT_BIN': str(quint)","'QUINT_HOME': str(quint_home)","'PLAYWRIGHT_EXECUTABLE_PATH': str(chromium)","build_env.pop('PLAYWRIGHT_BROWSERS_PATH', None)"):
+            self.assertIn(token,source)
+
+    def test_quint_evaluator_is_preseeded_from_exact_official_bytes_before_any_model_check(self):
+        self.assertEqual(self.ab.EVALUATOR['archiveSha256'],'61755a09d5052d93a4e75e840059edfd0d3674aeda164b9d2464be3d6e21b1c2')
+        self.assertEqual(self.ab.EVALUATOR['memberSha256'],'b2efdeac5713d153e41bf2143b94ed75d888fdd5637f4a5d61a04c695313510a')
+        helper=m.load_file('prepare_svg_quint_evaluator_pins',m.WORKSPACE/'scripts/prepare-svg-quint-evaluator.py')
+        self.assertEqual((helper.ARCHIVE,helper.MEMBER_SHA,helper.SIZE),(self.ab.EVALUATOR['archiveSha256'],self.ab.EVALUATOR['memberSha256'],self.ab.EVALUATOR['bytes']))
+        self.assertTrue(self.ab.EVALUATOR['url'].endswith('/evaluator/v0.6.0/'+helper.NAME))
+        source=(HERE/'retained-adopted-build.py').read_text()
+        self.assertLess(source.index('seed_quint_evaluator(m, workspace, evaluator_archive'),source.index('for version in VERSIONS:\n            product'))
+        with tempfile.TemporaryDirectory(prefix='adopted-evaluator-') as folder:
+            archive=Path(folder)/'a.tgz';archive.write_bytes(b'not the official archive')
+            with self.assertRaises(ValueError):self.ab.seed_quint_evaluator(m,m.WORKSPACE,archive,Path(folder)/'home')
+            self.assertFalse((Path(folder)/'home').exists())
+
+    def test_build_output_readback_is_closed(self):
+        good="""Passed!  - Failed:     0, Passed:    19, Skipped:     0, Total:    19, Duration: 89 ms - Domain.Tests.dll (net10.0)
+Passed!  - Failed:     0, Passed:    26, Skipped:     0, Total:    26, Duration: 58 ms - Protocol.Tests.dll (net10.0)
+  21 skipped
+  16 passed (31.1s)
+release prepared: artifacts/releases/workspace-v1
+"""
+        self.assertEqual(self.ab.parse_build_output(m,good),{'productTestPassed':[19,26],'browserPassed':16,'browserSkipped':21})
+        for label,bad in {'unit failure':good.replace('Failed:     0, Passed:    26','Failed:     1, Passed:    25'),
+                          'no totals':good.split('\n',2)[2],'no browser':good.replace('  16 passed (31.1s)\n',''),
+                          'browser failed':good.replace('  21 skipped','  2 failed\n  21 skipped'),'no release':good.replace('release prepared:','release skipped:'),
+                          'two summaries':good+'  3 passed (1s)\n'}.items():
+            with self.subTest(label),self.assertRaises(ValueError):self.ab.parse_build_output(m,bad)
+
+    def test_pinned_browser_extraction_refuses_traversal_population_and_size(self):
+        caller={'BROWSER_LAYOUTS':{self.ab.CHROMIUM['asset']:{'members':2,'logicalBytes':7}}}
+        def archive(folder,rows):
+            path=Path(folder)/'a.zip'
+            with zipfile.ZipFile(path,'w') as package:
+                for name,data in rows:
+                    info=zipfile.ZipInfo(name);info.external_attr=0o100755<<16;package.writestr(info,data)
+            return path
+        with tempfile.TemporaryDirectory(prefix='adopted-browser-') as folder:
+            ok=archive(folder,[('chrome-headless-shell-linux64/chrome-headless-shell','#!/bin/'),('chrome-headless-shell-linux64/x','')])
+            exe=self.ab.extract_chromium(m,caller,ok,Path(folder)/'out1',time.monotonic()+30);self.assertTrue(os.access(exe,os.X_OK))
+            for label,rows in {'traversal':[('../escape','x'),('chrome-headless-shell-linux64/chrome-headless-shell','abcdefg')],
+                               'population':[('chrome-headless-shell-linux64/chrome-headless-shell','abcdefg')],
+                               'size':[('chrome-headless-shell-linux64/chrome-headless-shell','abcdefghijkl'),('chrome-headless-shell-linux64/x','')]}.items():
+                with self.subTest(label),self.assertRaises(ValueError):
+                    self.ab.extract_chromium(m,caller,archive(folder,rows),Path(folder)/('out-'+label),time.monotonic()+30)
+
+    def test_adopted_collection_indexes_transactions_locks_builds_and_identities(self):
+        with tempfile.TemporaryDirectory(prefix='adopted-collect-') as folder:
+            root=Path(folder)/'retained-adopted-build-1-1';root.mkdir()
+            (root/'rehearsal.json').write_text('{}');(root/'build-identities.json').write_text('{}')
+            for version in self.ab.VERSIONS:
+                (root/('build-'+version+'.json')).write_text('{}');(root/('locks-'+version+'-before.json')).write_text('{}')
+                transaction=root/'transactions'/version;transaction.mkdir(parents=True);(transaction/'transaction-controls.json').write_text('{}')
+            contract=m.caller_contract('adopted-build',self.ab.ADMISSION)
+            result=m.collect(root,time.monotonic()+60,contract)
+            paths={row['path'] for row in result['files']}
+            self.assertEqual(result['failures'],[])
+            for version in self.ab.VERSIONS:
+                for name in ('build-%s.json'%version,'locks-%s-before.json'%version,'transactions/%s/transaction-controls.json'%version):self.assertIn(name,paths)
+            self.assertIn('build-identities.json',paths)
+            m.collection_terminal(root,{'disposition':'passed','executionDisposition':'passed','firstCause':None,'additionalFailures':[],'phases':{},'seconds':1.0},contract)
+            self.assertTrue((root/'adopted-build-evidence/rehearsal.json').is_file())
 
 
 if __name__=='__main__':

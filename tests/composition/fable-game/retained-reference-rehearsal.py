@@ -75,7 +75,7 @@ def load_file(name, path):
 
 def caller_contract(name='retained', admission=None):
     """Closed caller naming only; admission/budgets/capacity/retirement stay external."""
-    require(name in ('retained', 'd5', 'composition', 'earlier-three'), 'unsupported managed caller')
+    require(name in ('retained', 'd5', 'composition', 'earlier-three', 'adopted-build'), 'unsupported managed caller')
     if name == 'retained':
         return {'name':name, 'issue':'4816', 'admission':admission,
                 'workflow':WORKFLOW, 'namespace':'retained-reference',
@@ -88,6 +88,12 @@ def caller_contract(name='retained', admission=None):
                 'unitPrefix':'fsgg-mg-templates-earlier-three-',
                 'ownerRelative':'.tmp/retained-canonical-owner/eng/managed_group_owner.py',
                 'evidence':'earlier-three-evidence', 'cap':EVIDENCE_CAP}
+    if name == 'adopted-build':
+        return {'name':name, 'issue':'4816', 'admission':admission,
+                'workflow':WORKFLOW, 'namespace':'retained-adopted-build',
+                'unitPrefix':'fsgg-mg-templates-adopted-build-',
+                'ownerRelative':'.tmp/retained-canonical-owner/eng/managed_group_owner.py',
+                'evidence':'adopted-build-evidence', 'cap':EVIDENCE_CAP}
     if name == 'composition':
         return {'name':name, 'issue':'4818', 'admission':admission,
                 'workflow':'FS-GG/FS.GG.Templates/.github/workflows/current-reference-composition.yml@refs/heads/main',
@@ -108,9 +114,15 @@ def selected_contract(contract=None):
     return contract
 
 
+EARLIER_FAMILY = ('earlier-three', 'adopted-build')
+# (unit seconds, outer first-step seconds, root observer interval seconds, first-dispatch cutoff UTC)
+FAMILY_LIMITS = {'earlier-three': (3060, 3300, 3600, None), 'adopted-build': (7200, 7500, 8100, '2026-10-25T18:00:00Z')}
+
+
 def scope_limits(contract=None):
-    # Closed additive earlier-three scope only; all original caller defaults stay.
-    return (3060,3300) if selected_contract(contract)['name']=='earlier-three' else (1800,2100)
+    # Closed additive earlier-three and adopted-build scopes only; all original caller defaults stay.
+    name = selected_contract(contract)['name']
+    return FAMILY_LIMITS[name][:2] if name in EARLIER_FAMILY else (1800,2100)
 
 
 def validate_admission(env, admission=None, contract=None):
@@ -160,23 +172,24 @@ def validate_d5_original_clock(clock, env):
     require(clock.get('disposition')=='accepted', 'D5 original first clock refused')
 
 
-def earlier_root_times(env):
+def earlier_root_times(env, name='earlier-three'):
+    _, _, interval, fixed_cutoff = FAMILY_LIMITS[name]
     def parse(value):
         require(isinstance(value,str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z',value), 'earlier-three root UTC malformed')
         return datetime.datetime.fromisoformat(value.replace('Z','+00:00')).timestamp()
     values={key:parse(env.get(key)) for key in ('SELECTED_UTC','LATEST_START_UTC','OBSERVER_DEADLINE_UTC')}
-    require(values['LATEST_START_UTC']-values['SELECTED_UTC']==300 and values['OBSERVER_DEADLINE_UTC']-values['SELECTED_UTC']==3600, 'earlier-three root UTC intervals differ')
-    require(values['SELECTED_UTC']<=parse(EARLIER_CONDITIONAL_CUTOFF_UTC), 'earlier-three conditional selection expired')
+    require(values['LATEST_START_UTC']-values['SELECTED_UTC']==300 and values['OBSERVER_DEADLINE_UTC']-values['SELECTED_UTC']==interval, 'earlier-three root UTC intervals differ')
+    require(values['SELECTED_UTC']<=parse(fixed_cutoff or EARLIER_CONDITIONAL_CUTOFF_UTC), 'earlier-three conditional selection expired')
     return values
 
 
-def validate_earlier_original_clock(clock, env):
-    values=earlier_root_times(env)
+def validate_earlier_original_clock(clock, env, name='earlier-three'):
+    values=earlier_root_times(env, name)
     require(clock.get('rootSelection')=={key:env[key] for key in values}, 'earlier-three original root inputs differ')
     observed=clock.get('observedUTC')
     require(isinstance(observed,str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z',observed), 'earlier-three observed UTC malformed')
     utc=datetime.datetime.fromisoformat(observed.replace('Z','+00:00')).timestamp()
-    require(values['SELECTED_UTC']<=utc<=values['LATEST_START_UTC'] and values['OBSERVER_DEADLINE_UTC']-utc>=3300, 'earlier-three original queue/start window expired or before selection')
+    require(values['SELECTED_UTC']<=utc<=values['LATEST_START_UTC'] and values['OBSERVER_DEADLINE_UTC']-utc>=FAMILY_LIMITS[name][1], 'earlier-three original queue/start window expired or before selection')
     projection=clock.get('observerDeadlineMonotonic')
     require(type(projection) in (int,float) and math.isfinite(projection)
             and projection==clock['startedMonotonic']+(values['OBSERVER_DEADLINE_UTC']-utc), 'earlier-three original UTC monotonic projection differs')
@@ -194,7 +207,7 @@ def original_clock(env, boot, contract=None):
     start=clock['startedMonotonic']
     require(type(start) in (float,int) and math.isfinite(start) and 0<=start<=time.monotonic(),'original clock malformed or ahead')
     if selected['name']=='d5':validate_d5_original_clock(clock,env)
-    if selected['name']=='earlier-three':validate_earlier_original_clock(clock,env)
+    if selected['name'] in EARLIER_FAMILY:validate_earlier_original_clock(clock,env,selected['name'])
     return clock
 
 
@@ -338,7 +351,7 @@ def outer_preflight(env, contract=None):
         clock=original_clock(env,owner._read('/proc/sys/kernel/random/boot_id').strip(), contract)
         record.update(originalClock=clock,startedMonotonic=clock['startedMonotonic'],deadlineMonotonic=clock['startedMonotonic']+outer_seconds)
         if selected['name']=='d5':record['deadlineMonotonic']=min(record['deadlineMonotonic'],clock['observerDeadlineMonotonic'])
-        if selected['name']=='earlier-three':record['deadlineMonotonic']=min(record['deadlineMonotonic'],clock['observerDeadlineMonotonic'])
+        if selected['name'] in EARLIER_FAMILY:record['deadlineMonotonic']=min(record['deadlineMonotonic'],clock['observerDeadlineMonotonic'])
         require(time.monotonic()+unit_seconds+5+30 < record['deadlineMonotonic'],'original setup consumed unit/readback reserve')
         record['capacity']={}
         capacity_snapshot(owner,Path(env['RUNNER_TEMP']),facts=record['capacity'])
@@ -587,11 +600,14 @@ def collect(root, deadline, contract=None):
         require(len(groups) <= (128 if selected['name']=='retained' else 512), 'managed evidence population exceeded')
         candidates += [group/name for group in groups for name in ('receipt.json','stdout.log','stderr.log') if (group/name).exists()]
     transactions=[root/'transaction']
-    if selected['name']=='earlier-three':
-        transactions=[root/'transactions'/version for version in EARLIER_VERSIONS]
+    if selected['name'] in EARLIER_FAMILY:
+        versions = EARLIER_VERSIONS if selected['name']=='earlier-three' else ADOPTED_VERSIONS
+        transactions=[root/'transactions'/version for version in versions]
         candidates += [root/'earlier-input-provenance.json'] if (root/'earlier-input-provenance.json').exists() else []
-        candidates += [root/('locks-'+version+'-'+stage+'.json') for version in EARLIER_VERSIONS
+        candidates += [root/('locks-'+version+'-'+stage+'.json') for version in versions
                        for stage in ('before','after') if (root/('locks-'+version+'-'+stage+'.json')).exists()]
+        if selected['name']=='adopted-build':
+            candidates += [root/name for name in ('build-identities.json', *('build-'+version+'.json' for version in versions)) if (root/name).exists()]
     for transaction in transactions:
         if transaction.is_dir():
             candidates += [transaction/'transaction-controls.json']
@@ -637,17 +653,17 @@ def collect(root, deadline, contract=None):
 def collection_terminal(root, summary, contract=None):
     selected = selected_contract(contract)
     evidence = root/selected['evidence']
-    if selected['name'] in ('d5','composition','earlier-three'):
+    if selected['name'] in ('d5','composition','earlier-three','adopted-build'):
         normalized_roots(evidence,WORKSPACE)
         evidence.mkdir(mode=0o700,exist_ok=True)
     terminal = {key:summary[key] for key in ('disposition','executionDisposition','firstCause','additionalFailures','phases','seconds')}
-    if selected['name'] in ('d5','composition','earlier-three'):
+    if selected['name'] in ('d5','composition','earlier-three','adopted-build'):
         require(len(json.dumps(terminal).encode())<=131072, 'terminal collection metadata cap exceeded')
     path = evidence/'collection-terminal.json'
     write(path, terminal)
     manifest_path = evidence/'manifest.json'
     manifest = json.loads(manifest_path.read_text()) if manifest_path.is_file() else {'capBytes':selected['cap'],'files':[],'failures':[{'error':'collection did not finish'}],'totalBytes':0}
-    if selected['name']=='earlier-three':
+    if selected['name'] in EARLIER_FAMILY:
         original=root/'rehearsal.json';copied=evidence/'rehearsal.json'
         if original.is_file() and not original.is_symlink():
             require(original.stat().st_size<=1048576,'earlier original summary exceeded')
@@ -909,6 +925,7 @@ def run_rehearsal(environ, start):
 EARLIER_ADMISSION = 'https://github.com/FS-GG/.github/issues/4816#issuecomment-6388444265'
 EARLIER_CONDITIONAL_CUTOFF_UTC = '2026-10-25T09:00:00Z'
 EARLIER_VERSIONS = ('0.10.0', '0.11.0', '0.12.0')
+ADOPTED_VERSIONS = (*EARLIER_VERSIONS, '0.13.0')
 EARLIER_SOURCES = {
     '0.10.0': ('565ad45d2dda386e9d1673071cc0b424cfd02be6','7467b12789b433374ec9c95c4d1d81a962363dae1c9bdbe71e6d54264c0962c8'),
     '0.11.0': ('6a66e0a31c33feab4c8f650709b585df6ac3d4c4','a104d27563fe1485e0e945daf1aa24cb07b314458e99b10a9e69fbec5b211357'),
