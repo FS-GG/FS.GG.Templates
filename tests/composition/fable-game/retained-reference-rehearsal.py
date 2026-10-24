@@ -75,7 +75,7 @@ def load_file(name, path):
 
 def caller_contract(name='retained', admission=None):
     """Closed caller naming only; admission/budgets/capacity/retirement stay external."""
-    require(name in ('retained', 'd5', 'composition', 'earlier-three', 'adopted-build'), 'unsupported managed caller')
+    require(name in ('retained', 'd5', 'earlier-three', 'adopted-build'), 'unsupported managed caller')
     if name == 'retained':
         return {'name':name, 'issue':'4816', 'admission':admission,
                 'workflow':WORKFLOW, 'namespace':'retained-reference',
@@ -94,12 +94,6 @@ def caller_contract(name='retained', admission=None):
                 'unitPrefix':'fsgg-mg-templates-adopted-build-',
                 'ownerRelative':'.tmp/retained-canonical-owner/eng/managed_group_owner.py',
                 'evidence':'adopted-build-evidence', 'cap':EVIDENCE_CAP}
-    if name == 'composition':
-        return {'name':name, 'issue':'4818', 'admission':admission,
-                'workflow':'FS-GG/FS.GG.Templates/.github/workflows/current-reference-composition.yml@refs/heads/main',
-                'namespace':'current-composition', 'unitPrefix':'fsgg-mg-templates-composition-',
-                'ownerRelative':'.tmp/composition-canonical-owner/eng/managed_group_owner.py',
-                'evidence':'composition-evidence', 'cap':150*1048576}
     return {'name':name, 'issue':'4849', 'admission':admission,
             'workflow':'FS-GG/FS.GG.Templates/.github/workflows/svg-release-d5-current-public.yml@refs/heads/main',
             'namespace':'current-d5', 'unitPrefix':'fsgg-mg-templates-d5-',
@@ -615,7 +609,7 @@ def collect(root, deadline, contract=None):
                 candidates += [transaction/(name+suffix) for suffix in ('.json','.diff') if (transaction/(name+suffix)).exists()]
                 journal = transaction/(name+'-backup')/'journal.json'
                 if journal.exists(): candidates.append(journal)
-    if selected['name'] in ('d5','composition'):
+    if selected['name'] == 'd5':
         # Exact D5 public evidence inventory, written by its fixed caller, never arbitrary paths.
         inventory_path=root/'d5-evidence-inputs.json'
         require(inventory_path.is_file() and not inventory_path.is_symlink() and inventory_path.stat().st_size<=1048576, 'D5 evidence inventory refused')
@@ -653,11 +647,11 @@ def collect(root, deadline, contract=None):
 def collection_terminal(root, summary, contract=None):
     selected = selected_contract(contract)
     evidence = root/selected['evidence']
-    if selected['name'] in ('d5','composition','earlier-three','adopted-build'):
+    if selected['name'] in ('d5','earlier-three','adopted-build'):
         normalized_roots(evidence,WORKSPACE)
         evidence.mkdir(mode=0o700,exist_ok=True)
     terminal = {key:summary[key] for key in ('disposition','executionDisposition','firstCause','additionalFailures','phases','seconds')}
-    if selected['name'] in ('d5','composition','earlier-three','adopted-build'):
+    if selected['name'] in ('d5','earlier-three','adopted-build'):
         require(len(json.dumps(terminal).encode())<=131072, 'terminal collection metadata cap exceeded')
     path = evidence/'collection-terminal.json'
     write(path, terminal)
@@ -674,7 +668,7 @@ def collection_terminal(root, summary, contract=None):
             require(not rows or rows==[item],'earlier original summary index differs')
             if not rows:manifest['files'].append(item);manifest['totalBytes']+=item['bytes']
         else:manifest['failures'].append({'path':'rehearsal.json','error':'original summary unavailable'})
-    if selected['name'] in ('d5','composition'):
+    if selected['name'] == 'd5':
         # A collector may fail before copying/indexing its original attempt. Retain
         # that exact pre-terminal file; never replace an already copied original.
         original=root/'attempt.json';copied=evidence/'attempt.json'
