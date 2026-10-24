@@ -7,9 +7,10 @@ no shared or remote destination (public NuGet and Playwright downloads are read-
 deployment, live-store, Home, VM or native-capability effect. It needs no Root runtime admission,
 original clock or managed-group owner, and it changes none of them.
 
-The held hosted route is unchanged: `ADMISSION=None`, a pre-checkout dispatch refusal and a literal-false
-receiver job. A local pass does not open it, and it is not hosted, installed, published, producer-custody,
-durable-save, assistive-technology or whole-#4818 acceptance.
+The held hosted original-operation route (manual workflow, managed caller, literal-false receiver) was never admitted and is
+retired by the follow-up that removed it; this runner is the only way into the stage. A local pass is not hosted, installed,
+published, producer-custody, durable-save, assistive-technology or whole-#4818 acceptance. If hosted coverage is wanted
+later, an optional job may run this same runner.
 
 ## What runs
 
@@ -25,10 +26,10 @@ environment and at most three CPUs:
 5. per browser family, a listing that must equal the nine typed file/suite/title identities, then the run with
    workers 1 and retries 0, whose report must show nine passes and no skip, flake or retry.
 
-Node 24.20.0, npm 11.19.0 and SDK 10.0.401 are read from the hosted caller and refused if different.
+Node 24.20.0, npm 11.19.0 and SDK 10.0.401 are read from `fable-reference-public.yml` (the pinned toolchain the hosted callers share) and refused if different.
 Chromium, Firefox and WebKit are Playwright 1.63 stock builds. On a host without their shared libraries,
 `--container IMAGE` runs only the browser phase in an Ubuntu 24.04 image from
-`current-composition-local-image.sh` (a mutable tag, development use), with no network, an 8 GiB memory cap and Node, .NET,
+`current-composition-local-image.sh` (pinned by digest and rebuilt for each use, not kept as a shared image), with no network, an 8 GiB memory cap and Node, .NET,
 the receiver and the browsers bind-mounted (Node and .NET read-only). The runner refuses a hosted runner, a dirty checkout
 and more than three CPUs, and passes only an allowlisted environment to children. `local-summary.json` binds each result to the checkout head and tree, and records `dirty` when `--allow-dirty` was used.
 
@@ -46,6 +47,5 @@ The held source passed its pure controls but had never reached a real SDK or bro
 
 - `actualProducerCustodyReadback` stays false: the typed plan's archive hashes are compared with the published packages and
   the original Rendering custody JSON is a reference only.
-- `localSaved` is the synthetic in-memory journey. Durable product save, the AT journey and the hosted original-operation
-  route are separate obligations.
+- `localSaved` is the synthetic in-memory journey. Durable product save and the AT journey are separate obligations.
 - Host-library gaps are solved by the container, not by weakening a case; a missing library fails the listing or run.
