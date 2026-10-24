@@ -143,7 +143,7 @@ def d5_root_times(env):
         return datetime.datetime.fromisoformat(value.replace('Z','+00:00')).timestamp()
     values={key:parse(env.get(key)) for key in ('SELECTED_UTC','LATEST_START_UTC','OBSERVER_DEADLINE_UTC')}
     require(values['LATEST_START_UTC']-values['SELECTED_UTC']==300 and values['OBSERVER_DEADLINE_UTC']-values['SELECTED_UTC']==2400, 'D5 root UTC intervals differ')
-    require(values['SELECTED_UTC']<=parse('2026-10-24T01:15:00Z'), 'D5 conditional selection expired')
+    require(values['SELECTED_UTC']<=parse('2026-10-24T03:30:00Z'), 'D5 conditional selection expired')
     return values
 
 
@@ -160,6 +160,29 @@ def validate_d5_original_clock(clock, env):
     require(clock.get('disposition')=='accepted', 'D5 original first clock refused')
 
 
+def earlier_root_times(env):
+    def parse(value):
+        require(isinstance(value,str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z',value), 'earlier-three root UTC malformed')
+        return datetime.datetime.fromisoformat(value.replace('Z','+00:00')).timestamp()
+    values={key:parse(env.get(key)) for key in ('SELECTED_UTC','LATEST_START_UTC','OBSERVER_DEADLINE_UTC')}
+    require(values['LATEST_START_UTC']-values['SELECTED_UTC']==300 and values['OBSERVER_DEADLINE_UTC']-values['SELECTED_UTC']==3600, 'earlier-three root UTC intervals differ')
+    require(values['SELECTED_UTC']<=parse(EARLIER_CONDITIONAL_CUTOFF_UTC), 'earlier-three conditional selection expired')
+    return values
+
+
+def validate_earlier_original_clock(clock, env):
+    values=earlier_root_times(env)
+    require(clock.get('rootSelection')=={key:env[key] for key in values}, 'earlier-three original root inputs differ')
+    observed=clock.get('observedUTC')
+    require(isinstance(observed,str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?Z',observed), 'earlier-three observed UTC malformed')
+    utc=datetime.datetime.fromisoformat(observed.replace('Z','+00:00')).timestamp()
+    require(values['SELECTED_UTC']<=utc<=values['LATEST_START_UTC'] and values['OBSERVER_DEADLINE_UTC']-utc>=3300, 'earlier-three original queue/start window expired or before selection')
+    projection=clock.get('observerDeadlineMonotonic')
+    require(type(projection) in (int,float) and math.isfinite(projection)
+            and projection==clock['startedMonotonic']+(values['OBSERVER_DEADLINE_UTC']-utc), 'earlier-three original UTC monotonic projection differs')
+    require(clock.get('disposition')=='accepted', 'earlier-three original first clock refused')
+
+
 def original_clock(env, boot, contract=None):
     selected = selected_contract(contract)
     path=Path(env['RUNNER_TEMP'])/(selected['namespace']+'-'+env['RUN_ID']+'-1-clock.json')
@@ -171,6 +194,7 @@ def original_clock(env, boot, contract=None):
     start=clock['startedMonotonic']
     require(type(start) in (float,int) and math.isfinite(start) and 0<=start<=time.monotonic(),'original clock malformed or ahead')
     if selected['name']=='d5':validate_d5_original_clock(clock,env)
+    if selected['name']=='earlier-three':validate_earlier_original_clock(clock,env)
     return clock
 
 
@@ -314,6 +338,7 @@ def outer_preflight(env, contract=None):
         clock=original_clock(env,owner._read('/proc/sys/kernel/random/boot_id').strip(), contract)
         record.update(originalClock=clock,startedMonotonic=clock['startedMonotonic'],deadlineMonotonic=clock['startedMonotonic']+outer_seconds)
         if selected['name']=='d5':record['deadlineMonotonic']=min(record['deadlineMonotonic'],clock['observerDeadlineMonotonic'])
+        if selected['name']=='earlier-three':record['deadlineMonotonic']=min(record['deadlineMonotonic'],clock['observerDeadlineMonotonic'])
         require(time.monotonic()+unit_seconds+5+30 < record['deadlineMonotonic'],'original setup consumed unit/readback reserve')
         record['capacity']={}
         capacity_snapshot(owner,Path(env['RUNNER_TEMP']),facts=record['capacity'])
@@ -879,7 +904,9 @@ def run_rehearsal(environ, start):
 
 # Fixed promised public cohorts only. Actual archive/NuSpec/source observations
 # were independently acquired before this source selection; no runtime grant.
-EARLIER_ADMISSION = None
+# Conditional source selection only; actual Root T0/run remain unset. Old13/D5 grants do not apply.
+EARLIER_ADMISSION = 'https://github.com/FS-GG/.github/issues/4816#issuecomment-6378268057'
+EARLIER_CONDITIONAL_CUTOFF_UTC = '2026-10-24T03:30:00Z'
 EARLIER_VERSIONS = ('0.10.0', '0.11.0', '0.12.0')
 EARLIER_SOURCES = {
     '0.10.0': ('565ad45d2dda386e9d1673071cc0b424cfd02be6','7467b12789b433374ec9c95c4d1d81a962363dae1c9bdbe71e6d54264c0962c8'),
@@ -959,6 +986,19 @@ def finish_earlier(root, summary, receipts, primary, start, contract):
     if primary is None and deciding is not None:raise deciding
 
 
+def earlier_sandbox_prerequisite(caller, run, identities, root, summary):
+    # Reuse the reviewed D5 literal managed probe, never a local namespace launch.
+    path=HERE/'d5-managed-runtime.py'
+    require(path.is_relative_to(WORKSPACE) and all(not parent.is_symlink() for parent in (path,*path.parents)),'sandbox source path refused')
+    require(path.is_file() and not path.is_symlink(),'sandbox source unavailable')
+    summary['sandboxSourceSha256']=sha(path)
+    summary['sandboxPrerequisite']={'argv':['/usr/bin/unshare','--user','--map-root-user','--net','--','/usr/bin/true'],'disposition':'started'}
+    d5=load_file('earlier_supported_sandbox',path)
+    result=d5.probe_backend_sandbox(caller,run,identities,root)
+    summary['sandboxPrerequisite']['disposition']='managed-literal-probe-passed'
+    return result
+
+
 def run_earlier_three(environ):
     contract=caller_contract('earlier-three',EARLIER_ADMISSION)
     source=validate_admission(environ,EARLIER_ADMISSION,contract)
@@ -974,12 +1014,13 @@ def run_earlier_three(environ):
     try:
         caller=load_file('earlier_actual_caller',HERE/'wasm-installed-c.py').actual_caller()
         env=caller['fresh_environment'](root,environ);env.update(UNIT_NAME=environ['UNIT_NAME'],PRIVATE_ROOT=str(root))
-        write(root/'source-seals.json',{name:sha(workspace/name) for name in SOURCE_FILES})
+        write(root/'source-seals.json',{name:sha(workspace/name) for name in (*SOURCE_FILES,'tests/composition/fable-game/d5-managed-runtime.py')})
         setup=earlier_deadline(start,'setup',time.monotonic());owner=caller['load_owner'](root,setup);caller['probe_containment'](owner,root)
         def executor(until):return caller['managed_executor'](owner,root,until,identities,'installed',receipts)
         run=executor(setup)
         unit_properties(caller,run,env,identities,initial,{**UNIT,'RuntimeMaxUSec':'51min'})
         acquisition_capacity(owner,root,initial)
+        earlier_sandbox_prerequisite(caller,run,identities,root,summary)
         tools=root/'tools';tools.mkdir();downloads=root/'downloads';downloads.mkdir()
         get=caller['acquirer'](root,downloads,caller['download'],setup,acquisitions)
         def sdk_get(name,url,expected,maximum,algorithm='sha256'):

@@ -140,7 +140,7 @@ cleanup90 and overhead90. Its separate job has a3060-second unit and3300-second
 original first-step horizon,5-second stop and30-second independent post-read
 reservation. CPU2,8GiB unit memory,512 tasks,10GiB available ancestor memory and
 20GiB staging floors remain. The original0.13 job/default1800/2100 limits and all
-D5/DOM defaults remain unchanged. `EARLIER_ADMISSION=None` refuses before effects;
+D5/DOM defaults remain unchanged. The initial reviewed source used `EARLIER_ADMISSION=None`; the later conditional source selection below still requires separate actual runtime admission;
 fit is unmeasured and expired reserves refuse without renewal. There is no version
 or arbitrary command input.
 
@@ -160,3 +160,39 @@ remain unobserved. Their solution/Fable builds, adopted browser acceptance,
 durable/product-save and broader4816 obligations remain open. Source delivery
 must integrate the actual protected D5 squash before first push; a pending source
 ancestor is not that delivery proof.
+
+
+## Shared qualifier clock and diagnostic successor
+
+Conditional source selections [4816/6378268057](https://github.com/FS-GG/.github/issues/4816#issuecomment-6378268057)
+and [4849/6378268333](https://github.com/FS-GG/.github/issues/4849#issuecomment-6378268333)
+are separate and expire for new final selections after2026-10-24T03:30:00Z. Actual
+Root selection UTC, dispatch and run remain unset. Earlier-three validates fixed
+300-second start/3600-second observer intervals; D5 retains300/2400 and its first
+rehearsal-only gate. Both earliest-step records retain UTC observation, original
+source/run/boot, fixed monotonic deadline projection and accepted/refused cause.
+Earlier-three now retains that original clock even when admission refuses. Neither
+clock projects again from a later read; checkout/unit reserve is counted against
+the original shorter bound. Original0.13 execution and budgets remain unchanged.
+
+The earlier-three setup now uses the existing D5 canonical managed literal
+`unshare --user --map-root-user --net -- /usr/bin/true` before SDK or public package
+acquisition. Exact host-observed unshare/true image identities, cleared LANG/TZ,
+managed receipts/streams and require-empty retirement remain authoritative. A
+failed or unobservable prerequisite stops the batch without a weaker sandbox,
+host-policy mutation or retry. D5 additionally retains the reviewed bounded
+optional collector-parent observations: unavailable/overflow metadata is secondary,
+never replaces the original probe streams/cause and does not describe the child's
+post-exec or post-CLONE state. No producer/backend policy changes accompany this.
+
+Focused source controls observed six initial clock/hold/late controls passing;
+two new probe controls initially caught an inappropriate source-path overlap
+guard, then passed after the causal symlink-chain fix. Nine focused D5 clock,
+new-grant/scope and metadata-failure-isolation controls passed. The failed original
+attempt is retained; no whole52/17/DOM/D5 suite was repeated. Checks used one CPU,
+normal virtual address space and sampled aggregate RSS below75MiB, with original
+birth/argv/image/wait/EOF custody and no remaining sampled owned births. No actual
+namespace, SDK, Node, Go, GI, network or product runtime executed. The earlier
+accidental Python-child Unknown and all original failed-check/native/AT holds stay
+unreleased. Exact-head independent review/CI/protected delivery and a fresh Root
+one-POST selection remain required; neither source grant starts a runtime clock.

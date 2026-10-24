@@ -706,12 +706,12 @@ class EarlierControls(unittest.TestCase):
         def registration(home,root,version,expected):
             archive=root/'downloads'/('fs.gg.workspace.template.'+version+'.nupkg')
             return original_registration(home,root,version,m.sha(archive))
-        with patch.object(m,'validate_admission',return_value=admission),patch.object(m,'load_file',return_value=types.SimpleNamespace(actual_caller=lambda:world.caller)),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100.5)),patch.object(m,'original_clock',return_value={'startedMonotonic':100}),patch.object(m,'operational_start',return_value={'boot':'synthetic','properties':{'InvocationID':'a'*32,'ControlGroup':'/system.slice/unit.service','MainPID':'42'}}),patch.object(m,'acquisition_capacity',return_value={'synthetic':True}),patch.object(m,'template_registration',side_effect=registration):
+        with patch.object(m,'validate_admission',return_value=admission),patch.object(m,'load_file',return_value=types.SimpleNamespace(actual_caller=lambda:world.caller)),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100.5)),patch.object(m,'original_clock',return_value={'startedMonotonic':100}),patch.object(m,'operational_start',return_value={'boot':'synthetic','properties':{'InvocationID':'a'*32,'ControlGroup':'/system.slice/unit.service','MainPID':'42'}}),patch.object(m,'acquisition_capacity',return_value={'synthetic':True}),patch.object(m,'template_registration',side_effect=registration),patch.object(m,'earlier_sandbox_prerequisite',return_value='SYNTHETIC only; focused real-probe controls are separate'):
             result=m.run_earlier_three(env)
         return result,world
 
     def test_earlier_hold_precedes_io(self):
-        with patch.object(m,'load_file',side_effect=AssertionError('loader reached')),self.assertRaisesRegex(ValueError,'no source admission'):m.run_earlier_three(self.env)
+        with patch.object(m,'EARLIER_ADMISSION',None),patch.object(m,'load_file',side_effect=AssertionError('loader reached')),self.assertRaisesRegex(ValueError,'no source admission'):m.run_earlier_three(self.env)
         self.assertFalse((self.base/'retained-earlier-three-123-1').exists())
 
     def test_earlier_fixed_profiles_and_old_defaults(self):
@@ -774,9 +774,9 @@ class EarlierControls(unittest.TestCase):
         self.assertEqual(events,['terminal']);self.assertEqual(summary['firstCause'],'owner first');self.assertIn('index failure',str(primary.__notes__))
 
     def test_earlier_actual_late_original_clock_refuses_before_capacity_or_unit(self):
-        env={**self.env,'UNIT_NAME':'fsgg-mg-templates-earlier-three-123-1'};contract=m.caller_contract('earlier-three',env['ADMISSION'])
+        env={**self.env,'UNIT_NAME':'fsgg-mg-templates-earlier-three-123-1','SELECTED_UTC':'2026-10-24T01:59:59Z','LATEST_START_UTC':'2026-10-24T02:04:59Z','OBSERVER_DEADLINE_UTC':'2026-10-24T02:59:59Z'};contract=m.caller_contract('earlier-three',env['ADMISSION'])
         keys=('EVENT','REPOSITORY','REF','SHA','WORKFLOW_REF','WORKFLOW_SHA','RUN_ID','RUN_ATTEMPT','UNIT_NAME')
-        m.write(self.base/'retained-earlier-three-123-1-clock.json',{'scope':'first-workflow-step','startedMonotonic':100,'boot':'synthetic','source':{k:env[k] for k in keys}})
+        m.write(self.base/'retained-earlier-three-123-1-clock.json',{'scope':'first-workflow-step','startedMonotonic':100,'boot':'synthetic','source':{k:env[k] for k in keys},'rootSelection':{k:env[k] for k in ('SELECTED_UTC','LATEST_START_UTC','OBSERVER_DEADLINE_UTC')},'observedUTC':'2026-10-24T02:04:59Z','observerDeadlineMonotonic':3400,'disposition':'accepted'})
         with patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:306)),patch.object(m,'probe_owner',return_value=types.SimpleNamespace(_read=lambda p:'synthetic')),patch.object(m,'capacity_snapshot',side_effect=AssertionError('capacity reached')),patch.object(m,'read_unit',side_effect=AssertionError('unit reached')),self.assertRaisesRegex(ValueError,'original setup consumed'):
             m.outer_preflight(env,contract)
         pre=json.loads((self.base/'retained-earlier-three-123-1-outer/preflight.json').read_text());self.assertEqual(pre['deadlineMonotonic'],3400);self.assertEqual(pre['disposition'],'refused')
@@ -789,6 +789,60 @@ class EarlierControls(unittest.TestCase):
         self.assertIn('retained-reference-rehearsal.py --earlier-three --check-admission',earlier)
         self.assertLess(earlier.index('Anchor the original'),earlier.index('actions/checkout'))
         self.assertIn('default: retained-13',source);self.assertNotIn('baseline_version:',source)
+
+
+class EarlierClockControls(unittest.TestCase):
+    def setUp(self):
+        import datetime,textwrap
+        self.temp=tempfile.TemporaryDirectory(prefix='earlier-clock-');self.addCleanup(self.temp.cleanup);self.root=Path(self.temp.name)
+        self.env={'EVENT':'workflow_dispatch','REPOSITORY':'FS-GG/FS.GG.Templates','REF':'refs/heads/main','SHA':'a'*40,'ADMITTED_REF':'a'*40,'CHECKOUT_HEAD':'a'*40,'WORKFLOW_REF':m.WORKFLOW,'WORKFLOW_SHA':'a'*40,'RUN_ID':'42','RUN_ATTEMPT':'1','UNIT_NAME':'fsgg-mg-templates-earlier-three-42-1','RUNNER_TEMP':str(self.root),'ADMISSION':m.EARLIER_ADMISSION,'SELECTED_UTC':'2026-10-24T01:59:59Z','LATEST_START_UTC':'2026-10-24T02:04:59Z','OBSERVER_DEADLINE_UTC':'2026-10-24T02:59:59Z'}
+        source=(m.WORKSPACE/'.github/workflows/retained-reference-rehearsal.yml').read_text();self.producer=textwrap.dedent(source.split("python3 -I -B <<'PY_EARLIER_CLOCK'\n",1)[1].split('          PY_EARLIER_CLOCK',1)[0]);self.now=datetime.datetime(2026,10,24,2,0,tzinfo=datetime.timezone.utc)
+    def produce(self,now=None):
+        import datetime
+        value=self.now if now is None else now
+        class SyntheticUTC(datetime.datetime):
+            @classmethod
+            def now(cls,tz=None):return value
+        with patch.dict(os.environ,self.env,clear=True),patch.object(datetime,'datetime',SyntheticUTC),patch('time.monotonic',return_value=100):exec(compile(self.producer,'actual-earlier-first-clock','exec'),{})
+        return json.loads((self.root/'retained-earlier-three-42-1-clock.json').read_text())
+    def test_actual_producer_reader_projection_and_literal_cutoff_join(self):
+        clock=self.produce();m.validate_earlier_original_clock(clock,self.env);self.assertEqual(clock['observerDeadlineMonotonic'],3699)
+        self.assertIn(m.EARLIER_CONDITIONAL_CUTOFF_UTC,self.producer)
+        with patch.object(m.time,'monotonic',return_value=150):self.assertEqual(m.original_clock(self.env,clock['boot'],m.caller_contract('earlier-three',m.EARLIER_ADMISSION)),clock)
+        self.assertEqual(clock['observerDeadlineMonotonic'],3699)
+    def test_late_queue_retains_original_refusal_without_checkout(self):
+        import datetime
+        with self.assertRaisesRegex(ValueError,'window refused'):self.produce(now=self.now+datetime.timedelta(seconds=300))
+        record=json.loads((self.root/'retained-earlier-three-42-1-clock.json').read_text());self.assertEqual(record['disposition'],'refused');self.assertIn('window refused',record['firstCause'])
+        source=(m.WORKSPACE/'.github/workflows/retained-reference-rehearsal.yml').read_text().split('  earlier-three:\n',1)[1]
+        self.assertIn("always() && steps.clock.outcome != 'skipped'",source);self.assertIn('1-clock.json',source)
+    def test_wrong_intervals_cutoff_and_old_grants_refuse(self):
+        for change in ({'LATEST_START_UTC':'2026-10-24T02:05:00Z'},{'OBSERVER_DEADLINE_UTC':'2026-10-24T02:39:59Z'},{'SELECTED_UTC':''},{'SELECTED_UTC':'2026-10-24T03:31:00Z','LATEST_START_UTC':'2026-10-24T03:36:00Z','OBSERVER_DEADLINE_UTC':'2026-10-24T04:31:00Z'}):
+            with self.subTest(change=change),self.assertRaises(ValueError):m.earlier_root_times({**self.env,**change})
+        contract=m.caller_contract('earlier-three',m.EARLIER_ADMISSION)
+        for old in (m.ADMISSION,'https://github.com/FS-GG/.github/issues/4849#issuecomment-6378268333'):
+            with self.assertRaises(ValueError):m.validate_admission({**self.env,'ADMISSION':old},m.EARLIER_ADMISSION,contract)
+    def test_projection_source_boot_and_input_tamper_refuse(self):
+        clock=self.produce()
+        value=json.loads(json.dumps(clock));value['observerDeadlineMonotonic']+=1
+        with self.assertRaises(ValueError):m.validate_earlier_original_clock(value,self.env)
+        with self.assertRaises(ValueError):m.validate_earlier_original_clock(clock,{**self.env,'LATEST_START_UTC':'2026-10-24T02:04:58Z'})
+        with patch.object(m.time,'monotonic',return_value=150),self.assertRaises(ValueError):m.original_clock(self.env,'other-boot',m.caller_contract('earlier-three',m.EARLIER_ADMISSION))
+    def test_literal_supported_probe_images_and_cleared_environment(self):
+        seen=[];identities={};summary={}
+        caller={'host_image':lambda path:(path,'a'*64 if path.endswith('unshare') else 'b'*64),'bind_identity':lambda ids,path,basis,**kw:ids.update({path:{'basis':basis,'images':kw.get('images',['b'*64])}})}
+        result=m.earlier_sandbox_prerequisite(caller,lambda *a:seen.append(a) or 'synthetic',identities,self.root,summary)
+        self.assertEqual(result,'synthetic');self.assertEqual(seen,[(['/usr/bin/unshare','--user','--map-root-user','--net','--','/usr/bin/true'],self.root,{'LANG':'C.UTF-8','TZ':'UTC'})]);self.assertEqual(identities['/usr/bin/unshare']['images'],['a'*64,'b'*64]);self.assertEqual(summary['sandboxPrerequisite']['disposition'],'managed-literal-probe-passed')
+    def test_actual_earlier_probe_failure_blocks_bulk_acquisition_and_preserves_cause(self):
+        actual_d5=m.load_file('clock-test-d5-source',HERE/'d5-managed-runtime.py');events=[];root=self.root/'retained-earlier-three-42-1'
+        def fresh(path,env):path.mkdir();return {}
+        def run(argv,cwd,env,**kw):events.append(argv);raise ValueError('original synthetic unshare denied')
+        caller={'fresh_environment':fresh,'load_owner':lambda *a:object(),'probe_containment':lambda *a:None,'managed_executor':lambda *a:run,'host_image':lambda path:(path,'a'*64 if path.endswith('unshare') else 'b'*64),'bind_identity':lambda ids,path,basis,**kw:ids.update({path:{'synthetic':True}})}
+        def loader(name,path):return actual_d5 if name=='earlier_supported_sandbox' else types.SimpleNamespace(actual_caller=lambda:caller)
+        env={**self.env,'GITHUB_WORKSPACE':str(m.WORKSPACE)}
+        with patch.object(m,'load_file',side_effect=loader),patch.object(m,'validate_admission',return_value={'synthetic':True}),patch.object(m,'operational_start',return_value={'boot':'synthetic'}),patch.object(m,'original_clock',return_value={'startedMonotonic':100}),patch.object(m,'time',types.SimpleNamespace(monotonic=lambda:100.5)),patch.object(m,'unit_properties',return_value={}),patch.object(m,'acquisition_capacity',return_value={}),self.assertRaisesRegex(ValueError,'original synthetic unshare denied'):m.run_earlier_three(env)
+        self.assertEqual(len(events),1);self.assertEqual(events[0][0],'/usr/bin/unshare');self.assertFalse((root/'tools').exists());self.assertFalse((root/'downloads').exists())
+        summary=json.loads((root/'earlier-three-evidence/rehearsal.json').read_text());self.assertIn('original synthetic unshare denied',summary['firstCause']);self.assertEqual(summary['sandboxPrerequisite']['disposition'],'started')
 
 
 if __name__=='__main__':
