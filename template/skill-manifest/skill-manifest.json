@@ -48,6 +48,70 @@
       "resolvablePath": ".agents/skills/fable-testing/SKILL.md",
       "materializes-when": "template in [fable-game, fable-bindings]",
       "supplied-by": "template/product-skills/fable-testing/"
+    },
+    {
+      "id": "go-testing",
+      "scope": "product",
+      "sha256": "ec475ed662f2d10dfad5159a86c4a4eea15b3c5507532a1192a2a0ec9da2d239",
+      "resolvablePath": ".agents/skills/go-testing/SKILL.md",
+      "materializes-when": "template in [go-cli]",
+      "supplied-by": "template/product-skills/go-testing/"
+    },
+    {
+      "id": "go-workspace",
+      "scope": "product",
+      "sha256": "abdba33dc1c8885cefe069b14a623e7bbd4b44478c1975ef0efcf7b1645d42e4",
+      "resolvablePath": ".agents/skills/go-workspace/SKILL.md",
+      "materializes-when": "template in [go-cli]",
+      "supplied-by": "template/product-skills/go-workspace/"
+    },
+    {
+      "id": "javascript-project",
+      "scope": "product",
+      "sha256": "6c350fb6a092c02f686e90c2550ab88884819f8d516417bffbfac5e098ac5a8d",
+      "resolvablePath": ".agents/skills/javascript-project/SKILL.md",
+      "materializes-when": "template in [javascript-cli]",
+      "supplied-by": "template/product-skills/javascript-project/"
+    },
+    {
+      "id": "node-testing",
+      "scope": "product",
+      "sha256": "15df45cff80e8d0564fee331093d19fda0f573f9bc565c2ae31568451f83a853",
+      "resolvablePath": ".agents/skills/node-testing/SKILL.md",
+      "materializes-when": "template in [typescript-cli, javascript-cli]",
+      "supplied-by": "template/product-skills/node-testing/"
+    },
+    {
+      "id": "node-workspace",
+      "scope": "product",
+      "sha256": "289b7d8933e59ddb9b1ed063e55bd857b26cee00c1359fcffbff2a5962672cd8",
+      "resolvablePath": ".agents/skills/node-workspace/SKILL.md",
+      "materializes-when": "template in [typescript-cli, javascript-cli]",
+      "supplied-by": "template/product-skills/node-workspace/"
+    },
+    {
+      "id": "rust-safety",
+      "scope": "product",
+      "sha256": "b782f41b759c7182e20bfb1626292b819ae42ff6a7657e0ff994f3d30c3b165a",
+      "resolvablePath": ".agents/skills/rust-safety/SKILL.md",
+      "materializes-when": "template in [rust-cli]",
+      "supplied-by": "template/product-skills/rust-safety/"
+    },
+    {
+      "id": "rust-workspace",
+      "scope": "product",
+      "sha256": "b72aad43af4147f2ba32210cf869b66044866963ba2fb0c2e2e02556f4f5587b",
+      "resolvablePath": ".agents/skills/rust-workspace/SKILL.md",
+      "materializes-when": "template in [rust-cli]",
+      "supplied-by": "template/product-skills/rust-workspace/"
+    },
+    {
+      "id": "typescript-project",
+      "scope": "product",
+      "sha256": "9cc7f4d1fab814352f45634a20122c615b623b1ddfeea2888868f5300182cb1d",
+      "resolvablePath": ".agents/skills/typescript-project/SKILL.md",
+      "materializes-when": "template in [typescript-cli]",
+      "supplied-by": "template/product-skills/typescript-project/"
     }
   ]
 }

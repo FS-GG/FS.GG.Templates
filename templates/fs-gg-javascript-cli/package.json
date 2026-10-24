@@ -1,0 +1,30 @@
+{
+  "name": "polyglot-product",
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "product-cli": "src/main.js"
+  },
+  "files": [
+    "src",
+    "display-name.txt"
+  ],
+  "engines": {
+    "node": "24.20.0",
+    "npm": "11.19.0"
+  },
+  "packageManager": "npm@11.19.0",
+  "scripts": {
+    "build": "sh scripts/operations.sh build",
+    "lint": "sh scripts/operations.sh lint",
+    "test": "sh scripts/operations.sh test",
+    "public-surface": "sh scripts/operations.sh public-surface",
+    "package": "sh scripts/operations.sh package",
+    "security": "sh scripts/operations.sh security",
+    "evidence": "sh scripts/operations.sh evidence",
+    "release": "sh scripts/operations.sh release"
+  },
+  "devDependencies": {
+    "typescript": "5.9.2"
+  }
+}

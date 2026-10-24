@@ -1,0 +1,17 @@
+{
+  "schema": "fsgg.polyglot-toolchain/1",
+  "provider": "typescript-cli",
+  "platforms": [
+    "linux-x64"
+  ],
+  "tools": {
+    "node": "24.20.0",
+    "npm": "11.19.0",
+    "typescript": "5.9.2"
+  },
+  "security": {
+    "state": "unselected",
+    "scannerVersion": null,
+    "advisoryIdentity": null
+  }
+}

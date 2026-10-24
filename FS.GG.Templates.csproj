@@ -70,7 +70,7 @@
        and reds if any of the three legs stops filtering. -->
   <ItemGroup>
     <Content Include="templates/**/*"
-             Exclude="templates/**/bin/**;templates/**/obj/**;templates/**/.nuget/**;templates/**/node_modules/**;templates/**/output/**;templates/**/dist/**;templates/fs-gg-fable-game/Client/output/**;templates/fs-gg-fable-game/Client/dist/**;templates/fs-gg-fable-game/Browser.Tests/test-results/**;templates/fs-gg-fable-game/Browser.Tests/playwright-report/**;templates/fs-gg-fable-game/Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js;templates/fs-gg-fable-game/SvgFoundation/output/**;templates/fs-gg-fable-game/SvgFoundation/dist/**;templates/fs-gg-fable-game/SvgFoundation/Studio/output/**;templates/fs-gg-fable-game/SvgFoundation/Studio/dist/**;templates/fs-gg-fable-game/SvgFoundation/Studio/vendor/**;templates/fs-gg-fable-game/SvgFoundation/Studio/.vite/**;templates/fs-gg-fable-game/SvgFoundation/Studio/ArenaContent.js;templates/fs-gg-fable-game/artifacts/**;templates/fs-gg-fable-bindings/generated-candidates/xantham/runs/**" />
+             Exclude="templates/**/bin/**;templates/**/obj/**;templates/**/.nuget/**;templates/**/node_modules/**;templates/**/output/**;templates/**/dist/**;templates/fs-gg-fable-game/Client/output/**;templates/fs-gg-fable-game/Client/dist/**;templates/fs-gg-fable-game/Browser.Tests/test-results/**;templates/fs-gg-fable-game/Browser.Tests/playwright-report/**;templates/fs-gg-fable-game/Protocol.Tests/cross-runtime/CodecProbe.Fable/Program.js;templates/fs-gg-fable-game/SvgFoundation/output/**;templates/fs-gg-fable-game/SvgFoundation/dist/**;templates/fs-gg-fable-game/SvgFoundation/Studio/output/**;templates/fs-gg-fable-game/SvgFoundation/Studio/dist/**;templates/fs-gg-fable-game/SvgFoundation/Studio/vendor/**;templates/fs-gg-fable-game/SvgFoundation/Studio/.vite/**;templates/fs-gg-fable-game/SvgFoundation/Studio/ArenaContent.js;templates/fs-gg-fable-game/artifacts/**;templates/fs-gg-fable-bindings/generated-candidates/xantham/runs/**;templates/fs-gg-typescript-cli/target/**;templates/fs-gg-typescript-cli/artifacts/**;templates/fs-gg-javascript-cli/target/**;templates/fs-gg-javascript-cli/artifacts/**;templates/fs-gg-rust-cli/target/**;templates/fs-gg-rust-cli/artifacts/**;templates/fs-gg-go-cli/target/**;templates/fs-gg-go-cli/artifacts/**" />
     <!-- The legacy selector is a separate member of the same template group. Each member
          owns one public composition parameter, so supplying both matches neither template
          and the CLI refuses before instantiation on argv and response-file surfaces. -->
@@ -196,4 +196,29 @@
           PackagePath="content/templates/fs-gg-console/scripts/;content/templates/fs-gg-web/scripts/;content/templates/fs-gg-fable-bindings/scripts/;content/templates/fs-gg-python/scripts/;content/templates/fs-gg-fable-game/scripts/;content/templates/fs-gg-fable-game-legacy/scripts/;content/templates/fs-gg-project-knowledge/scripts/" />
   </ItemGroup>
 
+  <!-- Templates441: additive product-skill rows; original destinations are unchanged. -->
+  <ItemGroup>
+    <None Include="template/product-skills/node-workspace/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-typescript-cli/.agents/skills/node-workspace/;content/templates/fs-gg-javascript-cli/.agents/skills/node-workspace/" />
+    <None Include="template/product-skills/typescript-project/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-typescript-cli/.agents/skills/typescript-project/" />
+    <None Include="template/product-skills/javascript-project/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-javascript-cli/.agents/skills/javascript-project/" />
+    <None Include="template/product-skills/node-testing/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-typescript-cli/.agents/skills/node-testing/;content/templates/fs-gg-javascript-cli/.agents/skills/node-testing/" />
+    <None Include="template/product-skills/rust-workspace/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-rust-cli/.agents/skills/rust-workspace/" />
+    <None Include="template/product-skills/rust-safety/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-rust-cli/.agents/skills/rust-safety/" />
+    <None Include="template/product-skills/go-workspace/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-go-cli/.agents/skills/go-workspace/" />
+    <None Include="template/product-skills/go-testing/SKILL.md" Pack="true"
+          PackagePath="content/templates/fs-gg-go-cli/.agents/skills/go-testing/" />
+    <None Include="template/skill-manifest/skill-manifest.json" Pack="true"
+          PackagePath="content/templates/fs-gg-typescript-cli/.agents/skills/;content/templates/fs-gg-javascript-cli/.agents/skills/;content/templates/fs-gg-rust-cli/.agents/skills/;content/templates/fs-gg-go-cli/.agents/skills/" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="providers/polyglot.catalog.json" Pack="true" PackagePath="content/providers/polyglot.catalog.json" />
+  </ItemGroup>
 </Project>

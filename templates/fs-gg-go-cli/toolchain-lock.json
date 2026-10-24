@@ -1,0 +1,15 @@
+{
+  "schema": "fsgg.polyglot-toolchain/1",
+  "provider": "go-cli",
+  "platforms": [
+    "linux-x64"
+  ],
+  "tools": {
+    "go": "1.27.1"
+  },
+  "security": {
+    "state": "unselected",
+    "scannerVersion": null,
+    "advisoryIdentity": null
+  }
+}
