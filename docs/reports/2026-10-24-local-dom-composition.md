@@ -90,6 +90,28 @@ so this is a dated observation, not a standing guarantee):
 Every package's published archive is its custody archive plus a feed signature of 13,089 or 13,090 bytes (the overhead in parentheses), with all
 payload entries identical. This is published-feed payload agreement with the producer's packed bytes, not installed adoption.
 
+## Example composition: what the Done-when asks, and what executes
+
+The #4818 Done-when names six elements; the owning plan (staged Fable game adoption, Stage .3) says to complete the published
+examples and generated-workspace conformance for each. Each element is exercised by the typed cases below (titles are the plan's;
+27 = 9 x Chromium, Firefox, WebKit, run against the published 0.19.3 template and 0.32.3 Rendering archives). Assertions are cited
+from `Browser.Tests` in the generated Complete receiver.
+
+| Done-when element | Executing typed case(s) | Assertion that carries it |
+|---|---|---|
+| local save-replay | `Local save and replay example preserves synthetic state and settles detached controls` | inspect, save, inspect, replay preview, restore, new recording epoch over synthetic in-memory storage |
+| external receipts and reconnect without replay | `unknown receipt survives projection and reconnect without replay`; `explicit reconciliation and rearm retain the original and use a fresh correlation`; `external authority reference fences captured snapshots and settles commands independently`; `external authority reference recovers failures and disposes owned resources terminally` | unknown receipt kept across snapshots and reconnect; reconcile/rearm uses a fresh correlation; no automatic replay |
+| transformed pointer, keyboard, IME, focus | `FourD reference composes local session, normalized input, transformed hit testing and settled disposal`; `external authority reference uses production keyboard pointer editing and IME input` | painted transformed target selects the full cell; Enter and `r` map to the same semantic commands; composition keeps Enter in the textbox; focus kept across updates |
+| held release | the same two cases | `h` held then window `blur` sets `data-held` false; `blur` plus `visibilitychange` leave the authority revision unchanged |
+| DOM islands | the same two cases | native textboxes (`Encounter note`, `External reference note`) beside retained SVG keep text and IME state while the scene updates and is replaced |
+| command ordering, coalescing, replacement, disposal | `FourD reference ...`; `old generation completion is inert and abandonment requires explicit rearm`; `delayed completion settles once and disposal makes retained controls inert`; the two `external authority reference` cases above | ordered `data-command-order`; burst keeps one projection request; stale-generation reply is inert; disposal settles owned counts to 0, reload remounts independently |
+
+So every named element has an executing case, and none of the nine is a placeholder. What this does not cover, and is therefore the
+final remaining composition piece: **broader DOM panels** (capability map F04), meaning more than one textbox per island (select,
+checkbox, radio, tab order and label association across a retained update) and a fresh installed receiver. Adding that example changes
+shipped template source, so it can only be proven against a source-built template (the runner tests published bytes) and belongs to
+the next Workspace.Template release (Templates#441's 0.20.0) together with the durable reference `localSaved` journey.
+
 ## Boundaries that remain
 
 - `actualProducerCustodyReadback` is false unless the run is given `--custody-evidence` and `--rendering-source` (the previous section).
