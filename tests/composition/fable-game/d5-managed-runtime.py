@@ -17,10 +17,10 @@ import stat
 import time
 
 HERE = Path(__file__).resolve().parent
-# Original6377028965, 6378268333 and 6387729342 selections are retired (the last was consumed by run 40121103111).
-# This successor source binding (Root 6388209473, first dispatch no later than 2026-10-25T09:00:00Z) is not itself an actual runtime selection.
-ADMISSION = 'https://github.com/FS-GG/.github/issues/4849#issuecomment-6388209473'
-ADMITTED_SCOPE = 'rehearsal' # First operation only; full43 needs a separate source admission.
+# Original6377028965, 6378268333, 6387729342 and 6388209473 selections are retired (consumed by runs 40121103111 and 40124373443).
+# This successor source binding (Root 6388444491 full 43-receiver matrix, first dispatch no later than 2026-10-25T15:00:00Z) is not itself an actual runtime selection.
+ADMISSION = 'https://github.com/FS-GG/.github/issues/4849#issuecomment-6388444491'
+ADMITTED_SCOPES = ('rehearsal', 'full') # Rehearsal original 40124373443 passed; the workflow now dispatches the full 43-receiver scope only.
 # Closed D5 naming in the existing retained controller; no globals mutation or
 # controller copy. This source selection is not runtime admission.
 OUTER_CALLER_CONTRACT = 'd5'
@@ -28,7 +28,7 @@ WORKFLOW = 'FS-GG/FS.GG.Templates/.github/workflows/svg-release-d5-current-publi
 READER = {'baseRevision': '1d832f2214147065bb56e0afd76d600ed01bd27d',
           'path': 'tests/composition/fable-game/retained-reference-rehearsal.py',
           'baseSha256': '4e4fb76333804a3f16c36ef16ae1fd8aac165fae6b5cf8492157f87f18dcfd43',
-          'sha256': 'b1d221047ab1ae8b36c5e640c2605997cfd7094e84acf1c7fe6bb8ef94a253fd'}
+          'sha256': 'e5923525c3b5a032ba3c88af4b47fe224a2a1de1e6af02a6eefddc187a669fcf'}
 OWNER = {'revision': 'ac22206560f3eddfea524ce8f752ff1d0dfeec4e',
          'path': 'eng/managed_group_owner.py', 'bytes': 45315,
          'sha256': 'd846dbe158befb5b824bd94a5bc0bb89b1145f825d5d6fa3a3225fa0451a36c0'}
@@ -84,8 +84,8 @@ def admission_join(env, selected):
 
 
 def runtime_scope(environ):
-    require(environ.get('SCOPE') == ADMITTED_SCOPE, 'source admission permits rehearsal only; full matrix remains separately pending')
-    return ADMITTED_SCOPE
+    require(environ.get('SCOPE') in ADMITTED_SCOPES, 'source admission permits only the closed rehearsal or full scope')
+    return environ['SCOPE']
 
 
 def phase_deadline(start, phase, now):

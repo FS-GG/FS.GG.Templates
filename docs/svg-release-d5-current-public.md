@@ -1,5 +1,33 @@
 # Current public D.5 receiver source
 
+## Current status (2026-10-24)
+
+The sections below were written while this source was held and are kept as history; where
+they conflict with this status, this status wins. Root accepted the #4849 Delivery
+([acceptance](https://github.com/FS-GG/.github/issues/4849#issuecomment-6388882515)) on three admitted originals:
+
+| Original | Result |
+|---|---|
+| [40121103111/a1](https://github.com/FS-GG/FS.GG.Templates/actions/runs/40121103111) | Failed at the backend check: its fixture assumed a `work/d5-default/` tree that public SDD 2.4.0 does not write (fixed by Templates#778). Retained as failed evidence. |
+| [40124373443/a1](https://github.com/FS-GG/FS.GG.Templates/actions/runs/40124373443) | Rehearsal passed: raw, provider and Wizard omitted receivers (3/3) with actual default `quint-specification-v1` author, inspect and wrong-profile refusal on both typed receivers. |
+| [40127488229/a1](https://github.com/FS-GG/FS.GG.Templates/actions/runs/40127488229) | Full matrix passed: `current-d5-receiver-check` 43/43 (raw plus 42 provider/Wizard lifecycle-by-bundle cases), 129 managed groups (127 succeeded, 2 expected refusals), 12,612 evidence files. |
+
+The first two namespace failures ([40047202735](https://github.com/FS-GG/FS.GG.Templates/actions/runs/40047202735),
+[40057752243](https://github.com/FS-GG/FS.GG.Templates/actions/runs/40057752243)) were caused by AppArmor's
+`kernel.apparmor_restrict_unprivileged_userns=1` on GitHub-hosted ubuntu-24.04 (A/B run
+[40116649986](https://github.com/FS-GG/FS.GG.Templates/actions/runs/40116649986)). The workflow now runs one
+hosted-only step, `sudo -n sysctl -w kernel.apparmor_restrict_unprivileged_userns=0`, after the capacity guard and before
+the delegated unit, recording the value before and after. It refuses unless `RUNNER_ENVIRONMENT=github-hosted`; it is never
+applied to Home or self-hosted machines, and NoNewPrivileges, namespace flags and backend are unchanged.
+Each activation of the held entry needs a fresh Root conditional selection; every selection so far is consumed. The
+workflow `scope` input currently offers only `full`.
+
+Before an original is spent, run the receiver-side checkers offline against real tool output and the retained real
+snapshots of the previous original, not only against synthetic fixtures.
+
+Retained upgrades, product-native adoption, hosting and the other holds remain separate. This status carries the
+D.5 claim only for the exact published SDD 2.4.0 / Wizard 0.22.0 / Workspace.Template 0.19.3 tuple.
+
 This conditionally selected successor targets the remaining contract in
 [organization issue #4849](https://github.com/FS-GG/.github/issues/4849), under
 [the SVG release outcome](https://github.com/FS-GG/.github/issues/4644).
@@ -9,8 +37,8 @@ versions and acceptance. Current [run 39988246429](https://github.com/FS-GG/FS.G
 retains its scoped clean-creation, four-build and dedicated-browser evidence;
 this source does not repeat those product builds or browser runs.
 
-The direct script remains mechanically held with `ADMISSION=None`. The workflow
-has a [conditional root source selection](https://github.com/FS-GG/.github/issues/4849#issuecomment-6377028965)
+(Historical: the direct shell script remains held; the Python runtime entry now binds the latest Root selection literal.)
+The workflow had a [conditional root source selection](https://github.com/FS-GG/.github/issues/4849#issuecomment-6377028965)
 for one manual/main/attempt1 rehearsal. No local flag grants an operation. Root still
 requires exact source review, CI, protected delivery and one original native intent
 before dispatch. Invalid admission/source/scope refuses before workload effects.
@@ -30,8 +58,8 @@ in behavior. Actual SDD author and inspect are the backend semantic supplier.
 Python only emits input data and observes bounded JSON, arguments, model members and
 file hashes; it cannot replace the typed receiver decision.
 
-The full file observation includes canonical `work/d5-default`, models, root configs,
-owner files and authority artifacts. Explicit exclusions are `.git`, `.nuget`,
+The full file observation includes the model files, `readiness/d5-default` authority and
+quint outputs, root configs, owner files and authority artifacts (public SDD 2.4.0 writes no `work/<id>` tree). Explicit exclusions are `.git`, `.nuget`,
 `node_modules`, `bin` and `obj`. F# compares the complete observed population with
 actual files and rejects changed/deleted canonical state, new refused-work outputs,
 wrong producer/profile and missing/malformed evidence. Backend argument plans also
@@ -60,7 +88,8 @@ The separately selected full matrix adds the four declared lifecycle tokens (`no
 `arcade`, `complete`) through provider and Wizard routes. The typed owner validates
 choice declarations, source closure and actual provenance; unsupported/refused cells
 remain gaps, never silently omitted. Rehearsal leaves this full matrix pending.
-Complete-only reference contents establish no native/WASM/browser execution.
+Complete-only reference contents establish no native/WASM/browser execution. (Historical: the full matrix has since passed as
+original 40127488229, see the status above.)
 
 The closed public tuple, immutable provider and installed tools use maintained
 publication/installed-tool checks. No producer is packed or descriptor rewritten.
@@ -108,8 +137,8 @@ checks and typed D5 cases are reused. Validator outputs use a private artifacts 
 The public SDK, NuGet and generator input domains remain closed. Go1.24.1 uses the fixed
 official archive SHA256 `cb2396ba…` with a direct, nonredirecting managed download;
 canonical LMT compilation must reproduce `37e0b036…`. No shared URL allowlist is patched.
-The namespace sandbox must work on the unchanged host; there is no sudo/sysctl fallback.
-Any future host mutation needs its own admission.
+(Historical: superseded. The namespace probe needs the reviewed hosted-only AppArmor sysctl step described in the status
+above; any other host mutation still needs its own admission.)
 
 The expected wrong-profile command deliberately has a positive nonzero exit. Its
 consumer retains the original failed managed receipt and stdout instead of changing the
@@ -142,8 +171,7 @@ precede its managed unit and every SDK/Go/package acquisition. The fixed [root c
 now selects only manual/main/attempt1 rehearsal source. It starts no runtime clock or
 dispatch: exact review/CI/protected delivery and Root's fresh one-send intent remain
 required. An unused selection expires at01:15UTC on2026-10-24.
-The first source scope is only `rehearsal`. The raw-plus42-case full selector remains
-intact for a separate later admission; this first grant cannot dispatch it.
+(Historical: the first grant covered only `rehearsal`; the full matrix was later selected separately and passed, see the status above.)
 
 The existing managed sandbox probe now precedes all asset acquisition, immediately
 after the owner/unit/capacity guards. It uses the published SDD2.4 launcher and arguments

@@ -143,7 +143,7 @@ def d5_root_times(env):
         return datetime.datetime.fromisoformat(value.replace('Z','+00:00')).timestamp()
     values={key:parse(env.get(key)) for key in ('SELECTED_UTC','LATEST_START_UTC','OBSERVER_DEADLINE_UTC')}
     require(values['LATEST_START_UTC']-values['SELECTED_UTC']==300 and values['OBSERVER_DEADLINE_UTC']-values['SELECTED_UTC']==2400, 'D5 root UTC intervals differ')
-    require(values['SELECTED_UTC']<=parse('2026-10-25T09:00:00Z'), 'D5 conditional selection expired')
+    require(values['SELECTED_UTC']<=parse('2026-10-25T15:00:00Z'), 'D5 conditional selection expired')
     return values
 
 
@@ -904,9 +904,10 @@ def run_rehearsal(environ, start):
 
 # Fixed promised public cohorts only. Actual archive/NuSpec/source observations
 # were independently acquired before this source selection; no runtime grant.
-# Conditional source selection only; actual Root T0/run remain unset. Old13/D5 grants do not apply.
-EARLIER_ADMISSION = 'https://github.com/FS-GG/.github/issues/4816#issuecomment-6378268057'
-EARLIER_CONDITIONAL_CUTOFF_UTC = '2026-10-24T03:30:00Z'
+# Conditional source selection 6388444265 (first dispatch by 2026-10-25T09:00:00Z) replaces expired 6378268057;
+# actual Root T0/run remain unset. Old13/D5 grants do not apply.
+EARLIER_ADMISSION = 'https://github.com/FS-GG/.github/issues/4816#issuecomment-6388444265'
+EARLIER_CONDITIONAL_CUTOFF_UTC = '2026-10-25T09:00:00Z'
 EARLIER_VERSIONS = ('0.10.0', '0.11.0', '0.12.0')
 EARLIER_SOURCES = {
     '0.10.0': ('565ad45d2dda386e9d1673071cc0b424cfd02be6','7467b12789b433374ec9c95c4d1d81a962363dae1c9bdbe71e6d54264c0962c8'),

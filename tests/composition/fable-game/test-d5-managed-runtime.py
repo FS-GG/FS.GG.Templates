@@ -141,7 +141,7 @@ class ManagedConsumerTests(unittest.TestCase):
             result=subprocess.run([sys.executable,str(HERE/'d5-managed-runtime.py'),*flags],env=env,capture_output=True,text=True,timeout=5)
             self.assertEqual(result.returncode,3)
         self.assertFalse(sent.exists())
-        self.assertEqual(D5.ADMISSION,'https://github.com/FS-GG/.github/issues/4849#issuecomment-6388209473');self.assertEqual(D5.OUTER_CALLER_CONTRACT,'d5')
+        self.assertEqual(D5.ADMISSION,'https://github.com/FS-GG/.github/issues/4849#issuecomment-6388444491');self.assertEqual(D5.OUTER_CALLER_CONTRACT,'d5')
 
     def test_exact_admission_join_refuses_branches_retries_and_mixed_heads(self):
         admission='https://github.com/FS-GG/.github/issues/4849#issuecomment-1';head='a'*40
@@ -245,16 +245,16 @@ class ManagedConsumerTests(unittest.TestCase):
         with self.assertRaises(ValueError):D5.lmt_build_arguments(go,source.with_name('lmt-main.go'),output)
         with self.assertRaises(ValueError):D5.lmt_build_arguments('relative-go',source,output)
 
-    def test_rehearsal_source_scope_does_not_grant_full_matrix(self):
-        self.assertEqual(D5.runtime_scope({'SCOPE':'rehearsal'}),'rehearsal')
-        for value in ('full','',None):
+    def test_closed_scope_admits_only_rehearsal_or_full(self):
+        for value in ('rehearsal','full'):self.assertEqual(D5.runtime_scope({'SCOPE':value}),value)
+        for value in ('','FULL','matrix',None):
             with self.assertRaises(ValueError):D5.runtime_scope({'SCOPE':value})
 
-    def test_actual_entry_refuses_full_before_unit_or_private_root(self):
+    def test_actual_entry_refuses_unknown_scope_before_unit_or_private_root(self):
         import types
-        def unexpected(*args):raise AssertionError('full scope reached unit')
+        def unexpected(*args):raise AssertionError('unknown scope reached unit')
         reader=types.SimpleNamespace(validate_admission=lambda *args:{'synthetic':True},operational_start=unexpected)
-        with self.assertRaisesRegex(ValueError,'rehearsal only'):D5.run_d5(reader,{}, {'SCOPE':'full'})
+        with self.assertRaisesRegex(ValueError,'closed rehearsal or full scope'):D5.run_d5(reader,{}, {'SCOPE':'matrix'})
 
     def test_actual_sandbox_probe_uses_literal_backend_argv_and_cleared_environment(self):
         seen=[];identities={}
@@ -443,7 +443,7 @@ class RootClockControls(unittest.TestCase):
 
     def test_wrong_missing_intervals_and_expired_selection_refuse(self):
         for updates in [{'LATEST_START_UTC':'2026-10-24T00:05:00Z'},{'SELECTED_UTC':''},
-            {'SELECTED_UTC':'2026-10-25T09:00:01Z','LATEST_START_UTC':'2026-10-25T09:05:01Z','OBSERVER_DEADLINE_UTC':'2026-10-25T09:40:01Z'}]:
+            {'SELECTED_UTC':'2026-10-25T15:00:01Z','LATEST_START_UTC':'2026-10-25T15:05:01Z','OBSERVER_DEADLINE_UTC':'2026-10-25T15:40:01Z'}]:
             with self.subTest(updates=updates):
                 with self.assertRaises(ValueError):self.reader.d5_root_times({**self.env,**updates})
 
