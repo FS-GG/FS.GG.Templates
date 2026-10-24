@@ -6,6 +6,8 @@ set -C  # no metadata/report truncation, including a refused repeat
 [ "$#" -eq 1 ] || { echo 'one operation required' >&2; exit 2; }
 case "$1" in build|lint|test|public-surface|package|security|evidence|release) ;; *) echo 'unknown operation' >&2; exit 2;; esac
 operation=$1
+FSGG_POLYGLOT_PROVIDER=rust-cli
+export FSGG_POLYGLOT_PROVIDER
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 cd "$root"
 report="$root/artifacts/$operation-handoff.json"
@@ -36,7 +38,7 @@ export RUSTUP_HOME="$fsgg_rustup" CARGO_HOME="$fsgg_cargo" RUSTUP_TOOLCHAIN=1.98
 case "$(rustc --version)" in 'rustc 1.98.1 '*) ;; *) exit 3;; esac
 case "$(cargo --version)" in 'cargo 1.98.1 '*) ;; *) exit 3;; esac
 # These exact copied namespaces are the consumed product/test/package inputs.
-source_roots='.gitignore README.md Cargo.toml Cargo.lock rust-toolchain.toml display-name.txt security-policy.json toolchain-lock.json src tests scripts'
+source_roots='.cargo .gitignore README.md Cargo.toml Cargo.lock rust-toolchain.toml display-name.txt security-policy.json toolchain-lock.json src tests scripts'
 seal_sources() {
   scope=$1
   manifest=$2
@@ -59,7 +61,7 @@ original_pre="$custody/original-pre.sha256"
 staged_pre="$custody/staged-pre.sha256"
 seal_sources "$root" "$original_pre"
 cp .gitignore README.md Cargo.toml Cargo.lock rust-toolchain.toml display-name.txt security-policy.json toolchain-lock.json "$work/"
-cp -R src tests scripts "$work/"
+cp -R .cargo src tests scripts "$work/"
 seal_sources "$work" "$staged_pre"
 cmp "$original_pre" "$staged_pre" || { echo 'original/staged input mismatch before use' >&2; exit 3; }
 # Reobserve the original adjacent to use; later root bytes never replace staged identity.
@@ -84,11 +86,8 @@ surface() {
 package_product() {
   cargo package --locked --offline --allow-dirty
 }
-security() {
-  # Remains held until Root selects exact scanner/advisory closure and source policy.
-  echo 'security closure is unselected; exact scanner/advisory qualification required' >&2
-  return 3
-}
+. "$work/scripts/security.sh"
+
 case "$operation" in
   build) build ;;
   lint) lint ;;

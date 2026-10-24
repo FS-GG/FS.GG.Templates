@@ -24,7 +24,7 @@ providers:
   - name: fable-bindings
     contractVersion: "2.0.0"
     templateId: fs-gg-fable-bindings
-    source: FS.GG.Workspace.Template::0.19.3
+    source: FS.GG.Workspace.Template::0.20.0
     nameParameter: productName
     identifierParameter: rootNamespace
     minimumFsggSdd:

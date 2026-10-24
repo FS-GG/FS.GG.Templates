@@ -19,8 +19,8 @@ module Catalog =
         { Id = id; Version = version; Platforms = [ "linux-x64" ] }
     let private tools = function
         | "typescript-cli" | "javascript-cli" -> [ tool "node" "24.20.0"; tool "npm" "11.19.0"; tool "typescript" "5.9.2" ]
-        | "rust-cli" -> [ tool "rustc" "1.98.1"; tool "cargo" "1.98.1" ]
-        | "go-cli" -> [ tool "go" "1.27.1" ]
+        | "rust-cli" -> [ tool "rustc" "1.98.1"; tool "cargo" "1.98.1"; tool "cargo-audit" "0.22.2" ]
+        | "go-cli" -> [ tool "go" "1.27.1"; tool "govulncheck" "1.9.0" ]
         | value -> invalidArg "provider" value
     let private skills = function
         | "typescript-cli" -> [ "node-workspace"; "typescript-project"; "node-testing" ]

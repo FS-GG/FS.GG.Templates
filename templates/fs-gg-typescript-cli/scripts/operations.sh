@@ -6,6 +6,8 @@ set -C  # no metadata/report truncation, including a refused repeat
 [ "$#" -eq 1 ] || { echo 'one operation required' >&2; exit 2; }
 case "$1" in build|lint|test|public-surface|package|security|evidence|release) ;; *) echo 'unknown operation' >&2; exit 2;; esac
 operation=$1
+FSGG_POLYGLOT_PROVIDER=typescript-cli
+export FSGG_POLYGLOT_PROVIDER
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 cd "$root"
 report="$root/artifacts/$operation-handoff.json"
@@ -50,27 +52,16 @@ cmp "$original_pre" "$staged_pre" || { echo 'original/staged input mismatch befo
 seal_sources "$root" "$custody/original-adjacent.sha256"
 cmp "$original_pre" "$custody/original-adjacent.sha256" || exit 3
 cd "$work"
-npm ci --offline --ignore-scripts --no-audit --no-fund --cache "${NPM_CONFIG_CACHE:?selected private locked cache required}"
-build() {
-  node node_modules/typescript/bin/tsc --project tsconfig.json
-}
-lint() {
-  node node_modules/typescript/bin/tsc --project tsconfig.json --noEmit
-}
-test_product() {
-  node --test tests/cli.test.mjs
-}
-surface() {
-  [ "$(node dist/main.js hello 'surface text')" = 'hello surface text' ]
-}
-package_product() {
-  npm pack --ignore-scripts --json --pack-destination . > package-result.json
-}
-security() {
-  # Remains held until Root selects exact scanner/advisory closure and source policy.
-  echo 'security closure is unselected; exact scanner/advisory qualification required' >&2
-  return 3
-}
+. "$work/scripts/node-build.sh"
+node_prepare
+
+build() { node_build; }
+lint() { node_lint; }
+test_product() { node_test; }
+surface() { node_surface; }
+package_product() { node_package; }
+. "$work/scripts/security.sh"
+
 case "$operation" in
   build) build ;;
   lint) lint ;;

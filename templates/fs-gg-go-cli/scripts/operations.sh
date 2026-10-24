@@ -6,6 +6,8 @@ set -C  # no metadata/report truncation, including a refused repeat
 [ "$#" -eq 1 ] || { echo 'one operation required' >&2; exit 2; }
 case "$1" in build|lint|test|public-surface|package|security|evidence|release) ;; *) echo 'unknown operation' >&2; exit 2;; esac
 operation=$1
+FSGG_POLYGLOT_PROVIDER=go-cli
+export FSGG_POLYGLOT_PROVIDER
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
 cd "$root"
 report="$root/artifacts/$operation-handoff.json"
@@ -17,7 +19,10 @@ done
 mkdir -p artifacts
 mkdir "$custody"
 mkdir "$work"  # exclusive operation before any probe or seal write
-export GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off
+export GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off CGO_ENABLED=1
+: "${CC:?qualified dedicated-carrier C compiler required for genuine CGO/race}"
+case "$CC" in /*) ;; *) echo 'absolute qualified CC required' >&2; exit 3;; esac
+[ -f "$CC" ] && [ -x "$CC" ] || exit 3
 [ "$(go version)" = 'go version go1.27.1 linux/amd64' ] || exit 3
 # These exact copied namespaces are the consumed product/test/package inputs.
 source_roots='.gitignore README.md go.mod main.go main_test.go display-name.txt security-policy.json toolchain-lock.json scripts'
@@ -59,7 +64,7 @@ lint() {
   go vet ./...
 }
 test_product() {
-  go test -count=1 ./...
+  go test -race -count=1 ./...
 }
 surface() {
   [ "$(./product-cli hello 'surface text')" = 'hello surface text' ]
@@ -67,11 +72,8 @@ surface() {
 package_product() {
   tar --sort=name --mtime='UTC 1980-01-01' --owner=0 --group=0 --numeric-owner -cf product-cli.tar product-cli
 }
-security() {
-  # Remains held until Root selects exact scanner/advisory closure and source policy.
-  echo 'security closure is unselected; exact scanner/advisory qualification required' >&2
-  return 3
-}
+. "$work/scripts/security.sh"
+
 case "$operation" in
   build) build ;;
   lint) lint ;;

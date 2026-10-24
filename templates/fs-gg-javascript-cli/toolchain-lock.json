@@ -10,8 +10,8 @@
     "typescript": "5.9.2"
   },
   "security": {
-    "state": "unselected",
-    "scannerVersion": null,
-    "advisoryIdentity": null
+    "scanner": "npm-audit",
+    "version": "11.19.0",
+    "independentAdvisoryInputRequired": true
   }
 }

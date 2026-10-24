@@ -60,23 +60,39 @@ def validate_source(root):
             require(not (directory / "go.sum").exists(), "stdlib-only source has unexplained dependency checksum")
     return rows
 
-def validate_archive(root, archive):
-    rows = validate_source(root)
+def expected_archive_members(root):
+    """Mechanical projection of actual csproj entries, never a second catalog policy."""
     root = Path(root)
     expected = {}
+    prefixes = tuple("content/templates/fs-gg-" + p + "-cli/" for p in PROVIDERS)
+    def add(name, data):
+        require(name not in expected, "duplicate projected product member: " + name)
+        expected[name] = data
     for provider in PROVIDERS:
         relative = "templates/fs-gg-" + provider + "-cli"
         for path in (root / relative).rglob("*"):
             if path.is_file():
                 if any(part in ("node_modules", "target", "dist", "artifacts", ".nuget", "bin", "obj") for part in path.relative_to(root / relative).parts):
                     continue
-                expected["content/" + str(path.relative_to(root))] = path.read_bytes()
-    for row in rows:
-        for provider in PROVIDERS:
-            if provider + "-cli" in row["materializes-when"].removeprefix("template in [").removesuffix("]").split(", "):
-                expected["content/templates/fs-gg-" + provider + "-cli/.agents/skills/" + row["id"] + "/SKILL.md"] = (root / row["supplied-by"] / "SKILL.md").read_bytes()
-    for provider in PROVIDERS:
-        expected["content/templates/fs-gg-" + provider + "-cli/.agents/skills/skill-manifest.json"] = (root / "template/skill-manifest/skill-manifest.json").read_bytes()
+                add("content/" + path.relative_to(root).as_posix(), path.read_bytes())
+    project = ET.parse(root / "FS.GG.Templates.csproj").getroot()
+    for node in project.iter("None"):
+        if node.attrib.get("Pack") != "true":
+            continue
+        source = node.attrib.get("Include", "")
+        for destination in node.attrib.get("PackagePath", "").split(";"):
+            if destination.startswith(prefixes):
+                require("$(" not in source and "*" not in source, "unsupported product projection")
+                path = root / source
+                require(path.is_file() and not path.is_symlink(), "missing/linked projected product source")
+                name = destination + path.name if destination.endswith("/") else destination
+                add(name, path.read_bytes())
+    return expected
+
+def validate_archive(root, archive):
+    validate_source(root)
+    root = Path(root)
+    expected = expected_archive_members(root)
     # Raw byte join only. Catalog policy/version/digests remain the public SDK producer's authority.
     expected["content/providers/polyglot.catalog.json"] = (root / "providers/polyglot.catalog.json").read_bytes()
     with zipfile.ZipFile(archive) as package:

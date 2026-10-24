@@ -8,8 +8,14 @@
     "go": "1.27.1"
   },
   "security": {
-    "state": "unselected",
-    "scannerVersion": null,
-    "advisoryIdentity": null
+    "scanner": "govulncheck",
+    "version": "1.9.0",
+    "independentAdvisoryInputRequired": true
+  },
+  "race": {
+    "required": true,
+    "CGO_ENABLED": "1",
+    "compilerRole": "dedicated-carrier frozen signed transaction",
+    "compilerByteVersionIdentity": "must be independently qualified before execution; no fake pin"
   }
 }

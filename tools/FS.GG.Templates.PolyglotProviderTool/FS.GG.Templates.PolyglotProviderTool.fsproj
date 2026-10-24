@@ -19,6 +19,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Catalog.fs" />
+    <Compile Include="Provenance.fs" />
+    <Compile Include="Fixture.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 </Project>

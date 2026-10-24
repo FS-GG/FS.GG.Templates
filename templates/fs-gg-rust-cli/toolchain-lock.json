@@ -8,8 +8,8 @@
     "rust": "1.98.1"
   },
   "security": {
-    "state": "unselected",
-    "scannerVersion": null,
-    "advisoryIdentity": null
+    "scanner": "cargo-audit",
+    "version": "0.22.2",
+    "independentAdvisoryInputRequired": true
   }
 }

@@ -15,7 +15,7 @@ func TestLiteralDomain(t *testing.T) {
 
 func TestActualCLI(t *testing.T) {
 	binary := filepath.Join(t.TempDir(), "product-cli")
-	if output, err := exec.Command("go", "build", "-trimpath", "-o", binary, ".").CombinedOutput(); err != nil {
+	if output, err := exec.Command("go", "build", "-race", "-trimpath", "-buildvcs=false", "-o", binary, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build: %s %v", output, err)
 	}
 	output, err := exec.Command(binary, "hello", "$(literal);& with spaces").Output()

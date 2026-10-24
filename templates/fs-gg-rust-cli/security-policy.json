@@ -1,7 +1,15 @@
 {
   "schema": "fsgg.polyglot-security-selection/1",
-  "state": "unselected",
-  "scanner": null,
-  "version": null,
-  "advisoryIdentity": null
+  "provider": "rust-cli",
+  "policy": "all-reported-vulnerabilities-block",
+  "severityWaiver": false,
+  "scanner": "cargo-audit",
+  "version": "0.22.2",
+  "advisories": {
+    "selection": "independently authenticated immutable per-operation inputs or exact npm response",
+    "maximumSourceAgeSeconds": 604800,
+    "liveDatabaseFallback": false
+  },
+  "qualifiedRuntimeInputsRequired": true,
+  "nativeAdmissionGrantedByThisFile": false
 }

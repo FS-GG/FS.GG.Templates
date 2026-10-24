@@ -8,6 +8,12 @@ open FS.GG.Templates.PolyglotProviderTool
 let main argv =
     try
         match Array.toList argv with
+        | [ "fixture"; provider; catalog; policy; archive; output ] ->
+            Fixture.emit provider catalog policy archive output
+            0
+        | [ "readback"; provenance; summary ] ->
+            Provenance.check provenance summary
+            0
         | [ "self-test" ] ->
             printfn "public SDK authoring controls: %d" (Catalog.controls ())
             0

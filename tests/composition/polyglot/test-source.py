@@ -22,7 +22,7 @@ class SourceContract(unittest.TestCase):
         self.owned = tempfile.TemporaryDirectory(prefix="polyglot-source-fixture-")
         self.addCleanup(self.owned.cleanup)
         self.root = Path(self.owned.name)
-        for path in ["templates/fs-gg-typescript-cli", "templates/fs-gg-javascript-cli", "templates/fs-gg-rust-cli", "templates/fs-gg-go-cli", "template/product-skills", "template/skill-manifest"]:
+        for path in ["templates/fs-gg-typescript-cli", "templates/fs-gg-javascript-cli", "templates/fs-gg-rust-cli", "templates/fs-gg-go-cli", "template/product-skills", "template/skill-manifest", "template/polyglot-common"]:
             shutil.copytree(ROOT / path, self.root / path)
         shutil.copyfile(ROOT / "FS.GG.Templates.csproj", self.root / "FS.GG.Templates.csproj")
     def edit(self, relative, change):
@@ -70,25 +70,26 @@ class SourceContract(unittest.TestCase):
         (self.root / "providers").mkdir(exist_ok=True)
         (self.root / "providers/polyglot.catalog.json").write_text('{"syntheticByteJoinOnly":true}')
         archive = self.root / "synthetic.nupkg"
-        rows = contract.validate_source(self.root)
+        contract.validate_source(self.root)
         with zipfile.ZipFile(archive, "w") as package:
-            for provider in contract.PROVIDERS:
-                base = self.root / "templates" / ("fs-gg-" + provider + "-cli")
-                for path in base.rglob("*"):
-                    if path.is_file():
-                        package.write(path, "content/" + str(path.relative_to(self.root)))
-                prefix = "content/templates/fs-gg-" + provider + "-cli/.agents/skills/"
-                package.write(self.root / "template/skill-manifest/skill-manifest.json", prefix + "skill-manifest.json")
-                for row in rows:
-                    selected = row["materializes-when"].removeprefix("template in [").removesuffix("]").split(", ")
-                    if provider + "-cli" in selected:
-                        package.write(self.root / row["supplied-by"] / "SKILL.md", prefix + row["id"] + "/SKILL.md")
+            for name, data in contract.expected_archive_members(self.root).items():
+                package.writestr(name, data)
             package.write(self.root / "providers/polyglot.catalog.json", "content/providers/polyglot.catalog.json")
         return archive
     def test_synthetic_package_byte_join(self):
         observed = contract.validate_archive(self.root, self.synthetic_archive())
         self.assertEqual(observed["providerCount"], 4)
         self.assertIn("no product/catalog runtime", observed["state"])
+    def test_projected_shared_helper_byte_drift_refusal(self):
+        archive = self.synthetic_archive()
+        path = self.root / "template/polyglot-common/security.sh"
+        path.write_bytes(path.read_bytes() + b"\n# synthetic changed authored helper\n")
+        with self.assertRaisesRegex(ValueError, "bytes differ"):
+            contract.validate_archive(self.root, archive)
+    def test_missing_projected_shared_helper_refusal(self):
+        (self.root / "template/polyglot-common/node-build.sh").unlink()
+        with self.assertRaisesRegex(ValueError, "projected product source"):
+            contract.expected_archive_members(self.root)
     def test_cached_package_member_refusal(self):
         archive = self.synthetic_archive()
         with zipfile.ZipFile(archive, "a") as package:

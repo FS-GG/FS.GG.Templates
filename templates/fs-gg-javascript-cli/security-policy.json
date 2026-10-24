@@ -1,7 +1,15 @@
 {
   "schema": "fsgg.polyglot-security-selection/1",
-  "state": "unselected",
-  "scanner": null,
-  "version": null,
-  "advisoryIdentity": null
+  "provider": "javascript-cli",
+  "policy": "all-reported-vulnerabilities-block",
+  "severityWaiver": false,
+  "scanner": "npm-audit",
+  "version": "11.19.0",
+  "advisories": {
+    "selection": "independently authenticated immutable per-operation inputs or exact npm response",
+    "maximumSourceAgeSeconds": 604800,
+    "liveDatabaseFallback": "exactselectedpublicregistryresponseonly"
+  },
+  "qualifiedRuntimeInputsRequired": true,
+  "nativeAdmissionGrantedByThisFile": false
 }
