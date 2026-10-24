@@ -5,11 +5,14 @@ Runs the typed owner's plan on a clean checkout, in one fresh private root, with
 environment: build the typed owner, fetch the exact public template and Rendering archives by
 their typed SHA-256, generate and build the receiver through the existing source stage, then run
 every selected browser family with no retry, skip or flake. It needs no Root runtime admission,
-original clock or managed-group owner. It writes nothing outside its root and passes no ambient
-credential to any child process.
+original clock or managed-group owner. Every file it creates is under its root (the optional
+container runtime keeps its image store under the real home), and it passes no ambient credential
+to any child process. It refuses to start on a hosted runner.
 
-It is development verification of unpublished source only. It does not accept hosted runtime,
-installed, published, producer-custody, durable-save, assistive-technology or whole-#4818 scope.
+The product under test is the exact published template and Rendering archives, fetched by typed
+SHA-256; the checkout supplies the harness, the typed plan and the stage script. It is development
+verification only: it does not accept hosted runtime, installed, published, producer-custody,
+durable-save, assistive-technology or whole-#4818 scope.
 """
 import argparse
 import hashlib
@@ -18,11 +21,14 @@ import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import time
 import urllib.request
 from pathlib import Path
+
+sys.dont_write_bytecode = True
 
 HERE = Path(__file__).resolve().parent
 WORKSPACE = HERE.parents[2]
@@ -92,13 +98,16 @@ def closed_environment(root, base):
 
 
 def run(argv, cwd, env, log, timeout):
-    """Run one process to completion; keep its combined output as an ordinary log."""
+    """Run one process group to completion; keep its combined output as an ordinary log."""
     started = time.monotonic()
     with open(log, 'wb') as stream:
+        proc = subprocess.Popen([str(a) for a in argv], cwd=str(cwd), env=env, stdout=stream,
+                                stderr=subprocess.STDOUT, start_new_session=True)
         try:
-            proc = subprocess.run([str(a) for a in argv], cwd=str(cwd), env=env, stdout=stream,
-                                  stderr=subprocess.STDOUT, timeout=timeout, start_new_session=True)
+            proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired as error:
+            os.killpg(proc.pid, signal.SIGKILL)  # dotnet, node and browser descendants share the group
+            proc.wait()
             raise RuntimeError('timed out after %ds: %s (log %s)' % (timeout, argv[0], log)) from error
     if proc.returncode != 0:
         tail = Path(log).read_bytes()[-2000:].decode('utf-8', 'replace')
@@ -116,7 +125,7 @@ exec node node_modules/@playwright/test/cli.js "$@"
 '''
 
 
-def container_prefix(image, root, cpus, family_env):
+def container_prefix(image, root, cpus, family_env, memory_gib=8):
     """podman argv that runs the receiver's Playwright CLI with no network and only bind-mounted tools."""
     dotnet = Path(shutil.which('dotnet')).resolve().parent
     node = Path(shutil.which('node')).resolve().parent.parent
@@ -124,7 +133,7 @@ def container_prefix(image, root, cpus, family_env):
     entry.write_text(CONTAINER_ENTRY)
     entry.chmod(0o700)
     cpuset = ','.join(str(cpu) for cpu in sorted(os.sched_getaffinity(0)))
-    argv = ['podman', 'run', '--rm', '--network=none', '--cpuset-cpus=' + cpuset,
+    argv = ['podman', 'run', '--rm', '--network=none', '--cpuset-cpus=' + cpuset, '--memory=%dg' % memory_gib,
             '-v', '%s:/opt/dotnet:ro' % dotnet, '-v', '%s:/opt/node:ro' % node,
             '-v', '%s:/receiver' % (root / 'product/complete'), '-v', '%s:/browsers' % (root / 'browsers'),
             '-v', '%s:/entry.sh:ro' % entry]
@@ -146,9 +155,10 @@ def main(argv=None):
     parser.add_argument('--root', required=True, help='fresh private output root (must not exist)')
     parser.add_argument('--families', default=','.join(FAMILIES))
     parser.add_argument('--cpus', type=int, default=2)
+    parser.add_argument('--memory-gib', type=int, default=8, help='container memory cap (the proposed hosted envelope is 8)')
     parser.add_argument('--host-platform', default='', help='Playwright host platform override, for example ubuntu24.04-x64')
     parser.add_argument('--container', default='', help='podman image carrying Playwright host libraries '
-                        '(see current-composition-local.Containerfile); runs the browser phase inside it with '
+                        '(see current-composition-local-image.sh); runs the browser phase inside it with '
                         'Node, .NET, the receiver and the browsers bind-mounted. Needed on hosts lacking the libraries.')
     parser.add_argument('--allow-dirty', action='store_true', help='record, rather than refuse, uncommitted source')
     args = parser.parse_args(argv)
@@ -162,6 +172,7 @@ def main(argv=None):
     root = Path(args.root).resolve()
     require(not root.exists(), 'output root must be fresh')
     require(not root.is_relative_to(WORKSPACE), 'output root must be outside the checkout')
+    require(not os.environ.get('GITHUB_ACTIONS'), 'a hosted runner needs its own admission; this runner is for local verification')
     dirty = git('status', '--porcelain', '--untracked-files=no')
     require(args.allow_dirty or not dirty, 'a clean checkout is required so results bind to the exact tree')
 
@@ -172,7 +183,7 @@ def main(argv=None):
     env = closed_environment(root, {'PATH': os.environ['PATH'], 'environ': os.environ, 'cpus': args.cpus, 'platform': args.host_platform})
     observations.check_admission(env)  # the closed child environment carries no credential
     summary = {
-        'schema': SCHEMA, 'disposition': 'failed', 'scope': 'adr-0096-local-unpublished-source',
+        'schema': SCHEMA, 'disposition': 'failed', 'scope': 'adr-0096-local-development-verification',
         'head': git('rev-parse', 'HEAD'), 'tree': git('rev-parse', 'HEAD^{tree}'), 'dirty': bool(dirty),
         'cpus': args.cpus, 'browserHost': args.container or 'host', 'families': {}, 'seconds': {},
         'hostedRuntimeAdmission': False, 'installedAcceptance': False, 'actualProducerCustodyReadback': False,
@@ -199,6 +210,7 @@ def main(argv=None):
         plan = json.loads(plan_text)
         (root / 'current-composition-plan.json').write_text(plan_text)
         summary['typedOwnerSha256'] = sha256(core)
+        summary['fableCoreSha256'] = fable_sha()
         summary['planSha256'] = hashlib.sha256(plan_text.encode()).hexdigest()
 
         row = plan['template']
@@ -237,13 +249,17 @@ def main(argv=None):
         require(playwright.is_file(), 'Playwright is not installed in the receiver')
         # Downloads only; a container supplies the host libraries this machine lacks.
         install_env = {**env, 'PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS': '1'} if args.container else env
+        summary['playwrightVersion'] = json.loads((tests / 'node_modules/playwright/package.json').read_text())['version']
+        if args.container:
+            summary['containerImageId'] = subprocess.check_output(
+                ['podman', 'image', 'inspect', args.container, '--format', '{{.Id}}'], text=True).strip()
         summary['seconds']['browserInstall'] = run(['node', playwright, 'install', *families], tests, install_env, root / 'browser-install.log', 1800)
         runner = tests / 'node_modules/@playwright/test/cli.js'
         config = 'current-composition.generated.config.ts'
         for family in families:
             family_env = {**env, **observations.browser_environment(plan), 'PLAYWRIGHT_BROWSER_FAMILY': family}
             if args.container:
-                launch = container_prefix(args.container, root, args.cpus, family_env)
+                launch = container_prefix(args.container, root, args.cpus, family_env, args.memory_gib)
                 # podman keeps its image store under the real home; nothing else of the host environment passes.
                 launch_env = {key: os.environ[key] for key in ('PATH', 'HOME', 'XDG_RUNTIME_DIR') if key in os.environ}
                 launch_cwd = root
@@ -257,12 +273,14 @@ def main(argv=None):
             report_path = tests / 'test-results/browser.json'
             if report_path.exists():
                 report_path.unlink()
-            summary['seconds'][family] = run([*launch, 'test', '--config', config, '--workers=1', '--retries=0'],
+            summary['seconds'][family] = run([*launch, 'test', '--config', config, '--workers=%d' % plan['browsers']['workers'],
+                                              '--retries=%d' % plan['browsers']['retries']],
                                              launch_cwd, launch_env, root / (family + '-browser.log'), 1800)
             shutil.copyfile(report_path, root / (family + '-report.json'))
             report = json.loads((root / (family + '-report.json')).read_text())
             observations.validate_report(report, plan, family)
-            summary['families'][family] = {'passed': len(plan['browsers']['cases']), 'retries': 0, 'skipped': 0,
+            stats = report['stats']
+            summary['families'][family] = {'passed': stats['expected'], 'retries': plan['browsers']['retries'], 'skipped': stats['skipped'],
                                            'reportSha256': sha256(root / (family + '-report.json'))}
         summary['runtimeCases'] = sum(entry['passed'] for entry in summary['families'].values())
         summary['disposition'] = 'dom-observed-local-reference-only'

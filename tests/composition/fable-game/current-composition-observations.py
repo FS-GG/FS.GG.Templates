@@ -18,10 +18,13 @@ CURRENT_COMPOSITION_ADMISSION = None
 
 # ADR-0096 ordinary development verification: a local build and test of unpublished source in a
 # fresh private root. It is neither the hosted runtime admission above nor installed/published/AT
-# acceptance, and it refuses ambient credentials and hosted runners.
+# acceptance. This is a declaration of intent, not a security boundary: the stage script calls it with
+# its real environment, and the runner builds a closed child environment and refuses hosted runners.
 LOCAL_VERIFICATION = 'adr-0096-local-unpublished-source'
-CREDENTIAL_VARIABLES = ('GH_TOKEN', 'GITHUB_TOKEN', 'NUGET_API_KEY', 'NUGET_AUTH_TOKEN', 'VSS_NUGET_EXTERNAL_FEED_ENDPOINTS',
-                        'AZURE_DEVOPS_EXT_PAT', 'NPM_TOKEN', 'NODE_AUTH_TOKEN', 'ANTHROPIC_API_KEY')
+CREDENTIAL_VARIABLES = ('GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'ACTIONS_RUNTIME_TOKEN', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN',
+                        'ACTIONS_ID_TOKEN_REQUEST_URL', 'NUGET_API_KEY', 'NUGET_AUTH_TOKEN', 'VSS_NUGET_EXTERNAL_FEED_ENDPOINTS',
+                        'AZURE_DEVOPS_EXT_PAT', 'NPM_TOKEN', 'NODE_AUTH_TOKEN', 'ANTHROPIC_API_KEY', 'SSH_AUTH_SOCK',
+                        'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN')
 
 
 def local_verification(env):

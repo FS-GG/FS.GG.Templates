@@ -1,9 +1,9 @@
 # Local DOM composition cases (ADR-0096)
 
-This executes the typed current-composition plan on delivered source for the first time. It is ordinary
+This executes the typed current-composition plan on the delivered held source for the first time. The product under test is the exact published template and Rendering archives, fetched by typed SHA-256; the checkout supplies the harness, the typed plan and the stage script, so it is a pre-publication check of that harness, not of unpublished product source. It is ordinary
 development verification under [ADR-0096](https://github.com/FS-GG/.github/blob/main/docs/adr/0096-proportionate-verification-and-unrecoverable-holds.md)
 section A: a local build and test of unpublished source in a fresh private root, with no credential,
-no shared or remote destination (public NuGet and Playwright downloads are read-only) and no publication,
+no shared or remote destination (public NuGet and Playwright downloads are read-only; every created file is under the fresh root, except the optional container runtime's image store under the real home) and no publication,
 deployment, live-store, Home, VM or native-capability effect. It needs no Root runtime admission,
 original clock or managed-group owner, and it changes none of them.
 
@@ -28,8 +28,9 @@ environment and at most three CPUs:
 Node 24.20.0, npm 11.19.0 and SDK 10.0.401 are read from the hosted caller and refused if different.
 Chromium, Firefox and WebKit are Playwright 1.63 stock builds. On a host without their shared libraries,
 `--container IMAGE` runs only the browser phase in an Ubuntu 24.04 image from
-`current-composition-local-image.sh`, with no network and Node, .NET, the receiver and the browsers bind-mounted
-(Node and .NET read-only). `local-summary.json` binds each result to the checkout head and tree, and records `dirty` when `--allow-dirty` was used.
+`current-composition-local-image.sh` (a mutable tag, development use), with no network, an 8 GiB memory cap and Node, .NET,
+the receiver and the browsers bind-mounted (Node and .NET read-only). The runner refuses a hosted runner, a dirty checkout
+and more than three CPUs, and passes only an allowlisted environment to children. `local-summary.json` binds each result to the checkout head and tree, and records `dirty` when `--allow-dirty` was used.
 
 ## Defects the first real execution exposed
 

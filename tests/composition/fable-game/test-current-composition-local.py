@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Pure controls for the local ADR-0096 DOM-case runner; no SDK, browser, network or container runs."""
+import hashlib
 import importlib.util
+import json
 import os
 from pathlib import Path
 import re
@@ -42,7 +44,7 @@ class Controls(unittest.TestCase):
             argv=L.container_prefix('localhost/fixture:1',root,2,family_env)
             self.assertEqual(argv[:3],['podman','run','--rm']);self.assertIn('--network=none',argv)
             self.assertEqual(argv[-2:],['localhost/fixture:1','/entry.sh'])
-            self.assertTrue(any(a.startswith('--cpuset-cpus=') for a in argv))
+            self.assertTrue(any(a.startswith('--cpuset-cpus=') for a in argv));self.assertIn('--memory=8g',argv)
             mounts=[argv[i+1] for i,a in enumerate(argv) if a=='-v']
             self.assertEqual(sum(m.endswith(':/opt/dotnet:ro') for m in mounts),1);self.assertEqual(sum(m.endswith(':/opt/node:ro') for m in mounts),1)
             self.assertTrue(any(m.endswith(':/receiver') for m in mounts) and any(m.endswith(':/browsers') for m in mounts))
@@ -70,12 +72,127 @@ class Controls(unittest.TestCase):
         self.assertIn("'durableSaveAcceptance': False",text);self.assertIn("'actualAT': False",text)
         self.assertIn("'actualProducerCustodyReadback': False",text);self.assertIn("'installedAcceptance': False",text)
         for workflow in (HERE.parents[2]/'.github/workflows').glob('*.yml'):
-            # Only the pure controls run in CI; no workflow executes the runner or the image recipe.
-            self.assertIsNone(re.search(r'(?:python3|bash)[^\n]*(?<!test-)current-composition-local(?:\.py|-image\.sh)',workflow.read_text()),workflow.name)
+            # Only path triggers and the pure controls mention the runner; no workflow line executes it or the image recipe.
+            for line in workflow.read_text().splitlines():
+                if 'current-composition-local' in line and 'test-current-composition-local' not in line:
+                    self.assertTrue(line.lstrip().startswith("- 'tests/composition/fable-game/"),workflow.name+': '+line)
 
     def test_local_runner_cannot_open_the_hosted_receiver(self):
         workflow=(HERE.parents[2]/'.github/workflows/current-reference-composition.yml').read_text()
         self.assertIn('ADMISSION=None',workflow);self.assertIn('if: ${{ false }}',workflow)
 
+
+    # --- orchestration: the decisive sequence, with every process, download and git read faked ---------------------
+
+    PLAN={'selection':{'externalReference':True,'wasmPolicyExample':False},
+          'template':{'id':'Fixture.Template','version':'1.0.0','sha256':'t'*64},
+          'rendering':{'version':'2.0.0','sourceCommit':'c'*40,'packages':[{'id':'Fixture.UI','sha256':'u'*64}]},
+          'browsers':{'families':['chromium'],'workers':1,'retries':0,'cases':[{'file':'one.spec.ts','suite':[],'title':'case one'}]}}
+
+    def run_main(self,root,*,listing_title='case one',report_status='expected',report_skipped=0,dirty='',extra=(),env=None):
+        """Drive main() with fake processes; returns the recorded child calls."""
+        plan=self.PLAN;calls=[];tests=root/'product/complete/Browser.Tests'
+        def spec(title,results):
+            return {'file':'one.spec.ts','title':title,'ok':True,'tests':[{'projectName':'chromium','status':report_status,'results':results}]}
+        listing={'suites':[{'title':'one.spec.ts','specs':[spec(listing_title,[])]}]}
+        report={'stats':{'expected':1,'unexpected':0,'skipped':report_skipped,'flaky':0},
+                'suites':[{'title':'one.spec.ts','specs':[spec('case one',[{'status':'passed','retry':0}])]}]}
+        def fake_run(argv,cwd,child_env,log,timeout):
+            argv=[str(a) for a in argv];calls.append((argv,dict(child_env)))
+            if argv[:3]==['dotnet','tool','install']:
+                folder=root/'tools/fable';folder.mkdir(parents=True);(folder/'Fable.dll').write_bytes(b'fixture fable core')
+            elif argv[0]=='bash':
+                (root/'product').mkdir(exist_ok=True)
+                (root/'product/current-source-stage.json').write_text(json.dumps({'disposition':'source-passed','browserExecuted':False}))
+                for name in ('playwright','@playwright/test'):
+                    (tests/'node_modules'/name).mkdir(parents=True)
+                    (tests/'node_modules'/name/'cli.js').write_text('')
+                (tests/'node_modules/playwright/package.json').write_text(json.dumps({'version':'1.63.0'}))
+            elif '--workers=%d'%plan['browsers']['workers'] in argv:
+                (tests/'test-results').mkdir(parents=True,exist_ok=True);(tests/'test-results/browser.json').write_text(json.dumps(report))
+            return 0.1
+        def fake_output(argv,**kwargs):
+            argv=[str(a) for a in argv]
+            if argv[:3]==['podman','image','inspect']:return 'sha256:fixtureimage\n'
+            if argv[0]=='node':return 'v24.20.0\n'
+            if argv[0]=='npm':return '11.19.0\n'
+            if argv[:2]==['dotnet','--version']:return '10.0.401\n'
+            if argv[0]=='dotnet':return json.dumps(plan)
+            raise AssertionError(argv)
+        def fake_fetch(url,expected,maximum,destination):destination.write_bytes(b'archive')
+        def fake_subprocess_run(argv,**kwargs):
+            calls.append(([str(a) for a in argv],dict(kwargs['env'])))
+            return subprocess.CompletedProcess(argv,0,stdout=json.dumps(listing),stderr='')
+        def fake_git(*args):return dirty if args[0]=='status' else ('a'*40 if args[1]=='HEAD' else 'b'*40)
+        build_core=root/'validator-artifacts/bin/FS.GG.Templates.ProviderTool/release/FS.GG.Templates.ProviderTool.dll'
+        def build_then_run(argv,cwd,child_env,log,timeout):
+            if str(argv[1])=='build':build_core.parent.mkdir(parents=True);build_core.write_bytes(b'owner')
+            return fake_run(argv,cwd,child_env,log,timeout)
+        patches=[mock.patch.object(L,'run',build_then_run),mock.patch.object(L,'fetch',fake_fetch),mock.patch.object(L,'git',fake_git),
+                 mock.patch.object(L,'fable_sha',lambda:hashlib.sha256(b'fixture fable core').hexdigest()),
+                 mock.patch.object(L.subprocess,'check_output',fake_output),mock.patch.object(L.subprocess,'run',fake_subprocess_run),
+                 mock.patch.object(L.os,'sched_setaffinity',lambda *a:None),mock.patch.object(L,'container_prefix',lambda image,*a:['podman','run','--rm',image]),mock.patch.dict(os.environ,env or {},clear=False)]
+        for patch in patches:patch.start()
+        try:
+            try:L.main(['--root',str(root),'--cpus','1','--families','chromium',*extra])
+            finally:
+                for patch in reversed(patches):patch.stop()
+        finally:
+            self.calls=calls
+        return calls
+
+    def fresh_root(self):
+        tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup);return Path(tmp.name)/'run'
+
+    def test_sequence_lists_then_runs_each_family_with_the_typed_selection_and_no_ambient_credential(self):
+        root=self.fresh_root()
+        calls=self.run_main(root,env={'GH_TOKEN':'secret','GITHUB_TOKEN':'secret','GITHUB_ACTIONS':''})
+        verbs=[argv[1] if argv[0] in ('dotnet','node') else argv[0] for argv,_ in calls]
+        self.assertEqual(verbs[:3],['build','tool','bash'])  # typed owner, independent Fable, then the source stage
+        listing=[c for c in calls if '--list' in c[0]];run=[c for c in calls if '--workers=1' in c[0]]
+        self.assertEqual((len(listing),len(run)),(1,1));self.assertLess(calls.index(listing[0]),calls.index(run[0]))
+        self.assertIn('--retries=0',run[0][0])
+        for _,child_env in listing+run:
+            self.assertEqual((child_env['FsGgExternalReferenceCandidate'],child_env['FsGgWasmPolicyExample'],child_env['PLAYWRIGHT_BROWSER_FAMILY']),('true','false','chromium'))
+        for argv,child_env in calls:
+            self.assertTrue(set(child_env).isdisjoint(O.CREDENTIAL_VARIABLES),argv[:2])
+        summary=json.loads((root/'local-summary.json').read_text())
+        self.assertEqual((summary['disposition'],summary['runtimeCases'],summary['dirty']),('dom-observed-local-reference-only',1,False))
+        self.assertEqual(summary['families']['chromium'],{'passed':1,'retries':0,'skipped':0,'reportSha256':summary['families']['chromium']['reportSha256']})
+        self.assertEqual((summary['playwrightVersion'],summary['head'],summary['tree']),('1.63.0','a'*40,'b'*40))
+        for flag in ('hostedRuntimeAdmission','installedAcceptance','actualProducerCustodyReadback','durableSaveAcceptance','actualAT','whole4818Acceptance'):
+            self.assertIs(summary[flag],False)
+
+    def test_wrong_listing_or_unclean_report_refuses_before_or_after_the_run_and_records_the_first_cause(self):
+        root=self.fresh_root()
+        with self.assertRaisesRegex(ValueError,'listing identities'):self.run_main(root,listing_title='another case')
+        self.assertFalse([c for c in self.calls if '--workers=1' in c[0]],'no case runs after a wrong listing')
+        summary=json.loads((root/'local-summary.json').read_text())
+        self.assertEqual(summary['disposition'],'failed');self.assertIn('listing identities',summary['firstCause'])
+        root=self.fresh_root()
+        with self.assertRaisesRegex(ValueError,'outcomes differ'):self.run_main(root,report_skipped=1)
+        self.assertEqual(json.loads((root/'local-summary.json').read_text())['disposition'],'failed')
+        root=self.fresh_root()
+        with self.assertRaisesRegex(ValueError,'status differs'):self.run_main(root,report_status='unexpected')
+
+    def test_container_launch_passes_only_the_runtime_environment_never_a_credential(self):
+        root=self.fresh_root()
+        calls=self.run_main(root,extra=['--container','localhost/fixture:1'],env={'GH_TOKEN':'secret','GITHUB_TOKEN':'secret','GITHUB_ACTIONS':'','ANTHROPIC_API_KEY':'secret'})
+        launches=[c for c in calls if c[0][:2]==['podman','run']]
+        self.assertEqual(len(launches),2)  # listing and run
+        for argv,child_env in launches:
+            self.assertLessEqual(set(child_env),{'PATH','HOME','XDG_RUNTIME_DIR'})
+        self.assertEqual(json.loads((root/'local-summary.json').read_text())['containerImageId'],'sha256:fixtureimage')
+
+    def test_dirty_checkout_and_hosted_runner_refuse_before_any_process(self):
+        root=self.fresh_root()
+        with self.assertRaisesRegex(ValueError,'clean checkout'):self.run_main(root,dirty=' M tests/x')
+        self.assertEqual(self.calls,[]);self.assertFalse(root.exists())
+        root=self.fresh_root()
+        with self.assertRaisesRegex(ValueError,'hosted runner'):self.run_main(root,env={'GITHUB_ACTIONS':'true'})
+        self.assertEqual(self.calls,[]);self.assertFalse(root.exists())
+        root=self.fresh_root()
+        calls=self.run_main(root,dirty=' M tests/x',extra=['--allow-dirty'],env={'GITHUB_ACTIONS':''})
+        self.assertTrue(json.loads((root/'local-summary.json').read_text())['dirty'])
 
 if __name__=='__main__':unittest.main(verbosity=2)
