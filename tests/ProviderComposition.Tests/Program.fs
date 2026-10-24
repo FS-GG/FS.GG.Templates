@@ -490,6 +490,13 @@ let main _ =
         (composition.rendering.version, composition.rendering.sourceCommit, composition.rendering.custodySha256)
     let identities = composition.browsers.cases |> List.map (fun row -> row.file, row.suite, row.title)
     assertEqual "current composition has nine unique full DOM identities" (9, 9) (identities.Length, (Set.ofList identities).Count)
+    let sourceBuiltJson = renderSourceBuiltCompositionPlan ()
+    assertEqual "source-built composition plan closes its own DTO and pins no template archive" (Ok (), false)
+        (validateSourceBuiltCompositionPlan sourceBuiltJson, sourceBuiltJson.Contains "\"sha256\": \"9594ec20")
+    let sourceBuilt = sourceBuiltCompositionPlan ()
+    assertEqual "source-built plan reuses the published Rendering, Game, selection and maintained cases and labels itself source-built"
+        (composition.rendering, composition.game, composition.selection, composition.browsers, "source-built")
+        (sourceBuilt.rendering, sourceBuilt.game, sourceBuilt.selection, sourceBuilt.browsers, sourceBuilt.template.origin)
     use compositionDocument = System.Text.Json.JsonDocument.Parse compositionJson
     let gameFields = compositionDocument.RootElement.GetProperty("game").EnumerateObject() |> Seq.map (fun row -> row.Name) |> Set.ofSeq
     assertEqual "Game has exact known lock identity without an invented raw hash" (Set.ofList [ "id"; "version"; "lockContentHash" ]) gameFields

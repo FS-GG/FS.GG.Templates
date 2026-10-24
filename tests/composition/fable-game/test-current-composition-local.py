@@ -84,6 +84,7 @@ class Controls(unittest.TestCase):
 
     # --- orchestration: the decisive sequence, with every process, download and git read faked ---------------------
 
+    source_built_plan=None
     PLAN={'selection':{'externalReference':True,'wasmPolicyExample':False},
           'template':{'id':'Fixture.Template','version':'1.0.0','sha256':'t'*64},
           'rendering':{'version':'2.0.0','sourceCommit':'c'*40,'packages':[{'id':'Fixture.UI','sha256':'u'*64}]},
@@ -91,7 +92,7 @@ class Controls(unittest.TestCase):
 
     def run_main(self,root,*,listing_title='case one',report_status='expected',report_skipped=0,dirty='',extra=(),env=None,node='v24.20.0',stage='source-passed'):
         """Drive main() with fake processes; returns the recorded child calls."""
-        plan=self.PLAN;calls=[];tests=root/'product/complete/Browser.Tests'
+        plan=self.PLAN;calls=[];self.plan_commands=[];tests=root/'product/complete/Browser.Tests'
         def spec(title,results):
             return {'file':'one.spec.ts','title':title,'ok':True,'tests':[{'projectName':'chromium','status':report_status,'results':results}]}
         listing={'suites':[{'title':'one.spec.ts','specs':[spec(listing_title,[])]}]}
@@ -117,7 +118,7 @@ class Controls(unittest.TestCase):
             if argv[0]=='node':return node+'\n'
             if argv[0]=='npm':return '11.19.0\n'
             if argv[:2]==['dotnet','--version']:return '10.0.401\n'
-            if argv[0]=='dotnet':return json.dumps(plan)
+            if argv[0]=='dotnet':self.plan_commands.append(argv[2]);return json.dumps(self.source_built_plan if argv[2]=='source-built-composition-plan' else plan)
             raise AssertionError(argv)
         def fake_fetch(url,expected,maximum,destination):destination.write_bytes(b'archive')
         def fake_subprocess_run(argv,**kwargs):
@@ -131,7 +132,9 @@ class Controls(unittest.TestCase):
         patches=[mock.patch.object(L,'run',build_then_run),mock.patch.object(L,'fetch',fake_fetch),mock.patch.object(L,'git',fake_git),
                  mock.patch.object(L,'fable_sha',lambda:hashlib.sha256(b'fixture fable core').hexdigest()),
                  mock.patch.object(L.subprocess,'check_output',fake_output),mock.patch.object(L.subprocess,'run',fake_subprocess_run),
-                 mock.patch.object(L.os,'sched_setaffinity',lambda *a:None),mock.patch.object(L,'container_prefix',lambda image,*a:['podman','run','--rm',image]),mock.patch.dict(os.environ,{'GITHUB_ACTIONS':'',**(env or {})},clear=False)]
+                 mock.patch.object(L.os,'sched_setaffinity',lambda *a:None),mock.patch.object(L,'container_prefix',lambda image,*a:['podman','run','--rm',image]),mock.patch.dict(os.environ,{'GITHUB_ACTIONS':'',**(env or {})},clear=False),
+                 mock.patch.object(L,'pack_source_template',lambda r,e,c:{'package':r/'template-feed/FS.GG.Workspace.Template.9.9.9.nupkg','packageSha256':'a'*64,'packageBytes':7,'sourceCommit':'a'*40,'sourceTree':'b'*40,'pythonFixtureRevision':'f'*40,'seconds':0.1}),
+                 mock.patch.object(L,'protected_main',lambda head:True)]
         for patch in patches:patch.start()
         try:
             try:L.main(['--root',str(root),'--cpus','1','--families','chromium',*extra])
@@ -260,6 +263,53 @@ class Controls(unittest.TestCase):
         with mock.patch.object(L.custody,'verify_producer_custody',join),mock.patch.object(L.custody,'published_urls',lambda e:[('a.nupkg','https://api.nuget.org/v3-flatcontainer/a')]),mock.patch.object(L,'fetch_unpinned',fake):
             self.run_main(root,extra=['--custody-evidence','/retained','--rendering-source','/rendering','--published-all'])
         self.assertEqual(seen,[['a.nupkg']])
+
+    def test_source_built_packs_the_checkout_and_is_labelled_source_built_never_published(self):
+        type(self).source_built_plan={**self.PLAN,'template':{'origin':'source-built','id':'FS.GG.Workspace.Template'}}
+        with self.assertRaisesRegex(ValueError,'go together'):L.main(['--root',str(self.fresh_root()),'--source-built'])
+        with self.assertRaisesRegex(ValueError,'go together'):L.main(['--root',str(self.fresh_root()),'--coordination-source','/c'])
+        root=self.fresh_root();calls=self.run_main(root,extra=['--source-built','--coordination-source','/coordination'])
+        self.assertEqual(self.plan_commands,['source-built-composition-plan'])
+        stage=[c for c in calls if c[0][0]=='bash'][0][0]
+        self.assertTrue(stage[1].endswith('verify-source-built-composition.sh'));self.assertEqual(stage[-1],'a'*64)
+        self.assertTrue(stage[-2].endswith('FS.GG.Workspace.Template.9.9.9.nupkg'))
+        summary=json.loads((root/'local-summary.json').read_text())
+        self.assertEqual((summary['disposition'],summary['origin'],summary['publishedAcceptance']),('dom-observed-source-built-reference-only','source-built',False))
+        self.assertEqual((summary['sourceBuilt']['sourceCommit'],summary['sourceBuilt']['packageSha256'],summary['sourceBuilt']['protectedMain']),('a'*40,'a'*64,True))
+        # The published route is unchanged: it asks for the published plan and the published stage.
+        root=self.fresh_root();calls=self.run_main(root)
+        self.assertEqual(self.plan_commands,['current-composition-plan']);self.assertTrue([c for c in calls if c[0][0]=='bash'][0][0][1].endswith('verify-external-reference-candidate.sh'))
+        self.assertEqual(json.loads((root/'local-summary.json').read_text())['origin'],'published')
+
+    def test_pack_runs_in_a_copy_under_the_private_root_with_the_pinned_fixture_and_records_the_digest(self):
+        tmp=tempfile.TemporaryDirectory();self.addCleanup(tmp.cleanup);root=Path(tmp.name)/'run';root.mkdir()
+        calls=[]
+        def fake_subprocess_run(argv,**kw):
+            argv=[str(a) for a in argv];calls.append((argv,kw.get('env')))
+            if argv[:4]==['git','-C',str(L.WORKSPACE),'archive']:return subprocess.CompletedProcess(argv,0,stdout=b'archive')
+            if argv[0]=='tar':
+                dest=Path(argv[argv.index('-C')+1]);(dest/'eng/portable-workspace').mkdir(parents=True)
+                (dest/'eng/portable-workspace/python-fixture-source.json').write_text(json.dumps({'revision':'c'*40}))
+            return subprocess.CompletedProcess(argv,0,stdout=b'')
+        def fake_run(argv,cwd,env,log,timeout):
+            calls.append(([str(a) for a in argv],dict(env)));self.assertTrue(Path(cwd).is_relative_to(root),'pack must not run in the checkout')
+            self.assertEqual(env['FSGG_PYTHON_COORDINATION_ROOT'],str(root/'coordination'))
+            (root/'template-feed/FS.GG.Workspace.Template.9.9.9.nupkg').write_bytes(b'package bytes');return 0.5
+        with mock.patch.object(L.subprocess,'run',fake_subprocess_run),mock.patch.object(L,'run',fake_run),mock.patch.object(L,'git',lambda *a:'d'*40 if a[1]=='HEAD' else 'e'*40):
+            built=L.pack_source_template(root,{'PATH':'/usr/bin'},'/coordination-clone')
+        self.assertEqual((built['sourceCommit'],built['sourceTree'],built['pythonFixtureRevision']),('d'*40,'e'*40,'c'*40))
+        self.assertEqual((built['packageSha256'],built['packageBytes']),(hashlib.sha256(b'package bytes').hexdigest(),13))
+        clone=[c for c in calls if c[0][:2]==['git','clone']][0][0];self.assertIn('/coordination-clone',clone);self.assertIn('--shared',clone)
+        self.assertIn(['git','-C',str(root/'coordination'),'checkout','-q','--detach','c'*40],[c[0] for c in calls])
+        pack=[c for c in calls if c[0][:2]==['dotnet','pack']][0][0];self.assertTrue(pack[2].startswith(str(root/'source')))
+        for argv,env in calls:self.assertFalse([a for a in argv if str(L.WORKSPACE) in a and a!=str(L.WORKSPACE)],argv)
+
+    def test_source_built_stage_is_gated_labelled_and_runs_no_browser(self):
+        text=(HERE/'verify-source-built-composition.sh').read_text()
+        self.assertLess(text.index('--check-admission'),text.index('mkdir -p'))
+        self.assertIn("'origin':'source-built'",text);self.assertIn("'publishedAcceptance':False",text);self.assertIn("'browserExecuted':False",text)
+        for forbidden in ('published-tool-check','current-d5-receiver-check','playwright test','npx playwright'):self.assertNotIn(forbidden,text)
+        self.assertIn('locked-mode',text);self.assertIn('staged-feed',text)
 
     def test_dirty_checkout_and_hosted_runner_refuse_before_any_process(self):
         root=self.fresh_root()

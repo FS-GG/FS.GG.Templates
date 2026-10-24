@@ -90,6 +90,18 @@ so this is a dated observation, not a standing guarantee):
 Every package's published archive is its custody archive plus a feed signature of 13,089 or 13,090 bytes (the overhead in parentheses), with all
 payload entries identical. This is published-feed payload agreement with the producer's packed bytes, not installed adoption.
 
+## Source-built mode (`--source-built --coordination-source CLONE`)
+
+Everything above runs the *published* 0.19.3 template. `--source-built` instead packs Workspace.Template from the checked-out commit
+(`git archive HEAD` into a copy under the private root, `dotnet pack` there with the Coordination Python fixture revision the source
+names, taken from a local clone and never fetched) into a private feed, and runs the same typed cases against that package with the
+same public Rendering archives and locked graph. It uses a second typed plan, `source-built-composition-plan`, which differs from the
+published plan only by its template section (no archive is pinned) and scope string; the stage is `verify-source-built-composition.sh`.
+The summary records the source commit and tree, whether the commit is already on the local `origin/main`, the package name, bytes and
+SHA-256, and the verdict is `dom-observed-source-built-reference-only` with `origin: source-built` and `publishedAcceptance: false`.
+It never claims published or installed acceptance, and it does not run the published-template identity checks (they are bound to 0.19.3).
+First source-built run of the unchanged nine cases: 27/27 on the 0.20.0 source package.
+
 ## Example composition: what the Done-when asks, and what executes
 
 The #4818 Done-when names six elements; the owning plan (staged Fable game adoption, Stage .3) says to complete the published
