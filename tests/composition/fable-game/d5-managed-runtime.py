@@ -376,7 +376,8 @@ def run_d5(reader, contract, environ):
         # Test the actual unchanged host before any SDK/Go/public asset acquisition.
         summary['sandboxParentObservation']=optional_sandbox_parent(setup)
         probe_backend_sandbox(caller,run,identities,root)
-        # No sudo/sysctl or host profile mutation. An unavailable sandbox refuses.
+        # This process performs no sudo/sysctl or host profile mutation; the only host change is the
+        # reviewed hosted-only workflow step before the unit (Root decision 6385676372). An unavailable sandbox refuses.
         tools=root/'tools';tools.mkdir();downloads=root/'downloads';downloads.mkdir()
         acquisitions=[];get=caller['acquirer'](root,downloads,caller['download'],setup,acquisitions)
         def sdk_get(name,url,expected,maximum,algorithm='sha256'):
