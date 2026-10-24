@@ -5,6 +5,7 @@ No GI import, Node, browser, SDK, network, live unit or AT operation is selected
 The embedded companion's new JS handler controls are source-prepared separately.
 """
 import copy
+import ast
 import importlib.util
 import io
 import json
@@ -220,6 +221,28 @@ class CurrentAtTests(unittest.TestCase):
                        "nativeImeAcceptance": False, "whole4817Acceptance": False,
                        "evidenceSha256": {name: O.digest(directory / name) for name in names}}
             self.assertTrue(O.validate(receipt, packet, preflight, directory))
+            derived = copy.deepcopy(receipt)
+            derived["browser"]["transportOutcome"] = {"reported": False, "stage": "not-observed"}
+            self.assertTrue(O.validate(derived, packet, preflight, directory))
+            derived["browser"]["transportOutcome"] = {"reported": True, "stage": "invented"}
+            with self.assertRaisesRegex(RuntimeError, "transport outcome"):
+                O.validate(derived, packet, preflight, directory)
+            originals = {path.name: path.read_bytes() for path in directory.iterdir() if path.is_file()}
+            altered = copy.deepcopy(receipt)
+            for action in altered["actions"]:
+                action["eventSequence"] += 100
+            for observation in altered["observations"].values():
+                observation["sampleSequence"] += 100
+            with self.assertRaisesRegex(RuntimeError, "original journey projection"):
+                O.validate(altered, packet, preflight, directory)
+            for field, value in [("actions", []), ("observations", {}),
+                                 ("journey", "other"), ("firstCause", "unreported original failure"),
+                                 ("process", {**receipt["process"], "extra": True}),
+                                 ("browser", {**receipt["browser"], "extra": True})]:
+                altered = copy.deepcopy(receipt); altered[field] = value
+                with self.subTest(projection=field), self.assertRaises(RuntimeError):
+                    O.validate(altered, packet, preflight, directory)
+            self.assertEqual(originals, {path.name: path.read_bytes() for path in directory.iterdir() if path.is_file()})
             O.write(directory / "process-result.json", {"exit": 1, "firstCause": "original refusal", "cleanup": cleanup})
             receipt["evidenceSha256"]["process-result.json"] = O.digest(directory / "process-result.json")
             with self.assertRaisesRegex(RuntimeError, "original AT exit"):
@@ -232,6 +255,25 @@ class CurrentAtTests(unittest.TestCase):
             self.assertEqual(fixture.accepted, 1)
             self.assertEqual(fixture.replay, 1)
             self.assertEqual(len(fixture.actions), 7)
+
+    def test_actual_finite_workflow_registration_and_missing_routes_refuse(self):
+        source = Path(__file__).with_name("verify-external-reference-workflow.py").read_text()
+        tree = ast.parse(source)
+        function = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                        and node.name == "validate_current_at_registration")
+        namespace = {}
+        exec(compile(ast.Module(body=[function], type_ignores=[]), "actual-workflow-registration", "exec"), namespace)
+        validate = namespace["validate_current_at_registration"]
+        workflow = (O.ROOT / ".github/workflows/fable-external-reference-source.yml").read_text()
+        self.assertTrue(validate(workflow))
+        command = "PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --cpu=120 --fsize=16777216 python3 -I -B tests/composition/fable-game/test-current-reference-at.py"
+        mutants = [workflow.replace("      - 'tests/composition/fable-game/test-current-reference-at.py'\n", ""),
+                   workflow.replace(command, "true", 1),
+                   workflow[::-1].replace(command[::-1], "true"[::-1], 1)[::-1],
+                   workflow.replace("120s prlimit", "1200s prlimit")]
+        for mutant in mutants:
+            with self.assertRaises(AssertionError):
+                validate(mutant)
 
     def test_actual_sequence_refuses_causal_bad_states(self):
         for mutant in ["coordinate", "replay-mutates", "restore-keeps-current", "still-present", "at-retained", "stale-speech"]:

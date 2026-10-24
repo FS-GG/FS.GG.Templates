@@ -1377,6 +1377,20 @@ def validate(receipt, packet, preflight, directory):
                  "session-contract-state.json", "session-budget.json", "journey.json", *FINISH_FILES, *BROWSER_FILES]:
         require(name in receipt["evidenceSha256"], "owned private route evidence unbound")
     route_evidence(directory, activation, receipt)
+    if current:
+        # The route above authenticates the immutable journey through the original
+        # completion/inner-result chain. Receipt projections must be those bytes'
+        # values, not a second independently plausible sequence of observations.
+        journey = completion_record(directory / "journey.json")
+        for key in ("actions", "observations", "journey", "firstCause", "process"):
+            require(key in journey and receipt.get(key) == journey[key],
+                    "current original journey projection differs: " + key)
+        browser = dict(receipt["browser"])
+        browser.pop("transportOutcome", None)
+        require("transportOutcome" not in journey["browser"] and browser == journey["browser"],
+                "current original journey projection differs: browser")
+        # Only transportOutcome is derived after the original journey completes;
+        # route_evidence already binds its exact value to original browser records.
     sequences = [e["eventSequence"] for e in receipt["actions"]]
     require(sequences == sorted(set(sequences)), "keyboard event replay or ordering drift")
     speech_path = directory / "orca-debug.log"
