@@ -89,7 +89,7 @@ class Controls(unittest.TestCase):
             root=Path(tmp);output=root/'must-remain-absent'
             result=subprocess.run(['bash',str(HERE/'verify-external-reference-candidate.sh'),str(root/'no-rendering-source'),str(root/'no-custody'),'fixture-version',str(output),'a'*40,'current-public-composition',str(root/'no-template.nupkg'),'b'*64],capture_output=True,text=True,timeout=5)
             self.assertNotEqual(result.returncode,0)
-            self.assertIn('current composition runs only through the local ADR-0096 runner',result.stderr)
+            self.assertIn('current composition needs the local ADR-0096 verification gate',result.stderr)
             self.assertFalse(output.exists())
 
     def test_actual_workflow_watches_and_bounds_mechanical_controls(self):
@@ -118,7 +118,7 @@ class Controls(unittest.TestCase):
             with self.subTest(name=name),self.assertRaisesRegex(ValueError,'credentials'):m.check_admission({**marker,name:'x'})
         with self.assertRaisesRegex(ValueError,'hosted'):m.check_admission({**marker,'GITHUB_ACTIONS':'true'})
         for wrong in ('','true','adr-0096'):
-            with self.subTest(wrong=wrong),self.assertRaisesRegex(ValueError,'only through the local'):m.check_admission({'FSGG_CURRENT_COMPOSITION_LOCAL_VERIFICATION':wrong})
+            with self.subTest(wrong=wrong),self.assertRaisesRegex(ValueError,'needs the local ADR-0096 verification gate'):m.check_admission({'FSGG_CURRENT_COMPOSITION_LOCAL_VERIFICATION':wrong})
         # The retired hosted route has no workflow, no managed caller and no admission variable left to reach the stage.
         self.assertFalse((HERE.parents[2]/'.github/workflows/current-reference-composition.yml').exists())
         self.assertFalse((HERE/'current-composition-managed.py').exists())
@@ -126,7 +126,7 @@ class Controls(unittest.TestCase):
             self.assertNotIn('FSGG_CURRENT_COMPOSITION',workflow.read_text(),workflow.name)
 
     def test_current_entry_refuses_before_owner_root_or_acquisition(self):
-        with self.assertRaisesRegex(ValueError,'only through the local'):m.check_admission({})
+        with self.assertRaisesRegex(ValueError,'needs the local ADR-0096 verification gate'):m.check_admission({})
         shell=(HERE/'verify-external-reference-candidate.sh').read_text()
         self.assertLess(shell.index('--check-admission'),shell.index('mkdir -p'))
         self.assertLess(shell.index('--check-admission'),shell.index('current-composition-plan >'))

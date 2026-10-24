@@ -35,6 +35,7 @@ on:
       - 'tests/composition/fable-game/test-current-composition-local.py'
       - 'tests/composition/fable-game/current-composition-custody.py'
       - 'tests/composition/fable-game/test-current-composition-custody.py'
+      - '.github/workflows/fable-reference-public.yml'
       - '.github/workflows/fable-external-reference-source.yml'
 
 permissions:

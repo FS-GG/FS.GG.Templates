@@ -8,7 +8,7 @@ deployment, live-store, Home, VM or native-capability effect. It needs no Root r
 original clock or managed-group owner, and it changes none of them.
 
 The held hosted original-operation route (manual workflow, managed caller, literal-false receiver) was never admitted and is
-retired by the follow-up that removed it; this runner is the only way into the stage. A local pass is not hosted, installed,
+retired by the follow-up that removed it; the stage now refuses unless the local verification gate (an explicit marker, no hosted runner, no ambient credential) is declared, which the runner does. A local pass is not hosted, installed,
 published, producer-custody, durable-save, assistive-technology or whole-#4818 acceptance. If hosted coverage is wanted
 later, an optional job may run this same runner.
 
@@ -29,7 +29,7 @@ environment and at most three CPUs:
 Node 24.20.0, npm 11.19.0 and SDK 10.0.401 are read from `fable-reference-public.yml` (the pinned toolchain the hosted callers share) and refused if different.
 Chromium, Firefox and WebKit are Playwright 1.63 stock builds. On a host without their shared libraries,
 `--container IMAGE` runs only the browser phase in an Ubuntu 24.04 image from
-`current-composition-local-image.sh` (pinned by digest and rebuilt for each use, not kept as a shared image), with no network, an 8 GiB memory cap and Node, .NET,
+`current-composition-local-image.sh` (base image pinned by digest; apt and Playwright dependency installs are not pinned; rebuilt for each use, not kept as a shared image), with no network, an 8 GiB memory cap and Node, .NET,
 the receiver and the browsers bind-mounted (Node and .NET read-only). The runner refuses a hosted runner, a dirty checkout
 and more than three CPUs, and passes only an allowlisted environment to children. `local-summary.json` binds each result to the checkout head and tree, and records `dirty` when `--allow-dirty` was used.
 
@@ -40,7 +40,7 @@ The held source passed its pure controls but had never reached a real SDK or bro
 | Defect | Effect | Repair |
 | --- | --- | --- |
 | `dotnet new fs-gg-fable-game ... --package FS.GG.Workspace.Template` | `--package` is not an option of the shipped SDK, so the receiver could never be generated (exit 127). Its pure control used a fake `dotnet` that asserted the flag. | Removed. The custom template hive with SDK templates disabled already scopes the one installed package. The control now asserts the flag is absent. |
-| The source stage exports `FsGgExternalReferenceCandidate` for the build only | The four opt-in command-outcome specs register no case in the separate Playwright process, so the listing held 5 of 9 identities and the managed route would have refused at its first family. | `browser_environment(plan)` derives both flags from the typed selection and is applied to every Playwright process in the managed route and the local runner. Controls assert the managed route passes them. |
+| The source stage exports `FsGgExternalReferenceCandidate` for the build only | The four opt-in command-outcome specs register no case in the separate Playwright process, so the listing held 5 of 9 identities and the retired managed route would have refused at its first family. | `browser_environment(plan)` derives both flags from the typed selection and is applied to every Playwright process in the managed route and the local runner. Controls assert the managed route passes them. |
 | The Fable member-closure join needs an independent install | Not a defect of the held route (the managed caller supplies it); the local runner repeats it. | Installed by the runner from the pinned version and core hash. |
 
 ## Producer-custody readback (`current-composition-custody.py`)
