@@ -28,6 +28,11 @@ ADMISSION = 'https://github.com/FS-GG/.github/issues/4816#issuecomment-638918553
 VERSIONS = ('0.10.0', '0.11.0', '0.12.0', '0.13.0')
 QUINT = {'url': 'https://github.com/quint-co/quint/releases/download/v0.32.0/quint-linux-amd64',
          'sha256': '939b64095b706017f2f202c6f99c860c40be7c31bddc2b98557316e50f42cd7f', 'maximum': 134217728}
+# Quint 0.32 fetches its Rust evaluator on first `quint run` (a hosted run was refused once with Forbidden); pre-seed
+# the exact official bytes through the acquirer and the repository's own verifier, like svg-preview-c.yml does.
+EVALUATOR = {'url': 'https://github.com/quint-co/quint/releases/download/evaluator/v0.6.0/quint_evaluator-x86_64-unknown-linux-gnu.tar.gz',
+             'archiveSha256': '61755a09d5052d93a4e75e840059edfd0d3674aeda164b9d2464be3d6e21b1c2', 'bytes': 1077099,
+             'memberSha256': 'b2efdeac5713d153e41bf2143b94ed75d888fdd5637f4a5d61a04c695313510a'}
 CHROMIUM = {'asset': 'chromium-headless1243', 'selector': 'chrome-headless-shell-linux64/chrome-headless-shell'}
 # Cumulative original phases; the sum (6860 s) stays inside the 7200 s unit.
 PHASES = (('setup', 900), ('target', 60)) + tuple(
@@ -96,6 +101,19 @@ def extract_chromium(m, caller, archive, destination, budget):
     executable = destination/CHROMIUM['selector']
     m.require(executable.is_file() and os.access(executable, os.X_OK), 'browser executable missing')
     return executable
+
+
+def seed_quint_evaluator(m, workspace, archive, quint_home):
+    """Place the verified evaluator where Quint 0.32 looks first (QUINT_HOME/rust-evaluator-v0.6.0)."""
+    helper = m.load_file('prepare_svg_quint_evaluator', workspace/'scripts/prepare-svg-quint-evaluator.py')
+    data = helper.binary(Path(archive).read_bytes())
+    m.require(hashlib.sha256(data).hexdigest() == EVALUATOR['memberSha256'], 'Quint evaluator member differs')
+    cache = Path(quint_home)/'rust-evaluator-v0.6.0'
+    m.require(not cache.exists(), 'Quint evaluator cache occupied')
+    cache.mkdir(parents=True, mode=0o700)
+    target = cache/'quint_evaluator'
+    target.write_bytes(data); target.chmod(0o700)
+    return target
 
 
 def parse_build_output(m, text):
@@ -174,6 +192,9 @@ def run_adopted_build(environ):
             caller['bind_identity'](identities, str(bin_root/wrapper), 'caller-authored', images=[shell_sha, node['sha256']])
         quint = get('quint', QUINT['url'], QUINT['sha256'], QUINT['maximum']); quint.chmod(0o700)
         caller['bind_identity'](identities, str(quint), 'verified-download', expected=QUINT['sha256'])
+        evaluator_archive = get('quint-evaluator.tar.gz', EVALUATOR['url'], EVALUATOR['archiveSha256'], EVALUATOR['bytes'])
+        quint_home = root/'quint-home'
+        evaluator = seed_quint_evaluator(m, workspace, evaluator_archive, quint_home)
         spec = caller['BROWSER_ARCHIVES'][CHROMIUM['asset']]
         archive = get('chrome-headless-shell.zip', spec['url'], spec['sha256'], spec['bytes'])
         chromium = extract_chromium(m, caller, archive, tools/'chromium', setup)
@@ -188,6 +209,7 @@ def run_adopted_build(environ):
         m.require(versions['quint'] == '0.32.0', 'Quint must be exactly 0.32.0')
         m.write(root/'build-identities.json', {'versions': versions, 'chromiumArchiveSha256': spec['sha256'],
                                                'quintSha256': QUINT['sha256'], 'nodeSha256': node['sha256'],
+                                               'quintEvaluatorArchiveSha256': EVALUATOR['archiveSha256'], 'quintEvaluatorSha256': m.sha(evaluator),
                                                'chromiumExecutableSha256': m.sha(chromium)})
         # Public inputs for all cohorts, joined before the first generation.
         rows = m.earlier_inputs(workspace)
@@ -291,7 +313,7 @@ def run_adopted_build(environ):
             case['lockedRestore'] = 'passed'
             # Cases H-K: the adopted tree's own shipped build, run once per cohort in its own managed group.
             build_until = deadline(m, start, version+'-build', time.monotonic()); run = executor(build_until)
-            build_env = {**homes[version], 'PATH': build_path, 'QUINT_BIN': str(quint), 'PLAYWRIGHT_EXECUTABLE_PATH': str(chromium),
+            build_env = {**homes[version], 'PATH': build_path, 'QUINT_BIN': str(quint), 'QUINT_HOME': str(quint_home), 'PLAYWRIGHT_EXECUTABLE_PATH': str(chromium),
                          'npm_config_cache': str(root/'npm-cache'), 'LANG': 'C.UTF-8', **BUILD_DAEMON_OFF}
             build_env.pop('PLAYWRIGHT_BROWSERS_PATH', None)
             output = run([bash, 'build.sh'], adopted, build_env)

@@ -974,6 +974,27 @@ class AdoptedBuildControls(unittest.TestCase):
         self.assertIn('provision_node_npm',caller);self.assertEqual(caller['TOOLS']['node'],'24.20.0');self.assertEqual(caller['TOOLS']['npm'],'11.19.0')
         self.assertEqual(self.ab.VERSIONS,('0.10.0','0.11.0','0.12.0','0.13.0'));self.assertEqual(m.ADOPTED_VERSIONS,self.ab.VERSIONS)
 
+    def test_build_environment_disables_every_build_daemon_and_pins_tools(self):
+        # MSBuild node reuse otherwise outlives build.sh unless disabled; fresh_environment sets part of it, the module sets all.
+        self.assertEqual(self.ab.BUILD_DAEMON_OFF['MSBUILDDISABLENODEREUSE'],'1');self.assertEqual(self.ab.BUILD_DAEMON_OFF['DOTNET_CLI_USE_MSBUILD_SERVER'],'0')
+        self.assertEqual(self.ab.BUILD_DAEMON_OFF['UseSharedCompilation'],'false')
+        source=(HERE/'retained-adopted-build.py').read_text()
+        for token in ("**BUILD_DAEMON_OFF}","'QUINT_BIN': str(quint)","'QUINT_HOME': str(quint_home)","'PLAYWRIGHT_EXECUTABLE_PATH': str(chromium)","build_env.pop('PLAYWRIGHT_BROWSERS_PATH', None)"):
+            self.assertIn(token,source)
+
+    def test_quint_evaluator_is_preseeded_from_exact_official_bytes_before_any_model_check(self):
+        self.assertEqual(self.ab.EVALUATOR['archiveSha256'],'61755a09d5052d93a4e75e840059edfd0d3674aeda164b9d2464be3d6e21b1c2')
+        self.assertEqual(self.ab.EVALUATOR['memberSha256'],'b2efdeac5713d153e41bf2143b94ed75d888fdd5637f4a5d61a04c695313510a')
+        helper=m.load_file('prepare_svg_quint_evaluator_pins',m.WORKSPACE/'scripts/prepare-svg-quint-evaluator.py')
+        self.assertEqual((helper.ARCHIVE,helper.MEMBER_SHA,helper.SIZE),(self.ab.EVALUATOR['archiveSha256'],self.ab.EVALUATOR['memberSha256'],self.ab.EVALUATOR['bytes']))
+        self.assertTrue(self.ab.EVALUATOR['url'].endswith('/evaluator/v0.6.0/'+helper.NAME))
+        source=(HERE/'retained-adopted-build.py').read_text()
+        self.assertLess(source.index('seed_quint_evaluator(m, workspace, evaluator_archive'),source.index('for version in VERSIONS:\n            product'))
+        with tempfile.TemporaryDirectory(prefix='adopted-evaluator-') as folder:
+            archive=Path(folder)/'a.tgz';archive.write_bytes(b'not the official archive')
+            with self.assertRaises(ValueError):self.ab.seed_quint_evaluator(m,m.WORKSPACE,archive,Path(folder)/'home')
+            self.assertFalse((Path(folder)/'home').exists())
+
     def test_build_output_readback_is_closed(self):
         good="""Passed!  - Failed:     0, Passed:    19, Skipped:     0, Total:    19, Duration: 89 ms - Domain.Tests.dll (net10.0)
 Passed!  - Failed:     0, Passed:    26, Skipped:     0, Total:    26, Duration: 58 ms - Protocol.Tests.dll (net10.0)
