@@ -13,12 +13,27 @@ import re
 import sys
 
 
-CURRENT_COMPOSITION_ADMISSION = None
+# ADR-0096 ordinary development verification: a local build and test in a fresh private root.
+# The held hosted original-operation route that once guarded this entry is retired (#4818); the only
+# way into the stage script is this local gate. It is not installed/published/AT acceptance. This is a declaration of intent, not a security boundary: the stage script calls it with
+# its real environment, and the runner builds a closed child environment and refuses hosted runners.
+LOCAL_VERIFICATION = 'adr-0096-local-development-verification'
+CREDENTIAL_VARIABLES = ('GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'ACTIONS_RUNTIME_TOKEN', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN',
+                        'ACTIONS_ID_TOKEN_REQUEST_URL', 'NUGET_API_KEY', 'NUGET_AUTH_TOKEN', 'VSS_NUGET_EXTERNAL_FEED_ENDPOINTS',
+                        'AZURE_DEVOPS_EXT_PAT', 'NPM_TOKEN', 'NODE_AUTH_TOKEN', 'ANTHROPIC_API_KEY', 'SSH_AUTH_SOCK',
+                        'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_SESSION_TOKEN')
+
+
+def local_verification(env):
+    return env.get('FSGG_CURRENT_COMPOSITION_LOCAL_VERIFICATION') == LOCAL_VERIFICATION
 
 
 def check_admission(env):
-    require(CURRENT_COMPOSITION_ADMISSION is not None, 'current composition held: no source admission')
-    require(env.get('FSGG_CURRENT_COMPOSITION_ADMISSION') == CURRENT_COMPOSITION_ADMISSION, 'current composition owning admission differs')
+    if local_verification(env):
+        require(not env.get('GITHUB_ACTIONS'), 'local verification is not a hosted-runner admission')
+        require(not [name for name in CREDENTIAL_VARIABLES if env.get(name)], 'local verification refuses ambient credentials')
+        return
+    raise ValueError('current composition runs only through the local ADR-0096 runner (the hosted route is retired)')
 
 
 def require(ok, message):
@@ -28,6 +43,18 @@ def require(ok, message):
 
 def selector(plan):
     return '|'.join('(?:^| )'+re.escape(row['title'])+'$' for row in plan['browsers']['cases'])
+
+
+def browser_environment(plan):
+    """The typed selection the Playwright specs read from the process environment.
+
+    The source stage exports these for its build only; the browser phase runs in separate processes,
+    so without them the opt-in command-outcome specs register no cases and the listing is short.
+    """
+    selection=plan['selection']
+    require(isinstance(selection['externalReference'],bool) and isinstance(selection['wasmPolicyExample'],bool),'typed selection flags differ')
+    return {'FsGgExternalReferenceCandidate':str(selection['externalReference']).lower(),
+            'FsGgWasmPolicyExample':str(selection['wasmPolicyExample']).lower()}
 
 
 def validate_report(report, plan, family):

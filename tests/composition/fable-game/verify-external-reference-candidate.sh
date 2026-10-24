@@ -128,7 +128,7 @@ CURRENT_IDENTITY
   cp "$templates_package" "$archive"
   printf '%s  %s\n' "$templates_package_sha" "$archive" | sha256sum --check --strict
   dotnet new install "$archive" --force --debug:custom-hive "$out/template-hive" >"$out/template-install.log" 2>&1
-  template_scope_args=(--debug:custom-hive "$out/template-hive" --debug:disable-sdk-templates --no-update-check --package FS.GG.Workspace.Template)
+  template_scope_args=(--debug:custom-hive "$out/template-hive" --debug:disable-sdk-templates --no-update-check)
 else
   # Preserve the existing source-built candidate and its canonical checked Python projection.
   . "$root/tests/composition/fable-game/svg-source-python-fixture.sh"
