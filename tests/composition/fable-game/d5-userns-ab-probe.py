@@ -168,7 +168,9 @@ def kernlog(since, out):
         lines = result.pop("stdout", "") if result.get("exit") == 0 else ""
         matched = [line[:600] for line in lines.splitlines() if pattern.search(line)]
         result["totalLines"] = len(lines.splitlines())
+        denials = [line for line in matched if re.search(r"DENIED|userns_create|restricted", line)]
         result["matchedLines"] = matched[-80:]
+        result["denialLines"] = denials[-80:]
         value[name] = result
     audit_log = read("/var/log/audit/audit.log", 1)
     value["auditLogPresent"] = audit_log

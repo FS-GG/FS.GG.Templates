@@ -8,7 +8,8 @@ name: svg-release-d5-userns-ab
 #   sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
 # on an ephemeral GitHub-hosted VM, before any probe. NoNewPrivileges, the namespace flags
 # (unshare --user --map-root-user --net) and the backend are unchanged: the same
-# literal probe runs directly and inside a transient unit with the D5 unit's properties.
+# literal probe runs directly and inside a transient unit with the D5 unit's properties
+# (RuntimeMaxSec is 300 here instead of 1800; nothing else differs).
 # No SDK, package, backend or product is acquired. Dispatch-only; never run on Home or
 # self-hosted machines (the job refuses unless RUNNER_ENVIRONMENT is github-hosted).
 
@@ -29,7 +30,6 @@ jobs:
         arm: [A, B]
     env:
       ARM: ${{ matrix.arm }}
-      OUT: ${{ runner.temp }}/userns-ab-${{ matrix.arm }}
       PROBE: tests/composition/fable-game/d5-userns-ab-probe.py
       UNIT_NAME: fsgg-userns-ab-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.arm }}
     steps:
@@ -37,7 +37,8 @@ jobs:
         run: |
           set -euo pipefail
           test "${RUNNER_ENVIRONMENT:-}" = github-hosted || { echo "refused: RUNNER_ENVIRONMENT=${RUNNER_ENVIRONMENT:-unset}" >&2; exit 1; }
-          mkdir -p "$OUT"
+          echo "OUT=$RUNNER_TEMP/userns-ab-$ARM" >>"$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/userns-ab-$ARM"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
@@ -68,6 +69,7 @@ jobs:
       - name: Probe in a transient unit with the D5 unit properties incl. NoNewPrivileges (non-fatal, evidence only)
         run: |
           set +e
+          {
           sudo -n systemd-run --quiet --wait --pipe --collect --service-type=exec \
             --unit="$UNIT_NAME" -p Delegate=yes -p User="$(id -un)" -p Group="$(id -gn)" \
             -p NoNewPrivileges=yes -p KillMode=control-group -p TimeoutStopSec=5 \
@@ -75,7 +77,9 @@ jobs:
             -p CPUQuota=200% -p TasksMax=512 -p MemoryMax=8G -p MemorySwapMax=0 -p RuntimeMaxSec=300 \
             -p WorkingDirectory="$PWD" --setenv=PATH=/usr/bin:/bin \
             -- /usr/bin/python3 -I -B "$PROBE" probe unit-nnp "$OUT/probe-unit-nnp.json"
-          echo "systemd-run exit=$?" | tee "$OUT/systemd-run-exit.txt"
+          echo "systemd-run exit=$?" >"$OUT/systemd-run-exit.txt"
+          } 2>&1 | tee "$OUT/systemd-run.log"
+          cat "$OUT/systemd-run-exit.txt"
           python3 -I -B -c 'import json,sys;d=json.load(open(sys.argv[1]));print(json.dumps({k:d[k] for k in ("process","literalUnshare","postClone")},indent=1))' "$OUT/probe-unit-nnp.json" || true
           exit 0
       - name: Collect readable kernel and audit evidence
