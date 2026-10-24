@@ -89,7 +89,7 @@ class Controls(unittest.TestCase):
           'rendering':{'version':'2.0.0','sourceCommit':'c'*40,'packages':[{'id':'Fixture.UI','sha256':'u'*64}]},
           'browsers':{'families':['chromium'],'workers':1,'retries':0,'cases':[{'file':'one.spec.ts','suite':[],'title':'case one'}]}}
 
-    def run_main(self,root,*,listing_title='case one',report_status='expected',report_skipped=0,dirty='',extra=(),env=None):
+    def run_main(self,root,*,listing_title='case one',report_status='expected',report_skipped=0,dirty='',extra=(),env=None,node='v24.20.0',stage='source-passed'):
         """Drive main() with fake processes; returns the recorded child calls."""
         plan=self.PLAN;calls=[];tests=root/'product/complete/Browser.Tests'
         def spec(title,results):
@@ -103,7 +103,7 @@ class Controls(unittest.TestCase):
                 folder=root/'tools/fable';folder.mkdir(parents=True);(folder/'Fable.dll').write_bytes(b'fixture fable core')
             elif argv[0]=='bash':
                 (root/'product').mkdir(exist_ok=True)
-                (root/'product/current-source-stage.json').write_text(json.dumps({'disposition':'source-passed','browserExecuted':False}))
+                (root/'product/current-source-stage.json').write_text(json.dumps({'disposition':stage,'browserExecuted':False}))
                 for name in ('playwright','@playwright/test'):
                     (tests/'node_modules'/name).mkdir(parents=True)
                     (tests/'node_modules'/name/'cli.js').write_text('')
@@ -114,7 +114,7 @@ class Controls(unittest.TestCase):
         def fake_output(argv,**kwargs):
             argv=[str(a) for a in argv]
             if argv[:3]==['podman','image','inspect']:return 'sha256:fixtureimage\n'
-            if argv[0]=='node':return 'v24.20.0\n'
+            if argv[0]=='node':return node+'\n'
             if argv[0]=='npm':return '11.19.0\n'
             if argv[:2]==['dotnet','--version']:return '10.0.401\n'
             if argv[0]=='dotnet':return json.dumps(plan)
@@ -131,7 +131,7 @@ class Controls(unittest.TestCase):
         patches=[mock.patch.object(L,'run',build_then_run),mock.patch.object(L,'fetch',fake_fetch),mock.patch.object(L,'git',fake_git),
                  mock.patch.object(L,'fable_sha',lambda:hashlib.sha256(b'fixture fable core').hexdigest()),
                  mock.patch.object(L.subprocess,'check_output',fake_output),mock.patch.object(L.subprocess,'run',fake_subprocess_run),
-                 mock.patch.object(L.os,'sched_setaffinity',lambda *a:None),mock.patch.object(L,'container_prefix',lambda image,*a:['podman','run','--rm',image]),mock.patch.dict(os.environ,env or {},clear=False)]
+                 mock.patch.object(L.os,'sched_setaffinity',lambda *a:None),mock.patch.object(L,'container_prefix',lambda image,*a:['podman','run','--rm',image]),mock.patch.dict(os.environ,{'GITHUB_ACTIONS':'',**(env or {})},clear=False)]
         for patch in patches:patch.start()
         try:
             try:L.main(['--root',str(root),'--cpus','1','--families','chromium',*extra])
@@ -183,6 +183,43 @@ class Controls(unittest.TestCase):
         for argv,child_env in launches:
             self.assertLessEqual(set(child_env),{'PATH','HOME','XDG_RUNTIME_DIR'})
         self.assertEqual(json.loads((root/'local-summary.json').read_text())['containerImageId'],'sha256:fixtureimage')
+
+    def test_declared_tool_versions_and_stage_disposition_gate_the_browser_phase(self):
+        root=self.fresh_root()
+        with self.assertRaisesRegex(ValueError,'declared tool versions differ'):self.run_main(root,node='v26.11.1')
+        self.assertEqual(self.calls,[],'no process runs on the wrong toolchain')
+        root=self.fresh_root()
+        with self.assertRaisesRegex(ValueError,'source stage incomplete'):self.run_main(root,stage='failed')
+        self.assertFalse([c for c in self.calls if '--list' in c[0] or '--workers=1' in c[0]],'no browser phase after an incomplete stage')
+
+    def test_downloads_are_refused_unless_they_equal_the_typed_sha256_and_bound(self):
+        class Response:
+            def __init__(self,data):self.data=data
+            def __enter__(self):return self
+            def __exit__(self,*a):return False
+            def read(self,limit):return self.data[:limit]
+        with tempfile.TemporaryDirectory() as tmp:
+            target=Path(tmp)/'archive';data=b'exact archive bytes';sha=hashlib.sha256(data).hexdigest()
+            with mock.patch.object(L.urllib.request,'urlopen',lambda url,timeout:Response(data)):
+                L.fetch('https://example.invalid/a',sha,1024,target);self.assertEqual(target.read_bytes(),data)
+                target.unlink()
+                with self.assertRaisesRegex(ValueError,'typed SHA-256'):L.fetch('https://example.invalid/a','0'*64,1024,target)
+                with self.assertRaisesRegex(ValueError,'bound'):L.fetch('https://example.invalid/a',sha,4,target)
+            self.assertFalse(target.exists(),'a refused download leaves no file')
+
+    def test_timeout_kills_the_whole_process_group_not_only_the_direct_child(self):
+        import time
+        with tempfile.TemporaryDirectory() as tmp:
+            pid_file=Path(tmp)/'grandchild.pid'
+            with self.assertRaisesRegex(RuntimeError,'timed out'):
+                L.run(['sh','-c','sleep 60 & echo $! > "$1"; wait','sh',str(pid_file)],tmp,{'PATH':os.environ['PATH']},Path(tmp)/'log',1)
+            pid=int(pid_file.read_text())
+            def alive():
+                try:return Path('/proc/%d/stat'%pid).read_text().rsplit(')',1)[1].split()[0]!='Z'
+                except (FileNotFoundError,ProcessLookupError):return False
+            deadline=time.monotonic()+5
+            while alive() and time.monotonic()<deadline:time.sleep(0.05)
+            self.assertFalse(alive(),'the grandchild survived the timeout')
 
     def test_dirty_checkout_and_hosted_runner_refuse_before_any_process(self):
         root=self.fresh_root()

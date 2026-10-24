@@ -20,7 +20,7 @@ CURRENT_COMPOSITION_ADMISSION = None
 # fresh private root. It is neither the hosted runtime admission above nor installed/published/AT
 # acceptance. This is a declaration of intent, not a security boundary: the stage script calls it with
 # its real environment, and the runner builds a closed child environment and refuses hosted runners.
-LOCAL_VERIFICATION = 'adr-0096-local-unpublished-source'
+LOCAL_VERIFICATION = 'adr-0096-local-development-verification'
 CREDENTIAL_VARIABLES = ('GH_TOKEN', 'GITHUB_TOKEN', 'GH_ENTERPRISE_TOKEN', 'ACTIONS_RUNTIME_TOKEN', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN',
                         'ACTIONS_ID_TOKEN_REQUEST_URL', 'NUGET_API_KEY', 'NUGET_AUTH_TOKEN', 'VSS_NUGET_EXTERNAL_FEED_ENDPOINTS',
                         'AZURE_DEVOPS_EXT_PAT', 'NPM_TOKEN', 'NODE_AUTH_TOKEN', 'ANTHROPIC_API_KEY', 'SSH_AUTH_SOCK',
