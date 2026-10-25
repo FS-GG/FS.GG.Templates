@@ -1,0 +1,37 @@
+schemaVersion: 1
+commands:
+  - id: polyglot-build
+    command: "provider-owned build"
+    timeout: 180
+    environment: local-or-ci
+  - id: polyglot-lint
+    command: "provider-owned lint"
+    timeout: 180
+    environment: local-or-ci
+  - id: polyglot-test
+    command: "provider-owned test"
+    timeout: 180
+    environment: local-or-ci
+  - id: polyglot-public-surface
+    command: "provider-owned public-surface"
+    timeout: 180
+    environment: local-or-ci
+  - id: polyglot-package
+    command: "provider-owned package"
+    timeout: 180
+    environment: local-or-ci
+  - id: polyglot-security
+    command: "provider-owned security"
+    timeout: 300
+    environment: local-or-ci
+  - id: polyglot-evidence
+    command: "provider-owned evidence"
+    timeout: 180
+    environment: local-or-ci
+  - id: polyglot-release
+    command: "provider-owned release"
+    timeout: 180
+    environment: local-or-ci
+environmentClasses:
+  - local
+  - ci

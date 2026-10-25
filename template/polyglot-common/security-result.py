@@ -65,7 +65,7 @@ def parse(provider, raw, expected_go_db=None, expected_go_module=None):
         require(messages and set(messages[0]) == {'config'}, 'missing Go configuration')
         config = messages[0]['config']
         require(config.get('protocol_version') == 'v1.0.0' and config.get('scanner_name') == 'govulncheck'
-                and config.get('scanner_version') == 'v1.9.0' and config.get('go_version') == 'go1.27.1'
+                and config.get('scanner_version') == 'v1.9.0' and config.get('go_version') == 'go1.27.3'
                 and config.get('scan_mode') == 'source' and config.get('scan_level') == 'symbol', 'unexpected Go scanner/toolchain/protocol')
         require(expected_go_db is not None and config.get('db') == expected_go_db, 'Go database identity differs')
         # The selected source path always emits SBOM after loading matched source
@@ -73,7 +73,7 @@ def parse(provider, raw, expected_go_db=None, expected_go_module=None):
         sboms = [message['SBOM'] for message in messages if 'SBOM' in message]
         require(len(sboms) == 1 and isinstance(sboms[0], dict), 'missing/duplicate Go source SBOM')
         sbom = sboms[0]
-        require(expected_go_module is not None and sbom.get('go_version') == 'go1.27.1'
+        require(expected_go_module is not None and sbom.get('go_version') == 'go1.27.3'
                 and sbom.get('roots') == [expected_go_module], 'Go source roots/toolchain differ')
         modules = sbom.get('modules')
         require(isinstance(modules, list) and len(modules) == 2
@@ -81,7 +81,7 @@ def parse(provider, raw, expected_go_db=None, expected_go_module=None):
                 'Go stdlib-only module inventory differs')
         require(len({module['path'] for module in modules}) == 2
                 and {module['path']: module.get('version', '') for module in modules}
-                == {expected_go_module: '', 'stdlib': 'v1.27.1'}, 'Go module identity differs')
+                == {expected_go_module: '', 'stdlib': 'v1.27.3'}, 'Go module identity differs')
         progress = [message['progress'] for message in messages if 'progress' in message]
         # Selected Source emits fetching/checking progress around DB resolution.
         # Neither progress nor SBOM is a final marker; original zero exit and

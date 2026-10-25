@@ -23,7 +23,7 @@ export GOTOOLCHAIN=local GOWORK=off GOPROXY=off GOSUMDB=off CGO_ENABLED=1
 : "${CC:?qualified dedicated-carrier C compiler required for genuine CGO/race}"
 case "$CC" in /*) ;; *) echo 'absolute qualified CC required' >&2; exit 3;; esac
 [ -f "$CC" ] && [ -x "$CC" ] || exit 3
-[ "$(go version)" = 'go version go1.27.1 linux/amd64' ] || exit 3
+[ "$(go version)" = 'go version go1.27.3 linux/amd64' ] || exit 3
 # These exact copied namespaces are the consumed product/test/package inputs.
 source_roots='.gitignore README.md go.mod main.go main_test.go display-name.txt security-policy.json toolchain-lock.json scripts'
 seal_sources() {

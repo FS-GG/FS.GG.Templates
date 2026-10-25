@@ -1,0 +1,85 @@
+schemaVersion: 2
+domains:
+  - build
+  - lint
+  - test
+  - public-surface
+  - package
+  - security
+  - evidence
+  - release
+pathMap:
+  - glob: "display-name.txt"
+    capability: build
+  - glob: "README.md"
+    capability: lint
+  - glob: "toolchain-lock.json"
+    capability: test
+  - glob: "security-policy.json"
+    capability: public-surface
+  - glob: "scripts/operations.sh"
+    capability: package
+  - glob: "scripts/security.sh"
+    capability: security
+  - glob: "scripts/security-result.py"
+    capability: evidence
+  - glob: ".gitignore"
+    capability: release
+surfaces: []
+checks:
+  - id: build
+    domain: build
+    command: polyglot-build
+    owner: provider
+    cost: medium
+    environment: local-or-ci
+    maturity: block-on-ship
+  - id: lint
+    domain: lint
+    command: polyglot-lint
+    owner: provider
+    cost: medium
+    environment: local-or-ci
+    maturity: block-on-ship
+  - id: test
+    domain: test
+    command: polyglot-test
+    owner: provider
+    cost: medium
+    environment: local-or-ci
+    maturity: block-on-ship
+  - id: public-surface
+    domain: public-surface
+    command: polyglot-public-surface
+    owner: provider
+    cost: medium
+    environment: local-or-ci
+    maturity: block-on-ship
+  - id: package
+    domain: package
+    command: polyglot-package
+    owner: provider
+    cost: medium
+    environment: local-or-ci
+    maturity: block-on-ship
+  - id: security
+    domain: security
+    command: polyglot-security
+    owner: provider
+    cost: medium
+    environment: local-or-ci
+    maturity: block-on-ship
+  - id: evidence
+    domain: evidence
+    command: polyglot-evidence
+    owner: provider
+    cost: medium
+    environment: local-or-ci
+    maturity: block-on-ship
+  - id: release
+    domain: release
+    command: polyglot-release
+    owner: provider
+    cost: medium
+    environment: local-or-ci
+    maturity: block-on-ship

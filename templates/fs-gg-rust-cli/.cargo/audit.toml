@@ -9,6 +9,7 @@ stale = false
 [output]
 deny = ["warnings"]
 format = "json"
+quiet = false
 [yanked]
 enabled = true
 update_index = false

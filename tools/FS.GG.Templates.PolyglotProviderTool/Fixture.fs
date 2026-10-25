@@ -46,7 +46,7 @@ module Fixture =
             match provider with
             | "typescript-cli" | "javascript-cli" -> "node", "24.20.0"
             | "rust-cli" -> "rustc", "1.98.1"
-            | _ -> "go", "1.27.1"
+            | _ -> "go", "1.27.3"
         let fixture =
             {| generatorAssemblySha256 = ProviderCatalogIntegrity.digest (File.ReadAllBytes(System.Reflection.Assembly.GetExecutingAssembly().Location)) |> fun value -> value.Substring(7)
                catalog = catalogPath; catalogDigest = ProviderCatalogIntegrity.digest raw

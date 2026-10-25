@@ -17,10 +17,10 @@ class SecurityResults(unittest.TestCase):
                            'metadata': {'vulnerabilities': {'total': total}}}).encode()
     def go(self, finding=None, version='v1.9.0'):
         config = {'config': {'protocol_version': 'v1.0.0', 'scanner_name': 'govulncheck',
-                  'scanner_version': version, 'go_version': 'go1.27.1', 'scan_mode': 'source', 'scan_level': 'symbol', 'db': 'file:///synthetic-db'}}
+                  'scanner_version': version, 'go_version': 'go1.27.3', 'scan_mode': 'source', 'scan_level': 'symbol', 'db': 'file:///synthetic-db'}}
         messages = [config,
-                    {'SBOM': {'go_version': 'go1.27.1', 'roots': ['example.org/synthetic'],
-                              'modules': [{'path': 'example.org/synthetic'}, {'path': 'stdlib', 'version': 'v1.27.1'}]}},
+                    {'SBOM': {'go_version': 'go1.27.3', 'roots': ['example.org/synthetic'],
+                              'modules': [{'path': 'example.org/synthetic'}, {'path': 'stdlib', 'version': 'v1.27.3'}]}},
                     {'progress': {'message': 'synthetic fetching observation'}},
                     {'progress': {'message': 'synthetic checking observation'}}]
         if finding is not None:
@@ -86,7 +86,7 @@ class SecurityResults(unittest.TestCase):
     def test_actual_single_product_guard_rejects_go_module_finding(self):
         with tempfile.TemporaryDirectory(prefix='synthetic-product-security-') as temporary:
             root = Path(temporary)
-            (root / 'go.mod').write_text('module example.org/synthetic\n\ngo 1.27.1\n')
+            (root / 'go.mod').write_text('module example.org/synthetic\n\ngo 1.27.3\n')
             report = root / 'security-audit.json'
             report.write_bytes(self.go({'osv': 'GO-SYNTHETIC', 'trace': [{'module': 'synthetic'}]}))
             with self.assertRaisesRegex(ValueError, 'finding'):
