@@ -368,7 +368,7 @@ class Controls(unittest.TestCase):
         # The published plan and the source-built plan select exactly the same maintained base plus the added cases.
         self.assertEqual(source.count('cases = baseCompositionCases @ optionsAndFocusCases'),2)
         # The published template identity is the signed nuget.org 0.20.0 archive and its source commit.
-        published=re.search(r'let currentCompositionPlan \(\) =(.*?)let renderCurrentCompositionPlan',source,re.S)[1]
+        published=re.search(r'let currentCompositionPlan \(\) =(.*?)\n\n// ',source,re.S)[1]
         for pinned in ('version = "0.20.0"','sha256 = "e12b36d2d087d0f788894fdec9ba3b3ed1406c1e7237ebee40602c2f7c23355c"','sourceCommit = "1b9b1ca92556eb1acd0e4d1c9cb851a8c7906f86"'):
             self.assertIn(pinned,published)
         self.assertNotIn('0.19.3',published)

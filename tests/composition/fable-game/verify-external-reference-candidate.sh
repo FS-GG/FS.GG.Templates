@@ -160,7 +160,7 @@ if [[ -n "$templates_package" ]]; then
 fi
 if [[ "$input_mode" == current-public-composition ]]; then
   python3 "$root/tests/composition/fable-game/current-composition-observations.py" lock "$out/current-composition-plan.json" "$out/complete"
-  dotnet "$FSGG_REFERENCE_PROVIDER_TOOL_DLL" current-d5-receiver-check --archive "$archive" --receiver "$out/complete" --route direct --lifecycle "$lifecycle" --bundle "$bundle" --product-name "$product_name" >"$out/current-composition-receiver.log"
+  dotnet "$FSGG_REFERENCE_PROVIDER_TOOL_DLL" current-composition-receiver-check --archive "$archive" --receiver "$out/complete" --route direct --lifecycle "$lifecycle" --bundle "$bundle" --product-name "$product_name" >"$out/current-composition-receiver.log"
 fi
 [[ -f "$out/complete/SvgFoundation/Examples/ExternalAuthority/reference.json" ]]
 [[ -f "$out/complete/SvgFoundation/Examples/FourD/reference.json" ]]

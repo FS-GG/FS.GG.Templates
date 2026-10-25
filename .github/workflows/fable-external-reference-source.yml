@@ -236,8 +236,8 @@ jobs:
           from pathlib import Path
           with (Path(os.environ['RUNNER_TEMP'])/'provider-composition.log').open(encoding='utf-8') as log:
               count=sum(1 for line in log if line.startswith('PASS '))
-          # Source-derived: 229 native-confirmed baseline + 18 current-composition selector assertions; actual CI must confirm.
-          assert count==247, f'ProviderComposition requires exactly247 PASS lines; observed{count}'
+          # Source-derived: 229 native-confirmed baseline + 20 current-composition selector assertions; actual CI must confirm.
+          assert count==249, f'ProviderComposition requires exactly249 PASS lines; observed{count}'
           print(f'ProviderComposition: verified{count} PASS lines after successful command exit')
           PYPROVIDER
           bash tests/composition/fable-game/verify-external-reference-candidate.sh \

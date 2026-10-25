@@ -573,6 +573,18 @@ let currentCompositionPlan () =
         acceptanceScope = "eleven maintained DOM-automation composition cases on the published 0.20.0 template only; local save remains synthetic in-memory; no durable/product/AT/whole4818 acceptance"
     |}
 
+// The generated-receiver conformance check for the composition plan. It is bound to the template identity the typed
+// plan carries (the published 0.20.0 archive), not to the D5 current-public pin, so moving the plan to a newer
+// published template never edits the D5 lane's frozen 0.19.3 selector.
+let validateCurrentCompositionReceiver archive receiver route lifecycle bundle product =
+    let template = (currentCompositionPlan ()).template
+    if not (File.Exists archive) then Error "receiver-input-missing"
+    elif sha256 archive <> template.sha256 then Error "current-composition-archive-refused"
+    else
+        match validatePackageIdentity archive template.sha256 packageId template.version template.sourceCommit with
+        | Error reason -> Error reason
+        | Ok _ -> validateReceiverCore true bundle archive receiver route lifecycle "2.4.0" product
+
 let renderCurrentCompositionPlan () =
     JsonSerializer.Serialize(currentCompositionPlan(), JsonSerializerOptions(WriteIndented = true))
 
