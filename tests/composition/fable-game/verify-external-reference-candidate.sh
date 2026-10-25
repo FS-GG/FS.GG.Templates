@@ -289,13 +289,19 @@ dotnet publish "$out/complete/Server/Server.fsproj" -c Release --no-restore -m:1
 (cd "$out/complete/Browser.Tests" && npm ci) >"$out/npm-browser.log" 2>&1
 if [[ "$input_mode" == current-public-composition ]]; then
   python3 - "$root" "$out" <<'CURRENT_CONFIG'
-import json,runpy,sys
+import hashlib,json,runpy,sys
 from pathlib import Path
 root,out=map(Path,sys.argv[1:]);plan=json.loads((out/'current-composition-plan.json').read_text())
 selector=runpy.run_path(str(root/'tests/composition/fable-game/current-composition-observations.py'))['selector'](plan)
 files=sorted({row["file"] for row in plan["browsers"]["cases"]})
 config='import { defineConfig } from "@playwright/test";\nimport maintained from "./playwright.config";\nexport default defineConfig({...maintained,testMatch:'+json.dumps(files)+',workers:'+str(plan["browsers"]["workers"])+',retries:'+str(plan["browsers"]["retries"])+',grep:new RegExp('+json.dumps(selector)+')});\n'
 (out/'complete/Browser.Tests/current-composition.generated.config.ts').write_text(config)
+# Preserve the actual source-stage inputs before any browser executes. The local
+# runner binds these original bytes after its own reports and custody join pass.
+receiver=out/'complete/SvgFoundation'
+entries=[{'path':p.relative_to(receiver).as_posix(),'sha256':hashlib.sha256(p.read_bytes()).hexdigest()} for p in sorted(receiver.rglob('*')) if p.is_file() and not {'node_modules','obj','bin'}.intersection(p.parts)]
+assert entries
+(out/'current-source-inputs.json').write_text(json.dumps({'receiver':entries,'templatePackageInput':json.loads((out/'template-package-input.json').read_text()),'producerArchives':json.loads((out/'producer-archives.json').read_text()),'producerSourceEntries':json.loads((out/'producer-source-entries.json').read_text()),'publicReadback':json.loads((out/'feed/public-readback.json').read_text())},indent=2)+'\n')
 (out/'current-source-stage.json').write_text(json.dumps({'disposition':'source-passed','browserExecuted':False,'whole4818Acceptance':False})+'\n')
 CURRENT_CONFIG
   exit 0

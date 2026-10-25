@@ -195,6 +195,66 @@ def fetch_unpinned(url, maximum, destination):
     destination.write_bytes(data)
 
 
+def retain_current_at_inputs(root, plan, producer_custody):
+    """Retain original local DOM inputs for the held observer, never an authenticated preflight.
+
+    Called only by this run after its real custody verifier and browser phases.
+    No historical summary is an input. Partial/source-built runs retain their
+    existing local reports without producing this full three-family packet.
+    """
+    product = root / 'product'
+    require(plan['browsers']['families'] == list(FAMILIES), 'current AT inputs need all three families')
+    require(plan['browsers']['workers'] == 1 and plan['browsers']['retries'] == 0, 'current AT browser policy differs')
+    require(producer_custody['sourceCommit'] == plan['rendering']['sourceCommit'] and
+            producer_custody['custodySha256'] == plan['rendering']['custodySha256'], 'current AT producer custody differs')
+    source = json.loads((product / 'current-source-inputs.json').read_text())
+    package = source['templatePackageInput']
+    require(package['producerRevision'] == plan['template']['sourceCommit'] and
+            package['version'] == plan['template']['version'] and
+            package['archiveSha256'] == plan['template']['sha256'], 'current AT template input differs')
+    require(json.loads((product / 'current-composition-plan.json').read_text()) == plan,
+            'current AT stage plan differs')
+    receiver = product / 'complete/SvgFoundation'
+    require(source['receiver'], 'current AT receiver manifest absent')
+    for row in source['receiver']:
+        path = receiver / row['path']
+        require(not Path(row['path']).is_absolute() and '..' not in Path(row['path']).parts and
+                not path.is_symlink() and sha256(path) == row['sha256'], 'current AT receiver changed')
+    reports = {}
+    # Validate every original report before creating any observer packet/report.
+    for family in FAMILIES:
+        path = root / (family + '-report.json')
+        observations.validate_report(json.loads(path.read_text()), plan, family)
+        reports[family] = path.read_bytes()
+    packet = {
+        'schema': 'fsgg.current-composition-source-qualification/1', 'disposition': 'passed',
+        'qualificationMode': 'current-public-composition', 'scope': observations.LOCAL_VERIFICATION,
+        'templates': {'revision': plan['template']['sourceCommit'], 'tree': None},
+        'templatesInputSource': 'exact-current-public-archive', 'templatePackageInput': package,
+        'producer': {'revision': producer_custody['sourceCommit'], 'tree': None,
+                     'custodyManifestSha256': producer_custody['custodySha256'],
+                     'archives': source['producerArchives'], 'sourceEntries': source['producerSourceEntries']},
+        'actualProducerCustodyReadback': True, 'currentCompositionPlan': plan,
+        'receiver': source['receiver'], 'publicReadback': source['publicReadback'],
+        'sourceStageInputsSha256': sha256(product / 'current-source-inputs.json'),
+        'browserFamilies': list(FAMILIES), 'passedPerFamily': len(plan['browsers']['cases']), 'skipped': 0,
+        'browserReportSha256': {family: hashlib.sha256(data).hexdigest() for family, data in reports.items()},
+        'domAutomation': True, 'actualScreenReader': 'not-observed', 'localSaveStorage': 'synthetic-in-memory',
+        'authenticatedNativeCaller': False, 'hostedRuntimeAdmission': False, 'actualAT': False,
+        'publication': False, 'publishedAcceptance': False, 'installedAcceptance': False,
+        'durableSaveAcceptance': False, 'providerMatrixAcceptance': False, 'nativeImeAcceptance': False,
+        'whole4817Acceptance': False, 'whole4818Acceptance': False,
+    }
+    require(not (product / 'qualification.json').exists(), 'current AT packet already exists')
+    require(not any((product / (family + '-browser.json')).exists() for family in FAMILIES),
+            'current AT report already exists')
+    for family, data in reports.items():
+        with (product / (family + '-browser.json')).open('xb') as stream:
+            stream.write(data)
+    with (product / 'qualification.json').open('x') as stream:
+        stream.write(json.dumps(packet, indent=2) + '\n')
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.split('\n\n')[0])
     parser.add_argument('--root', required=True, help='fresh private output root (must not exist)')
@@ -368,6 +428,8 @@ def main(argv=None):
                                            'reportSha256': sha256(root / (family + '-report.json'))}
         summary['runtimeCases'] = sum(entry['passed'] for entry in summary['families'].values())
         summary['actualProducerCustodyReadback'] = 'producerCustody' in summary  # only when the whole run succeeded
+        if not args.source_built and summary['actualProducerCustodyReadback'] and families == list(FAMILIES):
+            retain_current_at_inputs(root, plan, summary['producerCustody'])
         summary['disposition'] = 'dom-observed-source-built-reference-only' if args.source_built else 'dom-observed-local-reference-only'
     except BaseException as error:
         summary['firstCause'] = (type(error).__name__ + ': ' + str(error))[:8192]
