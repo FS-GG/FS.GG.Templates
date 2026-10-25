@@ -598,6 +598,22 @@ let private validateCompositionPlanDigest (expectedDigest: string) (json: string
 let validateCurrentCompositionPlan (json: string) =
     validateCompositionPlanDigest "d0eeb826a42bca23f5272fb5835403672f672ed7e989df3cdf83dc8c8e13b4ef" json
 
+// Cases that exist only in the checked-out Templates source (not in the published 0.19.3 archive): the broader DOM
+// options panel and the explicit focus / native-editing survival across a retained update and a session replacement.
+let private sourceBuiltOnlyCases =
+    [
+        {|
+            file = "two-client.spec.ts"
+            suite = ([]: string list)
+            title = "FourD reference options panel keeps labelled native controls, tab order and state across retained updates and a session replacement"
+        |};
+        {|
+            file = "two-client.spec.ts"
+            suite = ([]: string list)
+            title = "FourD reference focus and native editing text survive a retained update and a session replacement"
+        |}
+    ]
+
 // The same typed Rendering/Game/selection pins and the same maintained cases, but the template under test is
 // packed from the checked-out protected Templates source instead of a published archive. Its identity is therefore
 // recorded by the caller (source commit and package digest), never pinned here, and the verdict is "source-built".
@@ -613,16 +629,16 @@ let sourceBuiltCompositionPlan () =
                 families = [ "chromium"; "firefox"; "webkit" ]
                 retries = 0
                 workers = 1
-                cases = baseCompositionCases
+                cases = baseCompositionCases @ sourceBuiltOnlyCases
             |}
-        acceptanceScope = "source-built DOM-automation composition cases only; no published, installed, durable/product, AT or whole4818 acceptance"
+        acceptanceScope = "source-built DOM-automation composition cases (the nine maintained plus two source-only panel and focus cases) only; no published, installed, durable/product, AT or whole4818 acceptance"
     |}
 
 let renderSourceBuiltCompositionPlan () =
     JsonSerializer.Serialize(sourceBuiltCompositionPlan(), JsonSerializerOptions(WriteIndented = true))
 
 let validateSourceBuiltCompositionPlan (json: string) =
-    validateCompositionPlanDigest "5d5b4a92bdb2ead93bb19975f803e26cd717a6d45dcee26af65807e724069c62" json
+    validateCompositionPlanDigest "e20543d95be38e07fcf6f8cb714f336767067d6aca2b6c9b896119762ade150d" json
 
 let private descriptorCheck selectedVersion (provider: Provider) =
     let lifecycle = provider.Parameters |> List.filter (fun p -> p.Key = "lifecycle")

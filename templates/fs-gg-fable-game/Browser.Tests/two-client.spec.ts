@@ -1,4 +1,4 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
@@ -1007,6 +1007,158 @@ test("Local save and replay example preserves synthetic state and settles detach
   expect(await disposed!.evaluate(element => element.outerHTML)).toBe(before);
   expect(await disposed!.getAttribute("data-input-owned")).toBe("0");
   expect(await disposed!.getAttribute("data-session-owned")).toBe("0");
+});
+
+// Click through the DOM without moving focus: a real pointer click focuses the button, which would hide whether the
+// reference preserved focus across the update it triggers.
+const pressWithoutFocus = (page: Page, name: string): Promise<void> =>
+  page.evaluate(label => {
+    const button = [...document.querySelectorAll<HTMLButtonElement>("#fourd-reference button")]
+      .find(candidate => candidate.textContent === label);
+    if (button === undefined) throw new Error("missing reference control: " + label);
+    button.click();
+  }, name);
+
+// Every retained update ends in an applied projection; waiting on its counter proves the update finished before
+// focus, values and node identity are asserted, so a late focus-stealing re-render cannot slip past.
+const appliedCount = async (reference: Locator): Promise<number> => Number(await reference.getAttribute("data-applied-count") ?? "0");
+
+const markIdentity = (page: Page): Promise<void> =>
+  page.evaluate(() => {
+    const ids = ["fourd-reference-note", "fourd-reference-options", "fourd-reference-difficulty", "fourd-reference-hints"];
+    for (const id of ids) (document.getElementById(id) as any).__identity = id;
+    document.querySelectorAll<HTMLInputElement>('input[name="fourd-reference-camera"]')
+      .forEach(radio => (radio as any).__identity = "camera:" + radio.value);
+  });
+
+const identities = (page: Page): Promise<string[]> =>
+  page.evaluate(() => [
+    "fourd-reference-note", "fourd-reference-options", "fourd-reference-difficulty", "fourd-reference-hints"
+  ].map(id => (document.getElementById(id) as any)?.__identity ?? "recreated:" + id)
+    .concat([...document.querySelectorAll<HTMLInputElement>('input[name="fourd-reference-camera"]')]
+      .map(radio => (radio as any).__identity ?? "recreated:camera:" + radio.value)));
+
+const expectedIdentities = [
+  "fourd-reference-note", "fourd-reference-options", "fourd-reference-difficulty", "fourd-reference-hints",
+  "camera:overview", "camera:close"
+];
+
+test("FourD reference options panel keeps labelled native controls, tab order and state across retained updates and a session replacement", async ({ page }) => {
+  test.skip(!hasFourDReference || isLegacySvgPreview, "selected composition has no FourD reference options panel");
+  await page.goto("/");
+  const reference = page.locator("#fourd-reference");
+  await expect(reference).toHaveAttribute("data-fixture-id", "fourd-reference-encounter");
+  const panel = reference.getByRole("group", { name: "Encounter options", exact: true });
+  const difficulty = panel.getByRole("combobox", { name: "Difficulty", exact: true });
+  const hints = panel.getByRole("checkbox", { name: "Show hints", exact: true });
+  const overview = panel.getByRole("radio", { name: "Overview", exact: true });
+  const close = panel.getByRole("radio", { name: "Close focus", exact: true });
+  const note = reference.getByRole("textbox", { name: "Encounter note", exact: true });
+  const status = reference.locator("#fourd-reference-options-status");
+
+  // Every control is reachable by its accessible name and starts in its documented state.
+  await expect(panel.getByRole("group", { name: "Camera", exact: true })).toHaveCount(1);
+  await expect(difficulty).toHaveValue("standard");
+  await expect(hints).not.toBeChecked();
+  await expect(overview).toBeChecked();
+  await expect(close).not.toBeChecked();
+  await expect(reference).toHaveAttribute("data-option-difficulty", "standard");
+
+  // Document order is tab order: note, then the island's controls (one tab stop for the radio group).
+  await note.focus();
+  for (const next of [difficulty, hints, overview]) {
+    await page.keyboard.press("Tab");
+    await expect(next).toBeFocused();
+  }
+  await page.keyboard.press("Shift+Tab");
+  await expect(hints).toBeFocused();
+
+  // Native keyboard operation changes the controls; none of it becomes gameplay input.
+  await difficulty.selectOption("severe");
+  await hints.focus();
+  await page.keyboard.press("Space");
+  await expect(hints).toBeChecked();
+  await hints.press("Enter");
+  await overview.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(close).toBeChecked();
+  await expect(overview).not.toBeChecked();
+  await expect(reference).toHaveAttribute("data-command-order", "");
+  await expect(status).toContainText("difficulty severe, hints on, camera close");
+
+  // A retained scene update and then a session replacement run while a control holds focus; the island is never recreated.
+  // The reference applies a projection once per revision, so exactly one scene update is driven and awaited, then the replacement.
+  await markIdentity(page);
+  await hints.focus();
+  const appliedBefore = await appliedCount(reference);
+  await pressWithoutFocus(page, "Move to legal full cell");
+  await expect(reference).toHaveAttribute("data-command-order", "1");
+  await pressWithoutFocus(page, "Complete current projection");
+  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(appliedBefore);
+  const generation = Number(await reference.getAttribute("data-generation") ?? "0");
+  await pressWithoutFocus(page, "Replace local session");
+  await expect.poll(async () => Number(await reference.getAttribute("data-generation"))).toBeGreaterThan(generation);
+
+  await expect(hints).toBeFocused();
+  await expect(hints).toBeChecked();
+  await expect(difficulty).toHaveValue("severe");
+  await expect(close).toBeChecked();
+  await expect(reference).toHaveAttribute("data-option-difficulty", "severe");
+  await expect(status).toContainText("difficulty severe, hints on, camera close; revision");
+  expect(await identities(page)).toEqual(expectedIdentities);
+
+  // Disposal removes the island's owned listeners: a detached control no longer updates the disposed reference.
+  const disposed = await reference.elementHandle();
+  const detached = await difficulty.elementHandle();
+  await page.getByRole("button", { name: "Dispose FourD reference", exact: true }).click();
+  await expect(reference).toHaveCount(0);
+  await detached!.evaluate(element => { (element as HTMLSelectElement).value = "calm"; element.dispatchEvent(new Event("change", { bubbles: true })); });
+  expect(await disposed!.getAttribute("data-option-difficulty")).toBe("severe");
+});
+
+test("FourD reference focus and native editing text survive a retained update and a session replacement", async ({ page }) => {
+  test.skip(!hasFourDReference || isLegacySvgPreview, "selected composition has no FourD reference");
+  await page.goto("/");
+  const reference = page.locator("#fourd-reference");
+  await expect(reference).toHaveAttribute("data-fixture-id", "fourd-reference-encounter");
+  const note = reference.getByRole("textbox", { name: "Encounter note", exact: true });
+  await markIdentity(page);
+
+  // Text, caret and an active composition live in the native textbox while the scene updates and the session is replaced.
+  await note.focus();
+  await note.fill("四 dimensional note");
+  await note.evaluate(element => (element as HTMLInputElement).setSelectionRange(2, 9));
+  await note.dispatchEvent("compositionstart");
+  const appliedBefore = await appliedCount(reference);
+  await pressWithoutFocus(page, "Move to legal full cell");
+  await expect(reference).toHaveAttribute("data-command-order", "1");
+  await pressWithoutFocus(page, "Complete current projection");
+  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(appliedBefore);
+  const generation = Number(await reference.getAttribute("data-generation") ?? "0");
+  await pressWithoutFocus(page, "Replace local session");
+  await expect.poll(async () => Number(await reference.getAttribute("data-generation"))).toBeGreaterThan(generation);
+  // Focus is asserted before and by a page-level keypress: Locator.press would refocus the note and hide a focus steal.
+  await expect(note).toBeFocused();
+  await page.keyboard.press("Enter");
+  await note.dispatchEvent("compositionend");
+
+  await expect(note).toBeFocused();
+  await expect(note).toHaveValue("四 dimensional note");
+  expect(await note.evaluate(element => [(element as HTMLInputElement).selectionStart, (element as HTMLInputElement).selectionEnd])).toEqual([2, 9]);
+  await expect(reference).toHaveAttribute("data-command-order", "1");
+  expect(await identities(page)).toEqual(expectedIdentities);
+
+  // Focus on the island's own select and on the reference root also survives further session replacements.
+  const difficulty = reference.getByRole("combobox", { name: "Difficulty", exact: true });
+  for (const [target, name] of [[difficulty, "select"], [reference, "root"]] as const) {
+    await target.focus();
+    const before = Number(await reference.getAttribute("data-generation") ?? "0");
+    await pressWithoutFocus(page, "Replace local session");
+    await expect.poll(async () => Number(await reference.getAttribute("data-generation")), name).toBeGreaterThan(before);
+    await expect(target, name).toBeFocused();
+  }
+  await expect(note).toHaveValue("四 dimensional note");
+  expect(await identities(page)).toEqual(expectedIdentities);
 });
 
 test("current player and Studio remain operable at 320 CSS pixels with reduced motion", async ({ page }) => {

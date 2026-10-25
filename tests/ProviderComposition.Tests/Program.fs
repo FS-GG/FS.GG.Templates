@@ -494,9 +494,13 @@ let main _ =
     assertEqual "source-built composition plan closes its own DTO and pins no template archive" (Ok (), false)
         (validateSourceBuiltCompositionPlan sourceBuiltJson, sourceBuiltJson.Contains "\"sha256\": \"9594ec20")
     let sourceBuilt = sourceBuiltCompositionPlan ()
-    assertEqual "source-built plan reuses the published Rendering, Game, selection and maintained cases and labels itself source-built"
-        (composition.rendering, composition.game, composition.selection, composition.browsers, "source-built")
-        (sourceBuilt.rendering, sourceBuilt.game, sourceBuilt.selection, sourceBuilt.browsers, sourceBuilt.template.origin)
+    assertEqual "source-built plan reuses the published Rendering, Game and selection and labels itself source-built"
+        (composition.rendering, composition.game, composition.selection, "source-built")
+        (sourceBuilt.rendering, sourceBuilt.game, sourceBuilt.selection, sourceBuilt.template.origin)
+    let sourceBuiltIdentities = sourceBuilt.browsers.cases |> List.map (fun row -> row.file, row.suite, row.title)
+    assertEqual "source-built plan keeps the nine maintained cases first and adds exactly two unique source-only cases"
+        (identities, 11, 11)
+        (List.truncate 9 sourceBuiltIdentities, sourceBuiltIdentities.Length, (Set.ofList sourceBuiltIdentities).Count)
     use compositionDocument = System.Text.Json.JsonDocument.Parse compositionJson
     let gameFields = compositionDocument.RootElement.GetProperty("game").EnumerateObject() |> Seq.map (fun row -> row.Name) |> Set.ofSeq
     assertEqual "Game has exact known lock identity without an invented raw hash" (Set.ofList [ "id"; "version"; "lockContentHash" ]) gameFields
