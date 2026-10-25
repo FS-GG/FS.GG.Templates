@@ -1,4 +1,4 @@
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import { expect, test, type Locator, type Page, type TestInfo } from "@playwright/test";
 import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
@@ -1019,6 +1019,10 @@ const pressWithoutFocus = (page: Page, name: string): Promise<void> =>
     button.click();
   }, name);
 
+// Every retained update ends in an applied projection; waiting on its counter proves the update finished before
+// focus, values and node identity are asserted, so a late focus-stealing re-render cannot slip past.
+const appliedCount = async (reference: Locator): Promise<number> => Number(await reference.getAttribute("data-applied-count") ?? "0");
+
 const markIdentity = (page: Page): Promise<void> =>
   page.evaluate(() => {
     const ids = ["fourd-reference-note", "fourd-reference-options", "fourd-reference-difficulty", "fourd-reference-hints"];
@@ -1092,8 +1096,10 @@ test("FourD reference options panel keeps labelled native controls, tab order an
   const generation = Number(await reference.getAttribute("data-generation") ?? "0");
   await pressWithoutFocus(page, "Replace local session");
   await expect.poll(async () => Number(await reference.getAttribute("data-generation"))).toBeGreaterThan(generation);
+  const appliedBefore = await appliedCount(reference);
   await pressWithoutFocus(page, "Request projection burst");
   await pressWithoutFocus(page, "Complete current projection");
+  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(appliedBefore);
 
   await expect(hints).toBeFocused();
   await expect(hints).toBeChecked();
@@ -1132,8 +1138,10 @@ test("FourD reference focus and native editing text survive a retained update an
   const generation = Number(await reference.getAttribute("data-generation") ?? "0");
   await pressWithoutFocus(page, "Replace local session");
   await expect.poll(async () => Number(await reference.getAttribute("data-generation"))).toBeGreaterThan(generation);
+  const appliedNote = await appliedCount(reference);
   await pressWithoutFocus(page, "Request projection burst");
   await pressWithoutFocus(page, "Complete current projection");
+  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(appliedNote);
   await note.press("Enter");
   await note.dispatchEvent("compositionend");
 
@@ -1146,13 +1154,17 @@ test("FourD reference focus and native editing text survive a retained update an
   // Focus on the island's own select and on the reference root also survives the same update and replacement.
   const difficulty = reference.getByRole("combobox", { name: "Difficulty", exact: true });
   await difficulty.focus();
+  let applied = await appliedCount(reference);
   await pressWithoutFocus(page, "Request projection burst");
   await pressWithoutFocus(page, "Complete current projection");
   await pressWithoutFocus(page, "Replace local session");
+  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(applied);
   await expect(difficulty).toBeFocused();
   await reference.focus();
+  applied = await appliedCount(reference);
   await pressWithoutFocus(page, "Request projection burst");
   await pressWithoutFocus(page, "Complete current projection");
+  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(applied);
   await expect(reference).toBeFocused();
   await expect(note).toHaveValue("四 dimensional note");
   expect(await identities(page)).toEqual(expectedIdentities);

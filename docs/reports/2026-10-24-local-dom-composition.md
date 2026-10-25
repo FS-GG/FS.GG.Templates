@@ -123,16 +123,18 @@ are now closed **in the checked-out source only**, by two source-only typed case
 
 - **(a) broader DOM panels** (capability map F04): `FourD reference options panel keeps labelled native controls, tab order and state across retained updates and a session replacement`
   exercises a new `Encounter options` island (a labelled select, a checkbox and a two-radio `Camera` group beside the `Encounter note` textbox): accessible
-  names and initial state, document tab order, native keyboard operation (Space, arrows, `selectOption`), Enter on a native control dispatching no gameplay command, state and
+  names and initial state, document tab order, native keyboard operation of the checkbox (Space) and radios (arrows), `selectOption` for the select (programmatic, so the select's own keyboard handling is not exercised), Enter on a native control dispatching no gameplay command, state and
   focus kept across a retained scene update and a session replacement driven without moving focus, the same DOM nodes before and after, and disposal removing the island's listeners.
 - **(b) focus and native editing text survive an update and a replacement** (F01/F04): `FourD reference focus and native editing text survive a retained update and a session replacement`
   keeps a caret range, text and a synthetic composition in the note, then the select, then the reference root, across the same update and replacement, asserting `toBeFocused`, value,
   selection and node identity.
 
-Before the change the two cases fail (commit before the implementation: 2 failed, 9 passed, Chromium); with it 11/11 in each of Chromium, Firefox and WebKit. Three scratch regressions each fail both
+Before the change the two cases fail (commit before the implementation: 2 failed, 9 passed, Chromium). Honestly: they fail there because the island's nodes do not exist (`markIdentity` and the select lookups), not because of a behavioural difference; the note, caret and composition assertions of the second case pass by nature before the change and are shown to discriminate by the regressions below; with it 11/11 in each of Chromium, Firefox and WebKit. Three scratch regressions each fail both
 cases while the nine maintained cases pass: the note replaced on session replacement, the island re-rendered on a retained update, and focus stolen on replacement.
 The evidence is `source-built`, never `published`: these cases are not in the published 0.19.3 archive, so they reach users only with the next Workspace.Template release
 (Templates#441's 0.20.0), which also owns the durable reference `localSaved` journey. A fresh installed receiver remains separate.
+
+Cross-lane: `scripts/svg-current-reference-adoption.json` lists the allowed canonical digests per managed path. For `two-client.spec.ts`, `FourDReference.fs` and the FourD README it now allows the published 0.19.3 digest and the source-built successor, so the "derived from the declared immutable public source" comment in `apply-svg-complete-workspace.py` is no longer exact for those three. Real adoption runs authenticate published receivers and still match the old digest; the #4816 owner should drop the old digests, or re-pin, when 0.20.0 is released.
 
 ## Boundaries that remain
 

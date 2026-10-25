@@ -328,6 +328,7 @@ let mount () : IDisposable =
     let mutable projectionRequests: uint64 list = []
     let mutable sessionHost: SvgSessionHost<FourDProjection> option = None
     let mutable disposed = false
+    let mutable appliedProjections = 0
     let buttonListeners = ResizeArray<HTMLElement * (Event -> unit)>()
 
     let mutable selectionHandler: string -> unit = ignore
@@ -357,9 +358,12 @@ let mount () : IDisposable =
         root.setAttribute ("data-option-difficulty", difficulty.value)
         root.setAttribute ("data-option-hints", shown)
         root.setAttribute ("data-option-camera", camera)
-        // Rewritten on every describe, including each retained scene update and session replacement.
-        optionsStatus.textContent <-
-            $"Options: difficulty {difficulty.value}, hints {shown}, camera {camera}; revision {runtime.Current.Revision}."
+        // Rewritten on every describe, including each retained scene update and session replacement, but only when
+        // the text changes so a polite live region does not re-announce identical text.
+        let text = $"Options: difficulty {difficulty.value}, hints {shown}, camera {camera}; revision {runtime.Current.Revision}."
+
+        if optionsStatus.textContent <> text then
+            optionsStatus.textContent <- text
 
     let describe () =
         describeOptions ()
@@ -418,6 +422,8 @@ let mount () : IDisposable =
                     |> ignore
 
                     root.setAttribute ("data-applied-revision", string revision)
+                    appliedProjections <- appliedProjections + 1
+                    root.setAttribute ("data-applied-count", string appliedProjections)
                     describe ()
             CancelGeneration = fun generation -> root.setAttribute ("data-cancelled-generation", string generation)
             Replace = fun generation -> root.setAttribute ("data-generation", string generation)
