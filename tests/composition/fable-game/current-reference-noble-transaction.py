@@ -164,6 +164,10 @@ def effective_config(raw,out):
         else:
             fields.setdefault(key,[]).append(value)
     expected=dict(item.split('=',1) for item in options(out) if item!='-o')
+    # apt-config2.8.3 normalizes this scalar to its native one-element list before dump.
+    expected.pop('Acquire::Languages')
+    A.need(fields.get('Acquire::Languages')=='' and fields.get('Acquire::Languages::')==['none'],
+           'effective APT language population differs from selected none')
     A.need(all(fields.get(key)==value for key,value in expected.items()),'effective APT configuration differs from private bootstrap')
     forbidden=('APT::Update::Pre-Invoke','APT::Update::Post-Invoke','DPkg::Pre-Invoke','DPkg::Post-Invoke','DPkg::Pre-Install-Pkgs')
     A.need(not any(any(key.startswith(prefix) for prefix in forbidden) for key in fields),'ambient APT hook survived private bootstrap')

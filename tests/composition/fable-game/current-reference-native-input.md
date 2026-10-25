@@ -179,3 +179,9 @@ to `/etc/apt/-/`. It did not reach update/simulation. The repaired bootstrap use
 explicit existing empty private configuration/auth/preferences files and parts
 directories, retaining strict diagnostic refusal rather than filtering warnings.
 The original failure remains separate from subsequent source and solver results.
+
+The next original prefix reached a diagnostic-free dump, then refused APT's
+native scalar-to-list language normalization before update/simulation. The exact
+APT2.8.3 source and retained output establish an empty `Acquire::Languages` parent
+with exactly one `none` child. The verifier accepts only that representation;
+extra or different languages, duplicate scalar controls and hooks still refuse.

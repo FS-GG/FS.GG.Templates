@@ -23,6 +23,11 @@ def fixture():
     return data,{'schema':'fsgg.current-reference-noble-package-request/1','packages':[root]}
 
 
+def config_dump(root):
+    text=''.join(item.split('=',1)[0]+' "'+item.split('=',1)[1]+'";\n' for item in T.options(root) if item!='-o')
+    return text.replace('Acquire::Languages "none";', 'Acquire::Languages "";\nAcquire::Languages:: "none";')
+
+
 def status(name='fixture',version='1',multi=False):
     return ('Package: '+name+'\nStatus: install ok installed\nArchitecture: amd64\nVersion: '+version+'\n'+('Multi-Arch: same\n' if multi else '')+'\n').encode()
 
@@ -80,7 +85,7 @@ class NoInstallControls(unittest.TestCase):
         commands=[];raw=status();base={'fixture':'1'}
         def observed(command,log,budget):
             commands.append(command)
-            text=''.join(item.split('=',1)[0]+' \"'+item.split('=',1)[1]+'\";\n' for item in T.options(path) if item!='-o') if command[-1]=='dump' else 'update done\n' if command[-1]=='update' else self.body
+            text=config_dump(path) if command[-1]=='dump' else 'update done\n' if command[-1]=='update' else self.body
             log.write_text(text)
             return text
         with patch.object(T,'runtime_guard',return_value=T.A.digest(raw)),patch.object(T,'base_fixture',return_value=(raw,base)),patch.object(T,'metadata',return_value=(self.data['binary'],self.data['sources'])),patch.object(T,'read',return_value=raw),patch.object(T,'BASE_COUNT',1),patch.object(T,'BASE_SHA256',T.A.digest(T.inventory_bytes(base))):
@@ -132,12 +137,22 @@ class NoInstallControls(unittest.TestCase):
 
     def test_original_apt_source_requires_config_before_commandline_and_host_parts(self):
         original=json.loads((HERE/'fixtures/apt-config-init-order.json').read_text())
-        cli,init=original['files']
+        cli,init=original['files'][:2]
         self.assertIn('pkgInitConfig',cli['lines'][0]['text']);self.assertIn('CmdL.Parse',cli['lines'][1]['text'])
         self.assertLess(cli['lines'][0]['number'],cli['lines'][1]['number'])
         self.assertIn('APT_CONFIG',init['lines'][0]['text'])
         self.assertIn('Dir::Etc::parts',init['lines'][1]['text']);self.assertIn('Dir::Etc::main',init['lines'][2]['text'])
         self.assertEqual(sorted(r['number'] for r in init['lines']),[r['number'] for r in init['lines']])
+
+    def test_actual_apt_language_normalization_is_source_coupled_and_exact(self):
+        original=json.loads((HERE/'fixtures/apt-config-init-order.json').read_text())
+        source='\n'.join(row['text'] for row in original['files'][2]['lines'])
+        self.assertIn('getLanguages(true)',source)
+        self.assertIn('_config->Clear("Acquire::Languages")',source)
+        self.assertIn('_config->Set("Acquire::Languages::", *l)',source)
+        rows=original['originalHostedDump']['languageRows']
+        self.assertEqual(['Acquire::Languages "";','Acquire::Languages:: "none";'],rows)
+        T.effective_config(config_dump(Path('/private')),Path('/private'))
 
     def test_private_bootstrap_is_present_in_environment_before_command_line_processing(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -157,9 +172,9 @@ class NoInstallControls(unittest.TestCase):
 
     def test_actual_effective_config_must_match_private_controls_and_have_no_hooks(self):
         root=Path('/private')
-        text=''.join(item.split('=',1)[0]+' "'+item.split('=',1)[1]+'";\n' for item in T.options(root) if item!='-o')
+        text=config_dump(root)
         T.effective_config(text,root)
-        for bad in [text.replace('Dir::Etc::parts "/private/apt-config-parts"','Dir::Etc::parts "/etc/apt/apt.conf.d"'),text+'APT::Update::Post-Invoke:: "ambient hook";\n',text+'Dir::Etc::main "/private/apt-main.conf";\n','unknown-format']:
+        for bad in [text.replace('Dir::Etc::parts "/private/apt-config-parts"','Dir::Etc::parts "/etc/apt/apt.conf.d"'),text+'APT::Update::Post-Invoke:: "ambient hook";\n',text+'Dir::Etc::main "/private/apt-main.conf";\n',text.replace('Acquire::Languages:: "none"','Acquire::Languages:: "en"'),text+'Acquire::Languages:: "none";\n','unknown-format']:
             with self.assertRaises(RuntimeError):T.effective_config(bad,root)
 
     def test_source_coupled_builtin_apt_list_defaults_are_valid_dump_rows(self):
@@ -172,7 +187,7 @@ class NoInstallControls(unittest.TestCase):
             rows.append(pair[0]+' "'+pair[1]+'";\n')
         self.assertEqual(8,len(rows))
         root=Path('/private')
-        scalars=''.join(item.split('=',1)[0]+' "'+item.split('=',1)[1]+'";\n' for item in T.options(root) if item!='-o')
+        scalars=config_dump(root)
         T.effective_config(scalars+''.join(rows),root)
         with self.assertRaises(RuntimeError):T.effective_config(scalars+''.join(rows)+'DPkg::Pre-Invoke:: "hook";\n',root)
 

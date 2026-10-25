@@ -70,6 +70,38 @@
           "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.distUpgrade$\");"
         }
       ]
+    },
+    {
+      "path": "cmdline/apt-config.cc",
+      "sha256": "e48a4b6369a921c26a350a88f552797794ce719e81a1c2228e13ae2052af23ef",
+      "lines": [
+        {
+          "number": 104,
+          "text": "   std::vector<std::string> const langs = APT::Configuration::getLanguages(true);"
+        },
+        {
+          "number": 105,
+          "text": "   _config->Clear(\"Acquire::Languages\");"
+        },
+        {
+          "number": 106,
+          "text": "   for (std::vector<std::string>::const_iterator l = langs.begin(); l != langs.end(); ++l)"
+        },
+        {
+          "number": 107,
+          "text": "      _config->Set(\"Acquire::Languages::\", *l);"
+        }
+      ]
     }
-  ]
+  ],
+  "originalHostedDump": {
+    "run": 40227047245,
+    "job": 121270517825,
+    "sha256": "5b44166e7c16fb19bf42c678d2c136aca0e60e7eedce780a10366478b3698da3",
+    "languageRows": [
+      "Acquire::Languages \"\";",
+      "Acquire::Languages:: \"none\";"
+    ],
+    "scope": "Actual output from refused pre-update source prefix; not solver or runtime success"
+  }
 }
