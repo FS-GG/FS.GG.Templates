@@ -120,3 +120,187 @@ input is bounded at64KiB and rejects duplicate fields. It does not require or
 invent runtime object/keymap pins. The receipt binds `inputKind` and
 `packageRequestSha256`; it cannot become a full facility manifest or native
 admission. The existing callee continues using the complete facility manifest.
+
+## Actual no-install source prefix
+
+`current-reference-noble-transaction.py` is a no-install APT planner, not an
+installer, guest transport, admission mechanism or desktop qualification. The
+existing Noble PR source job first checks actual pinned installed APT/dpkg/GPG
+bytes and the source-bound c068717-package fixture. A mismatch is an exact tool
+or input prerequisite and fails before APT; the job does not modify host APT or
+substitute a synthetic success. It then acquires only signed metadata and runs
+real APT `update`/`--simulate --no-install-recommends` against private file-only
+sources, status, lists, cache, configuration and preferences. The subprocess
+receives no credentials or ambient APT/native-loader configuration. No service,
+package installation, browser or native AT starts. Preparation acquisition uses
+ordinary authenticated HTTPS; the APT operation has only local file sources.
+
+The compressed fixture retains every installed status/control field and each
+first Description line from the actual retained c068 post-bake status; only long
+human Description continuations are omitted. Original status SHA256 is
+`f12714579833970cd7a965c0097f09f7acc8d8e4af4b2434e9ecbb5c67efa401`;
+solver fixture SHA256 is
+`e2ba73498adb51230edf1130de020a7419278f0eeecbd98acc56005e93cee9be`.
+Its717-package canonical inventory matches protected Coordination
+`c068e1cccb9a0dc65d4ebfcc8d8b3228f2c57ccd`
+`deployment/qualification-runner/noble/package-inventory.expected` SHA256
+`2a0d25ec6ede3165dec5e7763a2556b6ed31a2f9b04292dd5c81df0b37c1cc35`.
+The fixture is under the ordinary source-blob bound; no source read limit changes.
+It is subject data, not a claim that the source CI host has the guest inventory.
+
+Only original successful, recognized APT output can produce the frozen binary
+delta and derived expected inventory. Removals, malformed/duplicate/unindexed
+changes, unsatisfied roots, host status drift, output/deadline failure and a late
+receipt write refuse. Immediate partial failure evidence precedes bounded child
+group cleanup; this group observation is not an outer containment claim. Work is
+105seconds inside a120second parent with a15second cleanup reserve. The receipt
+explicitly leaves binary/source acquisition, installation, runtime and AT
+qualification unrun. The original nine-root source request completed genuine no-install simulation
+in run40227938678/job121273247292 at d4b4253c:147 proposed changes and an864-package
+expected inventory, with acquisition/install/runtime/AT still unrun. The next
+source request retains all nine exact tuples and adds the previously selected
+AT/X11/audio/locale/keymap roots,32total. Its original successful source run
+40229579755/job121278213264 at7940c5a0 independently completed update/simulation,
+joining280 proposed changes to993 expected packages. The earlier nine-root
+result does not cover these determining inputs. Browser,
+Node/.NET and Playwright closure remains separate.
+The same source cohort will retain the frozen provision/role/keymap/retirement
+work and the separately admitted private caller contract; source APT verification
+requires no desktop-facility approval and grants no such approval.
+
+
+APT loads `APT_CONFIG` before host `apt.conf.d`/main and before command-line
+`-o` parsing. The planner therefore supplies a source-owned private bootstrap
+through that early environment input, disabling host main/parts, auth,
+preferences and other domains before initialization. It verifies an actual
+`apt-config dump` against the private controls and refuses inherited hooks
+before update/simulation. A signed/hash-joined APT2.8.3 source excerpt fixture
+records this independent ordering requirement. Reporting write failures become
+secondary notes; they cannot mask the original failure or skip mandatory bounded
+child/group cleanup. Original failed output and unverifiable retirement remain
+separate from any later source repair or metadata.
+
+The original hosted source attempt passed pinned tool/fixture and signed metadata
+checks, then refused an APT diagnostic caused by the `-` parts sentinel resolving
+to `/etc/apt/-/`. It did not reach update/simulation. The repaired bootstrap uses
+explicit existing empty private configuration/auth/preferences files and parts
+directories, retaining strict diagnostic refusal rather than filtering warnings.
+The original failure remains separate from subsequent source and solver results.
+
+The next original prefix reached a diagnostic-free dump, then refused APT's
+native scalar-to-list language normalization before update/simulation. The exact
+APT2.8.3 source and retained output establish an empty `Acquire::Languages` parent
+with exactly one `none` child. The verifier accepts only that representation;
+extra or different languages, duplicate scalar controls and hooks still refuse.
+
+The following original prefix completed actual private update and no-install
+simulation, then refused two valid `Inst` lines with an empty `[]` ShortBreaks
+suffix. APT2.8.3 prints this transient simulated-order marker while suppressing
+already-flagged packages; it is not an installation or runtime result. The row
+parser accepts only the exact empty optional suffix, still rejecting populated
+break markers or trailing text. Original zero-exit simulation, summary, signed
+package/source joins and root satisfaction remain required.
+
+A complete pure replay joins the unchanged original configuration, update and
+simulation outputs to all twelve authenticated indexes and the exact subject
+status. Update targets must cover the three selected releases and six private
+package indexes. Every proposed Inst row joins signed binary/patched source,
+subject old/new version and an exact unique subsequent Conf settlement; summary
+upgrade/new counts must agree. All147 changes and nine roots join, deriving an
+864-package expected inventory, not an installed result. Wrong-version, removal
+and missing-settlement mutations refuse. Literal `~` in authenticated Debian
+prerelease archive names is accepted as an unreserved path character; percent
+escapes, traversal, query/fragment and arbitrary origin remain refused. The
+original failed job is not relabelled by this source-parser replay.
+
+The original32-root prefix completed update/simulation, then refused an Ubuntu
+component-promotion alias: one exact ocl-icd binary body appears under signed
+main and universe paths. The verifier now admits aliases only when binary
+identity, SHA/size, source and runtime dependency metadata agree, and every
+complete patched-source filename/hash/size tuple agrees. It retains all sorted
+authenticated path alternatives, chooses the lexicographically first signed
+binary Filename for future acquisition, and preserves the caller's declared
+sourceURI directory. Alias metadata does not claim that every alternative URI
+was downloaded, or identify the original APT download origin of a simulation.
+Differing binary/source content, dependency fields, archive sizes or source
+closure members still refuse. Full original32 output replay joins280Inst and
+280Conf (4upgrades/276new) to an993-package expected inventory; the original
+failed job remains failed. The subsequent original source run40229579755
+completed successfully; its artifact12612229200 is89,851,125bytes with SHA256
+`78a19ab5fefe33222112cce9cb66d3fcb7b5567540e4e726b7325749201282b4`.
+Its original transaction SHA256 is
+`0e2152cba97fd353ddd2581f8a514c49a5face0725b128406372f90cd157c4cb`.
+This establishes the no-install source prefix only. That old artifact lacks the
+new self-contained fifteen-metadata-body handoff, so it cannot be relabelled a
+complete input attachment for the new factory. Normal changed-source CI must
+produce the new determining output; no historical run is replayed or repaired.
+
+## Frozen factory source and installed-input handoff
+
+The current-only `--prepare-originals` route takes all five original solver files,
+its externally selected transaction digest, the fixed32-root request and signed
+snapshot metadata. It replays their complete joins, retains all15 authenticated
+metadata bodies, and prepares280 runtime binary archives plus selected role
+patched-source closures. The extra GLib tools package supplies `gsettings`; its
+source closure also covers the actual `glib-compile-schemas` ELF owned by
+`libglib2.0-0t64`. Explicit retained archive inputs are rehashed before copying;
+a corrupt retained body stops the original attempt without a network fallback.
+The receipt records input consistency and declared archive verification, with
+external solver-run custody, installation, runtime and AT acceptance false.
+It cannot replace native artifact/run authentication.
+
+`current-reference-noble-factory.py` has two fixed phases for the separately
+qualified private NativeQualification ATv2 guest. It refuses legacy baked layers,
+wrong caller/job/attempt/privilege, mutable root binding, mismatched software
+selection and credentials before any factory child starts. The sealed software
+body selects source and original artifact identity; JSON alone does not establish
+Root/provider authority. The existing `None` gate still stops the full AT stage.
+
+`install-readback` requires the actual717-package c068 inventory, revalidates the
+signed metadata and source-derived role bindings, then runs the private local APT
+update and simulation against actual guest status. Only the exact frozen280-deb
+proposal permits offline installation. A fixed guest-only service-start denial
+policy is restored by identity; a different existing policy is retained and
+refused. Successful APT check, empty dpkg audit and exact993-package inventory
+are required before ownership/file readback and strict global schema compilation.
+The root witness binds actual compiler bytes, complete schema input tree,
+compiled output, package owners and patched-source descriptors. Compiled schemas
+are derived data, without an invented dpkg owner.
+
+`qualify-inputs` independently rereads the root witness and installed files,
+starts a fresh owned Xvfb display, compiles US and German XKB maps and retires its
+original actors/display resources. Only then can it emit the closed v2 facility
+manifest. Its scope is installed inputs and keymap preparation: no browser,
+Orca, real IME, provider, Studio or whole4817 acceptance follows. The v1 facility
+contract and historical branches retain their existing behavior.
+
+Each phase keeps its process-entry clock and the original overall deadline,
+reserving15 seconds for bounded cleanup. Original child exits remain separate
+from retirement. Partial evidence is attempted before cleanup; reporting failures
+cannot replace the first cause or skip child retirement. The existing sampled
+birth/group census retains its detached-descendant limits. Whole-guest containment,
+aggregate allocated storage (including deleted-open files), image qualification,
+reservation and final VM retirement remain external facility obligations, not
+claims made by this source helper. No native phase has run as part of source
+preparation.
+
+Archive decoding never extracts or executes supplied members. Ordinary decoded
+archives remain bounded at128MiB. The exact signed `ibus-data` archive
+`1a3fac02f9bb69ad32e68e0f9e00fc98cccf2bacf5c9d2f034676a821c266c7c`
+has135,925,760 decoded tar bytes and alone receives a136MiB decoding bound.
+Acquisition's128MiB archive and512MiB aggregate limits remain unchanged. On
+Noble the decoder must be the separately pinned installed `dpkg-deb`; source
+checks on Python3.14 may use its standard-library zstd decoder. Neither route
+executes downloaded package files.
+
+The privilege handoff uses the separate ATv2 baked driver, rather than running
+workspace helpers as root. Its fixed `seal-at-controller` operation verifies the
+selected commit/tree/blob object bodies and seals seven factory import/fixture
+files root-owned. The factory's actual CLI refuses before sibling imports unless
+that closed seal and root binding match. `capture-at-pool` captures only the fixed
+runner preparation directory through no-follow directory handles, stable regular
+UID1001 single-link files and declared hashes. Failed partial output stays
+root-private. The factory accepts only the completed fixed root-owned pool and
+rechecks the seal, exact membership, ancestors and bytes. These are maintained
+source prerequisites; the AT-capable baked layer and actual private workflow
+still need delivery and separate facility qualification.

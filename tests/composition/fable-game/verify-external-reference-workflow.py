@@ -45,6 +45,20 @@ def validate_current_at_registration(workflow):
     assert 'current-reference-noble-acquisition.py "$RUNNER_TEMP/current-noble-acquisition"' in acquisition, 'acquisition output differs'
     assert candidate.index('Refuse held current AT before acquisition or setup') < start, 'held guard occurs after acquisition'
     assert '${{ runner.temp }}/current-noble-acquisition/acquisition.json' in workflow, 'closed acquisition receipt missing'
+    transaction_command = native_command.replace('test-current-reference-native-input.py', 'test-current-reference-noble-transaction.py')
+    assert static.count(transaction_command) == 1 and section.count(transaction_command) == 1, 'transaction pure controls absent'
+    for path in ['current-reference-noble-transaction.py', 'test-current-reference-noble-transaction.py', 'fixtures/noble-c068-status.xz', 'fixtures/noble-source-prefix-request.json', 'fixtures/apt-config-init-order.json']:
+        assert "      - 'tests/composition/fable-game/" + path + "'" in workflow, 'transaction source path not watched'
+    tools = static.index('Check actual Noble solver tools and c068 fixture before work')
+    acquisition = static.index('Acquire signed metadata for the offline source solver')
+    solver = static.index('Exercise actual isolated no-install APT source prefix')
+    assert tools < acquisition < solver, 'real solver preflight/order differs'
+    assert '--check-context' in static and '--metadata-only "$RUNNER_TEMP/noble-source-metadata"' in static
+    assert '--inputs "$RUNNER_TEMP/noble-source-metadata"' in static and '--out "$RUNNER_TEMP/noble-source-transaction"' in static
+    assert '--request tests/composition/fable-game/fixtures/noble-source-prefix-request.json' in static
+    assert 'env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin' in static and 'timeout --kill-after=5s 120s prlimit --as=1073741824 --cpu=105' in static
+    assert 'noble-source-transaction' not in candidate, 'real source solver leaked into reference runtime/preflight'
+    assert '${{ runner.temp }}/noble-source-transaction/**' in static, 'original solver partial evidence missing'
     return True
 
 validate_current_at_registration(text)

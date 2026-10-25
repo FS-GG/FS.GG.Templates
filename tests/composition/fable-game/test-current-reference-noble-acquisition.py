@@ -45,6 +45,33 @@ class AcquisitionControls(unittest.TestCase):
             self.assertTrue(any('debian.tar' in x['path'] for x in row['sourceFiles']))
             self.assertTrue(any('.orig.tar' in x['path'] for x in row['sourceFiles']))
 
+    def test_real_signed_component_promotion_keeps_all_exact_path_aliases(self):
+        fixture=self.fixture['componentPromotion'];binary=fixture['binary'];sources=fixture['sources']
+        dsc=next(row for row in A.source_files(sources[0]) if row['path'].endswith('.dsc'))
+        package={'name':binary[0]['Package'],'version':binary[0]['Version'],'debSha256':binary[0]['SHA256'],
+                 'sourceUri':A.BASE+dsc['path'],'sourceSha256':dsc['sha256']}
+        selected=A.select(package,binary,sources)
+        self.assertEqual(sorted(row['Filename'] for row in binary),selected['binaryAliases'])
+        self.assertEqual(min(row['Filename'] for row in binary),selected['binary']['path'])
+        self.assertTrue(all(row['path'].startswith(sources[0]['Directory']+'/') for row in selected['sourceFiles']))
+        self.assertEqual(sorted(row['Directory'] for row in sources),selected['sourceDirectoryAliases'])
+        reverse=A.select(package,list(reversed(binary)),list(reversed(sources)))
+        self.assertEqual(selected,reverse)
+        for key,value in [('SHA256','f'*64),('Size','38531'),('Source','wrong-source'),('Architecture','all'),('Depends','different-dependency')]:
+            bad=copy.deepcopy(binary);bad[1][key]=value
+            with self.assertRaises(RuntimeError):A.binary_aliases(bad)
+        for change in ['hash','size','filename','duplicate']:
+            bad=copy.deepcopy(sources)
+            lines=bad[1]['Checksums-Sha256'].splitlines();line=next(v for v in lines if v.strip());parts=line.split()
+            if change=='hash':replacement='f'*64+' '+parts[1]+' '+parts[2]
+            elif change=='size':replacement=parts[0]+' '+str(int(parts[1])+1)+' '+parts[2]
+            elif change=='filename':replacement=parts[0]+' '+parts[1]+' different.tar.xz'
+            else:replacement=line+'\n'+line
+            bad[1]['Checksums-Sha256']=bad[1]['Checksums-Sha256'].replace(line,replacement)
+            with self.assertRaises(RuntimeError):A.select(package,binary,bad)
+        wrong=dict(package,sourceUri=A.BASE+'pool/other/not-declared.dsc')
+        with self.assertRaises(RuntimeError):A.select(wrong,binary,sources)
+
     def test_wrong_binary_or_patched_source_pin_refuses(self):
         for key in ['debSha256','sourceSha256','version','sourceUri']:
             package = copy.deepcopy(self.fixture['packages'][0])
@@ -103,6 +130,12 @@ class AcquisitionControls(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError,'already exists'):
                     A.fetch(A.BASE+'pool/test.deb',sha,size,target,A.Budget(),opener)
                 self.assertEqual(opener.calls,1)
+
+    def test_authenticated_debian_prerelease_archive_tilde_is_a_safe_literal_path(self):
+        path='pool/main/s/speech-dispatcher/speech-dispatcher_0.12.0~rc2-2build3.dsc'
+        self.assertEqual(path,A.relative(path))
+        for bad in [path+'?query',path+'#fragment',path.replace('~','%7e'),'../'+path]:
+            with self.assertRaises(RuntimeError):A.relative(bad)
 
     def test_selected_origin_paths_only(self):
         for uri in ['https://example.invalid/x',A.BASE+'../x',A.BASE+'pool/a?x=1',A.BASE+'pool//x',A.BASE+'pool/%2e%2e/x']:

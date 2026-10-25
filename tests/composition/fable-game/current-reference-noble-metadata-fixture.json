@@ -227,5 +227,44 @@
       "sha256": "f5f11cc3f26310b91c55ba6543b13f91e75b4bf76ccb6bfab0f2de0892506715",
       "bytes": 370708
     }
-  ]
+  ],
+  "componentPromotion": {
+    "scope": "Original authenticated Noble universe/main component-promotion rows from the retained12signed-index closure; excerpt only, not runtime evidence",
+    "binary": [
+      {
+        "Package": "ocl-icd-libopencl1",
+        "Version": "2.3.2-1build1",
+        "Architecture": "amd64",
+        "Filename": "pool/universe/o/ocl-icd/ocl-icd-libopencl1_2.3.2-1build1_amd64.deb",
+        "SHA256": "6d98029b06335bc23166834719ac5e697bcb4a136b40eebc263dfe481e05839b",
+        "Size": "38530",
+        "Source": "ocl-icd",
+        "Multi-Arch": "same"
+      },
+      {
+        "Package": "ocl-icd-libopencl1",
+        "Version": "2.3.2-1build1",
+        "Architecture": "amd64",
+        "Filename": "pool/main/o/ocl-icd/ocl-icd-libopencl1_2.3.2-1build1_amd64.deb",
+        "SHA256": "6d98029b06335bc23166834719ac5e697bcb4a136b40eebc263dfe481e05839b",
+        "Size": "38530",
+        "Source": "ocl-icd",
+        "Multi-Arch": "same"
+      }
+    ],
+    "sources": [
+      {
+        "Package": "ocl-icd",
+        "Version": "2.3.2-1build1",
+        "Directory": "pool/universe/o/ocl-icd",
+        "Checksums-Sha256": "\nfaaea636fd5af7013dfa37c9323ee87a87ad50c1076741426c086796a9a158c4 2303 ocl-icd_2.3.2-1build1.dsc\nec47d7dcd961ea06695b067e8b7edb82e420ddce03e0081a908c62fd0b8535c5 108988 ocl-icd_2.3.2.orig.tar.gz\n1752403bf41e37874a864a1d4b40a2a9416b98e76fa32dffb501bd38df8b1f89 12196 ocl-icd_2.3.2-1build1.debian.tar.xz"
+      },
+      {
+        "Package": "ocl-icd",
+        "Version": "2.3.2-1build1",
+        "Directory": "pool/main/o/ocl-icd",
+        "Checksums-Sha256": "\nec47d7dcd961ea06695b067e8b7edb82e420ddce03e0081a908c62fd0b8535c5 108988 ocl-icd_2.3.2.orig.tar.gz\n1752403bf41e37874a864a1d4b40a2a9416b98e76fa32dffb501bd38df8b1f89 12196 ocl-icd_2.3.2-1build1.debian.tar.xz\nfaaea636fd5af7013dfa37c9323ee87a87ad50c1076741426c086796a9a158c4 2303 ocl-icd_2.3.2-1build1.dsc"
+      }
+    ]
+  }
 }

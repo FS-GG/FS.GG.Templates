@@ -1,0 +1,360 @@
+#!/usr/bin/env python3
+"""Pure/inert process controls. No APT, installation, guest, display or engine runs."""
+import copy
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+HERE=Path(__file__).resolve().parent
+SPEC=importlib.util.spec_from_file_location('noble_transaction_controls',HERE/'current-reference-noble-transaction.py')
+T=importlib.util.module_from_spec(SPEC);SPEC.loader.exec_module(T)
+
+
+def fixture():
+    data=json.loads((HERE/'current-reference-noble-metadata-fixture.json').read_text())
+    root=next(p for p in data['packages'] if p['name']=='ibus')
+    return data,{'schema':'fsgg.current-reference-noble-package-request/1','packages':[root]}
+
+
+def config_dump(root):
+    text=''.join(item.split('=',1)[0]+' "'+item.split('=',1)[1]+'";\n' for item in T.options(root) if item!='-o')
+    return text.replace('Acquire::Languages "none";', 'Acquire::Languages "";\nAcquire::Languages:: "none";')
+
+
+def update_dump(root):
+    expected=[(suite,'InRelease') for suite in T.A.RELEASES]+[(suite+'/'+component,'amd64 Packages') for suite in T.A.RELEASES for component in ['main','universe']]
+    return ''.join('Get:'+str(i)+' '+(root/'repo').as_uri().replace('file://','file:')+' '+suite+' '+kind+' [1 kB]\n' for i,(suite,kind) in enumerate(expected,1))+'Reading package lists...\n'
+
+
+def status(name='fixture',version='1',multi=False):
+    return ('Package: '+name+'\nStatus: install ok installed\nArchitecture: amd64\nVersion: '+version+'\n'+('Multi-Arch: same\n' if multi else '')+'\n').encode()
+
+
+class NoInstallControls(unittest.TestCase):
+    def setUp(self):
+        self.data,self.roots=fixture()
+        self.body='Reading package lists... Done\nBuilding dependency tree... Done\n0 upgraded, 1 newly installed, 0 to remove and 0 not upgraded.\nInst ibus (1.5.29-2 Ubuntu:24.04/noble [amd64])\nConf ibus (1.5.29-2 Ubuntu:24.04/noble [amd64])\n'
+
+    def test_real_selected_desktop_root_fixture_is_closed_bounded_and_keeps_baseline(self):
+        raw=(HERE/'fixtures/noble-source-prefix-request.json').read_bytes()
+        request=T.request(raw)
+        self.assertEqual(32,len(request['packages']));self.assertLessEqual(len(raw),65536)
+        names={r['name'] for r in request['packages']}
+        self.assertTrue({'orca','at-spi2-core','dbus','ibus','ibus-libpinyin','ibus-gtk3','gir1.2-ibus-1.0','dconf-service','xkb-data','xvfb','openbox','xdotool','pulseaudio','locales'}<=names)
+
+    def test_exact_installed_inventory_handles_real_multiarch_spelling(self):
+        value=T.inventory(status()+status('libfixture','2',True))
+        self.assertEqual({'fixture':'1','libfixture:amd64':'2'},value)
+        self.assertEqual(b'fixture\t1\nlibfixture:amd64\t2\n',T.inventory_bytes(value))
+        with self.assertRaises(RuntimeError):T.inventory(status()+status())
+
+    def test_root_request_closed_bound_and_duplicate_fields(self):
+        self.assertEqual(self.roots,T.request(json.dumps(self.roots).encode()))
+        for raw in [b'',b'x'*65537,b'{"schema":1,"schema":2}',b'{}',json.dumps({**self.roots,'keymaps':{}}).encode()]:
+            with self.assertRaises((RuntimeError,ValueError,TypeError)):T.request(raw)
+
+    def test_wrong_runtime_refuses_before_native_tools(self):
+        with patch.object(T,'read',return_value=b'ID=arch\nVERSION_ID="24.04"\n'),patch.object(T.subprocess,'Popen',side_effect=AssertionError('native tool reached')):
+            with self.assertRaisesRegex(RuntimeError,'actual selected Noble'):T.runtime_guard()
+
+    def test_actual_c068_fixture_is717_with_exact_protected_inventory(self):
+        raw,value=T.base_fixture()
+        self.assertEqual(717,len(value))
+        self.assertEqual(T.BASE_SHA256,T.A.digest(T.inventory_bytes(value)))
+        self.assertEqual(T.STATUS_FIXTURE_SHA256,T.A.digest(raw))
+
+    def test_inventory_mismatch_refuses_as_exact_fixture_input_gap(self):
+        with patch.object(T,'STATUS_FIXTURE_SHA256','0'*64):
+            with self.assertRaisesRegex(RuntimeError,'status fixture differs'):T.base_fixture()
+
+    def test_actual_signed_metadata_source_join_and_real_solver_projection(self):
+        changes,final=T.frozen(self.body,{'fixture':'1'},self.roots,self.data['binary'],self.data['sources'])
+        self.assertEqual('ibus',changes[0]['package']);self.assertEqual('1.5.29-2',final['ibus'])
+        self.assertTrue(any(x['path'].endswith('.dsc') for x in changes[0]['sourceFiles']))
+        self.assertTrue(any('debian.tar' in x['path'] for x in changes[0]['sourceFiles']))
+
+    def test_missing_malformed_duplicate_unindexed_or_removal_is_not_solver_success(self):
+        bad=['',self.body.replace('0 upgraded, 1 newly installed, 0 to remove and 0 not upgraded.','0 upgraded, 2 newly installed, 0 to remove and 0 not upgraded.'),self.body+'Remv fixture [1]\n',self.body+'Purg fixture [1]\n',self.body+self.body.split('Inst ')[1].join(['Inst ','']),self.body.replace('1.5.29-2','9.9.9'),self.body.replace('Inst ibus (','Inst unsupported-format ibus (')]
+        for text in bad:
+            with self.subTest(text=text[:80]),self.assertRaises(RuntimeError):
+                T.frozen(text,{'fixture':'1'},self.roots,self.data['binary'],self.data['sources'])
+        with self.assertRaises(RuntimeError):T.frozen('0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.\n',{'fixture':'1'},self.roots,self.data['binary'],self.data['sources'])
+
+    def test_source_coupled_empty_simulation_shortbreak_suffix_only(self):
+        original=json.loads((HERE/'fixtures/apt-config-init-order.json').read_text())
+        self.assertEqual(2,len(original['originalHostedSimulation']['emptyShortBreakRows']))
+        source='\n'.join(row['text'] for row in original['files'][3]['lines'])
+        self.assertIn('ShortBreaks()',source);self.assertIn('Flags[I->ID] == 0',source)
+        text=self.body.replace(' [amd64])',' [amd64]) []',1)
+        changes,_=T.frozen(text,{'fixture':'1'},self.roots,self.data['binary'],self.data['sources'])
+        self.assertEqual(1,len(changes))
+        for suffix in [' [broken]',' [][]',' [] trailing']:
+            with self.assertRaises(RuntimeError):T.frozen(self.body.replace(' [amd64])',' [amd64])'+suffix),{'fixture':'1'},self.roots,self.data['binary'],self.data['sources'])
+
+    def test_all_install_configure_architecture_and_old_new_versions_are_joined(self):
+        upgrade=self.body.replace('0 upgraded, 1 newly installed','1 upgraded, 0 newly installed').replace('Inst ibus (','Inst ibus [1.0] (')
+        changes,final=T.frozen(upgrade,{'ibus':'1.0'},self.roots,self.data['binary'],self.data['sources'])
+        self.assertEqual('1.5.29-2',final['ibus'])
+        with self.assertRaisesRegex(RuntimeError,'old/new'):
+            T.frozen(upgrade.replace('[1.0]','[0.9]'),{'ibus':'1.0'},self.roots,self.data['binary'],self.data['sources'])
+        for bad in [self.body.replace('Conf ibus (1.5.29-2','Conf ibus (9.9'),self.body.replace('Conf ibus','Conf unknown'),self.body+'Conf ibus (1.5.29-2 Ubuntu:24.04/noble [amd64])\n',self.body.replace('Conf ibus (1.5.29-2 Ubuntu:24.04/noble [amd64])\n',''),self.body.replace('[amd64]','[arm64]'),self.body+'W: warning\n']:
+            with self.assertRaises(RuntimeError):T.frozen(bad,{'fixture':'1'},self.roots,self.data['binary'],self.data['sources'])
+        binaries=copy.deepcopy(self.data['binary'])
+        for row in binaries:
+            if row.get('Package')=='ibus':row['Architecture']='all'
+        T.frozen(self.body.replace('[amd64]','[all]'),{'fixture':'1'},self.roots,binaries,self.data['sources'])
+        for row in binaries:
+            if row.get('Package')=='ibus':row['Architecture']='amd64';row['Multi-Arch']='same'
+        text=upgrade.replace('Inst ibus ','Inst ibus:amd64 ').replace('Conf ibus ','Conf ibus:amd64 ')
+        _,final=T.frozen(text,{'ibus:amd64':'1.0'},self.roots,binaries,self.data['sources'])
+        self.assertEqual('1.5.29-2',final['ibus:amd64'])
+
+    def test_update_requires_complete_selected_private_file_targets_only(self):
+        root=Path('/private');text=update_dump(root);T.update_output(text,root)
+        for bad in [text.replace('file:/private/repo','https://unselected.invalid'),text.replace('noble/main','noble/other'),text.split('\n',1)[1],text+'W: ignored\n']:
+            with self.assertRaises(RuntimeError):T.update_output(bad,root)
+
+    def test_options_and_actual_commands_cannot_install_or_read_host_apt_configuration(self):
+        opts=T.options(Path('/private'))
+        for value in ['Dir::Etc::main=/private/apt-main.conf','Dir::Etc::parts=/private/apt-config-parts','Dir::Etc::sourceparts=/private/apt-source-parts','Dir::Etc::preferences=/private/apt-preferences','Dir::State::status=/private/status','Acquire::By-Hash=no','APT::Sandbox::User=root']:
+            self.assertIn(value,opts)
+        self.assertNotIn('trusted=yes',' '.join(opts))
+
+    def invoke(self,path,clock=None):
+        commands=[];raw=status();base={'fixture':'1'}
+        def observed(command,log,budget):
+            commands.append(command)
+            text=config_dump(path) if command[-1]=='dump' else update_dump(path) if command[-1]=='update' else self.body
+            log.write_text(text)
+            return text
+        with patch.object(T,'runtime_guard',return_value=T.A.digest(raw)),patch.object(T,'base_fixture',return_value=(raw,base)),patch.object(T,'metadata',return_value=(self.data['binary'],self.data['sources'])),patch.object(T,'read',return_value=raw),patch.object(T,'STATUS_FIXTURE_SHA256',T.A.digest(raw)),patch.object(T,'BASE_COUNT',1),patch.object(T,'BASE_SHA256',T.A.digest(T.inventory_bytes(base))):
+            result=T.plan(Path('/immutable-inputs'),self.roots,path,Path('/usr/share/keyrings/ubuntu-archive-keyring.gpg'),budget=clock,run=observed)
+        return result,commands
+
+    def test_real_plan_path_uses_only_update_and_simulate_and_never_claims_installation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'out';result,commands=self.invoke(root)
+            self.assertEqual(3,len(commands));self.assertEqual('dump',commands[0][-1]);self.assertEqual('update',commands[1][-1]);self.assertIn('--simulate',commands[2]);self.assertIn('--no-install-recommends',commands[2])
+            self.assertEqual('no-install-apt-simulation',result['actualSolver'])
+            for key in ['installation','runtimeQualification','actualAT','nativeImeAcceptance']:self.assertIs(False,result[key])
+            self.assertEqual('not-run',result['binaryAcquisition']);self.assertEqual('not-run',result['sourceArchiveAcquisition'])
+            self.assertEqual(2,result['expectedFinalInventory']['packages'])
+
+    def test_late_transaction_persistence_keeps_original_but_refuses_return(self):
+        now=[0];clock=T.A.Budget(1,lambda:now[0]);real=Path.write_text
+        def write(path,*args,**kwargs):
+            result=real(path,*args,**kwargs)
+            if path.name=='transaction.json':now[0]=2
+            return result
+        with tempfile.TemporaryDirectory() as tmp,patch.object(Path,'write_text',write):
+            out=Path(tmp)/'out'
+            with self.assertRaisesRegex(RuntimeError,'original deadline'):self.invoke(out,clock)
+            self.assertTrue((out/'transaction.json').exists())
+            with self.assertRaisesRegex(RuntimeError,'fresh transaction output'):self.invoke(out)
+
+    def test_input_output_alias_refuses_before_runtime(self):
+        with patch.object(T,'runtime_guard',side_effect=AssertionError('runtime reached')):
+            with self.assertRaisesRegex(RuntimeError,'domains overlap'):
+                T.plan(Path('/inputs'),self.roots,Path('/inputs/out'),Path('/usr/share/keyrings/ubuntu-archive-keyring.gpg'))
+
+    def test_inert_child_failure_retains_partial_evidence_and_original_exit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'home').mkdir();(root/'tmp').mkdir();T.bootstrap(root)
+            with self.assertRaisesRegex(RuntimeError,'original APT exit 7'):
+                T.observed([sys.executable,'-I','-c','print("original inert failure");raise SystemExit(7)'],root/'child.log',T.A.Budget(5))
+            self.assertIn('original inert failure',(root/'child.log').read_text())
+            self.assertEqual('before-cleanup',json.loads((root/'partial-failure.json').read_text())['phase'])
+            self.assertTrue(json.loads((root/'retirement.json').read_text())['originalFailurePreserved'])
+
+    def test_launch_error_has_original_intent_and_partial_evidence_no_fake_child(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);T.bootstrap(root)
+            with self.assertRaises(FileNotFoundError):
+                T.observed(['/nonexistent-inert-fixture'],root/'child.log',T.A.Budget(5))
+            self.assertTrue((root/'child.log.intent.json').exists())
+            self.assertEqual('not-established',json.loads((root/'partial-failure.json').read_text())['childIdentity'])
+
+    def test_original_apt_source_requires_config_before_commandline_and_host_parts(self):
+        original=json.loads((HERE/'fixtures/apt-config-init-order.json').read_text())
+        cli,init=original['files'][:2]
+        self.assertIn('pkgInitConfig',cli['lines'][0]['text']);self.assertIn('CmdL.Parse',cli['lines'][1]['text'])
+        self.assertLess(cli['lines'][0]['number'],cli['lines'][1]['number'])
+        self.assertIn('APT_CONFIG',init['lines'][0]['text'])
+        self.assertIn('Dir::Etc::parts',init['lines'][1]['text']);self.assertIn('Dir::Etc::main',init['lines'][2]['text'])
+        self.assertEqual(sorted(r['number'] for r in init['lines']),[r['number'] for r in init['lines']])
+
+    def test_actual_apt_language_normalization_is_source_coupled_and_exact(self):
+        original=json.loads((HERE/'fixtures/apt-config-init-order.json').read_text())
+        source='\n'.join(row['text'] for row in original['files'][2]['lines'])
+        self.assertIn('getLanguages(true)',source)
+        self.assertIn('_config->Clear("Acquire::Languages")',source)
+        self.assertIn('_config->Set("Acquire::Languages::", *l)',source)
+        rows=original['originalHostedDump']['languageRows']
+        self.assertEqual(['Acquire::Languages "";','Acquire::Languages:: "none";'],rows)
+        T.effective_config(config_dump(Path('/private')),Path('/private'))
+
+    def test_private_bootstrap_is_present_in_environment_before_command_line_processing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'home').mkdir();(root/'tmp').mkdir();config=T.bootstrap(root)
+            expected=['Dir::Etc::main "'+str(root/'apt-main.conf')+'";','Dir::Etc::parts "'+str(root/'apt-config-parts')+'";','Dir::Etc::netrc "'+str(root/'apt-auth.conf')+'";']
+            self.assertEqual([],list((root/'apt-config-parts').iterdir()))
+            self.assertEqual(b'',(root/'apt-main.conf').read_bytes())
+            for name in ['apt-config-parts','apt-source-parts','apt-auth-parts','apt-preference-parts']:
+                self.assertTrue((root/name).is_dir());self.assertEqual([],list((root/name).iterdir()))
+            for name in ['apt-main.conf','apt-auth.conf','apt-preferences']:
+                self.assertEqual(b'',(root/name).read_bytes())
+            script='import os,pathlib; s=pathlib.Path(os.environ["APT_CONFIG"]).read_text(); expected='+repr(expected)+'; assert all(v in s for v in expected); assert "GH_TOKEN" not in os.environ; print("private-before-command-line")'
+            with patch.dict(os.environ,{'APT_CONFIG':'/ambient-untrusted-config','GH_TOKEN':'inert-sentinel'}):
+                result=T.observed([sys.executable,'-I','-c',script],root/'init.log',T.A.Budget(5))
+            self.assertEqual('private-before-command-line\n',result)
+            self.assertTrue(config.is_file())
+
+    def test_actual_effective_config_must_match_private_controls_and_have_no_hooks(self):
+        root=Path('/private')
+        text=config_dump(root)
+        T.effective_config(text,root)
+        for bad in [text.replace('Dir::Etc::parts "/private/apt-config-parts"','Dir::Etc::parts "/etc/apt/apt.conf.d"'),text+'APT::Update::Post-Invoke:: "ambient hook";\n',text+'Dir::Etc::main "/private/apt-main.conf";\n',text.replace('Acquire::Languages:: "none"','Acquire::Languages:: "en"'),text+'Acquire::Languages:: "none";\n','unknown-format']:
+            with self.assertRaises(RuntimeError):T.effective_config(bad,root)
+
+    def test_source_coupled_builtin_apt_list_defaults_are_valid_dump_rows(self):
+        source=json.loads((HERE/'fixtures/apt-config-init-order.json').read_text())['files'][1]
+        rows=[]
+        for line in source['builtinListLines']:
+            # Extract the two C++ string literals from each authenticated Cnf.Set.
+            pair=json.loads('['+line['text'].split('Cnf.Set(',1)[1].rsplit(');',1)[0]+']')
+            self.assertEqual('Dir::Ignore-Files-Silently::',pair[0])
+            rows.append(pair[0]+' "'+pair[1]+'";\n')
+        self.assertEqual(8,len(rows))
+        root=Path('/private')
+        scalars=config_dump(root)
+        T.effective_config(scalars+''.join(rows),root)
+        with self.assertRaises(RuntimeError):T.effective_config(scalars+''.join(rows)+'DPkg::Pre-Invoke:: "hook";\n',root)
+
+    def test_reporting_failure_cannot_skip_cleanup_or_replace_original_live_child_failure(self):
+        real_write=Path.write_text;real_popen=T.subprocess.Popen;children=[]
+        def writes(path,*args,**kwargs):
+            if path.name in ('partial-failure.json','retirement.json'):raise OSError('inert report failure')
+            return real_write(path,*args,**kwargs)
+        def launch(*args,**kwargs):
+            child=real_popen(*args,**kwargs);children.append(child);return child
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'home').mkdir();(root/'tmp').mkdir();T.bootstrap(root)
+            with patch.object(Path,'write_text',writes),patch.object(T.subprocess,'Popen',side_effect=launch),patch.object(T,'MAX_LOG',1):
+                with self.assertRaisesRegex(RuntimeError,'original APT output exceeded') as caught:
+                    T.observed([sys.executable,'-I','-c','import time;print("too much",flush=True);time.sleep(60)'],root/'child.log',T.A.Budget(5))
+            self.assertEqual(1,len(children));self.assertIsNotNone(children[0].returncode)
+            self.assertTrue(any('secondary reporting failure' in n for n in caught.exception.__notes__))
+
+    def test_launch_report_failure_preserves_original_launch_error(self):
+        real_write=Path.write_text
+        def writes(path,*args,**kwargs):
+            if path.name=='partial-failure.json':raise OSError('inert report failure')
+            return real_write(path,*args,**kwargs)
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);T.bootstrap(root)
+            with patch.object(Path,'write_text',writes):
+                with self.assertRaises(FileNotFoundError) as caught:
+                    T.observed(['/nonexistent-inert-fixture'],root/'child.log',T.A.Budget(5))
+            self.assertTrue(any('secondary reporting failure' in n for n in caught.exception.__notes__))
+
+
+    def test_metadata_signs_and_retains_the_exact_pinned_snapshot_not_mutable_source_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            inputs=Path(tmp)/'input';out=Path(tmp)/'out';inputs.mkdir();out.mkdir()
+            release=b'pinned original';binary=b'binary';sources=b'sources'
+            (inputs/'noble.InRelease').write_bytes(release)
+            (inputs/'noble-main-binary-amd64-Packages.xz').write_bytes(binary)
+            (inputs/'noble-main-source-Sources.xz').write_bytes(sources)
+            def signed(path,keyring,suite,budget):
+                self.assertEqual(out/'metadata/noble.InRelease',path);self.assertEqual(release,path.read_bytes())
+                (inputs/'noble.InRelease').write_bytes(b'changed determining source')
+                return {'main/binary-amd64/Packages.xz':(T.A.digest(binary),len(binary)),
+                        'main/source/Sources.xz':(T.A.digest(sources),len(sources))}
+            with patch.dict(T.A.RELEASES,{'noble':T.A.digest(release)},clear=True),patch.object(T.A,'COMPONENTS',('main',)),patch.object(T.A,'signed_release',side_effect=signed),patch.object(T.A,'rows',return_value=[]):
+                T.metadata(inputs,out,T.A.Budget(5),Path('/key'))
+            self.assertEqual(release,(out/'repo/dists/noble/InRelease').read_bytes())
+            self.assertEqual(release,(out/'metadata/noble.InRelease').read_bytes())
+            self.assertEqual(sources,(out/'metadata/noble-main-source-Sources.xz').read_bytes())
+
+    def pool_context(self):
+        raw=status();base={'fixture':'1'}
+        return [patch.object(T,'FACTORY_COMPILER_PACKAGES',()),patch.object(T,'CURRENT_DESKTOP_ROOT_SHA256',T.A.digest(T.N.canonical(self.roots))),
+                patch.object(T,'STATUS_FIXTURE_SHA256',T.A.digest(raw)),patch.object(T,'BASE_COUNT',1),patch.object(T,'BASE_SHA256',T.A.digest(T.inventory_bytes(base))),
+                patch.object(T,'base_fixture',return_value=(raw,base)),
+                patch.object(T,'metadata',return_value=(self.data['binary'],self.data['sources']))]
+
+    def test_frozen_originals_require_all_outputs_and_do_not_establish_external_custody(self):
+        from contextlib import ExitStack
+        with tempfile.TemporaryDirectory() as tmp,ExitStack() as stack:
+            for context in self.pool_context():stack.enter_context(context)
+            originals=Path(tmp)/'original';value,_=self.invoke(originals)
+            digest=T.A.digest((originals/'transaction.json').read_bytes())
+            self.assertEqual(value,T.frozen_input_plan(originals,digest,self.roots,self.data['binary'],self.data['sources']))
+            for mutation in [dict(value,expectedFinalInventory={'packages':999,'sha256':'f'*64,'derivation':'original successful APT simulation; not installed'}),dict(value,actualAT=True),dict(value,originalChildOutcomes={'apt-config':False,'apt-update':0,'apt-simulate':0}),dict(value,unexpected='field')]:
+                raw=T.N.canonical(mutation);(originals/'transaction.json').write_bytes(raw)
+                with self.assertRaises(RuntimeError):T.frozen_input_plan(originals,T.A.digest(raw),self.roots,self.data['binary'],self.data['sources'])
+            (originals/'transaction.json').write_text(__import__('json').dumps(value))
+            digest=T.A.digest((originals/'transaction.json').read_bytes())
+            (originals/'apt-simulate.log').write_text('changed original')
+            with self.assertRaisesRegex(RuntimeError,'simulation digest'):
+                T.frozen_input_plan(originals,digest,self.roots,self.data['binary'],self.data['sources'])
+
+    def test_pool_receipt_scopes_staging_and_original_input_consistency_only(self):
+        from contextlib import ExitStack
+        calls=[]
+        def inert_fetch(uri,sha,size,target,budget):
+            calls.append((uri,sha,size));target.write_bytes(b'inert downloader contract stub');budget.requests+=1
+        with tempfile.TemporaryDirectory() as tmp,ExitStack() as stack:
+            for context in self.pool_context():stack.enter_context(context)
+            originals=Path(tmp)/'original';self.invoke(originals);digest=T.A.digest((originals/'transaction.json').read_bytes())
+            with patch.object(T.A,'fetch',side_effect=inert_fetch):
+                receipt=T.prepare_frozen_inputs(originals,digest,self.roots,Path('/signed-inputs'),Path(tmp)/'pool',Path('/key'))
+            self.assertTrue(calls);self.assertTrue(receipt['declaredArchivesVerified'])
+            self.assertFalse(receipt['externalSolverRunCustodyVerified'])
+            for name in ['installation','runtimeQualification','actualAT','nativeImeAcceptance']:self.assertIs(False,receipt[name])
+            self.assertEqual(1,receipt['runtimeBinaryPackages']);self.assertEqual(1,receipt['selectedRolePackages'])
+            self.assertEqual(len(calls),len(receipt['archives']))
+            with self.assertRaisesRegex(RuntimeError,'fresh frozen-input output'):
+                T.prepare_frozen_inputs(originals,digest,self.roots,Path('/signed-inputs'),Path(tmp)/'pool',Path('/key'))
+
+    def test_retained_archive_real_copy_refuses_corruption_and_symlinks_without_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);source=root/'source';source.write_bytes(b'authenticated bytes')
+            row={'bytes':source.stat().st_size,'sha256':T.A.digest(source.read_bytes())}
+            budget=T.A.Budget(5);T.copy_verified_archive(source,root/'copy',row,budget)
+            self.assertEqual(source.read_bytes(),(root/'copy').read_bytes());self.assertEqual(row['bytes'],budget.bytes)
+            with self.assertRaisesRegex(RuntimeError,'digest differs'):
+                T.copy_verified_archive(source,root/'bad',dict(row,sha256='f'*64),T.A.Budget(5))
+            self.assertTrue((root/'bad').exists())
+            alias=root/'alias';alias.symlink_to(source)
+            with self.assertRaisesRegex(RuntimeError,'regular file'):
+                T.copy_verified_archive(alias,root/'symlink-copy',row,T.A.Budget(5))
+            self.assertFalse((root/'symlink-copy').exists())
+
+    def test_late_pool_persistence_refuses_success_and_preserves_original_receipt(self):
+        from contextlib import ExitStack
+        now=[0];clock=T.A.Budget(1,lambda:now[0]);write=Path.write_text
+        def persist(path,*args,**kwargs):
+            result=write(path,*args,**kwargs)
+            if path.name=='frozen-inputs.json':now[0]=2
+            return result
+        def inert_fetch(uri,sha,size,target,budget):target.write_bytes(b'inert')
+        with tempfile.TemporaryDirectory() as tmp,ExitStack() as stack:
+            for context in self.pool_context():stack.enter_context(context)
+            originals=Path(tmp)/'original';self.invoke(originals);digest=T.A.digest((originals/'transaction.json').read_bytes());out=Path(tmp)/'pool'
+            with patch.object(T.A,'fetch',side_effect=inert_fetch),patch.object(Path,'write_text',persist):
+                with self.assertRaisesRegex(RuntimeError,'original deadline'):
+                    T.prepare_frozen_inputs(originals,digest,self.roots,Path('/signed-inputs'),out,Path('/key'),budget=clock)
+            self.assertTrue((out/'frozen-inputs.json').exists());self.assertTrue((out/'partial-failure.json').exists())
+            self.assertEqual(digest,T.A.digest((originals/'transaction.json').read_bytes()))
+
+
+
+if __name__=='__main__':unittest.main()

@@ -1,0 +1,150 @@
+{
+  "scope": "Original APT2.8.3 source order, from signature/hash-joined official Ubuntu Sources; a source fixture, not APT execution.",
+  "sourcePackage": "apt",
+  "sourceVersion": "2.8.3",
+  "sourceArchiveUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/a/apt/apt_2.8.3.tar.xz",
+  "sourceArchiveSha256": "088522b3613b28fdbcfa61f1f7e476bf6dc6b0120a8f74409e9527580c9f9d3b",
+  "files": [
+    {
+      "path": "apt-private/private-cmndline.cc",
+      "sha256": "32f6c3344ef3dcbf8d0c55d00dca19f534037b399ef8b51d703477172a110ef5",
+      "lines": [
+        {
+          "number": 529,
+          "text": "   if (Cnf != NULL && pkgInitConfig(**Cnf) == false)"
+        },
+        {
+          "number": 562,
+          "text": "   if (CmdL.Parse(argc,argv) == false ||"
+        }
+      ]
+    },
+    {
+      "path": "apt-pkg/init.cc",
+      "sha256": "1de19c8ca2467df1c8ab69dc2689779cd8895e31a2fa4a4439bd5bc8feaff843",
+      "lines": [
+        {
+          "number": 230,
+          "text": "   const char *Cfg = getenv(\"APT_CONFIG\");"
+        },
+        {
+          "number": 240,
+          "text": "   std::string const Parts = Cnf.FindDir(\"Dir::Etc::parts\", \"/dev/null\");"
+        },
+        {
+          "number": 247,
+          "text": "   std::string const FName = Cnf.FindFile(\"Dir::Etc::main\", \"/dev/null\");"
+        }
+      ],
+      "builtinListLines": [
+        {
+          "number": 173,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"~$\");"
+        },
+        {
+          "number": 174,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.disabled$\");"
+        },
+        {
+          "number": 175,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.bak$\");"
+        },
+        {
+          "number": 176,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.dpkg-[a-z]+$\");"
+        },
+        {
+          "number": 177,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.ucf-[a-z]+$\");"
+        },
+        {
+          "number": 178,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.save$\");"
+        },
+        {
+          "number": 179,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.orig$\");"
+        },
+        {
+          "number": 180,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.distUpgrade$\");"
+        }
+      ]
+    },
+    {
+      "path": "cmdline/apt-config.cc",
+      "sha256": "e48a4b6369a921c26a350a88f552797794ce719e81a1c2228e13ae2052af23ef",
+      "lines": [
+        {
+          "number": 104,
+          "text": "   std::vector<std::string> const langs = APT::Configuration::getLanguages(true);"
+        },
+        {
+          "number": 105,
+          "text": "   _config->Clear(\"Acquire::Languages\");"
+        },
+        {
+          "number": 106,
+          "text": "   for (std::vector<std::string>::const_iterator l = langs.begin(); l != langs.end(); ++l)"
+        },
+        {
+          "number": 107,
+          "text": "      _config->Set(\"Acquire::Languages::\", *l);"
+        }
+      ]
+    },
+    {
+      "path": "apt-pkg/algorithms.cc",
+      "sha256": "6631395fa897fdb93783a00c3942b3a837a9e3a87c32a6a10d5230f53edfcf6e",
+      "lines": [
+        {
+          "number": 154,
+          "text": "   if (Sim.BrokenCount() != 0)"
+        },
+        {
+          "number": 155,
+          "text": "      ShortBreaks();"
+        },
+        {
+          "number": 262,
+          "text": "   cout << \" [\";"
+        },
+        {
+          "number": 265,
+          "text": "      if (Sim[I].InstBroken() == true)"
+        },
+        {
+          "number": 267,
+          "text": "\t if (Flags[I->ID] == 0)"
+        },
+        {
+          "number": 268,
+          "text": "\t    cout << I.FullName(false) << ' ';"
+        },
+        {
+          "number": 273,
+          "text": "   cout << ']' << endl;"
+        }
+      ]
+    }
+  ],
+  "originalHostedDump": {
+    "run": 40227047245,
+    "job": 121270517825,
+    "sha256": "5b44166e7c16fb19bf42c678d2c136aca0e60e7eedce780a10366478b3698da3",
+    "languageRows": [
+      "Acquire::Languages \"\";",
+      "Acquire::Languages:: \"none\";"
+    ],
+    "scope": "Actual output from refused pre-update source prefix; not solver or runtime success"
+  },
+  "originalHostedSimulation": {
+    "run": 40227335948,
+    "sha256": "5c5a00c5df828d71b6df4fd512558aca5f1c2669c84efaa6c2beed0317298705",
+    "emptyShortBreakRows": [
+      "Inst humanity-icon-theme (0.6.16 Ubuntu:24.04/noble [all]) []",
+      "Inst ubuntu-mono (24.04-0ubuntu1 Ubuntu:24.04/noble [all]) []"
+    ],
+    "scope": "Original successful no-install APT output; later source parser refused, not an installation or completed frozen receipt"
+  }
+}

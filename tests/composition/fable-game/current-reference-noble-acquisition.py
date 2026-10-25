@@ -46,7 +46,7 @@ def digest(raw):
 
 
 def relative(value):
-    need(type(value) is str and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9+._/@-]*', value)
+    need(type(value) is str and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9+._/@~-]*', value)
          and not any(p in ('', '.', '..') for p in value.split('/'))
          and not PurePosixPath(value).is_absolute(), 'unsafe archive/index path')
     return value
@@ -168,43 +168,87 @@ def signed_release(raw_path, keyring, suite, budget):
     return result
 
 
+
+BINARY_IDENTITY_KEYS=('Package','Version','Architecture','SHA256','Size','Source','Multi-Arch',
+          'Depends','Pre-Depends','Conflicts','Breaks','Provides','Replaces','Essential','Protected',
+          'Recommends','Suggests','Enhances','Built-Using')
+
+
+def binary_aliases(matches):
+    # A component promotion can advertise one exact .deb under two signed paths.
+    need(matches and len({tuple(row.get(k,'') for k in BINARY_IDENTITY_KEYS) for row in matches})==1,
+         'exact binary content/source/dependency identity absent/ambiguous')
+    paths=sorted({relative(row['Filename']) for row in matches})
+    return min(matches,key=lambda row:row['Filename']),paths
+
+
+def source_files(source):
+    result=[]
+    for line in source.get('Checksums-Sha256','').splitlines():
+        if not line.strip():continue
+        parts=line.split()
+        need(len(parts)==3 and re.fullmatch('[0-9a-f]{64}',parts[0]) and parts[1].isdigit(),'source checksum malformed')
+        filename=relative(parts[2]);need('/' not in filename,'source filename must be a leaf')
+        result.append({'path':relative(source['Directory'])+'/'+filename,'sha256':parts[0],'bytes':int(parts[1])})
+    need(1<=len(result)<=32 and len({r['path'] for r in result})==len(result)
+         and any(r['path'].endswith('.dsc') for r in result),'complete source archive closure absent')
+    return result
+
+
+def patched_sources(name,version,sources):
+    matches=[row for row in sources if row.get('Package')==name and row.get('Version')==version]
+    identities={tuple(sorted((Path(row['path']).name,row['sha256'],row['bytes']) for row in source_files(source))) for source in matches}
+    need(matches and len(identities)==1,'complete patched source content absent/ambiguous')
+    # Keep every authenticated directory; checksum listing order is not identity.
+    return sorted({relative(row['Directory']):row for row in matches}.values(),key=lambda row:row['Directory'])
+
+
 def select(package, binaries, sources):
-    name = package['name'].removesuffix(':amd64')
-    matches = [r for r in binaries if r.get('Package') == name and r.get('Version') == package['version']
-               and r.get('Architecture') in ('amd64', 'all') and r.get('SHA256') == package['debSha256']]
-    # Identical signed rows can occur in security and updates; conflicting joins refuse.
-    unique = {json.dumps(r, sort_keys=True) for r in matches}
-    need(len(unique) == 1, 'exact declared binary absent/ambiguous: ' + name)
-    binary = matches[0]
-    source = re.fullmatch(r'([^ ]+)(?: \(([^)]+)\))?', binary.get('Source', name))
-    need(source is not None, 'binary Source field malformed')
-    source_name, version = source[1], source[2] or binary['Version']
-    matches = [r for r in sources if r.get('Package') == source_name and r.get('Version') == version]
-    need(len({json.dumps(r, sort_keys=True) for r in matches}) == 1, 'patched binary/source version join absent/ambiguous')
-    source = matches[0]
-    source_files = []
-    for line in source.get('Checksums-Sha256', '').splitlines():
-        if not line.strip():
-            continue
-        parts = line.split()
-        need(len(parts) == 3 and re.fullmatch('[0-9a-f]{64}', parts[0]) and parts[1].isdigit(), 'source checksum malformed')
-        filename = relative(parts[2])
-        need('/' not in filename, 'source filename must be a leaf')
-        source_files.append({'path': relative(source['Directory']) + '/' + filename,
-                             'sha256': parts[0], 'bytes': int(parts[1])})
-    need(1 <= len(source_files) <= 32 and len({r['path'] for r in source_files}) == len(source_files)
-         and any(r['path'].endswith('.dsc') for r in source_files), 'complete source archive closure absent')
-    allowed = []
-    for row in source_files:
-        # sourceUri is an identity assertion, never the download destination.
-        for origin in (BASE, 'https://archive.ubuntu.com/ubuntu/', 'https://security.ubuntu.com/ubuntu/'):
-            if package['sourceUri'] == origin + row['path'] and package['sourceSha256'] == row['sha256']:
-                allowed.append(row)
-    need(len(allowed) == 1, 'declared source archive not in exact patched Sources stanza')
-    return {'package': name, 'version': binary['Version'], 'architecture': binary['Architecture'],
-            'binary': {'path': relative(binary['Filename']), 'sha256': binary['SHA256'], 'bytes': int(binary['Size'])},
-            'sourcePackage': source_name, 'sourceVersion': version, 'sourceFiles': source_files,
-            'depends': binary.get('Depends', ''), 'preDepends': binary.get('Pre-Depends', '')}
+    name=package['name'].removesuffix(':amd64')
+    matches=[r for r in binaries if r.get('Package')==name and r.get('Version')==package['version']
+             and r.get('Architecture') in ('amd64','all') and r.get('SHA256')==package['debSha256']]
+    binary,aliases=binary_aliases(matches)
+    source=re.fullmatch(r'([^ ]+)(?: \(([^)]+)\))?',binary.get('Source',name))
+    need(source is not None,'binary Source field malformed')
+    source_name,version=source[1],source[2] or binary['Version']
+    candidates=patched_sources(source_name,version,sources)
+    allowed={}
+    for candidate in candidates:
+        for row in source_files(candidate):
+            # Preserve the caller's actual declared sourceURI directory, never infer a different assertion.
+            for origin in (BASE,'https://archive.ubuntu.com/ubuntu/','https://security.ubuntu.com/ubuntu/'):
+                if package['sourceUri']==origin+row['path'] and package['sourceSha256']==row['sha256']:
+                    allowed[candidate['Directory']]=candidate
+    need(len(allowed)==1,'declared source archive not in exact patched Sources aliases')
+    selected=next(iter(allowed.values()))
+    result={'package':name,'version':binary['Version'],'architecture':binary['Architecture'],
+            'binary':{'path':relative(binary['Filename']),'sha256':binary['SHA256'],'bytes':int(binary['Size'])},
+            'sourcePackage':source_name,'sourceVersion':version,'sourceFiles':source_files(selected),
+            'depends':binary.get('Depends',''),'preDepends':binary.get('Pre-Depends','')}
+    if len(aliases)>1:result['binaryAliases']=aliases
+    if len(candidates)>1:result['sourceDirectoryAliases']=[row['Directory'] for row in candidates]
+    return result
+
+
+def acquire_metadata(out, keyring, budget):
+    releases,indexes,index_identities=[],[],[]
+    for suite, sha256 in RELEASES.items():
+        # Pinned release sizes are closed source inputs, not Content-Length authority.
+        size = {'noble': 255850, 'noble-updates': 126125, 'noble-security': 126127}[suite]
+        path = fetch(BASE + 'dists/' + suite + '/InRelease', sha256, size, out / (suite + '.InRelease'), budget)
+        index = signed_release(path, keyring, suite, budget)
+        releases.append({'suite': suite, 'sha256': sha256, 'signer': SIGNER})
+        for component in COMPONENTS:
+            for kind in ['binary-amd64/Packages.xz', 'source/Sources.xz']:
+                name = component + '/' + kind
+                need(name in index, 'required signed index missing')
+                sha256, size = index[name]
+                path = fetch(BASE + 'dists/' + suite + '/' + name, sha256, size,
+                             out / (suite + '-' + component + '-' + kind.replace('/', '-')), budget)
+                indexes.append((kind, path))
+                index_identities.append({'suite': suite, 'path': name, 'sha256': sha256, 'bytes': size})
+                budget.remaining()
+    return releases,indexes,index_identities
 
 
 def acquire(manifest, out, keyring, budget=None):
@@ -221,22 +265,7 @@ def acquire(manifest, out, keyring, budget=None):
     out.mkdir(mode=0o700)
     budget = budget or Budget()
     binaries, sources, releases, indexes, index_identities = [], [], [], [], []
-    for suite, sha256 in RELEASES.items():
-        # Pinned release sizes are closed source inputs, not Content-Length authority.
-        size = {'noble': 255850, 'noble-updates': 126125, 'noble-security': 126127}[suite]
-        path = fetch(BASE + 'dists/' + suite + '/InRelease', sha256, size, out / (suite + '.InRelease'), budget)
-        index = signed_release(path, keyring, suite, budget)
-        releases.append({'suite': suite, 'sha256': sha256, 'signer': SIGNER})
-        for component in COMPONENTS:
-            for kind, destination in [('binary-amd64/Packages.xz', binaries), ('source/Sources.xz', sources)]:
-                name = component + '/' + kind
-                need(name in index, 'required signed index missing')
-                sha256, size = index[name]
-                path = fetch(BASE + 'dists/' + suite + '/' + name, sha256, size,
-                             out / (suite + '-' + component + '-' + kind.replace('/', '-')), budget)
-                indexes.append((kind, path))
-                index_identities.append({'suite': suite, 'path': name, 'sha256': sha256, 'bytes': size})
-                budget.remaining()
+    releases,indexes,index_identities=acquire_metadata(out,keyring,budget)
     for kind, path in indexes:
         if kind.startswith('binary'):
             for row in rows(path.read_bytes()):
@@ -281,12 +310,26 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--metadata-only',action='store_true',help='Acquire only the signed offline solver metadata; no package or runtime claim')
     parser.add_argument('--package-request', type=Path, help='Bounded archive-only package request; no facility/keymap claim')
     parser.add_argument('--keyring', type=Path, default=Path('/usr/share/keyrings/ubuntu-archive-keyring.gpg'))
     args = parser.parse_args()
     spec = importlib.util.spec_from_file_location('current_native_manifest_cli', HERE / 'current-reference-native-input.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    if args.metadata_only:
+        need(args.package_request is None and not os.environ.get('FSGG_CURRENT_NATIVE_INPUT_FACILITY'),'metadata-only cannot consume a facility/package request')
+        need(not args.output.exists() and not args.output.is_symlink(),'fresh metadata output required')
+        args.output.mkdir(mode=0o700)
+        budget=Budget(240)
+        releases,indexes,identities=acquire_metadata(args.output,args.keyring,budget)
+        receipt={'schema':'fsgg.current-reference-noble-metadata/1','snapshot':BASE,'releases':releases,
+                 'indexes':identities,'requests':budget.requests,'bytes':budget.bytes,
+                 'packageAcquisition':'not-run','installation':False,'runtimeQualification':False}
+        budget.remaining()
+        (args.output/'metadata.json').write_text(json.dumps(receipt,indent=2)+'\n')
+        budget.remaining()
+        raise SystemExit(0)
     if args.package_request:
         with args.package_request.open('rb') as stream:
             raw = stream.read(65537)
