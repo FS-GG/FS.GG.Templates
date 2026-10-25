@@ -136,8 +136,45 @@ The evidence is `source-built`, never `published`: these cases are not in the pu
 
 Cross-lane: `scripts/svg-current-reference-adoption.json` lists the allowed canonical digests per managed path. For `two-client.spec.ts`, `FourDReference.fs` and the FourD README it now allows the published 0.19.3 digest and the source-built successor, so the "derived from the declared immutable public source" comment in `apply-svg-complete-workspace.py` is no longer exact for those three. Real adoption runs authenticate published receivers and still match the old digest; the #4816 owner should drop the old digests, or re-pin, when 0.20.0 is released.
 
+## Published 0.20.0 bytes (observed 2026-10-25)
+
+`FS.GG.Workspace.Template` 0.20.0 is published (Templates#441). The typed `current-composition-plan` now pins that archive: the signed
+nuget.org SHA-256 `e12b36d2d087d0f788894fdec9ba3b3ed1406c1e7237ebee40602c2f7c23355c` (1,114,933 bytes, 590 entries = the 589 accepted entries
+plus the repository `.signature.p7s`), source commit `1b9b1ca92556eb1acd0e4d1c9cb851a8c7906f86` and descriptor
+`providers/fable-game.providers.yml` SHA-256 `11c7e338b1fa2c29e6d8c2277758f59aeadc9144b1b568204596a0c4152833ee`. The plan selects eleven cases
+(the nine maintained plus the options-panel and focus/native-editing survival cases), so the published route runs 33 cases (11 x Chromium, Firefox, WebKit).
+The source-built plan is unchanged and selects the same eleven cases; only the published plan's template identity and scope changed.
+
+The generated-receiver conformance check of the composition route is now `current-composition-receiver-check`, bound to the plan's own template
+identity. It replaces `current-d5-receiver-check` in this route because that check is pinned to the D5 lane's frozen 0.19.3 archive, which the
+D5 lane still owns and which is not edited here.
+
+Run (published route, ADR-0096 ordinary verification: one fresh private root, closed environment, 3 CPUs, host-libraries container, no credential, nuget.org read credential-free):
+`current-composition-local.py --root <fresh> --cpus 3 --container localhost/fsgg-pw-host-libs:1.63 --custody-evidence <retained read> --rendering-source <FS.GG.Rendering> --published-all`
+at checkout head `c3614f27` (tree `1bbdeae9`, clean):
+
+| check | result |
+|---|---|
+| template archive downloaded from nuget.org | SHA-256 equals the typed pin (`e12b36d2...`); `published-tool-check`: 590 entries, id/version/source commit as typed |
+| Chromium / Firefox / WebKit | 11 / 11 / 11 passed, 0 skipped, 0 flaky, 0 retries (33/33); listing equals the eleven typed identities |
+| `actualProducerCustodyReadback` | true (retained original producer read; binder accepts 19 archives; Scene, KeyboardInput, SvgBrowser payload-exact) |
+| `--published-all` | 19/19 Rendering 0.32.3 archives payload-exact against the public feed, one feed signature each |
+
+The run also exercised Playwright 1.63.0 stock browsers (downloaded into the private root) in the existing image
+(`20a02130014f`). Verdict `dom-observed-local-reference-only` with `origin: published`; installed, durable-save, AT and whole-#4818 flags stay false.
+
+### Durable reference `localSaved` is not in 0.20.0
+
+The published 0.20.0 archive's `FourDReference.fs` (identical to the source at `1b9b1ca9`) still holds `localSaved` as
+`let mutable localSaved: SessionSnapshot<LocalSaveReplayExample.Payload> option` under `#if LOCAL_SAVE_REPLAY_EXAMPLE`; the buttons save "in memory"
+and the FourD README states that no durable storage, byte serializer or clock is provided. No 0.20.0 case can exercise a durable reference save,
+so none is added. The only IndexedDB persistence in the template is the Studio generated-scene journey, which is a different journey and is already
+covered by its own cases; it is not the reference `localSaved`. The reference-level durable `localSaved` journey is therefore **owed to the next
+Workspace.Template release after 0.20.0**, because 0.20.0 shipped without any template source for it, and a published-byte case cannot precede the
+published source. Product-level durable save is FourD's under FS-GG/.github#4819.
+
 ## Boundaries that remain
 
 - `actualProducerCustodyReadback` is false unless the run is given `--custody-evidence` and `--rendering-source` (the previous section).
-- `localSaved` is the synthetic in-memory journey. Durable product save and the AT journey are separate obligations.
+- `localSaved` is the synthetic in-memory journey, in 0.20.0 as in 0.19.3. A durable reference `localSaved` is owed to the next template release (above); product save is #4819; the AT journey is #4817.
 - Host-library gaps are solved by the container, not by weakening a case; a missing library fails the listing or run.
