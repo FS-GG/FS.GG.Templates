@@ -13,6 +13,7 @@ const hasExternalAuthorityReference = existsSync("../SvgFoundation/Examples/Exte
   && !isLegacySvgPreview
   && (process.env.FsGgExternalReferenceCandidate === "true"
     || readFileSync("../SvgFoundation/SvgFoundation.fsproj", "utf8").includes(">true</FsGgExternalReferenceCandidate>"));
+const hasDurableLocalSave = existsSync("../SvgFoundation/Examples/FourD/LocalSaveReplayCodec.fs");
 const hasFourDReference = existsSync("../SvgFoundation/Examples/FourD/reference.json") && !isLegacySvgPreview;
 
 type BrowserDiagnostic = { kind: "console" | "pageerror" | "requestfailed"; detail: string };
@@ -1007,6 +1008,154 @@ test("Local save and replay example preserves synthetic state and settles detach
   expect(await disposed!.evaluate(element => element.outerHTML)).toBe(before);
   expect(await disposed!.getAttribute("data-input-owned")).toBe("0");
   expect(await disposed!.getAttribute("data-session-owned")).toBe("0");
+});
+
+// These storage probes inspect serialized fixture strings, never cast JavaScript objects into F# snapshots.
+const localSaveRecord = async (page: Page): Promise<Record<string, unknown>> =>
+  page.evaluate(async () => await new Promise<Record<string, unknown>>((resolve, reject) => {
+    const open = indexedDB.open("FableGameWorkspaceNamespace-fourd-reference", 1);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const database = open.result;
+      const get = database.transaction("records", "readonly").objectStore("records").get("save:synthetic-fourd-v1");
+      get.onerror = () => { database.close(); reject(get.error); };
+      get.onsuccess = () => { database.close(); resolve(get.result); };
+    };
+  }));
+
+const writeLocalSaveRecord = async (page: Page, record: Record<string, unknown>): Promise<void> =>
+  page.evaluate(async record => await new Promise<void>((resolve, reject) => {
+    const open = indexedDB.open("FableGameWorkspaceNamespace-fourd-reference", 1);
+    open.onerror = () => reject(open.error);
+    open.onsuccess = () => {
+      const database = open.result;
+      const transaction = database.transaction("records", "readwrite");
+      transaction.objectStore("records").put(record);
+      transaction.onerror = () => { database.close(); reject(transaction.error); };
+      transaction.oncomplete = () => { database.close(); resolve(); };
+    };
+  }), record);
+
+test("Local synthetic snapshot survives page recreation with lossless uint64 order and typed refusals", async ({ page }) => {
+  test.skip(!hasFourDReference || !hasDurableLocalSave, "selected archive has no durable synthetic reference");
+  await page.goto("/");
+  const reference = page.locator("#fourd-reference");
+  const status = page.locator("#local-save-replay-status");
+  const inspect = page.getByRole("button", { name: "Synthetic inspect full cell", exact: true });
+  const save = page.getByRole("button", { name: "Save synthetic local snapshot", exact: true });
+  const restore = page.getByRole("button", { name: "Restore synthetic local snapshot", exact: true });
+  await expect(reference).toHaveAttribute("data-local-storage-ready", "true");
+  await inspect.click();
+  await save.click();
+  await expect(status).toContainText("snapshot saved in browser storage");
+  const saved = await localSaveRecord(page);
+  await page.reload();
+  await expect(reference).toHaveAttribute("data-local-storage-ready", "true");
+  await expect(reference).toHaveAttribute("data-local-accepted", "0"); // Loading is explicit.
+  await restore.click();
+  await expect(reference).toHaveAttribute("data-local-accepted", "1");
+  await expect(reference).toHaveAttribute("data-local-agent", "-7:23:-41:89");
+  await expect(status).toContainText("snapshot restored; new recording epoch");
+  await page.getByRole("button", { name: "Replay synthetic local recording", exact: true }).click();
+  await expect(reference).toHaveAttribute("data-local-replay-count", "1");
+
+  if (typeof saved.payload !== "string" || typeof saved.payloadHash !== "string") throw new Error("missing typed fixture strings");
+  const large = "9007199254740993";
+  const largeRecord = { ...saved, payload: saved.payload.replace("1@", large + "@"),
+    payloadHash: saved.payloadHash.replace("1@", large + "@") };
+  await writeLocalSaveRecord(page, largeRecord);
+  await restore.click();
+  await expect(status).toContainText("snapshot restored; new recording epoch");
+  await expect(reference).toHaveAttribute("data-local-storage-owned", "0");
+  await inspect.click();
+  await expect(reference).toHaveAttribute("data-local-accepted", "2");
+  await save.click();
+  await expect(status).toContainText("snapshot saved in browser storage");
+  const exact = await localSaveRecord(page);
+  expect(exact.payload).toContain("9007199254740993@");
+  expect(exact.payload).toContain("9007199254740994@");
+  if (typeof exact.payload !== "string") throw new Error("missing serialized snapshot");
+  for (const invalid of [
+    { ...exact, schemaVersion: 2 },
+    { ...exact, payload: exact.payload.replace("fsgg.synthetic.fourd.save/1", "fsgg.synthetic.fourd.save/2") },
+    { ...exact, payload: exact.payload + "\nunknown-field" },
+    { ...exact, payload: exact.payload.replace("\npure-inspection-fixture\n", "\nwrong-profile\n") }
+  ]) {
+    await writeLocalSaveRecord(page, invalid);
+    await restore.click();
+    await expect(status).toContainText("restore refused");
+    await expect(reference).toHaveAttribute("data-local-accepted", "2");
+  }
+  await expect(reference).toHaveAttribute("data-agent-full-cell", "0:0:0:0");
+  await expect(reference).toHaveAttribute("data-command-order", "");
+});
+
+test("Local synthetic snapshot storage failures and late loads preserve accepted state and settle disposal", async ({ page }) => {
+  test.skip(!hasFourDReference || !hasDurableLocalSave, "selected archive has no durable synthetic reference");
+  await page.goto("/");
+  const reference = page.locator("#fourd-reference");
+  const status = page.locator("#local-save-replay-status");
+  await expect(reference).toHaveAttribute("data-local-storage-ready", "true");
+  await page.getByRole("button", { name: "Synthetic inspect full cell", exact: true }).click();
+  await page.getByRole("button", { name: "Save synthetic local snapshot", exact: true }).click();
+  await expect(status).toContainText("snapshot saved in browser storage");
+  const saved = await localSaveRecord(page);
+  await page.getByRole("button", { name: "Synthetic inspect full cell", exact: true }).click();
+  await page.evaluate(() => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value, key) {
+      if (value?.key === "save:synthetic-fourd-v1") throw new DOMException("injected quota failure", "QuotaExceededError");
+      return key === undefined ? put.call(this, value) : put.call(this, value, key);
+    };
+  });
+  await page.getByRole("button", { name: "Save synthetic local snapshot", exact: true }).click();
+  await expect(status).toContainText("save refused");
+  await expect(reference).toHaveAttribute("data-local-accepted", "2");
+  expect(await localSaveRecord(page)).toEqual(saved);
+  await page.reload(); // Restores the browser API as well as recreating the caller.
+  await expect(reference).toHaveAttribute("data-local-storage-ready", "true");
+  await page.getByRole("button", { name: "Restore synthetic local snapshot", exact: true }).click();
+  await expect(reference).toHaveAttribute("data-local-accepted", "1");
+  await page.evaluate(() => {
+    const buttons = [...document.querySelectorAll<HTMLButtonElement>("#fourd-reference button")];
+    buttons.find(b => b.textContent === "Restore synthetic local snapshot")!.click();
+    buttons.find(b => b.textContent === "Synthetic inspect full cell")!.click();
+  });
+  await expect(status).toContainText("load superseded by accepted local changes");
+  await expect(reference).toHaveAttribute("data-local-accepted", "2");
+
+  const settled = await page.evaluate(async () => await new Promise<{ before: string; after: string }>((resolve, reject) => {
+    const reference = document.querySelector<HTMLElement>("#fourd-reference")!;
+    const get = IDBObjectStore.prototype.get;
+    let before = "";
+    IDBObjectStore.prototype.get = function (key) {
+      const request = get.call(this, key);
+      if (key !== "save:synthetic-fourd-v1") return request;
+      const delayed: IDBRequest = new Proxy(request, {
+        get(target, property) { return Reflect.get(target, property, target); },
+        set(target, property, callback) {
+          if (property === "onsuccess") {
+            target.onsuccess = event => {
+              IDBObjectStore.prototype.get = get;
+              try { callback.call(delayed, event); resolve({ before, after: reference.outerHTML }); }
+              catch (error) { reject(error); }
+            };
+            return true;
+          }
+          return Reflect.set(target, property, callback, target);
+        }
+      });
+      return delayed;
+    };
+    const buttons = [...reference.querySelectorAll<HTMLButtonElement>("button")];
+    buttons.find(b => b.textContent === "Restore synthetic local snapshot")!.click();
+    buttons.find(b => b.textContent === "Dispose FourD reference")!.click();
+    before = reference.outerHTML;
+  }));
+  expect(settled.after).toBe(settled.before);
+  expect(settled.after).toContain('data-local-storage-owned="0"');
+  expect(settled.after).toContain('data-local-storage-disposed="true"');
+  await expect(reference).toHaveCount(0);
 });
 
 // Click through the DOM without moving focus: a real pointer click focuses the button, which would hide whether the

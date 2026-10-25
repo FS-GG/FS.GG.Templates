@@ -14,6 +14,7 @@
   </ItemGroup>
   <ItemGroup Condition="Exists('../SvgFoundation/Examples/FourD/LocalSaveReplayExample.fs') And '$(FsGgLegacyPreview)' != 'true'">
     <Compile Include="../SvgFoundation/Examples/FourD/LocalSaveReplayExample.fs" Link="LocalSaveReplayExample.fs" />
+    <Compile Include="../SvgFoundation/Examples/FourD/LocalSaveReplayCodec.fs" Link="LocalSaveReplayCodec.fs" />
     <Compile Include="../SvgFoundation/Examples/FourD/LocalSaveReplayExample.Tests.fs" Link="LocalSaveReplayExample.Tests.fs" />
     <Compile Include="../SvgFoundation/Examples/FourD/LocalSaveReplayExample.TestEntry.fs" Link="LocalSaveReplayExample.TestEntry.fs" />
   </ItemGroup>

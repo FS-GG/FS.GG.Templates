@@ -478,7 +478,7 @@ let mount () : IDisposable =
         root.appendChild value |> ignore
 
 #if LOCAL_SAVE_REPLAY_EXAMPLE
-    // This separate synthetic inspection trace never changes the encounter's gameplay state.
+    // This synthetic trace and its user-selected save slot never change encounter gameplay.
     let syntheticOrigin: LocalSaveReplayExample.FullCell = { A = -7; B = 23; C = -41; D = 89 }
     let syntheticDestination: LocalSaveReplayExample.FullCell = { A = 5; B = -11; C = 37; D = -83 }
     let mutable localExample =
@@ -487,6 +487,11 @@ let mount () : IDisposable =
     let mutable localSequence = 0UL
     let mutable localSaved: SessionSnapshot<LocalSaveReplayExample.Payload> option = None
     let mutable localReplayCount: int option = None
+    let mutable localStorageReady = false
+    let mutable localStorageOperation = 0UL
+    let mutable localSavePending: (BrowserStorageOperationId * SessionSnapshot<LocalSaveReplayExample.Payload>) option = None
+    let mutable localLoadRevision: uint64 option = None
+    let localStorageKey = { Family = BrowserStorageFamily.GameSave; Slot = "synthetic-fourd-v1" }
     let localStatus = document.createElement "output"
     localStatus.id <- "local-save-replay-status"
     localStatus.setAttribute ("aria-live", "polite")
@@ -497,30 +502,108 @@ let mount () : IDisposable =
         root.setAttribute ("data-local-agent", $"{cell.A}:{cell.B}:{cell.C}:{cell.D}")
         root.setAttribute ("data-local-accepted", string accepted)
         root.setAttribute ("data-local-saved", if localSaved.IsSome then "true" else "false")
+        root.setAttribute ("data-local-storage-ready", if localStorageReady then "true" else "false")
+        root.setAttribute ("data-local-storage-owned", if localSavePending.IsSome || localLoadRevision.IsSome then "1" else "0")
         root.setAttribute ("data-local-replay-count", localReplayCount |> Option.map string |> Option.defaultValue "none")
         localStatus.textContent <- $"Synthetic local save/replay: {result}; accepted inspections {accepted}. Agent {cell.A}, {cell.B}, {cell.C}, {cell.D}."
+    describeLocal "opening local storage"
+    let localPersistence =
+        new BrowserPersistenceHost(
+            { DatabaseName = "FableGameWorkspaceNamespace-fourd-reference"
+              MaxPayloadCharacters = LocalSaveReplayCodec.maximumCharacters
+              MaxArchiveCharacters = 65536 },
+            fun event ->
+                if not disposed then
+                    match event with
+                    | BrowserPersistenceEvent.Ready ->
+                        localStorageReady <- true
+                        describeLocal "local storage ready"
+                    | BrowserPersistenceEvent.Persisted operation ->
+                        match localSavePending with
+                        | Some(expected, saved) when expected = operation ->
+                            localSavePending <- None
+                            localSaved <- Some saved
+                            describeLocal "snapshot saved in browser storage"
+                        | _ -> ()
+                    | BrowserPersistenceEvent.Loaded(key, stored) when key = localStorageKey ->
+                        let expected = localLoadRevision
+                        localLoadRevision <- None
+                        match expected with
+                        | None -> ()
+                        | Some revision when (LocalSaveReplayExample.snapshot localExample).Revision <> revision ->
+                            describeLocal "load superseded by accepted local changes"
+                        | Some _ ->
+                            match stored with
+                            | None ->
+                                localSaved <- None
+                                describeLocal "no snapshot saved"
+                            | Some value when value.Key <> localStorageKey || value.SchemaVersion <> 1 ->
+                                describeLocal "restore refused: unknown stored snapshot version or slot"
+                            | Some value ->
+                                match LocalSaveReplayCodec.decode value.Payload with
+                                | Error reason -> describeLocal ("restore refused: " + reason)
+                                | Ok saved when value.PayloadHash <> LocalSaveReplayExample.stateDigest saved.Value ->
+                                    describeLocal "restore refused: snapshot payload differs from its comparison digest"
+                                | Ok saved ->
+                                    let next, result = LocalSaveReplayExample.restore saved localExample
+                                    match result with
+                                    | Error _ -> describeLocal "restore refused: incompatible snapshot"
+                                    | Ok _ ->
+                                        localExample <- next
+                                        localSaved <- Some saved
+                                        localSequence <-
+                                            saved.Value.Accepted |> List.fold (fun latest (sequence, _) -> max latest sequence) localSequence
+                                        localReplayCount <- None
+                                        describeLocal "snapshot restored; new recording epoch"
+                    | BrowserPersistenceEvent.Failed(Some operation, failure) ->
+                        match localSavePending with
+                        | Some(expected, _) when expected = operation ->
+                            localSavePending <- None
+                            describeLocal ($"save refused: {failure}")
+                        | _ -> ()
+                    | BrowserPersistenceEvent.Failed(None, failure) ->
+                        localLoadRevision <- None
+                        describeLocal ($"storage refused: {failure}")
+                    | _ -> ()
+        )
     button "Synthetic inspect full cell" (fun () ->
-        localSequence <- localSequence + 1UL
-        let next, result =
-            LocalSaveReplayExample.admit
-                { SessionId = LocalSaveReplayExample.sessionId
-                  InputId = $"synthetic.inspect:{localSequence}"
-                  Sequence = localSequence
-                  Value = LocalSaveReplayExample.InspectFullCell syntheticDestination }
-                localExample
-        localExample <- next
-        describeLocal (match result with Ok _ -> "inspection accepted" | Error _ -> "inspection refused"))
-    button "Save synthetic local snapshot" (fun () ->
-        localSaved <- Some(LocalSaveReplayExample.snapshot localExample)
-        describeLocal "snapshot saved in memory")
-    button "Restore synthetic local snapshot" (fun () ->
-        match localSaved with
-        | None -> describeLocal "no snapshot saved"
-        | Some saved ->
-            let next, result = LocalSaveReplayExample.restore saved localExample
+        if localSequence = UInt64.MaxValue then
+            describeLocal "inspection refused: input sequence exhausted"
+        else
+            localSequence <- localSequence + 1UL
+            let next, result =
+                LocalSaveReplayExample.admit
+                    { SessionId = LocalSaveReplayExample.sessionId
+                      InputId = $"synthetic.inspect:{localSequence}"
+                      Sequence = localSequence
+                      Value = LocalSaveReplayExample.InspectFullCell syntheticDestination }
+                    localExample
             localExample <- next
-            localReplayCount <- None
-            describeLocal (match result with Ok _ -> "snapshot restored; new recording epoch" | Error _ -> "restore refused"))
+            describeLocal (match result with Ok _ -> "inspection accepted" | Error _ -> "inspection refused"))
+    button "Save synthetic local snapshot" (fun () ->
+        if not localStorageReady then describeLocal "save refused: local storage is not ready"
+        elif localSavePending.IsSome || localLoadRevision.IsSome then describeLocal "storage operation pending"
+        else
+            let saved = LocalSaveReplayExample.snapshot localExample
+            match LocalSaveReplayCodec.encode saved with
+            | Error reason -> describeLocal ("save refused: " + reason)
+            | Ok payload ->
+                localStorageOperation <- localStorageOperation + 1UL
+                let operation = { BrowserStorageOperationId.Generation = 1UL; Operation = localStorageOperation }
+                localSavePending <- Some(operation, saved)
+                describeLocal "saving snapshot"
+                localPersistence.Persist(
+                    operation,
+                    { Key = localStorageKey; SchemaVersion = 1
+                      PayloadHash = LocalSaveReplayExample.stateDigest saved.Value; Payload = payload }
+                ))
+    button "Restore synthetic local snapshot" (fun () ->
+        if not localStorageReady then describeLocal "restore refused: local storage is not ready"
+        elif localSavePending.IsSome || localLoadRevision.IsSome then describeLocal "storage operation pending"
+        else
+            localLoadRevision <- Some((LocalSaveReplayExample.snapshot localExample).Revision)
+            describeLocal "loading snapshot"
+            localPersistence.Load localStorageKey)
     button "Replay synthetic local recording" (fun () ->
         match LocalSaveReplayExample.replay (uint64 localExample.Recording.Events.Length) localExample.Recording with
         | Ok(ReplayRunOutcome.Completed(_, payload)) ->
@@ -529,7 +612,6 @@ let mount () : IDisposable =
         | _ ->
             localReplayCount <- None
             describeLocal "replay preview refused or diverged")
-    describeLocal "ready"
 #endif
 
     button "Move to legal full cell" (fun () -> admit (NormalizedBrowserObservation.Invoke "fourd.move-full-cell"))
@@ -573,6 +655,14 @@ let mount () : IDisposable =
                 element.removeEventListener ("change", handler)
 
             optionListeners.Clear()
+#if LOCAL_SAVE_REPLAY_EXAMPLE
+            localSavePending <- None
+            localLoadRevision <- None
+            localStorageReady <- false
+            (localPersistence :> IDisposable).Dispose()
+            root.setAttribute ("data-local-storage-owned", "0")
+            root.setAttribute ("data-local-storage-disposed", if (localPersistence.Observe()).IsDisposed then "true" else "false")
+#endif
             (input :> IDisposable).Dispose()
             (clock :> IDisposable).Dispose()
             (svg :> IDisposable).Dispose()

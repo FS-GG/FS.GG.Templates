@@ -47,6 +47,7 @@
     <Compile Include="TacticalExample.fs" Condition="Exists('Examples/Tactical/scene.json')" />
     <Compile Include="ExternalAuthorityReference.fs" Condition="Exists('Examples/ExternalAuthority/reference.json') and '$(FsGgExternalReferenceCandidate)' == 'true'" />
     <Compile Include="Examples/FourD/LocalSaveReplayExample.fs" Condition="Exists('Examples/FourD/LocalSaveReplayExample.fs') and '$(FsGgLegacyPreview)' != 'true'" />
+    <Compile Include="Examples/FourD/LocalSaveReplayCodec.fs" Condition="Exists('Examples/FourD/LocalSaveReplayCodec.fs') and '$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="FourDReference.fs" Condition="Exists('Examples/FourD/reference.json')" />
     <Compile Include="SvgAuthority.fs" Condition="'$(FsGgSvgRuntimeCandidate)' == 'true' and '$(FsGgLegacyPreview)' != 'true'" />
     <Compile Include="ScalePlayer.fs" Condition="'$(FsGgSvgScaleCandidate)' == 'true'" />
