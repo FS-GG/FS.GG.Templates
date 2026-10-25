@@ -67,7 +67,8 @@
     ],
     "Browser.Tests/two-client.spec.ts": [
       "7eacfc875e0449c18e4095d2cfc3cc30f004258c04335cc153e911f3d120ea9d",
-      "9ea351cf95c131307621761e56a4555969a3ede4a54791ad444cb2fe5c5ab874"
+      "9ea351cf95c131307621761e56a4555969a3ede4a54791ad444cb2fe5c5ab874",
+      "f5f492bd4d8e6759e10e6c229885cd011d2fb7e3907ac28c8205f3daecb1a371"
     ],
     "Browser.Tests/wasm-policy.spec.ts": [
       "1dd6781b3972938b2c38fb9f9de63d43f16679d9f09e749940c24d53b4ad6e6e"
@@ -296,6 +297,7 @@
       "c5f64fabaa820615dbb6820999a68d8be7ca8503b6f73605327424933ac58fc0"
     ],
     "SvgFoundation/Examples/FourD/README.md": [
+      "2dc72a08ee69e80364cf2a277c84cbea012373a396a4565147a4f8c064e0c2b1",
       "5579d1892d3920997e7923a8539beaeca296c88377be24b0e0b33698be326590"
     ],
     "SvgFoundation/Examples/FourD/reference.json": [
@@ -375,6 +377,7 @@
       "b5c833c8e673c7dbfabe100e80fa2476301194cbe28bd7dd6c073aacf6558f01"
     ],
     "SvgFoundation/FourDReference.fs": [
+      "132df30d8d3de3b83c5264cfc2afa3c9296a72ea74ac9a592f15b13c31dbb2de",
       "a1a74cdc57b403a533662e72d0ba273ae46f3d7904cd80276c8b2a9f3d18c0d9",
       "fe31e4bbd37854f22674855dbaa2371d8857a12cd6fc02372bacf2a166035b3a"
     ],
