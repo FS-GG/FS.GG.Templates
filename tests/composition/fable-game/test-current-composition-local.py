@@ -355,16 +355,23 @@ class Controls(unittest.TestCase):
         self.assertEqual(text.count('--locked-mode'),2+1);self.assertIn('<clear/>',text)
         self.assertIn("external-reference-template-package.py\" generated",text);self.assertIn('cmp -s "$plan"',text)
 
-    def test_source_only_case_titles_exist_in_the_spec_and_never_in_the_published_plan(self):
+    def test_options_and_focus_case_titles_exist_in_the_spec_and_both_plans_select_them(self):
         source=(HERE.parents[2]/'src/FS.GG.Templates.ProviderTool/ReferencePublication.fs').read_text()
-        only=re.search(r'let private sourceBuiltOnlyCases =(.*?)\n\nlet ',source,re.S)[1]
-        titles=re.findall(r'title = "([^"]+)"',only)
+        added=re.search(r'let private optionsAndFocusCases =(.*?)\n\n// ',source,re.S)[1]
+        titles=re.findall(r'title = "([^"]+)"',added)
         base=re.search(r'let private baseCompositionCases =(.*?)\n\n',source,re.S)[1]
         self.assertEqual(len(titles),2);self.assertEqual(len(re.findall(r'title = "',base)),9)
         spec=(HERE.parents[2]/'templates/fs-gg-fable-game/Browser.Tests/two-client.spec.ts').read_text()
         for title in titles:
             self.assertEqual(spec.count('test("'+title+'"'),1,title)
             self.assertNotIn(title,base)
+        # The published plan and the source-built plan select exactly the same maintained base plus the added cases.
+        self.assertEqual(source.count('cases = baseCompositionCases @ optionsAndFocusCases'),2)
+        # The published template identity is the signed nuget.org 0.20.0 archive and its source commit.
+        published=re.search(r'let currentCompositionPlan \(\) =(.*?)let renderCurrentCompositionPlan',source,re.S)[1]
+        for pinned in ('version = "0.20.0"','sha256 = "e12b36d2d087d0f788894fdec9ba3b3ed1406c1e7237ebee40602c2f7c23355c"','sourceCommit = "1b9b1ca92556eb1acd0e4d1c9cb851a8c7906f86"'):
+            self.assertIn(pinned,published)
+        self.assertNotIn('0.19.3',published)
         # The island's controls are authored once, in the reference, and carry the names the cases look up.
         reference=(HERE.parents[2]/'templates/fs-gg-fable-game/SvgFoundation/FourDReference.fs').read_text()
         for name in ('Encounter options','Difficulty','Show hints','Camera','Overview','Close focus'):self.assertIn('"%s"'%name,reference)
