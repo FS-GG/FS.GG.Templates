@@ -77,12 +77,16 @@ class FactoryControls(unittest.TestCase):
             self.assertEqual((185,200),F.phase_clock(120))
             self.assertEqual((110,125),F.phase_clock(20))
     def test_actual_unsealed_entry_refuses_before_any_sibling_import(self):
-        path=self.root/'current-reference-noble-factory.py';path.write_bytes((HERE/path.name).read_bytes())
-        (self.root/'current-reference-noble-transaction.py').write_text("raise AssertionError('UNTRUSTED IMPORT EXECUTED')\n")
-        result=subprocess.run([sys.executable,'-I','-B',str(path),'install-readback'],capture_output=True,timeout=5)
-        self.assertNotEqual(0,result.returncode)
-        self.assertIn(b'fixed root-sealed factory controller path required before imports',result.stderr)
-        self.assertNotIn(b'UNTRUSTED IMPORT EXECUTED',result.stderr)
+        # Default local TMPDIR may be deeper than the hosted /tmp/tmpXYZ path.
+        with tempfile.TemporaryDirectory(dir='/tmp') as short:
+            for root in (self.root,Path(short)):
+                with self.subTest(root=root):
+                    path=root/'current-reference-noble-factory.py';path.write_bytes((HERE/path.name).read_bytes())
+                    (root/'current-reference-noble-transaction.py').write_text("raise AssertionError('UNTRUSTED IMPORT EXECUTED')\n")
+                    result=subprocess.run([sys.executable,'-I','-B',str(path),'install-readback'],capture_output=True,timeout=5)
+                    self.assertNotEqual(0,result.returncode)
+                    self.assertIn(b'fixed root-sealed factory controller path required before imports',result.stderr)
+                    self.assertNotIn(b'UNTRUSTED IMPORT EXECUTED',result.stderr)
 
     def test_legacy_baked_driver_refuses_before_guest_or_installation(self):
         with patch.object(F.os,'geteuid',return_value=1000),self.assertRaises(RuntimeError):F.qualified_scope('a'*64,'install-readback')

@@ -32,7 +32,9 @@ FACTORY_FILES=('current-reference-noble-factory.py','current-reference-noble-tra
 
 def sealed_imports():
     """The baked ATv2 driver seals exact Git blobs before any factory imports execute."""
-    controller=HERE.parents[2]
+    # parent saturates at filesystem root; malformed shallow entries must reach
+    # the explicit refusal rather than raising IndexError before the guard.
+    controller=HERE.parent.parent.parent
     if controller.parent!=Path('/opt/fsgg/current-at-controller') or re.fullmatch('[0-9a-f]{40}',controller.name) is None:
         raise RuntimeError('fixed root-sealed factory controller path required before imports')
     seal=controller/'factory-seal.json';info=seal.lstat()
