@@ -28,6 +28,21 @@ class SourceContract(unittest.TestCase):
     def edit(self, relative, change):
         path = self.root / relative
         value = json.loads(path.read_text()); change(value); path.write_text(json.dumps(value))
+    def test_go_pin_and_rust_audit_configuration_agree(self):
+        go = ROOT / "templates/fs-gg-go-cli"
+        self.assertEqual(json.loads((go / "toolchain-lock.json").read_text())["tools"]["go"], "1.27.3")
+        self.assertIn("go version go1.27.3 linux/amd64", (go / "scripts/operations.sh").read_text())
+        self.assertEqual((go / "go.mod").read_text().splitlines()[2], "go 1.27.3")
+        catalog = json.loads((ROOT / "providers/polyglot.catalog.json").read_text())
+        provider = next(row for row in catalog["providers"] if row["id"] == "go-cli")
+        self.assertIn({"id": "go", "version": "1.27.3", "platforms": ["linux-x64"]}, provider["tools"])
+        checker = (ROOT / "template/polyglot-common/security-result.py").read_text()
+        self.assertIn("go1.27.3", checker)
+        self.assertNotIn("1.27.1", checker)
+        audit = (ROOT / "templates/fs-gg-rust-cli/.cargo/audit.toml").read_text()
+        self.assertRegex(audit, r"(?m)^\[output\]\n(?:.*\n)*?quiet = false$")
+        for row in catalog["providers"]:
+            self.assertTrue(all(c["binding"]["costClass"] == "medium" for c in row["capabilities"]))
     def test_actual_source_closure(self):
         self.assertEqual(len(contract.validate_source(ROOT)), 14)
     def test_required_go_module_refusal(self):

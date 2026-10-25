@@ -53,9 +53,10 @@ in_carrier sh -c "set -e; mkdir -p /opt/q1/src /opt/q1/advisory; cd /opt/q1/src
     echo GO_ADVISORY_COMMIT=\$(git -C vulndb rev-parse HEAD); echo GO_ADVISORY_EPOCH=\$(git -C vulndb log -1 --format=%ct); } > /opt/q1/advisory/sources.env"
 cp "$R/opt/q1/advisory/sources.env" "$ROOT/work/advisory-sources.env"
 # 6. Published CLIs from nuget.org and the immutable SDD driver source.
-for pair in "fs.gg.sdd.cli:$SDD_CLI_VERSION:x-sdd" "fs.gg.governance.cli:$GOVERNANCE_CLI_VERSION:x-gov"; do
-  IFS=: read -r id version dir <<<"$pair"
+for pair in "fs.gg.sdd.cli:$SDD_CLI_VERSION:x-sdd:$SDD_CLI_SHA256" "fs.gg.governance.cli:$GOVERNANCE_CLI_VERSION:x-gov:$GOVERNANCE_CLI_SHA256"; do
+  IFS=: read -r id version dir digest <<<"$pair"
   curl -fsSL -o "$ROOT/dl/$id.$version.nupkg" "https://api.nuget.org/v3-flatcontainer/$id/$version/$id.$version.nupkg"
+  echo "$digest  $ROOT/dl/$id.$version.nupkg" | sha256sum -c -
   mkdir "$ROOT/dl/$dir"; bsdtar -xf "$ROOT/dl/$id.$version.nupkg" -C "$ROOT/dl/$dir"
 done
 git clone -q --no-hardlinks --no-checkout https://github.com/FS-GG/FS.GG.SDD.git "$ROOT/sdd-src"

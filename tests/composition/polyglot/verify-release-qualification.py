@@ -36,9 +36,12 @@ def payload_identity(archive):
         names = [info.filename for info in package.infolist() if not info.is_dir()]
         if len(names) != len(set(names)):
             raise ValueError("duplicate archive entries refused")
+        roots = [name for name in names if "/" not in name and name.endswith(".nuspec")]
+        if len(roots) != 1:
+            raise ValueError("exactly one top-level nuspec is required")
         for name in sorted(names):
             data = package.read(name)
-            if name.endswith(".nuspec"):
+            if name == roots[0]:
                 data = re.sub(rb'(<repository\b[^>]*\bcommit=")[0-9a-f]{40}(")', rb"\1\2", data)
             lines.append("%s  %s\n" % (hashlib.sha256(data).hexdigest(), name))
     return hashlib.sha256("".join(lines).encode("utf-8")).hexdigest()

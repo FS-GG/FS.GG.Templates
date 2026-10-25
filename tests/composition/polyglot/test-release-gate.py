@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import warnings
 import zipfile
 
 HERE = Path(__file__).resolve().parent
@@ -84,6 +85,31 @@ class ReleaseGate(unittest.TestCase):
             path.write_text(document)
             with self.assertRaises(ValueError):
                 gate.load_register(path)
+    def test_duplicate_entries_are_refused(self):
+        path = self.dir / "dup.nupkg"
+        with zipfile.ZipFile(path, "w") as package:
+            package.writestr("X.nuspec", NUSPEC % (b"a" * 40))
+            package.writestr("content/templates/fs-gg-go-cli/main.go", b"one")
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                package.writestr("content/templates/fs-gg-go-cli/main.go", b"two")
+        with self.assertRaisesRegex(ValueError, "duplicate archive entries"):
+            gate.payload_identity(path)
+    def test_renamed_entry_changes_the_identity(self):
+        first = archive(self.dir, "a.nupkg", {"content/templates/fs-gg-go-cli/main.go": b"x"})
+        renamed = archive(self.dir, "b.nupkg", {"content/templates/fs-gg-go-cli/other.go": b"x"})
+        self.assertNotEqual(gate.payload_identity(first), gate.payload_identity(renamed))
+    def test_nested_nuspec_commit_is_not_blanked(self):
+        nested = "content/templates/fs-gg-go-cli/inner.nuspec"
+        first = archive(self.dir, "a.nupkg", dict(self.polyglot, **{nested: NUSPEC % (b"a" * 40)}))
+        second = archive(self.dir, "b.nupkg", dict(self.polyglot, **{nested: NUSPEC % (b"b" * 40)}))
+        self.assertNotEqual(gate.payload_identity(first), gate.payload_identity(second))
+    def test_exactly_one_top_level_nuspec_is_required(self):
+        path = self.dir / "none.nupkg"
+        with zipfile.ZipFile(path, "w") as package:
+            package.writestr("content/templates/fs-gg-go-cli/main.go", b"x")
+        with self.assertRaisesRegex(ValueError, "exactly one top-level nuspec"):
+            gate.payload_identity(path)
     def test_committed_register_is_well_formed(self):
         self.assertIsInstance(gate.load_register(), list)
     def test_one_archive_argument_is_required(self):

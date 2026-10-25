@@ -7,9 +7,12 @@ not an admission: `acceptance` stays null until a recorded root decision names t
 
 usage: collect-evidence.py <carrier-root> <attempt-name> <archive.nupkg> <output.json>
 """
-import hashlib, json, subprocess, sys, zipfile
+import hashlib, importlib.util, json, subprocess, sys, zipfile
 from pathlib import Path
 
+_spec = importlib.util.spec_from_file_location("release_gate", Path(__file__).resolve().parents[2] / "tests/composition/polyglot/verify-release-qualification.py")
+gate = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(gate)
 root, attempt, archive, output = Path(sys.argv[1]), sys.argv[2], Path(sys.argv[3]), Path(sys.argv[4])
 work = root / "work"
 run = work / attempt
@@ -54,7 +57,7 @@ for provider in ("typescript-cli", "javascript-cli", "rust-cli", "go-cli"):
 record = {
     "schema": "fsgg.polyglot-qualification-evidence/v1",
     "archive": {"file": archive.name, "sha256": sha(archive_bytes), "bytes": len(archive_bytes), "sourceCommit": commit,
-                "entries": len(entries), "entryManifestSha256": sha(entry_manifest.encode()),
+                "entries": len(entries), "payloadIdentitySha256": gate.payload_identity(archive), "entryManifestSha256": sha(entry_manifest.encode()),
                 "entryManifestWithoutNuspecSha256": sha(stripped.encode()),
                 "note": "zip entry timestamps differ between packs; entry content digests are the reproducible identity"},
     "carrier": {
@@ -69,6 +72,9 @@ record = {
         "binarySha256": {name: carrier("sha256sum", path).split()[0] for name, path in
                          (("python", "/usr/bin/python3.14"), ("cargo-audit", "/usr/bin/cargo-audit"), ("govulncheck", "/usr/bin/govulncheck"), ("gcc", "/usr/bin/x86_64-pc-linux-gnu-gcc"))},
         "cpuLimit": "taskset -c 0-3 (4 CPUs)",
+        "checkout": {"commit": subprocess.run(["git", "-C", str(Path(__file__).resolve().parents[2]), "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip(),
+                     "clean": subprocess.run(["git", "-C", str(Path(__file__).resolve().parents[2]), "status", "--porcelain"], capture_output=True, text=True, check=True).stdout == "",
+                     "toolOutputSha256": fsha(work / "stage" / "receipts" / "owned-output.sha256")},
     },
     "inputs": {
         "catalogPolicySha256": fsha(work / "policy.json"),
@@ -83,7 +89,7 @@ record = {
     },
     "products": products,
     "verdict": "pass" if all(p["catalogAcceptancePassed"] and p["governanceVerdict"] == "pass" and len(p["gates"]) == 8
-                              and all(g["passed"] for g in p["gates"]) for p in products) else "fail",
+                              and all(g["passed"] and g["disposition"] == "executed" for g in p["gates"]) for p in products) else "fail",
     "acceptance": None,
 }
 with output.open("x") as stream:
