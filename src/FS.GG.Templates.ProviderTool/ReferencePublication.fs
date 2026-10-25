@@ -665,7 +665,7 @@ let renderSourceBuiltCompositionPlan () =
     JsonSerializer.Serialize(sourceBuiltCompositionPlan(), JsonSerializerOptions(WriteIndented = true))
 
 let validateSourceBuiltCompositionPlan (json: string) =
-    validateCompositionPlanDigest "e20543d95be38e07fcf6f8cb714f336767067d6aca2b6c9b896119762ade150d" json
+    validateCompositionPlanDigest "3343e2f42377d4eb88c2b5288f286db060f2bf24f2bad7233d271f52d526ee10" json
 
 let private descriptorCheck selectedVersion (provider: Provider) =
     let lifecycle = provider.Parameters |> List.filter (fun p -> p.Key = "lifecycle")
