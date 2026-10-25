@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import types
 
 ROOT = Path(__file__).resolve().parents[3]
 SCHEMA = "fsgg.external-reference-orca-observation/1"
@@ -38,6 +39,18 @@ TOOLS = ["dbus-run-session", "Xvfb", "openbox", "xdotool", "xprop", "xdpyinfo", 
          "pulseaudio", "speech-dispatcher", "orca", "node", "dotnet"]
 
 
+def native_input_helper(expected_sha=None):
+    path = Path(__file__).with_name('current-reference-native-input.py')
+    with path.open('rb') as stream:
+        source = stream.read(65537)
+    require(len(source) <= 65536 and (expected_sha is None or hashlib.sha256(source).hexdigest() == expected_sha),
+            'authenticated native helper bytes differ/oversized')
+    module = types.ModuleType('current_native_input')
+    module.__file__ = str(path)
+    exec(compile(source, str(path), 'exec'), module.__dict__)
+    return module
+
+
 def current_public_at_admission(environment):
     require(CURRENT_PUBLIC_AT_ADMISSION is not None,
             "current public AT held: no selected source admission")
@@ -52,6 +65,10 @@ def current_public_identity(packet, preflight, controller, plan_sha256, observer
     must supply actual custody and the typed-plan digest before this route can run.
     No current package/version/case registry is introduced here.
     """
+    native = native_input_helper(preflight['nativeInputHelperSha256'])
+    native.manifest(preflight['nativeInputFacility'])
+    require(preflight['nativeInputHelperSha256'] == digest(Path(__file__).with_name('current-reference-native-input.py')),
+            'authenticated native input helper bytes differ')
     plan = packet["currentCompositionPlan"]
     template = plan["template"]
     require(preflight["atJourney"] == LOCAL_SAVE_JOURNEY and
@@ -85,7 +102,9 @@ def current_public_identity(packet, preflight, controller, plan_sha256, observer
     return {"journey": LOCAL_SAVE_JOURNEY, "controller": controller,
             "templatePackageInput": package, "planSha256": plan_sha256,
             "observerSourceSha256": observer_sha256, "mechanicalObserverSha256": mechanical_sha256,
-            "actualProducerCustodyReadback": True}
+            "actualProducerCustodyReadback": True,
+            "nativeInputFacilitySha256": native.sha(native.canonical(preflight['nativeInputFacility'])),
+            "nativeInputHelperSha256": preflight['nativeInputHelperSha256']}
 
 
 def current_public_inputs(out, packet, preflight, controller):
@@ -1402,6 +1421,28 @@ def validate(receipt, packet, preflight, directory):
         outcome = browser_transport_outcome(directory, completion_record(directory / "browser-launch.json"), companion)
         require(canonical_projection(receipt["browser"].get("transportOutcome", {"reported": False, "stage": "not-observed"})) ==
                 canonical_projection(outcome), "current derived transport projection differs")
+    if current:
+        native = native_input_helper(preflight['nativeInputHelperSha256'])
+        report = receipt['observations']['nativeInput']
+        require(report['manifestSha256'] == identity['nativeInputFacilitySha256'], 'native input manifest join differs')
+        native.validate_report(report)
+        require('native-input-runtime.json' in receipt['evidenceSha256'], 'native input runtime evidence unbound')
+        require('native-input-facility.json' in receipt['evidenceSha256'] and
+                digest(directory / 'native-input-facility.json') == identity['nativeInputFacilitySha256'],
+                'original native facility file unbound/different')
+        native_runtime = completion_record(directory / 'native-input-runtime.json')
+        require(report['runtimeSha256'] == digest(directory / 'native-input-runtime.json'), 'original native runtime bytes changed')
+        require(completion_record(directory / 'browser-launch.json').get('nativeInputFacilitySha256') == report['manifestSha256'],
+                'original browser native capture selection differs')
+        leaders = json.loads((directory / 'resource-leaders.json').read_text())
+        require(set(native_runtime['births']) == {'bus','config','dconf','pinyin','simple'}, 'native service birth population incomplete')
+        for role, birth in native_runtime['births'].items():
+            name = {'bus':'bus','config':'config','dconf':'dconf','pinyin':'pinyin','simple':'simple'}[role]
+            require(any(v['resource'] == 'native-ime-' + name and same_birth(v, birth) for v in leaders),
+                    'native service original birth unbound: ' + role)
+        require(native_runtime['manifestSha256'] == report['manifestSha256'] and native_runtime['firstCause'] is None and
+                native_runtime['clientMapping']['roles'] == {k: preflight['nativeInputFacility']['objects'][k] for k in ['gtk3','ibusGtk3']},
+                'native module/runtime evidence differs')
     sequences = [e["eventSequence"] for e in receipt["actions"]]
     require(sequences == sorted(set(sequences)), "keyboard event replay or ordering drift")
     speech_path = directory / "orca-debug.log"
@@ -1505,17 +1546,38 @@ function captureInnerResultDigest(file,read=readInnerResult){try{const raw=read(
 function realKeyRecorder(){window.__externalKeys=[];window.__externalKeySequence=0;document.addEventListener('keydown',e=>{if(!e.isTrusted)return;
    window.__externalKeys.push({sequence:++window.__externalKeySequence,key:e.key,text:e.target.textContent?.trim(),id:e.target.id,parentId:e.target.parentElement?.id});window.__externalKeys=window.__externalKeys.slice(-128);
   },true)}
+function nativeInputRecorder(){
+ window.__nativeInput={events:[],sequence:0,overflow:false};
+ window.__nativeInputSnapshot=function(){
+ const state=window.__nativeInput;if(!state)return null;
+ if(state.overflow)throw Error('native input event capture exceeded');
+ const notes=document.querySelectorAll('#fourd-reference-note'),note=notes[0],root=document.querySelector('#fourd-reference');
+ if(notes.length>1)throw Error('native input target ambiguous');
+ if(notes.length===0&&!root)return {count:0,focused:false,events:state.events};
+ if(notes.length!==1||!root)throw Error('native input target partial');
+ if(note.value.length>256)throw Error('native input value exceeded');
+ return {count:notes.length,id:note.id,label:note.getAttribute('aria-label'),tag:note.tagName,focused:document.activeElement===note,value:note.value,commandOrder:root.getAttribute('data-command-order'),agentFullCell:root.getAttribute('data-agent-full-cell'),events:state.events};
+ };
+ for(const type of ['keydown','compositionstart','compositionupdate','compositionend','beforeinput','input','focusin','focusout'])document.addEventListener(type,e=>{
+  if(e.target?.id!=='fourd-reference-note')return;
+  const data=typeof e.data==='string'?e.data:null,key=typeof e.key==='string'?e.key:null,code=typeof e.code==='string'?e.code:null;
+  if((data?.length||0)>64||(key?.length||0)>64||(code?.length||0)>64||window.__nativeInput.events.length>=128){window.__nativeInput.overflow=true;return}
+  window.__nativeInput.events.push({sequence:++window.__nativeInput.sequence,type:e.type,trusted:e.isTrusted===true,id:e.target.id,data,key,code,isComposing:e.isComposing===true});
+ },true)
+}
+function nativeInputSnapshot(){return window.__nativeInputSnapshot?window.__nativeInputSnapshot():null}
+
 async function drainSample(pending,{deadline,clock=()=>performance.now(),timers={set:setTimeout,clear:clearTimeout}}){
  if(!pending)return;const left=Math.min(1000,deadline-clock());demand(left>0,'original sample drain deadline expired');let timer;
  try{await Promise.race([pending,new Promise((_,reject)=>{timer=timers.set(()=>reject(Error('original sample drain unresolved')),left)})])}finally{timers.clear(timer)}
 }
-async function attachOwnedPage(chromium,transport,remaining,artifactsDir){
+async function attachOwnedPage(chromium,transport,remaining,artifactsDir,nativeInput=false){
   demand(typeof artifactsDir==='string'&&path.isAbsolute(artifactsDir),'private artifacts directory absent');
   const browserConnection=await chromium.connectOverCDP(transport,{noDefaults:true,timeout:remaining(),artifactsDir});
   const contexts=browserConnection.contexts();demand(contexts.length===1,'CDP default context missing or ambiguous');
   const context=contexts[0];context.setDefaultTimeout(remaining());context.setDefaultNavigationTimeout(remaining());
   const pages=context.pages();demand(pages.length===1&&pages[0].url()==='about:blank','CDP initial page missing or ambiguous');const page=pages[0];
-  await page.addInitScript(realKeyRecorder);remaining();
+  await page.addInitScript(realKeyRecorder);if(nativeInput)await page.addInitScript(nativeInputRecorder);remaining();
   await page.goto('http://127.0.0.1:5100/',{timeout:remaining()});
   await page.getByRole('button',{name:'Mount external authority reference',exact:true}).waitFor({timeout:remaining()});
  return page;
@@ -1538,7 +1600,7 @@ function referenceDomSnapshot(){
     }
    }
    const root=document.querySelector('#external-authority-reference'),active=document.activeElement;
-   return {documentHasFocus:document.hasFocus(),active:{text:active?.textContent?.trim(),id:active?.id,parentId:active?.parentElement?.id},reference:root?{...Object.fromEntries([...root.attributes].filter(a=>a.name.startsWith('data-')).map(a=>[a.name.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase()),a.value])),rootCount:document.querySelectorAll('#external-authority-reference').length,statusCount:root.querySelectorAll(':scope > [role="status"]').length,status:root.querySelector(':scope > [role="status"]')?.textContent,directButtons:[...root.querySelectorAll(':scope > button')].map(b=>b.textContent)}:null,localReference:local,keys:window.__externalKeys};
+   return {documentHasFocus:document.hasFocus(),active:{text:active?.textContent?.trim(),id:active?.id,parentId:active?.parentElement?.id},reference:root?{...Object.fromEntries([...root.attributes].filter(a=>a.name.startsWith('data-')).map(a=>[a.name.slice(5).replace(/-([a-z])/g,(_,c)=>c.toUpperCase()),a.value])),rootCount:document.querySelectorAll('#external-authority-reference').length,statusCount:root.querySelectorAll(':scope > [role="status"]').length,status:root.querySelector(':scope > [role="status"]')?.textContent,directButtons:[...root.querySelectorAll(':scope > button')].map(b=>b.textContent)}:null,localReference:local,keys:window.__externalKeys,nativeInput:window.__nativeInputSnapshot?window.__nativeInputSnapshot():null};
 }
 async function runCompanion(argv,{getChromium,Socket,clock=()=>performance.now(),now=Date.now}={}){
  demand(process.version==='v26.10.0','selected Node runtime differs');
@@ -1557,7 +1619,7 @@ async function runCompanion(argv,{getChromium,Socket,clock=()=>performance.now()
  try{
   await transport.ready;left();
   const chromium=getChromium?getChromium():require(path.join(receiver,'Browser.Tests/node_modules/@playwright/test')).chromium;
-  const page=await attachOwnedPage(chromium,transport,left,path.dirname(out));
+  const page=await attachOwnedPage(chromium,transport,left,path.dirname(out),Boolean(launch.nativeInputFacilitySha256));
   let sequence=0,sampling=false,pendingSample=null;
   async function sample(){if(stopping||sampling)return;sampling=true;try{left();demand(sameBirth(readBirth(browser.pid),browser),'original browser birth changed during sampling');const value=await page.evaluate(referenceDomSnapshot);left();atomic(out,{sequence:++sequence,at:now(),...value})}finally{sampling=false}}
   await sample();demand(page.url()==='http://127.0.0.1:5100/','owned server navigation changed');
@@ -1629,7 +1691,7 @@ async function adapterSelfTest(){
  }
  console.log(JSON.stringify({schema:'fsgg.at-browser-adapter-controls/1',names:checked,count:checked.length,network:0,browserLaunches:0}));return checked;
 }
-module.exports={referenceDomSnapshot,drainSample,attachOwnedPage,transportAdapter,deadlineFromBudget,endpointIdentity,runCompanion,adapterSelfTest};
+module.exports={nativeInputRecorder,nativeInputSnapshot,referenceDomSnapshot,drainSample,attachOwnedPage,transportAdapter,deadlineFromBudget,endpointIdentity,runCompanion,adapterSelfTest};
 if(require.main===module){(process.argv[2]==='--self-test'?adapterSelfTest():runCompanion(process.argv.slice(2))).catch(error=>{console.error('BROWSER_COMPANION_FIRST_CAUSE '+error.message);process.exitCode=1})}
 
 '''
@@ -1773,8 +1835,9 @@ def fresh_browser_profile(profile):
     return browser_profile_identity(profile)
 
 
-def browser_argv(executable, profile):
-    return [executable, *BROWSER_FLAGS, '--user-data-dir='+str(profile), '--remote-debugging-port=0', 'about:blank']
+def browser_argv(executable, profile, native_input=False):
+    flags = ['--ozone-platform=x11', '--gtk-version=3'] if native_input else []
+    return [executable, *flags, *BROWSER_FLAGS, '--user-data-dir='+str(profile), '--remote-debugging-port=0', 'about:blank']
 
 
 def check_node_tool(directory):
@@ -2130,7 +2193,7 @@ def browser_evidence(directory, receipt, runtime, leaders):
     require(launch['schema'] == BROWSER_SCHEMA and launch['sourceSha256'] == digest(Path(__file__).resolve()) and
             launch['playwrightSourceSha256'] == BROWSER_PLAYWRIGHT_SOURCE_SHA and launch['nodeSourceCommit'] == BROWSER_NODE_SOURCE and
             launch['companionSourceSha256'] == digest(directory / 'browser.cjs') == hashlib.sha256(BROWSER.encode()).hexdigest() and
-            launch['argv'] == browser_argv(launch['executable']['path'], directory / 'profile') and
+            launch['argv'] == browser_argv(launch['executable']['path'], directory / 'profile', 'nativeInputFacilitySha256' in launch) and
             launch['profile']['path'] == str(directory / 'profile') and launch['profile']['uid'] == json.loads((directory / 'owned-bus-route.json').read_text())['uid'] and
             launch['nodeTool'] == json.loads((directory / 'tool-identities.json').read_text())['node'] and
             launch['executable']['lockSha256'] == BROWSER_LOCK_SHA and launch['executable']['packageSha256'] == BROWSER_PACKAGE_SHA and
@@ -2419,6 +2482,23 @@ def inner(receiver, directory, gio_adapter=None):
         require(owner == runtime["sessionContract"]["uniqueOwner"] and pid == status.pid and
                 same_birth(proc(pid), status_birth) and current_address == address and values == keyfile_status(directory),
                 "session contract readiness/liveness drift")
+    native_runtime = None
+    if (directory / 'current-public-at.json').is_file():
+        identity = completion_record(directory / 'current-public-at.json')
+        native = native_input_helper(identity['nativeInputHelperSha256'])
+        def query(argv):
+            prerequisite_health()
+            remaining = session_deadline-time.monotonic()
+            require(remaining > 0, 'original native input command deadline exhausted')
+            value = subprocess.check_output(argv, text=True, timeout=min(10, remaining))
+            require(time.monotonic() < session_deadline and len(value.encode()) <= 1024*1024, 'native query late/oversized')
+            return value
+        facility_path = directory / 'native-input-facility.json'
+        require(facility_path.stat().st_size <= 65536, 'native facility oversized')
+        facility = native.read_manifest(facility_path.read_text())
+        require(native.sha(native.canonical(facility)) == identity['nativeInputFacilitySha256'], 'native facility input changed')
+        native_runtime = native.start(directory, facility, launch, command, query,
+                                      prerequisite_health, session_deadline, write, proc, same_birth)
     prerequisite_health()
     launch(["pulseaudio", "-n", "--daemonize=no", "--exit-idle-time=-1", "--log-target=stderr",
             "--load=module-native-protocol-unix socket=" + str(directory / "pulse.sock"),
@@ -2454,7 +2534,7 @@ def inner(receiver, directory, gio_adapter=None):
     require(browser_profile_identity(profile) == profile_identity and not list(profile.iterdir()), "fresh browser profile changed before foreground launch")
     (directory / "browser.cjs").write_text(BROWSER)
     prerequisite_health()
-    argv = browser_argv(executable["path"], profile)
+    argv = browser_argv(executable["path"], profile, native_runtime is not None)
     browser = launch(argv, "browser")
     browser_birth = proc(browser.pid)
     require(browser_birth["pgid"] == browser_birth["sid"] == os.getsid(0), "foreground browser changed original process group")
@@ -2464,6 +2544,8 @@ def inner(receiver, directory, gio_adapter=None):
         "executable": executable, "nodeTool": node_tool, "argv": argv, "profile": profile_identity, "endpoint": endpoint,
         "browserBirth": {k: browser_birth[k] for k in ["pid", "start", "ppid", "sid", "pgid"]},
         "companionSourceSha256": digest(directory / "browser.cjs"), "absoluteDeadline": session_deadline}
+    if native_runtime is not None:
+        launch_record['nativeInputFacilitySha256'] = native_runtime['evidence']['manifestSha256']
     write(directory / "browser-launch.json", launch_record)
     remaining = (session_deadline-time.monotonic())*1000
     require(remaining > 0, "original companion launch deadline expired")
@@ -2495,7 +2577,10 @@ def inner(receiver, directory, gio_adapter=None):
         check_browser_endpoint(profile, endpoint)
         require(browser_listener(browser.pid, endpoint["port"]) == endpoint["listener"], "original browser listener changed")
     browser_health()
-    observe(directory, orca.pid, browser.pid, browser_health)
+    if native_runtime is None:
+        observe(directory, orca.pid, browser.pid, browser_health)
+    else:
+        observe(directory, orca.pid, browser.pid, browser_health, native_runtime)
     browser_health()
     require(all(child.poll() is None for child in children), "required AT/browser service exited")
     parent_birth = proc(os.getpid())
@@ -2912,7 +2997,7 @@ def command_recovery_sequence_self_test():
     return ["actual-observer-recovery-sequence-original-generation", "old-generation-reconciliation-remains-refused"]
 
 
-def observe(directory, orca_pid, browser_pid, health=lambda: None):
+def observe(directory, orca_pid, browser_pid, health=lambda: None, native_runtime=None):
     import gi
     gi.require_version("Atspi", "2.0")
     from gi.repository import Atspi
@@ -3027,8 +3112,22 @@ def observe(directory, orca_pid, browser_pid, health=lambda: None):
     if current:
         require(json.loads((directory / "current-public-at.json").read_text())["journey"] == LOCAL_SAVE_JOURNEY,
                 "local journey selection differs")
-        record_local_observation(lambda: observe_local_save(press, dom, wait, local_speech, speech_offset,
-                                                            local_controls_absent, observations), record)
+        def current_journeys():
+            require(native_runtime is not None, 'selected native input runtime absent')
+            native = native_input_helper(completion_record(directory / 'current-public-at.json')['nativeInputHelperSha256'])
+            value = native_runtime['manifest']
+            mapped = native.file_mappings(actual_browser_pid, value, ['gtk3', 'ibusGtk3'],
+                                          proc(actual_browser_pid), same_birth, proc)
+            native_runtime['evidence']['clientMapping'] = mapped
+            write(directory / 'native-input-runtime.json', native_runtime['evidence'])
+            def native_key(key):
+                native_runtime['live']()
+                native_runtime['command']([native_runtime['tool']('xdotool'), 'key', '--clearmodifiers', key])
+            observations['nativeInput'] = {}
+            native.journey(native_runtime, dom, wait, focused, health, native_key, observations['nativeInput'])
+            observations['nativeInput']['runtimeSha256'] = digest(directory / 'native-input-runtime.json')
+            observe_local_save(press, dom, wait, local_speech, speech_offset, local_controls_absent, observations)
+        record_local_observation(current_journeys, record)
     else:
         observe_command_recovery(press, dom, wait, speech, speech_offset, observations)
         record()
@@ -3331,6 +3430,8 @@ def qualify(out, preflight_path, termination, current_public=False):
     shutil.copyfile(packet_path, directory / "source-qualification.json")
     if current_public:
         write(directory / "current-public-at.json", current_identity)
+        native = native_input_helper()
+        (directory / 'native-input-facility.json').write_bytes(native.canonical(preflight['nativeInputFacility']))
         shutil.copyfile(out / "current-composition-plan.json", directory / "current-composition-plan.json")
     shutil.copyfile(activation, directory / "activation-provenance.json")
     # A short fresh mode0700 root avoids UNIX socket path truncation. Retain it on unknown cleanup.
@@ -3375,6 +3476,8 @@ def qualify(out, preflight_path, termination, current_public=False):
         receipt["currentPublicAt"] = current_identity
         receipt["evidenceSha256"].update({name: digest(directory / name) for name in
                                          ["current-public-at.json", "current-composition-plan.json"]})
+        receipt['evidenceSha256']['native-input-runtime.json'] = digest(directory / 'native-input-runtime.json')
+        receipt['evidenceSha256']['native-input-facility.json'] = digest(directory / 'native-input-facility.json')
         receipt.update(localSaveStorage="synthetic-in-memory", durableSaveAcceptance=False,
                        providerMatrixAcceptance=False, nativeImeAcceptance=False, whole4817Acceptance=False)
     try:
@@ -3592,7 +3695,7 @@ def contract_fixture_evidence(directory, activation, runtime, leaders, parent_bi
     return contract
 
 
-def route_fixture_evidence(directory, activation, uid=1000, complete=True):
+def route_fixture_evidence(directory, activation, uid=1000, complete=True, native_facility_sha=None):
     sockets = {name: "/tmp/fsgg-at-fixture/"+name+".sock" for name in ["session", "accessibility"]}
     for name, socket in sockets.items():
         (directory / (name+".conf")).write_bytes(closed_bus_config(socket, uid))
@@ -3621,7 +3724,7 @@ def route_fixture_evidence(directory, activation, uid=1000, complete=True):
         leaders.append({'resource': 'orca', **orca_birth})
     write(directory / "resource-leaders.json", leaders)
     write(directory / "owned-bus-runtime.json", runtime)
-    browser_fixture_evidence(directory, browser, launcher, uid, complete)
+    browser_fixture_evidence(directory, browser, launcher, uid, complete, native_facility_sha)
 
 
 def browser_fixture_executable():
@@ -3645,7 +3748,7 @@ def browser_fixture_ready(launch, launch_sha, companion):
             'pageURL': 'http://127.0.0.1:5100/', 'sampleSequence': 1}
 
 
-def browser_fixture_evidence(directory, browser, companion, uid=1000, complete=True):
+def browser_fixture_evidence(directory, browser, companion, uid=1000, complete=True, native_facility_sha=None):
     write(directory / 'tool-identities.json', {'node': {'path': '/selected/node', 'sha256': 'a'*64}})
     (directory / 'browser.cjs').write_text(BROWSER)
     (directory / 'browser-companion.log').write_text('')
@@ -3655,6 +3758,9 @@ def browser_fixture_evidence(directory, browser, companion, uid=1000, complete=T
              'profile': {'path': str(directory / 'profile'), 'device': 1, 'inode': 2, 'uid': uid},
              'endpoint': browser_fixture_endpoint(), 'browserBirth': {k: browser[k] for k in ['pid', 'start', 'ppid', 'pgid', 'sid']},
              'companionSourceSha256': digest(directory / 'browser.cjs'), 'absoluteDeadline': 300}
+    if native_facility_sha is not None:
+        value['nativeInputFacilitySha256'] = native_facility_sha
+        value['argv'] = browser_argv(value['executable']['path'], directory / 'profile', True)
     write(directory / 'browser-launch.json', value)
     write(directory / 'browser-companion-ready.json', browser_fixture_ready(value, digest(directory / 'browser-launch.json'), companion))
     if complete:

@@ -40,6 +40,10 @@ def inputs():
                  "actualProducerCustodyReadback": True, "producer": {"revision": "e" * 40, "custodySha256": "f" * 64},
                  "disposition": "preflight-passed", "requestedPhase": "full",
                  "caller": {"repository": "FS-GG/FS.GG.Rendering", "revision": "3" * 40, "run": "1", "attempt": "1"}}
+    spec = importlib.util.spec_from_file_location('native_fixture_controls', Path(__file__).with_name('test-current-reference-native-input.py'))
+    controls = importlib.util.module_from_spec(spec); spec.loader.exec_module(controls)
+    preflight['nativeInputFacility'] = controls.fixture()
+    preflight['nativeInputHelperSha256'] = O.digest(Path(__file__).with_name('current-reference-native-input.py'))
     return packet, preflight, controller
 
 
@@ -351,14 +355,27 @@ class CurrentAtTests(unittest.TestCase):
             O.write(directory / "source-qualification.json", packet)
             journey = {"process": {"name": "orca", "pid": 62}, "browser": {"family": "chromium", "pid": 2, "launcherPid": 2, "companionPid": 60},
                        "actions": fixture.actions, "observations": fixture.observations, "journey": O.LOCAL_SAVE_JOURNEY, "firstCause": None}
+            native = O.native_input_helper()
+            spec = importlib.util.spec_from_file_location('native_report_fixture', Path(__file__).with_name('test-current-reference-native-input.py'))
+            controls = importlib.util.module_from_spec(spec);spec.loader.exec_module(controls)
+            journey['observations']['nativeInput'] = controls.report_fixture(identity['nativeInputFacilitySha256'])
+            (directory / 'native-input-facility.json').write_bytes(native.canonical(preflight['nativeInputFacility']))
             O.write(directory / "journey.json", journey)
             activation = O.route_fixture()
-            O.route_fixture_evidence(directory, activation)
+            births={role:dict(pid=n,start=n,ppid=42,sid=42,pgid=42) for n,role in enumerate(['bus','config','dconf','pinyin','simple'],100)}
+            O.write(directory/'native-input-runtime.json',dict(manifestSha256=identity['nativeInputFacilitySha256'],firstCause=None,births=births,
+                clientMapping={'roles':{k:preflight['nativeInputFacility']['objects'][k] for k in ['gtk3','ibusGtk3']}}))
+            journey['observations']['nativeInput']['runtimeSha256'] = O.digest(directory/'native-input-runtime.json')
+            O.write(directory/'journey.json',journey)
+            O.route_fixture_evidence(directory, activation, native_facility_sha=identity['nativeInputFacilitySha256'])
+            leaders=json.loads((directory/'resource-leaders.json').read_text())
+            leaders += [dict(resource='native-ime-'+role,**birth) for role,birth in births.items()]
+            O.write(directory/'resource-leaders.json',leaders)
             cleanup = {"disposition": "observed-empty", "unknown": [], "remaining": []}
             O.write(directory / "process-result.json", {"exit": 0, "firstCause": None, "cleanup": cleanup})
             names = ["orca.log", "orca-debug.log", "process-result.json", "source-qualification.json", "activation-provenance.json",
                      "owned-bus-route.json", "owned-bus-runtime.json", "session.conf", "accessibility.conf", "session-contract-state.json",
-                     "session-budget.json", "journey.json", "current-public-at.json", "current-composition-plan.json", *O.FINISH_FILES, *O.BROWSER_FILES]
+                     "session-budget.json", "journey.json", "current-public-at.json", "current-composition-plan.json", "native-input-runtime.json", "native-input-facility.json", *O.FINISH_FILES, *O.BROWSER_FILES]
             receipt = {"schema": O.SCHEMA, "result": "passed", "templates": packet["templates"], "caller": preflight["caller"],
                        "producer": preflight["producer"], **journey, "currentPublicAt": identity, "keyboard": "xdotool-X11",
                        "speechBoundary": "Orca SPEECH OUTPUT", "physicalAudioHardware": "not-observed", "cleanup": cleanup,
@@ -395,7 +412,8 @@ class CurrentAtTests(unittest.TestCase):
             for action in altered["actions"]:
                 action["eventSequence"] += 100
             for observation in altered["observations"].values():
-                observation["sampleSequence"] += 100
+                if 'sampleSequence' in observation:
+                    observation["sampleSequence"] += 100
             with self.assertRaisesRegex(RuntimeError, "original journey projection"):
                 O.validate(altered, packet, preflight, directory)
             for field, value in [("actions", []), ("observations", {}),

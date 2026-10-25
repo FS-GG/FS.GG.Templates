@@ -27,6 +27,11 @@ def validate_current_at_registration(workflow):
     section = candidate[start:stop]
     assert section.count(command) == 1 and 'if:' not in section, 'AT pure controls missing from reusable preflight'
     assert stop <= candidate.index('      - name: Verify native producer run'), 'AT pure controls occur after acquisition'
+    native_command = 'PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-native-input.py'
+    for path in ['current-reference-native-input.py', 'test-current-reference-native-input.py']:
+        assert "      - 'tests/composition/fable-game/" + path + "'" in workflow, 'native input source path not watched'
+    assert static.count(native_command) == 1 and section.count(native_command) == 1, 'native input pure controls absent before acquisition'
+    assert '      native-input-facility:' in workflow and 'FSGG_CURRENT_NATIVE_INPUT_FACILITY: ${{ inputs.native-input-facility }}' in workflow, 'facility input binding absent'
     return True
 
 validate_current_at_registration(text)
