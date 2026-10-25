@@ -33,3 +33,21 @@ The Go positive format is grounded in pinned scanner source `e672cbe8fbc8c76e28f
 The previous source checkpoint `d5dca4a` and disabled pure08 remain preserved with their three independent review findings; pure08 was not executed. The repaired source requires its own exact preimage/controller selection and cannot inherit the accepted931214e result.
 
 Operator notes from the independent source review. Every operation creates exclusive `artifacts/<operation>-custody` and `artifacts/<operation>-work` directories before probing tools, so a refusal (missing tool or role, drift) leaves them in place and a repeat of that operation is refused until a human removes them. Staging copies only the named source namespaces (for example, Go stages `go.mod`, `main.go`, `main_test.go` and `scripts`): an added Go package, `build.rs` or other new top-level source is not executed, and widening those namespaces is a deliberate source change that remains open hardening, not an accepted guarantee. `dotnet new --packageIdentity @scope/pkg` is read by the template CLI as a response file; use `--packageIdentity=@scope/pkg`. The composition content-exclusion leg supplies fixed inert values for each template's required parameter symbols so the four providers are instantiated and graded rather than skipped.
+
+## Project knowledge composition
+
+The four single-lane catalog providers receive the canonical project-knowledge workflow and checker
+from [`template/project-knowledge`](../template/project-knowledge), projected at pack time by
+[`FS.GG.Templates.csproj`](../FS.GG.Templates.csproj). The catalog exposes no lifecycle switch, so these
+assets are unconditional. Their bytes and package inventory are checked by the polyglot composition lane.
+
+SDD initialization owns the canonical store, schema, capture guide and cache exclusions; Templates
+does not author a second store. The shared checker requires initialized knowledge and an exact stable
+local SDD pin at least 2.1.0, then delegates schema, exclusions and the 10,485,760-byte current-record
+budget to that producer's `knowledge check`. Existing owner files retain the template engine's ordinary
+no-clobber refusal; the Wizard checks the selected archive's overlay before creating a target.
+
+This source correction supports [the Wizard knowledge obligation](https://github.com/FS-GG/.github/issues/3010#issuecomment-6364410404).
+Published Workspace.Template 0.20.0 lacks this overlay in all four payloads. A coherent successor package,
+catalog emission and public installed checks remain necessary before claiming those providers are
+knowledge-ready. Source projection and synthetic archive controls do not establish installed acceptance.
