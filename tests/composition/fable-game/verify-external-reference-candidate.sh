@@ -11,7 +11,7 @@ templates_package="${7:-}"
 templates_package_sha="${8:-}"
 current_stage="${9:-}"
 [[ "$#" -le 9 ]]
-[[ -z "$current_stage" || "$input_mode" == current-public-composition && "$current_stage" == current-source-stage ]]
+[[ -z "$current_stage" || "$input_mode" == current-public-composition && ( "$current_stage" == current-source-stage || "$current_stage" == current-at-full ) ]]
 [[ -z "$templates_package" && -z "$templates_package_sha" || -n "$templates_package" && "$templates_package_sha" =~ ^[0-9a-f]{64}$ ]] || { echo "external template package requires exact path and SHA256" >&2; exit 1; }
 [[ "$input_mode" == candidate || "$input_mode" == public || "$input_mode" == font-disposal || "$input_mode" == current-public-composition ]] || { echo "unknown input mode" >&2; exit 1; }
 if [[ "$input_mode" == public ]]; then
@@ -23,8 +23,12 @@ if [[ "$input_mode" == font-disposal ]]; then
   [[ -z "${FsGgSvgInputVersion:-}" && -z "${FsGgSvgAuthoringVersion:-}" && -z "${FSGG_SVG_AUTHORING_VERSION:-}" ]]
 fi
 if [[ "$input_mode" == current-public-composition ]]; then
-  python3 "$root/tests/composition/fable-game/current-composition-observations.py" --check-admission
-  [[ "$current_stage" == current-source-stage ]]
+  if [[ "$current_stage" == current-at-full ]]; then
+    python3 -B "$root/tests/composition/fable-game/current-reference-at-caller.py" guard
+  else
+    python3 "$root/tests/composition/fable-game/current-composition-observations.py" --check-admission
+  fi
+  [[ "$current_stage" == current-source-stage || "$current_stage" == current-at-full ]]
   [[ -n "$templates_package" && "${FSGG_REFERENCE_PROVIDER_TOOL_DLL:-}" = /* && -f "$FSGG_REFERENCE_PROVIDER_TOOL_DLL" ]] || { echo "current composition requires its qualified typed owner and exact template archive" >&2; exit 1; }
   [[ -z "${FsGgSvgInputVersion:-}" && -z "${FsGgSvgAuthoringVersion:-}" && -z "${FSGG_SVG_AUTHORING_VERSION:-}" ]]
 fi
@@ -304,7 +308,7 @@ assert entries
 (out/'current-source-inputs.json').write_text(json.dumps({'receiver':entries,'templatePackageInput':json.loads((out/'template-package-input.json').read_text()),'producerArchives':json.loads((out/'producer-archives.json').read_text()),'producerSourceEntries':json.loads((out/'producer-source-entries.json').read_text()),'publicReadback':json.loads((out/'feed/public-readback.json').read_text())},indent=2)+'\n')
 (out/'current-source-stage.json').write_text(json.dumps({'disposition':'source-passed','browserExecuted':False,'whole4818Acceptance':False})+'\n')
 CURRENT_CONFIG
-  exit 0
+  if [[ "$current_stage" == current-source-stage ]]; then exit 0; fi
 fi
 export PLAYWRIGHT_BROWSERS_PATH="${PLAYWRIGHT_BROWSERS_PATH:-$out/browsers}"
 (cd "$out/complete/Browser.Tests" && npx playwright install chromium firefox webkit) >"$out/browser-install.log" 2>&1
@@ -371,11 +375,22 @@ if template_input:
     # Local immutable package installation does not establish released-feed installed adoption.
     assert packet['installedAcceptance'] is False and template_input['installedAcceptance'] is False
 if sys.argv[6]=='current-public-composition':
+    import runpy
+    actual=json.loads((Path(sys.argv[5])/'public-readback.json').read_text())
+    runpy.run_path(str(root/'tests/composition/fable-game/current-composition-observations.py'))['validate_public_readback'](json.loads((out/'current-composition-plan.json').read_text()),actual)
+    assert all(row['payloadMatched'] is True for row in actual['records'])
+    assert actual['custodySha256']==packet['producer']['custodyManifestSha256']
+    packet['actualProducerCustodyReadback']=True
+    packet['actualScreenReader']='not-observed'
     packet['schema']='fsgg.current-composition-source-qualification/1'
     packet['currentCompositionPlan']=json.loads((out/'current-composition-plan.json').read_text())
     packet['templatesInputSource']='exact-current-public-archive'
     packet['localSaveStorage']='synthetic-in-memory'
     packet['durableSaveAcceptance']=False
+    packet['actualAT']=False
+    packet['providerMatrixAcceptance']=False
+    packet['nativeImeAcceptance']=False
+    packet['whole4817Acceptance']=False
     packet['whole4818Acceptance']=False
 (out/'qualification.json').write_text(json.dumps(packet,indent=2)+'\n')
 PY

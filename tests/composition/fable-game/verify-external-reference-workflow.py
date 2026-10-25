@@ -46,7 +46,8 @@ assert text.index('release-custody.py verify') < text.index('actions/setup-dotne
 for step in ['actions/setup-dotnet@v6','actions/setup-node@v6','Install pinned npm','Verify loaded toolchain','Qualify exact generated','Bind successful full']:
     position=text.index(step)
     section=text[position:text.find('\n      - ',position) if '\n      - ' in text[position:] else len(text)]
-    assert 'if: ${{ !inputs.preflight-only }}' in section, step
+    expected = "if: ${{ !inputs.preflight-only || inputs.rendering-input-source == 'current-public-composition' }}" if step == 'actions/setup-dotnet@v6' else 'if: ${{ !inputs.preflight-only }}'
+    assert expected in section, step
 assert "'qualification':'not-run'" in codes[3] and "'disposition':'preflight-passed'" in codes[3]
 assert "packet['disposition']=='passed'" in codes[4]
 assert "['chromium','firefox','webkit']" in codes[4]
@@ -80,19 +81,21 @@ PRODUCER_ROWS['font-disposal']={
     'PRODUCER_ARCHIVE_SIZE_BYTES':'15073469','PRODUCER_VERSION':'0.32.3',
     'PRODUCER_PLAN':'eng/release/font-disposal-0.32.3.json',
 }
+PRODUCER_ROWS['current-public-composition']=dict(PRODUCER_ROWS['public'])
 selector_cases=[]
 def selected_producer(candidate, mode):
     assert mode in PRODUCER_ROWS, 'closed candidate/public route required'
     result={}
     for key in PRODUCER_ROWS['public']:
-        values=re.findall(r"^      "+key+r": \$\{\{ inputs\.rendering-input-source == 'font-disposal' && '([^']+)' \|\| inputs\.rendering-input-source == 'public' && '([^']+)' \|\| '([^']+)' \}\}$",candidate,re.M)
+        values=re.findall(r"^      "+key+r": \$\{\{ inputs\.rendering-input-source == 'current-public-composition' && '([^']+)' \|\| inputs\.rendering-input-source == 'font-disposal' && '([^']+)' \|\| inputs\.rendering-input-source == 'public' && '([^']+)' \|\| '([^']+)' \}\}$",candidate,re.M)
         assert len(values)==1, 'closed producer expression absent/duplicated: '+key
-        font,public,source_candidate=values[0]
+        current,font,public,source_candidate=values[0]
+        assert current==PRODUCER_ROWS['current-public-composition'][key], 'current producer row differs: '+key
         assert font==PRODUCER_ROWS['font-disposal'][key], 'font producer row identity differs: '+key
         assert public==PRODUCER_ROWS['public'][key] and source_candidate==PRODUCER_ROWS['candidate'][key], 'producer row identity differs: '+key
-        result[key]={'public':public,'candidate':source_candidate,'font-disposal':font}[mode]
+        result[key]={'public':public,'candidate':source_candidate,'font-disposal':font,'current-public-composition':current}[mode]
     return {**result,'RENDERING_INPUT_SOURCE':mode}
-for mode in ['candidate','public','font-disposal']:
+for mode in ['candidate','public','font-disposal','current-public-composition']:
     assert selected_producer(text,mode)=={**PRODUCER_ROWS[mode],'RENDERING_INPUT_SOURCE':mode}
     selector_cases.append('selector-good-'+mode)
 for mode in ['unknown','PUBLIC','public\n']:
@@ -101,7 +104,7 @@ for mode in ['unknown','PUBLIC','public\n']:
     else: raise AssertionError('unknown producer mode accepted')
     selector_cases.append('selector-bad-mode-'+repr(mode))
 for key in PRODUCER_ROWS['public']:
-    for mode in ['candidate','public','font-disposal']:
+    for mode in ['candidate','public','font-disposal','current-public-composition']:
         changed=text.replace(PRODUCER_ROWS[mode][key], 'altered-'+PRODUCER_ROWS[mode][key])
         try: selected_producer(changed,mode)
         except AssertionError: pass
@@ -135,7 +138,7 @@ for key,value in [('CALLER_REPOSITORY','FS-GG/FS.GG.Templates'),('CALLER_REPOSIT
     execute(codes[0],{**env,key:value},False)
 with tempfile.TemporaryDirectory() as directory:
     path=Path(directory); env['RUNNER_TEMP']=directory
-    for mode in ['candidate','public','font-disposal']:
+    for mode in ['candidate','public','font-disposal','current-public-composition']:
         env.update(selected_producer(text,mode))
         run={'id':int(env['PRODUCER_RUN']),'head_sha':env['PRODUCER_SOURCE'],'conclusion':'success','path':'.github/workflows/release.yml','run_attempt':1}
         artifact={'id':int(env['PRODUCER_ARTIFACT']),'expired':False,'size_in_bytes':int(env['PRODUCER_ARCHIVE_SIZE_BYTES']),'digest':'sha256:'+env['PRODUCER_ARCHIVE_SHA256'],'workflow_run':{'id':run['id'],'head_sha':run['head_sha']},'name':'rendering-source-candidate-'+run['head_sha']+'-'+env['PRODUCER_VERSION']}

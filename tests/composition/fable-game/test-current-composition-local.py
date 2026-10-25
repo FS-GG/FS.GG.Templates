@@ -128,8 +128,8 @@ class Controls(unittest.TestCase):
             for argv,message in ((['--root',fresh,'--families','chromium,opera'],'closed browser families'),
                                  (['--root',fresh,'--families','chromium,chromium'],'closed browser families'),
                                  (['--root',fresh,'--cpus','4'],'at most 3 CPUs'),
-                                 (['--root',tmp],'fresh'),
-                                 (['--root',str(L.WORKSPACE/'.fresh-inside-checkout')],'outside the checkout')):
+                                 (['--root',tmp,'--cpus','1'],'fresh'),
+                                 (['--root',str(L.WORKSPACE/'.fresh-inside-checkout'),'--cpus','1'],'outside the checkout')):
                 with self.subTest(argv=argv),self.assertRaisesRegex(ValueError,message):L.main(argv)
             self.assertFalse(Path(fresh).exists())
         self.assertEqual(os.sched_getaffinity(0),before)
