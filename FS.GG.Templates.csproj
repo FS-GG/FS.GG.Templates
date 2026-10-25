@@ -8,15 +8,12 @@
   <PropertyGroup>
     <PackageType>Template</PackageType>
     <PackageId>FS.GG.Workspace.Template</PackageId>
-    <!-- 0.19.3 is the coherent Workspace patch successor that adopts published FS.GG.Wasm 0.7.0
-         (FS.GG.Templates#748, FS-GG/FS.GG.Game#727, FS-GG/.github#4710): the Complete WASM example
-         references Contracts/Browser [0.7.0] with regenerated nuget.org and Cargo locks, builds its
-         guests from SDK 0.7.0, and materializes the self-contained bundled Worker, whose strict policy
-         deadline starts at Worker readiness with a separate startup bound. Rendering 0.32.3 defaults are
-         unchanged from 0.19.2. This is source selection, not publication: fresh occupancy,
-         original-archive release gates, both feed readbacks and public installed/provider acceptance
-         remain separate. -->
-    <Version>0.20.0</Version>
+    <!-- 0.20.1 prepares the coherent patch successor: canonical project-knowledge
+         workflow/checker projection in all four polyglot payloads and explicit durable
+         save/restore for the synthetic FourD reference. Public SDD 2.5.2 owns generated
+         tool pins and clean-doctor behavior. Same-archive qualification, publication
+         and public installed acceptance remain separate release gates. -->
+    <Version>0.20.1</Version>
     <Title>FS.GG workspace templates</Title>
     <Authors>FS-GG</Authors>
     <Description>dotnet new workspace templates for FS.GG.SDD: governance, Python, F# console/web/Fable workspaces, and distinct TypeScript, JavaScript, Rust and Go CLI providers.</Description>

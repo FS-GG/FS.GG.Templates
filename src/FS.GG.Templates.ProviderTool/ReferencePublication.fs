@@ -547,6 +547,21 @@ let private optionsAndFocusCases =
         |}
     ]
 
+// These cases require source carrying the durable fixture codec; the pinned public 0.20.0 plan is unchanged.
+let private durableLocalSaveCases =
+    [
+        {|
+            file = "two-client.spec.ts"
+            suite = ([]: string list)
+            title = "Local synthetic snapshot survives page recreation with lossless uint64 order and typed refusals"
+        |};
+        {|
+            file = "two-client.spec.ts"
+            suite = ([]: string list)
+            title = "Local synthetic snapshot storage failures and late loads preserve accepted state and settle disposal"
+        |}
+    ]
+
 // One current public execution selector for the maintained DOM composition consumer.
 // This is source data, not runtime/publication/AT/whole-Delivery acceptance.
 let currentCompositionPlan () =
@@ -641,16 +656,16 @@ let sourceBuiltCompositionPlan () =
                 families = [ "chromium"; "firefox"; "webkit" ]
                 retries = 0
                 workers = 1
-                cases = baseCompositionCases @ optionsAndFocusCases
+                cases = baseCompositionCases @ optionsAndFocusCases @ durableLocalSaveCases
             |}
-        acceptanceScope = "source-built DOM-automation composition cases (the nine maintained plus two source-only panel and focus cases) only; no published, installed, durable/product, AT or whole4818 acceptance"
+        acceptanceScope = "source-built DOM-automation composition cases including explicit durable synthetic save/load only; no published, installed, product-save, AT or whole4818 acceptance"
     |}
 
 let renderSourceBuiltCompositionPlan () =
     JsonSerializer.Serialize(sourceBuiltCompositionPlan(), JsonSerializerOptions(WriteIndented = true))
 
 let validateSourceBuiltCompositionPlan (json: string) =
-    validateCompositionPlanDigest "e20543d95be38e07fcf6f8cb714f336767067d6aca2b6c9b896119762ade150d" json
+    validateCompositionPlanDigest "3343e2f42377d4eb88c2b5288f286db060f2bf24f2bad7233d271f52d526ee10" json
 
 let private descriptorCheck selectedVersion (provider: Provider) =
     let lifecycle = provider.Parameters |> List.filter (fun p -> p.Key = "lifecycle")

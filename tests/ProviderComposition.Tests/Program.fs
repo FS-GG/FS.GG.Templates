@@ -500,9 +500,13 @@ let main _ =
         (composition.rendering, composition.game, composition.selection, "source-built")
         (sourceBuilt.rendering, sourceBuilt.game, sourceBuilt.selection, sourceBuilt.template.origin)
     let sourceBuiltIdentities = sourceBuilt.browsers.cases |> List.map (fun row -> row.file, row.suite, row.title)
-    assertEqual "source-built and published plans select the identical eleven cases: the nine maintained first, then the options and focus cases"
-        (identities, 11, 11)
-        (sourceBuiltIdentities, sourceBuiltIdentities.Length, (Set.ofList sourceBuiltIdentities).Count)
+    assertEqual "source-built plan retains every published case before the two durable fixture cases"
+        (identities, 13, 13)
+        (sourceBuiltIdentities |> List.take identities.Length, sourceBuiltIdentities.Length, (Set.ofList sourceBuiltIdentities).Count)
+    assertEqual "source-built durable cases are real browser entrypoints"
+        [ "Local synthetic snapshot survives page recreation with lossless uint64 order and typed refusals"
+          "Local synthetic snapshot storage failures and late loads preserve accepted state and settle disposal" ]
+        (sourceBuiltIdentities |> List.skip identities.Length |> List.map (fun (_, _, title) -> title))
     use compositionDocument = System.Text.Json.JsonDocument.Parse compositionJson
     let gameFields = compositionDocument.RootElement.GetProperty("game").EnumerateObject() |> Seq.map (fun row -> row.Name) |> Set.ofSeq
     assertEqual "Game has exact known lock identity without an invented raw hash" (Set.ofList [ "id"; "version"; "lockContentHash" ]) gameFields

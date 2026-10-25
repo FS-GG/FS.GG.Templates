@@ -36,7 +36,36 @@ let private completed expectedCount expected recording =
         require (count = expectedCount && state = expected) "Replay payload or cursor differs."
     | other -> failwithf "Expected completed replay: %A" other
 
+let private codecControls () =
+    let large = 9007199254740993UL
+    let example = accept large (fresh ())
+    let saved = snapshot example
+    let encoded = LocalSaveReplayCodec.encode saved |> unwrap
+    require (encoded.Contains(string large)) "Codec lost a sequence above the JavaScript integer limit."
+    require (LocalSaveReplayCodec.decode encoded = Ok saved) "Typed snapshot codec did not round trip."
+    let maximum = { saved with Revision = System.UInt64.MaxValue }
+    require
+        (maximum |> LocalSaveReplayCodec.encode |> Result.bind LocalSaveReplayCodec.decode = Ok maximum)
+        "Codec rounded a uint64 envelope revision."
+    for malformed in
+        [ encoded.Replace("fsgg.synthetic.fourd.save/1", "fsgg.synthetic.fourd.save/2")
+          encoded + "\nunknown-field"
+          encoded.Replace(string large + "@", "-1@")
+          encoded.Replace(string large + "@", "09007199254740993@")
+          encoded.Replace("-7:23:-41:89", "-7:23:-41")
+          String.replicate (LocalSaveReplayCodec.maximumCharacters + 1) "x" ] do
+        require (LocalSaveReplayCodec.decode malformed |> Result.isError) "Malformed snapshot was accepted."
+    let tooMany =
+        { saved with Value = { saved.Value with Accepted = List.replicate (LocalSaveReplayCodec.maximumAccepted + 1) (large, destination) } }
+    require (LocalSaveReplayCodec.encode tooMany |> Result.isError) "Oversize trace was saved."
+    require (LocalSaveReplayCodec.encode saved = Ok encoded) "Failed encode changed the prior saved value."
+    let wrongSession =
+        { saved with SessionId = "unrelated-session" }
+        |> LocalSaveReplayCodec.encode |> Result.bind LocalSaveReplayCodec.decode |> unwrap
+    expectRestoreRefused (function SessionRuntimeRefusal.WrongSession _ -> true | _ -> false) wrongSession example
+
 let run () =
+    codecControls ()
     // Snapshot/restore includes four distinct signed coordinates and the accepted trace.
     let initial = fresh ()
     let once = accept 10UL initial

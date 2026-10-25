@@ -18,8 +18,9 @@ that workflow passes; static package/source checks alone do not qualify it.
 The browser fixture adds four separate controls: **Synthetic inspect full cell**,
 **Save synthetic local snapshot**, **Restore synthetic local snapshot**, and
 **Replay synthetic local recording**. The live output describes accepted inspections,
-restore and preview results. Save retains a versioned snapshot in memory; restore
-starts a fresh recording epoch. The existing button listener owner removes all four
+restore and preview results. Save writes a versioned snapshot to the existing Rendering IndexedDB `GameSave` family; Restore explicitly
+loads that slot, including after page recreation, and starts a fresh recording epoch. Nothing is loaded
+automatically. The four controls remain separate from encounter gameplay. The existing button listener owner removes all four
 listeners on disposal, including listeners on retained detached controls.
 
 ## Pure entrypoints
@@ -52,13 +53,18 @@ of integer coordinates and ordered trace entries, used directly for comparison.
 It is deliberately transparent and is not a cryptographic authenticity check.
 A product must choose its own canonical codec, payload validation, hash and trust
 policy. Neither a matching digest nor an edited synthetic identity authenticates a
-save. No byte serializer, durable storage, clock, browser control or transport is
-provided here. Session snapshots contain product payload, not a complete host or
-runtime checkpoint.
+save. `LocalSaveReplayCodec` is a narrow, versioned text codec for this synthetic integer-only fixture.
+It retains the complete session/compatibility envelope, both four-coordinate cells and the ordered trace;
+uint64 values use canonical decimal strings, including values above JavaScript's exact-number range.
+The explicit save limit is 256 inspections and 32,768 characters. Oversize or malformed saves refuse;
+no snapshot or accepted state is truncated. This is not a product save format or authenticator.
+Session snapshots contain product payload, not a complete host or runtime checkpoint.
 
-SaveMigration is not used: exact-version restore refuses incompatible saves rather
-than migrating them. Migration effects, asynchronous completions, disposal and stale
-generation refusal need a later explicit integration if migration is selected.
+SaveMigration is not used: exact-version restore refuses incompatible saves rather than migrating them.
+The host allows one outstanding storage intent. A load whose accepted revision changed is superseded;
+failed writes preserve the prior stored value. Successful restore preserves the host input counter's
+monotonic order and starts the producer's new recording epoch. Disposal closes the existing persistence
+host and fences its late callbacks. No storage work runs in update, view or animation-frame callbacks.
 
 ## Finite conformance definitions and follow-up gate
 
@@ -71,7 +77,7 @@ The named xUnit entry invokes these definitions; hosted execution evidence is re
 The source workflow qualifies these controls in a generated Complete receiver through
 production Fable/Vite and Chromium, Firefox and WebKit. It retains the named .NET
 TRX, browser reports and locked package evidence. This is source-candidate composition
-from a local archive. Durable persistence, product saves, public publication,
+from a local archive. The durable reference reload cases are source-built only. Product saves, public publication,
 downloaded-only installed/retaining acceptance and actual screen-reader qualification
 of the new controls retain their separate gates; whole GAME-TEMPLATE-01 remains open.
 

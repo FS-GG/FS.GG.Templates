@@ -21,7 +21,7 @@ module Fixture =
             if info.Length > 64L * 1048576L then invalidArg "path" "Input exceeds archive bound."
             File.ReadAllBytes path
         let raw = read catalogPath
-        if raw <> Catalog.bytes "0.20.0" then failwith "Catalog differs from actual current typed producer."
+        if raw <> Catalog.bytes "0.20.1" then failwith "Catalog differs from actual current typed producer."
         let catalog = ProviderCatalogIntegrity.verify (ProviderCatalogIntegrity.digest raw) raw |> require
         let policyBytes = read policyPath
         let policy = CatalogScaffoldPolicy.parse (ProviderCatalogIntegrity.digest policyBytes) policyBytes |> require

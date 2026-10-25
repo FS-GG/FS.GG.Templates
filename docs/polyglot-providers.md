@@ -1,6 +1,6 @@
 # Four CLI provider source candidate
 
-Templates441 owns one coherent package with `typescript-cli`, `javascript-cli`, `rust-cli` and `go-cli`. The prospective coherent source version is 0.20.0 (additive MINOR); it is not published provider support. Public NuGet/tag absence was observed, while GitHub active/deleted occupancy is Unknown and still blocks publication. The typed catalog (`providers/polyglot.catalog.json`) and the tool's public-package lock were produced by a cold public restore/build of the authoring project, the sixteen public-API controls and two byte-identical emissions; security and genuine installed qualification remain held.
+The four CLI providers (`typescript-cli`, `javascript-cli`, `rust-cli` and `go-cli`) share one Workspace.Template package. Version 0.20.1 prepares the coherent patch successor to published 0.20.0: canonical knowledge assets and the durable synthetic FourD reference. The typed catalog is generated with the existing public authoring SDK 2.4.0; qualification selects public SDD CLI 2.5.2. Genuine same-archive qualification and both-feed publication remain required before adoption. The existing 0.20.0 acceptance register entry does not qualify this successor.
 
 The TypeScript payload has actual strict TypeScript sources. JavaScript has native ESM JavaScript, JSDoc and `checkJs`; it does not become a TypeScript product because the checker is shared. Rust pins its toolchain/MSRV, Cargo lock and unsafe-code prohibition. Go requires an explicit module path and prevents automatic toolchain or parent-workspace substitution. Each provider takes separate `rawName`, `packageIdentity` and `codeIdentifier` inputs. No generic F# identifier transform or new SDK executor is introduced.
 
@@ -48,6 +48,6 @@ budget to that producer's `knowledge check`. Existing owner files retain the tem
 no-clobber refusal; the Wizard checks the selected archive's overlay before creating a target.
 
 This source correction supports [the Wizard knowledge obligation](https://github.com/FS-GG/.github/issues/3010#issuecomment-6364410404).
-Published Workspace.Template 0.20.0 lacks this overlay in all four payloads. A coherent successor package,
-catalog emission and public installed checks remain necessary before claiming those providers are
+Published Workspace.Template 0.20.0 lacks this overlay in all four payloads. The prepared 0.20.1 successor,
+its generated catalog and public installed checks remain necessary before claiming those providers are
 knowledge-ready. Source projection and synthetic archive controls do not establish installed acceptance.

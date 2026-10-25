@@ -43,7 +43,7 @@ policy = {
     "knownPlatforms": ["linux-x64"], "environments": [{"id": "polyglot-local", "environment": "local"}],
     "supportedEvidenceFormats": [{"id": "fsgg.governance-handoff", "version": "2.0.0"}],
     "maximumPreflightSeconds": 120, "maximumScaffoldSeconds": 240, "toolProbes": probes,
-    "archives": [{"templateSource": "FS.GG.Workspace.Template::0.20.0", "packageId": "FS.GG.Workspace.Template", "packageVersion": "0.20.0"}],
+    "archives": [{"templateSource": "FS.GG.Workspace.Template::0.20.1", "packageId": "FS.GG.Workspace.Template", "packageVersion": "0.20.1"}],
 }
 with open(output, "x") as stream:
     json.dump(policy, stream, indent=2)

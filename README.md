@@ -327,6 +327,18 @@ any downstream registry/pin flip advertises it.
 
 ### Release notes
 
+#### 0.20.1 — project knowledge and durable synthetic reference save
+
+The TypeScript, JavaScript, Rust and Go CLI payloads now project the canonical project-knowledge
+workflow and checker. SDD initialization owns the knowledge store; qualification selects the public
+SDD 2.5.2 CLI for clean-doctor verification. The synthetic FourD reference adds explicit browser-local
+Save and Restore across page recreation, with a bounded versioned codec and lossless uint64 trace
+sequences. Failed writes, incompatible saves and superseded loads preserve the accepted state.
+This reference does not establish product durable-save or assistive-technology acceptance.
+
+This version is prepared in source. Genuine same-archive four-product qualification, both-feed
+publication and public installed acceptance remain required before downstream adoption.
+
 #### 0.13.0 — installed SVG replay, network and scale preview
 
 The explicitly selected `svgFoundation` profile now composes the public Rendering 0.31.0, Game 0.16.0, Net 0.6.0 and Audio 0.6.0 releases. It includes replay/rules analysis in the optional Studio, authoritative two-client reconnect/review, and bounded large-world scale behavior. The ordinary Player build remains free of Studio and replay-analysis code, and the default generated game remains unchanged.
