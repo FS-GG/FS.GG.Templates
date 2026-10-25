@@ -156,6 +156,45 @@ class AcquisitionControls(unittest.TestCase):
             with self.subTest(old=old),self.assertRaises((AssertionError,ValueError)):
                 validate(workflow.replace(old,new))
 
+    def test_late_receipt_persistence_cannot_return_success_or_retry(self):
+        now=[0];budget=A.Budget(1,lambda:now[0])
+        fixture=self.fixture
+        def fetch(uri,sha,size,target,budget):
+            target.write_bytes(b'binary' if uri.endswith('/Packages.xz') else b'source')
+            return target
+        indexes={c+'/'+kind:('a'*64,1) for c in A.COMPONENTS
+                 for kind in ['binary-amd64/Packages.xz','source/Sources.xz']}
+        real_write=Path.write_text
+        writes=[]
+        def persist(path,text,*args,**kwargs):
+            result=real_write(path,text,*args,**kwargs)
+            if path.name=='acquisition.json':
+                writes.append(path);now[0]=2
+            return result
+        # Only acquisition's package list is relevant to this clock control;
+        # native manifest shape is covered independently by its maintained tests.
+        spec=importlib.util.spec_from_file_location('clock_native',HERE/'current-reference-native-input.py')
+        native=importlib.util.module_from_spec(spec);spec.loader.exec_module(native)
+        with tempfile.TemporaryDirectory() as tmp, \
+             patch.object(A.importlib.util,'module_from_spec',return_value=native), \
+             patch.object(A.importlib.util,'spec_from_file_location') as load, \
+             patch.object(native,'manifest'), \
+             patch.object(A,'fetch',side_effect=fetch) as acquired, \
+             patch.object(A,'signed_release',return_value=indexes), \
+             patch.object(A,'rows',side_effect=lambda raw:iter(fixture['binary'] if raw==b'binary' else fixture['sources'])), \
+             patch.object(Path,'write_text',persist):
+            load.return_value.loader.exec_module=lambda _:None
+            root=Path(tmp)/'fresh'
+            with self.assertRaisesRegex(RuntimeError,'original deadline exhausted'):
+                A.acquire({'packages':fixture['packages']},root,Path(tmp)/'key',budget)
+            self.assertEqual(len(writes),1)
+            self.assertTrue((root/'acquisition.json').is_file())
+            self.assertGreater(acquired.call_count,0)
+            calls=acquired.call_count
+            with self.assertRaisesRegex(RuntimeError,'fresh acquisition output'):
+                A.acquire({'packages':fixture['packages']},root,Path(tmp)/'key',budget)
+            self.assertEqual(acquired.call_count,calls)
+
 
 if __name__=='__main__':
     unittest.main()

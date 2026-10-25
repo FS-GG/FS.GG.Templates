@@ -264,6 +264,7 @@ def acquire(manifest, out, keyring, budget=None):
                'runtimeQualification': False, 'actualAT': False, 'nativeImeAcceptance': False}
     budget.remaining()
     (out / 'acquisition.json').write_text(json.dumps(receipt, indent=2) + '\n')
+    budget.remaining()  # Persistence is part of the original operation, including a late return.
     return receipt
 
 
