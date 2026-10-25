@@ -47,7 +47,7 @@ def validate_current_at_registration(workflow):
     assert '${{ runner.temp }}/current-noble-acquisition/acquisition.json' in workflow, 'closed acquisition receipt missing'
     transaction_command = native_command.replace('test-current-reference-native-input.py', 'test-current-reference-noble-transaction.py')
     assert static.count(transaction_command) == 1 and section.count(transaction_command) == 1, 'transaction pure controls absent'
-    for path in ['current-reference-noble-transaction.py', 'test-current-reference-noble-transaction.py', 'fixtures/noble-c068-status.xz', 'fixtures/noble-source-prefix-request.json']:
+    for path in ['current-reference-noble-transaction.py', 'test-current-reference-noble-transaction.py', 'fixtures/noble-c068-status.xz', 'fixtures/noble-source-prefix-request.json', 'fixtures/apt-config-init-order.json']:
         assert "      - 'tests/composition/fable-game/" + path + "'" in workflow, 'transaction source path not watched'
     tools = static.index('Check actual Noble solver tools and c068 fixture before work')
     acquisition = static.index('Acquire signed metadata for the offline source solver')

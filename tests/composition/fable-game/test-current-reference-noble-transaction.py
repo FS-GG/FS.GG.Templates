@@ -79,8 +79,10 @@ class NoInstallControls(unittest.TestCase):
     def invoke(self,path,clock=None):
         commands=[];raw=status();base={'fixture':'1'}
         def observed(command,log,budget):
-            commands.append(command);log.write_text('update done\n' if command[-1]=='update' else self.body)
-            return 'update done\n' if command[-1]=='update' else self.body
+            commands.append(command)
+            text=''.join(item.split('=',1)[0]+' \"'+item.split('=',1)[1]+'\";\n' for item in T.options(path) if item!='-o') if command[-1]=='dump' else 'update done\n' if command[-1]=='update' else self.body
+            log.write_text(text)
+            return text
         with patch.object(T,'runtime_guard',return_value=T.A.digest(raw)),patch.object(T,'base_fixture',return_value=(raw,base)),patch.object(T,'metadata',return_value=(self.data['binary'],self.data['sources'])),patch.object(T,'read',return_value=raw),patch.object(T,'BASE_COUNT',1),patch.object(T,'BASE_SHA256',T.A.digest(T.inventory_bytes(base))):
             result=T.plan(Path('/immutable-inputs'),self.roots,path,Path('/usr/share/keyrings/ubuntu-archive-keyring.gpg'),budget=clock,run=observed)
         return result,commands
@@ -88,7 +90,7 @@ class NoInstallControls(unittest.TestCase):
     def test_real_plan_path_uses_only_update_and_simulate_and_never_claims_installation(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)/'out';result,commands=self.invoke(root)
-            self.assertEqual(2,len(commands));self.assertEqual('update',commands[0][-1]);self.assertIn('--simulate',commands[1]);self.assertIn('--no-install-recommends',commands[1])
+            self.assertEqual(3,len(commands));self.assertEqual('dump',commands[0][-1]);self.assertEqual('update',commands[1][-1]);self.assertIn('--simulate',commands[2]);self.assertIn('--no-install-recommends',commands[2])
             self.assertEqual('no-install-apt-simulation',result['actualSolver'])
             for key in ['installation','runtimeQualification','actualAT','nativeImeAcceptance']:self.assertIs(False,result[key])
             self.assertEqual('not-run',result['binaryAcquisition']);self.assertEqual('not-run',result['sourceArchiveAcquisition'])
@@ -113,7 +115,7 @@ class NoInstallControls(unittest.TestCase):
 
     def test_inert_child_failure_retains_partial_evidence_and_original_exit(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp);(root/'home').mkdir();(root/'tmp').mkdir()
+            root=Path(tmp);(root/'home').mkdir();(root/'tmp').mkdir();T.bootstrap(root)
             with self.assertRaisesRegex(RuntimeError,'original APT exit 7'):
                 T.observed([sys.executable,'-I','-c','print("original inert failure");raise SystemExit(7)'],root/'child.log',T.A.Budget(5))
             self.assertIn('original inert failure',(root/'child.log').read_text())
@@ -122,11 +124,64 @@ class NoInstallControls(unittest.TestCase):
 
     def test_launch_error_has_original_intent_and_partial_evidence_no_fake_child(self):
         with tempfile.TemporaryDirectory() as tmp:
-            root=Path(tmp)
+            root=Path(tmp);T.bootstrap(root)
             with self.assertRaises(FileNotFoundError):
                 T.observed(['/nonexistent-inert-fixture'],root/'child.log',T.A.Budget(5))
             self.assertTrue((root/'child.log.intent.json').exists())
             self.assertEqual('not-established',json.loads((root/'partial-failure.json').read_text())['childIdentity'])
+
+    def test_original_apt_source_requires_config_before_commandline_and_host_parts(self):
+        original=json.loads((HERE/'fixtures/apt-config-init-order.json').read_text())
+        cli,init=original['files']
+        self.assertIn('pkgInitConfig',cli['lines'][0]['text']);self.assertIn('CmdL.Parse',cli['lines'][1]['text'])
+        self.assertLess(cli['lines'][0]['number'],cli['lines'][1]['number'])
+        self.assertIn('APT_CONFIG',init['lines'][0]['text'])
+        self.assertIn('Dir::Etc::parts',init['lines'][1]['text']);self.assertIn('Dir::Etc::main',init['lines'][2]['text'])
+        self.assertEqual(sorted(r['number'] for r in init['lines']),[r['number'] for r in init['lines']])
+
+    def test_private_bootstrap_is_present_in_environment_before_command_line_processing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'home').mkdir();(root/'tmp').mkdir();config=T.bootstrap(root)
+            expected=['Dir::Etc::main "-";','Dir::Etc::parts "-";','Dir::Etc::netrc "-";']
+            script='import os,pathlib; s=pathlib.Path(os.environ["APT_CONFIG"]).read_text(); expected='+repr(expected)+'; assert all(v in s for v in expected); assert "GH_TOKEN" not in os.environ; print("private-before-command-line")'
+            with patch.dict(os.environ,{'APT_CONFIG':'/ambient-untrusted-config','GH_TOKEN':'inert-sentinel'}):
+                result=T.observed([sys.executable,'-I','-c',script],root/'init.log',T.A.Budget(5))
+            self.assertEqual('private-before-command-line\n',result)
+            self.assertTrue(config.is_file())
+
+    def test_actual_effective_config_must_match_private_controls_and_have_no_hooks(self):
+        root=Path('/private')
+        text=''.join(item.split('=',1)[0]+' "'+item.split('=',1)[1]+'";\n' for item in T.options(root) if item!='-o')
+        T.effective_config(text,root)
+        for bad in [text.replace('Dir::Etc::parts "-"','Dir::Etc::parts "/etc/apt/apt.conf.d"'),text+'APT::Update::Post-Invoke:: "ambient hook";\n',text+'Dir::Etc::main "-";\n','unknown-format']:
+            with self.assertRaises(RuntimeError):T.effective_config(bad,root)
+
+    def test_reporting_failure_cannot_skip_cleanup_or_replace_original_live_child_failure(self):
+        real_write=Path.write_text;real_popen=T.subprocess.Popen;children=[]
+        def writes(path,*args,**kwargs):
+            if path.name in ('partial-failure.json','retirement.json'):raise OSError('inert report failure')
+            return real_write(path,*args,**kwargs)
+        def launch(*args,**kwargs):
+            child=real_popen(*args,**kwargs);children.append(child);return child
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);(root/'home').mkdir();(root/'tmp').mkdir();T.bootstrap(root)
+            with patch.object(Path,'write_text',writes),patch.object(T.subprocess,'Popen',side_effect=launch),patch.object(T,'MAX_LOG',1):
+                with self.assertRaisesRegex(RuntimeError,'original APT output exceeded') as caught:
+                    T.observed([sys.executable,'-I','-c','import time;print("too much",flush=True);time.sleep(60)'],root/'child.log',T.A.Budget(5))
+            self.assertEqual(1,len(children));self.assertIsNotNone(children[0].returncode)
+            self.assertTrue(any('secondary reporting failure' in n for n in caught.exception.__notes__))
+
+    def test_launch_report_failure_preserves_original_launch_error(self):
+        real_write=Path.write_text
+        def writes(path,*args,**kwargs):
+            if path.name=='partial-failure.json':raise OSError('inert report failure')
+            return real_write(path,*args,**kwargs)
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);T.bootstrap(root)
+            with patch.object(Path,'write_text',writes):
+                with self.assertRaises(FileNotFoundError) as caught:
+                    T.observed(['/nonexistent-inert-fixture'],root/'child.log',T.A.Budget(5))
+            self.assertTrue(any('secondary reporting failure' in n for n in caught.exception.__notes__))
 
 
 if __name__=='__main__':unittest.main()

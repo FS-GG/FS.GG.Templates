@@ -1,0 +1,41 @@
+{
+  "scope": "Original APT2.8.3 source order, from signature/hash-joined official Ubuntu Sources; a source fixture, not APT execution.",
+  "sourcePackage": "apt",
+  "sourceVersion": "2.8.3",
+  "sourceArchiveUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/a/apt/apt_2.8.3.tar.xz",
+  "sourceArchiveSha256": "088522b3613b28fdbcfa61f1f7e476bf6dc6b0120a8f74409e9527580c9f9d3b",
+  "files": [
+    {
+      "path": "apt-private/private-cmndline.cc",
+      "sha256": "32f6c3344ef3dcbf8d0c55d00dca19f534037b399ef8b51d703477172a110ef5",
+      "lines": [
+        {
+          "number": 529,
+          "text": "   if (Cnf != NULL && pkgInitConfig(**Cnf) == false)"
+        },
+        {
+          "number": 562,
+          "text": "   if (CmdL.Parse(argc,argv) == false ||"
+        }
+      ]
+    },
+    {
+      "path": "apt-pkg/init.cc",
+      "sha256": "1de19c8ca2467df1c8ab69dc2689779cd8895e31a2fa4a4439bd5bc8feaff843",
+      "lines": [
+        {
+          "number": 230,
+          "text": "   const char *Cfg = getenv(\"APT_CONFIG\");"
+        },
+        {
+          "number": 240,
+          "text": "   std::string const Parts = Cnf.FindDir(\"Dir::Etc::parts\", \"/dev/null\");"
+        },
+        {
+          "number": 247,
+          "text": "   std::string const FName = Cnf.FindFile(\"Dir::Etc::main\", \"/dev/null\");"
+        }
+      ]
+    }
+  ]
+}

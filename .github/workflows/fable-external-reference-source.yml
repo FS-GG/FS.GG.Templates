@@ -42,6 +42,7 @@ on:
       - 'tests/composition/fable-game/test-current-reference-noble-transaction.py'
       - 'tests/composition/fable-game/fixtures/noble-c068-status.xz'
       - 'tests/composition/fable-game/fixtures/noble-source-prefix-request.json'
+      - 'tests/composition/fable-game/fixtures/apt-config-init-order.json'
       - 'tests/composition/fable-game/test-current-reference-noble-acquisition.py'
       - 'tests/composition/fable-game/current-reference-noble-metadata-fixture.json'
       - 'tests/composition/fable-game/test-current-reference-native-input.py'

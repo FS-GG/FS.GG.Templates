@@ -29,7 +29,9 @@ SPEC.loader.exec_module(N)
 BASE_COUNT = 717
 BASE_SHA256 = '2a0d25ec6ede3165dec5e7763a2556b6ed31a2f9b04292dd5c81df0b37c1cc35'
 APT = '/usr/bin/apt-get'
+APT_CONFIG_TOOL = '/usr/bin/apt-config'
 TOOL_SHA256 = {
+    APT_CONFIG_TOOL: '44ec8b9197670a2c12ed2c6b837dd623c23b641e8c491be03ccefc23dd0fba8c',
     APT: 'eb53b3b66cbb7a90a370e26439e941b7cf146ddd91a5422063c761ce9e59c53b',
     '/usr/bin/dpkg': '567180a568ad6af680314fdcb4d963246985e682b28a9e8fafed8b09abbd50af',
     '/usr/bin/dpkg-query': 'cc2a19017c37132e4ad46c1fbddea6472262d0a62a0b8585c383706c20005ea1',
@@ -118,7 +120,7 @@ def request(raw):
 def options(out):
     """c068 offline semantics plus private status/cache/config domains; no host APT configuration."""
     return ['-o', 'Dir::Etc::main=-', '-o', 'Dir::Etc::parts=-',
-            '-o','Dir::Etc::sourceparts=-','-o','Dir::Etc::preferences=-','-o','Dir::Etc::preferencesparts=-',
+            '-o','Dir::Etc::sourceparts=-','-o','Dir::Etc::netrc=-','-o','Dir::Etc::netrcparts=-','-o','Dir::Etc::preferences=-','-o','Dir::Etc::preferencesparts=-',
             '-o','Dir::Etc::sourcelist='+str(out/'sources.list'),
             '-o','Dir::State='+str(out/'state'), '-o','Dir::State::status='+str(out/'status'),
             '-o','Dir::State::extended_states='+str(out/'extended_states'),
@@ -131,9 +133,47 @@ def options(out):
             '-o','APT::Color=0','-o','Debug::NoLocking=true']
 
 
+def bootstrap(out):
+    # APT_CONFIG is loaded by pkgInitConfig BEFORE command-line -o options.
+    # Disable host config/auth/hooks at that first boundary, not after init.
+    fixed=options(out)
+    values=[item.split('=',1) for item in fixed if item!='-o']
+    for key,value in values:
+        A.need(re.fullmatch('[A-Za-z0-9_:/.-]+',key) and not any(c in value for c in ['"','\\','\n','\r']), 'unsafe private APT bootstrap value')
+    body=''.join(key+' "'+value+'";\n' for key,value in values)
+    path=out/'apt-bootstrap.conf'
+    path.write_text(body)
+    return path
+
+
+def effective_config(raw,out):
+    fields={}
+    for line in raw.splitlines():
+        match=re.fullmatch(r'([^ \n]+) "([^"\\]*)";',line)
+        A.need(match is not None,'unrecognized actual APT configuration row')
+        key,value=match.groups()
+        A.need(key not in fields,'duplicate actual APT configuration key')
+        fields[key]=value
+    expected=dict(item.split('=',1) for item in options(out) if item!='-o')
+    A.need(all(fields.get(key)==value for key,value in expected.items()),'effective APT configuration differs from private bootstrap')
+    forbidden=('APT::Update::Pre-Invoke','APT::Update::Post-Invoke','DPkg::Pre-Invoke','DPkg::Post-Invoke','DPkg::Pre-Install-Pkgs')
+    A.need(not any(any(key.startswith(prefix) for prefix in forbidden) for key in fields),'ambient APT hook survived private bootstrap')
+    return A.digest(raw.encode())
+
+
+def report(path,value,primary):
+    try:
+        path.write_text(json.dumps(value,indent=2)+'\n')
+    except BaseException as secondary:
+        try:primary.add_note('secondary reporting failure '+str(path)+': '+str(secondary))
+        except BaseException:pass
+
+
 def observed(command, log, budget):
     """One original child group, bounded original output, no retry; outer profile remains required."""
-    env={'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','LC_ALL':'C','LANG':'C','DEBIAN_FRONTEND':'noninteractive',
+    config=log.parent/'apt-bootstrap.conf'
+    A.need(config.is_file() and not config.is_symlink(),'source-owned early APT_CONFIG required')
+    env={'APT_CONFIG':str(config),'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','LC_ALL':'C','LANG':'C','DEBIAN_FRONTEND':'noninteractive',
          'HOME':str(log.parent/'home'),'TMPDIR':str(log.parent/'tmp')}
     budget.remaining()
     intent={'schema':'fsgg.current-reference-noble-transaction-intent/1','command':command,
@@ -144,11 +184,11 @@ def observed(command, log, budget):
         child=subprocess.Popen(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,
                                env=env,start_new_session=True)
     except BaseException as cause:
-        (log.parent/'partial-failure.json').write_text(json.dumps({**intent,'cause':str(cause),'phase':'launch-failed','childIdentity':'not-established'})+'\n')
+        report(log.parent/'partial-failure.json',{**intent,'cause':str(cause),'phase':'launch-failed','childIdentity':'not-established'},cause)
         raise
-    selector=selectors.DefaultSelector();selector.register(child.stdout,selectors.EVENT_READ)
-    raw=bytearray()
+    selector=None;raw=bytearray();primary=None
     try:
+        selector=selectors.DefaultSelector();selector.register(child.stdout,selectors.EVENT_READ)
         with log.open('xb') as stream:
             while selector.get_map():
                 budget.remaining()
@@ -170,30 +210,42 @@ def observed(command, log, budget):
         budget.remaining()
         return bytes(raw).decode('utf-8')
     except BaseException as cause:
-        # This evidence is written before potentially blocking retirement, and is never a success receipt.
+        primary=cause
         failure={'schema':'fsgg.current-reference-noble-transaction-failure/1','command':command,
                  'cause':str(cause),'originalOutputBytes':len(raw),'phase':'before-cleanup',
                  'installation':False,'runtimeQualification':False}
-        (log.parent/'partial-failure.json').write_text(json.dumps(failure,indent=2)+'\n')
-        if child.poll() is None:
-            try:os.killpg(child.pid,signal.SIGKILL)
-            except ProcessLookupError:pass
-        waited=False
         try:
-            child.wait(timeout=max(0,min(5,budget.deadline+15-budget.clock())))
-            waited=True
-        except subprocess.TimeoutExpired:
-            pass
-        absent=False
-        try:os.killpg(child.pid,0)
-        except ProcessLookupError:absent=True
-        (log.parent/'retirement.json').write_text(json.dumps({'directChildWaited':waited,'originalGroupAbsent':absent,
-             'retirement':'group-observed-absent' if waited and absent else 'reported-unverifiable',
-             'outerProfileQualification':False,'originalFailurePreserved':True})+'\n')
+            report(log.parent/'partial-failure.json',failure,cause)
+        finally:
+            # Reporting failure cannot skip required bounded cleanup or replace first cause.
+            waited=False;absent=False
+            try:
+                if child.poll() is None:
+                    try:os.killpg(child.pid,signal.SIGKILL)
+                    except ProcessLookupError:pass
+                child.wait(timeout=max(0,min(5,budget.deadline+15-budget.clock())))
+                waited=True
+                try:os.killpg(child.pid,0)
+                except ProcessLookupError:absent=True
+            except BaseException as secondary:
+                try:cause.add_note('secondary cleanup failure: '+str(secondary))
+                except BaseException:pass
+            report(log.parent/'retirement.json',{'directChildWaited':waited,'originalGroupAbsent':absent,
+                 'retirement':'group-observed-absent' if waited and absent else 'reported-unverifiable',
+                 'outerProfileQualification':False,'originalFailurePreserved':True},cause)
         raise
     finally:
-        selector.close()
-        child.stdout.close()
+        closing=None
+        actions=([selector.close] if selector is not None else [])+[child.stdout.close]
+        for close in actions:
+            try:close()
+            except BaseException as secondary:
+                if primary is not None:
+                    try:primary.add_note('secondary close failure: '+str(secondary))
+                    except BaseException:pass
+                elif closing is None:
+                    closing=secondary
+        if closing is not None:raise closing
 
 
 def metadata(inputs,out,budget,keyring):
@@ -283,7 +335,10 @@ def plan(inputs,roots,out,keyring,budget=None,run=observed):
     lines=['deb [signed-by='+str(keyring)+'] '+(out/'repo').as_uri()+' '+s+' main universe' for s in A.RELEASES]
     A.need(not any('\n' in line for line in lines),'APT source path injection refused')
     (out/'sources.list').write_text('\n'.join(lines)+'\n')
+    bootstrap(out)
     fixed=options(out)
+    config_dump=run([APT_CONFIG_TOOL,*fixed,'dump'],out/'apt-config.log',budget)
+    config_sha=effective_config(config_dump,out)
     run([APT,*fixed,'update'],out/'apt-update.log',budget)
     original=run([APT,*fixed,'--simulate','--no-install-recommends','install',
                   *[p['name']+'='+p['version'] for p in roots['packages']]],out/'apt-simulate.log',budget)
@@ -296,6 +351,7 @@ def plan(inputs,roots,out,keyring,budget=None,run=observed):
             'rootRequestSha256':A.digest(N.canonical(roots)),
             'aptOptionsSha256':A.digest(N.canonical(options(Path('/__fsgg_private_transaction__')))),
             'actualAptArgumentsSha256':A.digest(N.canonical(fixed)),
+            'actualEffectiveConfigSha256':config_sha,'configurationScope':'private APT_CONFIG before initialization',
             'originalSimulationSha256':A.digest(original.encode()),'debs':changes,
             'expectedFinalInventory':{'packages':len(final),'sha256':A.digest(inventory_bytes(final)),
                                       'derivation':'original successful APT simulation; not installed'},

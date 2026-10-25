@@ -160,3 +160,15 @@ baseline/IME packages; it is not a complete browser/desktop installation plan.
 The same source cohort will retain the frozen provision/role/keymap/retirement
 work and the separately admitted private caller contract; source APT verification
 requires no desktop-facility approval and grants no such approval.
+
+
+APT loads `APT_CONFIG` before host `apt.conf.d`/main and before command-line
+`-o` parsing. The planner therefore supplies a source-owned private bootstrap
+through that early environment input, disabling host main/parts, auth,
+preferences and other domains before initialization. It verifies an actual
+`apt-config dump` against the private controls and refuses inherited hooks
+before update/simulation. A signed/hash-joined APT2.8.3 source excerpt fixture
+records this independent ordering requirement. Reporting write failures become
+secondary notes; they cannot mask the original failure or skip mandatory bounded
+child/group cleanup. Original failed output and unverifiable retirement remain
+separate from any later source repair or metadata.
