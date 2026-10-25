@@ -46,7 +46,7 @@ def digest(raw):
 
 
 def relative(value):
-    need(type(value) is str and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9+._/@-]*', value)
+    need(type(value) is str and re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9+._/@~-]*', value)
          and not any(p in ('', '.', '..') for p in value.split('/'))
          and not PurePosixPath(value).is_absolute(), 'unsafe archive/index path')
     return value

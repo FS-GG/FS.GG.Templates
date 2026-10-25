@@ -104,6 +104,12 @@ class AcquisitionControls(unittest.TestCase):
                     A.fetch(A.BASE+'pool/test.deb',sha,size,target,A.Budget(),opener)
                 self.assertEqual(opener.calls,1)
 
+    def test_authenticated_debian_prerelease_archive_tilde_is_a_safe_literal_path(self):
+        path='pool/main/s/speech-dispatcher/speech-dispatcher_0.12.0~rc2-2build3.dsc'
+        self.assertEqual(path,A.relative(path))
+        for bad in [path+'?query',path+'#fragment',path.replace('~','%7e'),'../'+path]:
+            with self.assertRaises(RuntimeError):A.relative(bad)
+
     def test_selected_origin_paths_only(self):
         for uri in ['https://example.invalid/x',A.BASE+'../x',A.BASE+'pool/a?x=1',A.BASE+'pool//x',A.BASE+'pool/%2e%2e/x']:
             with tempfile.TemporaryDirectory() as tmp,self.assertRaises(RuntimeError):

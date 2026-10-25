@@ -285,6 +285,21 @@ def metadata(inputs,out,budget,keyring):
     return binaries,sources
 
 
+
+def update_output(raw,out):
+    expected={(suite,'InRelease') for suite in A.RELEASES}|{(suite+'/'+component,'amd64 Packages') for suite in A.RELEASES for component in ['main','universe']}
+    seen=set();ids={}
+    for line in raw.splitlines():
+        if line=='Reading package lists...':continue
+        match=re.fullmatch(r'Get:([1-9][0-9]*) '+re.escape((out/'repo').as_uri().replace('file://','file:'))+r' ([a-z/-]+) (InRelease|amd64 Packages) \[[0-9.]+ [kM]?B\]',line)
+        A.need(match is not None,'original APT update output is outside selected private file repository')
+        index,distribution,kind=match.groups();identity=(distribution,kind)
+        A.need(identity in expected and (index not in ids or ids[index]==identity),'original APT update target differs')
+        ids[index]=identity;seen.add(identity)
+    A.need(seen==expected,'original APT update population incomplete')
+    return A.digest(raw.encode())
+
+
 def source_join(binary,sources):
     match=re.fullmatch(r'([^ ]+)(?: \(([^)]+)\))?',binary.get('Source',binary['Package']))
     A.need(match is not None,'binary source field malformed')
@@ -302,24 +317,39 @@ def frozen(text,base,roots,binaries,sources):
     A.need(not re.search(r'(?m)^(Remv|Purg) ',text),'APT removals are outside this preparation domain')
     summaries=re.findall(r'(?m)^(\d+) upgraded, (\d+) newly installed, (\d+) to remove and (\d+) not upgraded\.$',text)
     A.need(len(summaries)==1 and int(summaries[0][2])==0,'original successful no-removal APT summary required')
-    changes=[];final=dict(base)
+    changes=[];final=dict(base);installed={};configured=set();upgrades=0
+    A.need(not re.search(r'(?m)^(?:E:|W:|Err:)',text),'original APT diagnostic refused')
     for line in text.splitlines():
+        if line.startswith('Conf '):
+            conf=re.fullmatch(r'Conf ([a-z0-9][a-z0-9+.:~-]*) \(([^\s()]+) ([^()]*)\[([^\]]+)\]\)',line)
+            A.need(conf is not None,'unrecognized original APT configuration row')
+            name,version,origin,architecture=conf.groups();name=name.removesuffix(':amd64')
+            A.need(name in installed and name not in configured and installed[name]==(version,origin,architecture),
+                   'original configuration row differs from prior installation proposal')
+            configured.add(name)
+            continue
         if not line.startswith('Inst '):
             continue
-        match=re.fullmatch(r'Inst ([a-z0-9][a-z0-9+.:~-]*)(?: \[[^\]]+\])? \(([^\s()]+) [^()]*\[([^\]]+)\]\)',line)
+        match=re.fullmatch(r'Inst ([a-z0-9][a-z0-9+.:~-]*)(?: \[([^\]]+)\])? \(([^\s()]+) ([^()]*)\[([^\]]+)\]\)(?: \[\])?',line)
         A.need(match is not None,'unrecognized original APT installation row')
-        name,version,architecture=match.groups();name=name.removesuffix(':amd64')
+        name,old,version,origin,architecture=match.groups();name=name.removesuffix(':amd64')
         rows=[r for r in binaries if r.get('Package')==name and r.get('Version')==version and r.get('Architecture')==architecture]
         A.need(len({json.dumps(r,sort_keys=True) for r in rows})==1,'solver package absent/ambiguous in signed index')
         row=rows[0];canonical=name+(':amd64' if row.get('Multi-Arch')=='same' else '')
         A.need(not any(c['package']==name for c in changes),'duplicate original APT installation row')
+        A.need((old is None and canonical not in base) or (old is not None and base.get(canonical)==old and old!=version),
+               'original old/new package version differs from subject status')
+        upgrades+=int(old is not None)
+        installed[name]=(version,origin,architecture)
         joined=source_join(row,sources)
         changes.append({'package':name,'version':version,'architecture':architecture,
                         'filename':joined['binary']['path'],'sha256':joined['binary']['sha256'],
                         'bytes':joined['binary']['bytes'],'sourcePackage':joined['sourcePackage'],
                         'sourceVersion':joined['sourceVersion'],'sourceFiles':joined['sourceFiles']})
         final[canonical]=version
-    A.need(int(summaries[0][0])+int(summaries[0][1])==len(changes),'original solver summary/change population differs')
+    A.need(int(summaries[0][0])==upgrades and int(summaries[0][1])==len(changes)-upgrades,
+           'original solver summary/change population differs')
+    A.need(configured==set(installed),'original configuration settlement population differs')
     for root in roots['packages']:
         name=root['name'].removesuffix(':amd64')
         rows=[r for r in binaries if r.get('Package')==name and r.get('Version')==root['version'] and r.get('SHA256')==root['debSha256']]
@@ -352,7 +382,8 @@ def plan(inputs,roots,out,keyring,budget=None,run=observed):
     fixed=options(out)
     config_dump=run([APT_CONFIG_TOOL,*fixed,'dump'],out/'apt-config.log',budget)
     config_sha=effective_config(config_dump,out)
-    run([APT,*fixed,'update'],out/'apt-update.log',budget)
+    original_update=run([APT,*fixed,'update'],out/'apt-update.log',budget)
+    update_sha=update_output(original_update,out)
     original=run([APT,*fixed,'--simulate','--no-install-recommends','install',
                   *[p['name']+'='+p['version'] for p in roots['packages']]],out/'apt-simulate.log',budget)
     changes,final=frozen(original,base,roots,binaries,sources)
@@ -364,6 +395,7 @@ def plan(inputs,roots,out,keyring,budget=None,run=observed):
             'rootRequestSha256':A.digest(N.canonical(roots)),
             'aptOptionsSha256':A.digest(N.canonical(options(Path('/__fsgg_private_transaction__')))),
             'actualAptArgumentsSha256':A.digest(N.canonical(fixed)),
+            'actualUpdateSha256':update_sha,'originalChildOutcomes':{'apt-config':0,'apt-update':0,'apt-simulate':0},
             'actualEffectiveConfigSha256':config_sha,'configurationScope':'private APT_CONFIG before initialization',
             'originalSimulationSha256':A.digest(original.encode()),'debs':changes,
             'expectedFinalInventory':{'packages':len(final),'sha256':A.digest(inventory_bytes(final)),

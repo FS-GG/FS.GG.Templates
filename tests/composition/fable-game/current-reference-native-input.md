@@ -185,3 +185,23 @@ native scalar-to-list language normalization before update/simulation. The exact
 APT2.8.3 source and retained output establish an empty `Acquire::Languages` parent
 with exactly one `none` child. The verifier accepts only that representation;
 extra or different languages, duplicate scalar controls and hooks still refuse.
+
+The following original prefix completed actual private update and no-install
+simulation, then refused two valid `Inst` lines with an empty `[]` ShortBreaks
+suffix. APT2.8.3 prints this transient simulated-order marker while suppressing
+already-flagged packages; it is not an installation or runtime result. The row
+parser accepts only the exact empty optional suffix, still rejecting populated
+break markers or trailing text. Original zero-exit simulation, summary, signed
+package/source joins and root satisfaction remain required.
+
+A complete pure replay joins the unchanged original configuration, update and
+simulation outputs to all twelve authenticated indexes and the exact subject
+status. Update targets must cover the three selected releases and six private
+package indexes. Every proposed Inst row joins signed binary/patched source,
+subject old/new version and an exact unique subsequent Conf settlement; summary
+upgrade/new counts must agree. All147 changes and nine roots join, deriving an
+864-package expected inventory, not an installed result. Wrong-version, removal
+and missing-settlement mutations refuse. Literal `~` in authenticated Debian
+prerelease archive names is accepted as an unreserved path character; percent
+escapes, traversal, query/fragment and arbitrary origin remain refused. The
+original failed job is not relabelled by this source-parser replay.

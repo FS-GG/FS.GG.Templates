@@ -28,6 +28,11 @@ def config_dump(root):
     return text.replace('Acquire::Languages "none";', 'Acquire::Languages "";\nAcquire::Languages:: "none";')
 
 
+def update_dump(root):
+    expected=[(suite,'InRelease') for suite in T.A.RELEASES]+[(suite+'/'+component,'amd64 Packages') for suite in T.A.RELEASES for component in ['main','universe']]
+    return ''.join('Get:'+str(i)+' '+(root/'repo').as_uri().replace('file://','file:')+' '+suite+' '+kind+' [1 kB]\n' for i,(suite,kind) in enumerate(expected,1))+'Reading package lists...\n'
+
+
 def status(name='fixture',version='1',multi=False):
     return ('Package: '+name+'\nStatus: install ok installed\nArchitecture: amd64\nVersion: '+version+'\n'+('Multi-Arch: same\n' if multi else '')+'\n').encode()
 
@@ -75,6 +80,40 @@ class NoInstallControls(unittest.TestCase):
                 T.frozen(text,{'fixture':'1'},self.roots,self.data['binary'],self.data['sources'])
         with self.assertRaises(RuntimeError):T.frozen('0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.\n',{'fixture':'1'},self.roots,self.data['binary'],self.data['sources'])
 
+    def test_source_coupled_empty_simulation_shortbreak_suffix_only(self):
+        original=json.loads((HERE/'fixtures/apt-config-init-order.json').read_text())
+        self.assertEqual(2,len(original['originalHostedSimulation']['emptyShortBreakRows']))
+        source='\n'.join(row['text'] for row in original['files'][3]['lines'])
+        self.assertIn('ShortBreaks()',source);self.assertIn('Flags[I->ID] == 0',source)
+        text=self.body.replace(' [amd64])',' [amd64]) []',1)
+        changes,_=T.frozen(text,{'fixture':'1'},self.roots,self.data['binary'],self.data['sources'])
+        self.assertEqual(1,len(changes))
+        for suffix in [' [broken]',' [][]',' [] trailing']:
+            with self.assertRaises(RuntimeError):T.frozen(self.body.replace(' [amd64])',' [amd64])'+suffix),{'fixture':'1'},self.roots,self.data['binary'],self.data['sources'])
+
+    def test_all_install_configure_architecture_and_old_new_versions_are_joined(self):
+        upgrade=self.body.replace('0 upgraded, 1 newly installed','1 upgraded, 0 newly installed').replace('Inst ibus (','Inst ibus [1.0] (')
+        changes,final=T.frozen(upgrade,{'ibus':'1.0'},self.roots,self.data['binary'],self.data['sources'])
+        self.assertEqual('1.5.29-2',final['ibus'])
+        with self.assertRaisesRegex(RuntimeError,'old/new'):
+            T.frozen(upgrade.replace('[1.0]','[0.9]'),{'ibus':'1.0'},self.roots,self.data['binary'],self.data['sources'])
+        for bad in [self.body.replace('Conf ibus (1.5.29-2','Conf ibus (9.9'),self.body.replace('Conf ibus','Conf unknown'),self.body+'Conf ibus (1.5.29-2 Ubuntu:24.04/noble [amd64])\n',self.body.replace('Conf ibus (1.5.29-2 Ubuntu:24.04/noble [amd64])\n',''),self.body.replace('[amd64]','[arm64]'),self.body+'W: warning\n']:
+            with self.assertRaises(RuntimeError):T.frozen(bad,{'fixture':'1'},self.roots,self.data['binary'],self.data['sources'])
+        binaries=copy.deepcopy(self.data['binary'])
+        for row in binaries:
+            if row.get('Package')=='ibus':row['Architecture']='all'
+        T.frozen(self.body.replace('[amd64]','[all]'),{'fixture':'1'},self.roots,binaries,self.data['sources'])
+        for row in binaries:
+            if row.get('Package')=='ibus':row['Architecture']='amd64';row['Multi-Arch']='same'
+        text=upgrade.replace('Inst ibus ','Inst ibus:amd64 ').replace('Conf ibus ','Conf ibus:amd64 ')
+        _,final=T.frozen(text,{'ibus:amd64':'1.0'},self.roots,binaries,self.data['sources'])
+        self.assertEqual('1.5.29-2',final['ibus:amd64'])
+
+    def test_update_requires_complete_selected_private_file_targets_only(self):
+        root=Path('/private');text=update_dump(root);T.update_output(text,root)
+        for bad in [text.replace('file:/private/repo','https://unselected.invalid'),text.replace('noble/main','noble/other'),text.split('\n',1)[1],text+'W: ignored\n']:
+            with self.assertRaises(RuntimeError):T.update_output(bad,root)
+
     def test_options_and_actual_commands_cannot_install_or_read_host_apt_configuration(self):
         opts=T.options(Path('/private'))
         for value in ['Dir::Etc::main=/private/apt-main.conf','Dir::Etc::parts=/private/apt-config-parts','Dir::Etc::sourceparts=/private/apt-source-parts','Dir::Etc::preferences=/private/apt-preferences','Dir::State::status=/private/status','Acquire::By-Hash=no','APT::Sandbox::User=root']:
@@ -85,7 +124,7 @@ class NoInstallControls(unittest.TestCase):
         commands=[];raw=status();base={'fixture':'1'}
         def observed(command,log,budget):
             commands.append(command)
-            text=config_dump(path) if command[-1]=='dump' else 'update done\n' if command[-1]=='update' else self.body
+            text=config_dump(path) if command[-1]=='dump' else update_dump(path) if command[-1]=='update' else self.body
             log.write_text(text)
             return text
         with patch.object(T,'runtime_guard',return_value=T.A.digest(raw)),patch.object(T,'base_fixture',return_value=(raw,base)),patch.object(T,'metadata',return_value=(self.data['binary'],self.data['sources'])),patch.object(T,'read',return_value=raw),patch.object(T,'BASE_COUNT',1),patch.object(T,'BASE_SHA256',T.A.digest(T.inventory_bytes(base))):
