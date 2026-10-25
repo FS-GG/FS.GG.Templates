@@ -66,9 +66,9 @@
       "a82d75067af339c552cadb975b876c65e9965c26ff6bf605f25b89fb5b97c3f4"
     ],
     "Browser.Tests/two-client.spec.ts": [
-      "4ca91ee247d038cc7d8131a03a30e5984e508ab08baf27834f11ccb06cc1dc8b",
       "7eacfc875e0449c18e4095d2cfc3cc30f004258c04335cc153e911f3d120ea9d",
-      "9ea351cf95c131307621761e56a4555969a3ede4a54791ad444cb2fe5c5ab874"
+      "9ea351cf95c131307621761e56a4555969a3ede4a54791ad444cb2fe5c5ab874",
+      "afd616b2e69a89e0eb4a2e7f0836806b6a0764e2df72fbe63dd96b38b3ab85d4"
     ],
     "Browser.Tests/wasm-policy.spec.ts": [
       "1dd6781b3972938b2c38fb9f9de63d43f16679d9f09e749940c24d53b4ad6e6e"
