@@ -159,8 +159,10 @@ qualification unrun. The original nine-root source request completed genuine no-
 in run40227938678/job121273247292 at d4b4253c:147 proposed changes and an864-package
 expected inventory, with acquisition/install/runtime/AT still unrun. The next
 source request retains all nine exact tuples and adds the previously selected
-AT/X11/audio/locale/keymap roots,32total. It must obtain its own genuine solver
-result; the earlier result does not cover these new determining inputs. Browser,
+AT/X11/audio/locale/keymap roots,32total. Its original successful source run
+40229579755/job121278213264 at7940c5a0 independently completed update/simulation,
+joining280 proposed changes to993 expected packages. The earlier nine-root
+result does not cover these determining inputs. Browser,
 Node/.NET and Playwright closure remains separate.
 The same source cohort will retain the frozen provision/role/keymap/retirement
 work and the separately admitted private caller contract; source APT verification
@@ -223,7 +225,15 @@ was downloaded, or identify the original APT download origin of a simulation.
 Differing binary/source content, dependency fields, archive sizes or source
 closure members still refuse. Full original32 output replay joins280Inst and
 280Conf (4upgrades/276new) to an993-package expected inventory; the original
-failed job remains failed and a fresh source-CI receipt is still required.
+failed job remains failed. The subsequent original source run40229579755
+completed successfully; its artifact12612229200 is89,851,125bytes with SHA256
+`78a19ab5fefe33222112cce9cb66d3fcb7b5567540e4e726b7325749201282b4`.
+Its original transaction SHA256 is
+`0e2152cba97fd353ddd2581f8a514c49a5face0725b128406372f90cd157c4cb`.
+This establishes the no-install source prefix only. That old artifact lacks the
+new self-contained fifteen-metadata-body handoff, so it cannot be relabelled a
+complete input attachment for the new factory. Normal changed-source CI must
+produce the new determining output; no historical run is replayed or repaired.
 
 ## Frozen factory source and installed-input handoff
 
