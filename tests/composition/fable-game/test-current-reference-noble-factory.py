@@ -8,9 +8,11 @@ import io
 import json
 from pathlib import Path
 import sys
+import subprocess
 import tarfile
 import tempfile
 import time
+import types
 import unittest
 from unittest.mock import patch
 
@@ -74,8 +76,40 @@ class FactoryControls(unittest.TestCase):
         with patch.dict(F.os.environ,{'FSGG_AT_DEADLINE_MONOTONIC':'200'},clear=True),patch.object(F.time,'monotonic',return_value=100),patch.object(F,'ENTRY_STARTED',90):
             self.assertEqual((185,200),F.phase_clock(120))
             self.assertEqual((110,125),F.phase_clock(20))
+    def test_actual_unsealed_entry_refuses_before_any_sibling_import(self):
+        path=self.root/'current-reference-noble-factory.py';path.write_bytes((HERE/path.name).read_bytes())
+        (self.root/'current-reference-noble-transaction.py').write_text("raise AssertionError('UNTRUSTED IMPORT EXECUTED')\n")
+        result=subprocess.run([sys.executable,'-I','-B',str(path),'install-readback'],capture_output=True,timeout=5)
+        self.assertNotEqual(0,result.returncode)
+        self.assertIn(b'fixed root-sealed factory controller path required before imports',result.stderr)
+        self.assertNotIn(b'UNTRUSTED IMPORT EXECUTED',result.stderr)
+
     def test_legacy_baked_driver_refuses_before_guest_or_installation(self):
         with patch.object(F.os,'geteuid',return_value=1000),self.assertRaises(RuntimeError):F.qualified_scope('a'*64,'install-readback')
+    def test_nested_budget_cannot_renew_original_clock_after_delayed_construction(self):
+        with patch.object(F.time,'monotonic',return_value=105):
+            budget=F.OriginalBudget(110);self.assertEqual(5,budget.remaining())
+        with patch.object(F.time,'monotonic',return_value=111),self.assertRaises(RuntimeError):F.OriginalBudget(110)
+
+    def test_private_output_refuses_traversal_intermediate_alias_and_existing_output_without_writes(self):
+        base=self.root/'runner';base.mkdir();foreign=self.root/'foreign';foreign.mkdir()
+        (base/'link').symlink_to(foreign,target_is_directory=True)
+        for path in [base/'..'/'foreign'/'native-at-facility',base/'link'/'native-at-facility',foreign/'native-at-facility',base/'wrong-name']:
+            with self.subTest(path=path),self.assertRaises(RuntimeError):F.private_output(path,base)
+            self.assertFalse(path.exists())
+        out=base/'native-at-facility';self.assertEqual(out,F.private_output(out,base));out.mkdir()
+        with self.assertRaises(RuntimeError):F.private_output(out,base)
+
+    def test_exact_decoder_output_limit_reaches_health_guard_without_widening_default(self):
+        runner=F.Owned(self.root,time.monotonic()+5)
+        runner.children=[{'name':'decoder','leader':{'pid':42,'start':1},'known':{},'outputLimit':136*1024**2}]
+        with patch.object(F.O,'census',return_value=([],[],[])),patch.object(Path,'stat',return_value=types.SimpleNamespace(st_size=135925760)):
+            runner.health()
+            runner.children[0]['outputLimit']=128*1024**2
+            with self.assertRaises(RuntimeError):runner.health()
+        with patch.object(F.O,'census',return_value=([],[],[])),patch.object(Path,'stat',return_value=types.SimpleNamespace(st_size=136*1024**2+1)),self.assertRaises(RuntimeError):
+            runner.children[0]['outputLimit']=136*1024**2;runner.health()
+
     def test_partial_reporting_failure_cannot_skip_cleanup_or_mask_original(self):
         runner=F.Owned(self.root,time.monotonic()+5)
         item=runner.launch([sys.executable,'-I','-B','-c','import time; time.sleep(10)'],'inert','source-control')

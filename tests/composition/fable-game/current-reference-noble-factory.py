@@ -25,6 +25,37 @@ import zlib
 
 ENTRY_STARTED=time.monotonic()
 HERE=Path(__file__).resolve().parent
+FACTORY_FILES=('current-reference-noble-factory.py','current-reference-noble-transaction.py',
+    'current-reference-noble-acquisition.py','current-reference-native-input.py','external-reference-orca.py',
+    'fixtures/noble-c068-status.xz','fixtures/noble-source-prefix-request.json')
+
+
+def sealed_imports():
+    """The baked ATv2 driver seals exact Git blobs before any factory imports execute."""
+    controller=HERE.parents[2]
+    if controller.parent!=Path('/opt/fsgg/current-at-controller') or re.fullmatch('[0-9a-f]{40}',controller.name) is None:
+        raise RuntimeError('fixed root-sealed factory controller path required before imports')
+    seal=controller/'factory-seal.json';info=seal.lstat()
+    if not stat.S_ISREG(info.st_mode) or info.st_uid!=0 or stat.S_IMODE(info.st_mode)!=0o644 or info.st_size>16384:
+        raise RuntimeError('root factory seal absent/mutable/oversized')
+    value=json.loads(seal.read_bytes())
+    if value.get('schema')!='fsgg.current-reference-factory-seal/1' or value.get('source')!=controller.name or set(value.get('files',{}))!=set(FACTORY_FILES):
+        raise RuntimeError('closed selected factory seal required')
+    for name in FACTORY_FILES:
+        path=HERE/name
+        for ancestor in [path,*path.parents]:
+            info=ancestor.lstat()
+            if info.st_uid!=0 or info.st_mode&0o022 or stat.S_ISLNK(info.st_mode):
+                raise RuntimeError('factory import closure/ancestor mutable')
+        info=path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_size>1024**2 or hashlib.sha256(path.read_bytes()).hexdigest()!=value['files'][name]:
+            raise RuntimeError('actual factory import differs from root seal')
+    binding=Path('/etc/fsgg-qualification-runner/instance-binding.json').read_bytes()
+    if hashlib.sha256(binding).hexdigest()!=value.get('rootBindingSha256'):
+        raise RuntimeError('factory root binding changed before imports')
+
+
+if __name__=='__main__':sealed_imports()
 
 def module(name,path):
     spec=importlib.util.spec_from_file_location(name,path)
@@ -108,7 +139,8 @@ class Owned:
         for name in ['home','tmp']:(directory/name).mkdir(mode=0o700,exist_ok=True)
     def left(self):
         value=self.deadline-time.monotonic();need(value>0,'original factory step deadline exhausted');return value
-    def launch(self,argv,name,phase):
+    def launch(self,argv,name,phase,output_limit=128*1024**2):
+        need(type(output_limit) is int and 0<output_limit<=136*1024**2,'bounded factory output required')
         self.left();path=self.directory/(name+'.log')
         (self.directory/(name+'.intent.json')).write_text(json.dumps({'argv':argv,'phase':phase,
             'installationSelected':phase=='offline-installation','runtimeAT':False})+'\n')
@@ -116,7 +148,7 @@ class Owned:
         try:child=subprocess.Popen(argv,stdout=stream,stderr=subprocess.STDOUT,env=self.env,start_new_session=True)
         except BaseException:stream.close();raise
         leader=O.proc(child.pid)
-        item={'name':name,'child':child,'stream':stream,'leader':leader,'known':{}}
+        item={'name':name,'child':child,'stream':stream,'leader':leader,'known':{},'outputLimit':output_limit}
         self.children.append(item)
         need(leader and leader['sid']==child.pid,'original factory child birth unavailable')
         item['known'][child.pid]=leader['start'];return item
@@ -127,10 +159,10 @@ class Owned:
             owned,unknown,escaped=O.census(item['leader'],item['known'])
             need(not unknown and not escaped,'factory actor custody reported-unverifiable')
             aggregate.update({(row['pid'],row['start']):row['rss'] for row in owned})
-            need((self.directory/(item['name']+'.log')).stat().st_size<=128*1024**2,'factory output exceeded')
+            need((self.directory/(item['name']+'.log')).stat().st_size<=item['outputLimit'],'factory output exceeded')
         need(sum(aggregate.values())<=4*1024**3,'aggregate sampled factory RSS exceeded')
     def command(self,argv,name,phase,cap=4*1024**2):
-        item=self.launch(argv,name,phase)
+        item=self.launch(argv,name,phase,output_limit=max(cap,128*1024**2))
         while item['child'].poll() is None:self.health();time.sleep(.05)
         self.health();code=item['child'].returncode
         need(code==0,'original '+name+' exit '+str(code))
@@ -227,6 +259,29 @@ def archive_records(path,expected,decoder=None):
 
 
 def pool_inputs(pool,software):
+    software_sha=N.sha(N.canonical(software))
+    need(pool==Path('/var/lib/fs-gg-current-at-pools')/software_sha and pool==pool.resolve(),
+         'fixed root-captured pool required; user preparation is not a privileged input')
+    seal_path=pool/'pool-seal.json';info=seal_path.lstat()
+    need(stat.S_ISREG(info.st_mode) and info.st_uid==0 and stat.S_IMODE(info.st_mode)==0o644,'root pool seal absent/mutable')
+    seal=load(seal_path)
+    need(set(seal)=={'schema','softwareContractSha256','files','rootBindingSha256'} and
+         seal['schema']=='fsgg.current-reference-pool-seal/1' and seal['softwareContractSha256']==software_sha and
+         seal['rootBindingSha256']==N.sha(T.read(STATE/'instance-binding.json',131072)),
+         'root-captured pool selection/binding changed')
+    need(type(seal['files']) is dict and 1<=len(seal['files'])<=2070,'bounded root-captured population required')
+    total=0
+    for name,digest in seal['files'].items():
+        relative=T.A.relative(name);path=pool/relative
+        for ancestor in [path,*path.parents]:
+            info=ancestor.lstat()
+            need(info.st_uid==0 and not info.st_mode&0o022 and not stat.S_ISLNK(info.st_mode),
+                 'captured pool member/ancestor is mutable')
+        need(stat.S_ISREG(path.lstat().st_mode),'captured pool member is not regular')
+        body=T.read(path,128*1024**2);total+=len(body)
+        need(N.sha(body)==digest and total<=768*1024**2,'captured pool content/aggregate differs')
+    present={str(path.relative_to(pool)) for path in pool.rglob('*') if path.is_file() or path.is_symlink()}
+    need(present==set(seal['files'])|{'pool-seal.json'},'root pool has extra/missing members')
     receipt=load(pool/'frozen-inputs.json')
     need(receipt.get('schema')=='fsgg.current-reference-noble-frozen-inputs/1' and
          receipt.get('originalTransactionSha256')==software['frozenPlan']['transactionSha256'] and
@@ -352,6 +407,20 @@ def phase_clock(seconds):
     return work,work+15
 
 
+class OriginalBudget(T.A.Budget):
+    def __init__(self,deadline):
+        self.clock=time.monotonic;self.deadline=deadline;self.bytes=0;self.requests=0
+        self.remaining()
+
+
+def private_output(out,base):
+    base=base.resolve(strict=True)
+    need(out.is_absolute() and '..' not in out.parts and out==out.resolve() and
+         out==base/'native-at-facility' and not out.exists() and not out.is_symlink(),
+         'fresh canonical private runner qualification output required')
+    return out
+
+
 def decoder(runner):
     need(N.sha(T.read(Path(DPKG_DEB),16*1024**2))==DPKG_DEB_SHA256,'installed Noble decoder tool differs')
     count=[0]
@@ -399,7 +468,7 @@ def install_readback(pool,software_sha):
     try:
         for name in ['state/lists/partial','cache/archives/partial']:(work/name).mkdir(parents=True,mode=0o700)
         (work/'status').write_bytes(T.read(Path('/var/lib/dpkg/status'),32*1024**2));(work/'extended_states').write_bytes(b'')
-        binaries,sources=T.metadata(pool/'metadata',work,T.A.Budget(runner.left()),Path('/usr/share/keyrings/ubuntu-archive-keyring.gpg'))
+        binaries,sources=T.metadata(pool/'metadata',work,OriginalBudget(runner.deadline),Path('/usr/share/keyrings/ubuntu-archive-keyring.gpg'))
         roots=T.request(T.read(HERE/'fixtures/noble-source-prefix-request.json',65536))
         joined=T.frozen_input_plan(pool/'originals',software['frozenPlan']['transactionSha256'],roots,binaries,sources)
         need(receipt['selectedRoleBindings']==T.selected_role_bindings(joined,roots,binaries,sources),
@@ -415,7 +484,7 @@ def install_readback(pool,software_sha):
         changes,final=T.frozen(simulated,before,roots,binaries,sources)
         need(changes==original['debs'] and N.sha(T.inventory_bytes(final))==software['expectedFinalInventory']['sha256'],
              'live installed-state proposal differs from the authenticated frozen source inputs')
-        inputs=work/'install-debs';inputs.mkdir(mode=0o700);paths=[];copy_budget=T.A.Budget(runner.left())
+        inputs=work/'install-debs';inputs.mkdir(mode=0o700);paths=[];copy_budget=OriginalBudget(runner.deadline)
         for row in changes:
             source=pool/'archives'/T.A.relative(row['filename']);parent=source.parent
             while parent!=pool:
@@ -468,8 +537,7 @@ def qualify_inputs(pool,software_sha,out):
     actual=T.inventory(T.read(Path('/var/lib/dpkg/status'),32*1024**2))
     need(len(actual)==software['expectedFinalInventory']['packages'] and
          N.sha(T.inventory_bytes(actual))==software['expectedFinalInventory']['sha256'],'actual installed inventory changed')
-    base=Path(os.environ['RUNNER_TEMP']).resolve()
-    need(out.is_absolute() and out.is_relative_to(base) and not out.exists() and not out.is_symlink(),'fresh private runner qualification output required')
+    private_output(out,Path(os.environ['RUNNER_TEMP']))
     out.mkdir(mode=0o700);deadline,completion=phase_clock(software['resources']['keymapSeconds']);runner=Owned(out,deadline)
     runner.env.update(DISPLAY=':97',XDG_DATA_DIRS='/usr/share',XDG_CONFIG_HOME=str(out/'home'),XDG_CACHE_HOME=str(out/'tmp'))
     try:

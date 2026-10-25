@@ -282,3 +282,15 @@ Acquisition's128MiB archive and512MiB aggregate limits remain unchanged. On
 Noble the decoder must be the separately pinned installed `dpkg-deb`; source
 checks on Python3.14 may use its standard-library zstd decoder. Neither route
 executes downloaded package files.
+
+The privilege handoff uses the separate ATv2 baked driver, rather than running
+workspace helpers as root. Its fixed `seal-at-controller` operation verifies the
+selected commit/tree/blob object bodies and seals seven factory import/fixture
+files root-owned. The factory's actual CLI refuses before sibling imports unless
+that closed seal and root binding match. `capture-at-pool` captures only the fixed
+runner preparation directory through no-follow directory handles, stable regular
+UID1001 single-link files and declared hashes. Failed partial output stays
+root-private. The factory accepts only the completed fixed root-owned pool and
+rechecks the seal, exact membership, ancestors and bytes. These are maintained
+source prerequisites; the AT-capable baked layer and actual private workflow
+still need delivery and separate facility qualification.
