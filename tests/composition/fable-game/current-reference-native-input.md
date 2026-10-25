@@ -75,3 +75,39 @@ qualification or portable-export acquisition receipt.
 The pure tests exercise the real helper predicates, failure stops, workflow
 registration and passive JavaScript handlers with fixtures. They launch no browser,
 desktop, IBus engine or SDK and prove no real preedit, speech or installed behavior.
+
+
+## Declared Noble archive acquisition
+
+The current-only full callee runs `current-reference-noble-acquisition.py` after
+its admission guard. The guard remains `None`, so this source adds no admitted
+operation. Preflight-only never runs this acquisition. The existing 64KiB manifest
+supplies exact package/version/binary hash and one source archive identity. The
+helper selects the fixed official Ubuntu snapshot `20261024T000000Z`, pins its
+three original InRelease bodies and the retained Ubuntu archive keyring, and
+requires the original archive signer. Only GPG-verified plaintext supplies index
+hashes. Signed Packages `Filename` and exact binary Source/version joins to signed
+Sources `Directory`/`Checksums-Sha256` derive all binary and source archive URLs.
+The complete source stanza, including `.dsc`, original source and Debian patch
+archives where supplied, is acquired; a matching upstream version alone is
+insufficient. Supplied sourceUri is compared to that authenticated identity and
+never used as an arbitrary download target.
+
+The helper has one original deadline, fixed-origin/no-redirect HTTP200 checks,
+request/population/file/decompression/stanza/source-count/path bounds and fresh
+exclusive outputs. It never retries, installs, executes a downloaded archive or
+changes host trust/APT configuration. Failed original partial outputs remain;
+no successful receipt is emitted until every declared archive verifies. The
+workflow's independent 240-second process bound clips the helper's 240-second
+work deadline, with a five-second termination allowance. A successful closed
+receipt establishes declared archive acquisition only. Dependency resolution,
+installation, base-image fit, complete runtime/browser/AT closure, keymap
+qualification and process/profile/retirement acceptance remain unproved. Existing
+historical/font provisioning stays unchanged; this acquisition does not make the
+existing mutable full provisioning a qualified installation route.
+
+The signing/index design follows immutable Coordination `c068e1cccb9a0dc65d4ebfcc8d8b3228f2c57ccd`
+`deployment/qualification-runner/noble-inputs.py` and `noble-apt.sh`, independently
+of that image's caller selection or bake acceptance. Small original metadata
+excerpts exercise real binary/patch-source joins; synthetic responses exercise
+refusal logic. Neither fixture class is native IME or facility evidence.
