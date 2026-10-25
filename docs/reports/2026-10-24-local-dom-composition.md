@@ -129,8 +129,8 @@ are now closed **in the checked-out source only**, by two source-only typed case
   keeps a caret range, text and a synthetic composition in the note, then the select, then the reference root, across the same update and replacement, asserting `toBeFocused`, value,
   selection and node identity.
 
-Before the change the two cases fail (commit before the implementation: 2 failed, 9 passed, Chromium). Honestly: they fail there because the island's nodes do not exist (`markIdentity` and the select lookups), not because of a behavioural difference; the note, caret and composition assertions of the second case pass by nature before the change and are shown to discriminate by the regressions below; with it 11/11 in each of Chromium, Firefox and WebKit. Three scratch regressions each fail both
-cases while the nine maintained cases pass: the note replaced on session replacement, the island re-rendered on a retained update, and focus stolen on replacement.
+Before the change the two cases fail (commit before the implementation: 2 failed, 9 passed, Chromium). Honestly: they fail there because the island's nodes do not exist (`markIdentity` and the select lookups), not because of a behavioural difference; the note, caret and composition assertions of the second case pass by nature before the change and are shown to discriminate by the regressions below; with it 11/11 in each of Chromium, Firefox and WebKit. Four scratch regressions each fail both
+cases while the nine maintained cases pass: the note replaced on session replacement, the island re-rendered on a retained update, and focus stolen on replacement or on a retained update. The reference applies a projection once per revision, so each case drives and awaits exactly one retained update (an applied-projection counter gates the assertions), then replacements.
 The evidence is `source-built`, never `published`: these cases are not in the published 0.19.3 archive, so they reach users only with the next Workspace.Template release
 (Templates#441's 0.20.0), which also owns the durable reference `localSaved` journey. A fresh installed receiver remains separate.
 
