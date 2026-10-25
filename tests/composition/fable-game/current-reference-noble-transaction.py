@@ -149,11 +149,14 @@ def bootstrap(out):
 def effective_config(raw,out):
     fields={}
     for line in raw.splitlines():
-        match=re.fullmatch(r'([^ \n]+) "([^"\\]*)";',line)
+        match=re.fullmatch(r'([^ \n]+) "((?:[^"\\]|\\.)*)";',line)
         A.need(match is not None,'unrecognized actual APT configuration row')
         key,value=match.groups()
-        A.need(key not in fields,'duplicate actual APT configuration key')
-        fields[key]=value
+        if not key.endswith('::'):
+            A.need(key not in fields,'duplicate actual APT configuration scalar')
+            fields[key]=value
+        else:
+            fields.setdefault(key,[]).append(value)
     expected=dict(item.split('=',1) for item in options(out) if item!='-o')
     A.need(all(fields.get(key)==value for key,value in expected.items()),'effective APT configuration differs from private bootstrap')
     forbidden=('APT::Update::Pre-Invoke','APT::Update::Post-Invoke','DPkg::Pre-Invoke','DPkg::Post-Invoke','DPkg::Pre-Install-Pkgs')

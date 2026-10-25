@@ -35,6 +35,40 @@
           "number": 247,
           "text": "   std::string const FName = Cnf.FindFile(\"Dir::Etc::main\", \"/dev/null\");"
         }
+      ],
+      "builtinListLines": [
+        {
+          "number": 173,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"~$\");"
+        },
+        {
+          "number": 174,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.disabled$\");"
+        },
+        {
+          "number": 175,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.bak$\");"
+        },
+        {
+          "number": 176,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.dpkg-[a-z]+$\");"
+        },
+        {
+          "number": 177,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.ucf-[a-z]+$\");"
+        },
+        {
+          "number": 178,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.save$\");"
+        },
+        {
+          "number": 179,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.orig$\");"
+        },
+        {
+          "number": 180,
+          "text": "   Cnf.Set(\"Dir::Ignore-Files-Silently::\", \"\\\\.distUpgrade$\");"
+        }
       ]
     }
   ]

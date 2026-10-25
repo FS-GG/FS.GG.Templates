@@ -156,6 +156,20 @@ class NoInstallControls(unittest.TestCase):
         for bad in [text.replace('Dir::Etc::parts "-"','Dir::Etc::parts "/etc/apt/apt.conf.d"'),text+'APT::Update::Post-Invoke:: "ambient hook";\n',text+'Dir::Etc::main "-";\n','unknown-format']:
             with self.assertRaises(RuntimeError):T.effective_config(bad,root)
 
+    def test_source_coupled_builtin_apt_list_defaults_are_valid_dump_rows(self):
+        source=json.loads((HERE/'fixtures/apt-config-init-order.json').read_text())['files'][1]
+        rows=[]
+        for line in source['builtinListLines']:
+            # Extract the two C++ string literals from each authenticated Cnf.Set.
+            pair=json.loads('['+line['text'].split('Cnf.Set(',1)[1].rsplit(');',1)[0]+']')
+            self.assertEqual('Dir::Ignore-Files-Silently::',pair[0])
+            rows.append(pair[0]+' "'+pair[1]+'";\n')
+        self.assertEqual(8,len(rows))
+        root=Path('/private')
+        scalars=''.join(item.split('=',1)[0]+' "'+item.split('=',1)[1]+'";\n' for item in T.options(root) if item!='-o')
+        T.effective_config(scalars+''.join(rows),root)
+        with self.assertRaises(RuntimeError):T.effective_config(scalars+''.join(rows)+'DPkg::Pre-Invoke:: "hook";\n',root)
+
     def test_reporting_failure_cannot_skip_cleanup_or_replace_original_live_child_failure(self):
         real_write=Path.write_text;real_popen=T.subprocess.Popen;children=[]
         def writes(path,*args,**kwargs):
