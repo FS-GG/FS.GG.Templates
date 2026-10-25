@@ -122,6 +122,13 @@ class FactoryControls(unittest.TestCase):
         self.assertTrue(any('report' in note for note in cause.__notes__))
         # A failed later output must not replay cleanup of the already retired birth.
         with patch.object(F.O,'cleanup',side_effect=AssertionError('cleanup replay')),self.assertRaises(RuntimeError):runner.finish(cause)
+    def test_binary_and_keymap_stdout_matches_observer_without_merging_stderr_diagnostics(self):
+        runner=F.Owned(self.root,time.monotonic()+5)
+        raw=runner.command([sys.executable,'-I','-B','-c',"import sys; sys.stdout.write('actual output'); sys.stderr.write('diagnostic')"],
+            'inert-map','source-control',stdout_only=True)
+        self.assertEqual(b'actual output',raw);self.assertEqual(b'diagnostic',(self.root/'inert-map.stderr.log').read_bytes())
+        self.assertEqual('observed-empty',runner.finish()['retirement'])
+
     def test_original_child_exit_remains_distinct_from_retirement(self):
         runner=F.Owned(self.root,time.monotonic()+5)
         with self.assertRaises(RuntimeError):runner.command([sys.executable,'-I','-B','-c','raise SystemExit(7)'],'inert','source-control')

@@ -124,6 +124,7 @@ def qualified_scope(software_sha,phase):
     if binding['atSoftwareContract']['stage']=='full-current-public-reference':
         O.current_public_at_admission(os.environ)
     return binding,{'bindingSha256':N.sha(binding_path.read_bytes()),'callerSource':os.environ['GITHUB_SHA'],
+        'bootId':Path('/proc/sys/kernel/random/boot_id').read_text().strip(),
         'callerRun':int(os.environ['GITHUB_RUN_ID']),'callerAttempt':1,'callerRepository':expected['GITHUB_REPOSITORY'],
         'callerWorkflow':expected['GITHUB_WORKFLOW_REF'],'callerJob':expected['GITHUB_JOB'],
         'outerAuthority':'external Root/provider; not established by JSON or this factory'}
@@ -139,16 +140,21 @@ class Owned:
         for name in ['home','tmp']:(directory/name).mkdir(mode=0o700,exist_ok=True)
     def left(self):
         value=self.deadline-time.monotonic();need(value>0,'original factory step deadline exhausted');return value
-    def launch(self,argv,name,phase,output_limit=128*1024**2):
+    def launch(self,argv,name,phase,output_limit=128*1024**2,separate_stderr=False):
         need(type(output_limit) is int and 0<output_limit<=136*1024**2,'bounded factory output required')
         self.left();path=self.directory/(name+'.log')
         (self.directory/(name+'.intent.json')).write_text(json.dumps({'argv':argv,'phase':phase,
             'installationSelected':phase=='offline-installation','runtimeAT':False})+'\n')
-        stream=path.open('xb')
-        try:child=subprocess.Popen(argv,stdout=stream,stderr=subprocess.STDOUT,env=self.env,start_new_session=True)
-        except BaseException:stream.close();raise
+        stream=path.open('xb');error_stream=None
+        try:
+            if separate_stderr:error_stream=(self.directory/(name+'.stderr.log')).open('xb')
+            child=subprocess.Popen(argv,stdout=stream,stderr=error_stream or subprocess.STDOUT,env=self.env,start_new_session=True)
+        except BaseException:
+            stream.close()
+            if error_stream:error_stream.close()
+            raise
         leader=O.proc(child.pid)
-        item={'name':name,'child':child,'stream':stream,'leader':leader,'known':{},'outputLimit':output_limit}
+        item={'name':name,'child':child,'stream':stream,'errorStream':error_stream,'leader':leader,'known':{},'outputLimit':output_limit}
         self.children.append(item)
         need(leader and leader['sid']==child.pid,'original factory child birth unavailable')
         item['known'][child.pid]=leader['start'];return item
@@ -159,10 +165,12 @@ class Owned:
             owned,unknown,escaped=O.census(item['leader'],item['known'])
             need(not unknown and not escaped,'factory actor custody reported-unverifiable')
             aggregate.update({(row['pid'],row['start']):row['rss'] for row in owned})
-            need((self.directory/(item['name']+'.log')).stat().st_size<=item['outputLimit'],'factory output exceeded')
+            size=(self.directory/(item['name']+'.log')).stat().st_size
+            if item.get('errorStream'):size+=(self.directory/(item['name']+'.stderr.log')).stat().st_size
+            need(size<=item['outputLimit'],'factory output exceeded')
         need(sum(aggregate.values())<=4*1024**3,'aggregate sampled factory RSS exceeded')
-    def command(self,argv,name,phase,cap=4*1024**2):
-        item=self.launch(argv,name,phase,output_limit=max(cap,128*1024**2))
+    def command(self,argv,name,phase,cap=4*1024**2,stdout_only=False):
+        item=self.launch(argv,name,phase,output_limit=max(cap,128*1024**2),separate_stderr=stdout_only)
         while item['child'].poll() is None:self.health();time.sleep(.05)
         self.health();code=item['child'].returncode
         need(code==0,'original '+name+' exit '+str(code))
@@ -188,6 +196,9 @@ class Owned:
             item['child'].poll()
             try:item['stream'].close()
             except BaseException as error:value={'disposition':'unknown','firstCause':str(error)}
+            if item.get('errorStream'):
+                try:item['errorStream'].close()
+                except BaseException as error:value={'disposition':'unknown','firstCause':str(error)}
             results.append({'name':item['name'],'originalExitBeforeCleanup':original_exit,
                             'exitAfterCleanup':item['child'].returncode,'cleanup':value})
         good=all(row['cleanup']['disposition']=='observed-empty' for row in results)
@@ -426,7 +437,7 @@ def decoder(runner):
     count=[0]
     def decode(path,limit):
         count[0]+=1
-        return runner.command([DPKG_DEB,'--fsys-tarfile',str(path)],'archive-data-'+str(count[0]),'archive-data-read',limit)
+        return runner.command([DPKG_DEB,'--fsys-tarfile',str(path)],'archive-data-'+str(count[0]),'archive-data-read',limit,stdout_only=True)
     return decode
 
 
@@ -563,7 +574,7 @@ def qualify_inputs(pool,software_sha,out):
         for layout in ['us','de']:
             runner.command([manifest['objects']['setxkbmap']['path'],'-layout',layout,'-variant','','-option',''],
                 'set-layout-'+layout,'keymap-derivation')
-            raw=runner.command([manifest['objects']['xkbcomp']['path'],'-xkb',':97','-'],'compiled-keymap-'+layout,'keymap-derivation')
+            raw=runner.command([manifest['objects']['xkbcomp']['path'],'-xkb',':97','-'],'compiled-keymap-'+layout,'keymap-derivation',stdout_only=True)
             maps[layout]=N.sha(raw)
         manifest['keymaps']=maps;N.manifest(manifest);N.verify_files(manifest)
         retirement=runner.finish()
