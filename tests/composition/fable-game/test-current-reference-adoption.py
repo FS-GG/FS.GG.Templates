@@ -2,6 +2,8 @@
 """Pure synthetic controls. No template engine, public archive or runtime proof."""
 import importlib.util
 import json
+import os
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -11,6 +13,16 @@ SPEC = importlib.util.spec_from_file_location('reference_harness', Path(__file__
 harness = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(harness)
 adopter = harness.adopter
+# The production manifest authenticates one immutable published source. Source
+# development must not rewrite its hashes or pretend the new checkout is that source.
+FIXTURE_ROOT = Path(os.environ.get('FSGG_CURRENT_REFERENCE_FIXTURE_ROOT', ROOT)).resolve()
+fixture_head = subprocess.run(['git', '-C', str(FIXTURE_ROOT), 'rev-parse', 'HEAD'],
+                              check=True, capture_output=True, text=True).stdout.strip()
+fixture_dirty = subprocess.run(['git', '-C', str(FIXTURE_ROOT), 'status', '--porcelain', '--untracked-files=no'],
+                               check=True, capture_output=True, text=True).stdout
+if fixture_head != adopter.CURRENT_REFERENCE['sourceHead'] or fixture_dirty:
+    raise RuntimeError('FSGG_CURRENT_REFERENCE_FIXTURE_ROOT must select the exact published source '
+                       + adopter.CURRENT_REFERENCE['sourceHead'])
 
 
 class CurrentReference(unittest.TestCase):
@@ -31,21 +43,21 @@ class CurrentReference(unittest.TestCase):
         for logical in managed:
             if logical.startswith(('.agents/', '.claude/')):
                 continue
-            raw = (ROOT / 'templates/fs-gg-fable-game' / logical).read_bytes()
+            raw = (FIXTURE_ROOT / 'templates/fs-gg-fable-game' / logical).read_bytes()
             destination = self.candidate / ('SyntheticReference403.slnx' if logical == 'FableGameWorkspace.slnx' else logical)
             destination.parent.mkdir(parents=True, exist_ok=True)
             destination.write_bytes(raw.replace(b'FableGameWorkspaceNamespace', b'SyntheticReferenceNamespace403')
                                    .replace(b'FableGameWorkspace', b'SyntheticReference403')
                                    .replace(b'fablegameworkspace', b'syntheticreference403'))
             destination.chmod(0o755 if logical.endswith('.sh') else 0o644)
-        skills = json.loads((ROOT / 'template/skill-manifest/skill-manifest.json').read_text())
+        skills = json.loads((FIXTURE_ROOT / 'template/skill-manifest/skill-manifest.json').read_text())
         materialized = []
         for row in skills['skills']:
             supplied = row.get('supplied-by', '')
             if supplied.startswith('template/product-skills/fable-') and row['id'] != 'fable-bindings':
                 path = self.candidate / row['resolvablePath']
                 path.parent.mkdir(parents=True, exist_ok=True)
-                path.write_bytes((ROOT / supplied / 'SKILL.md').read_bytes())
+                path.write_bytes((FIXTURE_ROOT / supplied / 'SKILL.md').read_bytes())
                 materialized.append({'path': row['resolvablePath'], 'owner': 'generatedProduct'})
         path = self.candidate / '.agents/skills/skill-manifest.json'
         path.write_text(json.dumps(skills))
@@ -105,7 +117,7 @@ class CurrentReference(unittest.TestCase):
 
     def test_current_complete_reference_source_population_is_covered(self):
         _, managed, _, _ = adopter.manifest_data(self.manifest)
-        source = ROOT / 'templates/fs-gg-fable-game'
+        source = FIXTURE_ROOT / 'templates/fs-gg-fable-game'
         reference = {path.relative_to(source).as_posix()
                      for path in (source / 'SvgFoundation').rglob('*') if path.is_file()}
         # The template's unconditional modifier explicitly excludes these two.
@@ -326,13 +338,19 @@ class CurrentReference(unittest.TestCase):
             self.assertLess(start, text.index('      - uses: actions/setup-dotnet@v6'))
             self.assertIn("        if: steps.scope.outputs.run == 'true'", block)
             self.assertIn("          PYTHONDONTWRITEBYTECODE: '1'", block)
+            self.assertIn('          FSGG_CURRENT_REFERENCE_FIXTURE_ROOT: ${{ github.workspace }}/.tmp/current-reference-fixture', block)
+            fixture_start = text.index('      - name: Check out immutable published reference fixture source')
+            fixture = text[fixture_start:start]
+            self.assertLess(fixture_start, start)
+            self.assertIn('          ref: ' + adopter.CURRENT_REFERENCE['sourceHead'], fixture)
+            self.assertIn('          persist-credentials: false', fixture)
             lines = block.splitlines()
             self.assertIn('          set -euo pipefail', lines)
             for test in ['test-current-reference-adoption.py', 'test-portal-adoption.py']:
                 self.assertIn('          python3 tests/composition/fable-game/' + test, lines)
 
         check(workflow)
-        bad = [workflow.replace("        if: steps.scope.outputs.run == 'true'", '', 2),
+        bad = [workflow.replace(step, step.replace("        if: steps.scope.outputs.run == 'true'", '')),
                workflow.replace(step, step.replace('          set -euo pipefail', ''))]
         moved = workflow.replace(step + '\n', '')
         insertion = moved.index('      - uses: actions/setup-node@v6')

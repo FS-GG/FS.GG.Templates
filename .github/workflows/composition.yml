@@ -164,10 +164,26 @@ jobs:
           submodules: false
           sparse-checkout: eng/managed_group_owner.py
           sparse-checkout-cone-mode: false
+      - name: Check out immutable published reference fixture source
+        if: steps.scope.outputs.run == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: FS-GG/FS.GG.Templates
+          ref: 7be0bcf5886d39a8161b186beb8cc06e82415f1e
+          path: .tmp/current-reference-fixture
+          persist-credentials: false
+          fetch-depth: 1
+          lfs: false
+          submodules: false
+          sparse-checkout: |
+            templates/fs-gg-fable-game
+            template/skill-manifest
+            template/product-skills
       - name: Check retaining reference transaction controls
         if: steps.scope.outputs.run == 'true'
         env:
           PYTHONDONTWRITEBYTECODE: '1'
+          FSGG_CURRENT_REFERENCE_FIXTURE_ROOT: ${{ github.workspace }}/.tmp/current-reference-fixture
           FSGG_MANAGED_GROUP_OWNER: ${{ github.workspace }}/.tmp/retained-canonical-owner/eng/managed_group_owner.py
         run: |
           set -euo pipefail
