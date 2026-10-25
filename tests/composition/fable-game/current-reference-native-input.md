@@ -172,3 +172,10 @@ records this independent ordering requirement. Reporting write failures become
 secondary notes; they cannot mask the original failure or skip mandatory bounded
 child/group cleanup. Original failed output and unverifiable retirement remain
 separate from any later source repair or metadata.
+
+The original hosted source attempt passed pinned tool/fixture and signed metadata
+checks, then refused an APT diagnostic caused by the `-` parts sentinel resolving
+to `/etc/apt/-/`. It did not reach update/simulation. The repaired bootstrap uses
+explicit existing empty private configuration/auth/preferences files and parts
+directories, retaining strict diagnostic refusal rather than filtering warnings.
+The original failure remains separate from subsequent source and solver results.

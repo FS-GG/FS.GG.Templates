@@ -72,7 +72,7 @@ class NoInstallControls(unittest.TestCase):
 
     def test_options_and_actual_commands_cannot_install_or_read_host_apt_configuration(self):
         opts=T.options(Path('/private'))
-        for value in ['Dir::Etc::main=-','Dir::Etc::parts=-','Dir::Etc::sourceparts=-','Dir::Etc::preferences=-','Dir::State::status=/private/status','Acquire::By-Hash=no','APT::Sandbox::User=root']:
+        for value in ['Dir::Etc::main=/private/apt-main.conf','Dir::Etc::parts=/private/apt-config-parts','Dir::Etc::sourceparts=/private/apt-source-parts','Dir::Etc::preferences=/private/apt-preferences','Dir::State::status=/private/status','Acquire::By-Hash=no','APT::Sandbox::User=root']:
             self.assertIn(value,opts)
         self.assertNotIn('trusted=yes',' '.join(opts))
 
@@ -142,7 +142,13 @@ class NoInstallControls(unittest.TestCase):
     def test_private_bootstrap_is_present_in_environment_before_command_line_processing(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp);(root/'home').mkdir();(root/'tmp').mkdir();config=T.bootstrap(root)
-            expected=['Dir::Etc::main "-";','Dir::Etc::parts "-";','Dir::Etc::netrc "-";']
+            expected=['Dir::Etc::main "'+str(root/'apt-main.conf')+'";','Dir::Etc::parts "'+str(root/'apt-config-parts')+'";','Dir::Etc::netrc "'+str(root/'apt-auth.conf')+'";']
+            self.assertEqual([],list((root/'apt-config-parts').iterdir()))
+            self.assertEqual(b'',(root/'apt-main.conf').read_bytes())
+            for name in ['apt-config-parts','apt-source-parts','apt-auth-parts','apt-preference-parts']:
+                self.assertTrue((root/name).is_dir());self.assertEqual([],list((root/name).iterdir()))
+            for name in ['apt-main.conf','apt-auth.conf','apt-preferences']:
+                self.assertEqual(b'',(root/name).read_bytes())
             script='import os,pathlib; s=pathlib.Path(os.environ["APT_CONFIG"]).read_text(); expected='+repr(expected)+'; assert all(v in s for v in expected); assert "GH_TOKEN" not in os.environ; print("private-before-command-line")'
             with patch.dict(os.environ,{'APT_CONFIG':'/ambient-untrusted-config','GH_TOKEN':'inert-sentinel'}):
                 result=T.observed([sys.executable,'-I','-c',script],root/'init.log',T.A.Budget(5))
@@ -153,7 +159,7 @@ class NoInstallControls(unittest.TestCase):
         root=Path('/private')
         text=''.join(item.split('=',1)[0]+' "'+item.split('=',1)[1]+'";\n' for item in T.options(root) if item!='-o')
         T.effective_config(text,root)
-        for bad in [text.replace('Dir::Etc::parts "-"','Dir::Etc::parts "/etc/apt/apt.conf.d"'),text+'APT::Update::Post-Invoke:: "ambient hook";\n',text+'Dir::Etc::main "-";\n','unknown-format']:
+        for bad in [text.replace('Dir::Etc::parts "/private/apt-config-parts"','Dir::Etc::parts "/etc/apt/apt.conf.d"'),text+'APT::Update::Post-Invoke:: "ambient hook";\n',text+'Dir::Etc::main "/private/apt-main.conf";\n','unknown-format']:
             with self.assertRaises(RuntimeError):T.effective_config(bad,root)
 
     def test_source_coupled_builtin_apt_list_defaults_are_valid_dump_rows(self):

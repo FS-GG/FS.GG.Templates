@@ -119,8 +119,10 @@ def request(raw):
 
 def options(out):
     """c068 offline semantics plus private status/cache/config domains; no host APT configuration."""
-    return ['-o', 'Dir::Etc::main=-', '-o', 'Dir::Etc::parts=-',
-            '-o','Dir::Etc::sourceparts=-','-o','Dir::Etc::netrc=-','-o','Dir::Etc::netrcparts=-','-o','Dir::Etc::preferences=-','-o','Dir::Etc::preferencesparts=-',
+    return ['-o', 'Dir::Etc::main='+str(out/'apt-main.conf'), '-o', 'Dir::Etc::parts='+str(out/'apt-config-parts'),
+            '-o','Dir::Etc::sourceparts='+str(out/'apt-source-parts'),
+            '-o','Dir::Etc::netrc='+str(out/'apt-auth.conf'),'-o','Dir::Etc::netrcparts='+str(out/'apt-auth-parts'),
+            '-o','Dir::Etc::preferences='+str(out/'apt-preferences'),'-o','Dir::Etc::preferencesparts='+str(out/'apt-preference-parts'),
             '-o','Dir::Etc::sourcelist='+str(out/'sources.list'),
             '-o','Dir::State='+str(out/'state'), '-o','Dir::State::status='+str(out/'status'),
             '-o','Dir::State::extended_states='+str(out/'extended_states'),
@@ -136,6 +138,10 @@ def options(out):
 def bootstrap(out):
     # APT_CONFIG is loaded by pkgInitConfig BEFORE command-line -o options.
     # Disable host config/auth/hooks at that first boundary, not after init.
+    for name in ['apt-config-parts','apt-source-parts','apt-auth-parts','apt-preference-parts']:
+        (out/name).mkdir()
+    for name in ['apt-main.conf','apt-auth.conf','apt-preferences']:
+        (out/name).touch(exist_ok=False)
     fixed=options(out)
     values=[item.split('=',1) for item in fixed if item!='-o']
     for key,value in values:
