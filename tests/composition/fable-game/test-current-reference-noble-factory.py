@@ -100,6 +100,18 @@ class FactoryControls(unittest.TestCase):
         out=base/'native-at-facility';self.assertEqual(out,F.private_output(out,base));out.mkdir()
         with self.assertRaises(RuntimeError):F.private_output(out,base)
 
+    def test_aggregate_rss_includes_original_supervisor_and_refuses_missing_or_drifted_birth(self):
+        leader={'pid':42,'start':1,'ppid':2,'sid':42,'rss':100}
+        child={'pid':43,'start':2,'ppid':42,'sid':43,'rss':4*1024**3-100}
+        with patch.object(F.O,'proc',return_value=leader):runner=F.Owned(self.root,time.monotonic()+5)
+        runner.children=[{'name':'inert','leader':child,'known':{},'outputLimit':128*1024**2}]
+        with patch.object(Path,'stat',return_value=types.SimpleNamespace(st_size=0)),patch.object(F.O,'census',return_value=([child],[],[])):
+            with patch.object(F.O,'proc',return_value=leader):runner.health()
+            with patch.object(F.O,'proc',return_value={**leader,'rss':101}),self.assertRaises(RuntimeError):runner.health()
+            for current in (None,{**leader,'start':99},{**leader,'rss':-1}):
+                with self.subTest(current=current),patch.object(F.O,'proc',return_value=current),self.assertRaises(RuntimeError):runner.health()
+        with patch.object(F.O,'proc',return_value=None),self.assertRaises(RuntimeError):F.Owned(self.root,time.monotonic()+5)
+
     def test_exact_decoder_output_limit_reaches_health_guard_without_widening_default(self):
         runner=F.Owned(self.root,time.monotonic()+5)
         runner.children=[{'name':'decoder','leader':{'pid':42,'start':1},'known':{},'outputLimit':136*1024**2}]

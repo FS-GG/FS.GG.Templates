@@ -134,6 +134,8 @@ class Owned:
     """Reuse original birth/census/cleanup controls; no stronger containment claim."""
     def __init__(self,directory,deadline):
         self.directory=directory;self.deadline=deadline;self.children=[];self.first=None;self.reporting=[];self.retired=None
+        self.supervisor=O.proc(os.getpid())
+        need(self.supervisor is not None,'original factory supervisor birth unavailable')
         self.env={'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','LANG':'C.UTF-8','LC_ALL':'C.UTF-8',
             'HOME':str(directory/'home'),'TMPDIR':str(directory/'tmp'),'DEBIAN_FRONTEND':'noninteractive',
             'APT_CONFIG':str(directory/'apt-bootstrap.conf')}
@@ -159,7 +161,10 @@ class Owned:
         need(leader and leader['sid']==child.pid,'original factory child birth unavailable')
         item['known'][child.pid]=leader['start'];return item
     def health(self):
-        self.left();aggregate={}
+        self.left();supervisor=O.proc(self.supervisor['pid'])
+        need(O.same_birth(supervisor,self.supervisor) and type(supervisor.get('rss')) is int and supervisor['rss']>=0,
+             'original factory supervisor birth/RSS changed or unavailable')
+        aggregate={(supervisor['pid'],supervisor['start']):supervisor['rss']}
         for item in self.children:
             if not item['leader']:raise RuntimeError('factory birth unknown')
             owned,unknown,escaped=O.census(item['leader'],item['known'])
