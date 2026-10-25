@@ -33,14 +33,11 @@ def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False).encode()
 
 
-def manifest(value):
-    """Validate supplied pins only; no local observation is invented here."""
-    require(type(value) is dict and set(value) == {'schema', 'platform', 'packages', 'objects', 'dataFiles', 'keymaps'},
-            'complete closed facility manifest required')
-    require(value['schema'] == SCHEMA and value['platform'] == 'ubuntu-24.04-x11', 'selected Noble X11 facility required')
-    require(type(value['packages']) is list and 1 <= len(value['packages']) <= 256, 'package closure absent/bounded')
+def validate_packages(packages):
+    """Shared exact package-row contract for facility and archive-only preparation."""
+    require(type(packages) is list and 1 <= len(packages) <= 256, 'package closure absent/bounded')
     names = []
-    for row in value['packages']:
+    for row in packages:
         require(set(row) == {'name', 'version', 'debSha256', 'sourceUri', 'sourceSha256'} and
                 re.fullmatch(r'[a-z0-9][a-z0-9+.-]*(?::amd64)?', row['name']) and
                 type(row['version']) is str and 0 < len(row['version']) <= 128 and
@@ -49,6 +46,15 @@ def manifest(value):
                 'exact package/archive/source tuple absent')
         names.append(row['name'])
     require(len(set(names)) == len(names), 'duplicate package')
+    return names
+
+
+def manifest(value):
+    """Validate supplied pins only; no local observation is invented here."""
+    require(type(value) is dict and set(value) == {'schema', 'platform', 'packages', 'objects', 'dataFiles', 'keymaps'},
+            'complete closed facility manifest required')
+    require(value['schema'] == SCHEMA and value['platform'] == 'ubuntu-24.04-x11', 'selected Noble X11 facility required')
+    names = validate_packages(value['packages'])
     require(set(value['objects']) == ROLES, 'required executable/client identities absent')
     require(type(value['dataFiles']) is list and 4 <= len(value['dataFiles']) <= 512, 'dictionary/keymap/schema/compose closure absent')
     rows = list(value['objects'].values()) + value['dataFiles']

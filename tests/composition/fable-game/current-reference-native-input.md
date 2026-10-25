@@ -111,3 +111,12 @@ The signing/index design follows immutable Coordination `c068e1cccb9a0dc65d4ebfc
 of that image's caller selection or bake acceptance. Small original metadata
 excerpts exercise real binary/patch-source joins; synthetic responses exercise
 refusal logic. Neither fixture class is native IME or facility evidence.
+
+
+Archive-only facility preparation can use `--package-request PATH` with the closed
+`fsgg.current-reference-noble-package-request/1` object containing only `schema`
+and `packages`. The same maintained exact package-row validator applies; this
+input is bounded at64KiB and rejects duplicate fields. It does not require or
+invent runtime object/keymap pins. The receipt binds `inputKind` and
+`packageRequestSha256`; it cannot become a full facility manifest or native
+admission. The existing callee continues using the complete facility manifest.

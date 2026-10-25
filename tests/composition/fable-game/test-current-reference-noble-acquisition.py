@@ -140,6 +140,18 @@ class AcquisitionControls(unittest.TestCase):
                 A.acquire({},Path(tmp)/'absent',Path(tmp)/'key')
             self.assertFalse((Path(tmp)/'absent').exists())
 
+    def test_archive_only_request_needs_no_fabricated_keymaps_or_objects(self):
+        request={'schema':'fsgg.current-reference-noble-package-request/1','packages':self.fixture['packages']}
+        with tempfile.TemporaryDirectory() as tmp,patch.object(A,'fetch',side_effect=RuntimeError('selected acquisition reached')) as fetch:
+            root=Path(tmp)/'fresh'
+            with self.assertRaisesRegex(RuntimeError,'selected acquisition reached'):
+                A.acquire(request,root,Path(tmp)/'key')
+            self.assertTrue(root.is_dir());self.assertEqual(fetch.call_count,1)
+        for changed in [{**request,'keymaps':{}},{**request,'packages':[]},{**request,'packages':[{**request['packages'][0],'version':''}]}]:
+            with tempfile.TemporaryDirectory() as tmp,patch.object(A,'fetch',side_effect=AssertionError('network before request validation')):
+                with self.assertRaises((RuntimeError,KeyError,TypeError)):
+                    A.acquire(changed,Path(tmp)/'fresh',Path(tmp)/'key')
+
     def test_actual_registration_mutations_refuse(self):
         source=(HERE/'verify-external-reference-workflow.py').read_text()
         node=next(n for n in ast.parse(source).body if isinstance(n,ast.FunctionDef) and n.name=='validate_current_at_registration')

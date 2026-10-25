@@ -137,7 +137,9 @@ def fetch(uri, expected, size, target, budget, opener=None):
 
 
 def signed_release(raw_path, keyring, suite, budget):
-    need(digest(keyring.read_bytes()) == KEYRING_SHA256, 'trusted source keyring differs')
+    with keyring.open('rb') as stream:
+        key_bytes = stream.read(1024**2 + 1)
+    need(len(key_bytes) <= 1024**2 and digest(key_bytes) == KEYRING_SHA256, 'trusted source keyring differs')
     with tempfile.TemporaryDirectory(prefix='current-noble-signature-') as scratch:
         plain = Path(scratch) / 'verified'
         result = subprocess.run(['gpgv', '--keyring', str(keyring), '--status-fd', '1',
@@ -209,7 +211,12 @@ def acquire(manifest, out, keyring, budget=None):
     spec = importlib.util.spec_from_file_location('current_native_manifest', HERE / 'current-reference-native-input.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    module.manifest(manifest)
+    package_request = manifest.get('schema') == 'fsgg.current-reference-noble-package-request/1'
+    if package_request:
+        need(set(manifest) == {'schema', 'packages'}, 'closed package request required')
+        module.validate_packages(manifest['packages'])
+    else:
+        module.manifest(manifest)
     need(not out.exists() and not out.is_symlink(), 'fresh acquisition output required')
     out.mkdir(mode=0o700)
     budget = budget or Budget()
@@ -256,7 +263,9 @@ def acquire(manifest, out, keyring, budget=None):
                 fetch(BASE + row['path'], row['sha256'], row['bytes'], target, budget)
                 acquired[row['path']] = row
     receipt = {'schema': 'fsgg.current-reference-noble-acquisition/1', 'snapshot': BASE,
-               'keyringSha256': KEYRING_SHA256, 'manifestSha256': digest(module.canonical(manifest)),
+               'keyringSha256': KEYRING_SHA256,
+               'inputKind': 'source-package-request' if package_request else 'native-input-facility',
+               ('packageRequestSha256' if package_request else 'manifestSha256'): digest(module.canonical(manifest)),
                'acquisitionHelperSha256': digest(Path(__file__).read_bytes()),
                'releases': releases, 'indexes': index_identities, 'packages': selected,
                'bytes': budget.bytes, 'requests': budget.requests,
@@ -272,9 +281,24 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--package-request', type=Path, help='Bounded archive-only package request; no facility/keymap claim')
     parser.add_argument('--keyring', type=Path, default=Path('/usr/share/keyrings/ubuntu-archive-keyring.gpg'))
     args = parser.parse_args()
     spec = importlib.util.spec_from_file_location('current_native_manifest_cli', HERE / 'current-reference-native-input.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    acquire(module.read_manifest(os.environ.get('FSGG_CURRENT_NATIVE_INPUT_FACILITY', '')), args.output, args.keyring)
+    if args.package_request:
+        with args.package_request.open('rb') as stream:
+            raw = stream.read(65537)
+        need(0 < len(raw) <= 65536, 'package request absent/oversized')
+        def unique(pairs):
+            result = {}
+            for key, value in pairs:
+                need(key not in result, 'duplicate package request field')
+                result[key] = value
+            return result
+        request = json.loads(raw, object_pairs_hook=unique)
+        need(type(request) is dict and request.get('schema') == 'fsgg.current-reference-noble-package-request/1', 'archive-only request schema differs')
+    else:
+        request = module.read_manifest(os.environ.get('FSGG_CURRENT_NATIVE_INPUT_FACILITY', ''))
+    acquire(request, args.output, args.keyring)
