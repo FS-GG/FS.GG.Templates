@@ -331,7 +331,7 @@ any downstream registry/pin flip advertises it.
 
 The TypeScript, JavaScript, Rust and Go CLI payloads now project the canonical project-knowledge
 workflow and checker. SDD initialization owns the knowledge store; qualification selects the public
-SDD 2.5.2 CLI for clean-doctor verification. The synthetic FourD reference adds explicit browser-local
+SDD 2.5.3 CLI for clean-doctor verification. The synthetic FourD reference adds explicit browser-local
 Save and Restore across page recreation, with a bounded versioned codec and lossless uint64 trace
 sequences. Failed writes, incompatible saves and superseded loads preserve the accepted state.
 This reference does not establish product durable-save or assistive-technology acceptance.
