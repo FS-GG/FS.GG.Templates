@@ -277,7 +277,7 @@ def metadata(inputs,out,budget,keyring):
                 path=inputs/(suite+'-'+component+'-'+kind.replace('/','-'))
                 raw=read(path,A.MAX_FILE)
                 A.need(len(raw)==size and A.digest(raw)==expected,'signed index bytes differ')
-                keys = ('Package','Version','Architecture','Filename','SHA256','Size','Source','Multi-Arch') if kind.startswith('binary') else ('Package','Version','Directory','Checksums-Sha256')
+                keys = (*A.BINARY_IDENTITY_KEYS,'Filename') if kind.startswith('binary') else ('Package','Version','Directory','Checksums-Sha256')
                 rows.extend({k:r[k] for k in keys if k in r} for r in A.rows(raw))
                 if kind.startswith('binary'):
                     dest=target/name;dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(raw)
@@ -303,8 +303,7 @@ def update_output(raw,out):
 def source_join(binary,sources):
     match=re.fullmatch(r'([^ ]+)(?: \(([^)]+)\))?',binary.get('Source',binary['Package']))
     A.need(match is not None,'binary source field malformed')
-    candidates=[s for s in sources if s.get('Package')==match[1] and s.get('Version')==(match[2] or binary['Version'])]
-    A.need(len({json.dumps(s,sort_keys=True) for s in candidates})==1,'exact patched source absent/ambiguous')
+    candidates=A.patched_sources(match[1],match[2] or binary['Version'],sources)
     source=candidates[0]
     dsc=[line.split() for line in source.get('Checksums-Sha256','').splitlines() if line.strip() and line.split()[-1].endswith('.dsc')]
     A.need(len(dsc)==1,'one authenticated source descriptor required')
@@ -334,8 +333,8 @@ def frozen(text,base,roots,binaries,sources):
         A.need(match is not None,'unrecognized original APT installation row')
         name,old,version,origin,architecture=match.groups();name=name.removesuffix(':amd64')
         rows=[r for r in binaries if r.get('Package')==name and r.get('Version')==version and r.get('Architecture')==architecture]
-        A.need(len({json.dumps(r,sort_keys=True) for r in rows})==1,'solver package absent/ambiguous in signed index')
-        row=rows[0];canonical=name+(':amd64' if row.get('Multi-Arch')=='same' else '')
+        row,aliases=A.binary_aliases(rows)
+        canonical=name+(':amd64' if row.get('Multi-Arch')=='same' else '')
         A.need(not any(c['package']==name for c in changes),'duplicate original APT installation row')
         A.need((old is None and canonical not in base) or (old is not None and base.get(canonical)==old and old!=version),
                'original old/new package version differs from subject status')
@@ -345,7 +344,9 @@ def frozen(text,base,roots,binaries,sources):
         changes.append({'package':name,'version':version,'architecture':architecture,
                         'filename':joined['binary']['path'],'sha256':joined['binary']['sha256'],
                         'bytes':joined['binary']['bytes'],'sourcePackage':joined['sourcePackage'],
-                        'sourceVersion':joined['sourceVersion'],'sourceFiles':joined['sourceFiles']})
+                        'sourceVersion':joined['sourceVersion'],'sourceFiles':joined['sourceFiles'],
+                        **({'binaryAliases':aliases} if len(aliases)>1 else {}),
+                        **({'sourceDirectoryAliases':joined['sourceDirectoryAliases']} if 'sourceDirectoryAliases' in joined else {})})
         final[canonical]=version
     A.need(int(summaries[0][0])==upgrades and int(summaries[0][1])==len(changes)-upgrades,
            'original solver summary/change population differs')

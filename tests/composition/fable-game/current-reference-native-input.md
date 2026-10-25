@@ -210,3 +210,17 @@ and missing-settlement mutations refuse. Literal `~` in authenticated Debian
 prerelease archive names is accepted as an unreserved path character; percent
 escapes, traversal, query/fragment and arbitrary origin remain refused. The
 original failed job is not relabelled by this source-parser replay.
+
+The original32-root prefix completed update/simulation, then refused an Ubuntu
+component-promotion alias: one exact ocl-icd binary body appears under signed
+main and universe paths. The verifier now admits aliases only when binary
+identity, SHA/size, source and runtime dependency metadata agree, and every
+complete patched-source filename/hash/size tuple agrees. It retains all sorted
+authenticated path alternatives, chooses the lexicographically first signed
+binary Filename for future acquisition, and preserves the caller's declared
+sourceURI directory. Alias metadata does not claim that every alternative URI
+was downloaded, or identify the original APT download origin of a simulation.
+Differing binary/source content, dependency fields, archive sizes or source
+closure members still refuse. Full original32 output replay joins280Inst and
+280Conf (4upgrades/276new) to an993-package expected inventory; the original
+failed job remains failed and a fresh source-CI receipt is still required.
