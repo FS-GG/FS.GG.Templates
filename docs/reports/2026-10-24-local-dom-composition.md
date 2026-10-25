@@ -118,13 +118,21 @@ from `Browser.Tests` in the generated Complete receiver.
 | DOM islands | the same two cases | native textboxes (`Encounter note`, `External reference note`) beside the retained SVG accept text and keep Enter for themselves (the FourD note value is asserted right after `fill`; the external note is not re-read). The scene is replaced later in the FourD case, but the note is not asserted across that replacement |
 | command ordering, coalescing, replacement, disposal | `FourD reference ...`; `old generation completion is inert and abandonment requires explicit rearm`; `delayed completion settles once and disposal makes retained controls inert`; the two `external authority reference` cases above | ordered `data-command-order`; burst keeps one projection request; stale-generation reply is inert; disposal settles owned counts to 0, reload remounts independently |
 
-So every named element has an executing case, and none of the nine is a placeholder. What this does not cover, and is therefore the
-final remaining composition piece: **(a) broader DOM panels** (capability map F04), meaning more than one textbox per island (select,
-checkbox, radio, tab order and label association across a retained update); **(b) an explicit template-level assertion that focus and native
-editing/IME text survive a retained update and a session replacement** (capability map F01 and F04; the producer's own focus and MutationObserver
-cases cover it in Rendering, but none of these nine asserts `toBeFocused` or re-reads the note value across an update); and a fresh installed receiver. Adding that example changes
-shipped template source, so it can only be proven against a source-built template (the runner tests published bytes) and belongs to
-the next Workspace.Template release (Templates#441's 0.20.0) together with the durable reference `localSaved` journey.
+So every named element has an executing case, and none of the nine is a placeholder. Two gaps remained in the published 0.19.3 archive, and both
+are now closed **in the checked-out source only**, by two source-only typed cases that run in `--source-built` mode (11 cases per browser, 33 in total):
+
+- **(a) broader DOM panels** (capability map F04): `FourD reference options panel keeps labelled native controls, tab order and state across retained updates and a session replacement`
+  exercises a new `Encounter options` island (a labelled select, a checkbox and a two-radio `Camera` group beside the `Encounter note` textbox): accessible
+  names and initial state, document tab order, native keyboard operation (Space, arrows, `selectOption`), Enter on a native control dispatching no gameplay command, state and
+  focus kept across a retained scene update and a session replacement driven without moving focus, the same DOM nodes before and after, and disposal removing the island's listeners.
+- **(b) focus and native editing text survive an update and a replacement** (F01/F04): `FourD reference focus and native editing text survive a retained update and a session replacement`
+  keeps a caret range, text and a synthetic composition in the note, then the select, then the reference root, across the same update and replacement, asserting `toBeFocused`, value,
+  selection and node identity.
+
+Before the change the two cases fail (commit before the implementation: 2 failed, 9 passed, Chromium); with it 11/11 in each of Chromium, Firefox and WebKit. Three scratch regressions each fail both
+cases while the nine maintained cases pass: the note replaced on session replacement, the island re-rendered on a retained update, and focus stolen on replacement.
+The evidence is `source-built`, never `published`: these cases are not in the published 0.19.3 archive, so they reach users only with the next Workspace.Template release
+(Templates#441's 0.20.0), which also owns the durable reference `localSaved` journey. A fresh installed receiver remains separate.
 
 ## Boundaries that remain
 

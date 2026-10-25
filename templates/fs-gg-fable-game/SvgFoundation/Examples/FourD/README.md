@@ -74,3 +74,14 @@ TRX, browser reports and locked package evidence. This is source-candidate compo
 from a local archive. Durable persistence, product saves, public publication,
 downloaded-only installed/retaining acceptance and actual screen-reader qualification
 of the new controls retain their separate gates; whole GAME-TEMPLATE-01 remains open.
+
+## Encounter options island
+
+`FourDReference.fs` also mounts an **Encounter options** island beside the retained scene: a labelled **Difficulty**
+select, a **Show hints** checkbox and a **Camera** radio group (**Overview**, **Close focus**) next to the **Encounter note**
+textbox. The state is presentation-only (`data-option-*` attributes and a polite status line); rules, saves and replay never
+read it. The island is created once and keeps its nodes, values and focus across retained scene updates and session replacement;
+Enter or Space inside a native control is never gameplay input (`SvgInputHost` treats form controls as native-editable targets).
+Two Browser.Tests cases cover it (`FourD reference options panel keeps labelled native controls, tab order and state ...` and
+`FourD reference focus and native editing text survive a retained update and a session replacement`). They are not in the published
+0.19.3 archive, so the local runner reaches them only in `--source-built` mode.

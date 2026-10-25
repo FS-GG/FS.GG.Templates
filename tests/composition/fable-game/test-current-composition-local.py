@@ -355,6 +355,20 @@ class Controls(unittest.TestCase):
         self.assertEqual(text.count('--locked-mode'),2+1);self.assertIn('<clear/>',text)
         self.assertIn("external-reference-template-package.py\" generated",text);self.assertIn('cmp -s "$plan"',text)
 
+    def test_source_only_case_titles_exist_in_the_spec_and_never_in_the_published_plan(self):
+        source=(HERE.parents[2]/'src/FS.GG.Templates.ProviderTool/ReferencePublication.fs').read_text()
+        only=re.search(r'let private sourceBuiltOnlyCases =(.*?)\n\nlet ',source,re.S)[1]
+        titles=re.findall(r'title = "([^"]+)"',only)
+        base=re.search(r'let private baseCompositionCases =(.*?)\n\n',source,re.S)[1]
+        self.assertEqual(len(titles),2);self.assertEqual(len(re.findall(r'title = "',base)),9)
+        spec=(HERE.parents[2]/'templates/fs-gg-fable-game/Browser.Tests/two-client.spec.ts').read_text()
+        for title in titles:
+            self.assertEqual(spec.count('test("'+title+'"'),1,title)
+            self.assertNotIn(title,base)
+        # The island's controls are authored once, in the reference, and carry the names the cases look up.
+        reference=(HERE.parents[2]/'templates/fs-gg-fable-game/SvgFoundation/FourDReference.fs').read_text()
+        for name in ('Encounter options','Difficulty','Show hints','Camera','Overview','Close focus'):self.assertIn('"%s"'%name,reference)
+
     def test_dirty_checkout_and_hosted_runner_refuse_before_any_process(self):
         root=self.fresh_root()
         with self.assertRaisesRegex(ValueError,'clean checkout'):self.run_main(root,dirty=' M tests/x')
