@@ -7,6 +7,9 @@ protected acceptance register (readiness/polyglot-qualification-acceptance.json)
 only after genuine four-product qualification of that payload was independently reviewed and accepted by
 root; adding it is a pull request into protected main, so the register is not editable by the release run.
 
+The npm audit of the two Node products is a dated live-registry observation (an accepted recorded limit), so each
+entry records the audit response digest and the UTC time it was observed.
+
 Payload identity = SHA-256 over the sorted `<entry sha256>  <entry name>` lines of every archive entry, with
 the nuspec's repository commit blanked. Zip entry timestamps differ between packs and the commit necessarily
 differs once the register entry itself lands, so neither can be part of the identity; every payload byte is.
@@ -21,7 +24,7 @@ import zipfile
 REGISTER = Path(__file__).resolve().parents[3] / "readiness" / "polyglot-qualification-acceptance.json"
 REGISTER_SCHEMA = "fsgg.polyglot-qualification-acceptance/v1"
 PROVIDERS = ("typescript", "javascript", "rust", "go")
-ENTRY_KEYS = {"payloadIdentitySha256", "package", "evidence", "acceptance"}
+ENTRY_KEYS = {"payloadIdentitySha256", "package", "evidence", "acceptance", "npmAuditObservation"}
 
 
 def requires_qualification(archive):
@@ -59,6 +62,11 @@ def load_register(path=REGISTER):
             raise ValueError("acceptance register payload identity must be 64 lowercase hex characters")
         if not all(isinstance(entry[key], str) and entry[key].startswith("https://github.com/FS-GG/") for key in ("evidence", "acceptance")):
             raise ValueError("acceptance register entries cite their evidence and root acceptance URLs")
+        observation = entry["npmAuditObservation"]
+        if (not isinstance(observation, dict) or set(observation) != {"responseSha256", "observedUtc"}
+                or not re.fullmatch(r"[0-9a-f]{64}", str(observation["responseSha256"]))
+                or not re.fullmatch(r"20[0-9]{2}-[01][0-9]-[0-3][0-9]T[0-2][0-9]:[0-5][0-9]:[0-5][0-9]Z", str(observation["observedUtc"]))):
+            raise ValueError("acceptance register entries record the dated npm audit response digest and UTC time")
         if entry["payloadIdentitySha256"] in seen:
             raise ValueError("duplicate acceptance register entry")
         seen.add(entry["payloadIdentitySha256"])

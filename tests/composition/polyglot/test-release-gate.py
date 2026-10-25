@@ -40,7 +40,8 @@ class ReleaseGate(unittest.TestCase):
     def entry(self, identity):
         return {"payloadIdentitySha256": identity, "package": "FS.GG.Workspace.Template 0.20.0",
                 "evidence": "https://github.com/FS-GG/FS.GG.Templates/issues/441#issuecomment-1",
-                "acceptance": "https://github.com/FS-GG/FS.GG.Templates/issues/441#issuecomment-2"}
+                "acceptance": "https://github.com/FS-GG/FS.GG.Templates/issues/441#issuecomment-2",
+                "npmAuditObservation": {"responseSha256": "b" * 64, "observedUtc": "2026-10-25T04:20:41Z"}}
     def test_legacy_archive_keeps_existing_gates(self):
         legacy = archive(self.dir, "legacy.nupkg", {"content/templates/fs-gg-console/a": b"a"})
         self.assertEqual(gate.main([str(legacy)], self.register([])), 0)
@@ -79,6 +80,9 @@ class ReleaseGate(unittest.TestCase):
             json.dumps({"schema": gate.REGISTER_SCHEMA, "accepted": [dict(valid, payloadIdentitySha256="A" * 64)]}),
             json.dumps({"schema": gate.REGISTER_SCHEMA, "accepted": [dict(valid, evidence="http://example.com/x")]}),
             json.dumps({"schema": gate.REGISTER_SCHEMA, "accepted": [valid, valid]}),
+            json.dumps({"schema": gate.REGISTER_SCHEMA, "accepted": [dict(valid, npmAuditObservation={"responseSha256": "b" * 64})]}),
+            json.dumps({"schema": gate.REGISTER_SCHEMA, "accepted": [dict(valid, npmAuditObservation={"responseSha256": "b" * 63, "observedUtc": "2026-10-25T04:20:41Z"})]}),
+            json.dumps({"schema": gate.REGISTER_SCHEMA, "accepted": [dict(valid, npmAuditObservation={"responseSha256": "b" * 64, "observedUtc": "yesterday"})]}),
             json.dumps({"schema": gate.REGISTER_SCHEMA, "accepted": [dict(valid, extra=1)]}),
         ]:
             path = self.dir / "bad.json"
