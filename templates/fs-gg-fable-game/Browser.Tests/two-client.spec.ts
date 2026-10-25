@@ -1137,7 +1137,9 @@ test("FourD reference focus and native editing text survive a retained update an
   const generation = Number(await reference.getAttribute("data-generation") ?? "0");
   await pressWithoutFocus(page, "Replace local session");
   await expect.poll(async () => Number(await reference.getAttribute("data-generation"))).toBeGreaterThan(generation);
-  await note.press("Enter");
+  // Focus is asserted before and by a page-level keypress: Locator.press would refocus the note and hide a focus steal.
+  await expect(note).toBeFocused();
+  await page.keyboard.press("Enter");
   await note.dispatchEvent("compositionend");
 
   await expect(note).toBeFocused();
