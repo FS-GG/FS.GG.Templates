@@ -560,6 +560,7 @@ let currentCompositionPlan () =
 let renderCurrentCompositionPlan () =
     JsonSerializer.Serialize(currentCompositionPlan(), JsonSerializerOptions(WriteIndented = true))
 
+// Regression pin: the digest below is of the exact canonical output this module renders (reviewed once), not an independent source.
 let private validateCompositionPlanDigest (expectedDigest: string) (json: string) =
     try
         if String.IsNullOrWhiteSpace json || Encoding.UTF8.GetByteCount(json) > 32768 then

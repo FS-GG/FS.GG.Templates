@@ -10,7 +10,7 @@ container runtime keeps its image store under the real home), and it passes no a
 to any child process. It refuses to start on a hosted runner.
 
 The product under test is the exact published template and Rendering archives, fetched by typed
-SHA-256; the checkout supplies the harness, the typed plan and the stage script. It is development
+SHA-256 (or, with --source-built, the template packed from the checkout and the same Rendering archives); the checkout supplies the harness, the typed plan and the stage script. It is development
 verification only: it does not accept hosted runtime, installed, published, producer-custody,
 durable-save, assistive-technology or whole-#4818 scope.
 """
@@ -173,7 +173,7 @@ def pack_source_template(root, env, coordination_source):
 
 
 def protected_main(head):
-    """True when the checkout is already on the local copy of the protected default branch."""
+    """True when the commit is an ancestor of the LOCAL copy of origin/main (refresh it first; this is not a remote read)."""
     result = subprocess.run(['git', '-C', str(WORKSPACE), 'merge-base', '--is-ancestor', head, 'refs/remotes/origin/main'], capture_output=True)
     return result.returncode == 0
 
@@ -220,6 +220,7 @@ def main(argv=None):
 
     require(bool(args.custody_evidence) == bool(args.rendering_source), '--custody-evidence and --rendering-source go together')
     require(bool(args.source_built) == bool(args.coordination_source), '--source-built and --coordination-source go together')
+    require(not args.coordination_source or Path(args.coordination_source).is_dir(), '--coordination-source must be an existing local directory')
     require(not args.published_all or args.custody_evidence, '--published-all needs --custody-evidence')
     families = args.families.split(',')
     require(families and all(f in FAMILIES for f in families) and len(set(families)) == len(families), 'closed browser families required')
@@ -277,7 +278,7 @@ def main(argv=None):
             template, template_sha = built['package'], built['packageSha256']
             summary['sourceBuilt'] = {key: value for key, value in built.items() if key not in ('package', 'seconds')}
             summary['sourceBuilt']['package'] = built['package'].name
-            summary['sourceBuilt']['protectedMain'] = protected_main(built['sourceCommit'])
+            summary['sourceBuilt']['onLocalOriginMain'] = protected_main(built['sourceCommit'])
             summary['seconds']['templatePack'] = built['seconds']
         else:
             row = plan['template']
@@ -325,6 +326,7 @@ def main(argv=None):
         summary['seconds']['sourceStage'] = run(stage_args, WORKSPACE, stage_env, root / 'source-stage.log', 2400)
         stage = json.loads((root / 'product/current-source-stage.json').read_text())
         require(stage['disposition'] == 'source-passed' and stage['browserExecuted'] is False, 'source stage incomplete')
+        require(not args.source_built or (stage.get('origin') == 'source-built' and stage.get('publishedAcceptance') is False), 'source-built stage is not labelled source-built')
 
         tests = root / 'product/complete/Browser.Tests'
         playwright = tests / 'node_modules/playwright/cli.js'

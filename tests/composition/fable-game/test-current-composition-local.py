@@ -90,7 +90,7 @@ class Controls(unittest.TestCase):
           'rendering':{'version':'2.0.0','sourceCommit':'c'*40,'packages':[{'id':'Fixture.UI','sha256':'u'*64}]},
           'browsers':{'families':['chromium'],'workers':1,'retries':0,'cases':[{'file':'one.spec.ts','suite':[],'title':'case one'}]}}
 
-    def run_main(self,root,*,listing_title='case one',report_status='expected',report_skipped=0,dirty='',extra=(),env=None,node='v24.20.0',stage='source-passed'):
+    def run_main(self,root,*,listing_title='case one',report_status='expected',report_skipped=0,dirty='',extra=(),env=None,node='v24.20.0',stage='source-passed',stage_origin='source-built'):
         """Drive main() with fake processes; returns the recorded child calls."""
         plan=self.PLAN;calls=[];self.plan_commands=[];tests=root/'product/complete/Browser.Tests'
         def spec(title,results):
@@ -104,7 +104,7 @@ class Controls(unittest.TestCase):
                 folder=root/'tools/fable';folder.mkdir(parents=True);(folder/'Fable.dll').write_bytes(b'fixture fable core')
             elif argv[0]=='bash':
                 (root/'product').mkdir(exist_ok=True)
-                (root/'product/current-source-stage.json').write_text(json.dumps({'disposition':stage,'browserExecuted':False}))
+                (root/'product/current-source-stage.json').write_text(json.dumps({'disposition':stage,'browserExecuted':False,'origin':stage_origin,'publishedAcceptance':False}))
                 for name in ('playwright','@playwright/test'):
                     (tests/'node_modules'/name).mkdir(parents=True)
                     (tests/'node_modules'/name/'cli.js').write_text('')
@@ -267,15 +267,19 @@ class Controls(unittest.TestCase):
     def test_source_built_packs_the_checkout_and_is_labelled_source_built_never_published(self):
         type(self).source_built_plan={**self.PLAN,'template':{'origin':'source-built','id':'FS.GG.Workspace.Template'}}
         with self.assertRaisesRegex(ValueError,'go together'):L.main(['--root',str(self.fresh_root()),'--source-built'])
-        with self.assertRaisesRegex(ValueError,'go together'):L.main(['--root',str(self.fresh_root()),'--coordination-source','/c'])
-        root=self.fresh_root();calls=self.run_main(root,extra=['--source-built','--coordination-source','/coordination'])
+        with self.assertRaisesRegex(ValueError,'go together'):L.main(['--root',str(self.fresh_root()),'--coordination-source',str(HERE)])
+        with self.assertRaisesRegex(ValueError,'existing local directory'):L.main(['--root',str(self.fresh_root()),'--source-built','--coordination-source','https://example.invalid/coordination.git'])
+        root=self.fresh_root();calls=self.run_main(root,extra=['--source-built','--coordination-source',str(HERE)])
         self.assertEqual(self.plan_commands,['source-built-composition-plan'])
         stage=[c for c in calls if c[0][0]=='bash'][0][0]
         self.assertTrue(stage[1].endswith('verify-source-built-composition.sh'));self.assertEqual(stage[-1],'a'*64)
         self.assertTrue(stage[-2].endswith('FS.GG.Workspace.Template.9.9.9.nupkg'))
         summary=json.loads((root/'local-summary.json').read_text())
         self.assertEqual((summary['disposition'],summary['origin'],summary['publishedAcceptance']),('dom-observed-source-built-reference-only','source-built',False))
-        self.assertEqual((summary['sourceBuilt']['sourceCommit'],summary['sourceBuilt']['packageSha256'],summary['sourceBuilt']['protectedMain']),('a'*40,'a'*64,True))
+        self.assertEqual((summary['sourceBuilt']['sourceCommit'],summary['sourceBuilt']['packageSha256'],summary['sourceBuilt']['onLocalOriginMain']),('a'*40,'a'*64,True))
+        root=self.fresh_root()
+        with self.assertRaisesRegex(ValueError,'not labelled source-built'):
+            self.run_main(root,extra=['--source-built','--coordination-source',str(HERE)],stage_origin='published')
         # The published route is unchanged: it asks for the published plan and the published stage.
         root=self.fresh_root();calls=self.run_main(root)
         self.assertEqual(self.plan_commands,['current-composition-plan']);self.assertTrue([c for c in calls if c[0][0]=='bash'][0][0][1].endswith('verify-external-reference-candidate.sh'))
@@ -310,6 +314,46 @@ class Controls(unittest.TestCase):
         self.assertIn("'origin':'source-built'",text);self.assertIn("'publishedAcceptance':False",text);self.assertIn("'browserExecuted':False",text)
         for forbidden in ('published-tool-check','current-d5-receiver-check','playwright test','npx playwright'):self.assertNotIn(forbidden,text)
         self.assertIn('locked-mode',text);self.assertIn('staged-feed',text)
+
+    def test_protected_main_is_ancestry_of_the_local_origin_main_ref(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo=Path(tmp)/'r'
+            git=lambda *a:subprocess.run(['git','-C',str(repo),'-c','user.name=t','-c','user.email=t@t',*a],check=True,capture_output=True,text=True).stdout.strip()
+            repo.mkdir();git('init','-q','-b','main');(repo/'f').write_text('1');git('add','-A');git('commit','-q','-m','one');first=git('rev-parse','HEAD')
+            (repo/'f').write_text('2');git('commit','-q','-am','two');second=git('rev-parse','HEAD')
+            git('update-ref','refs/remotes/origin/main',first)
+            with mock.patch.object(L,'WORKSPACE',repo):
+                self.assertTrue(L.protected_main(first));self.assertFalse(L.protected_main(second))
+                git('update-ref','refs/remotes/origin/main',second);self.assertTrue(L.protected_main(second))
+
+    def test_source_built_inputs_accept_only_a_well_formed_recorded_digest(self):
+        plan={'template':{'origin':'source-built','id':'FS.GG.Workspace.Template'},'rendering':{'version':'1','sourceCommit':'c'*40}}
+        self.assertTrue(O.validate_inputs(plan,'1','c'*40,'a'*64))
+        for digest in ('A'*64,'a'*63,'','not-hex'):
+            with self.subTest(digest=digest),self.assertRaises(ValueError):O.validate_inputs(plan,'1','c'*40,digest)
+        with self.assertRaises(ValueError):O.validate_inputs(plan,'2','c'*40,'a'*64)
+        published={'template':{'sha256':'t'*64},'rendering':{'version':'1','sourceCommit':'c'*40}}
+        with self.assertRaises(ValueError):O.validate_inputs(published,'1','c'*40,'a'*64)
+
+    def test_the_real_source_built_stage_script_refuses_before_effects(self):
+        script=HERE/'verify-source-built-composition.sh'
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);archive=root/'FS.GG.Workspace.Template.0.0.0.nupkg';archive.write_bytes(b'x');plan=root/'plan.json';plan.write_text('{}')
+            fake=root/'owner.dll';fake.write_bytes(b'x')
+            env={'PATH':os.environ['PATH'],'FSGG_REFERENCE_PROVIDER_TOOL_DLL':str(fake),'FSGG_CURRENT_COMPOSITION_LOCAL_VERIFICATION':O.LOCAL_VERIFICATION}
+            def stage(sha,out,environment=env):
+                return subprocess.run(['bash',str(script),str(root/'feed'),str(out),str(plan),str(archive),sha],env=environment,capture_output=True,text=True,timeout=20)
+            good=hashlib.sha256(b'x').hexdigest()
+            out=root/'no-gate';result=stage(good,out,{k:v for k,v in env.items() if k!='FSGG_CURRENT_COMPOSITION_LOCAL_VERIFICATION'})
+            self.assertNotEqual(result.returncode,0);self.assertFalse(out.exists(),'the gate precedes the output root')
+            out=root/'wrong-sha';result=stage('0'*64,out);self.assertNotEqual(result.returncode,0);self.assertFalse(out.exists(),'a wrong archive digest precedes the output root')
+            out=root/'malformed-sha';result=stage('xyz',out);self.assertNotEqual(result.returncode,0);self.assertFalse(out.exists())
+            # With a correct digest the next gate is the typed owner: an owner that cannot run leaves no template install or generation.
+            out=root/'bad-owner';result=stage(good,out);self.assertNotEqual(result.returncode,0)
+            self.assertFalse((out/'template-install.log').exists() or (out/'complete').exists())
+        text=script.read_text()
+        self.assertEqual(text.count('--locked-mode'),2+1);self.assertIn('<clear/>',text)
+        self.assertIn("external-reference-template-package.py\" generated",text);self.assertIn('cmp -s "$plan"',text)
 
     def test_dirty_checkout_and_hosted_runner_refuse_before_any_process(self):
         root=self.fresh_root()

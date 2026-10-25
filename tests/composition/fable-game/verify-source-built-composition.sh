@@ -19,6 +19,9 @@ mkdir -p "$out"/{feed,home,packages,http}
 out="$(realpath "$out")"
 export DOTNET_CLI_HOME="$out/home" NUGET_PACKAGES="$out/packages" NUGET_HTTP_CACHE_PATH="$out/http"
 export DOTNET_PROCESSOR_COUNT=1 MSBUILDDISABLENODEREUSE=1
+# The plan must be exactly what the qualified typed owner renders; a hand-edited plan is refused before any effect.
+dotnet "$FSGG_REFERENCE_PROVIDER_TOOL_DLL" source-built-composition-plan >"$out/regenerated-plan.json"
+cmp -s "$plan" "$out/regenerated-plan.json" || { echo "source-built plan differs from the typed owner" >&2; exit 1; }
 cp "$plan" "$out/current-composition-plan.json"
 read -r version expected_source < <(python3 - "$out/current-composition-plan.json" <<'PY'
 import json,sys
@@ -63,6 +66,8 @@ PY
 product_name="${selection[0]}"; bundle="${selection[1]}"; lifecycle="${selection[2]}"
 dotnet new fs-gg-fable-game -n "$product_name" -o "$out/complete" --bundle "$bundle" --lifecycle "$lifecycle" "${scope[@]}" >"$out/complete-generate.log" 2>&1
 dotnet new fs-gg-fable-game -n DefaultPlayer -o "$out/player" "${scope[@]}" >"$out/player-generate.log" 2>&1
+# No generated project, property or target may reach outside the generated workspace or import producer source.
+python3 "$root/tests/composition/fable-game/external-reference-template-package.py" generated "$out/complete" "$out/template-generated-independent.json"
 python3 "$root/tests/composition/fable-game/current-composition-observations.py" lock "$out/current-composition-plan.json" "$out/complete"
 [[ -f "$out/complete/SvgFoundation/Examples/ExternalAuthority/reference.json" ]]
 [[ -f "$out/complete/SvgFoundation/Examples/FourD/reference.json" ]]
