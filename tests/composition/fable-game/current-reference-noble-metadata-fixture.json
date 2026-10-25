@@ -1,0 +1,231 @@
+{
+  "scope": "Original selected rows extracted from signature/hash-verified official 20261024T000000Z Noble metadata; predicate fixtures do not establish a facility.",
+  "releases": {
+    "noble": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+    "noble-updates": "4fcba3fb02086679f7e86677e320b92e0d076a8c02e30dc0abbbe06b67640db7",
+    "noble-security": "e56daa3c9903f06da8161b4f0e61a747aab215647f4bfabbecd5655631200f09"
+  },
+  "binary": [
+    {
+      "Package": "dbus",
+      "Priority": "important",
+      "Section": "devel",
+      "Installed-Size": "167",
+      "Maintainer": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>",
+      "Architecture": "amd64",
+      "Version": "1.14.10-4ubuntu4.1",
+      "Suggests": "default-dbus-session-bus | dbus-session-bus",
+      "Provides": "dbus-system-bus (= 1.14.10-4ubuntu4.1), default-dbus-system-bus",
+      "Depends": "dbus-bin (= 1.14.10-4ubuntu4.1), dbus-daemon (= 1.14.10-4ubuntu4.1), dbus-system-bus-common (>= 1.14.10-4ubuntu4.1), libc6 (>= 2.34), libdbus-1-3 (= 1.14.10-4ubuntu4.1), libexpat1 (>= 2.1~beta3), libsystemd0",
+      "Filename": "pool/main/d/dbus/dbus_1.14.10-4ubuntu4.1_amd64.deb",
+      "Size": "24300",
+      "MD5sum": "ab6d469cfc48f6ffeaabac05eda0a6a8",
+      "SHA1": "335ac23a52d58bd49b30fa6366522d021593f4d9",
+      "SHA256": "0d59be1393d5b01552edbf16c7b9357c473bf625aa47365ce2e8eef6da1dd2e1",
+      "SHA512": "5099beea549a7099780b01a357ad64e0f81539dadea7ac504a2ca909463a97aa064137c19250b6f5f0b69bb681e6b40d614fecd03aeaa4a34d4986c35d195af0",
+      "Homepage": "https://dbus.freedesktop.org/",
+      "Description": "simple interprocess messaging system (system message bus)",
+      "Description-md5": "7c48e5e44b120f1b0ed0784fa95d28b4",
+      "Multi-Arch": "foreign",
+      "Original-Maintainer": "Utopia Maintenance Team <pkg-utopia-maintainers@lists.alioth.debian.org>",
+      "Origin": "Ubuntu",
+      "Bugs": "https://bugs.launchpad.net/ubuntu/+filebug",
+      "Task": "cloud-minimal, minimal, server-minimal"
+    },
+    {
+      "Package": "ibus",
+      "Architecture": "amd64",
+      "Version": "1.5.29-2",
+      "Multi-Arch": "foreign",
+      "Priority": "optional",
+      "Section": "utils",
+      "Origin": "Ubuntu",
+      "Maintainer": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>",
+      "Original-Maintainer": "Debian Input Method Team <debian-input-method@lists.debian.org>",
+      "Bugs": "https://bugs.launchpad.net/ubuntu/+filebug",
+      "Installed-Size": "1326",
+      "Depends": "init-system-helpers (>= 1.52), python3:any, libatk1.0-0t64 (>= 1.12.4), libc6 (>= 2.38), libcairo2 (>= 1.2.4), libdbusmenu-glib4 (>= 0.4.2), libdbusmenu-gtk3-4 (>= 0.4.2), libdconf1 (>= 0.14.0), libgdk-pixbuf-2.0-0 (>= 2.22.0), libglib2.0-0t64 (>= 2.79.0), libgtk-3-0t64 (>= 3.21.5), libibus-1.0-5 (>= 1.5.29~), libnotify4 (>= 0.7.0), libpango-1.0-0 (>= 1.14.0), libpangocairo-1.0-0 (>= 1.14.0), libwayland-client0 (>= 1.20.0), libx11-6, libxfixes3 (>= 1:6.0.0), libxi6 (>= 2:1.2.99.4), libxkbcommon0 (>= 0.5.0), adwaita-icon-theme, dconf-cli, ibus-data (= 1.5.29-2), gir1.2-gtk-3.0 (>= 3.8.5), gir1.2-ibus-1.0 (= 1.5.29-2), python3-gi, python3-ibus-1.0 (= 1.5.29-2)",
+      "Recommends": "ibus-gtk, ibus-gtk3, ibus-gtk4, im-config",
+      "Suggests": "ibus-clutter, ibus-doc",
+      "Filename": "pool/main/i/ibus/ibus_1.5.29-2_amd64.deb",
+      "Size": "320288",
+      "MD5sum": "f40516da5dba9c9274626e7e91958bf7",
+      "SHA1": "79742680fc73fb3a779fc9779fdee9eb61ad9d0a",
+      "SHA256": "5c6c0af5583353bdcf18369e72afdf410c7dad23668919a6a006e7eaef043e61",
+      "SHA512": "b05a5eae8aae88b64c0bb45f4aeea15ef857a43743e64e6ace47d59da7cc73ba821c17a344b64fd23252dbf57cc2230a8eb04a6cbce9fec08229b68702430373",
+      "Homepage": "https://github.com/ibus/ibus",
+      "Description": "Intelligent Input Bus - core",
+      "Task": "ubuntu-desktop-minimal, ubuntu-desktop, ubuntu-unity-desktop, edubuntu-desktop-gnome-minimal, edubuntu-desktop-gnome, edubuntu-desktop-gnome-raspi, ubuntucinnamon-desktop-minimal, ubuntucinnamon-desktop, ubuntucinnamon-desktop, ubuntucinnamon-desktop-raspi",
+      "Description-md5": "489faf3b419b10c90a2fd62eb552cc93"
+    }
+  ],
+  "sources": [
+    {
+      "Package": "dbus",
+      "Binary": "dbus, dbus-session-bus-common, dbus-system-bus-common, dbus-bin, dbus-daemon, dbus-1-doc, dbus-tests, dbus-udeb, dbus-user-session, dbus-x11, libdbus-1-3, libdbus-1-3-udeb, libdbus-1-dev",
+      "Version": "1.14.10-4ubuntu4.1",
+      "Priority": "important",
+      "Section": "devel",
+      "Maintainer": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>",
+      "Build-Depends": "autoconf-archive, automake, debhelper (>= 13.11.6~), debhelper-compat (= 13), dh-exec, libapparmor-dev [linux-any], libaudit-dev [linux-any], libcap-ng-dev [linux-any], libexpat-dev, libglib2.0-dev <!nocheck> <!noinsttest>, libnss-wrapper <!nocheck>, libselinux1-dev [linux-any], libsystemd-dev [linux-any], libx11-dev, pkgconf, valgrind-if-available, xml-core, xmlto <!nodoc>",
+      "Build-Depends-Indep": "doxygen <!nodoc>, ducktype <!nodoc>, xsltproc <!nodoc>, yelp-tools <!nodoc>",
+      "Architecture": "any all",
+      "Standards-Version": "4.6.2",
+      "Format": "3.0 (quilt)",
+      "Directory": "pool/main/d/dbus",
+      "Files": "\n46070a3487817ff690981f8cd2ba9376 1372328 dbus_1.14.10.orig.tar.xz\na790dcc5fd84835ed9147c9679af551f 833 dbus_1.14.10.orig.tar.xz.asc\n1945902413dec63ac81673424cef83c7 69668 dbus_1.14.10-4ubuntu4.1.debian.tar.xz\n398ec621b9cf6c112b64368ce9ff27da 3746 dbus_1.14.10-4ubuntu4.1.dsc",
+      "Checksums-Sha1": "\n47f03306a491509cdebacded837e51b086835252 1372328 dbus_1.14.10.orig.tar.xz\n76219dcec55c66705eb1a311d11ced2df190758d 833 dbus_1.14.10.orig.tar.xz.asc\nae57bf2cdb405a217f0945de5fc27e1335670426 69668 dbus_1.14.10-4ubuntu4.1.debian.tar.xz\n1db923621088291cac8b0b3eff271dacef6cecff 3746 dbus_1.14.10-4ubuntu4.1.dsc",
+      "Checksums-Sha256": "\nba1f21d2bd9d339da2d4aa8780c09df32fea87998b73da24f49ab9df1e36a50f 1372328 dbus_1.14.10.orig.tar.xz\n5f292cd0603c3d736026ed3f4d1c1937847981669c1f0a389083518f013e1081 833 dbus_1.14.10.orig.tar.xz.asc\nc28e0e4840bf3c3f3cbdacae9b7228bb4694dd234f325535942dde76af3c322e 69668 dbus_1.14.10-4ubuntu4.1.debian.tar.xz\n3d9037176550657a3584f7640027a6d970c85b0cd158a2be7e8051aab1349edb 3746 dbus_1.14.10-4ubuntu4.1.dsc",
+      "Checksums-Sha512": "\n775b708326059692937acb69d4ce1a89e69878501166655b5d1b1628ac31b50dd53d979d93c84e57f95e90b15e25aa33893e51a7421d3537e9c2f02b1b91bfae 1372328 dbus_1.14.10.orig.tar.xz\n2a646884150f31e50b1bf2238fe21377929ceb536691fb9ef06aee25737c1a5be5ca18d8bdd8a02fdf3b00681fd26509a3e6e62a49541ef5685d09499ba9d30b 833 dbus_1.14.10.orig.tar.xz.asc\n3b8a963e5143a0ca730aab7a90775c77958fd98dfe4e2d26f452115c8df748e5ca18cd501672e61b64ca7ae5af6b043f1119faa5928f9f47785a214fb2ae0455 69668 dbus_1.14.10-4ubuntu4.1.debian.tar.xz\n5ac50f3bfa7f83739b76897dddab068f756e54e3019a848fa8943f61fc9862c72e642f57c3c6a3392146ae817731779e3d8b1c91080ef79aaa906342b96003d3 3746 dbus_1.14.10-4ubuntu4.1.dsc",
+      "Homepage": "https://dbus.freedesktop.org/",
+      "Uploaders": "Sjoerd Simons <sjoerd@debian.org>, Sebastian Dr\u00f6ge <slomo@debian.org>, Michael Biebl <biebl@debian.org>, Loic Minier <lool@dooz.org>, Simon McVittie <smcv@debian.org>,",
+      "Vcs-Browser": "https://salsa.debian.org/utopia-team/dbus",
+      "Vcs-Git": "https://salsa.debian.org/utopia-team/dbus.git",
+      "Testsuite": "autopkgtest",
+      "Testsuite-Triggers": "apparmor, build-essential, gnome-desktop-testing, init, systemd, xauth, xvfb",
+      "Package-List": "dbus deb admin standard arch=any\ndbus-1-doc deb doc optional arch=all profile=!nodoc\ndbus-bin deb admin optional arch=any\ndbus-daemon deb admin optional arch=any\ndbus-session-bus-common deb admin optional arch=all\ndbus-system-bus-common deb admin optional arch=all\ndbus-tests deb misc optional arch=any profile=!noinsttest\ndbus-udeb udeb debian-installer optional arch=any profile=!noudeb\ndbus-user-session deb admin optional arch=linux-any\ndbus-x11 deb x11 optional arch=any\nlibdbus-1-3 deb libs optional arch=any\nlibdbus-1-3-udeb udeb debian-installer optional arch=any profile=!noudeb\nlibdbus-1-dev deb libdevel optional arch=any",
+      "Original-Maintainer": "Utopia Maintenance Team <pkg-utopia-maintainers@lists.alioth.debian.org>"
+    },
+    {
+      "Package": "dbus",
+      "Format": "3.0 (quilt)",
+      "Binary": "dbus, dbus-session-bus-common, dbus-system-bus-common, dbus-bin, dbus-daemon, dbus-1-doc, dbus-tests, dbus-udeb, dbus-user-session, dbus-x11, libdbus-1-3, libdbus-1-3-udeb, libdbus-1-dev",
+      "Architecture": "any all",
+      "Version": "1.14.10-4ubuntu4",
+      "Priority": "important",
+      "Section": "devel",
+      "Maintainer": "Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>",
+      "Original-Maintainer": "Utopia Maintenance Team <pkg-utopia-maintainers@lists.alioth.debian.org>",
+      "Uploaders": "Sjoerd Simons <sjoerd@debian.org>, Sebastian Dr\u00f6ge <slomo@debian.org>, Michael Biebl <biebl@debian.org>, Loic Minier <lool@dooz.org>, Simon McVittie <smcv@debian.org>,",
+      "Standards-Version": "4.6.2",
+      "Build-Depends": "autoconf-archive, automake, debhelper (>= 13.11.6~), debhelper-compat (= 13), dh-exec, libapparmor-dev [linux-any], libaudit-dev [linux-any], libcap-ng-dev [linux-any], libexpat-dev, libglib2.0-dev <!nocheck> <!noinsttest>, libnss-wrapper <!nocheck>, libselinux1-dev [linux-any], libsystemd-dev [linux-any], libx11-dev, pkgconf, valgrind-if-available, xml-core, xmlto <!nodoc>",
+      "Build-Depends-Indep": "doxygen <!nodoc>, ducktype <!nodoc>, xsltproc <!nodoc>, yelp-tools <!nodoc>",
+      "Testsuite": "autopkgtest",
+      "Testsuite-Triggers": "apparmor, build-essential, gnome-desktop-testing, init, systemd, xauth, xvfb",
+      "Homepage": "https://dbus.freedesktop.org/",
+      "Vcs-Browser": "https://salsa.debian.org/utopia-team/dbus",
+      "Vcs-Git": "https://salsa.debian.org/utopia-team/dbus.git",
+      "Directory": "pool/main/d/dbus",
+      "Package-List": "\ndbus deb admin standard arch=any\ndbus-1-doc deb doc optional arch=all profile=!nodoc\ndbus-bin deb admin optional arch=any\ndbus-daemon deb admin optional arch=any\ndbus-session-bus-common deb admin optional arch=all\ndbus-system-bus-common deb admin optional arch=all\ndbus-tests deb misc optional arch=any profile=!noinsttest\ndbus-udeb udeb debian-installer optional arch=any profile=!noudeb\ndbus-user-session deb admin optional arch=linux-any\ndbus-x11 deb x11 optional arch=any\nlibdbus-1-3 deb libs optional arch=any\nlibdbus-1-3-udeb udeb debian-installer optional arch=any profile=!noudeb\nlibdbus-1-dev deb libdevel optional arch=any",
+      "Files": "\nbd277f3fa2d3a2ae98c2d1fc257bb33b 3768 dbus_1.14.10-4ubuntu4.dsc\n46070a3487817ff690981f8cd2ba9376 1372328 dbus_1.14.10.orig.tar.xz\na790dcc5fd84835ed9147c9679af551f 833 dbus_1.14.10.orig.tar.xz.asc\n926fe5418520620e84659379eb8db24a 69608 dbus_1.14.10-4ubuntu4.debian.tar.xz",
+      "Checksums-Sha1": "\n9af1bfe7cfe6933d2b64e172522c18ba94813adf 3768 dbus_1.14.10-4ubuntu4.dsc\n47f03306a491509cdebacded837e51b086835252 1372328 dbus_1.14.10.orig.tar.xz\n76219dcec55c66705eb1a311d11ced2df190758d 833 dbus_1.14.10.orig.tar.xz.asc\n156f56a186fa1270de86305b660a84ecd48abe5e 69608 dbus_1.14.10-4ubuntu4.debian.tar.xz",
+      "Checksums-Sha256": "\ne8ca63c8af8bc6b41d4d1880c6e61e64b688ded9f1f36008c5edb68b91970806 3768 dbus_1.14.10-4ubuntu4.dsc\nba1f21d2bd9d339da2d4aa8780c09df32fea87998b73da24f49ab9df1e36a50f 1372328 dbus_1.14.10.orig.tar.xz\n5f292cd0603c3d736026ed3f4d1c1937847981669c1f0a389083518f013e1081 833 dbus_1.14.10.orig.tar.xz.asc\n0844907258be5dc2dccf41ec3ff80fc3baf5bde9a11f9072299e24ae29ab6721 69608 dbus_1.14.10-4ubuntu4.debian.tar.xz",
+      "Checksums-Sha512": "\n394bceed70e1b1d814ec99ebaaf649ff0e0001bb84f747bdcc0fabad45cf843853f2926fd770b311fc30ebcb2f60bd22a6c0e3bd07fcd8fdf3c60499e0e74b74 3768 dbus_1.14.10-4ubuntu4.dsc\n775b708326059692937acb69d4ce1a89e69878501166655b5d1b1628ac31b50dd53d979d93c84e57f95e90b15e25aa33893e51a7421d3537e9c2f02b1b91bfae 1372328 dbus_1.14.10.orig.tar.xz\n2a646884150f31e50b1bf2238fe21377929ceb536691fb9ef06aee25737c1a5be5ca18d8bdd8a02fdf3b00681fd26509a3e6e62a49541ef5685d09499ba9d30b 833 dbus_1.14.10.orig.tar.xz.asc\n2076e261fc97a641f79b1507e03d8ccf9fc99f45443cd71f5a556d4e6de65c02e009929cf275854f0492754968404d8117523d7aa2f899774af8d186e063dbba 69608 dbus_1.14.10-4ubuntu4.debian.tar.xz"
+    },
+    {
+      "Package": "ibus",
+      "Format": "3.0 (quilt)",
+      "Binary": "ibus, ibus-data, ibus-tests, libibus-1.0-5, libibus-1.0-dev, ibus-gtk, ibus-gtk3, ibus-gtk4, ibus-wayland, ibus-doc, gir1.2-ibus-1.0, python3-ibus-1.0",
+      "Architecture": "any all",
+      "Version": "1.5.29-2",
+      "Priority": "optional",
+      "Section": "utils",
+      "Maintainer": "Debian Input Method Team <debian-input-method@lists.debian.org>",
+      "Uploaders": "Aron Xu <aron@debian.org>, Changwoo Ryu <cwryu@debian.org>, Osamu Aoki <osamu@debian.org>,",
+      "Standards-Version": "4.6.2",
+      "Build-Depends": "dbus-x11 <!nocheck>, debhelper-compat (= 13), dh-exec, desktop-file-utils, dh-python, gettext, gnome-pkg-tools, gobject-introspection, gtk-doc-tools <!nodoc>, iso-codes, libdbusmenu-glib-dev, libdbusmenu-gtk3-dev, libdconf-dev, libgirepository1.0-dev, libglib2.0-dev (>= 2.62.2-2), libgtk-3-bin, libgtk-3-dev, libgtk-4-bin, libgtk-4-dev, libgtk2.0-dev, libnotify-dev, libtool, libwayland-dev [linux-any], pkg-config, python-gi-dev, python3-all, systemd-dev [linux-any], unicode-cldr-core (>= 44), unicode-data (>= 15.1), valac, xauth <!nocheck>, xkb-data (>= 2.38), xvfb <!nocheck>",
+      "Build-Depends-Indep": "libglib2.0-doc <!nodoc>",
+      "Testsuite": "autopkgtest",
+      "Homepage": "https://github.com/ibus/ibus",
+      "Description": "Intelligent Input Bus\nIBus is an Intelligent Input Bus. It is a new input framework for the Linux\nOS. It provides full featured and user friendly input method user interface.\nIt also may help developers to develop input method easily.",
+      "Vcs-Browser": "https://salsa.debian.org/debian/ibus",
+      "Vcs-Git": "https://salsa.debian.org/debian/ibus.git",
+      "Directory": "pool/main/i/ibus",
+      "Package-List": "\ngir1.2-ibus-1.0 deb introspection optional arch=any\nibus deb utils optional arch=any\nibus-data deb utils optional arch=all\nibus-doc deb doc optional arch=all profile=!nodoc\nibus-gtk deb utils optional arch=any\nibus-gtk3 deb utils optional arch=any\nibus-gtk4 deb utils optional arch=any\nibus-tests deb utils optional arch=amd64,arm64,armhf,i386,mips64el,mipsel,ppc64el,s390x,riscv64 profile=!noinsttest\nibus-wayland deb utils optional arch=linux-any\nlibibus-1.0-5 deb libs optional arch=any\nlibibus-1.0-dev deb libdevel optional arch=any\npython3-ibus-1.0 deb python optional arch=all",
+      "Files": "\nf3c4a7faf153dd424a495f44a56da872 3505 ibus_1.5.29-2.dsc\nab197ecafd3f0ef9b25bedb021431380 3991416 ibus_1.5.29.orig.tar.gz\n1cfb1a137e1a66f995d286096cbf2318 30044 ibus_1.5.29-2.debian.tar.xz",
+      "Checksums-Sha1": "\n93583bb56bd341ecc4b1a5a5e7a827b28d51cdb8 3505 ibus_1.5.29-2.dsc\n1ca1a458d411fb3cc7f55c0f1cb6630e57c8f9e0 3991416 ibus_1.5.29.orig.tar.gz\na3516da3cf4327c593a9d86ebf18ad78b44d1c83 30044 ibus_1.5.29-2.debian.tar.xz",
+      "Checksums-Sha256": "\n6c25cd73f9de93aa58f43b075ee81804abf469120c765d6515a2f418f9fa925f 3505 ibus_1.5.29-2.dsc\n3a27ed120485b2077c62e36e788c302f34544ceac3b3b9cda28b7418e8051415 3991416 ibus_1.5.29.orig.tar.gz\n4f6b5a7d82ebb5f8e90a90c22cc2db8688612ea13423ba3e3c65f297ac9a832a 30044 ibus_1.5.29-2.debian.tar.xz",
+      "Checksums-Sha512": "\n30ab1cbbd53bd34b35c6bb5a8d1c0d1798aaf5c1cc1eddd4811ec3b27b3a747f39885c47b6540e767a795a70211af344aefa27050cf34f1d5aa5708b5a0b50d2 3505 ibus_1.5.29-2.dsc\n47dd39c9615783b6c157a25e8a2506dc2e1f440d56aa649ee8cb95a390cb4efab9c95e72ac84b5d042c25e350599b4d352ddc66f1385af6660d4a7a296e44ca7 3991416 ibus_1.5.29.orig.tar.gz\n66df8f9ac4741e65b4a5f743dcf462fe48c80e4913e367db2be72999b284fa7479ddc9f30a69c1d62169cd370493d3dee1fb5c5d82980fbd075db1428d6ceb3e 30044 ibus_1.5.29-2.debian.tar.xz"
+    }
+  ],
+  "packages": [
+    {
+      "name": "dbus",
+      "version": "1.14.10-4ubuntu4.1",
+      "debSha256": "0d59be1393d5b01552edbf16c7b9357c473bf625aa47365ce2e8eef6da1dd2e1",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/d/dbus/dbus_1.14.10.orig.tar.xz",
+      "sourceSha256": "ba1f21d2bd9d339da2d4aa8780c09df32fea87998b73da24f49ab9df1e36a50f"
+    },
+    {
+      "name": "ibus",
+      "version": "1.5.29-2",
+      "debSha256": "5c6c0af5583353bdcf18369e72afdf410c7dad23668919a6a006e7eaef043e61",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/i/ibus/ibus_1.5.29-2.dsc",
+      "sourceSha256": "6c25cd73f9de93aa58f43b075ee81804abf469120c765d6515a2f418f9fa925f"
+    }
+  ],
+  "authenticatedIndexIdentities": [
+    {
+      "suite": "noble",
+      "path": "main/binary-amd64/Packages.xz",
+      "sha256": "2a6a199e1031a5c279cb346646d594993f35b1c03dd4a82aaa0323980dd92451",
+      "bytes": 1401160
+    },
+    {
+      "suite": "noble",
+      "path": "main/source/Sources.xz",
+      "sha256": "4f8e45d8f84dd2a6b7ce87695c70336114b9e96e6fd6db066c115f758e39308e",
+      "bytes": 1383940
+    },
+    {
+      "suite": "noble",
+      "path": "universe/binary-amd64/Packages.xz",
+      "sha256": "ba9057fa1b91438cc8a1d26808d00c85389fe101d0c1496254df97236405599a",
+      "bytes": 15037908
+    },
+    {
+      "suite": "noble",
+      "path": "universe/source/Sources.xz",
+      "sha256": "796c4253df46fe9d0b468c5b18259f8d5172bf6c8b3b17451ba98ffc1781f682",
+      "bytes": 19839948
+    },
+    {
+      "suite": "noble-updates",
+      "path": "main/binary-amd64/Packages.xz",
+      "sha256": "d0b639b8d595c448980c171d7a2d197db2fda7d34122c9468fb9ba2f32e62aba",
+      "bytes": 1400216
+    },
+    {
+      "suite": "noble-updates",
+      "path": "main/source/Sources.xz",
+      "sha256": "976bc2fdc7fc5a9f59e35e7b570c8412aa7feacce405de62ed24b8df2a0ea2f8",
+      "bytes": 575696
+    },
+    {
+      "suite": "noble-updates",
+      "path": "universe/binary-amd64/Packages.xz",
+      "sha256": "cb4e519b8a6565aa8cb10d3866e55831bb3efee0344ff1204ed831d6f58d19b4",
+      "bytes": 1705924
+    },
+    {
+      "suite": "noble-updates",
+      "path": "universe/source/Sources.xz",
+      "sha256": "a651efc2db827d38e39ca52cb4c16b1463179b16f76178fa8fc21c8a1dd02863",
+      "bytes": 531404
+    },
+    {
+      "suite": "noble-security",
+      "path": "main/binary-amd64/Packages.xz",
+      "sha256": "c53b5309c8002317a835d695237d46b10d9da10c33420aa4d819ba7bfadb8afd",
+      "bytes": 1145772
+    },
+    {
+      "suite": "noble-security",
+      "path": "main/source/Sources.xz",
+      "sha256": "a5029756dd83d0d1138f41c012128b730e18c540eee37855de02181fba0c3328",
+      "bytes": 308272
+    },
+    {
+      "suite": "noble-security",
+      "path": "universe/binary-amd64/Packages.xz",
+      "sha256": "d0d62e01efe4cf8ede2d8d636d3375c532e63f70f5202f72e9e8de4aa3529c79",
+      "bytes": 1222216
+    },
+    {
+      "suite": "noble-security",
+      "path": "universe/source/Sources.xz",
+      "sha256": "f5f11cc3f26310b91c55ba6543b13f91e75b4bf76ccb6bfab0f2de0892506715",
+      "bytes": 370708
+    }
+  ]
+}

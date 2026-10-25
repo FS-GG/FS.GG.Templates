@@ -37,6 +37,9 @@ on:
       - 'tests/composition/fable-game/test-current-reference-at.py'
       - 'tests/composition/fable-game/current-reference-at-caller.py'
       - 'tests/composition/fable-game/current-reference-native-input.py'
+      - 'tests/composition/fable-game/current-reference-noble-acquisition.py'
+      - 'tests/composition/fable-game/test-current-reference-noble-acquisition.py'
+      - 'tests/composition/fable-game/current-reference-noble-metadata-fixture.json'
       - 'tests/composition/fable-game/test-current-reference-native-input.py'
       - 'tests/composition/fable-game/external-reference-public.py'
       - 'tests/composition/fable-game/test-external-reference-public.py'
@@ -78,6 +81,7 @@ jobs:
           python3 tests/composition/fable-game/external-reference-orca.py --self-test
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --cpu=120 --fsize=16777216 python3 -I -B tests/composition/fable-game/test-current-reference-at.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-native-input.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-acquisition.py
   candidate:
     if: github.repository != 'FS-GG/FS.GG.Templates' || inputs.templates-source != ''
     name: External reference immutable preflight and optional full qualification
@@ -133,6 +137,7 @@ jobs:
           python3 tests/composition/fable-game/external-reference-orca.py --self-test
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --cpu=120 --fsize=16777216 python3 -I -B tests/composition/fable-game/test-current-reference-at.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-native-input.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-acquisition.py
       - name: Refuse held current AT before acquisition or setup
         if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition' }}
         run: python3 -B tests/composition/fable-game/current-reference-at-caller.py guard
@@ -232,6 +237,12 @@ jobs:
             --artifacts-path "$RUNNER_TEMP/current-public-tools" --disable-build-servers -m:1 -p:UseSharedCompilation=false
           owner="$RUNNER_TEMP/current-public-tools/bin/FS.GG.Templates.ProviderTool/release/FS.GG.Templates.ProviderTool.dll"
           python3 -B tests/composition/fable-game/current-reference-at-caller.py prepare "$RUNNER_TEMP" "$owner"
+      - name: Acquire declared current Noble inputs without installation
+        if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition' }}
+        run: |
+          set -euo pipefail
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 240s prlimit --as=2147483648 --cpu=120 \
+            python3 -I -B tests/composition/fable-game/current-reference-noble-acquisition.py "$RUNNER_TEMP/current-noble-acquisition"
       - uses: actions/setup-node@v6
         if: ${{ !inputs.preflight-only }}
         with:
@@ -349,6 +360,7 @@ jobs:
             ${{ runner.temp }}/external-reference/feed/public-readback.json
             ${{ runner.temp }}/provider-composition.log
             ${{ runner.temp }}/current-composition-plan.json
+            ${{ runner.temp }}/current-noble-acquisition/acquisition.json
             ${{ runner.temp }}/current-public-feed/public-readback.json
             ${{ runner.temp }}/rendering-run.json
             ${{ runner.temp }}/rendering-artifact.json

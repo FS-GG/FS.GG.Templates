@@ -32,6 +32,19 @@ def validate_current_at_registration(workflow):
         assert "      - 'tests/composition/fable-game/" + path + "'" in workflow, 'native input source path not watched'
     assert static.count(native_command) == 1 and section.count(native_command) == 1, 'native input pure controls absent before acquisition'
     assert '      native-input-facility:' in workflow and 'FSGG_CURRENT_NATIVE_INPUT_FACILITY: ${{ inputs.native-input-facility }}' in workflow, 'facility input binding absent'
+    acquisition_command = native_command.replace('test-current-reference-native-input.py', 'test-current-reference-noble-acquisition.py')
+    assert static.count(acquisition_command) == 1 and section.count(acquisition_command) == 1, 'acquisition pure controls absent'
+    for path in ['current-reference-noble-acquisition.py', 'test-current-reference-noble-acquisition.py', 'current-reference-noble-metadata-fixture.json']:
+        assert "      - 'tests/composition/fable-game/" + path + "'" in workflow, 'acquisition source path not watched'
+    marker = '      - name: Acquire declared current Noble inputs without installation'
+    start = candidate.index(marker)
+    stop = candidate.index('\n      - ', start + 1)
+    acquisition = candidate[start:stop]
+    assert "if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition' }}" in acquisition, 'acquisition current/full branch differs'
+    assert 'timeout --kill-after=5s 240s prlimit --as=2147483648 --cpu=120' in acquisition, 'acquisition source bounds differ'
+    assert 'current-reference-noble-acquisition.py "$RUNNER_TEMP/current-noble-acquisition"' in acquisition, 'acquisition output differs'
+    assert candidate.index('Refuse held current AT before acquisition or setup') < start, 'held guard occurs after acquisition'
+    assert '${{ runner.temp }}/current-noble-acquisition/acquisition.json' in workflow, 'closed acquisition receipt missing'
     return True
 
 validate_current_at_registration(text)
