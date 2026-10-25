@@ -1,0 +1,15 @@
+schemaVersion: 1
+id: polyglot-qualification-workspace
+governedRoot: .
+domains:
+  - build
+  - lint
+  - test
+  - public-surface
+  - package
+  - security
+  - evidence
+  - release
+packageSurfaces: []
+policyRef: .fsgg/policy.yml
+capabilitiesRef: .fsgg/capabilities.yml

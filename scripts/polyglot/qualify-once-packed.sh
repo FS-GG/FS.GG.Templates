@@ -13,6 +13,7 @@ umask 077
 : "${FSGG_CATALOG_POLICY:?independently admitted complete catalog policy}"
 : "${FSGG_CATALOG_PATH:?typed emitted catalog joined to archive}"
 : "${FSGG_QUALIFICATION_WORK_END_MONOTONIC:?original outer work end}"
+: "${FSGG_GOVERNANCE_CATALOG:?independently authored Governance workspace catalog directory}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 WORK="$FSGG_QUALIFICATION_ROOT"
 [[ ! -e "$WORK" && ! -L "$WORK" ]] || exit 3
@@ -51,13 +52,22 @@ for provider in typescript-cli javascript-cli rust-cli go-cli; do
   python3 -I -B "$FSGG_SDD_SOURCE_ROOT/scripts/catalog-cli-acceptance.py" --config "$private/config.json" --output "$private/catalog-acceptance" --case all
   target="$private/catalog-acceptance/positive-target"
   provenance="$target/.fsgg/scaffold-provenance.json"
+  # Governance senses source state through git: the scaffolded product is a committed work tree.
+  git -C "$target" init -q
+  git -C "$target" add -A
+  git -C "$target" -c user.name=fsgg-qualification -c user.email=qualification@invalid -c commit.gpgsign=false commit -q -m 'scaffolded product'
+  cp -- "$FSGG_GOVERNANCE_CATALOG"/*.yml "$target/.fsgg/"
+  git -C "$target" add -A
+  git -C "$target" -c user.name=fsgg-qualification -c user.email=qualification@invalid -c commit.gpgsign=false commit -q -m 'governance workspace catalog'
   provenance_digest="$(sha256sum -- "$provenance")"; provenance_digest="${provenance_digest%% *}"
   policy_digest="$(sha256sum -- "$FSGG_CATALOG_POLICY")"; policy_digest="${policy_digest%% *}"
   # Recompute remaining time from the one original outer work clock. No per-product
   # clock renewal or declared unsupported/race skip can create a qualification.
   FSGG_VERIFY_WORK_SECONDS="$(python3 -I -B "$ROOT/scripts/polyglot/remaining-work.py")"
-  export FSGG_VERIFY_WORK_SECONDS FSGG_VERIFY_CLEANUP_SECONDS=60
-  "$FSGG_QUALIFIED_DOTNET" exec --fx-version 10.0.12 "$FSGG_GOVERNANCE_CLI_DLL" verify --repo "$target" --provider-provenance "$provenance" --provider-provenance-sha256 "$provenance_digest" --provider-policy "$FSGG_CATALOG_POLICY" --provider-policy-sha256 "$policy_digest" --provider-platform linux-x64 > "$private/governance-verify.stdout.json" 2> "$private/governance-verify.stderr.log"
+  # Governance measures both ends from one start: the cleanup end is the work end plus its grace.
+  FSGG_VERIFY_CLEANUP_SECONDS=$((FSGG_VERIFY_WORK_SECONDS + 60))
+  export FSGG_VERIFY_WORK_SECONDS FSGG_VERIFY_CLEANUP_SECONDS
+  "$FSGG_QUALIFIED_DOTNET" exec --fx-version 10.0.12 "$FSGG_GOVERNANCE_CLI_DLL" verify --repo "$target" --json --verify-out "$private/verify.json" --cost-budget-out "$private/cost-budget.json" --provenance-out "$private/verify-provenance.json" --paths display-name.txt README.md toolchain-lock.json security-policy.json scripts/operations.sh scripts/security.sh scripts/security-result.py .gitignore --provider-provenance "$provenance" --provider-provenance-sha256 "$provenance_digest" --provider-policy "$FSGG_CATALOG_POLICY" --provider-policy-sha256 "$policy_digest" --provider-platform linux-x64 > "$private/governance-verify.stdout.json" 2> "$private/governance-verify.stderr.log"
   if [[ "$provider" == go-cli ]]; then
     : "${FSGG_ADVISORY_ROOT:?qualified Go database required}"
     python3 -I -B "$ROOT/scripts/polyglot/check-security-results.py" "$provider" "$target" "file://$FSGG_ADVISORY_ROOT"

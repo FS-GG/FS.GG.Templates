@@ -20,7 +20,7 @@ module Catalog =
     let private tools = function
         | "typescript-cli" | "javascript-cli" -> [ tool "python" "3.14.8"; tool "node" "24.20.0"; tool "npm" "11.19.0"; tool "typescript" "5.9.2" ]
         | "rust-cli" -> [ tool "python" "3.14.8"; tool "rustc" "1.98.1"; tool "cargo" "1.98.1"; tool "cargo-audit" "0.22.2" ]
-        | "go-cli" -> [ tool "python" "3.14.8"; tool "go" "1.27.1"; tool "govulncheck" "1.9.0" ]
+        | "go-cli" -> [ tool "python" "3.14.8"; tool "go" "1.27.3"; tool "govulncheck" "1.9.0" ]
         | value -> invalidArg "provider" value
     let private skills = function
         | "typescript-cli" -> [ "node-workspace"; "typescript-project"; "node-testing" ]
@@ -42,7 +42,7 @@ module Catalog =
                   Binding = ProviderCatalog.Command(
                       { Executable = "/bin/sh"; Arguments = [ "scripts/operations.sh"; operation ] },
                       { WorkingDirectory = "."; TimeoutSeconds = (if operation = "security" then 300 else 180)
-                        CostClass = "product"; EnvironmentIds = [ "polyglot-local" ] }) })
+                        CostClass = "medium"; EnvironmentIds = [ "polyglot-local" ] }) })
         let declaration : ProviderCatalog.Descriptor =
             { Id = id; DisplayName = id; Help = "Explicit " + id + " workspace; product and code identities are independent."
               Language = (match id with "typescript-cli" -> "TypeScript" | "javascript-cli" -> "JavaScript" | "rust-cli" -> "Rust" | _ -> "Go"); ProductShape = "executable-cli"
