@@ -155,8 +155,13 @@ receipt write refuse. Immediate partial failure evidence precedes bounded child
 group cleanup; this group observation is not an outer containment claim. Work is
 105seconds inside a120second parent with a15second cleanup reserve. The receipt
 explicitly leaves binary/source acquisition, installation, runtime and AT
-qualification unrun. The first source request selects the nine already authenticated
-baseline/IME packages; it is not a complete browser/desktop installation plan.
+qualification unrun. The original nine-root source request completed genuine no-install simulation
+in run40227938678/job121273247292 at d4b4253c:147 proposed changes and an864-package
+expected inventory, with acquisition/install/runtime/AT still unrun. The next
+source request retains all nine exact tuples and adds the previously selected
+AT/X11/audio/locale/keymap roots,32total. It must obtain its own genuine solver
+result; the earlier result does not cover these new determining inputs. Browser,
+Node/.NET and Playwright closure remains separate.
 The same source cohort will retain the frozen provision/role/keymap/retirement
 work and the separately admitted private caller contract; source APT verification
 requires no desktop-facility approval and grants no such approval.

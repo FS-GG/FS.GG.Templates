@@ -2,13 +2,6 @@
   "schema": "fsgg.current-reference-noble-package-request/1",
   "packages": [
     {
-      "name": "orca",
-      "version": "46.1-1ubuntu1",
-      "debSha256": "2ea414b8aea922b1ac9a1479c1324cba6b28e48dbe57b99d08f9c76806a51c59",
-      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/o/orca/orca_46.1-1ubuntu1.dsc",
-      "sourceSha256": "38c2e88a5c58fc6acd2eed1909772caa20e77be948c8df5fd99ce9425e825977"
-    },
-    {
       "name": "at-spi2-core",
       "version": "2.52.0-1build1",
       "debSha256": "ea2d24a3219ba639f72dadf92b896fe31dd2ffd8659432e0cee2362726b63ff4",
@@ -21,6 +14,69 @@
       "debSha256": "0d59be1393d5b01552edbf16c7b9357c473bf625aa47365ce2e8eef6da1dd2e1",
       "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/d/dbus/dbus_1.14.10.orig.tar.xz",
       "sourceSha256": "ba1f21d2bd9d339da2d4aa8780c09df32fea87998b73da24f49ab9df1e36a50f"
+    },
+    {
+      "name": "dbus-x11",
+      "version": "1.14.10-4ubuntu4.1",
+      "debSha256": "6fce42d69d92882fff7bcfd12708d2b7aea110d36f9828d9f7137fbe59521d9b",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/d/dbus/dbus_1.14.10-4ubuntu4.1.dsc",
+      "sourceSha256": "3d9037176550657a3584f7640027a6d970c85b0cd158a2be7e8051aab1349edb"
+    },
+    {
+      "name": "dconf-gsettings-backend",
+      "version": "0.40.0-4ubuntu0.1",
+      "debSha256": "2e6801f955d5960380b6240be3886162343e770b1c17c919674cbcb3d13be732",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/d/dconf/dconf_0.40.0-4ubuntu0.1.dsc",
+      "sourceSha256": "fc203d2c4d398304eeed43ba53292e6e4fc952bb4259c7ffc6dc41b2f237711b"
+    },
+    {
+      "name": "dconf-service",
+      "version": "0.40.0-4ubuntu0.1",
+      "debSha256": "49bf5473474228d48373da639bbe3e77157b03d4467bfa2deb56168c2c03cd81",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/d/dconf/dconf_0.40.0.orig.tar.xz",
+      "sourceSha256": "cf7f22a4c9200421d8d3325c5c1b8b93a36843650c9f95d6451e20f0bcb24533"
+    },
+    {
+      "name": "dpkg",
+      "version": "1.22.6ubuntu6.6",
+      "debSha256": "ceb6aa4da59fbcb8a3b0549b4280c60b7d849b519859797c8668bdfbe378fb3b",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/d/dpkg/dpkg_1.22.6ubuntu6.6.dsc",
+      "sourceSha256": "5828d5dd77635c8bd0197116446bc64ec76913500affbcb42aaae1644acb749d"
+    },
+    {
+      "name": "espeak-ng",
+      "version": "1.51+dfsg-12build1",
+      "debSha256": "ffeac730f1f43b5cdbca708a8215d6b7310bf3bd40d7dcf0affd6a62f86aa6df",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/e/espeak-ng/espeak-ng_1.51+dfsg-12build1.dsc",
+      "sourceSha256": "7d7e4f7606f1ddf3eb497a4848649eb72fc0acf70caccd9a61987f4d4444d688"
+    },
+    {
+      "name": "gettext",
+      "version": "0.21-14ubuntu2",
+      "debSha256": "5338a17b0c7da20280097d5730ab640c8fcc2b4547acdda29361b27675b937c6",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/g/gettext/gettext_0.21-14ubuntu2.dsc",
+      "sourceSha256": "f28fb770426e80be6533a5e487708e25a0d0afddce64e3881e10f14f1b232bdd"
+    },
+    {
+      "name": "gir1.2-atspi-2.0",
+      "version": "2.52.0-1build1",
+      "debSha256": "a30c955c8d81e3d2a2f74d52c3447e412117cc514560fcf7acae74d8b09f05cb",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/a/at-spi2-core/at-spi2-core_2.52.0-1build1.dsc",
+      "sourceSha256": "16b82af63769eefb96343366f34545f2af2de5c3661c83293f50969de7fa450a"
+    },
+    {
+      "name": "gir1.2-ibus-1.0",
+      "version": "1.5.29-2",
+      "debSha256": "12eb51eb9ba91ec9f768c91e02d4ceb99e87b931f83305d94a50acbe387b0c65",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/i/ibus/ibus_1.5.29-2.dsc",
+      "sourceSha256": "6c25cd73f9de93aa58f43b075ee81804abf469120c765d6515a2f418f9fa925f"
+    },
+    {
+      "name": "gsettings-desktop-schemas",
+      "version": "46.1-0ubuntu1",
+      "debSha256": "4d15441e9197f95b29c0d2845d8fcdbf63fa4ac0c68fb221820ccd24131e3436",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/g/gsettings-desktop-schemas/gsettings-desktop-schemas_46.1-0ubuntu1.dsc",
+      "sourceSha256": "30271bfc798d9de7567a1c89ac8a982b957580f3c17485ddffa591d8f0d299e5"
     },
     {
       "name": "ibus",
@@ -44,18 +100,116 @@
       "sourceSha256": "b72913f982f9534d7989080c7652d679688d803f80fcd9c89bc2adacc5e271c8"
     },
     {
-      "name": "dconf-service",
-      "version": "0.40.0-4ubuntu0.1",
-      "debSha256": "49bf5473474228d48373da639bbe3e77157b03d4467bfa2deb56168c2c03cd81",
-      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/d/dconf/dconf_0.40.0.orig.tar.xz",
-      "sourceSha256": "cf7f22a4c9200421d8d3325c5c1b8b93a36843650c9f95d6451e20f0bcb24533"
+      "name": "libatspi2.0-dev",
+      "version": "2.52.0-1build1",
+      "debSha256": "3a7b1c81bf8763db10dc8050a9a1feafe5742c9ab7fa7f61a99f08c6e11af41b",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/a/at-spi2-core/at-spi2-core_2.52.0-1build1.dsc",
+      "sourceSha256": "16b82af63769eefb96343366f34545f2af2de5c3661c83293f50969de7fa450a"
     },
     {
-      "name": "gir1.2-ibus-1.0",
+      "name": "libgtk-3-0t64",
+      "version": "3.24.41-4ubuntu1.3",
+      "debSha256": "fd61e308234b12d243160798216d0efcb605d83af185bf3414ac99c2ed5166fc",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/g/gtk+3.0/gtk+3.0_3.24.41-4ubuntu1.3.dsc",
+      "sourceSha256": "b7ea9dda7ffd3f01f97d7ee673f130a82db5b346ade2d003e609e27886b35269"
+    },
+    {
+      "name": "libpinyin-data",
+      "version": "2.8.1-1build3",
+      "debSha256": "70b9e111b6f425c6e363f848e7a826c16b499f62af5eed5b7dd862ca49341733",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/libp/libpinyin/libpinyin_2.8.1-1build3.dsc",
+      "sourceSha256": "8153d9859fb6d3469a10e76d4c7d81fd8edcaef465dd0d478f38fcc587e6d17d"
+    },
+    {
+      "name": "libx11-data",
+      "version": "2:1.8.7-1ubuntu0.1",
+      "debSha256": "5cb70f7a8e7178e0bae4fd49eee49feaed623d2d821caf6ea5862b66f9e9630b",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/libx/libx11/libx11_1.8.7-1ubuntu0.1.dsc",
+      "sourceSha256": "4e88bfd3799fd193cd270da600ad263c946d6495500a30d58ae744512c2fcf05"
+    },
+    {
+      "name": "locales",
+      "version": "2.39-0ubuntu8.9",
+      "debSha256": "f8310ef4ba442845cf5d44a5ce3d5d7accb659bae96b3a0999002132209cd367",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/g/glibc/glibc_2.39-0ubuntu8.9.dsc",
+      "sourceSha256": "1b73a89e0910eb3e5920cde639ac7eb606256d8ee809688ff9b5912b67002711"
+    },
+    {
+      "name": "openbox",
+      "version": "3.6.1-12build5",
+      "debSha256": "bd27fc0ce0b98ecf29a3e4987744b59590c71f87b0f1bc02175228f155b22c71",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/universe/o/openbox/openbox_3.6.1-12build5.dsc",
+      "sourceSha256": "351825347e7db62c1ad9768ec1313369fc29cc0daa30fb70d17e29861ff33241"
+    },
+    {
+      "name": "orca",
+      "version": "46.1-1ubuntu1",
+      "debSha256": "2ea414b8aea922b1ac9a1479c1324cba6b28e48dbe57b99d08f9c76806a51c59",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/o/orca/orca_46.1-1ubuntu1.dsc",
+      "sourceSha256": "38c2e88a5c58fc6acd2eed1909772caa20e77be948c8df5fd99ce9425e825977"
+    },
+    {
+      "name": "pulseaudio",
+      "version": "1:16.1+dfsg1-2ubuntu10.1",
+      "debSha256": "d26b78e296e1efab12e35a2674b8e698966efd9c194cf840f7b00f8eb64e38c1",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/p/pulseaudio/pulseaudio_16.1+dfsg1-2ubuntu10.1.dsc",
+      "sourceSha256": "12ba094e43fb9e39de87647cf4c353a3b8c8a1ba48a419e812ab5f9b9ed936d3"
+    },
+    {
+      "name": "pulseaudio-utils",
+      "version": "1:16.1+dfsg1-2ubuntu10.1",
+      "debSha256": "3a6ade107e69849d3d98c592c8d16844fae449aa29cfc98c7b64c7dbe36a6d29",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/p/pulseaudio/pulseaudio_16.1+dfsg1-2ubuntu10.1.dsc",
+      "sourceSha256": "12ba094e43fb9e39de87647cf4c353a3b8c8a1ba48a419e812ab5f9b9ed936d3"
+    },
+    {
+      "name": "python3-gi",
+      "version": "3.48.2-1",
+      "debSha256": "2a69ad9d8ab3b5801725480986b9abbf83bd4a06c38450fe143f6689d19d4bd8",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/p/pygobject/pygobject_3.48.2-1.dsc",
+      "sourceSha256": "0ba02cfcbf408f698241c51e84a8e723c3970d64678a8ca66d89425c28aef7f1"
+    },
+    {
+      "name": "python3-ibus-1.0",
       "version": "1.5.29-2",
-      "debSha256": "12eb51eb9ba91ec9f768c91e02d4ceb99e87b931f83305d94a50acbe387b0c65",
+      "debSha256": "e484e398e8fdb5c8a3d0059626c2bc740c6bc6b821c5311cf85c0f4097937b5c",
       "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/i/ibus/ibus_1.5.29-2.dsc",
       "sourceSha256": "6c25cd73f9de93aa58f43b075ee81804abf469120c765d6515a2f418f9fa925f"
+    },
+    {
+      "name": "python3-speechd",
+      "version": "0.12.0~rc2-2build3",
+      "debSha256": "ac2ae9a0883ec90cbe4d1cfdf53c5d2d044282e68fc75a37f3e7fe646ddc49ef",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/s/speech-dispatcher/speech-dispatcher_0.12.0~rc2-2build3.dsc",
+      "sourceSha256": "5085502a3359a270aed07c84713f71e03d47c96dd423eaa38b894b72ddb4048e"
+    },
+    {
+      "name": "speech-dispatcher-espeak-ng",
+      "version": "0.12.0~rc2-2build3",
+      "debSha256": "a7218e66608058637159eba623ecf5b8d0648cb27082b6906e37f2c815534836",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/s/speech-dispatcher/speech-dispatcher_0.12.0~rc2-2build3.dsc",
+      "sourceSha256": "5085502a3359a270aed07c84713f71e03d47c96dd423eaa38b894b72ddb4048e"
+    },
+    {
+      "name": "x11-utils",
+      "version": "7.7+6build2",
+      "debSha256": "ffcc681f98ad4bd1857456f09c5464b5bdcb95a1162582899b2d93abaf361c74",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/x/x11-utils/x11-utils_7.7+6build2.dsc",
+      "sourceSha256": "4ee7172441794e115bbbeb9b4f6d70768ddb6cea67eba99b5edbd5f9d70d1113"
+    },
+    {
+      "name": "x11-xkb-utils",
+      "version": "7.7+8build2",
+      "debSha256": "69df4191e165f8b89d067f6234fcce89a4923d27d1e66dd92e6d63d6da93cdb0",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/x/x11-xkb-utils/x11-xkb-utils_7.7+8build2.dsc",
+      "sourceSha256": "451a1724e791d6651807ed8988da5de215e37c51f463df3fa4cab01ac4f693ae"
+    },
+    {
+      "name": "xdotool",
+      "version": "1:3.20160805.1-5build1",
+      "debSha256": "58a202c74bce31ca2d72d4d514942a5ab6191932696adc5d21d909c9216b13cb",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/universe/x/xdotool/xdotool_3.20160805.1-5build1.dsc",
+      "sourceSha256": "8db6877b5b8a70ed3fb5870ab906ff99f7a632a160b6dfcf810cba5f9f6a18a3"
     },
     {
       "name": "xkb-data",
@@ -63,6 +217,13 @@
       "debSha256": "e99f2a0b4c56cdf35dec489e56b6a8418826cab8ce6306ec6d0bd98e2cd0014a",
       "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/x/xkeyboard-config/xkeyboard-config_2.41.orig.tar.gz",
       "sourceSha256": "8af4ed51ce0dc6fcf8cd9291355eec0221b3f0e531ad3ab022f086c05b7fe93f"
+    },
+    {
+      "name": "xvfb",
+      "version": "2:21.1.12-1ubuntu1.9",
+      "debSha256": "2011271eabcc2eb460e99995c5ef26e46633e87d04f570e305b62f178f7b452c",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/x/xorg-server/xorg-server_21.1.12-1ubuntu1.9.dsc",
+      "sourceSha256": "59c9f6bec1b71aaf7ff78c3851bcf45724515de2af64f301828492648d9f1dd9"
     }
   ]
 }

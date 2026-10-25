@@ -42,6 +42,13 @@ class NoInstallControls(unittest.TestCase):
         self.data,self.roots=fixture()
         self.body='Reading package lists... Done\nBuilding dependency tree... Done\n0 upgraded, 1 newly installed, 0 to remove and 0 not upgraded.\nInst ibus (1.5.29-2 Ubuntu:24.04/noble [amd64])\nConf ibus (1.5.29-2 Ubuntu:24.04/noble [amd64])\n'
 
+    def test_real_selected_desktop_root_fixture_is_closed_bounded_and_keeps_baseline(self):
+        raw=(HERE/'fixtures/noble-source-prefix-request.json').read_bytes()
+        request=T.request(raw)
+        self.assertEqual(32,len(request['packages']));self.assertLessEqual(len(raw),65536)
+        names={r['name'] for r in request['packages']}
+        self.assertTrue({'orca','at-spi2-core','dbus','ibus','ibus-libpinyin','ibus-gtk3','gir1.2-ibus-1.0','dconf-service','xkb-data','xvfb','openbox','xdotool','pulseaudio','locales'}<=names)
+
     def test_exact_installed_inventory_handles_real_multiarch_spelling(self):
         value=T.inventory(status()+status('libfixture','2',True))
         self.assertEqual({'fixture':'1','libfixture:amd64':'2'},value)
