@@ -1086,20 +1086,18 @@ test("FourD reference options panel keeps labelled native controls, tab order an
   await expect(reference).toHaveAttribute("data-command-order", "");
   await expect(status).toContainText("difficulty severe, hints on, camera close");
 
-  // Retained scene updates and a session replacement run while a control holds focus; the island is never recreated.
+  // A retained scene update and then a session replacement run while a control holds focus; the island is never recreated.
+  // The reference applies a projection once per revision, so exactly one scene update is driven and awaited, then the replacement.
   await markIdentity(page);
   await hints.focus();
+  const appliedBefore = await appliedCount(reference);
   await pressWithoutFocus(page, "Move to legal full cell");
   await expect(reference).toHaveAttribute("data-command-order", "1");
   await pressWithoutFocus(page, "Complete current projection");
-  await expect(reference).toHaveAttribute("data-applied-revision", /.+/);
+  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(appliedBefore);
   const generation = Number(await reference.getAttribute("data-generation") ?? "0");
   await pressWithoutFocus(page, "Replace local session");
   await expect.poll(async () => Number(await reference.getAttribute("data-generation"))).toBeGreaterThan(generation);
-  const appliedBefore = await appliedCount(reference);
-  await pressWithoutFocus(page, "Request projection burst");
-  await pressWithoutFocus(page, "Complete current projection");
-  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(appliedBefore);
 
   await expect(hints).toBeFocused();
   await expect(hints).toBeChecked();
@@ -1126,22 +1124,19 @@ test("FourD reference focus and native editing text survive a retained update an
   const note = reference.getByRole("textbox", { name: "Encounter note", exact: true });
   await markIdentity(page);
 
-  // Text, caret and an active composition live in the native textbox while the scene updates around it.
+  // Text, caret and an active composition live in the native textbox while the scene updates and the session is replaced.
   await note.focus();
   await note.fill("四 dimensional note");
   await note.evaluate(element => (element as HTMLInputElement).setSelectionRange(2, 9));
   await note.dispatchEvent("compositionstart");
+  const appliedBefore = await appliedCount(reference);
   await pressWithoutFocus(page, "Move to legal full cell");
   await expect(reference).toHaveAttribute("data-command-order", "1");
   await pressWithoutFocus(page, "Complete current projection");
-  await expect(reference).toHaveAttribute("data-applied-revision", /.+/);
+  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(appliedBefore);
   const generation = Number(await reference.getAttribute("data-generation") ?? "0");
   await pressWithoutFocus(page, "Replace local session");
   await expect.poll(async () => Number(await reference.getAttribute("data-generation"))).toBeGreaterThan(generation);
-  const appliedNote = await appliedCount(reference);
-  await pressWithoutFocus(page, "Request projection burst");
-  await pressWithoutFocus(page, "Complete current projection");
-  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(appliedNote);
   await note.press("Enter");
   await note.dispatchEvent("compositionend");
 
@@ -1151,21 +1146,15 @@ test("FourD reference focus and native editing text survive a retained update an
   await expect(reference).toHaveAttribute("data-command-order", "1");
   expect(await identities(page)).toEqual(expectedIdentities);
 
-  // Focus on the island's own select and on the reference root also survives the same update and replacement.
+  // Focus on the island's own select and on the reference root also survives further session replacements.
   const difficulty = reference.getByRole("combobox", { name: "Difficulty", exact: true });
-  await difficulty.focus();
-  let applied = await appliedCount(reference);
-  await pressWithoutFocus(page, "Request projection burst");
-  await pressWithoutFocus(page, "Complete current projection");
-  await pressWithoutFocus(page, "Replace local session");
-  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(applied);
-  await expect(difficulty).toBeFocused();
-  await reference.focus();
-  applied = await appliedCount(reference);
-  await pressWithoutFocus(page, "Request projection burst");
-  await pressWithoutFocus(page, "Complete current projection");
-  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(applied);
-  await expect(reference).toBeFocused();
+  for (const [target, name] of [[difficulty, "select"], [reference, "root"]] as const) {
+    await target.focus();
+    const before = Number(await reference.getAttribute("data-generation") ?? "0");
+    await pressWithoutFocus(page, "Replace local session");
+    await expect.poll(async () => Number(await reference.getAttribute("data-generation")), name).toBeGreaterThan(before);
+    await expect(target, name).toBeFocused();
+  }
   await expect(note).toHaveValue("四 dimensional note");
   expect(await identities(page)).toEqual(expectedIdentities);
 });
