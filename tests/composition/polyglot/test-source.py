@@ -22,12 +22,38 @@ class SourceContract(unittest.TestCase):
         self.owned = tempfile.TemporaryDirectory(prefix="polyglot-source-fixture-")
         self.addCleanup(self.owned.cleanup)
         self.root = Path(self.owned.name)
-        for path in ["templates/fs-gg-typescript-cli", "templates/fs-gg-javascript-cli", "templates/fs-gg-rust-cli", "templates/fs-gg-go-cli", "template/product-skills", "template/skill-manifest", "template/polyglot-common"]:
+        for path in ["templates/fs-gg-typescript-cli", "templates/fs-gg-javascript-cli", "templates/fs-gg-rust-cli", "templates/fs-gg-go-cli", "template/product-skills", "template/skill-manifest", "template/polyglot-common", "template/project-knowledge"]:
             shutil.copytree(ROOT / path, self.root / path)
         shutil.copyfile(ROOT / "FS.GG.Templates.csproj", self.root / "FS.GG.Templates.csproj")
     def edit(self, relative, change):
         path = self.root / relative
         value = json.loads(path.read_text()); change(value); path.write_text(json.dumps(value))
+    def test_all_four_payloads_project_the_canonical_knowledge_assets(self):
+        members = contract.expected_archive_members(self.root)
+        for provider in contract.PROVIDERS:
+            for relative in contract.KNOWLEDGE_ASSETS:
+                source = self.root / "template/project-knowledge" / relative
+                destination = "content/templates/fs-gg-" + provider + "-cli/" + relative
+                self.assertEqual(members[destination], source.read_bytes())
+
+    def test_missing_knowledge_projection_refuses(self):
+        path = self.root / "FS.GG.Templates.csproj"
+        path.write_text(path.read_text().replace("content/templates/fs-gg-go-cli/.github/workflows/;", ""))
+        with self.assertRaisesRegex(ValueError, "knowledge projection"):
+            contract.validate_source(self.root)
+
+    def test_missing_canonical_knowledge_asset_refuses(self):
+        (self.root / "template/project-knowledge/scripts/check-project-knowledge.py").unlink()
+        with self.assertRaisesRegex(ValueError, "knowledge source"):
+            contract.validate_source(self.root)
+
+    def test_knowledge_archive_byte_drift_refuses(self):
+        archive = self.synthetic_archive()
+        path = self.root / "template/project-knowledge/scripts/check-project-knowledge.py"
+        path.write_bytes(path.read_bytes() + b"\n# changed canonical checker\n")
+        with self.assertRaisesRegex(ValueError, "bytes differ"):
+            contract.validate_archive(self.root, archive)
+
     def test_go_pin_and_rust_audit_configuration_agree(self):
         go = ROOT / "templates/fs-gg-go-cli"
         self.assertEqual(json.loads((go / "toolchain-lock.json").read_text())["tools"]["go"], "1.27.3")

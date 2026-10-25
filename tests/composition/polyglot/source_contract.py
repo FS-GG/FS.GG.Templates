@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 import zipfile
 
 PROVIDERS = ("typescript", "javascript", "rust", "go")
+KNOWLEDGE_ASSETS = (".github/workflows/project-knowledge.yml", "scripts/check-project-knowledge.py")
 
 def require(condition, detail):
     if not condition:
@@ -38,6 +39,18 @@ def validate_source(root):
         # Observed with npm 11.19.0: one /dev/null file loaded as both user and global config is refused.
         require('--globalconfig=/dev/null' not in text and '--userconfig=/dev/null' not in text,
                 'npm user/global configuration must be distinct files: ' + name)
+    for relative in KNOWLEDGE_ASSETS:
+        source = root / "template/project-knowledge" / relative
+        require(source.is_file() and not source.is_symlink() and source.stat().st_size > 0,
+                "missing/linked/empty canonical knowledge source: " + relative)
+        declarations = [node for node in project.iter("None")
+                        if node.attrib.get("Include") == "template/project-knowledge/" + relative
+                        and node.attrib.get("Pack") == "true"]
+        require(len(declarations) == 1, "canonical knowledge projection must be declared once: " + relative)
+        destinations = declarations[0].attrib.get("PackagePath", "").split(";")
+        for provider in PROVIDERS:
+            destination = "content/templates/fs-gg-" + provider + "-cli/" + str(Path(relative).parent) + "/"
+            require(destinations.count(destination) == 1, "missing/duplicate knowledge projection: " + destination)
     for provider in PROVIDERS:
         directory = root / "templates" / ("fs-gg-" + provider + "-cli")
         config = json.loads((directory / ".template.config/template.json").read_text())
