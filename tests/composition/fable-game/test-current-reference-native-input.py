@@ -4,6 +4,7 @@ import ast
 import copy
 import importlib.util
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
@@ -25,6 +26,19 @@ def fixture():
             'objects': {role: row(role) for role in N.ROLES},
             'dataFiles': [{**row(kind), 'kind': kind} for kind in ['dictionary', 'xkb', 'schema', 'compose']],
             'keymaps': {'us': 'd'*64, 'de': 'e'*64}}
+
+
+def v2_fixture():
+    value=fixture();value['schema']=N.SCHEMA2;value['softwareContractSha256']='f'*64
+    value['packages'].append({**value['packages'][0],'name':'xkb-data'})
+    for role in N.V2_ROLES-N.ROLES:value['objects'][role]={'path':'/usr/fixture/'+role,'sha256':'a'*64,'package':'fixture'}
+    for row in value['dataFiles']:
+        if row['kind']=='schema':row['path']=N.TREE_PATHS['schemas']+'/fixture.gschema.xml'
+        if row['kind']=='xkb':row['path']=N.TREE_PATHS['xkb']+'/rules/fixture';row['package']='xkb-data'
+    value['dataClosures']={name:{'path':path,'sha256':'c'*64,'entries':2,'bytes':5} for name,path in N.TREE_PATHS.items()}
+    value['derivedFiles']={'compiledSchemas':{'path':N.TREE_PATHS['schemas']+'/gschemas.compiled',
+        'sha256':'b'*64,'compilerRole':'glibCompileSchemas','inputTreeSha256':'c'*64}}
+    return value
 
 
 def snapshot(value='', events=()):
@@ -51,6 +65,58 @@ def report_fixture(digest='a'*64):
 
 
 class NativeInputControls(unittest.TestCase):
+    def test_v2_compiled_schema_is_a_derivation_not_a_package_owned_file(self):
+        value=v2_fixture();N.manifest(value)
+        self.assertNotIn('package',value['derivedFiles']['compiledSchemas'])
+        for change in ['owner','compiler','input','path','tree','v1-mix']:
+            bad=copy.deepcopy(value)
+            if change=='owner':bad['derivedFiles']['compiledSchemas']['package']='fixture'
+            elif change=='compiler':del bad['objects']['glibCompileSchemas']
+            elif change=='input':bad['derivedFiles']['compiledSchemas']['inputTreeSha256']='d'*64
+            elif change=='path':bad['derivedFiles']['compiledSchemas']['path']='/usr/local/ambient/gschemas.compiled'
+            elif change=='tree':del bad['dataClosures']['schemas']
+            else:bad['schema']=N.SCHEMA
+            with self.assertRaises((RuntimeError,KeyError,TypeError)):N.manifest(bad)
+
+    def test_v2_derived_bytes_and_both_complete_trees_are_required(self):
+        import types,stat
+        value=v2_fixture();body=b'owned source';compiled=b'actual derived bytes'
+        for row in [*value['objects'].values(),*value['dataFiles']]:row['sha256']=N.sha(body)
+        value['derivedFiles']['compiledSchemas']['sha256']=N.sha(compiled)
+        def read(path):
+            if path=='/etc/os-release':return b'ID=ubuntu\nVERSION_ID="24.04"\n'
+            return compiled if path.endswith('/gschemas.compiled') else body
+        inspect=lambda p:types.SimpleNamespace(st_mode=stat.S_IFREG|0o644,st_uid=0,st_size=len(compiled))
+        calls=[]
+        def tree(path,excluded):
+            calls.append((path,excluded));return {'sha256':'c'*64,'entries':2,'bytes':5}
+        N.verify_files(value,read,inspect,tree)
+        self.assertIn((N.TREE_PATHS['schemas'],('gschemas.compiled',)),calls)
+        self.assertEqual(2,len(calls))
+        with self.assertRaisesRegex(RuntimeError,'complete input tree changed'):
+            N.verify_files(value,read,inspect,lambda p,e:{'sha256':'d'*64,'entries':2,'bytes':5})
+        with self.assertRaisesRegex(RuntimeError,'compiled schema changed'):
+            N.verify_files(value,lambda p:b'changed' if p.endswith('/gschemas.compiled') else read(p),inspect,tree)
+
+    def test_real_bounded_tree_identity_detects_input_drift_and_escaping_link(self):
+        import os
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'tree';root.mkdir();leaf=root/'input';leaf.write_bytes(b'first');leaf.chmod(0o644)
+            before=N.tree_identity(root,owner_uid=os.getuid());leaf.write_bytes(b'second')
+            self.assertNotEqual(before['sha256'],N.tree_identity(root,owner_uid=os.getuid())['sha256'])
+            (root/'gschemas.compiled').write_bytes(b'generated')
+            excluded=N.tree_identity(root,('gschemas.compiled',),owner_uid=os.getuid())
+            self.assertEqual(2,excluded['entries'])
+            outside=Path(tmp)/'outside';outside.write_bytes(b'outside');(root/'escape').symlink_to(outside)
+            with self.assertRaisesRegex(RuntimeError,'escapes'):
+                N.tree_identity(root,owner_uid=os.getuid())
+
+    def test_v2_settings_route_refuses_before_any_owned_service(self):
+        with patch.object(N,'verify_files',return_value=True),patch.dict(os.environ,{'XDG_DATA_DIRS':'/ambient'}):
+            forbidden=lambda *a:self.fail('service or query reached')
+            with self.assertRaisesRegex(RuntimeError,'schema search route'):
+                N.start(Path('/absent'),v2_fixture(),forbidden,forbidden,forbidden,forbidden,0,forbidden,forbidden,forbidden)
+
     def test_missing_and_unknown_manifest_never_become_defaults(self):
         N.manifest(fixture())
         for value in [{}, None, {**fixture(), 'platform': 'arch'}, {**fixture(), 'objects': {}},

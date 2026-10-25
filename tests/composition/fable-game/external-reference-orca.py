@@ -587,6 +587,18 @@ def status_settings(directory, activation):
     require(os.environ.get("GSETTINGS_BACKEND") == "keyfile" and
             os.environ.get("XDG_CONFIG_HOME") == str(directory / "config") and
             "GSETTINGS_SCHEMA_DIR" not in os.environ, "session settings route is not private keyfile/default schemas")
+    factory_schema = None
+    facility_path=directory/'native-input-facility.json'
+    if facility_path.is_file():
+        identity=completion_record(directory/'current-public-at.json')
+        native=native_input_helper(identity['nativeInputHelperSha256'])
+        require(facility_path.stat().st_size<=65536,'native facility oversized before settings')
+        facility=native.read_manifest(facility_path.read_text())
+        require(native.sha(native.canonical(facility))==identity['nativeInputFacilitySha256'],'native settings facility changed')
+        if facility['schema']==native.SCHEMA2:
+            require(os.environ.get('XDG_DATA_DIRS')=='/usr/share','v2 global schema search route changed')
+            native.verify_files(facility)
+            factory_schema=facility['derivedFiles']['compiledSchemas']
     backend = Gio.SettingsBackend.get_default()
     backend_type = backend.__gtype__.name
     require(backend_type == "GKeyfileSettingsBackend", "actual settings backend is not keyfile")
@@ -614,6 +626,9 @@ def status_settings(directory, activation):
         facts[name] = {"schema": schema_id, "key": key, "type": "b", "sourcePath": str(path),
                        "package": manifest[str(path)], "packageVersion": activation["versions"][manifest[str(path)]], "sourceSha256": digest(path),
                        "compiledPath": str(compiled), "compiledSha256": digest(compiled)}
+        if factory_schema is not None:
+            require(str(compiled)==factory_schema['path'] and facts[name]['compiledSha256']==factory_schema['sha256'],
+                    'actual status schema differs from qualified factory derivation')
         settings[name] = Gio.Settings.new_full(schema, backend, None)
     def read(name):
         value = settings[name].get_value(STATUS_KEYS[name][1])
@@ -1723,8 +1738,10 @@ def census(leader, known):
     return owned, unknown, escaped
 
 
-def cleanup(leader, known, child):
-    end = time.monotonic() + 30
+def cleanup(leader, known, child, seconds=30, absolute_deadline=None):
+    end = time.monotonic() + seconds
+    if absolute_deadline is not None:
+        end = min(end, absolute_deadline)
     signals = []
     for sig in [signal.SIGTERM, signal.SIGKILL]:
         owned, unknown, escaped = census(leader, known)
@@ -3452,6 +3469,8 @@ def qualify(out, preflight_path, termination, current_public=False):
                XDG_CACHE_HOME=str(directory / "cache"), XDG_DATA_HOME=str(directory / "data"),
                XDG_RUNTIME_DIR=str(directory / "runtime"), TMPDIR=str(directory / "tmp"),
                PULSE_SERVER="unix:" + str(directory / "pulse.sock"), SPEECHD_ADDRESS="unix_socket:" + str(directory / "speech.sock"))
+    if current_public and preflight['nativeInputFacility']['schema']==native.SCHEMA2:
+        env['XDG_DATA_DIRS']='/usr/share'  # Before fresh session/GI initialization; no schema override.
     for name in ["config", "cache", "data", "runtime", "tmp"]:
         (directory / name).mkdir(mode=0o700)
     metadata = out / "orca-host-packages.txt"

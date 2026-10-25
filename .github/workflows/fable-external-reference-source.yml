@@ -39,6 +39,8 @@ on:
       - 'tests/composition/fable-game/current-reference-native-input.py'
       - 'tests/composition/fable-game/current-reference-noble-acquisition.py'
       - 'tests/composition/fable-game/current-reference-noble-transaction.py'
+      - 'tests/composition/fable-game/current-reference-noble-factory.py'
+      - 'tests/composition/fable-game/test-current-reference-noble-factory.py'
       - 'tests/composition/fable-game/test-current-reference-noble-transaction.py'
       - 'tests/composition/fable-game/fixtures/noble-c068-status.xz'
       - 'tests/composition/fable-game/fixtures/noble-source-prefix-request.json'
@@ -88,6 +90,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-native-input.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-acquisition.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-transaction.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-factory.py
       - name: Check actual Noble solver tools and c068 fixture before work
         run: |
           env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \

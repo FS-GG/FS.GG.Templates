@@ -224,3 +224,61 @@ Differing binary/source content, dependency fields, archive sizes or source
 closure members still refuse. Full original32 output replay joins280Inst and
 280Conf (4upgrades/276new) to an993-package expected inventory; the original
 failed job remains failed and a fresh source-CI receipt is still required.
+
+## Frozen factory source and installed-input handoff
+
+The current-only `--prepare-originals` route takes all five original solver files,
+its externally selected transaction digest, the fixed32-root request and signed
+snapshot metadata. It replays their complete joins, retains all15 authenticated
+metadata bodies, and prepares280 runtime binary archives plus selected role
+patched-source closures. The extra GLib tools package supplies `gsettings`; its
+source closure also covers the actual `glib-compile-schemas` ELF owned by
+`libglib2.0-0t64`. Explicit retained archive inputs are rehashed before copying;
+a corrupt retained body stops the original attempt without a network fallback.
+The receipt records input consistency and declared archive verification, with
+external solver-run custody, installation, runtime and AT acceptance false.
+It cannot replace native artifact/run authentication.
+
+`current-reference-noble-factory.py` has two fixed phases for the separately
+qualified private NativeQualification ATv2 guest. It refuses legacy baked layers,
+wrong caller/job/attempt/privilege, mutable root binding, mismatched software
+selection and credentials before any factory child starts. The sealed software
+body selects source and original artifact identity; JSON alone does not establish
+Root/provider authority. The existing `None` gate still stops the full AT stage.
+
+`install-readback` requires the actual717-package c068 inventory, revalidates the
+signed metadata and source-derived role bindings, then runs the private local APT
+update and simulation against actual guest status. Only the exact frozen280-deb
+proposal permits offline installation. A fixed guest-only service-start denial
+policy is restored by identity; a different existing policy is retained and
+refused. Successful APT check, empty dpkg audit and exact993-package inventory
+are required before ownership/file readback and strict global schema compilation.
+The root witness binds actual compiler bytes, complete schema input tree,
+compiled output, package owners and patched-source descriptors. Compiled schemas
+are derived data, without an invented dpkg owner.
+
+`qualify-inputs` independently rereads the root witness and installed files,
+starts a fresh owned Xvfb display, compiles US and German XKB maps and retires its
+original actors/display resources. Only then can it emit the closed v2 facility
+manifest. Its scope is installed inputs and keymap preparation: no browser,
+Orca, real IME, provider, Studio or whole4817 acceptance follows. The v1 facility
+contract and historical branches retain their existing behavior.
+
+Each phase keeps its process-entry clock and the original overall deadline,
+reserving15 seconds for bounded cleanup. Original child exits remain separate
+from retirement. Partial evidence is attempted before cleanup; reporting failures
+cannot replace the first cause or skip child retirement. The existing sampled
+birth/group census retains its detached-descendant limits. Whole-guest containment,
+aggregate allocated storage (including deleted-open files), image qualification,
+reservation and final VM retirement remain external facility obligations, not
+claims made by this source helper. No native phase has run as part of source
+preparation.
+
+Archive decoding never extracts or executes supplied members. Ordinary decoded
+archives remain bounded at128MiB. The exact signed `ibus-data` archive
+`1a3fac02f9bb69ad32e68e0f9e00fc98cccf2bacf5c9d2f034676a821c266c7c`
+has135,925,760 decoded tar bytes and alone receives a136MiB decoding bound.
+Acquisition's128MiB archive and512MiB aggregate limits remain unchanged. On
+Noble the decoder must be the separately pinned installed `dpkg-deb`; source
+checks on Python3.14 may use its standard-library zstd decoder. Neither route
+executes downloaded package files.

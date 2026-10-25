@@ -13,8 +13,11 @@ import stat
 import time
 
 SCHEMA = 'fsgg.current-reference-native-input-facility/1'
+SCHEMA2 = 'fsgg.current-reference-native-input-facility/2'
 ROLES = {'ibusDaemon', 'ibusConfig', 'dconfService', 'pinyinEngine', 'simpleEngine',
          'gtk3', 'ibusGtk3', 'setxkbmap', 'xkbcomp', 'xdotool', 'dpkgQuery'}
+V2_ROLES = ROLES | {'glibCompileSchemas', 'gsettings'}
+TREE_PATHS = {'xkb': '/usr/share/X11/xkb', 'schemas': '/usr/share/glib-2.0/schemas'}
 SETTINGS = {'init-chinese': 'true', 'init-simplified-chinese': 'true',
             'enable-cloud-input': 'false', 'dynamic-adjust': 'false',
             'remember-every-input': 'false'}
@@ -51,11 +54,14 @@ def validate_packages(packages):
 
 def manifest(value):
     """Validate supplied pins only; no local observation is invented here."""
-    require(type(value) is dict and set(value) == {'schema', 'platform', 'packages', 'objects', 'dataFiles', 'keymaps'},
+    require(type(value) is dict,'complete closed facility manifest required')
+    v2=value.get('schema')==SCHEMA2
+    fields={'schema','platform','packages','objects','dataFiles','keymaps'}
+    require(set(value)==fields|({'softwareContractSha256','derivedFiles','dataClosures'} if v2 else set()),
             'complete closed facility manifest required')
-    require(value['schema'] == SCHEMA and value['platform'] == 'ubuntu-24.04-x11', 'selected Noble X11 facility required')
+    require(value['schema'] in (SCHEMA,SCHEMA2) and value['platform']=='ubuntu-24.04-x11','selected Noble X11 facility required')
     names = validate_packages(value['packages'])
-    require(set(value['objects']) == ROLES, 'required executable/client identities absent')
+    require(set(value['objects']) == (V2_ROLES if v2 else ROLES), 'required executable/client identities absent')
     require(type(value['dataFiles']) is list and 4 <= len(value['dataFiles']) <= 512, 'dictionary/keymap/schema/compose closure absent')
     rows = list(value['objects'].values()) + value['dataFiles']
     paths = []
@@ -70,6 +76,22 @@ def manifest(value):
     require(sum(row['kind'] == 'compose' for row in value['dataFiles']) == 1, 'one exact Compose table required')
     require(set(value['keymaps']) == {'us', 'de'} and all(re.fullmatch('[0-9a-f]{64}', v) for v in value['keymaps'].values()),
             'actual compiled US/German keymap pins absent')
+    if v2:
+        require(re.fullmatch('[0-9a-f]{64}',value['softwareContractSha256']) is not None,'exact factory software contract absent')
+        require(type(value['dataClosures']) is dict and set(value['dataClosures'])==set(TREE_PATHS),'complete selected input trees required')
+        for key,row in value['dataClosures'].items():
+            require(type(row) is dict and set(row)=={'path','sha256','entries','bytes'} and row['path']==TREE_PATHS[key] and
+                    re.fullmatch('[0-9a-f]{64}',row['sha256']) and type(row['entries']) is int and 1<=row['entries']<=8192 and
+                    type(row['bytes']) is int and 0<=row['bytes']<=64*1024**2,'bounded exact input tree absent')
+        require('xkb-data' in names,'xkb source package absent')
+        require(type(value['derivedFiles']) is dict and set(value['derivedFiles'])=={'compiledSchemas'},'exact schema derivation required')
+        derived=value['derivedFiles']['compiledSchemas']
+        require(type(derived) is dict and set(derived)=={'path','sha256','compilerRole','inputTreeSha256'} and
+                derived['path']==TREE_PATHS['schemas']+'/gschemas.compiled' and re.fullmatch('[0-9a-f]{64}',derived['sha256']) and
+                derived['compilerRole']=='glibCompileSchemas' and derived['inputTreeSha256']==value['dataClosures']['schemas']['sha256'],
+                'compiled schema must bind its actual compiler/input tree without invented package ownership')
+        require(all(str(Path(row['path']).parent)==TREE_PATHS['schemas'] for row in value['dataFiles'] if row['kind']=='schema'),
+                'schema source outside selected global directory')
     return value
 
 
@@ -86,8 +108,43 @@ def read_manifest(raw):
     return value
 
 
-def verify_files(value, read=lambda p: Path(p).read_bytes(), inspect=lambda p: Path(p).stat()):
+
+def tree_identity(root, excluded=(), owner_uid=0):
+    """Bounded content/mode/link identity; inode/birth and enforcing containment are separate."""
+    root=Path(root);require(root.is_dir() and not root.is_symlink(),'input tree root is not a directory')
+    records=[];total=0
+    def add(path):
+        nonlocal total
+        relative=path.relative_to(root).as_posix();info=path.lstat()
+        require(info.st_uid==owner_uid and (stat.S_ISLNK(info.st_mode) or not info.st_mode&0o022),
+                'input tree entry is mutable or wrong owner')
+        row={'path':relative,'mode':stat.S_IMODE(info.st_mode)}
+        if stat.S_ISLNK(info.st_mode):
+            target=os.readlink(path);resolved=(path.parent/target).resolve()
+            require(resolved.is_relative_to(root.resolve()) and resolved.exists(),'input tree link escapes or is unavailable')
+            row.update(kind='symlink',target=target)
+        elif stat.S_ISDIR(info.st_mode):row.update(kind='directory')
+        else:
+            require(stat.S_ISREG(info.st_mode) and info.st_size<=64*1024**2-total,'input tree file type/byte bound differs')
+            with path.open('rb') as stream:raw=stream.read(info.st_size+1)
+            require(len(raw)==info.st_size,'input tree file changed while read')
+            total+=len(raw);row.update(kind='file',bytes=len(raw),sha256=sha(raw))
+        records.append(row);require(len(records)<=8192,'input tree population exceeded')
+    add(root)
+    for parent,dirs,files in os.walk(root,followlinks=False):
+        dirs.sort();files.sort()
+        for name in dirs+files:
+            path=Path(parent)/name
+            if path.parent==root and name in excluded:continue
+            add(path)
+    records.sort(key=lambda row:row['path'])
+    return {'sha256':sha(canonical(records)),'entries':len(records),'bytes':total}
+
+
+def verify_files(value, read=lambda p: Path(p).read_bytes(), inspect=None, tree=tree_identity):
     manifest(value)
+    if inspect is None:
+        inspect = (lambda p: Path(p).lstat()) if value['schema']==SCHEMA2 else (lambda p: Path(p).stat())
     require(b'ID=ubuntu' in read('/etc/os-release') and b'VERSION_ID="24.04"' in read('/etc/os-release'),
             'actual host is not selected Noble')
     for row in [*value['objects'].values(), *value['dataFiles']]:
@@ -95,6 +152,14 @@ def verify_files(value, read=lambda p: Path(p).read_bytes(), inspect=lambda p: P
         require(stat.S_ISREG(info.st_mode) and info.st_uid == 0 and not info.st_mode & 0o022 and info.st_size <= 256*1024**2,
                 'facility file is mutable/nonregular/oversized: ' + row['path'])
         require(sha(read(row['path'])) == row['sha256'], 'facility file bytes differ: ' + row['path'])
+    if value['schema']==SCHEMA2:
+        derived=value['derivedFiles']['compiledSchemas'];info=inspect(derived['path'])
+        require(stat.S_ISREG(info.st_mode) and info.st_uid==0 and not info.st_mode&0o022 and info.st_size<=4*1024**2,
+                'derived compiled schema is mutable/nonregular/oversized')
+        require(sha(read(derived['path']))==derived['sha256'],'derived compiled schema changed')
+        for key,row in value['dataClosures'].items():
+            actual=tree(row['path'],('gschemas.compiled',) if key=='schemas' else ())
+            require(actual=={k:row[k] for k in ['sha256','entries','bytes']},'complete input tree changed: '+key)
     return True
 
 
@@ -125,6 +190,10 @@ def start(directory, value, launch, command, query, health, deadline, write, pro
     """Use existing owned launch/budget/cleanup; all services stay foreground."""
     verify_files(value)
     tool = lambda role: value['objects'][role]['path']
+    settings_tool=tool('gsettings') if value['schema']==SCHEMA2 else 'gsettings'
+    if value['schema']==SCHEMA2:
+        require(os.environ.get('XDG_DATA_DIRS')=='/usr/share' and 'GSETTINGS_SCHEMA_DIR' not in os.environ,
+                'v2 schema search route differs from qualified global derivation')
     for row in value['packages']:
         actual = query([tool('dpkgQuery'), '-W', '-f=${Version}', row['name']]).strip()
         require(actual == row['version'], 'installed package version differs: ' + row['name'])
@@ -188,10 +257,10 @@ def start(directory, value, launch, command, query, health, deadline, write, pro
     require(not bus.get_name_owner('org.freedesktop.IBus.Config'), 'preexisting IBus config owner')
     config = launch([tool('ibusConfig')], 'native-ime-config')
     wait_until(lambda: owner('org.freedesktop.IBus.Config', config), min(deadline, time.monotonic()+10), health)
-    command(['gsettings', 'set', 'org.freedesktop.ibus.general', 'use-system-keyboard-layout', 'true'])
+    command([settings_tool, 'set', 'org.freedesktop.ibus.general', 'use-system-keyboard-layout', 'true'])
     for key, setting in SETTINGS.items():
-        command(['gsettings', 'set', 'com.github.libpinyin.ibus-libpinyin', key, setting])
-        require(query(['gsettings', 'get', 'com.github.libpinyin.ibus-libpinyin', key]).strip() == setting,
+        command([settings_tool, 'set', 'com.github.libpinyin.ibus-libpinyin', key, setting])
+        require(query([settings_tool, 'get', 'com.github.libpinyin.ibus-libpinyin', key]).strip() == setting,
                 'private Pinyin setting readback differs')
     require(not bus.get_name_owner('org.freedesktop.IBus.Libpinyin') and not bus.get_name_owner('org.freedesktop.IBus.Simple'),
             'preexisting engine owner; no replace or adoption')

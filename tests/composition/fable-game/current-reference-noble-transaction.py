@@ -16,6 +16,7 @@ import re
 import selectors
 import shutil
 import signal
+import stat
 import subprocess
 import time
 
@@ -263,12 +264,14 @@ def observed(command, log, budget):
 
 def metadata(inputs,out,budget,keyring):
     binaries=[];sources=[]
+    retained=out/'metadata';retained.mkdir(mode=0o700)
     for suite,sha256 in A.RELEASES.items():
-        release=inputs/(suite+'.InRelease')
-        A.need(A.digest(read(release,1024**2))==sha256,'source-pinned release differs')
+        raw_release=read(inputs/(suite+'.InRelease'),1024**2)
+        A.need(A.digest(raw_release)==sha256,'source-pinned release differs')
+        release=retained/(suite+'.InRelease');release.write_bytes(raw_release)
         hashes=A.signed_release(release,keyring,suite,budget)
         target=out/'repo/dists'/suite;target.mkdir(parents=True)
-        shutil.copyfile(release,target/'InRelease')
+        (target/'InRelease').write_bytes(raw_release)
         for component in A.COMPONENTS:
             for kind,rows in [('binary-amd64/Packages.xz',binaries),('source/Sources.xz',sources)]:
                 name=component+'/'+kind
@@ -277,6 +280,7 @@ def metadata(inputs,out,budget,keyring):
                 path=inputs/(suite+'-'+component+'-'+kind.replace('/','-'))
                 raw=read(path,A.MAX_FILE)
                 A.need(len(raw)==size and A.digest(raw)==expected,'signed index bytes differ')
+                (retained/path.name).write_bytes(raw)
                 keys = (*A.BINARY_IDENTITY_KEYS,'Filename') if kind.startswith('binary') else ('Package','Version','Directory','Checksums-Sha256')
                 rows.extend({k:r[k] for k in keys if k in r} for r in A.rows(raw))
                 if kind.startswith('binary'):
@@ -412,6 +416,159 @@ def plan(inputs,roots,out,keyring,budget=None,run=observed):
     return result
 
 
+CURRENT_DESKTOP_ROOT_SHA256='47782f4389f3451e843cd9dadff584c51f840511a085f76b063235a56f8098c9'
+FACTORY_COMPILER_PACKAGES=('libglib2.0-bin',)
+
+
+def frozen_input_plan(originals,expected,roots,binaries,sources):
+    """Replay supplied originals; custody/solver-run authentication remains caller-owned."""
+    raw=read(originals/'transaction.json',512*1024)
+    A.need(re.fullmatch('[0-9a-f]{64}',expected) and A.digest(raw)==expected,'original frozen transaction digest differs')
+    def unique(pairs):
+        result={}
+        for key,value in pairs:
+            A.need(key not in result,'duplicate original transaction field');result[key]=value
+        return result
+    result=json.loads(raw,object_pairs_hook=unique)
+    fields={'schema','snapshot','baseInventory','subjectStatusSha256','originalC068StatusSha256',
+            'rootRequestSha256','aptOptionsSha256','actualAptArgumentsSha256','actualUpdateSha256',
+            'originalChildOutcomes','actualEffectiveConfigSha256','configurationScope','originalSimulationSha256',
+            'debs','expectedFinalInventory','actualSolver','binaryAcquisition','sourceArchiveAcquisition',
+            'installation','runtimeQualification','actualAT','nativeImeAcceptance','outerProfileQualification'}
+    A.need(type(result) is dict and set(result)==fields,'closed original transaction required')
+    A.need(A.digest(N.canonical(roots))==CURRENT_DESKTOP_ROOT_SHA256==result['rootRequestSha256'],
+           'selected current desktop root request differs')
+    A.need(result['schema']=='fsgg.current-reference-noble-transaction/1' and result['snapshot']==A.BASE and
+           result['baseInventory']=={'packages':BASE_COUNT,'sha256':BASE_SHA256} and
+           result['subjectStatusSha256']==STATUS_FIXTURE_SHA256 and result['originalC068StatusSha256']==ORIGINAL_C068_STATUS_SHA256,
+           'original c068 subject/source identity differs')
+    A.need(type(result['originalChildOutcomes']) is dict and set(result['originalChildOutcomes'])=={'apt-config','apt-update','apt-simulate'} and
+           all(type(value) is int and value==0 for value in result['originalChildOutcomes'].values()) and
+           result['configurationScope']=='private APT_CONFIG before initialization' and
+           result['outerProfileQualification']=='separately required; not established by this helper' and
+           result['actualSolver']=='no-install-apt-simulation' and
+           result['binaryAcquisition']==result['sourceArchiveAcquisition']=='not-run' and
+           all(result[key] is False for key in ['installation','runtimeQualification','actualAT','nativeImeAcceptance']),
+           'original source-plan outcome/scope differs')
+    config=read(originals/'apt-config.log',MAX_LOG).decode('utf-8')
+    matched=re.search(r'^Dir::State::status "([^"\n]+)";$',config,re.M)
+    A.need(matched is not None,'original private status path absent')
+    original_out=Path(matched[1]).parent
+    A.need(original_out.is_absolute() and '..' not in original_out.parts,'original output path malformed')
+    A.need(effective_config(config,original_out)==result['actualEffectiveConfigSha256'] and
+           A.digest(N.canonical(options(original_out)))==result['actualAptArgumentsSha256'] and
+           A.digest(N.canonical(options(Path('/__fsgg_private_transaction__'))))==result['aptOptionsSha256'],
+           'original private configuration/arguments differ')
+    update=read(originals/'apt-update.log',MAX_LOG).decode('utf-8')
+    A.need(update_output(update,original_out)==result['actualUpdateSha256'],'original update digest differs')
+    original=read(originals/'apt-simulate.log',MAX_LOG).decode('utf-8')
+    A.need(A.digest(original.encode())==result['originalSimulationSha256'],'original simulation digest differs')
+    subject,base=base_fixture()
+    A.need(read(originals/'status',8*1024**2)==subject,'original subject status differs')
+    changes,final=frozen(original,base,roots,binaries,sources)
+    A.need(type(result['debs']) is list and 1<=len(result['debs'])<=512 and changes==result['debs'] and
+           result['expectedFinalInventory']=={'packages':len(final),'sha256':A.digest(inventory_bytes(final)),
+               'derivation':'original successful APT simulation; not installed'},'complete frozen output/input join differs')
+    return result
+
+
+def copy_verified_archive(source,target,row,budget):
+    # Retained bytes are untrusted until matched to the freshly authenticated row.
+    A.need(not source.is_symlink() and stat.S_ISREG(source.stat().st_mode),'retained archive is not a regular file')
+    A.need(0<row['bytes']<=A.MAX_FILE and budget.bytes+row['bytes']<=A.MAX_TOTAL,'retained archive population bound exceeded')
+    descriptor=os.open(source,os.O_RDONLY|os.O_NOFOLLOW)
+    with os.fdopen(descriptor,'rb') as incoming,target.open('xb') as outgoing:
+        birth=os.fstat(incoming.fileno())
+        A.need(stat.S_ISREG(birth.st_mode) and birth.st_size==row['bytes'],'retained archive changed type/size')
+        digest=hashlib.sha256();count=0
+        while True:
+            budget.remaining();block=incoming.read(min(65536,row['bytes']+1-count))
+            if not block:break
+            count+=len(block);budget.bytes+=len(block)
+            A.need(count<=row['bytes'] and budget.bytes<=A.MAX_TOTAL,'retained archive body exceeded bound')
+            outgoing.write(block);digest.update(block)
+        ended=os.fstat(incoming.fileno())
+        A.need(all(getattr(birth,k)==getattr(ended,k) for k in ['st_dev','st_ino','st_size','st_mtime_ns','st_ctime_ns']),
+               'retained archive changed while read')
+        A.need(count==row['bytes'] and digest.hexdigest()==row['sha256'],'retained archive size/digest differs')
+    budget.remaining()
+
+
+def selected_role_bindings(original,roots,binaries,sources):
+    selected_roots=list(roots['packages'])
+    for name in FACTORY_COMPILER_PACKAGES:
+        candidates=[row for row in original['debs'] if row['package']==name]
+        A.need(len(candidates)==1,'required factory compiler package absent from frozen transaction')
+        row=candidates[0];dsc=[source for source in row['sourceFiles'] if source['path'].endswith('.dsc')]
+        A.need(len(dsc)==1,'factory compiler patched source descriptor absent')
+        if name not in {root['name'].removesuffix(':amd64') for root in selected_roots}:
+            selected_roots.append({'name':name,'version':row['version'],'debSha256':row['sha256'],
+                'sourceUri':A.BASE+dsc[0]['path'],'sourceSha256':dsc[0]['sha256']})
+    return [A.select(root,binaries,sources) for root in selected_roots]
+
+
+def prepare_frozen_inputs(originals,expected,roots,inputs,out,keyring,retained=None,budget=None):
+    """Download/verify one fixed desktop pool; never install or authenticate a solver run."""
+    roots=request(N.canonical(roots));budget=budget or A.Budget(240)
+    A.need(A.digest(N.canonical(roots))==CURRENT_DESKTOP_ROOT_SHA256,'only selected current desktop roots supported')
+    for source in [originals,inputs,*([retained] if retained is not None else [])]:
+        A.need(not out.is_relative_to(source) and not source.is_relative_to(out),'preparation input/output domains overlap')
+    A.need(not out.exists() and not out.is_symlink(),'fresh frozen-input output required')
+    out.mkdir(mode=0o700)
+    try:
+        binaries,sources=metadata(inputs,out,budget,keyring)
+        original=frozen_input_plan(originals,expected,roots,binaries,sources)
+        kept=out/'originals';kept.mkdir(mode=0o700)
+        identities={'transaction.json':expected,'apt-config.log':original['actualEffectiveConfigSha256'],
+                    'apt-update.log':original['actualUpdateSha256'],'apt-simulate.log':original['originalSimulationSha256'],
+                    'status':original['subjectStatusSha256']}
+        for name,digest in identities.items():
+            raw=read(originals/name,MAX_LOG)
+            A.need(A.digest(raw)==digest,'original input changed during preparation handoff')
+            (kept/name).write_bytes(raw);budget.remaining()
+        roles=selected_role_bindings(original,roots,binaries,sources)
+        archives={}
+        def include(row,kind):
+            path=A.relative(row['path']);old=archives.get(path)
+            A.need(old is None or all(old[k]==row[k] for k in ['sha256','bytes']),'conflicting shared frozen archive')
+            A.need(type(row['bytes']) is int and 0<row['bytes']<=A.MAX_FILE,'frozen archive body bound differs')
+            if old is None:archives[path]={**row,'kinds':[kind]}
+            elif kind not in old['kinds']:old['kinds'].append(kind)
+        for row in original['debs']:
+            include({'path':row['filename'],'sha256':row['sha256'],'bytes':row['bytes']},'runtime-binary')
+        for role in roles:
+            include(role['binary'],'selected-role-binary')
+            for row in role['sourceFiles']:include(row,'selected-role-patched-source')
+        A.need(len(archives)<=A.MAX_REQUESTS and sum(row['bytes'] for row in archives.values())<=A.MAX_TOTAL,
+               'frozen runtime/selected-role pool exceeds unchanged archive bounds')
+        for path,row in sorted(archives.items()):
+            budget.remaining();target=out/'archives'/path;target.parent.mkdir(parents=True,exist_ok=True,mode=0o700)
+            candidate=retained/'archives'/path if retained is not None else None
+            if candidate is not None and (candidate.exists() or candidate.is_symlink()):
+                parent=candidate.parent
+                while parent!=retained:
+                    A.need(not parent.is_symlink(),'retained archive ancestor is a symlink');parent=parent.parent
+                A.need(not retained.is_symlink(),'retained archive root is a symlink')
+                copy_verified_archive(candidate,target,row,budget);row['acquisition']='hash-verified-retained-copy'
+            else:
+                A.fetch(A.BASE+path,row['sha256'],row['bytes'],target,budget);row['acquisition']='original-HTTP200'
+        result={'schema':'fsgg.current-reference-noble-frozen-inputs/1','snapshot':A.BASE,
+                'originalTransactionSha256':expected,'rootRequestSha256':CURRENT_DESKTOP_ROOT_SHA256,
+                'helperSha256':A.digest(Path(__file__).read_bytes()),'acquisitionHelperSha256':A.digest((HERE/'current-reference-noble-acquisition.py').read_bytes()),
+                'runtimeBinaryPackages':len(original['debs']),'selectedRolePackages':len(roles),'selectedRoleBindings':roles,
+                'expectedFinalInventory':original['expectedFinalInventory'],'archives':list(archives.values()),
+                'archiveBytes':budget.bytes,'httpRequests':budget.requests,'declaredArchivesVerified':True,
+                'suppliedOriginalInputsConsistent':True,'externalSolverRunCustodyVerified':False,
+                'dependencySourceArchives':'only selected role closure acquired; remaining source tuples metadata-bound',
+                'installation':False,'runtimeQualification':False,'actualAT':False,'nativeImeAcceptance':False}
+        budget.remaining();(out/'frozen-inputs.json').write_text(json.dumps(result,indent=2)+'\n');budget.remaining()
+        return result
+    except BaseException as cause:
+        report(out/'partial-failure.json',{'schema':'fsgg.current-reference-noble-frozen-inputs-failure/1',
+               'cause':str(cause),'installation':False,'runtimeQualification':False},cause)
+        raise
+
+
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check-context',action='store_true',help='Read-only installed tool/actual717fixture preflight; no APT process')
@@ -419,13 +576,26 @@ if __name__=='__main__':
     parser.add_argument('--request',type=Path)
     parser.add_argument('--out',type=Path)
     parser.add_argument('--keyring',type=Path,default=Path('/usr/share/keyrings/ubuntu-archive-keyring.gpg'))
+    parser.add_argument('--prepare-originals',type=Path,help='Read-only fixed desktop binary/selected-role-source preparation from supplied original source outputs')
+    parser.add_argument('--expected-transaction-sha256',help='Externally bound original transaction digest; this helper does not authenticate a solver run')
+    parser.add_argument('--retained-archives',type=Path,help='Optional explicit prior acquisition input; bytes reverified, no failed-fetch fallback')
     args=parser.parse_args()
     if args.check_context:
-        A.need(args.inputs is None and args.request is None and args.out is None,'context preflight accepts no work inputs')
+        A.need(args.inputs is None and args.request is None and args.out is None and args.prepare_originals is None and
+               args.expected_transaction_sha256 is None and args.retained_archives is None,'context preflight accepts no work inputs')
         runtime_guard();_,value=base_fixture()
         print(json.dumps({'schema':'fsgg.current-reference-noble-tool-preflight/1','installedToolHashesMatched':True,
                           'installedToolSha256':TOOL_SHA256,'subjectInventoryPackages':len(value),'subjectInventorySha256':BASE_SHA256,
                           'aptSimulation':'not-run','installation':False,'runtimeQualification':False}))
     else:
         A.need(args.inputs is not None and args.request is not None and args.out is not None,'explicit solver inputs/output required')
-        plan(args.inputs.resolve(),request(read(args.request,65536)),args.out.resolve(),args.keyring.resolve())
+        roots=request(read(args.request,65536))
+        if args.prepare_originals is not None:
+            A.need(args.expected_transaction_sha256 is not None,'explicit externally bound transaction digest required')
+            A.need(args.retained_archives is None or not args.retained_archives.is_symlink(),'retained input root is a symlink')
+            prepare_frozen_inputs(args.prepare_originals.resolve(),args.expected_transaction_sha256,roots,args.inputs.resolve(),
+                                  args.out.resolve(),args.keyring.resolve(),
+                                  args.retained_archives.resolve() if args.retained_archives is not None else None)
+        else:
+            A.need(args.expected_transaction_sha256 is None and args.retained_archives is None,'preparation-only fields on solver route refused')
+            plan(args.inputs.resolve(),roots,args.out.resolve(),args.keyring.resolve())

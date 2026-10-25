@@ -134,7 +134,7 @@ class NoInstallControls(unittest.TestCase):
             text=config_dump(path) if command[-1]=='dump' else update_dump(path) if command[-1]=='update' else self.body
             log.write_text(text)
             return text
-        with patch.object(T,'runtime_guard',return_value=T.A.digest(raw)),patch.object(T,'base_fixture',return_value=(raw,base)),patch.object(T,'metadata',return_value=(self.data['binary'],self.data['sources'])),patch.object(T,'read',return_value=raw),patch.object(T,'BASE_COUNT',1),patch.object(T,'BASE_SHA256',T.A.digest(T.inventory_bytes(base))):
+        with patch.object(T,'runtime_guard',return_value=T.A.digest(raw)),patch.object(T,'base_fixture',return_value=(raw,base)),patch.object(T,'metadata',return_value=(self.data['binary'],self.data['sources'])),patch.object(T,'read',return_value=raw),patch.object(T,'STATUS_FIXTURE_SHA256',T.A.digest(raw)),patch.object(T,'BASE_COUNT',1),patch.object(T,'BASE_SHA256',T.A.digest(T.inventory_bytes(base))):
             result=T.plan(Path('/immutable-inputs'),self.roots,path,Path('/usr/share/keyrings/ubuntu-archive-keyring.gpg'),budget=clock,run=observed)
         return result,commands
 
@@ -263,6 +263,98 @@ class NoInstallControls(unittest.TestCase):
                 with self.assertRaises(FileNotFoundError) as caught:
                     T.observed(['/nonexistent-inert-fixture'],root/'child.log',T.A.Budget(5))
             self.assertTrue(any('secondary reporting failure' in n for n in caught.exception.__notes__))
+
+
+    def test_metadata_signs_and_retains_the_exact_pinned_snapshot_not_mutable_source_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            inputs=Path(tmp)/'input';out=Path(tmp)/'out';inputs.mkdir();out.mkdir()
+            release=b'pinned original';binary=b'binary';sources=b'sources'
+            (inputs/'noble.InRelease').write_bytes(release)
+            (inputs/'noble-main-binary-amd64-Packages.xz').write_bytes(binary)
+            (inputs/'noble-main-source-Sources.xz').write_bytes(sources)
+            def signed(path,keyring,suite,budget):
+                self.assertEqual(out/'metadata/noble.InRelease',path);self.assertEqual(release,path.read_bytes())
+                (inputs/'noble.InRelease').write_bytes(b'changed determining source')
+                return {'main/binary-amd64/Packages.xz':(T.A.digest(binary),len(binary)),
+                        'main/source/Sources.xz':(T.A.digest(sources),len(sources))}
+            with patch.dict(T.A.RELEASES,{'noble':T.A.digest(release)},clear=True),patch.object(T.A,'COMPONENTS',('main',)),patch.object(T.A,'signed_release',side_effect=signed),patch.object(T.A,'rows',return_value=[]):
+                T.metadata(inputs,out,T.A.Budget(5),Path('/key'))
+            self.assertEqual(release,(out/'repo/dists/noble/InRelease').read_bytes())
+            self.assertEqual(release,(out/'metadata/noble.InRelease').read_bytes())
+            self.assertEqual(sources,(out/'metadata/noble-main-source-Sources.xz').read_bytes())
+
+    def pool_context(self):
+        raw=status();base={'fixture':'1'}
+        return [patch.object(T,'FACTORY_COMPILER_PACKAGES',()),patch.object(T,'CURRENT_DESKTOP_ROOT_SHA256',T.A.digest(T.N.canonical(self.roots))),
+                patch.object(T,'STATUS_FIXTURE_SHA256',T.A.digest(raw)),patch.object(T,'BASE_COUNT',1),patch.object(T,'BASE_SHA256',T.A.digest(T.inventory_bytes(base))),
+                patch.object(T,'base_fixture',return_value=(raw,base)),
+                patch.object(T,'metadata',return_value=(self.data['binary'],self.data['sources']))]
+
+    def test_frozen_originals_require_all_outputs_and_do_not_establish_external_custody(self):
+        from contextlib import ExitStack
+        with tempfile.TemporaryDirectory() as tmp,ExitStack() as stack:
+            for context in self.pool_context():stack.enter_context(context)
+            originals=Path(tmp)/'original';value,_=self.invoke(originals)
+            digest=T.A.digest((originals/'transaction.json').read_bytes())
+            self.assertEqual(value,T.frozen_input_plan(originals,digest,self.roots,self.data['binary'],self.data['sources']))
+            for mutation in [dict(value,expectedFinalInventory={'packages':999,'sha256':'f'*64,'derivation':'original successful APT simulation; not installed'}),dict(value,actualAT=True),dict(value,originalChildOutcomes={'apt-config':False,'apt-update':0,'apt-simulate':0}),dict(value,unexpected='field')]:
+                raw=T.N.canonical(mutation);(originals/'transaction.json').write_bytes(raw)
+                with self.assertRaises(RuntimeError):T.frozen_input_plan(originals,T.A.digest(raw),self.roots,self.data['binary'],self.data['sources'])
+            (originals/'transaction.json').write_text(__import__('json').dumps(value))
+            digest=T.A.digest((originals/'transaction.json').read_bytes())
+            (originals/'apt-simulate.log').write_text('changed original')
+            with self.assertRaisesRegex(RuntimeError,'simulation digest'):
+                T.frozen_input_plan(originals,digest,self.roots,self.data['binary'],self.data['sources'])
+
+    def test_pool_receipt_scopes_staging_and_original_input_consistency_only(self):
+        from contextlib import ExitStack
+        calls=[]
+        def inert_fetch(uri,sha,size,target,budget):
+            calls.append((uri,sha,size));target.write_bytes(b'inert downloader contract stub');budget.requests+=1
+        with tempfile.TemporaryDirectory() as tmp,ExitStack() as stack:
+            for context in self.pool_context():stack.enter_context(context)
+            originals=Path(tmp)/'original';self.invoke(originals);digest=T.A.digest((originals/'transaction.json').read_bytes())
+            with patch.object(T.A,'fetch',side_effect=inert_fetch):
+                receipt=T.prepare_frozen_inputs(originals,digest,self.roots,Path('/signed-inputs'),Path(tmp)/'pool',Path('/key'))
+            self.assertTrue(calls);self.assertTrue(receipt['declaredArchivesVerified'])
+            self.assertFalse(receipt['externalSolverRunCustodyVerified'])
+            for name in ['installation','runtimeQualification','actualAT','nativeImeAcceptance']:self.assertIs(False,receipt[name])
+            self.assertEqual(1,receipt['runtimeBinaryPackages']);self.assertEqual(1,receipt['selectedRolePackages'])
+            self.assertEqual(len(calls),len(receipt['archives']))
+            with self.assertRaisesRegex(RuntimeError,'fresh frozen-input output'):
+                T.prepare_frozen_inputs(originals,digest,self.roots,Path('/signed-inputs'),Path(tmp)/'pool',Path('/key'))
+
+    def test_retained_archive_real_copy_refuses_corruption_and_symlinks_without_fallback(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp);source=root/'source';source.write_bytes(b'authenticated bytes')
+            row={'bytes':source.stat().st_size,'sha256':T.A.digest(source.read_bytes())}
+            budget=T.A.Budget(5);T.copy_verified_archive(source,root/'copy',row,budget)
+            self.assertEqual(source.read_bytes(),(root/'copy').read_bytes());self.assertEqual(row['bytes'],budget.bytes)
+            with self.assertRaisesRegex(RuntimeError,'digest differs'):
+                T.copy_verified_archive(source,root/'bad',dict(row,sha256='f'*64),T.A.Budget(5))
+            self.assertTrue((root/'bad').exists())
+            alias=root/'alias';alias.symlink_to(source)
+            with self.assertRaisesRegex(RuntimeError,'regular file'):
+                T.copy_verified_archive(alias,root/'symlink-copy',row,T.A.Budget(5))
+            self.assertFalse((root/'symlink-copy').exists())
+
+    def test_late_pool_persistence_refuses_success_and_preserves_original_receipt(self):
+        from contextlib import ExitStack
+        now=[0];clock=T.A.Budget(1,lambda:now[0]);write=Path.write_text
+        def persist(path,*args,**kwargs):
+            result=write(path,*args,**kwargs)
+            if path.name=='frozen-inputs.json':now[0]=2
+            return result
+        def inert_fetch(uri,sha,size,target,budget):target.write_bytes(b'inert')
+        with tempfile.TemporaryDirectory() as tmp,ExitStack() as stack:
+            for context in self.pool_context():stack.enter_context(context)
+            originals=Path(tmp)/'original';self.invoke(originals);digest=T.A.digest((originals/'transaction.json').read_bytes());out=Path(tmp)/'pool'
+            with patch.object(T.A,'fetch',side_effect=inert_fetch),patch.object(Path,'write_text',persist):
+                with self.assertRaisesRegex(RuntimeError,'original deadline'):
+                    T.prepare_frozen_inputs(originals,digest,self.roots,Path('/signed-inputs'),out,Path('/key'),budget=clock)
+            self.assertTrue((out/'frozen-inputs.json').exists());self.assertTrue((out/'partial-failure.json').exists())
+            self.assertEqual(digest,T.A.digest((originals/'transaction.json').read_bytes()))
+
 
 
 if __name__=='__main__':unittest.main()
