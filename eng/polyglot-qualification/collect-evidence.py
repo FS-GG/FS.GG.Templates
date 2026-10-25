@@ -18,7 +18,7 @@ fsha = lambda path: sha(Path(path).read_bytes())
 
 def carrier(*argv):
     command = ["podman", "--root", str(root / "containers"), "--runroot", str(root / "runroot"), "--storage-driver", "vfs",
-               "run", "--rm", "--rootfs", str(root / "rootfs/arch"), "-v", str(work) + ":/w:ro", *argv]
+               "run", "--rm", "-v", str(work) + ":/w:ro", "--rootfs", str(root / "rootfs/arch"), *argv]
     return subprocess.run(command, capture_output=True, text=True, check=True).stdout.strip()
 
 archive_bytes = archive.read_bytes()
@@ -44,7 +44,7 @@ for provider in ("typescript-cli", "javascript-cli", "rust-cli", "go-cli"):
         "catalogAcceptanceSha256": fsha(private / "catalog-acceptance" / "acceptance.json"),
         "provenanceSha256": fsha(private / "catalog-acceptance" / "positive-target" / ".fsgg" / "scaffold-provenance.json"),
         "governanceVerdict": verify["verdict"],
-        "governanceProfile": "standard",
+        "governanceProfile": sorted({g["enforcement"]["profile"] for g in gates})[0],
         "gates": [{"capability": g["id"]["gate"], "disposition": g["execution"]["disposition"],
                    "exitCode": g["execution"]["exitCode"], "passed": g["execution"]["passed"]} for g in gates],
         "verifyJsonSha256": fsha(private / "verify.json"),
