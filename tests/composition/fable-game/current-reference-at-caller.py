@@ -68,6 +68,10 @@ def prepare(root, owner):
     # Both the workflow and this entry guard full mode before source or acquisition.
     if preflight['requestedPhase'] == 'full':
         guard(os.environ)
+    facility_raw = os.environ.get('FSGG_CURRENT_NATIVE_INPUT_FACILITY', '')
+    facility_value = None
+    if facility_raw or preflight['requestedPhase'] == 'full':
+        facility_value = observer.native_input_helper().read_manifest(facility_raw)
     controller = {key: subprocess.check_output(['git', '-C', str(ROOT), 'rev-parse', ref], text=True).strip()
                   for key, ref in [('revision', 'HEAD'), ('tree', 'HEAD^{tree}')]}
     require(preflight['templates'] == controller, 'checked-out authenticated controller differs')
@@ -100,6 +104,9 @@ def prepare(root, owner):
                'feedQualification': 'actual download not established by supplied archive identity'}
     joined = join_preflight(preflight, plan, controller, observer.digest(plan_path), observer.digest(HERE / 'external-reference-orca.py'),
                             observer.digest(HERE / 'current-composition-observations.py'), package, readback)
+    if facility_value is not None:
+        joined['nativeInputFacility'] = facility_value
+        joined['nativeInputHelperSha256'] = observer.digest(HERE / 'current-reference-native-input.py')
     preflight_path.write_text(json.dumps(joined, indent=2) + '\n')
 
 
