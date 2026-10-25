@@ -461,6 +461,11 @@ let main argv =
             match ReferencePublication.validateCurrentD5Receiver p.["--archive"] p.["--receiver"] p.["--route"] p.["--lifecycle"] p.["--bundle"] p.["--product-name"] with
             | Ok () -> printfn "current D5 receiver: valid"; 0
             | Error reason -> fail reason
+        | "current-composition-receiver-check" :: tail ->
+            let p = parseClosedOptions [ "--archive"; "--receiver"; "--route"; "--lifecycle"; "--bundle"; "--product-name" ] tail
+            match ReferencePublication.validateCurrentCompositionReceiver p.["--archive"] p.["--receiver"] p.["--route"] p.["--lifecycle"] p.["--bundle"] p.["--product-name"] with
+            | Ok () -> printfn "current composition receiver: valid"; 0
+            | Error reason -> fail reason
         | "current-d5-backend-check" :: tail ->
             let p = parseClosedOptions [ "--receiver"; "--author"; "--inspect"; "--refused"; "--before"; "--after" ] tail
             match ReferencePublication.validateCurrentD5Backend p.["--receiver"] p.["--author"] p.["--inspect"] p.["--refused"] p.["--before"] p.["--after"] with

@@ -531,6 +531,22 @@ let private baseCompositionCases =
                             |}
                         ]
 
+// Cases added with the 0.20.0 template source: the broader DOM options panel and the explicit focus / native-editing
+// survival across a retained update and a session replacement. They are absent from the earlier 0.19.3 archive.
+let private optionsAndFocusCases =
+    [
+        {|
+            file = "two-client.spec.ts"
+            suite = ([]: string list)
+            title = "FourD reference options panel keeps labelled native controls, tab order and state across retained updates and a session replacement"
+        |};
+        {|
+            file = "two-client.spec.ts"
+            suite = ([]: string list)
+            title = "FourD reference focus and native editing text survive a retained update and a session replacement"
+        |}
+    ]
+
 // One current public execution selector for the maintained DOM composition consumer.
 // This is source data, not runtime/publication/AT/whole-Delivery acceptance.
 let currentCompositionPlan () =
@@ -539,10 +555,10 @@ let currentCompositionPlan () =
         template =
             {|
                 id = "FS.GG.Workspace.Template"
-                version = "0.19.3"
-                sha256 = "9594ec204a26f238a06e016d1cfe1e796a07fda23c16589eceb19366cd4a72a2"
-                sourceCommit = "7be0bcf5886d39a8161b186beb8cc06e82415f1e"
-                descriptorSha256 = "6b3d8f2dcbdcd429e4f622cfd6e1515c439097147bb79f5d5c7969d36c3b5006"
+                version = "0.20.0"
+                sha256 = "e12b36d2d087d0f788894fdec9ba3b3ed1406c1e7237ebee40602c2f7c23355c"
+                sourceCommit = "1b9b1ca92556eb1acd0e4d1c9cb851a8c7906f86"
+                descriptorSha256 = "11c7e338b1fa2c29e6d8c2277758f59aeadc9144b1b568204596a0c4152833ee"
             |}
         selection = compositionSelection
         rendering = compositionRendering
@@ -552,10 +568,22 @@ let currentCompositionPlan () =
                 families = [ "chromium"; "firefox"; "webkit" ]
                 retries = 0
                 workers = 1
-                cases = baseCompositionCases
+                cases = baseCompositionCases @ optionsAndFocusCases
             |}
-        acceptanceScope = "nine maintained DOM-automation composition cases only; local save remains synthetic in-memory; no durable/product/AT/whole4818 acceptance"
+        acceptanceScope = "eleven maintained DOM-automation composition cases on the published 0.20.0 template only; local save remains synthetic in-memory; no durable/product/AT/whole4818 acceptance"
     |}
+
+// The generated-receiver conformance check for the composition plan. It is bound to the template identity the typed
+// plan carries (the published 0.20.0 archive), not to the D5 current-public pin, so moving the plan to a newer
+// published template never edits the D5 lane's frozen 0.19.3 selector.
+let validateCurrentCompositionReceiver archive receiver route lifecycle bundle product =
+    let template = (currentCompositionPlan ()).template
+    if not (File.Exists archive) then Error "receiver-input-missing"
+    elif sha256 archive <> template.sha256 then Error "current-composition-archive-refused"
+    else
+        match validatePackageIdentity archive template.sha256 packageId template.version template.sourceCommit with
+        | Error reason -> Error reason
+        | Ok _ -> validateReceiverCore true bundle archive receiver route lifecycle "2.4.0" product
 
 let renderCurrentCompositionPlan () =
     JsonSerializer.Serialize(currentCompositionPlan(), JsonSerializerOptions(WriteIndented = true))
@@ -596,23 +624,7 @@ let private validateCompositionPlanDigest (expectedDigest: string) (json: string
     with _ -> Error "current-composition-plan-refused"
 
 let validateCurrentCompositionPlan (json: string) =
-    validateCompositionPlanDigest "d0eeb826a42bca23f5272fb5835403672f672ed7e989df3cdf83dc8c8e13b4ef" json
-
-// Cases that exist only in the checked-out Templates source (not in the published 0.19.3 archive): the broader DOM
-// options panel and the explicit focus / native-editing survival across a retained update and a session replacement.
-let private sourceBuiltOnlyCases =
-    [
-        {|
-            file = "two-client.spec.ts"
-            suite = ([]: string list)
-            title = "FourD reference options panel keeps labelled native controls, tab order and state across retained updates and a session replacement"
-        |};
-        {|
-            file = "two-client.spec.ts"
-            suite = ([]: string list)
-            title = "FourD reference focus and native editing text survive a retained update and a session replacement"
-        |}
-    ]
+    validateCompositionPlanDigest "d3f0839a5bf1faa3fd274a16d558c7d339431d1d41a8477265a23de54e60b4a1" json
 
 // The same typed Rendering/Game/selection pins and the same maintained cases, but the template under test is
 // packed from the checked-out protected Templates source instead of a published archive. Its identity is therefore
@@ -629,7 +641,7 @@ let sourceBuiltCompositionPlan () =
                 families = [ "chromium"; "firefox"; "webkit" ]
                 retries = 0
                 workers = 1
-                cases = baseCompositionCases @ sourceBuiltOnlyCases
+                cases = baseCompositionCases @ optionsAndFocusCases
             |}
         acceptanceScope = "source-built DOM-automation composition cases (the nine maintained plus two source-only panel and focus cases) only; no published, installed, durable/product, AT or whole4818 acceptance"
     |}

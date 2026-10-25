@@ -132,7 +132,7 @@ class Controls(unittest.TestCase):
         self.assertLess(shell.index('--check-admission'),shell.index('current-composition-plan >'))
         self.assertIn('external-reference-template-package.py" inspect',shell)
         self.assertIn('external-reference-template-package.py" rendering',shell)
-        self.assertIn('current-d5-receiver-check',shell)
+        self.assertIn('current-composition-receiver-check',shell);self.assertNotIn('current-d5-receiver-check',shell)  # the plan's own template identity, never the D5 pin
         self.assertIsNone(re.search(r'--package(?![-\w])',shell))  # not an option of `dotnet new <template>`; the custom hive scopes the one installed package
         self.assertIn("packet['whole4818Acceptance']=False",shell)
 

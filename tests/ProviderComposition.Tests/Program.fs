@@ -436,6 +436,8 @@ let main _ =
     File.WriteAllBytes(project, projectBytes)
     assertEqual "missing backend observations cannot pass" (Error "current-d5-backend-or-preservation-refused") (validateCurrentD5Backend receiver "missing" "missing" "missing" "missing" "missing")
     assertEqual "synthetic source fixture is not genuine public qualification" (Error "current-d5-public-archive-refused") (validateCurrentD5Receiver d5Archive receiver "provider" "spec-kit" "complete" "ReferenceDirect")
+    assertEqual "composition receiver check is bound to the plan's archive, so a synthetic fixture cannot pass it" (Error "current-composition-archive-refused") (validateCurrentCompositionReceiver d5Archive receiver "direct" "none" "complete" "ReferenceDirect")
+    assertEqual "composition receiver check refuses a missing archive" (Error "receiver-input-missing") (validateCurrentCompositionReceiver (Path.Combine(temp, "absent.nupkg")) receiver "direct" "none" "complete" "ReferenceDirect")
     let backendRoot = Path.Combine(temp, "synthetic-current-backend")
     let writeBackend (relative: string) (text: string) =
         let path = Path.Combine(backendRoot, relative)
@@ -483,24 +485,24 @@ let main _ =
     let compositionJson = renderCurrentCompositionPlan ()
     assertEqual "current composition renderer closes exact source DTO" (Ok ()) (validateCurrentCompositionPlan compositionJson)
     assertEqual "current composition template source and raw pin are fixed"
-        ("0.19.3", "7be0bcf5886d39a8161b186beb8cc06e82415f1e", "9594ec204a26f238a06e016d1cfe1e796a07fda23c16589eceb19366cd4a72a2", "6b3d8f2dcbdcd429e4f622cfd6e1515c439097147bb79f5d5c7969d36c3b5006")
+        ("0.20.0", "1b9b1ca92556eb1acd0e4d1c9cb851a8c7906f86", "e12b36d2d087d0f788894fdec9ba3b3ed1406c1e7237ebee40602c2f7c23355c", "11c7e338b1fa2c29e6d8c2277758f59aeadc9144b1b568204596a0c4152833ee")
         (composition.template.version, composition.template.sourceCommit, composition.template.sha256, composition.template.descriptorSha256)
     assertEqual "current composition Rendering provenance is fixed"
         ("0.32.3", "4ec6eafbbbf02264db9b0db4780c590abe0bf9cd", "7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9")
         (composition.rendering.version, composition.rendering.sourceCommit, composition.rendering.custodySha256)
     let identities = composition.browsers.cases |> List.map (fun row -> row.file, row.suite, row.title)
-    assertEqual "current composition has nine unique full DOM identities" (9, 9) (identities.Length, (Set.ofList identities).Count)
+    assertEqual "current composition has eleven unique full DOM identities" (11, 11) (identities.Length, (Set.ofList identities).Count)
     let sourceBuiltJson = renderSourceBuiltCompositionPlan ()
     assertEqual "source-built composition plan closes its own DTO and pins no template archive" (Ok (), false)
-        (validateSourceBuiltCompositionPlan sourceBuiltJson, sourceBuiltJson.Contains "\"sha256\": \"9594ec20")
+        (validateSourceBuiltCompositionPlan sourceBuiltJson, sourceBuiltJson.Contains "\"sha256\": \"e12b36d2")
     let sourceBuilt = sourceBuiltCompositionPlan ()
     assertEqual "source-built plan reuses the published Rendering, Game and selection and labels itself source-built"
         (composition.rendering, composition.game, composition.selection, "source-built")
         (sourceBuilt.rendering, sourceBuilt.game, sourceBuilt.selection, sourceBuilt.template.origin)
     let sourceBuiltIdentities = sourceBuilt.browsers.cases |> List.map (fun row -> row.file, row.suite, row.title)
-    assertEqual "source-built plan keeps the nine maintained cases first and adds exactly two unique source-only cases"
+    assertEqual "source-built and published plans select the identical eleven cases: the nine maintained first, then the options and focus cases"
         (identities, 11, 11)
-        (List.truncate 9 sourceBuiltIdentities, sourceBuiltIdentities.Length, (Set.ofList sourceBuiltIdentities).Count)
+        (sourceBuiltIdentities, sourceBuiltIdentities.Length, (Set.ofList sourceBuiltIdentities).Count)
     use compositionDocument = System.Text.Json.JsonDocument.Parse compositionJson
     let gameFields = compositionDocument.RootElement.GetProperty("game").EnumerateObject() |> Seq.map (fun row -> row.Name) |> Set.ofSeq
     assertEqual "Game has exact known lock identity without an invented raw hash" (Set.ofList [ "id"; "version"; "lockContentHash" ]) gameFields
@@ -516,6 +518,14 @@ let main _ =
         (changedComposition (fun n -> n.["browsers"].["cases"].[4].["suite"] <- System.Text.Json.Nodes.JsonNode.Parse "[]"))
     assertEqual "composition missing maintained synthetic local-save case refuses" (Error "current-composition-plan-refused")
         (changedComposition (fun n -> n.["browsers"].["cases"].AsArray().RemoveAt(8)))
+    assertEqual "composition missing options panel case refuses" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["browsers"].["cases"].AsArray().RemoveAt(9)))
+    assertEqual "composition missing focus and editing survival case refuses" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["browsers"].["cases"].AsArray().RemoveAt(10)))
+    assertEqual "composition template source commit drift refuses" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["template"].["sourceCommit"] <- System.Text.Json.Nodes.JsonValue.Create("7be0bcf5886d39a8161b186beb8cc06e82415f1e")))
+    assertEqual "composition template version drift back to 0.19.3 refuses" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["template"].["version"] <- System.Text.Json.Nodes.JsonValue.Create("0.19.3")))
     assertEqual "composition missing literal Game lock identity refuses" (Error "current-composition-plan-refused")
         (changedComposition (fun n -> n.["game"].AsObject().Remove("lockContentHash") |> ignore))
     assertEqual "composition invented Game archive identity refuses" (Error "current-composition-plan-refused")
