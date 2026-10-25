@@ -78,7 +78,11 @@ def validate_report(report, plan, family):
 
 def validate_inputs(plan, version, source, template_sha):
     require(version==plan['rendering']['version'] and source==plan['rendering']['sourceCommit'],'typed Rendering selection differs')
-    require(template_sha==plan['template']['sha256'],'typed template archive selection differs')
+    if plan['template'].get('origin')=='source-built':
+        # The template was packed from the checked-out source; its digest is recorded by the caller, not pinned by the plan.
+        require(re.fullmatch('[0-9a-f]{64}',template_sha) is not None,'source-built template digest malformed')
+    else:
+        require(template_sha==plan['template']['sha256'],'typed template archive selection differs')
     return True
 
 
