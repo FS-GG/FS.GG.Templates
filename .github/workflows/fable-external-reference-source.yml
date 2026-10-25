@@ -8,9 +8,13 @@ on:
         required: true
         type: string
       rendering-input-source:
-        description: Finite candidate/public/font-disposal route; font-disposal binds original 0.32.3 candidate bytes
+        description: Finite historical or current-public-composition route; current native activation remains held
         type: string
         default: candidate
+      current-public-at-admission:
+        description: Exact separately selected current AT operation; empty keeps native activation held
+        type: string
+        default: ''
       preflight-only:
         description: Verify immutable inputs without compiling or qualifying
         type: boolean
@@ -27,6 +31,7 @@ on:
       - 'tests/composition/fable-game/observe-external-reference-orca.sh'
       - 'tests/composition/fable-game/external-reference-orca.py'
       - 'tests/composition/fable-game/test-current-reference-at.py'
+      - 'tests/composition/fable-game/current-reference-at-caller.py'
       - 'tests/composition/fable-game/external-reference-public.py'
       - 'tests/composition/fable-game/test-external-reference-public.py'
       - 'tests/composition/fable-game/current-composition-observations.py'
@@ -72,15 +77,16 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: ${{ inputs.rendering-input-source == 'font-disposal' && 60 || 35 }}
     env:
-      PRODUCER_SOURCE: ${{ inputs.rendering-input-source == 'font-disposal' && '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd' || inputs.rendering-input-source == 'public' && '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd' || '9b73395658d4683a067d150ca9441b04e802c4af' }}
-      PRODUCER_RUN: ${{ inputs.rendering-input-source == 'font-disposal' && '39509314882' || inputs.rendering-input-source == 'public' && '39509314882' || '38200411661' }}
-      PRODUCER_ARTIFACT: ${{ inputs.rendering-input-source == 'font-disposal' && '12305198394' || inputs.rendering-input-source == 'public' && '12305198394' || '11725317255' }}
-      PRODUCER_ARCHIVE_SHA256: ${{ inputs.rendering-input-source == 'font-disposal' && '84647332c124e511545787c8c3f8634d4f5177068521acfc86c93430ac73ef63' || inputs.rendering-input-source == 'public' && '84647332c124e511545787c8c3f8634d4f5177068521acfc86c93430ac73ef63' || '7b0532caf431cfa41acaf35555016cf126bc495c5a6e13fe7db6b8fbe7478cca' }}
-      PRODUCER_CUSTODY_SHA256: ${{ inputs.rendering-input-source == 'font-disposal' && '7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9' || inputs.rendering-input-source == 'public' && '7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9' || '85bb1dcdf0378d05ca536d5878b88dedc301ff1524d39d98966e23888aae0120' }}
-      PRODUCER_ARCHIVE_SIZE_BYTES: ${{ inputs.rendering-input-source == 'font-disposal' && '15073469' || inputs.rendering-input-source == 'public' && '15073469' || '15007722' }}
-      PRODUCER_VERSION: ${{ inputs.rendering-input-source == 'font-disposal' && '0.32.3' || inputs.rendering-input-source == 'public' && '0.32.3' || '0.32.2' }}
-      PRODUCER_PLAN: ${{ inputs.rendering-input-source == 'font-disposal' && 'eng/release/font-disposal-0.32.3.json' || inputs.rendering-input-source == 'public' && 'eng/release/font-disposal-0.32.3.json' || 'eng/release/external-authority-recovery-0.32.2.json' }}
+      PRODUCER_SOURCE: ${{ inputs.rendering-input-source == 'current-public-composition' && '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd' || inputs.rendering-input-source == 'font-disposal' && '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd' || inputs.rendering-input-source == 'public' && '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd' || '9b73395658d4683a067d150ca9441b04e802c4af' }}
+      PRODUCER_RUN: ${{ inputs.rendering-input-source == 'current-public-composition' && '39509314882' || inputs.rendering-input-source == 'font-disposal' && '39509314882' || inputs.rendering-input-source == 'public' && '39509314882' || '38200411661' }}
+      PRODUCER_ARTIFACT: ${{ inputs.rendering-input-source == 'current-public-composition' && '12305198394' || inputs.rendering-input-source == 'font-disposal' && '12305198394' || inputs.rendering-input-source == 'public' && '12305198394' || '11725317255' }}
+      PRODUCER_ARCHIVE_SHA256: ${{ inputs.rendering-input-source == 'current-public-composition' && '84647332c124e511545787c8c3f8634d4f5177068521acfc86c93430ac73ef63' || inputs.rendering-input-source == 'font-disposal' && '84647332c124e511545787c8c3f8634d4f5177068521acfc86c93430ac73ef63' || inputs.rendering-input-source == 'public' && '84647332c124e511545787c8c3f8634d4f5177068521acfc86c93430ac73ef63' || '7b0532caf431cfa41acaf35555016cf126bc495c5a6e13fe7db6b8fbe7478cca' }}
+      PRODUCER_CUSTODY_SHA256: ${{ inputs.rendering-input-source == 'current-public-composition' && '7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9' || inputs.rendering-input-source == 'font-disposal' && '7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9' || inputs.rendering-input-source == 'public' && '7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9' || '85bb1dcdf0378d05ca536d5878b88dedc301ff1524d39d98966e23888aae0120' }}
+      PRODUCER_ARCHIVE_SIZE_BYTES: ${{ inputs.rendering-input-source == 'current-public-composition' && '15073469' || inputs.rendering-input-source == 'font-disposal' && '15073469' || inputs.rendering-input-source == 'public' && '15073469' || '15007722' }}
+      PRODUCER_VERSION: ${{ inputs.rendering-input-source == 'current-public-composition' && '0.32.3' || inputs.rendering-input-source == 'font-disposal' && '0.32.3' || inputs.rendering-input-source == 'public' && '0.32.3' || '0.32.2' }}
+      PRODUCER_PLAN: ${{ inputs.rendering-input-source == 'current-public-composition' && 'eng/release/font-disposal-0.32.3.json' || inputs.rendering-input-source == 'font-disposal' && 'eng/release/font-disposal-0.32.3.json' || inputs.rendering-input-source == 'public' && 'eng/release/font-disposal-0.32.3.json' || 'eng/release/external-authority-recovery-0.32.2.json' }}
       RENDERING_INPUT_SOURCE: ${{ inputs.rendering-input-source || 'candidate' }}
+      FSGG_CURRENT_PUBLIC_AT_ADMISSION: ${{ inputs.current-public-at-admission }}
       DOTNET_PROCESSOR_COUNT: '1'
       MSBUILDDISABLENODEREUSE: '1'
     defaults:
@@ -98,7 +104,7 @@ jobs:
           import os, re
           assert os.environ['CALLER_REPOSITORY']=='FS-GG/FS.GG.Rendering', 'Rendering caller required'
           assert re.fullmatch('[0-9a-f]{40}', os.environ['TEMPLATES_SOURCE']), 'Exact Templates SHA required'
-          assert os.environ.get('RENDERING_INPUT_SOURCE','candidate') in ['candidate','public','font-disposal'], 'Finite input source required'
+          assert os.environ.get('RENDERING_INPUT_SOURCE','candidate') in ['candidate','public','font-disposal','current-public-composition'], 'Finite input source required'
           PYINPUT
       - uses: actions/checkout@v7
         with:
@@ -118,6 +124,9 @@ jobs:
           python3 tests/composition/fable-game/test-external-reference-public.py
           python3 tests/composition/fable-game/external-reference-orca.py --self-test
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --cpu=120 --fsize=16777216 python3 -I -B tests/composition/fable-game/test-current-reference-at.py
+      - name: Refuse held current AT before acquisition or setup
+        if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition' }}
+        run: python3 -B tests/composition/fable-game/current-reference-at-caller.py guard
       - name: Verify native producer run and authenticated archive before compilation
         env:
           GH_TOKEN: ${{ github.token }}
@@ -150,7 +159,7 @@ jobs:
           assert artifact['digest']=='sha256:'+os.environ['PRODUCER_ARCHIVE_SHA256']
           assert artifact['workflow_run']['id']==run['id'] and artifact['workflow_run']['head_sha']==run['head_sha']
           assert artifact['name']=='rendering-source-candidate-'+run['head_sha']+'-'+os.environ['PRODUCER_VERSION']
-          if os.environ['RENDERING_INPUT_SOURCE']=='font-disposal':
+          if os.environ['RENDERING_INPUT_SOURCE'] in ['font-disposal','current-public-composition']:
               assert run['run_attempt']==1
               plan=Path('.tmp/rendering-source')/os.environ['PRODUCER_PLAN']
               raw=plan.read_bytes()
@@ -202,9 +211,18 @@ jobs:
           [[ "$DOTNET_INSTALL_DIR" == "$expected" && ! -e "$expected" && ! -L "$expected" ]]
           printf 'DOTNET_INSTALL_DIR=%s\n' "$expected" >> "$GITHUB_ENV"
       - uses: actions/setup-dotnet@v6
-        if: ${{ !inputs.preflight-only }}
+        if: ${{ !inputs.preflight-only || inputs.rendering-input-source == 'current-public-composition' }}
         with:
           dotnet-version: '10.0.401'
+      - name: Prepare actual typed current public inputs
+        if: ${{ inputs.rendering-input-source == 'current-public-composition' }}
+        run: |
+          set -euo pipefail
+          test ! -e "$RUNNER_TEMP/current-public-tools"
+          dotnet build src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj -c Release \
+            --artifacts-path "$RUNNER_TEMP/current-public-tools" --disable-build-servers -m:1 -p:UseSharedCompilation=false
+          owner="$RUNNER_TEMP/current-public-tools/bin/FS.GG.Templates.ProviderTool/release/FS.GG.Templates.ProviderTool.dll"
+          python3 -B tests/composition/fable-game/current-reference-at-caller.py prepare "$RUNNER_TEMP" "$owner"
       - uses: actions/setup-node@v6
         if: ${{ !inputs.preflight-only }}
         with:
@@ -240,9 +258,14 @@ jobs:
           assert count==249, f'ProviderComposition requires exactly249 PASS lines; observed{count}'
           print(f'ProviderComposition: verified{count} PASS lines after successful command exit')
           PYPROVIDER
+          if [[ "$RENDERING_INPUT_SOURCE" == current-public-composition ]]; then
+            owner="$RUNNER_TEMP/current-public-tools/bin/FS.GG.Templates.ProviderTool/release/FS.GG.Templates.ProviderTool.dll"
+            python3 -B tests/composition/fable-game/current-reference-at-caller.py source "$RUNNER_TEMP" "$owner"
+          else
           bash tests/composition/fable-game/verify-external-reference-candidate.sh \
             "$GITHUB_WORKSPACE/templates/.tmp/rendering-source" "$RUNNER_TEMP/rendering-packet" \
             "$PRODUCER_VERSION" "$RUNNER_TEMP/external-reference" "$PRODUCER_SOURCE" "$RENDERING_INPUT_SOURCE"
+          fi
       - name: Provision external reference assistive technology
         if: ${{ !inputs.preflight-only }}
         run: |
@@ -255,9 +278,11 @@ jobs:
         if: ${{ !inputs.preflight-only }}
         run: |
           set -euo pipefail
+          journey=external-reference
+          if [[ "$RENDERING_INPUT_SOURCE" == current-public-composition ]]; then journey=current-public-local-save; fi
           PLAYWRIGHT_BROWSERS_PATH="$RUNNER_TEMP/external-reference/browsers" \
             bash tests/composition/fable-game/observe-external-reference-orca.sh \
-            "$RUNNER_TEMP/external-reference" "$RUNNER_TEMP/external-reference-preflight.json"
+            "$RUNNER_TEMP/external-reference" "$RUNNER_TEMP/external-reference-preflight.json" "$journey"
       - name: Bind successful full result to requested Templates source
         if: ${{ !inputs.preflight-only }}
         env:
@@ -270,21 +295,30 @@ jobs:
           packet=json.loads((root/'external-reference/qualification.json').read_text())
           preflight=json.loads((root/'external-reference-preflight.json').read_text())
           assert packet['disposition']=='passed'
-          assert packet['templates']==preflight['templates'] and packet['templates']['revision']==os.environ['TEMPLATES_SOURCE']
-          assert packet['producer']['revision']==os.environ['PRODUCER_SOURCE']
-          assert packet['renderingInputSource']==('nuget.org' if os.environ['RENDERING_INPUT_SOURCE']=='public' else 'candidate')
-          assert packet['templatesInputSource']=='source-built-candidate'
-          assert packet['renderingPublicInputsQualified']==(os.environ['RENDERING_INPUT_SOURCE']=='public')
-          assert packet['producer']['custodyManifestSha256']==os.environ['PRODUCER_CUSTODY_SHA256']
-          assert packet['browserFamilies']==['chromium','firefox','webkit'] and packet['passedPerFamily']==(15 if os.environ['RENDERING_INPUT_SOURCE']=='font-disposal' else 8) and packet['skipped']==0
-          if os.environ['RENDERING_INPUT_SOURCE']=='font-disposal':
+          if os.environ['RENDERING_INPUT_SOURCE']=='current-public-composition':
               import runpy
               checks=runpy.run_path('tests/composition/fable-game/external-reference-orca.py')
-              assert checks['browser_prerequisite'](packet,preflight)
-          for family in packet['browserFamilies']:
-              assert hashlib.sha256((root/'external-reference'/f'{family}-browser.json').read_bytes()).hexdigest()==packet['browserReportSha256'][family]
-          packet['nativePreflight']=preflight
-          (root/'external-reference/qualification.json').write_text(json.dumps(packet,indent=2)+'\n')
+              identity=checks['current_public_inputs'](root/'external-reference',packet,preflight,preflight['templates'])
+              assert not checks['prerequisites'](packet,preflight,lambda _:True,identity)
+              receipt=json.loads((root/'external-reference/orca/observation.json').read_text())
+              assert checks['validate'](receipt,packet,preflight,root/'external-reference/orca')
+              # Preserve original packet bytes bound by the actual AT observation.
+          else:
+              assert packet['templates']==preflight['templates'] and packet['templates']['revision']==os.environ['TEMPLATES_SOURCE']
+              assert packet['producer']['revision']==os.environ['PRODUCER_SOURCE']
+              assert packet['renderingInputSource']==('nuget.org' if os.environ['RENDERING_INPUT_SOURCE']=='public' else 'candidate')
+              assert packet['templatesInputSource']=='source-built-candidate'
+              assert packet['renderingPublicInputsQualified']==(os.environ['RENDERING_INPUT_SOURCE']=='public')
+              assert packet['producer']['custodyManifestSha256']==os.environ['PRODUCER_CUSTODY_SHA256']
+              assert packet['browserFamilies']==['chromium','firefox','webkit'] and packet['passedPerFamily']==(15 if os.environ['RENDERING_INPUT_SOURCE']=='font-disposal' else 8) and packet['skipped']==0
+              if os.environ['RENDERING_INPUT_SOURCE']=='font-disposal':
+                  import runpy
+                  checks=runpy.run_path('tests/composition/fable-game/external-reference-orca.py')
+                  assert checks['browser_prerequisite'](packet,preflight)
+              for family in packet['browserFamilies']:
+                  assert hashlib.sha256((root/'external-reference'/f'{family}-browser.json').read_bytes()).hexdigest()==packet['browserReportSha256'][family]
+              packet['nativePreflight']=preflight
+              (root/'external-reference/qualification.json').write_text(json.dumps(packet,indent=2)+'\n')
           PY
       - name: Upload source qualification evidence
         if: always()
@@ -305,5 +339,7 @@ jobs:
             ${{ runner.temp }}/external-reference/orca-activation-provenance.json
             ${{ runner.temp }}/external-reference/feed/public-readback.json
             ${{ runner.temp }}/provider-composition.log
+            ${{ runner.temp }}/current-composition-plan.json
+            ${{ runner.temp }}/current-public-feed/public-readback.json
             ${{ runner.temp }}/rendering-run.json
             ${{ runner.temp }}/rendering-artifact.json

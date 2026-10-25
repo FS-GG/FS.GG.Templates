@@ -18,6 +18,74 @@ O=L.observations
 
 
 class Controls(unittest.TestCase):
+    def at_input_fixture(self, root):
+        at = L.load('at_input_tests', HERE / 'test-current-reference-at.py')
+        packet, preflight, controller = at.inputs()
+        plan = packet['currentCompositionPlan']
+        product = root / 'product'
+        receiver = product / 'complete/SvgFoundation'
+        receiver.mkdir(parents=True)
+        (receiver / 'fixture.fs').write_bytes(b'original receiver')
+        source = {'receiver': [{'path': 'fixture.fs', 'sha256': L.sha256(receiver / 'fixture.fs')}],
+                  'templatePackageInput': packet['templatePackageInput'], 'producerArchives': [],
+                  'producerSourceEntries': [], 'publicReadback': {}}
+        (product / 'current-source-inputs.json').write_text(json.dumps(source))
+        (product / 'current-composition-plan.json').write_text(json.dumps(plan))
+        for family in L.FAMILIES:
+            report = {'stats': {'expected': 1, 'unexpected': 0, 'skipped': 0, 'flaky': 0}, 'suites': [{'specs': [
+                {'file': 'fixture.spec.ts', 'title': 'fixture', 'ok': True, 'tests': [
+                    {'projectName': family, 'status': 'expected', 'results': [{'status': 'passed', 'retry': 0}]}]}]}]}
+            (root / (family + '-report.json')).write_text(json.dumps(report))
+        custody = {'sourceCommit': plan['rendering']['sourceCommit'], 'custodySha256': plan['rendering']['custodySha256']}
+        return at.O, preflight, controller, plan, custody
+
+    def test_original_local_inputs_join_actual_held_observer_without_native_authentication(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            observer, preflight, controller, plan, custody = self.at_input_fixture(root)
+            L.retain_current_at_inputs(root, plan, custody)
+            product = root / 'product'
+            packet = json.loads((product / 'qualification.json').read_text())
+            preflight['currentCompositionPlanSha256'] = L.sha256(product / 'current-composition-plan.json')
+            preflight['observerSourceSha256'] = L.sha256(Path(observer.__file__))
+            preflight['mechanicalObserverSha256'] = L.sha256(HERE / 'current-composition-observations.py')
+            self.assertEqual(observer.current_public_inputs(product, packet, preflight, controller)['controller'], controller)
+            self.assertEqual(observer.prerequisites(packet, preflight, lambda _: True,
+                observer.current_public_inputs(product, packet, preflight, controller)), [])
+            self.assertIsNone(observer.CURRENT_PUBLIC_AT_ADMISSION)
+            for flag in ('authenticatedNativeCaller', 'hostedRuntimeAdmission', 'actualAT', 'installedAcceptance',
+                         'publishedAcceptance', 'durableSaveAcceptance', 'providerMatrixAcceptance', 'nativeImeAcceptance',
+                         'whole4817Acceptance', 'whole4818Acceptance'):
+                self.assertIs(packet[flag], False, flag)
+            self.assertFalse((product / 'external-reference-preflight.json').exists())
+            for family in L.FAMILIES:
+                self.assertEqual((product / (family + '-browser.json')).read_bytes(), (root / (family + '-report.json')).read_bytes())
+            with self.assertRaisesRegex(ValueError, 'already exists'):
+                L.retain_current_at_inputs(root, plan, custody)
+
+    def test_incomplete_or_changed_original_inputs_cannot_emit_at_packet(self):
+        for mutant in ('missing-family', 'retry', 'receiver', 'custody', 'package', 'stage-plan', 'partial-plan'):
+            with self.subTest(mutant=mutant), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                _, _, _, plan, custody = self.at_input_fixture(root)
+                product = root / 'product'
+                if mutant == 'missing-family': (root / 'webkit-report.json').unlink()
+                elif mutant == 'retry':
+                    path = root / 'firefox-report.json'; report = json.loads(path.read_text())
+                    report['suites'][0]['specs'][0]['tests'][0]['results'][0]['retry'] = 1
+                    path.write_text(json.dumps(report))
+                elif mutant == 'receiver': (product / 'complete/SvgFoundation/fixture.fs').write_bytes(b'changed')
+                elif mutant == 'custody': custody['custodySha256'] = '0' * 64
+                elif mutant == 'package':
+                    path = product / 'current-source-inputs.json'; source = json.loads(path.read_text())
+                    source['templatePackageInput']['version'] = 'other'; path.write_text(json.dumps(source))
+                elif mutant == 'stage-plan': (product / 'current-composition-plan.json').write_text('{}')
+                elif mutant == 'partial-plan': plan['browsers']['families'] = ['chromium']
+                with self.assertRaises((ValueError, FileNotFoundError)):
+                    L.retain_current_at_inputs(root, plan, custody)
+                self.assertFalse((product / 'qualification.json').exists())
+                self.assertFalse(list(product.glob('*-browser.json')))
+
     def test_declared_tools_and_fable_identity_come_from_the_actual_hosted_caller(self):
         tools=L.pinned_tools()
         self.assertEqual((tools['sdk'],tools['node'],tools['npm'],tools['fable'],tools['playwright']),('10.0.401','24.20.0','11.19.0','5.18.0','1.63.0'))
@@ -60,8 +128,8 @@ class Controls(unittest.TestCase):
             for argv,message in ((['--root',fresh,'--families','chromium,opera'],'closed browser families'),
                                  (['--root',fresh,'--families','chromium,chromium'],'closed browser families'),
                                  (['--root',fresh,'--cpus','4'],'at most 3 CPUs'),
-                                 (['--root',tmp],'fresh'),
-                                 (['--root',str(L.WORKSPACE/'.fresh-inside-checkout')],'outside the checkout')):
+                                 (['--root',tmp,'--cpus','1'],'fresh'),
+                                 (['--root',str(L.WORKSPACE/'.fresh-inside-checkout'),'--cpus','1'],'outside the checkout')):
                 with self.subTest(argv=argv),self.assertRaisesRegex(ValueError,message):L.main(argv)
             self.assertFalse(Path(fresh).exists())
         self.assertEqual(os.sched_getaffinity(0),before)

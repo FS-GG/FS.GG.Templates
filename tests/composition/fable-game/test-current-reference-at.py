@@ -9,7 +9,9 @@ import ast
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -114,6 +116,141 @@ class LocalFixture:
 
 
 class CurrentAtTests(unittest.TestCase):
+    def caller(self):
+        spec = importlib.util.spec_from_file_location('current_at_caller', Path(__file__).with_name('current-reference-at-caller.py'))
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        return module
+
+    def test_full_caller_source_entry_is_held_before_any_tools_or_inputs(self):
+        caller = self.caller()
+        with patch.object(caller.subprocess, 'run', side_effect=AssertionError('tool reached')), \
+             patch.object(Path, 'read_text', side_effect=AssertionError('input reached')):
+            with self.assertRaisesRegex(RuntimeError, 'held'):
+                caller.source(Path('/absent'), Path('/absent'))
+
+    def test_current_source_preflight_does_not_promote_phase_or_invent_at(self):
+        caller = self.caller()
+        packet, preflight, controller = inputs()
+        preflight.update(schema='fsgg.external-reference-native-preflight/1', qualification='not-run', requestedPhase='preflight')
+        plan = packet['currentCompositionPlan']
+        plan['rendering']['packages'] = [{'id': 'Fixture.UI', 'sha256': '9' * 64}]
+        readback = {'custodySha256': plan['rendering']['custodySha256'], 'records': [
+            {'id': 'Fixture.UI', 'rawSha256': '9' * 64, 'state': 'matched', 'payloadMatched': True, 'source': 'e' * 40}]}
+        joined = caller.join_preflight(preflight, plan, controller, '1' * 64, '2' * 64, '4' * 64,
+                                        packet['templatePackageInput'], readback)
+        self.assertEqual(joined['requestedPhase'], 'preflight')
+        self.assertEqual(joined['caller'], preflight['caller'])
+        self.assertEqual(joined['qualification'], 'not-run')
+        self.assertTrue(joined['actualProducerCustodyReadback'])
+        for key in ['actualAT', 'providerMatrixAcceptance', 'nativeImeAcceptance', 'whole4817Acceptance']:
+            self.assertIs(joined[key], False)
+        for field, value in [('caller', {}), ('disposition', 'passed'), ('qualification', 'passed'),
+                             ('templates', {}), ('renderingInputSource', 'public')]:
+            with self.subTest(field=field), self.assertRaises((RuntimeError, KeyError)):
+                caller.join_preflight({**preflight, field: value}, plan, controller, '1' * 64, '2' * 64, '4' * 64,
+                                      packet['templatePackageInput'], readback)
+        for changed in [{**readback, 'custodySha256': '0' * 64},
+                        {**readback, 'records': [{**readback['records'][0], 'payloadMatched': False}]}]:
+            with self.assertRaises((RuntimeError, ValueError)):
+                caller.join_preflight(preflight, plan, controller, '1' * 64, '2' * 64, '4' * 64,
+                                      packet['templatePackageInput'], changed)
+
+    def test_actual_current_workflow_guard_precedes_acquisition_and_native_setup(self):
+        workflow = (O.ROOT / '.github/workflows/fable-external-reference-source.yml').read_text()
+        guard = workflow.index('      - name: Refuse held current AT before acquisition or setup')
+        for effect in ['      - name: Verify native producer run', '      - uses: actions/setup-dotnet',
+                       '      - name: Provision external reference assistive technology']:
+            self.assertLess(guard, workflow.index(effect))
+        section = workflow[guard:workflow.index('\n      - ', guard + 1)]
+        self.assertIn("!inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition'", section)
+        self.assertIn('current-reference-at-caller.py guard', section)
+        self.assertIn('current-reference-at-caller.py source', workflow)
+        self.assertIn('journey=current-public-local-save', workflow)
+        shell = (Path(__file__).with_name('verify-external-reference-candidate.sh')).read_text()
+        self.assertLess(shell.index('current-reference-at-caller.py" guard'), shell.index('mkdir -p'))
+        self.assertIn('"$current_stage" == current-at-full', shell)
+        self.assertIn('if [[ "$current_stage" == current-source-stage ]]; then exit 0; fi', shell)
+        self.assertIn("packet['actualProducerCustodyReadback']=True", shell)
+
+    def test_wrapper_has_closed_current_journey_argument(self):
+        wrapper = (Path(__file__).with_name('observe-external-reference-orca.sh')).read_text()
+        self.assertIn('current-public-local-save) args=(--current-public-local-save)', wrapper)
+        self.assertIn('*) echo "unknown AT journey"', wrapper)
+        self.assertIn('"$script_dir/external-reference-orca.py" "${args[@]}"', wrapper)
+
+    def test_actual_prepare_uses_original_preflight_and_public_custody_ports(self):
+        caller = self.caller()
+        packet, preflight, controller = inputs()
+        preflight.update(schema='fsgg.external-reference-native-preflight/1', qualification='not-run', requestedPhase='preflight')
+        plan = packet['currentCompositionPlan']
+        plan['template']['id'] = 'FS.GG.Workspace.Template'
+        plan['rendering'].update(sourceCommit=caller.public.SOURCE, custodySha256=caller.public.CUSTODY_SHA256,
+                                  version=caller.public.VERSION, packages=[{'id': k, 'sha256': v} for k, v in caller.public.PUBLIC_SHA256.items()])
+        preflight['producer'].update(revision=caller.public.SOURCE, custodySha256=caller.public.CUSTODY_SHA256)
+        raw = (json.dumps(plan) + '\n').encode()
+        calls = []
+        def output(argv, **kwargs):
+            calls.append(list(map(str, argv)))
+            if argv[0] == 'git': return controller['tree' if argv[-1] == 'HEAD^{tree}' else 'revision']
+            self.assertEqual(argv[-1], 'current-composition-plan')
+            return raw
+        def fetch(url, expected, maximum, destination):
+            calls.append(['public-template', url]); destination.write_bytes(b'archive fixture')
+        def acquire(original, destination):
+            self.assertEqual(original.read_bytes(), b'original verified custody')
+            calls.append(['public-payload-compare']); destination.mkdir()
+            (destination / 'public-readback.json').write_text(json.dumps({'custodySha256': caller.public.CUSTODY_SHA256,
+                'records': [{'id': k, 'rawSha256': v, 'state': 'matched', 'payloadMatched': True, 'source': caller.public.SOURCE}
+                            for k, v in caller.public.PUBLIC_SHA256.items()]}))
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'rendering-packet').mkdir()
+            (root / 'rendering-packet/release-custody.json').write_bytes(b'original verified custody')
+            O.write(root / 'external-reference-preflight.json', preflight)
+            with patch.object(caller.subprocess, 'check_output', side_effect=output), \
+                 patch.object(caller.subprocess, 'run') as run, patch.object(caller.local, 'fetch', side_effect=fetch), \
+                 patch.object(caller.public, 'acquire', side_effect=acquire):
+                caller.prepare(root, Path('/typed-owner.dll'))
+            self.assertEqual((root / 'current-composition-plan.json').read_bytes(), raw)
+            joined = json.loads((root / 'external-reference-preflight.json').read_text())
+            self.assertEqual(joined['caller'], preflight['caller'])
+            self.assertEqual(joined['requestedPhase'], 'preflight')
+            self.assertFalse(joined['actualAT'])
+            self.assertEqual(joined['currentCompositionPlanSha256'], O.digest(root / 'current-composition-plan.json'))
+            self.assertEqual(run.call_count, 1)  # actual typed package identity port, no second producer fetch or verifier
+            self.assertIn('published-tool-check', run.call_args.args[0])
+            self.assertEqual(calls[-1], ['public-payload-compare'])
+            self.assertFalse((root / 'external-reference').exists())
+
+    def test_actual_full_prepare_cannot_bypass_gate_with_supplied_receipt(self):
+        caller = self.caller()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            O.write(root / 'external-reference-preflight.json', {'requestedPhase': 'full'})
+            with patch.object(caller.subprocess, 'check_output', side_effect=AssertionError('tool reached')):
+                with self.assertRaisesRegex(RuntimeError, 'held'):
+                    caller.prepare(root, Path('/typed-owner.dll'))
+            self.assertFalse((root / 'current-composition-plan.json').exists())
+
+    def test_actual_full_shell_and_wrapper_refuse_before_receiver_or_native_effects(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            target = str(Path(tmp) / 'never-created')
+            env = {'PATH': os.environ['PATH'], 'LANG': 'C.UTF-8', 'PYTHONDONTWRITEBYTECODE': '1',
+                   'FSGG_CURRENT_COMPOSITION_LOCAL_VERIFICATION': 'adr-0096-local-development-verification',
+                   'FSGG_CURRENT_PUBLIC_AT_ADMISSION': 'cannot-lift-none'}
+            commands = [
+                ['bash', str(Path(__file__).with_name('verify-external-reference-candidate.sh')), '/absent', '/absent',
+                 '0.32.3', target, '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd', 'current-public-composition',
+                 '/absent.nupkg', 'a' * 64, 'current-at-full'],
+                ['bash', str(Path(__file__).with_name('observe-external-reference-orca.sh')), target,
+                 '/absent.json', 'current-public-local-save'],
+            ]
+            for argv in commands:
+                result = subprocess.run(argv, env=env, text=True, capture_output=True, timeout=5)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('current public AT held', result.stderr)
+                self.assertFalse(Path(target).exists())
+
     def test_imports_do_not_load_gi(self):
         self.assertNotIn("gi", sys.modules)
         self.assertNotIn("gi.repository.Atspi", sys.modules)
