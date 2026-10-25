@@ -207,6 +207,27 @@ def select(package, binaries, sources):
             'depends': binary.get('Depends', ''), 'preDepends': binary.get('Pre-Depends', '')}
 
 
+def acquire_metadata(out, keyring, budget):
+    releases,indexes,index_identities=[],[],[]
+    for suite, sha256 in RELEASES.items():
+        # Pinned release sizes are closed source inputs, not Content-Length authority.
+        size = {'noble': 255850, 'noble-updates': 126125, 'noble-security': 126127}[suite]
+        path = fetch(BASE + 'dists/' + suite + '/InRelease', sha256, size, out / (suite + '.InRelease'), budget)
+        index = signed_release(path, keyring, suite, budget)
+        releases.append({'suite': suite, 'sha256': sha256, 'signer': SIGNER})
+        for component in COMPONENTS:
+            for kind in ['binary-amd64/Packages.xz', 'source/Sources.xz']:
+                name = component + '/' + kind
+                need(name in index, 'required signed index missing')
+                sha256, size = index[name]
+                path = fetch(BASE + 'dists/' + suite + '/' + name, sha256, size,
+                             out / (suite + '-' + component + '-' + kind.replace('/', '-')), budget)
+                indexes.append((kind, path))
+                index_identities.append({'suite': suite, 'path': name, 'sha256': sha256, 'bytes': size})
+                budget.remaining()
+    return releases,indexes,index_identities
+
+
 def acquire(manifest, out, keyring, budget=None):
     spec = importlib.util.spec_from_file_location('current_native_manifest', HERE / 'current-reference-native-input.py')
     module = importlib.util.module_from_spec(spec)
@@ -221,22 +242,7 @@ def acquire(manifest, out, keyring, budget=None):
     out.mkdir(mode=0o700)
     budget = budget or Budget()
     binaries, sources, releases, indexes, index_identities = [], [], [], [], []
-    for suite, sha256 in RELEASES.items():
-        # Pinned release sizes are closed source inputs, not Content-Length authority.
-        size = {'noble': 255850, 'noble-updates': 126125, 'noble-security': 126127}[suite]
-        path = fetch(BASE + 'dists/' + suite + '/InRelease', sha256, size, out / (suite + '.InRelease'), budget)
-        index = signed_release(path, keyring, suite, budget)
-        releases.append({'suite': suite, 'sha256': sha256, 'signer': SIGNER})
-        for component in COMPONENTS:
-            for kind, destination in [('binary-amd64/Packages.xz', binaries), ('source/Sources.xz', sources)]:
-                name = component + '/' + kind
-                need(name in index, 'required signed index missing')
-                sha256, size = index[name]
-                path = fetch(BASE + 'dists/' + suite + '/' + name, sha256, size,
-                             out / (suite + '-' + component + '-' + kind.replace('/', '-')), budget)
-                indexes.append((kind, path))
-                index_identities.append({'suite': suite, 'path': name, 'sha256': sha256, 'bytes': size})
-                budget.remaining()
+    releases,indexes,index_identities=acquire_metadata(out,keyring,budget)
     for kind, path in indexes:
         if kind.startswith('binary'):
             for row in rows(path.read_bytes()):
@@ -281,12 +287,26 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('output', type=Path)
+    parser.add_argument('--metadata-only',action='store_true',help='Acquire only the signed offline solver metadata; no package or runtime claim')
     parser.add_argument('--package-request', type=Path, help='Bounded archive-only package request; no facility/keymap claim')
     parser.add_argument('--keyring', type=Path, default=Path('/usr/share/keyrings/ubuntu-archive-keyring.gpg'))
     args = parser.parse_args()
     spec = importlib.util.spec_from_file_location('current_native_manifest_cli', HERE / 'current-reference-native-input.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    if args.metadata_only:
+        need(args.package_request is None and not os.environ.get('FSGG_CURRENT_NATIVE_INPUT_FACILITY'),'metadata-only cannot consume a facility/package request')
+        need(not args.output.exists() and not args.output.is_symlink(),'fresh metadata output required')
+        args.output.mkdir(mode=0o700)
+        budget=Budget(240)
+        releases,indexes,identities=acquire_metadata(args.output,args.keyring,budget)
+        receipt={'schema':'fsgg.current-reference-noble-metadata/1','snapshot':BASE,'releases':releases,
+                 'indexes':identities,'requests':budget.requests,'bytes':budget.bytes,
+                 'packageAcquisition':'not-run','installation':False,'runtimeQualification':False}
+        budget.remaining()
+        (args.output/'metadata.json').write_text(json.dumps(receipt,indent=2)+'\n')
+        budget.remaining()
+        raise SystemExit(0)
     if args.package_request:
         with args.package_request.open('rb') as stream:
             raw = stream.read(65537)

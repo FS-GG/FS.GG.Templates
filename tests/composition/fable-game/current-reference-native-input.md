@@ -120,3 +120,43 @@ input is bounded at64KiB and rejects duplicate fields. It does not require or
 invent runtime object/keymap pins. The receipt binds `inputKind` and
 `packageRequestSha256`; it cannot become a full facility manifest or native
 admission. The existing callee continues using the complete facility manifest.
+
+## Actual no-install source prefix
+
+`current-reference-noble-transaction.py` is a no-install APT planner, not an
+installer, guest transport, admission mechanism or desktop qualification. The
+existing Noble PR source job first checks actual pinned installed APT/dpkg/GPG
+bytes and the source-bound c068717-package fixture. A mismatch is an exact tool
+or input prerequisite and fails before APT; the job does not modify host APT or
+substitute a synthetic success. It then acquires only signed metadata and runs
+real APT `update`/`--simulate --no-install-recommends` against private file-only
+sources, status, lists, cache, configuration and preferences. The subprocess
+receives no credentials or ambient APT/native-loader configuration. No service,
+package installation, browser or native AT starts. Preparation acquisition uses
+ordinary authenticated HTTPS; the APT operation has only local file sources.
+
+The compressed fixture retains every installed status/control field and each
+first Description line from the actual retained c068 post-bake status; only long
+human Description continuations are omitted. Original status SHA256 is
+`f12714579833970cd7a965c0097f09f7acc8d8e4af4b2434e9ecbb5c67efa401`;
+solver fixture SHA256 is
+`e2ba73498adb51230edf1130de020a7419278f0eeecbd98acc56005e93cee9be`.
+Its717-package canonical inventory matches protected Coordination
+`c068e1cccb9a0dc65d4ebfcc8d8b3228f2c57ccd`
+`deployment/qualification-runner/noble/package-inventory.expected` SHA256
+`2a0d25ec6ede3165dec5e7763a2556b6ed31a2f9b04292dd5c81df0b37c1cc35`.
+The fixture is under the ordinary source-blob bound; no source read limit changes.
+It is subject data, not a claim that the source CI host has the guest inventory.
+
+Only original successful, recognized APT output can produce the frozen binary
+delta and derived expected inventory. Removals, malformed/duplicate/unindexed
+changes, unsatisfied roots, host status drift, output/deadline failure and a late
+receipt write refuse. Immediate partial failure evidence precedes bounded child
+group cleanup; this group observation is not an outer containment claim. Work is
+105seconds inside a120second parent with a15second cleanup reserve. The receipt
+explicitly leaves binary/source acquisition, installation, runtime and AT
+qualification unrun. The first source request selects the nine already authenticated
+baseline/IME packages; it is not a complete browser/desktop installation plan.
+The same source cohort will retain the frozen provision/role/keymap/retirement
+work and the separately admitted private caller contract; source APT verification
+requires no desktop-facility approval and grants no such approval.

@@ -38,6 +38,10 @@ on:
       - 'tests/composition/fable-game/current-reference-at-caller.py'
       - 'tests/composition/fable-game/current-reference-native-input.py'
       - 'tests/composition/fable-game/current-reference-noble-acquisition.py'
+      - 'tests/composition/fable-game/current-reference-noble-transaction.py'
+      - 'tests/composition/fable-game/test-current-reference-noble-transaction.py'
+      - 'tests/composition/fable-game/fixtures/noble-c068-status.xz'
+      - 'tests/composition/fable-game/fixtures/noble-source-prefix-request.json'
       - 'tests/composition/fable-game/test-current-reference-noble-acquisition.py'
       - 'tests/composition/fable-game/current-reference-noble-metadata-fixture.json'
       - 'tests/composition/fable-game/test-current-reference-native-input.py'
@@ -66,7 +70,7 @@ jobs:
     name: External reference workflow static controls
     if: github.repository == 'FS-GG/FS.GG.Templates' && github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 7
     steps:
       - uses: actions/checkout@v7
         with:
@@ -82,6 +86,35 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --cpu=120 --fsize=16777216 python3 -I -B tests/composition/fable-game/test-current-reference-at.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-native-input.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-acquisition.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-transaction.py
+      - name: Check actual Noble solver tools and c068 fixture before work
+        run: |
+          env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
+            /usr/bin/python3 -I -B tests/composition/fable-game/current-reference-noble-transaction.py --check-context
+      - name: Acquire signed metadata for the offline source solver
+        run: |
+          env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
+            timeout --kill-after=5s 150s prlimit --as=1073741824 --cpu=120 \
+            /usr/bin/python3 -I -B tests/composition/fable-game/current-reference-noble-acquisition.py \
+            --metadata-only "$RUNNER_TEMP/noble-source-metadata"
+      - name: Exercise actual isolated no-install APT source prefix
+        run: |
+          env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
+            timeout --kill-after=5s 120s prlimit --as=1073741824 --cpu=105 \
+            /usr/bin/python3 -I -B tests/composition/fable-game/current-reference-noble-transaction.py \
+            --inputs "$RUNNER_TEMP/noble-source-metadata" \
+            --request tests/composition/fable-game/fixtures/noble-source-prefix-request.json \
+            --out "$RUNNER_TEMP/noble-source-transaction"
+      - name: Retain original no-install source results and partial failures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: noble-no-install-source-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/noble-source-metadata/metadata.json
+            ${{ runner.temp }}/noble-source-transaction/**
+
   candidate:
     if: github.repository != 'FS-GG/FS.GG.Templates' || inputs.templates-source != ''
     name: External reference immutable preflight and optional full qualification
@@ -138,6 +171,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --cpu=120 --fsize=16777216 python3 -I -B tests/composition/fable-game/test-current-reference-at.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-native-input.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-acquisition.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-transaction.py
       - name: Refuse held current AT before acquisition or setup
         if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition' }}
         run: python3 -B tests/composition/fable-game/current-reference-at-caller.py guard

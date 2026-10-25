@@ -1,0 +1,68 @@
+{
+  "schema": "fsgg.current-reference-noble-package-request/1",
+  "packages": [
+    {
+      "name": "orca",
+      "version": "46.1-1ubuntu1",
+      "debSha256": "2ea414b8aea922b1ac9a1479c1324cba6b28e48dbe57b99d08f9c76806a51c59",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/o/orca/orca_46.1-1ubuntu1.dsc",
+      "sourceSha256": "38c2e88a5c58fc6acd2eed1909772caa20e77be948c8df5fd99ce9425e825977"
+    },
+    {
+      "name": "at-spi2-core",
+      "version": "2.52.0-1build1",
+      "debSha256": "ea2d24a3219ba639f72dadf92b896fe31dd2ffd8659432e0cee2362726b63ff4",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/a/at-spi2-core/at-spi2-core_2.52.0-1build1.dsc",
+      "sourceSha256": "16b82af63769eefb96343366f34545f2af2de5c3661c83293f50969de7fa450a"
+    },
+    {
+      "name": "dbus",
+      "version": "1.14.10-4ubuntu4.1",
+      "debSha256": "0d59be1393d5b01552edbf16c7b9357c473bf625aa47365ce2e8eef6da1dd2e1",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/d/dbus/dbus_1.14.10.orig.tar.xz",
+      "sourceSha256": "ba1f21d2bd9d339da2d4aa8780c09df32fea87998b73da24f49ab9df1e36a50f"
+    },
+    {
+      "name": "ibus",
+      "version": "1.5.29-2",
+      "debSha256": "5c6c0af5583353bdcf18369e72afdf410c7dad23668919a6a006e7eaef043e61",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/i/ibus/ibus_1.5.29-2.dsc",
+      "sourceSha256": "6c25cd73f9de93aa58f43b075ee81804abf469120c765d6515a2f418f9fa925f"
+    },
+    {
+      "name": "ibus-gtk3",
+      "version": "1.5.29-2",
+      "debSha256": "c2602a2c2edc6e305a98f3a683af35f89fcc9dba3cd6aff8582ffb414f85d817",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/i/ibus/ibus_1.5.29-2.dsc",
+      "sourceSha256": "6c25cd73f9de93aa58f43b075ee81804abf469120c765d6515a2f418f9fa925f"
+    },
+    {
+      "name": "ibus-libpinyin",
+      "version": "1.15.7-1build2",
+      "debSha256": "d577f4061c0f98dfe979aec9e0aabde0e5114eaeef37817894ce18fff5ab91c0",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/i/ibus-libpinyin/ibus-libpinyin_1.15.7-1build2.dsc",
+      "sourceSha256": "b72913f982f9534d7989080c7652d679688d803f80fcd9c89bc2adacc5e271c8"
+    },
+    {
+      "name": "dconf-service",
+      "version": "0.40.0-4ubuntu0.1",
+      "debSha256": "49bf5473474228d48373da639bbe3e77157b03d4467bfa2deb56168c2c03cd81",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/d/dconf/dconf_0.40.0.orig.tar.xz",
+      "sourceSha256": "cf7f22a4c9200421d8d3325c5c1b8b93a36843650c9f95d6451e20f0bcb24533"
+    },
+    {
+      "name": "gir1.2-ibus-1.0",
+      "version": "1.5.29-2",
+      "debSha256": "12eb51eb9ba91ec9f768c91e02d4ceb99e87b931f83305d94a50acbe387b0c65",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/i/ibus/ibus_1.5.29-2.dsc",
+      "sourceSha256": "6c25cd73f9de93aa58f43b075ee81804abf469120c765d6515a2f418f9fa925f"
+    },
+    {
+      "name": "xkb-data",
+      "version": "2.41-2ubuntu1.1",
+      "debSha256": "e99f2a0b4c56cdf35dec489e56b6a8418826cab8ce6306ec6d0bd98e2cd0014a",
+      "sourceUri": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/pool/main/x/xkeyboard-config/xkeyboard-config_2.41.orig.tar.gz",
+      "sourceSha256": "8af4ed51ce0dc6fcf8cd9291355eec0221b3f0e531ad3ab022f086c05b7fe93f"
+    }
+  ]
+}
