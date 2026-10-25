@@ -92,21 +92,21 @@ payload entries identical. This is published-feed payload agreement with the pro
 
 ## Source-built mode (`--source-built --coordination-source CLONE`)
 
-Everything above runs the *published* 0.19.3 template. `--source-built` instead packs Workspace.Template from the checked-out commit
+Everything above was first run (2026-10-24) against the then-published 0.19.3 template; the published route now pins 0.20.0 (see "Published 0.20.0 bytes" below). `--source-built` instead packs Workspace.Template from the checked-out commit
 (`git archive HEAD` into a copy under the private root, `dotnet pack` there with the Coordination Python fixture revision the source
 names, taken from a local clone and never fetched) into a private feed, and runs the same typed cases against that package with the
 same public Rendering archives and locked graph. It uses a second typed plan, `source-built-composition-plan`, which differs from the
 published plan only by its template section (no archive is pinned) and scope string; the stage is `verify-source-built-composition.sh`.
 The summary records the source commit and tree, whether the commit is already on the local `origin/main`, the package name, bytes and
 SHA-256, and the verdict is `dom-observed-source-built-reference-only` with `origin: source-built` and `publishedAcceptance: false`.
-It never claims published or installed acceptance, and it does not run the published-template identity checks (they are bound to 0.19.3).
+It never claims published or installed acceptance, and it does not run the published-template identity checks (they are bound to the published plan's pinned template).
 First source-built run of the unchanged nine cases: 27/27 on the 0.20.0 source package.
 
 ## Example composition: what the Done-when asks, and what executes
 
 The #4818 Done-when names six elements; the owning plan (staged Fable game adoption, Stage .3) says to complete the published
 examples and generated-workspace conformance for each. Each element is exercised by the typed cases below (titles are the plan's;
-27 = 9 x Chromium, Firefox, WebKit, run against the published 0.19.3 template and 0.32.3 Rendering archives). Assertions are cited
+27 = 9 x Chromium, Firefox, WebKit, run against the published 0.19.3 template and 0.32.3 Rendering archives at that time; the published route now runs 33 = 11 x 3 on 0.20.0). Assertions are cited
 from `Browser.Tests` in the generated Complete receiver.
 
 | Done-when element | Executing typed case(s) | Assertion that carries it |
@@ -132,9 +132,9 @@ are now closed **in the checked-out source only**, by two source-only typed case
 Before the change the two cases fail (commit before the implementation: 2 failed, 9 passed, Chromium). Honestly: they fail there because the island's nodes do not exist (`markIdentity` and the select lookups), not because of a behavioural difference; the note, caret and composition assertions of the second case pass by nature before the change and are shown to discriminate by the regressions below; with it 11/11 in each of Chromium, Firefox and WebKit. Four scratch regressions each fail both
 cases while the nine maintained cases pass: the note replaced on session replacement, the island re-rendered on a retained update, and focus stolen on replacement or on a retained update. The reference applies a projection once per revision, so each case drives and awaits exactly one retained update (an applied-projection counter gates the assertions), then replacements.
 The evidence is `source-built`, never `published`: these cases are not in the published 0.19.3 archive, so they reach users only with the next Workspace.Template release
-(Templates#441's 0.20.0), which also owns the durable reference `localSaved` journey. A fresh installed receiver remains separate.
+(Templates#441's 0.20.0; published-byte result below). 0.20.0 does not contain a durable reference `localSaved` (see below). A fresh installed receiver remains separate.
 
-Cross-lane: `scripts/svg-current-reference-adoption.json` lists the allowed canonical digests per managed path. For `two-client.spec.ts`, `FourDReference.fs` and the FourD README it now allows the published 0.19.3 digest and the source-built successor, so the "derived from the declared immutable public source" comment in `apply-svg-complete-workspace.py` is no longer exact for those three. Real adoption runs authenticate published receivers and still match the old digest; the #4816 owner should drop the old digests, or re-pin, when 0.20.0 is released.
+Cross-lane: `scripts/svg-current-reference-adoption.json` lists the allowed canonical digests per managed path. For `two-client.spec.ts`, `FourDReference.fs` and the FourD README it now allows the published 0.19.3 digest and the source-built successor, so the "derived from the declared immutable public source" comment in `apply-svg-complete-workspace.py` is no longer exact for those three. Real adoption runs authenticate published receivers and still match the old digest; the #4816 owner should drop the old digests, or re-pin, when 0.20.0 is released; 0.20.0 is now published and its bytes for those three paths already match the successor digests, so the #4816 successor scope can drop the old ones.
 
 ## Published 0.20.0 bytes (observed 2026-10-25)
 
@@ -161,7 +161,7 @@ at checkout head `c3614f27` (tree `1bbdeae9`, clean):
 | `--published-all` | 19/19 Rendering 0.32.3 archives payload-exact against the public feed, one feed signature each |
 
 The run also exercised Playwright 1.63.0 stock browsers (downloaded into the private root) in the existing image
-(`20a02130014f`). Verdict `dom-observed-local-reference-only` with `origin: published`; installed, durable-save, AT and whole-#4818 flags stay false.
+(`20a02130014f`). Verdict `dom-observed-local-reference-only` with `origin: published`. This is ADR-0096 local verification: `publishedAcceptance` and `hostedRuntimeAdmission` stay false (no protected or hosted gate is claimed), as do the installed, durable-save, AT and whole-#4818 flags.
 
 ### Durable reference `localSaved` is not in 0.20.0
 
@@ -169,8 +169,8 @@ The published 0.20.0 archive's `FourDReference.fs` (identical to the source at `
 `let mutable localSaved: SessionSnapshot<LocalSaveReplayExample.Payload> option` under `#if LOCAL_SAVE_REPLAY_EXAMPLE`; the buttons save "in memory"
 and the FourD README states that no durable storage, byte serializer or clock is provided. No 0.20.0 case can exercise a durable reference save,
 so none is added. The only IndexedDB persistence in the template is the Studio generated-scene journey, which is a different journey and is already
-covered by its own cases; it is not the reference `localSaved`. The reference-level durable `localSaved` journey is therefore **owed to the next
-Workspace.Template release after 0.20.0**, because 0.20.0 shipped without any template source for it, and a published-byte case cannot precede the
+covered by its own cases; it is not the reference `localSaved`. The reference-level durable `localSaved` journey is therefore **absent from 0.20.0 and owed to the next
+Workspace.Template release**, per Root's re-binding on FS-GG/.github#4818 (2026-10-25: a reference-level durable `localSaved` becomes a source obligation for the next Workspace.Template release), because 0.20.0 shipped without any template source for it, and a published-byte case cannot precede the
 published source. Product-level durable save is FourD's under FS-GG/.github#4819.
 
 ## Boundaries that remain
