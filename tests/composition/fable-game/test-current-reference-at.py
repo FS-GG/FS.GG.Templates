@@ -522,5 +522,90 @@ class CurrentAtTests(unittest.TestCase):
         self.assertIn("old-generation-reconciliation-remains-refused", names)
 
 
+class PaletteAnnouncementControls(unittest.TestCase):
+    """Execute the real observer functions without importing GI or running AT."""
+    def observer(self, directory, spoken):
+        source = Path(__file__).with_name("svg-input-orca.py").read_text()
+        tree = ast.parse(source)
+        selected = {"speech_log_offset", "wait_for_speech", "open_command_palette"}
+        module = ast.Module(body=[node for node in tree.body
+                                  if isinstance(node, ast.FunctionDef) and node.name in selected], type_ignores=[])
+        log = directory / "palette.orca-debug.log"
+        log.write_text("SPEECH OUTPUT: Command palette dialog\n")
+        calls = []
+        class Clock:
+            now = 0
+            def time(self):
+                return self.now
+            def sleep(self, seconds):
+                self.now += seconds
+        def key(value):
+            calls.append(("key", value))
+            with log.open("a") as stream:
+                stream.write(spoken)
+        namespace = {"os": os, "time": Clock(), "output": str(directory / "palette"),
+                     "key": key, "find": lambda *a, **k: calls.append(("find", a, k)),
+                     "wait_for_focus": lambda *a, **k: calls.append(("focus", a, k))}
+        exec(compile(module, "svg-input-orca.py selected functions", "exec"), namespace)
+        return namespace, calls, log
+
+    def test_palette_uses_fresh_speech_and_actual_initial_dialog_focus(self):
+        with tempfile.TemporaryDirectory() as directory:
+            namespace, calls, log = self.observer(Path(directory), "SPEECH OUTPUT: Command palette dialog\n")
+            start = log.stat().st_size
+            receipt = namespace["open_command_palette"]()
+            self.assertEqual(receipt, {"name": "Command palette", "role": "dialog",
+                                       "initialFocus": "dialog", "speechAfter": start})
+            self.assertEqual(calls, [("key", "Return"),
+                                    ("find", ("dialog",), {"name": "Command palette"}),
+                                    ("focus", ("Command palette",), {"role": "dialog", "dom_role": "dialog"})])
+
+    def test_palette_refuses_stale_missing_role_and_debug_only_speech(self):
+        for spoken in ["", "SPEECH OUTPUT: Command palette\n", "DEBUG: Command palette dialog\n"]:
+            with self.subTest(spoken=spoken), tempfile.TemporaryDirectory() as directory:
+                namespace, _, _ = self.observer(Path(directory), spoken)
+                with self.assertRaisesRegex(RuntimeError, "expected speech output"):
+                    namespace["open_command_palette"]()
+
+    def test_actual_dialog_focus_requires_fresh_named_dom_and_atspi_agreement(self):
+        from types import SimpleNamespace
+        source = ast.parse(Path(__file__).with_name("svg-input-orca.py").read_text())
+        function = next(node for node in source.body if isinstance(node, ast.FunctionDef)
+                        and node.name == "wait_for_focus")
+        for mutant in [None, "wrong-dom-role", "wrong-at-role", "stale-dom", "document-blurred"]:
+            with self.subTest(mutant=mutant), tempfile.TemporaryDirectory() as directory:
+                namespace, _, _ = self.observer(Path(directory), "")
+                value = {"schema": "fsgg.orca-browser-dom/v1", "browserFamily": "chromium",
+                         "sampleSequence": 1, "sampledAt": "fixture", "sampledAtUnixMs": 0,
+                         "observation": {"documentHasFocus": mutant != "document-blurred",
+                                         "activeElement": {"role": "button" if mutant == "wrong-dom-role" else "dialog",
+                                                           "ariaLabel": "Command palette"}}}
+                if mutant == "stale-dom":
+                    value["sampledAtUnixMs"] = -3000
+                Path(namespace["output"] + ".browser-dom.json").write_text(json.dumps(value))
+                node = SimpleNamespace(get_state_set=lambda: SimpleNamespace(contains=lambda _: True),
+                                       get_name=lambda: "Command palette",
+                                       get_role_name=lambda: "push button" if mutant == "wrong-at-role" else "dialog")
+                namespace.update(json=json, walk=lambda _: [node], focused=lambda: None,
+                                 Atspi=SimpleNamespace(get_desktop=lambda _: None,
+                                                       StateType=SimpleNamespace(FOCUSED=1)))
+                exec(compile(ast.Module(body=[function], type_ignores=[]), "actual focus observer", "exec"), namespace)
+                with patch.dict(os.environ, {"SVG_ORCA_BROWSER_FAMILY": "chromium"}):
+                    if mutant is None:
+                        self.assertIs(namespace["wait_for_focus"]("Command palette", role="dialog", dom_role="dialog"), node)
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "focus was not restored"):
+                            namespace["wait_for_focus"]("Command palette", role="dialog", dom_role="dialog", timeout=.2)
+
+    def test_palette_focus_failure_cannot_be_replaced_by_matching_speech(self):
+        with tempfile.TemporaryDirectory() as directory:
+            namespace, _, _ = self.observer(Path(directory), "SPEECH OUTPUT: Command palette dialog\n")
+            def wrong_focus(*args, **kwargs):
+                raise RuntimeError("wrong actual focus")
+            namespace["wait_for_focus"] = wrong_focus
+            with self.assertRaisesRegex(RuntimeError, "wrong actual focus"):
+                namespace["open_command_palette"]()
+
+
 if __name__ == "__main__":
     unittest.main()

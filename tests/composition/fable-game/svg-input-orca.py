@@ -113,7 +113,8 @@ def wait_for_focus(name, role=None, dom_id=None, dom_role=None, timeout=10):
     while time.time() < end:
         dom = None
         try:
-            dom = json.load(open(output + ".browser-dom.json"))
+            with open(output + ".browser-dom.json") as stream:
+                dom = json.load(stream)
         except Exception:
             pass
         observation = (dom or {}).get("observation") or {}
@@ -126,7 +127,7 @@ def wait_for_focus(name, role=None, dom_id=None, dom_role=None, timeout=10):
             and isinstance(dom.get("sampledAt"), str)
             and abs(time.time() * 1000 - dom.get("sampledAtUnixMs", 0)) <= 2000
             and observation.get("documentHasFocus") is True
-            and active.get("id") == dom_id
+            and (dom_id is None or active.get("id") == dom_id)
             and active.get("role") == dom_role
             and active.get("ariaLabel") == name
         )
@@ -189,6 +190,18 @@ def wait_for_speech(*needles, timeout=10, after=0):
         time.sleep(.2)
     raise RuntimeError("Orca did not record the expected speech output")
 
+def open_command_palette():
+    # SvgStudio intentionally focuses the dialog section itself (tabindex=-1),
+    # not a fictional child control. Observe that exact DOM/AT-SPI target and
+    # only speech emitted after this real keyboard activation.
+    after = speech_log_offset()
+    key("Return")
+    find("dialog", name="Command palette")
+    wait_for_focus("Command palette", role="dialog", dom_role="dialog")
+    wait_for_speech("Command palette", "dialog", after=after)
+    return {"name": "Command palette", "role": "dialog", "initialFocus": "dialog",
+            "speechAfter": after}
+
 def wait_for_dom_keys(*expected, timeout=10):
     end = time.time() + timeout
     while time.time() < end:
@@ -221,8 +234,7 @@ find(None, contains="save the sample asset first")
 tab_to("Replay timeline")
 tab_to("Replay complete arena recording")
 tab_to("Command palette")
-key("Return")
-find("dialog", name="Command palette")
+palette_announcement = open_command_palette()
 key("Escape")
 wait_until_absent("dialog", "Command palette")
 # The application contract records the scene id as RestoreFocus. Chromium maps
@@ -275,6 +287,7 @@ with open(output, "w") as stream:
         "browser": {"name": os.environ["SVG_ORCA_BROWSER_FAMILY"], "pid": int(os.environ["BROWSER_PID"]), "accessibility": "AT-SPI2"},
         "keyboard": {"events": "xdotool-X11", "navigation": "passed", "activation": "passed", "selection": "passed", "palette": "passed", "escape": "passed", "focusRestoration": "passed", "helpShortcut": "g,h-received-in-focus-mode"},
         "atspiActions": {"properties": "passed", "twoInstancesRefusal": "passed", "mode": "passed", "helpClose": "passed", "rebind": "passed", "validationFeedback": "passed"},
+        "paletteAnnouncement": palette_announcement,
         "workspace": {"mode": "passed", "palette": "passed", "help": "passed", "rebind": "passed", "focusRestoration": "passed"},
         "screenReader": {"name": "Orca", "interactionMode": "focus-mode-observed", "speechOutputObserved": True, "audibleHardwareOutput": "not-observed"},
     }, stream, indent=2)
