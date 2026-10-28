@@ -49,14 +49,17 @@ PY
  dotnet new install "$template" --force >"$out/template-install.log" 2>&1
  dotnet new fs-gg-fable-game -n PaletteCandidate -o "$out/receiver" --lifecycle none --svgFoundation true >"$out/generate.log" 2>&1
 )
-# The candidate profile generates its own lock; retained/public locks are never rewritten.
-cat > "$out/NuGet.Config" <<EOF
+# The explicit restore config is outside receiver ancestry: candidate mapping
+# must not leak into generated tool restore, whose public source key is nuget.org.
+# The candidate profile generates its own lock; retained/public locks are unchanged.
+mkdir "$out/candidate-config"
+cat > "$out/candidate-config/NuGet.Config" <<EOF
 <configuration><packageSources><clear/><add key="candidate" value="$fixture/feed"/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources><packageSourceMapping><packageSource key="candidate"><package pattern="FS.GG.UI.*"/></packageSource><packageSource key="public"><package pattern="*"/></packageSource></packageSourceMapping></configuration>
 EOF
 (
  cd "$out/receiver"
  [[ "$(dotnet --version)" == 10.0.401 ]]
- dotnet restore SvgFoundation/Studio/Studio.fsproj --configfile "$out/NuGet.Config" \
+ dotnet restore SvgFoundation/Studio/Studio.fsproj --configfile "$out/candidate-config/NuGet.Config" \
    -p:FsGgSvgAuthoringVersion="$version" -p:RestoreLockedMode=false -p:RestoreForceEvaluate=true \
    >"$out/candidate-restore.log" 2>&1
 )

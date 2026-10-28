@@ -710,6 +710,24 @@ class PaletteCandidateInputControls(unittest.TestCase):
             with self.assertRaisesRegex(SystemExit, "source differs"):
                 read()
 
+    def test_candidate_mapping_is_not_inherited_by_generated_tool_restore(self):
+        import re
+        from pathlib import PurePosixPath
+        from xml.etree import ElementTree as ET
+        script = Path(__file__).with_name("verify-palette-candidate.sh").read_text()
+        match = re.search(r'cat > "(\$out/[^"\n]*NuGet.Config)" <<EOF\n(.*?)\nEOF', script, re.S)
+        self.assertIsNotNone(match)
+        config = PurePosixPath(match[1].replace("$out", "/candidate"))
+        receiver = PurePosixPath("/candidate/receiver")
+        # Original40722583617 put candidate/public mappings at /candidate.
+        # The receiver clears sources to nuget.org, leaving fable unmapped.
+        self.assertNotIn(config.parent, [receiver, *receiver.parents],
+                         "candidate-only mapping reaches generated dotnet tool restore")
+        sources = {node.attrib["key"] for node in ET.fromstring(match[2]).findall("packageSources/add")}
+        mappings = {node.attrib["key"] for node in ET.fromstring(match[2]).findall("packageSourceMapping/packageSource")}
+        self.assertEqual(sources, mappings)
+        self.assertIn('--configfile "' + match[1] + '"', script)
+
     def test_candidate_bad_identity_cannot_reach_generation(self):
         script = Path(__file__).with_name("verify-palette-candidate.sh")
         result = subprocess.run(["bash", str(script), "/absent-producer", "not-a-commit",
