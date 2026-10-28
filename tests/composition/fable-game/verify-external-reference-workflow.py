@@ -291,6 +291,32 @@ with tempfile.TemporaryDirectory() as directory:
         for n in range(19):archive.writestr(('../escape.nupkg' if n==0 else f'package{n}.nupkg'),b'fixture')
         archive.writestr('release-custody.json',custody)
     execute(codes[2],env,False)
+# Match the actual upload allowlist against emitted companions and the retained failing path.
+# A broad output-tree glob selected the colon-bearing NuGet HTTP cache in40740615402.
+def palette_upload_controls(workflow):
+    import glob
+    marker='      - name: Upload source qualification evidence\n'
+    assert workflow.count(marker)==1
+    section=workflow.split(marker,1)[1]
+    paths=section.split('          path: |\n',1)[1].splitlines()
+    patterns=[line.strip().replace('${{ runner.temp }}/','') for line in paths if line.startswith('            ${{ runner.temp }}/')]
+    required=['palette-candidate/qualification.json','palette-candidate/candidate-input.json','palette-candidate/orca-input.json','palette-candidate/consumer-before.json','palette-candidate/consumer-after.json','palette-candidate/server.log','palette-candidate/orca-version.log','palette-candidate/orca-input.json.orca-debug.log','palette-candidate/orca-input.json.orca.log','palette-candidate/orca-input.json.speechd-preflight.json','palette-candidate/orca-input.json.browser-dom.json','palette-candidate/orca-input.json.speechd-logs/espeak-ng.log','palette-candidate/orca-input.json.speechd-logs/speech-dispatcher.log','palette-candidate/receiver/SvgFoundation/Studio/packages.lock.json','palette-candidate/receiver/SvgFoundation/Studio/obj/project.assets.json','palette-template-feed/FS.GG.Workspace.Template.fixture.nupkg','palette-template-feed/python-fixture-projection.json','palette-template-feed/python-fixture-preflight/qualification.json','external-reference-preflight.json','rendering-packet.zip','rendering-packet/release-custody.json','rendering-run.json','rendering-artifact.json','rendering-jobs.json']
+    excluded=['palette-candidate/http/670c1461c29885f9aa22c281d8b7da90845b38e4$ps:_api.nuget.org_v3_index.json/list_fable.browser.blob.dat','palette-candidate/packages/unrelated.nupkg','palette-candidate/receiver/node_modules/unrelated.json']
+    with tempfile.TemporaryDirectory() as directory:
+        base=Path(directory)
+        for name in required+excluded:
+            file=base/name;file.parent.mkdir(parents=True,exist_ok=True);file.write_bytes(b'inert emitted evidence')
+        selected={str(Path(name).relative_to(base)) for pattern in patterns for name in glob.glob(str(base/pattern),recursive=True) if Path(name).is_file()}
+        assert set(required)<=selected, 'required qualification companion omitted'
+        assert not set(excluded)&selected, 'cache or generated tree selected for evidence upload'
+        assert not any(re.search(r'["<>|*?:\r\n]',name) for name in selected), 'upload-invalid retained path selected'
+    return True
+
+assert palette_upload_controls(text)
+try:palette_upload_controls(text.replace('${{ runner.temp }}/palette-candidate/*.json','${{ runner.temp }}/palette-candidate/**',1))
+except AssertionError:pass
+else:raise AssertionError('original broad upload regression accepted')
+print('PASS actual upload allowlist:24 required companions selected; original colon-bearing cache and generated trees refused')
 print(f'PASS: {checks} actual workflow assertion fixtures; source/permission/order/phase controls')
 
 # Execute the actual provision shell against a finite npm command fixture. No packages install.

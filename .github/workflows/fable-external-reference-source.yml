@@ -479,8 +479,14 @@ jobs:
             ${{ runner.temp }}/current-composition-plan.json
             ${{ runner.temp }}/current-noble-acquisition/acquisition.json
             ${{ runner.temp }}/current-public-feed/public-readback.json
-            ${{ runner.temp }}/palette-template-feed/**
-            ${{ runner.temp }}/palette-candidate/**
+            ${{ runner.temp }}/palette-template-feed/*.nupkg
+            ${{ runner.temp }}/palette-template-feed/python-fixture-projection.json
+            ${{ runner.temp }}/palette-template-feed/python-fixture-preflight/**
+            ${{ runner.temp }}/palette-candidate/*.json
+            ${{ runner.temp }}/palette-candidate/*.log
+            ${{ runner.temp }}/palette-candidate/*.speechd-logs/**
+            ${{ runner.temp }}/palette-candidate/receiver/SvgFoundation/Studio/packages.lock.json
+            ${{ runner.temp }}/palette-candidate/receiver/SvgFoundation/Studio/obj/project.assets.json
             ${{ runner.temp }}/rendering-packet.zip
             ${{ runner.temp }}/rendering-packet/release-custody.json
             ${{ runner.temp }}/rendering-jobs.json
