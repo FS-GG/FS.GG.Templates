@@ -664,6 +664,41 @@ class PaletteCandidateInputControls(unittest.TestCase):
                     self.assertFalse(output.exists())
                     archive(identity, source)
 
+    def test_retained0324_metadata_binds_native_caller_and_complete_custody(self):
+        from zipfile import ZipFile
+        import hashlib
+        script=Path(__file__).with_name("verify-palette-candidate.sh").read_text()
+        code=compile(script.split("<<'PY'\n",1)[1].split("\nPY\n",1)[0],"actual retained palette metadata","exec")
+        with tempfile.TemporaryDirectory() as value:
+            root=Path(value);feed=root/'originals';feed.mkdir();source='a'*40;templates='c'*40
+            for identity in ['FS.GG.UI.Scene','FS.GG.UI.KeyboardInput','FS.GG.UI.Scene.SvgBrowser']:
+                with ZipFile(feed/(identity+'.0.32.4.nupkg'),'w') as archive:
+                    archive.writestr(identity+'.nuspec','<package><metadata><version>0.32.4</version><repository commit="'+source+'"/></metadata></package>')
+            template=root/'template.nupkg'
+            with ZipFile(template,'w') as archive:
+                archive.writestr('FS.GG.Workspace.Template.nuspec','<package><metadata><id>FS.GG.Workspace.Template</id><version>fixture</version><repository commit="'+templates+'"/></metadata></package>')
+            plan=root/'plan.json';plan.write_text('inert plan bytes')
+            custody=root/'release-custody.json';custody.write_text(json.dumps({'archives':[{'id':'fixture'+str(n)} for n in range(19)]}))
+            preflight=root/'preflight.json';output=root/'input.json'
+            baseline={'requestedPhase':'full','disposition':'preflight-passed','qualification':'not-run','publication':False,'installedAcceptance':False,'caller':{'repository':'FS-GG/FS.GG.Rendering','revision':'d'*40,'run':'11','attempt':'1'},'templates':{'revision':templates},'renderingInputSource':'palette-heading','producer':{'revision':source,'version':'0.32.4','custodySha256':hashlib.sha256(custody.read_bytes()).hexdigest(),'rawPlanSha256':hashlib.sha256(plan.read_bytes()).hexdigest()}}
+            def read(record):
+                preflight.write_text(json.dumps(record))
+                with patch.object(sys,'argv',['metadata',str(feed),source,str(template),str(output),templates,'0.32.4',str(custody),str(plan),str(preflight)]):exec(code,{})
+            read(baseline);result=json.loads(output.read_text());self.assertEqual((19,'0.32.4'),(result['originalArchiveCount'],result['renderingVersion']))
+            self.assertEqual(baseline,result['nativePreflight']);self.assertEqual(hashlib.sha256(preflight.read_bytes()).hexdigest(),result['nativePreflightSha256'])
+            for section,key,bad in [('caller','repository','FS-GG/FS.GG.Templates'),('templates','revision','b'*40),('producer','revision','b'*40),('producer','custodySha256','0'*64),('producer','rawPlanSha256','0'*64),('producer','version','0.32.0')]:
+                with self.subTest(section=section,key=key):
+                    record=json.loads(json.dumps(baseline));record[section][key]=bad;output.unlink(missing_ok=True)
+                    with self.assertRaises(SystemExit):read(record)
+                    self.assertFalse(output.exists())
+            for key,bad in [('requestedPhase','preflight'),('disposition','passed'),('qualification','passed'),('publication',True),('installedAcceptance',True)]:
+                record={**baseline,key:bad};output.unlink(missing_ok=True)
+                with self.assertRaises(SystemExit):read(record)
+                self.assertFalse(output.exists())
+        self.assertLess(script.index('verify_original_custody\n'),script.index('mkdir -m 700'))
+        self.assertLess(script.index('wait "$server"'),script.rindex('verify_original_custody\n'))
+        self.assertLess(script.rindex('verify_original_custody\n'),script.index("record.update(schema='fsgg.palette-candidate-qualification/1'"))
+
     def test_actual_receiver_join_checks_private_folder_bytes_source_and_closure(self):
         from zipfile import ZipFile
         import hashlib

@@ -10,26 +10,45 @@ out="${5:?absent output directory required}"
 [[ "$expected" =~ ^[0-9a-f]{40}$ && "$producer" = /* && "$fixture" = /* && "$template" = /* && "$out" = /* && ! -e "$out" ]]
 [[ "$(git -C "$producer" rev-parse HEAD)" == "$expected" ]]
 [[ -z "$(git -C "$producer" status --porcelain --untracked-files=all)" ]]
-version=0.32.0 # Existing Rendering build-fixture.sh candidate-pack identity, not publication.
+original_plan="${6:-}"
+original_custody="${7:-}"
+original_custody_sha="${8:-}"
+native_preflight="${9:-}"
+[[ "$#" -le 9 ]]
+version=0.32.0 # Historical private fixture identity; never publication.
+feed="$fixture/feed"
+if [[ -n "$original_plan$original_custody$original_custody_sha$native_preflight" ]]; then
+  [[ "$original_plan" == "$producer/eng/release/palette-heading-0.32.4.json" && "$original_custody" = /* && "$original_custody_sha" =~ ^[0-9a-f]{64}$ && "$native_preflight" = /* && -f "$native_preflight" ]]
+  version=0.32.4
+  feed="$(dirname "$original_custody")"
+fi
+verify_original_custody() {
+  [[ -n "$original_plan" ]] || return 0
+  [[ "$(sha256sum "$original_custody" | cut -d' ' -f1)" == "$original_custody_sha" ]]
+  python3 "$producer/scripts/release-custody.py" verify --plan "$original_plan" \
+    --archives "$feed" --manifest "$original_custody" --source-sha "$expected"
+}
+verify_original_custody
 mkdir -m 700 "$out"
 mkdir -p "$out/home" "$out/packages" "$out/http"
 export DOTNET_CLI_HOME="$out/home" NUGET_PACKAGES="$out/packages" NUGET_HTTP_CACHE_PATH="$out/http"
-python3 - "$fixture/feed" "$expected" "$template" "$out/candidate-input.json" "$(git -C "$root" rev-parse HEAD)" <<'PY'
+python3 - "$feed" "$expected" "$template" "$out/candidate-input.json" "$(git -C "$root" rev-parse HEAD)" "$version" "$original_custody" "$original_plan" "$native_preflight" <<'PY'
 from pathlib import Path
 from zipfile import ZipFile
 from xml.etree import ElementTree as ET
 import hashlib,json,sys
 feed,source,template,destination=Path(sys.argv[1]),sys.argv[2],Path(sys.argv[3]),Path(sys.argv[4])
+version=sys.argv[6] if len(sys.argv)>6 else '0.32.0'
 rows=[]
 for identity in ['FS.GG.UI.Scene','FS.GG.UI.KeyboardInput','FS.GG.UI.Scene.SvgBrowser']:
- path=feed/(identity+'.0.32.0.nupkg')
+ path=feed/(identity+'.'+version+'.nupkg')
  if path.is_symlink() or not path.is_file():raise SystemExit('candidate package missing or linked: '+identity)
  with ZipFile(path) as archive:
   metadata=ET.fromstring(archive.read(identity+'.nuspec'))
   field=lambda name:[v for v in metadata.iter() if v.tag.rsplit('}',1)[-1]==name]
   if len(field('repository'))!=1 or field('repository')[0].get('commit')!=source:raise SystemExit('candidate package source differs: '+identity)
-  if len(field('version'))!=1 or field('version')[0].text!='0.32.0':raise SystemExit('candidate package version differs')
- rows.append({'id':identity,'version':'0.32.0','file':path.name,'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
+  if len(field('version'))!=1 or field('version')[0].text!=version:raise SystemExit('candidate package version differs')
+ rows.append({'id':identity,'version':version,'file':path.name,'bytes':path.stat().st_size,'sha256':hashlib.sha256(path.read_bytes()).hexdigest()})
 with ZipFile(template) as archive:
  metadata=ET.fromstring(archive.read('FS.GG.Workspace.Template.nuspec'))
  fields=lambda name:[v for v in metadata.iter() if v.tag.rsplit('}',1)[-1]==name]
@@ -37,9 +56,18 @@ with ZipFile(template) as archive:
  if len(fields('id'))!=1 or fields('id')[0].text!='FS.GG.Workspace.Template':raise SystemExit('Templates candidate identity differs')
  if len(fields('version'))!=1:raise SystemExit('Templates candidate version missing')
  template_version=fields('version')[0].text
-record={'templatesSource':sys.argv[5],'templatesVersion':template_version,'schema':'fsgg.palette-candidate-input/1','renderingSource':source,'archives':rows,
+record={'templatesSource':sys.argv[5],'templatesVersion':template_version,'schema':'fsgg.palette-candidate-input/1','renderingSource':source,'renderingVersion':version,'archives':rows,
         'templatesArchiveSha256':hashlib.sha256(template.read_bytes()).hexdigest(),
         'qualification':'unpublished-source-candidate','publication':False,'installedPublicAcceptance':False}
+if len(sys.argv)>7 and sys.argv[7]:
+ manifest=Path(sys.argv[7]);plan=Path(sys.argv[8]);custody=json.loads(manifest.read_text())
+ if len(custody['archives'])!=19:raise SystemExit('complete19 original custody required')
+ record.update(originalCustodySha256=hashlib.sha256(manifest.read_bytes()).hexdigest(),originalArchiveCount=len(custody['archives']),releasePlanSha256=hashlib.sha256(plan.read_bytes()).hexdigest())
+ preflight_path=Path(sys.argv[9]);preflight=json.loads(preflight_path.read_text());producer=preflight['producer']
+ if preflight['disposition']!='preflight-passed' or preflight['qualification']!='not-run' or preflight['publication'] is not False or preflight['installedAcceptance'] is not False or preflight['requestedPhase']!='full':raise SystemExit('native preflight scope differs')
+ if preflight['caller']['repository']!='FS-GG/FS.GG.Rendering' or preflight['templates']['revision']!=sys.argv[5] or preflight['renderingInputSource']!='palette-heading':raise SystemExit('native caller or Templates source differs')
+ if producer['revision']!=source or producer['version']!=version or producer['custodySha256']!=record['originalCustodySha256'] or producer['rawPlanSha256']!=record['releasePlanSha256']:raise SystemExit('native original producer join differs')
+ record.update(nativePreflight=preflight,nativePreflightSha256=hashlib.sha256(preflight_path.read_bytes()).hexdigest())
 destination.write_text(json.dumps(record,sort_keys=True,indent=2)+'\n')
 PY
 # Install only the exact source-bound Templates candidate into this private home.
@@ -54,7 +82,7 @@ PY
 # The candidate profile generates its own lock; retained/public locks are unchanged.
 mkdir "$out/candidate-config"
 cat > "$out/candidate-config/NuGet.Config" <<EOF
-<configuration><packageSources><clear/><add key="candidate" value="$fixture/feed"/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources><packageSourceMapping><packageSource key="candidate"><package pattern="FS.GG.UI.*"/></packageSource><packageSource key="public"><package pattern="*"/></packageSource></packageSourceMapping></configuration>
+<configuration><packageSources><clear/><add key="candidate" value="$feed"/><add key="public" value="https://api.nuget.org/v3/index.json"/></packageSources><packageSourceMapping><packageSource key="candidate"><package pattern="FS.GG.UI.*"/></packageSource><packageSource key="public"><package pattern="*"/></packageSource></packageSourceMapping></configuration>
 EOF
 (
  cd "$out/receiver"
@@ -99,7 +127,7 @@ lock="$out/receiver/SvgFoundation/Studio/packages.lock.json"
 lock_sha="$(sha256sum "$lock" | cut -d' ' -f1)"
 (
  cd "$out/receiver"
- FSGG_SVG_AUTHORING_VERSION="$version" FSGG_SVG_CANDIDATE_FEED="$fixture/feed" \
+ FSGG_SVG_AUTHORING_VERSION="$version" FSGG_SVG_CANDIDATE_FEED="$feed" \
    bash SvgFoundation/Studio/build.sh >"$out/studio-build.log" 2>&1
 )
 [[ "$(sha256sum "$lock" | cut -d' ' -f1)" == "$lock_sha" ]]
@@ -123,6 +151,8 @@ wait "$server" || server_exit=$?
 # Once reaped, this PID must never be signalled by the failure trap.
 trap - EXIT
 [[ "$server_exit" == 143 ]] # Direct Python server's expected SIGTERM terminal status.
+# All nineteen originals remain unchanged after the complete receiver and actual AT journey.
+verify_original_custody
 python3 - "$out" "$lock_sha" "$server_exit" <<'PY'
 from pathlib import Path
 import hashlib,json,sys

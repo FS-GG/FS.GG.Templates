@@ -62,11 +62,23 @@ def validate_current_at_registration(workflow):
     return True
 
 validate_current_at_registration(text)
-blocks=re.findall(r"          python3 - <<'(PY(?:INPUT)?)'\n(.*?)\n          \1",text,re.S)
-codes=[ '\n'.join(line[10:] for line in code.splitlines()) for _,code in blocks ]
-for code in codes:
-    ast.parse(code)
-assert len(codes)==5, len(codes)
+def assertion_codes(workflow):
+    result=[]
+    for name,count in [('Reject invalid caller or Templates identity before checkout',1),('Verify native producer run and authenticated archive before compilation',2),('Record authenticated preflight identity',1),('Bind successful full result to requested Templates source',1)]:
+        marker='      - name: '+name+'\n'
+        assert workflow.count(marker)==1, 'missing/ambiguous actual assertion step: '+name
+        start=workflow.index(marker)+len(marker)
+        end=workflow.find('\n      - ',start)
+        section=workflow[start:end if end!=-1 else len(workflow)]
+        blocks=re.findall(r"          python3 - <<'(PY(?:INPUT)?)'\n(.*?)\n          \1",section,re.S)
+        assert len(blocks)==count, 'actual assertion body count differs: '+name
+        result.extend('\n'.join(line[10:] for line in code.splitlines()) for _,code in blocks)
+    for code in result:ast.parse(code)
+    return result
+
+codes=assertion_codes(text)
+# A preceding preparation body must never become the authorization reader under test.
+assert assertion_codes(text.replace('      - name: Reject invalid caller',"      - name: Inert extra preparation\n        run: |\n          python3 - <<'PY'\n          raise AssertionError('not an authorization reader')\n          PY\n      - name: Reject invalid caller",1))==codes
 assert 'create-github-app-token' not in text and 'secrets.' not in text
 assert 'workflow_dispatch:' not in text and 'workflow_call:' in text
 assert 'GH_TOKEN: ${{ github.token }}' in text
@@ -79,6 +91,7 @@ for step in ['actions/setup-dotnet@v6','actions/setup-node@v6','Install pinned n
     position=text.index(step)
     section=text[position:text.find('\n      - ',position) if '\n      - ' in text[position:] else len(text)]
     expected = "if: ${{ !inputs.preflight-only || inputs.rendering-input-source == 'current-public-composition' }}" if step == 'actions/setup-dotnet@v6' else 'if: ${{ !inputs.preflight-only }}'
+    if step in ['Qualify exact generated','Bind successful full']:expected="if: ${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}"
     assert expected in section, step
 assert "'qualification':'not-run'" in codes[3] and "'disposition':'preflight-passed'" in codes[3]
 assert "packet['disposition']=='passed'" in codes[4]
@@ -168,6 +181,48 @@ for mode in ['unknown','public\n','PUBLIC']:
     execute(codes[0],{**env,'RENDERING_INPUT_SOURCE':mode},False)
 for key,value in [('CALLER_REPOSITORY','FS-GG/FS.GG.Templates'),('CALLER_REPOSITORY','other/repository'),('TEMPLATES_SOURCE','main'),('TEMPLATES_SOURCE','a'*39),('TEMPLATES_SOURCE','A'*40),('TEMPLATES_SOURCE','a'*40+'\n')]:
     execute(codes[0],{**env,key:value},False)
+# New operands are caller-provided inert fixtures here, never production defaults.
+with tempfile.TemporaryDirectory() as directory:
+    selected={'producerSha':'4ede04be66cedffc8551cd14045bab714aa358a7','producerRun':11,'producerAttempt':1,'producerArtifact':12,'outerSha256':'b'*64,'outerSizeBytes':1234,'custodySha256':'c'*64}
+    palette={**env,'RENDERING_INPUT_SOURCE':'palette-heading','RENDERING_SUCCESSOR_INPUT':json.dumps(selected),'GITHUB_ENV':str(Path(directory)/'environment')}
+    execute(codes[0],palette,True)
+    exported=dict(line.split('=',1) for line in Path(palette['GITHUB_ENV']).read_text().splitlines())
+    assert exported['PRODUCER_SOURCE']==selected['producerSha'] and exported['PRODUCER_VERSION']=='0.32.4'
+    for key,value in [('producerSha',source),('producerRun',True),('producerAttempt',0),('producerAttempt',2),('outerSha256','missing'),('outerSizeBytes',67108865)]:
+        bad={**selected,key:value};execute(codes[0],{**palette,'RENDERING_SUCCESSOR_INPUT':json.dumps(bad)},False)
+    execute(codes[0],{**palette,'CALLER_REPOSITORY':'FS-GG/FS.GG.Templates'},False)
+    execute(codes[0],{**palette,'RENDERING_SUCCESSOR_INPUT':'{}'},False)
+    execute(codes[0],{**palette,'RENDERING_SUCCESSOR_INPUT':'{\"producerRun\":99,'+json.dumps(selected)[1:]},False)
+    path=Path(directory)
+    r={'id':11,'head_sha':selected['producerSha'],'run_attempt':1,'conclusion':'success','path':'.github/workflows/release.yml'}
+    a={'id':12,'expired':False,'size_in_bytes':1234,'digest':'sha256:'+'b'*64,'workflow_run':{'id':11,'head_sha':r['head_sha']},'name':'rendering-source-candidate-'+r['head_sha']+'-0.32.4'}
+    required=['Static release source and plan guard','Package consumption (release-only)','Generated product (template instantiation, release-only)','Qualify complete successor archive custody without publication']
+    steps=['Pack the complete source candidate and verify custody','ApiCompat against the selected published baseline','Qualify all three browser families against original candidate archives without repacking']
+    jobs={'total_count':4,'jobs':[{'name':name,'conclusion':'success','run_id':11,'run_attempt':1,'head_sha':r['head_sha'],'steps':[{'name':step,'conclusion':'success'} for step in steps]} for name in required]}
+    writers=['Protected publication preflight (no mutation) [org-publication-writer]','Publish FS.GG.UI.* to org GitHub Packages (release-only) [org-publication-writer]']
+    jobs['jobs'].extend({'name':name,'conclusion':'skipped','run_id':11,'run_attempt':1,'head_sha':r['head_sha'],'steps':[]} for name in writers);jobs['total_count']=6
+    metadata_env={**palette,**exported,'RUNNER_TEMP':directory}
+    class Digest:
+        def hexdigest(self):return '4bcbb1c756a799ab634e14d1fc9191ac51a8cd5d3537aec75eeab1c1d545deaa'
+    def palette_metadata(run,artifact,job_rows,success,attempt='1'):
+        (path/'rendering-run.json').write_text(json.dumps(run));(path/'rendering-artifact.json').write_text(json.dumps(artifact));(path/'rendering-jobs.json').write_text(json.dumps(job_rows))
+        with patch.object(Path,'read_bytes',return_value=b'plan-byte-fixture'),patch('hashlib.sha256',return_value=Digest()):execute(codes[1],{**metadata_env,'PRODUCER_ATTEMPT':attempt},success)
+    palette_metadata(r,a,jobs,True)
+    palette_metadata({**r,'run_attempt':2},a,jobs,False)
+    later=json.loads(json.dumps(jobs))
+    for job in later['jobs']:job['run_attempt']=2
+    palette_metadata({**r,'run_attempt':2},a,later,False,attempt='2')
+    palette_metadata(r,{**a,'workflow_run':{'id':99,'head_sha':r['head_sha']}},jobs,False)
+    palette_metadata(r,a,{**jobs,'total_count':7},False)
+    for index in range(4):
+        bad=json.loads(json.dumps(jobs));bad['jobs'][index]['conclusion']='cancelled';palette_metadata(r,a,bad,False)
+    for index in range(3):
+        bad=json.loads(json.dumps(jobs));bad['jobs'][3]['steps'][index]['conclusion']='failure';palette_metadata(r,a,bad,False)
+    bad=json.loads(json.dumps(jobs));bad['jobs'][0]['head_sha']='a'*40;palette_metadata(r,a,bad,False)
+    for index in [4,5]:
+        bad=json.loads(json.dumps(jobs));bad['jobs'][index]['conclusion']='success';palette_metadata(r,a,bad,False)
+print('PASS actual palette caller coordinates and mandatory producer/package/ApiCompat/three-browser refusal controls')
+
 with tempfile.TemporaryDirectory() as directory:
     path=Path(directory); env['RUNNER_TEMP']=directory
     for mode in ['candidate','public','font-disposal','current-public-composition']:
@@ -228,6 +283,14 @@ with tempfile.TemporaryDirectory() as directory:
     zip_case(19); execute(codes[2],env,True)
     for count,duplicate,tamper in [(18,False,False),(20,False,False),(19,True,False),(19,False,True)]:
         zip_case(count,duplicate,tamper); execute(codes[2],env,False)
+    env['RENDERING_INPUT_SOURCE']='palette-heading'
+    zip_case(19);execute(codes[2],env,True)
+    with ZipFile(path/'rendering-packet.zip','a') as archive:archive.writestr('unexpected.txt',b'not original custody')
+    execute(codes[2],env,False)
+    with ZipFile(path/'rendering-packet.zip','w') as archive:
+        for n in range(19):archive.writestr(('../escape.nupkg' if n==0 else f'package{n}.nupkg'),b'fixture')
+        archive.writestr('release-custody.json',custody)
+    execute(codes[2],env,False)
 print(f'PASS: {checks} actual workflow assertion fixtures; source/permission/order/phase controls')
 
 # Execute the actual provision shell against a finite npm command fixture. No packages install.
@@ -366,10 +429,10 @@ expanded=spec.replace('Studio ${cancellation} prevents a late genuine font load 
     'Studio timeout prevents a late genuine font load from mounting or leaking\nStudio replacement prevents a late genuine font load from mounting or leaking')
 assert len(titles)==7 and all(expanded.count(title)==1 for title in titles)
 assert 'for (const cancellation of ["timeout", "replacement"] as const)' in spec
-assert "timeout-minutes: ${{ inputs.rendering-input-source == 'font-disposal' && 60 || 35 }}" in text
+assert "timeout-minutes: ${{ inputs.rendering-input-source == 'palette-heading' && 30 || inputs.rendering-input-source == 'font-disposal' && 60 || 35 }}" in text
 assert text.index('Require fresh exact SDK root') < text.index('actions/setup-dotnet') < text.index('test "$(dotnet --version)" = 10.0.401')
 sdk=text.split('      - name: Require fresh exact SDK root',1)[1].split('      - uses:',1)[0]
-assert "!inputs.preflight-only && inputs.rendering-input-source == 'font-disposal'" in sdk
+assert "!inputs.preflight-only && (inputs.rendering-input-source == 'font-disposal' || inputs.rendering-input-source == 'palette-heading')" in sdk
 assert '! -e "$expected" && ! -L "$expected"' in sdk and '>> "$GITHUB_ENV"' in sdk
 selector=receiver['browser_selector']
 assert selector('candidate')==selector('public')=='external authority reference|FourD reference'

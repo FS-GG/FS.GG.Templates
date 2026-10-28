@@ -8,9 +8,13 @@ on:
         required: true
         type: string
       rendering-input-source:
-        description: Finite historical or current-public-composition route; current native activation remains held
+        description: Finite historical, current-public or unpublished palette route; current native activation remains held
         type: string
         default: candidate
+      rendering-successor-input:
+        description: Actual acquired palette 0.32.4 producer coordinates; empty supplies no candidate
+        type: string
+        default: ''
       current-public-at-admission:
         description: Exact separately selected current AT operation; empty keeps native activation held
         type: string
@@ -31,6 +35,10 @@ on:
       - 'src/FS.GG.Templates.ProviderTool/ReferencePublication.fs'
       - 'tests/ProviderComposition.Tests/**'
       - 'tests/composition/fable-game/verify-external-reference-candidate.sh'
+      - 'tests/composition/fable-game/verify-palette-candidate.sh'
+      - 'tests/composition/fable-game/svg-input-orca.py'
+      - 'tests/composition/fable-game/observe-svg-input-orca.sh'
+      - 'tests/composition/fable-game/svg-source-python-fixture.sh'
       - 'tests/composition/fable-game/verify-external-reference-workflow.py'
       - 'tests/composition/fable-game/observe-external-reference-orca.sh'
       - 'tests/composition/fable-game/external-reference-orca.py'
@@ -123,7 +131,7 @@ jobs:
     if: github.repository != 'FS-GG/FS.GG.Templates' || inputs.templates-source != ''
     name: External reference immutable preflight and optional full qualification
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ inputs.rendering-input-source == 'font-disposal' && 60 || 35 }}
+    timeout-minutes: ${{ inputs.rendering-input-source == 'palette-heading' && 30 || inputs.rendering-input-source == 'font-disposal' && 60 || 35 }}
     env:
       PRODUCER_SOURCE: ${{ inputs.rendering-input-source == 'current-public-composition' && '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd' || inputs.rendering-input-source == 'font-disposal' && '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd' || inputs.rendering-input-source == 'public' && '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd' || '9b73395658d4683a067d150ca9441b04e802c4af' }}
       PRODUCER_RUN: ${{ inputs.rendering-input-source == 'current-public-composition' && '39509314882' || inputs.rendering-input-source == 'font-disposal' && '39509314882' || inputs.rendering-input-source == 'public' && '39509314882' || '38200411661' }}
@@ -134,6 +142,7 @@ jobs:
       PRODUCER_VERSION: ${{ inputs.rendering-input-source == 'current-public-composition' && '0.32.3' || inputs.rendering-input-source == 'font-disposal' && '0.32.3' || inputs.rendering-input-source == 'public' && '0.32.3' || '0.32.2' }}
       PRODUCER_PLAN: ${{ inputs.rendering-input-source == 'current-public-composition' && 'eng/release/font-disposal-0.32.3.json' || inputs.rendering-input-source == 'font-disposal' && 'eng/release/font-disposal-0.32.3.json' || inputs.rendering-input-source == 'public' && 'eng/release/font-disposal-0.32.3.json' || 'eng/release/external-authority-recovery-0.32.2.json' }}
       RENDERING_INPUT_SOURCE: ${{ inputs.rendering-input-source || 'candidate' }}
+      RENDERING_SUCCESSOR_INPUT: ${{ inputs.rendering-successor-input }}
       FSGG_CURRENT_PUBLIC_AT_ADMISSION: ${{ inputs.current-public-at-admission }}
       FSGG_CURRENT_NATIVE_INPUT_FACILITY: ${{ inputs.native-input-facility }}
       DOTNET_PROCESSOR_COUNT: '1'
@@ -153,7 +162,28 @@ jobs:
           import os, re
           assert os.environ['CALLER_REPOSITORY']=='FS-GG/FS.GG.Rendering', 'Rendering caller required'
           assert re.fullmatch('[0-9a-f]{40}', os.environ['TEMPLATES_SOURCE']), 'Exact Templates SHA required'
-          assert os.environ.get('RENDERING_INPUT_SOURCE','candidate') in ['candidate','public','font-disposal','current-public-composition'], 'Finite input source required'
+          assert os.environ.get('RENDERING_INPUT_SOURCE','candidate') in ['candidate','public','font-disposal','current-public-composition','palette-heading'], 'Finite input source required'
+          if os.environ.get('RENDERING_INPUT_SOURCE')=='palette-heading':
+              import json
+              from pathlib import Path
+              def unique(pairs):
+                  result={}
+                  for key,value in pairs:
+                      assert key not in result, 'Duplicate producer coordinate'
+                      result[key]=value
+                  return result
+              selected=json.loads(os.environ['RENDERING_SUCCESSOR_INPUT'],object_pairs_hook=unique)
+              fields={'producerSha','producerRun','producerAttempt','producerArtifact','outerSha256','outerSizeBytes','custodySha256'}
+              assert set(selected)==fields, 'Exact acquired producer coordinates required'
+              assert selected['producerSha']=='4ede04be66cedffc8551cd14045bab714aa358a7', 'Selected0324 source required'
+              for key in ['outerSha256','custodySha256']:assert re.fullmatch('[0-9a-f]{64}',selected[key]), key
+              for key in ['producerRun','producerAttempt','producerArtifact','outerSizeBytes']:assert type(selected[key]) is int and selected[key]>0, key
+              assert selected['producerAttempt']==1, 'Fresh first producer attempt required'
+              assert selected['outerSizeBytes']<=67108864, 'Bounded original archive required'
+              names={'PRODUCER_SOURCE':'producerSha','PRODUCER_RUN':'producerRun','PRODUCER_ATTEMPT':'producerAttempt','PRODUCER_ARTIFACT':'producerArtifact','PRODUCER_ARCHIVE_SHA256':'outerSha256','PRODUCER_ARCHIVE_SIZE_BYTES':'outerSizeBytes','PRODUCER_CUSTODY_SHA256':'custodySha256'}
+              with Path(os.environ['GITHUB_ENV']).open('a') as output:
+                  for target,key in names.items():output.write(target+'='+str(selected[key])+'\n')
+                  output.write('PRODUCER_VERSION=0.32.4\nPRODUCER_PLAN=eng/release/palette-heading-0.32.4.json\n')
           PYINPUT
       - uses: actions/checkout@v7
         with:
@@ -198,6 +228,9 @@ jobs:
           mkdir -p "$RUNNER_TEMP/rendering-packet"
           gh api "repos/FS-GG/FS.GG.Rendering/actions/runs/$PRODUCER_RUN" > "$RUNNER_TEMP/rendering-run.json"
           gh api "repos/FS-GG/FS.GG.Rendering/actions/artifacts/$PRODUCER_ARTIFACT" > "$RUNNER_TEMP/rendering-artifact.json"
+          if [[ "$RENDERING_INPUT_SOURCE" == palette-heading ]]; then
+            gh api "repos/FS-GG/FS.GG.Rendering/actions/runs/$PRODUCER_RUN/attempts/$PRODUCER_ATTEMPT/jobs?per_page=100" > "$RUNNER_TEMP/rendering-jobs.json"
+          fi
           python3 - <<'PY'
           import hashlib, json, os
           from pathlib import Path
@@ -211,6 +244,23 @@ jobs:
           assert artifact['digest']=='sha256:'+os.environ['PRODUCER_ARCHIVE_SHA256']
           assert artifact['workflow_run']['id']==run['id'] and artifact['workflow_run']['head_sha']==run['head_sha']
           assert artifact['name']=='rendering-source-candidate-'+run['head_sha']+'-'+os.environ['PRODUCER_VERSION']
+          if os.environ['RENDERING_INPUT_SOURCE']=='palette-heading':
+              assert run['run_attempt']==1 and int(os.environ['PRODUCER_ATTEMPT'])==1, 'Fresh first native producer attempt required'
+              assert hashlib.sha256((Path('.tmp/rendering-source')/os.environ['PRODUCER_PLAN']).read_bytes()).hexdigest()=='4bcbb1c756a799ab634e14d1fc9191ac51a8cd5d3537aec75eeab1c1d545deaa'
+              jobs=json.loads((root/'rendering-jobs.json').read_text())
+              assert jobs['total_count']==len(jobs['jobs'])<=100
+              for job in jobs['jobs']:
+                  assert job['run_id']==run['id'] and job['head_sha']==run['head_sha'] and job['run_attempt']==int(os.environ['PRODUCER_ATTEMPT'])
+              by_name={job['name']:job for job in jobs['jobs']}
+              assert len(by_name)==len(jobs['jobs'])
+              for name in ['Static release source and plan guard','Package consumption (release-only)','Generated product (template instantiation, release-only)','Qualify complete successor archive custody without publication']:
+                  assert by_name[name]['conclusion']=='success', name
+              for name in ['Protected publication preflight (no mutation) [org-publication-writer]','Publish FS.GG.UI.* to org GitHub Packages (release-only) [org-publication-writer]']:
+                  assert by_name[name]['conclusion']=='skipped', 'Source-only producer must not run '+name
+              custody=by_name['Qualify complete successor archive custody without publication']
+              steps={step['name']:step['conclusion'] for step in custody['steps']}
+              for name in ['Pack the complete source candidate and verify custody','ApiCompat against the selected published baseline','Qualify all three browser families against original candidate archives without repacking']:
+                  assert steps[name]=='success', name
           if os.environ['RENDERING_INPUT_SOURCE'] in ['font-disposal','current-public-composition']:
               assert run['run_attempt']==1
               plan=Path('.tmp/rendering-source')/os.environ['PRODUCER_PLAN']
@@ -220,11 +270,19 @@ jobs:
           gh api "repos/FS-GG/FS.GG.Rendering/actions/artifacts/$PRODUCER_ARTIFACT/zip" > "$RUNNER_TEMP/rendering-packet.zip"
           printf '%s  %s\n' "$PRODUCER_ARCHIVE_SHA256" "$RUNNER_TEMP/rendering-packet.zip" | sha256sum --check --strict
           python3 - <<'PY'
-          import hashlib, os
+          import hashlib, os, stat
           from pathlib import Path
           from zipfile import ZipFile
           root=Path(os.environ['RUNNER_TEMP'])
           with ZipFile(root/'rendering-packet.zip') as archive:
+              if os.environ['RENDERING_INPUT_SOURCE']=='palette-heading':
+                  regular=[item for item in archive.infolist() if not item.is_dir()]
+                  assert len(regular)==20 and len({item.filename for item in regular})==20
+                  assert sum(item.file_size for item in regular)<=134217728
+                  for item in regular:
+                      assert not Path(item.filename).is_absolute() and '..' not in Path(item.filename).parts
+                      assert stat.S_IFMT(item.external_attr>>16) in (0,stat.S_IFREG)
+                      assert item.filename.endswith('.nupkg') or Path(item.filename).name=='release-custody.json'
               names=[name for name in archive.namelist() if name.endswith('.nupkg') or Path(name).name=='release-custody.json']
               assert len(names)==20 and len({Path(name).name for name in names})==20
               for name in names:
@@ -248,12 +306,14 @@ jobs:
           import json, os, subprocess
           from pathlib import Path
           receipt={'schema':'fsgg.external-reference-native-preflight/1','disposition':'preflight-passed','qualification':'not-run','templates':{'revision':os.environ['TEMPLATES_SOURCE'],'tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()},'caller':{key:os.environ[value] for key,value in [('repository','CALLER_REPOSITORY'),('revision','CALLER_SOURCE'),('run','CALLER_RUN'),('attempt','CALLER_ATTEMPT')]},'producer':{key:os.environ[value] for key,value in [('revision','PRODUCER_SOURCE'),('run','PRODUCER_RUN'),('artifact','PRODUCER_ARTIFACT'),('archiveSha256','PRODUCER_ARCHIVE_SHA256'),('custodySha256','PRODUCER_CUSTODY_SHA256')]},'producerTree':subprocess.check_output(['git','-C','.tmp/rendering-source','rev-parse','HEAD^{tree}'],text=True).strip(),'artifactSizeBytes':int(os.environ['PRODUCER_ARCHIVE_SIZE_BYTES']),'requestedPhase':'preflight' if os.environ['PREFLIGHT_ONLY']=='true' else 'full','publication':False,'installedAcceptance':False,'renderingInputSource':os.environ['RENDERING_INPUT_SOURCE']}
+          if os.environ['RENDERING_INPUT_SOURCE']=='palette-heading':
+              receipt['producer'].update(attempt=os.environ['PRODUCER_ATTEMPT'],version=os.environ['PRODUCER_VERSION'],plan=os.environ['PRODUCER_PLAN'],rawPlanSha256='4bcbb1c756a799ab634e14d1fc9191ac51a8cd5d3537aec75eeab1c1d545deaa')
           if os.environ['RENDERING_INPUT_SOURCE']=='font-disposal':
               receipt['producer'].update(attempt='1',version=os.environ['PRODUCER_VERSION'],plan=os.environ['PRODUCER_PLAN'],rawPlanSha256='89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239')
           (Path(os.environ['RUNNER_TEMP'])/'external-reference-preflight.json').write_text(json.dumps(receipt,indent=2)+'\n')
           PY
       - name: Require fresh exact SDK root for font disposal
-        if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'font-disposal' }}
+        if: ${{ !inputs.preflight-only && (inputs.rendering-input-source == 'font-disposal' || inputs.rendering-input-source == 'palette-heading') }}
         env:
           DOTNET_INSTALL_DIR: ${{ runner.temp }}/templates-font-disposal-dotnet-10.0.401
         run: |
@@ -302,7 +362,7 @@ jobs:
           npm ci
           npx playwright install-deps chromium firefox webkit
       - name: Qualify exact generated candidate and existing publication validator
-        if: ${{ !inputs.preflight-only }}
+        if: ${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}
         run: |
           set -euo pipefail
           dotnet run --project tests/ProviderComposition.Tests/ProviderComposition.Tests.fsproj -c Release \
@@ -328,12 +388,31 @@ jobs:
         if: ${{ !inputs.preflight-only }}
         run: |
           set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/external-reference"
           sudo apt-get update
           sudo apt-get install --yes dbus-x11 espeak-ng gettext gir1.2-atspi-2.0 libatspi2.0-dev openbox orca pulseaudio pulseaudio-utils python3-gi python3-speechd gsettings-desktop-schemas speech-dispatcher-espeak-ng x11-utils xdotool xvfb
           dpkg-query --show --showformat='${Package} ${Version}\n' orca at-spi2-core dbus dbus-daemon dbus-session-bus-common libatspi2.0-0t64 libatk-bridge2.0-0t64 xvfb openbox speech-dispatcher speech-dispatcher-espeak-ng python3-gi python3-speechd gsettings-desktop-schemas libglib2.0-0t64 pulseaudio espeak-ng > "$RUNNER_TEMP/external-reference/orca-host-packages.txt"
           python3 -B tests/composition/fable-game/external-reference-orca.py --capture-activation "$RUNNER_TEMP/external-reference/orca-activation-provenance.json"
+      - name: Qualify complete palette journey from retained0324 originals
+        if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'palette-heading' }}
+        run: |
+          set -euo pipefail
+          test "$(orca --version)" = 46.1
+          (cd templates/fs-gg-fable-game/Browser.Tests && npx playwright install chromium)
+          mkdir "$RUNNER_TEMP/palette-rendering" "$RUNNER_TEMP/palette-template-feed"
+          printf '%s\n' '{"sdk":{"version":"10.0.401","rollForward":"disable","allowPrerelease":false}}' > "$RUNNER_TEMP/palette-rendering/global.json"
+          . tests/composition/fable-game/svg-source-python-fixture.sh
+          prepare_svg_source_python_fixture "$GITHUB_WORKSPACE/templates" "$RUNNER_TEMP/palette-template-feed"
+          (cd "$RUNNER_TEMP/palette-rendering" && dotnet pack "$GITHUB_WORKSPACE/templates/FS.GG.Templates.csproj" -c Release -o "$RUNNER_TEMP/palette-template-feed" -p:ContinuousIntegrationBuild=true --disable-build-servers)
+          mapfile -t templates < <(find "$RUNNER_TEMP/palette-template-feed" -maxdepth 1 -name '*.nupkg' -type f)
+          test "${#templates[@]}" = 1
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" PLAYWRIGHT_MODULE_ROOT="$GITHUB_WORKSPACE/templates/templates/fs-gg-fable-game/Browser.Tests/node_modules" \
+            timeout --signal=TERM --kill-after=15s 15m bash tests/composition/fable-game/verify-palette-candidate.sh \
+              "$GITHUB_WORKSPACE/templates/.tmp/rendering-source" "$PRODUCER_SOURCE" "$RUNNER_TEMP/palette-rendering" "${templates[0]}" "$RUNNER_TEMP/palette-candidate" \
+              "$GITHUB_WORKSPACE/templates/.tmp/rendering-source/$PRODUCER_PLAN" "$RUNNER_TEMP/rendering-packet/release-custody.json" "$PRODUCER_CUSTODY_SHA256" "$RUNNER_TEMP/external-reference-preflight.json"
       - name: Observe actual external reference Orca journey
-        if: ${{ !inputs.preflight-only }}
+        if: ${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}
         run: |
           set -euo pipefail
           journey=external-reference
@@ -342,7 +421,7 @@ jobs:
             bash tests/composition/fable-game/observe-external-reference-orca.sh \
             "$RUNNER_TEMP/external-reference" "$RUNNER_TEMP/external-reference-preflight.json" "$journey"
       - name: Bind successful full result to requested Templates source
-        if: ${{ !inputs.preflight-only }}
+        if: ${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}
         env:
           TEMPLATES_SOURCE: ${{ inputs.templates-source }}
         run: |
@@ -400,5 +479,10 @@ jobs:
             ${{ runner.temp }}/current-composition-plan.json
             ${{ runner.temp }}/current-noble-acquisition/acquisition.json
             ${{ runner.temp }}/current-public-feed/public-readback.json
+            ${{ runner.temp }}/palette-template-feed/**
+            ${{ runner.temp }}/palette-candidate/**
+            ${{ runner.temp }}/rendering-packet.zip
+            ${{ runner.temp }}/rendering-packet/release-custody.json
+            ${{ runner.temp }}/rendering-jobs.json
             ${{ runner.temp }}/rendering-run.json
             ${{ runner.temp }}/rendering-artifact.json
