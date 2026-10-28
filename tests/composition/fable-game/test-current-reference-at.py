@@ -531,7 +531,7 @@ class PaletteAnnouncementControls(unittest.TestCase):
         module = ast.Module(body=[node for node in tree.body
                                   if isinstance(node, ast.FunctionDef) and node.name in selected], type_ignores=[])
         log = directory / "palette.orca-debug.log"
-        log.write_text("SPEECH OUTPUT: Command palette dialog\n")
+        log.write_text("SPEECH OUTPUT: Command palette dialog Command palette heading level 2\n")
         calls = []
         class Clock:
             now = 0
@@ -549,25 +549,38 @@ class PaletteAnnouncementControls(unittest.TestCase):
         exec(compile(module, "svg-input-orca.py selected functions", "exec"), namespace)
         return namespace, calls, log
 
-    def test_palette_uses_fresh_speech_and_actual_initial_dialog_focus(self):
+    def test_palette_uses_fresh_speech_and_actual_initial_heading_focus(self):
         with tempfile.TemporaryDirectory() as directory:
-            namespace, calls, log = self.observer(Path(directory), "SPEECH OUTPUT: Command palette dialog\n")
+            namespace, calls, log = self.observer(Path(directory), "SPEECH OUTPUT: Command palette dialog Command palette heading level 2\n")
             start = log.stat().st_size
             receipt = namespace["open_command_palette"]()
             self.assertEqual(receipt, {"name": "Command palette", "role": "dialog",
-                                       "initialFocus": "dialog", "speechAfter": start})
+                                       "initialFocus": "heading", "speechAfter": start})
             self.assertEqual(calls, [("key", "Return"),
                                     ("find", ("dialog",), {"name": "Command palette"}),
-                                    ("focus", ("Command palette",), {"role": "dialog", "dom_role": "dialog"})])
+                                    ("focus", ("Command palette",), {"role": "heading", "dom_role": "heading"})])
 
     def test_palette_refuses_stale_missing_role_and_debug_only_speech(self):
-        for spoken in ["", "SPEECH OUTPUT: Command palette\n", "DEBUG: Command palette dialog\n"]:
+        for spoken in ["", "SPEECH OUTPUT: Command palette\n", "SPEECH OUTPUT: Command palette dialog\n", "DEBUG: Command palette dialog\n"]:
             with self.subTest(spoken=spoken), tempfile.TemporaryDirectory() as directory:
                 namespace, _, _ = self.observer(Path(directory), spoken)
                 with self.assertRaisesRegex(RuntimeError, "expected speech output"):
                     namespace["open_command_palette"]()
 
-    def test_actual_dialog_focus_requires_fresh_named_dom_and_atspi_agreement(self):
+    def test_original_hosted_palette_speech_refuses_unspoken_dialog_role(self):
+        # Original PR806 run40715363708/a1, artifact12829051309, Orca46.1.
+        # Actual post-Return speech conveyed content/status, but no dialog role.
+        # Preserve this failure instead of accepting an AT-tree role as speech.
+        spoken = ("15:34:11.931113 - SPEECH OUTPUT: 'main content'\n"
+                  "15:34:11.933564 - SPEECH OUTPUT: 'region Generated SVG scene studio'\n"
+                  "15:34:11.935807 - SPEECH OUTPUT: 'Command palette. Available workspace commands. clickable.'\n"
+                  "15:34:12.000036 - SPEECH OUTPUT: 'Command palette opened'\n")
+        with tempfile.TemporaryDirectory() as directory:
+            namespace, _, _ = self.observer(Path(directory), spoken)
+            with self.assertRaisesRegex(RuntimeError, "expected speech output"):
+                namespace["open_command_palette"]()
+
+    def test_actual_heading_focus_requires_fresh_named_dom_and_atspi_agreement(self):
         from types import SimpleNamespace
         source = ast.parse(Path(__file__).with_name("svg-input-orca.py").read_text())
         function = next(node for node in source.body if isinstance(node, ast.FunctionDef)
@@ -578,33 +591,131 @@ class PaletteAnnouncementControls(unittest.TestCase):
                 value = {"schema": "fsgg.orca-browser-dom/v1", "browserFamily": "chromium",
                          "sampleSequence": 1, "sampledAt": "fixture", "sampledAtUnixMs": 0,
                          "observation": {"documentHasFocus": mutant != "document-blurred",
-                                         "activeElement": {"role": "button" if mutant == "wrong-dom-role" else "dialog",
+                                         "activeElement": {"role": "button" if mutant == "wrong-dom-role" else "heading",
                                                            "ariaLabel": "Command palette"}}}
                 if mutant == "stale-dom":
                     value["sampledAtUnixMs"] = -3000
                 Path(namespace["output"] + ".browser-dom.json").write_text(json.dumps(value))
                 node = SimpleNamespace(get_state_set=lambda: SimpleNamespace(contains=lambda _: True),
                                        get_name=lambda: "Command palette",
-                                       get_role_name=lambda: "push button" if mutant == "wrong-at-role" else "dialog")
+                                       get_role_name=lambda: "push button" if mutant == "wrong-at-role" else "heading")
                 namespace.update(json=json, walk=lambda _: [node], focused=lambda: None,
                                  Atspi=SimpleNamespace(get_desktop=lambda _: None,
                                                        StateType=SimpleNamespace(FOCUSED=1)))
                 exec(compile(ast.Module(body=[function], type_ignores=[]), "actual focus observer", "exec"), namespace)
                 with patch.dict(os.environ, {"SVG_ORCA_BROWSER_FAMILY": "chromium"}):
                     if mutant is None:
-                        self.assertIs(namespace["wait_for_focus"]("Command palette", role="dialog", dom_role="dialog"), node)
+                        self.assertIs(namespace["wait_for_focus"]("Command palette", role="heading", dom_role="heading"), node)
                     else:
                         with self.assertRaisesRegex(RuntimeError, "focus was not restored"):
-                            namespace["wait_for_focus"]("Command palette", role="dialog", dom_role="dialog", timeout=.2)
+                            namespace["wait_for_focus"]("Command palette", role="heading", dom_role="heading", timeout=.2)
 
     def test_palette_focus_failure_cannot_be_replaced_by_matching_speech(self):
         with tempfile.TemporaryDirectory() as directory:
-            namespace, _, _ = self.observer(Path(directory), "SPEECH OUTPUT: Command palette dialog\n")
+            namespace, _, _ = self.observer(Path(directory), "SPEECH OUTPUT: Command palette dialog Command palette heading level 2\n")
             def wrong_focus(*args, **kwargs):
                 raise RuntimeError("wrong actual focus")
             namespace["wait_for_focus"] = wrong_focus
             with self.assertRaisesRegex(RuntimeError, "wrong actual focus"):
                 namespace["open_command_palette"]()
+
+
+class PaletteCandidateInputControls(unittest.TestCase):
+    def test_actual_candidate_metadata_refuses_foreign_source_and_missing_archives(self):
+        from zipfile import ZipFile
+        script = Path(__file__).with_name("verify-palette-candidate.sh").read_text()
+        metadata = script.split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+        code = compile(metadata, "actual palette candidate metadata reader", "exec")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); feed = root / "feed"; feed.mkdir()
+            template = root / "template.nupkg"
+            with ZipFile(template, "w") as package:
+                package.writestr("FS.GG.Workspace.Template.nuspec", '<package><metadata><id>FS.GG.Workspace.Template</id>'
+                                 '<version>fixture</version><repository commit="' + "c" * 40 + '"/></metadata></package>')
+            output = root / "candidate-input.json"; source = "a" * 40
+            identities = ["FS.GG.UI.Scene", "FS.GG.UI.KeyboardInput", "FS.GG.UI.Scene.SvgBrowser"]
+            def archive(identity, revision):
+                path = feed / (identity + ".0.32.0.nupkg")
+                with ZipFile(path, "w") as package:
+                    package.writestr(identity + ".nuspec", '<package><metadata><version>0.32.0</version>'
+                                     '<repository commit="' + revision + '"/></metadata></package>')
+                return path
+            for identity in identities:
+                archive(identity, source)
+            def read():
+                with patch.object(sys, "argv", ["metadata", str(feed), source, str(template), str(output), "c" * 40]):
+                    exec(code, {})
+            read()
+            receipt = json.loads(output.read_text())
+            self.assertEqual(receipt["renderingSource"], source)
+            self.assertEqual(len(receipt["archives"]), 3)
+            self.assertIs(receipt["publication"], False)
+            self.assertIs(receipt["installedPublicAcceptance"], False)
+            output.unlink()
+            for identity in identities:
+                with self.subTest(identity=identity):
+                    archive(identity, "b" * 40)
+                    with self.assertRaisesRegex(SystemExit, "source differs"):
+                        read()
+                    self.assertFalse(output.exists())
+                    path = archive(identity, source); path.unlink()
+                    with self.assertRaisesRegex(SystemExit, "missing or linked"):
+                        read()
+                    self.assertFalse(output.exists())
+                    archive(identity, source)
+
+    def test_actual_receiver_join_checks_private_folder_bytes_source_and_closure(self):
+        from zipfile import ZipFile
+        import hashlib
+        script = Path(__file__).with_name("verify-palette-candidate.sh").read_text()
+        reader = script.split("<<'PYCONSUMER'\n", 1)[1].split("\nPYCONSUMER\n", 1)[0]
+        code = compile(reader, "actual restored palette receiver join", "exec")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); packages = root / "receiver/.nuget/packages"
+            assets_path = root / "receiver/SvgFoundation/Studio/obj/project.assets.json"
+            assets_path.parent.mkdir(parents=True)
+            rows = []; libraries = {}; source = "a" * 40
+            for identity in ["FS.GG.UI.Scene", "FS.GG.UI.KeyboardInput", "FS.GG.UI.Scene.SvgBrowser"]:
+                key = identity.lower() + "/0.32.0"; path = packages / key / (identity.lower() + ".0.32.0.nupkg")
+                path.parent.mkdir(parents=True)
+                with ZipFile(path, "w") as archive:
+                    archive.writestr(identity + ".nuspec", '<package><metadata><repository commit="' + source + '"/></metadata></package>')
+                rows.append({"id": identity, "version": "0.32.0", "bytes": path.stat().st_size,
+                             "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+                libraries[identity + "/0.32.0"] = {"type": "package", "path": key}
+            record = {"renderingSource": source, "archives": rows}
+            (root / "candidate-input.json").write_text(json.dumps(record))
+            assets = {"packageFolders": {str(packages): {}}, "libraries": libraries}
+            def read(stage="before"):
+                assets_path.write_text(json.dumps(assets))
+                with patch.object(sys, "argv", ["consumer", str(root), stage]):
+                    exec(code, {})
+            read(); read("after")
+            self.assertEqual(len(json.loads((root / "consumer-after.json").read_text())["archives"]), 3)
+            assets["packageFolders"] = {str(root / "foreign-cache"): {}}
+            with self.assertRaisesRegex(SystemExit, "package folder differs"):
+                read()
+            assets["packageFolders"] = {str(packages): {}}
+            assets["libraries"]["FS.GG.UI.Extra/0.32.0"] = {"type": "package", "path": "fs.gg.ui.extra/0.32.0"}
+            with self.assertRaisesRegex(SystemExit, "closure differs"):
+                read()
+            del assets["libraries"]["FS.GG.UI.Extra/0.32.0"]
+            row = rows[0]; path = packages / (row["id"].lower() + "/0.32.0") / (row["id"].lower() + ".0.32.0.nupkg")
+            with ZipFile(path, "w") as archive:
+                archive.writestr(row["id"] + ".nuspec", '<package><metadata><repository commit="' + "b" * 40 + '"/></metadata></package>')
+            with self.assertRaisesRegex(SystemExit, "archive differs"):
+                read()
+            row.update(bytes=path.stat().st_size, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+            (root / "candidate-input.json").write_text(json.dumps(record))
+            with self.assertRaisesRegex(SystemExit, "source differs"):
+                read()
+
+    def test_candidate_bad_identity_cannot_reach_generation(self):
+        script = Path(__file__).with_name("verify-palette-candidate.sh")
+        result = subprocess.run(["bash", str(script), "/absent-producer", "not-a-commit",
+                                 "/absent-fixture", "/absent-template", "/absent-output"], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("dotnet", result.stderr)
 
 
 if __name__ == "__main__":

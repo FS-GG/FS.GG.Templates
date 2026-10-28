@@ -144,7 +144,17 @@ export FsGgSvgInputVersion="$version" FsGgExternalReferenceCandidate=true
 # Generated Directory.Build.props owns the receiver-private package root. Match it
 # rather than assuming the environment overrides that explicit project property.
 export NUGET_PACKAGES="$out/complete/.nuget/packages"
-dotnet restore "$out/complete/SvgFoundation/SvgFoundation.fsproj" --force-evaluate -p:RestoreLockedMode=false --configfile "$out/NuGet.Config" -p:FsGgSvgInputVersion="$version" >"$out/receiver-restore.log" 2>&1
+# SDK selection starts at the command's working directory, not the project path.
+# Use and record the generated workspace's exact toolchain for every receiver call.
+(cd "$out/complete" && dotnet --version) >"$out/receiver-sdk.log"
+python3 - "$out/complete/global.json" "$out/receiver-sdk.log" <<'PYSDK'
+from pathlib import Path
+import json,sys
+sdk=json.loads(Path(sys.argv[1]).read_text())['sdk']
+assert sdk['rollForward']=='disable', 'receiver qualification requires an exact SDK'
+assert Path(sys.argv[2]).read_text().strip()==sdk['version'], 'receiver SDK differs from declared toolchain'
+PYSDK
+(cd "$out/complete" && dotnet restore SvgFoundation/SvgFoundation.fsproj --force-evaluate -p:RestoreLockedMode=false --configfile "$out/NuGet.Config" -p:FsGgSvgInputVersion="$version") >"$out/receiver-restore.log" 2>&1
 (cd "$out/complete" && dotnet tool restore --configfile "$out/NuGet.Config" && dotnet fable SvgFoundation/SvgFoundation.fsproj --outDir SvgFoundation/output --noCache) >"$out/fable-build.log" 2>&1
 (cd "$out/complete" && dotnet fable --version) >"$out/fable-version.log" 2>&1
 (cd "$out/complete/Client" && npm ci) >"$out/npm-client.log" 2>&1
@@ -177,9 +187,9 @@ receipt={'schema':'fsgg.soldier-reference-compile/1','disposition':'passed','tem
 PY
 if [[ "$phase" == staged ]]; then
   templates_source="$(git -C "$root" rev-parse HEAD)"
-  dotnet msbuild "$out/complete/SvgFoundation/SvgFoundation.fsproj" -nologo \
+  (cd "$out/complete" && dotnet msbuild SvgFoundation/SvgFoundation.fsproj -nologo \
     -getProperty:FsGgExternalReferenceCandidate -getProperty:FsGgSvgRuntimeCandidate \
-    -getProperty:FsGgSvgInputCandidate -getProperty:FsGgSvgNetworkCandidate -getProperty:FsGgLegacyPreview >"$out/receiver-properties.json"
+    -getProperty:FsGgSvgInputCandidate -getProperty:FsGgSvgNetworkCandidate -getProperty:FsGgLegacyPreview) >"$out/receiver-properties.json"
   python3 - "$root" "$out" "$expected_source" "$expected_manifest" <<'PYSTAGED'
 from pathlib import Path
 import hashlib,json,re,subprocess,sys
@@ -214,8 +224,8 @@ PYSTAGED
   sealed="$fixture_work/Browser/dist"
   cp "$sealed/artifact-manifest.json" "$out/staged-artifact-manifest.json"
   manifest_sha="sha256:$(sha256sum "$out/staged-artifact-manifest.json" | cut -d' ' -f1)"
-  dotnet restore "$out/complete/Server/Server.fsproj" --locked-mode --configfile "$out/NuGet.Config" >"$out/server-restore.log" 2>&1
-  dotnet publish "$out/complete/Server/Server.fsproj" -c Release --no-restore -o "$out/server" >"$out/server-publish.log" 2>&1
+  (cd "$out/complete" && dotnet restore Server/Server.fsproj --locked-mode --configfile "$out/NuGet.Config") >"$out/server-restore.log" 2>&1
+  (cd "$out/complete" && dotnet publish Server/Server.fsproj -c Release --no-restore -o "$out/server") >"$out/server-publish.log" 2>&1
   mkdir -p "$out/server-home"
   server=''
   server_start=''

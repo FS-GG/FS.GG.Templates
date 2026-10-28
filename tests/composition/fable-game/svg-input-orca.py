@@ -191,15 +191,15 @@ def wait_for_speech(*needles, timeout=10, after=0):
     raise RuntimeError("Orca did not record the expected speech output")
 
 def open_command_palette():
-    # SvgStudio intentionally focuses the dialog section itself (tabindex=-1),
-    # not a fictional child control. Observe that exact DOM/AT-SPI target and
-    # only speech emitted after this real keyboard activation.
+    # The repaired producer focuses the visible static heading inside the dialog.
+    # Observe that exact DOM/AT-SPI target and fresh speech for its dialog context
+    # and heading; tree roles alone cannot satisfy the spoken-role assertions.
     after = speech_log_offset()
     key("Return")
     find("dialog", name="Command palette")
-    wait_for_focus("Command palette", role="dialog", dom_role="dialog")
-    wait_for_speech("Command palette", "dialog", after=after)
-    return {"name": "Command palette", "role": "dialog", "initialFocus": "dialog",
+    wait_for_focus("Command palette", role="heading", dom_role="heading")
+    wait_for_speech("Command palette", "dialog", "heading", after=after)
+    return {"name": "Command palette", "role": "dialog", "initialFocus": "heading",
             "speechAfter": after}
 
 def wait_for_dom_keys(*expected, timeout=10):
