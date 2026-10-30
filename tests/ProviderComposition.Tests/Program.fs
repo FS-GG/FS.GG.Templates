@@ -514,6 +514,27 @@ let main _ =
         let node = System.Text.Json.Nodes.JsonNode.Parse compositionJson
         change node
         validateCurrentCompositionPlan (node.ToJsonString())
+    // The template must default the typed Rendering version; refused at plan validation, before the digest check.
+    assertEqual "current composition template defaults the typed Rendering version" (composition.rendering.version, true)
+        (composition.template.uiDefault, composition.template.uiDefault = composition.rendering.version)
+    let refusedUiDefault = Error "current-composition-plan-ui-default-refused"
+    let setUiDefault (value: string) (n: System.Text.Json.Nodes.JsonNode) = n.["template"].["uiDefault"] <- System.Text.Json.Nodes.JsonValue.Create(value)
+    assertEqual "a plan pinned to a template defaulting the older UI version refuses before the digest check" refusedUiDefault
+        (changedComposition (setUiDefault "0.32.3"))
+    assertEqual "a plan whose template UI default is not the Rendering version refuses" refusedUiDefault
+        (changedComposition (setUiDefault "0.32.5"))
+    assertEqual "a plan without a template UI default refuses" refusedUiDefault
+        (changedComposition (fun n -> n.["template"].AsObject().Remove("uiDefault") |> ignore))
+    let asPublished020 (uiDefault: string) (n: System.Text.Json.Nodes.JsonNode) =
+        n.["template"].["version"] <- System.Text.Json.Nodes.JsonValue.Create("0.20.0")
+        n.["template"].["sha256"] <- System.Text.Json.Nodes.JsonValue.Create("e12b36d2d087d0f788894fdec9ba3b3ed1406c1e7237ebee40602c2f7c23355c")
+        n.["template"].["sourceCommit"] <- System.Text.Json.Nodes.JsonValue.Create("1b9b1ca92556eb1acd0e4d1c9cb851a8c7906f86")
+        n.["template"].["descriptorSha256"] <- System.Text.Json.Nodes.JsonValue.Create("11c7e338b1fa2c29e6d8c2277758f59aeadc9144b1b568204596a0c4152833ee")
+        setUiDefault uiDefault n
+    assertEqual "the former 0.20.0 plan with its true 0.32.3 default refuses at plan validation" refusedUiDefault
+        (changedComposition (asPublished020 "0.32.3"))
+    assertEqual "the 0.20.0 identity with a claimed matching default is still refused by the reviewed digest" (Error "current-composition-plan-refused")
+        (changedComposition (asPublished020 "0.32.4"))
     assertEqual "composition template raw hash drift refuses" (Error "current-composition-plan-refused")
         (changedComposition (fun n -> n.["template"].["sha256"] <- System.Text.Json.Nodes.JsonValue.Create(String.replicate 64 "0")))
     assertEqual "composition Rendering provenance drift refuses" (Error "current-composition-plan-refused")

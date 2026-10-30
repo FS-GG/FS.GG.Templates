@@ -36,6 +36,25 @@ def guard(environment):
     observer.current_public_at_admission(environment)
 
 
+UI_DEFAULTS = (('content/templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj', 'FsGgSvgInputVersion'),
+               ('content/templates/fs-gg-fable-game/SvgFoundation/Studio/Studio.fsproj', 'FsGgSvgAuthoringVersion'))
+
+
+def template_ui_defaults(archive, expected):
+    """The published template must default the FS.GG.UI version the typed plan and public producer name; checked on the
+    archive itself, in prepare (so in preflight too), before any generated-candidate qualification."""
+    import zipfile
+    found = {}
+    with zipfile.ZipFile(archive) as package:
+        for member, key in UI_DEFAULTS:
+            values = re.findall(r'<%s Condition="[^"]*">([^<]+)</%s>' % (key, key), package.read(member).decode())
+            require(len(values) == 1, 'template default absent/ambiguous: ' + key)
+            found[key] = values[0]
+    require(all(value == expected for value in found.values()),
+            'published template defaults FS.GG.UI %s but the public producer is %s' % (sorted(set(found.values())), expected))
+    return found
+
+
 def join_preflight(preflight, plan, controller, plan_sha, observer_sha, mechanical_sha, package, readback):
     """Bind new facts to the original authenticated preflight without promoting its phase."""
     require(preflight['schema'] == 'fsgg.external-reference-native-preflight/1' and
@@ -93,6 +112,7 @@ def prepare(root, owner):
                 (identity, template['version'], identity, template['version']), template['sha256'], 8388608, archive)
     subprocess.run(['dotnet', str(owner), 'published-tool-check', '--archive', str(archive), '--sha256', template['sha256'],
                     '--package-id', template['id'], '--version', template['version'], '--source-revision', template['sourceCommit']], check=True)
+    template_ui_defaults(archive, public.VERSION)
     # Reuse the actual original custody verifier result and its exact manifest,
     # then compare every selected public payload against that original manifest.
     custody = root / 'rendering-packet/release-custody.json'

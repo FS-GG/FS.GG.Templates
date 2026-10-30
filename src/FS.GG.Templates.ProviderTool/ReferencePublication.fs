@@ -574,6 +574,9 @@ let currentCompositionPlan () =
                 sha256 = "e84d5188b510937fb54218faf4cabbad93a801b58f24fd6e5bfbeba632c44a6a"
                 sourceCommit = "df896c4bd587b5ef8dd990bc39c0dcb661bf2193"
                 descriptorSha256 = "66dd8f066a5fd958e45b1681b934b44b68258efa4cecb2d72aa553839ee4b4a9"
+                // The FS.GG.UI version the template's SvgFoundation and Studio projects default to. It must equal the
+                // typed Rendering version; the former pin defaulted an older version and could not satisfy this route.
+                uiDefault = "0.32.4"
             |}
         selection = compositionSelection
         rendering = compositionRendering
@@ -638,8 +641,27 @@ let private validateCompositionPlanDigest (expectedDigest: string) (json: string
                 else Error "current-composition-plan-refused"
     with _ -> Error "current-composition-plan-refused"
 
+// A plan whose template defaults a different FS.GG.UI version than its typed Rendering pin cannot qualify, so it is
+// refused here, at plan validation, before any archive is fetched or any later step runs.
+let private templateUiDefaultMatchesRendering (json: string) =
+    try
+        use document = JsonDocument.Parse json
+        let root = document.RootElement
+        let text (property: string) (element: JsonElement) =
+            match element.TryGetProperty property with
+            | true, value when value.ValueKind = JsonValueKind.String -> Some(value.GetString())
+            | _ -> None
+        match root.TryGetProperty "template", root.TryGetProperty "rendering" with
+        | (true, template), (true, rendering) ->
+            match text "uiDefault" template, text "version" rendering with
+            | Some defaults, Some pinned when defaults = pinned -> true
+            | _ -> false
+        | _ -> false
+    with _ -> false
+
 let validateCurrentCompositionPlan (json: string) =
-    validateCompositionPlanDigest "754b5ee32db3a58c590f11ac4de4b9e8ea8e847e5a15821276ef852f93f206d0" json
+    if not (templateUiDefaultMatchesRendering json) then Error "current-composition-plan-ui-default-refused"
+    else validateCompositionPlanDigest "563c7b9845a6fc637c1377170083c229b283fdf39e8d09fe56bf997d75078b49" json
 
 // The same typed Rendering/Game/selection pins and the same maintained cases, but the template under test is
 // packed from the checked-out protected Templates source instead of a published archive. Its identity is therefore
