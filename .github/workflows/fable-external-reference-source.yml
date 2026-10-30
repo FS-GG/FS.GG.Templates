@@ -216,6 +216,11 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-native-input.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-acquisition.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-transaction.py
+      - name: Dry-run the single-run census identity (read-only, no admission)
+        if: ${{ inputs.rendering-input-source == 'current-public-composition' }}
+        run: python3 -B tests/composition/fable-game/current-reference-at-admission.py census-dry-run
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Refuse held current AT before acquisition or setup
         if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition' }}
         run: python3 -B tests/composition/fable-game/current-reference-at-caller.py guard

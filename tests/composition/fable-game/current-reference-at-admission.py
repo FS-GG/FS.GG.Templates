@@ -7,13 +7,16 @@ the run may execute and an expiry; the run recomputes that tuple from what is ac
 difference. The string is not a credential: anyone can compute it, so its strength is the exact binding, the expiry
 and the single-run census below, not secrecy.
 
-  admission := fsgg.at-admission/1;notAfter=<UTC RFC3339 Z>;sha256=<digest of the canonical tuple>
-  tuple     := schema, scope single-run, notAfter, Templates revision, caller repository+revision, producer
+  admission := fsgg.at-admission/1;notBefore=<UTC>;notAfter=<UTC>;sha256=<digest of the canonical tuple>
+  tuple     := schema, scope single-run, notBefore, notAfter, Templates revision, caller repository+revision, producer
                (version, source, run, artifact, archive/custody digests), facility manifest digest, install roots digest
 
-`python3 current-reference-at-admission.py issue ...` prints the string and the tuple. `census` is the single-run
-control: it refuses unless this is attempt 1 and no other run of the same caller workflow has passed (or is passing)
-the admission guard step.
+`python3 current-reference-at-admission.py issue ...` prints the string and the tuple, after checking that the plan's
+template defaults the same FS.GG.UI version as the producer. `census` is the single-run control, scoped to the
+notBefore..notAfter window of this admission and to the exact Rendering caller workflow path: it refuses unless this is
+attempt 1, no other run in the window has passed the guard step, and no other run in the window is queued or running
+its current-public job (symmetric, regardless of run id). `census-dry-run` is the read-only identity probe for a
+non-admitted preflight.
 """
 import argparse
 import datetime
@@ -30,11 +33,16 @@ import urllib.request
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 SCHEMA = 'fsgg.at-admission/1'
-PREFIX = 'fsgg.at-admission/1;'
-FORMAT = re.compile(r'fsgg\.at-admission/1;notAfter=(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ);sha256=([0-9a-f]{64})')
+TIME = r'\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ'
+FORMAT = re.compile(r'fsgg\.at-admission/1;notBefore=(%s);notAfter=(%s);sha256=([0-9a-f]{64})' % (TIME, TIME))
+SKEW = datetime.timedelta(minutes=2)
 MAX_HORIZON = datetime.timedelta(days=7)
 GUARD_STEP = 'Refuse held current AT before acquisition or setup'
+JOB_PREFIX = 'Current published composition and held AT journey'
 CALLER_REPOSITORY = 'FS-GG/FS.GG.Rendering'
+CALLER_WORKFLOW = 'templates-external-reference-qualification.yml'
+UI_DEFAULTS = (('content/templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj', 'FsGgSvgInputVersion'),
+               ('content/templates/fs-gg-fable-game/SvgFoundation/Studio/Studio.fsproj', 'FsGgSvgAuthoringVersion'))
 PRODUCER_KEYS = {'version': 'PRODUCER_VERSION', 'source': 'PRODUCER_SOURCE', 'run': 'PRODUCER_RUN', 'artifact': 'PRODUCER_ARTIFACT',
                  'archiveSha256': 'PRODUCER_ARCHIVE_SHA256', 'custodySha256': 'PRODUCER_CUSTODY_SHA256'}
 
@@ -67,22 +75,22 @@ def parse_time(text):
     return datetime.datetime.strptime(text, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=datetime.timezone.utc)
 
 
-def tuple_of(templates, caller_repository, caller, producer, manifest_sha256, roots_sha256, not_after):
-    return {'schema': SCHEMA, 'scope': 'single-run', 'notAfter': not_after, 'templates': {'revision': templates},
+def tuple_of(templates, caller_repository, caller, producer, manifest_sha256, roots_sha256, not_before, not_after):
+    return {'schema': SCHEMA, 'scope': 'single-run', 'notBefore': not_before, 'notAfter': not_after, 'templates': {'revision': templates},
             'caller': {'repository': caller_repository, 'revision': caller},
             'producer': {key: producer[key] for key in sorted(PRODUCER_KEYS)},
             'facility': {'manifestSha256': manifest_sha256}, 'installRoots': {'requestSha256': roots_sha256}}
 
 
 def admission_string(value):
-    return '%snotAfter=%s;sha256=%s' % (PREFIX, value['notAfter'], sha(canonical(value)))
+    return 'fsgg.at-admission/1;notBefore=%s;notAfter=%s;sha256=%s' % (value['notBefore'], value['notAfter'], sha(canonical(value)))
 
 
 def roots_sha256():
     return sha((HERE / 'fixtures/noble-source-prefix-request.json').read_bytes())
 
 
-def running_facts(environment, not_after, git=None):
+def running_facts(environment, not_before, not_after, git=None):
     """The tuple as this run actually sees it. Missing facts refuse."""
     git = git or (lambda *args: subprocess.check_output(['git', '-C', str(ROOT), *args], text=True, timeout=20).strip())
     need(environment.get('RENDERING_INPUT_SOURCE') == 'current-public-composition', 'admission applies only to the current-public-composition route')
@@ -102,7 +110,7 @@ def running_facts(environment, not_after, git=None):
     except (OSError, subprocess.SubprocessError) as error:
         raise Held('current public AT held: Templates revision unreadable') from error
     need(re.fullmatch('[0-9a-f]{40}', templates), 'Templates revision unreadable')
-    return tuple_of(templates, environment.get('GITHUB_REPOSITORY', ''), caller_revision, producer, manifest_sha256, roots_sha256(), not_after)
+    return tuple_of(templates, environment.get('GITHUB_REPOSITORY', ''), caller_revision, producer, manifest_sha256, roots_sha256(), not_before, not_after)
 
 
 def verify(environment, now=None, git=None):
@@ -110,15 +118,16 @@ def verify(environment, now=None, git=None):
     supplied = environment.get('FSGG_CURRENT_PUBLIC_AT_ADMISSION', '')
     match = FORMAT.fullmatch(supplied)
     need(match, 'no valid dispatch-bound admission supplied')
-    not_after, digest = match.groups()
+    not_before, not_after, digest = match.groups()
     now = now or datetime.datetime.now(datetime.timezone.utc)
     try:
-        expiry = parse_time(not_after)
+        start, expiry = parse_time(not_before), parse_time(not_after)
     except ValueError as error:
-        raise Held('current public AT held: admission expiry malformed') from error
+        raise Held('current public AT held: admission time malformed') from error
+    need(now >= start - SKEW, 'admission is not valid before ' + not_before)
     need(now < expiry, 'admission expired at ' + not_after)
-    need(expiry - now <= MAX_HORIZON, 'admission expiry is beyond the 7 day horizon')
-    facts = running_facts(environment, not_after, git)
+    need(start < expiry <= start + MAX_HORIZON, 'admission window is empty or beyond the 7 day horizon')
+    facts = running_facts(environment, not_before, not_after, git)
     need(facts['caller']['repository'] == CALLER_REPOSITORY, 'caller repository differs')
     need(sha(canonical(facts)) == digest, 'admission does not match the running tuple')
     return facts
@@ -131,50 +140,65 @@ def _api(path, token, opener=urllib.request.urlopen):
         return json.load(response)
 
 
-def census(environment, api=None):
-    """Single-run control. Fail closed on anything unknown: attempt, workflow identity or an unreadable run list."""
-    api = api or (lambda path: _api(path, environment.get('GH_TOKEN') or environment.get('GITHUB_TOKEN')))
-    need(environment.get('GITHUB_RUN_ATTEMPT') == '1', 'a rerun cannot reuse a single-run admission')
-    repository, run_id = environment.get('GITHUB_REPOSITORY', ''), environment.get('GITHUB_RUN_ID', '')
-    reference = re.fullmatch(r'([^/]+/[^/]+)/\.github/workflows/([A-Za-z0-9_.-]+\.yml)@\S+', environment.get('GITHUB_WORKFLOW_REF', ''))
-    need(repository == CALLER_REPOSITORY and run_id.isdigit() and reference and reference[1] == repository, 'caller workflow identity unreadable')
-    workflow = reference[2]
-    mine, seen = int(run_id), []
+def _identity(environment):
+    need(environment.get('GITHUB_REPOSITORY') == CALLER_REPOSITORY and environment.get('GITHUB_RUN_ID', '').isdigit() and
+         re.fullmatch(re.escape('%s/.github/workflows/%s@' % (CALLER_REPOSITORY, CALLER_WORKFLOW)) + r'\S+', environment.get('GITHUB_WORKFLOW_REF', '')),
+         'caller workflow identity unreadable (GITHUB_WORKFLOW_REF must name the Rendering caller)')
+    return int(environment['GITHUB_RUN_ID'])
+
+
+def _runs(environment, api, window=None):
+    seen = []
+    query = '' if window is None else '&created=%s..%s' % window
     for page in range(1, 6):
         try:
-            batch = api('/repos/%s/actions/workflows/%s/runs?event=workflow_dispatch&per_page=100&page=%d' % (repository, workflow, page))
+            batch = api('/repos/%s/actions/workflows/%s/runs?event=workflow_dispatch&per_page=100&page=%d%s' % (CALLER_REPOSITORY, CALLER_WORKFLOW, page, query))
         except Exception as error:  # noqa: BLE001 - any failure to read the census refuses
             raise Held('current public AT held: run census unavailable (%s)' % type(error).__name__) from error
         rows = batch.get('workflow_runs')
         need(type(rows) is list, 'run census malformed')
         seen.extend(rows)
         if len(rows) < 100:
-            break
-    else:
-        raise Held('current public AT held: run census exceeds its bound')
-    for row in seen:
-        if row['id'] == mine:
-            continue
+            return seen
+    raise Held('current public AT held: run census exceeds its bound')
+
+
+def census_dry_run(environment, api=None):
+    """Read-only identity probe for a non-admitted preflight: proves the reusable workflow sees the Rendering caller's
+    identity and can read the caller's run list, before any real run depends on it."""
+    api = api or (lambda path: _api(path, environment.get('GH_TOKEN') or environment.get('GITHUB_TOKEN')))
+    run = _identity(environment)
+    return {'identity': environment['GITHUB_WORKFLOW_REF'].split('@', 1)[0], 'run': run, 'attempt': environment.get('GITHUB_RUN_ATTEMPT'),
+            'runsListed': len(_runs(environment, api))}
+
+
+def census(environment, not_before, not_after, api=None):
+    """Single-run control within the admission window. Fail closed on anything unknown."""
+    api = api or (lambda path: _api(path, environment.get('GH_TOKEN') or environment.get('GITHUB_TOKEN')))
+    need(environment.get('GITHUB_RUN_ATTEMPT') == '1', 'a rerun cannot reuse a single-run admission')
+    mine = _identity(environment)
+    window = [row for row in _runs(environment, api, (not_before, not_after))
+              if row['id'] != mine and not_before <= row.get('created_at', not_before) <= not_after]
+    for row in window:
         try:
-            jobs = api('/repos/%s/actions/runs/%d/jobs?filter=all&per_page=100' % (repository, row['id']))['jobs']
+            jobs = api('/repos/%s/actions/runs/%d/jobs?filter=all&per_page=100' % (CALLER_REPOSITORY, row['id']))['jobs']
         except Exception as error:  # noqa: BLE001
             raise Held('current public AT held: run census unavailable (%s)' % type(error).__name__) from error
-        for job in jobs:
+        current = [job for job in jobs if job.get('name', '').startswith(JOB_PREFIX)]
+        if row.get('status') != 'completed' and not current:
+            raise Held('current public AT held: run %d is starting inside the admission window' % row['id'])
+        for job in current:
+            need(job.get('status') == 'completed', 'run %d is queued or running its current-public job' % row['id'])
             for step in job.get('steps', []):
-                if step['name'] != GUARD_STEP:
-                    continue
-                passed = step.get('conclusion') == 'success'
-                running = step.get('conclusion') is None and row['id'] < mine and job.get('status') in ('in_progress', 'queued')
-                need(not passed, 'run %d already passed the admission guard' % row['id'])
-                need(not running, 'earlier run %d is at the admission guard' % row['id'])
-    return {'runsExamined': len(seen), 'run': mine, 'attempt': 1}
+                need(not (step['name'] == GUARD_STEP and step.get('conclusion') == 'success'), 'run %d already passed the admission guard in this window' % row['id'])
+    return {'runsInWindow': len(window) + 1, 'run': mine, 'attempt': 1, 'window': [not_before, not_after]}
 
 
 def guard(environment, now=None, git=None, api=None, with_census=False):
     facts = verify(environment, now, git)
-    receipt = {'admission': 'verified', 'tupleSha256': sha(canonical(facts)), 'notAfter': facts['notAfter']}
+    receipt = {'admission': 'verified', 'tupleSha256': sha(canonical(facts)), 'notBefore': facts['notBefore'], 'notAfter': facts['notAfter']}
     if with_census:
-        receipt['census'] = census(environment, api)
+        receipt['census'] = census(environment, facts['notBefore'], facts['notAfter'], api)
     return receipt
 
 
@@ -187,16 +211,37 @@ def producer_rows(workflow_text):
     return rows
 
 
-def issue(templates, caller, manifest_path, not_after, now=None):
+def check_plan_defaults(plan, archive, producer_version):
+    """Refuse an admission for a plan whose template defaults a different FS.GG.UI version than the producer."""
+    import zipfile
+    template = plan.get('template', {})
+    need(type(template) is dict and re.fullmatch('[0-9a-f]{64}', str(template.get('sha256', ''))), 'plan template identity absent')
+    raw = Path(archive).read_bytes()
+    need(sha(raw) == template['sha256'], 'template archive differs from the plan (%s)' % template.get('version'))
+    found = {}
+    with zipfile.ZipFile(Path(archive)) as package:
+        for member, key in UI_DEFAULTS:
+            text = package.read(member).decode()
+            values = re.findall(r'<%s Condition="[^"]*">([^<]+)</%s>' % (key, key), text)
+            need(len(values) == 1, 'template default %s absent/ambiguous' % key)
+            found[key] = values[0]
+    bad = {key: value for key, value in found.items() if value != producer_version}
+    need(not bad, 'plan template %s defaults FS.GG.UI %s but the producer is %s' % (template.get('version'), bad, producer_version))
+    return found
+
+
+def issue(templates, caller, manifest_path, not_after, plan_path, archive_path, now=None, not_before=None):
     now = now or datetime.datetime.now(datetime.timezone.utc)
     for label, revision in (('templates', templates), ('caller', caller)):
         need(re.fullmatch('[0-9a-f]{40}', revision), label + ' revision must be a full commit')
-    expiry = parse_time(not_after)
-    need(now < expiry <= now + MAX_HORIZON, 'expiry must be in the future and within 7 days')
+    start = not_before or now.strftime('%Y-%m-%dT%H:%M:%SZ')
+    begin, expiry = parse_time(start), parse_time(not_after)
+    need(begin <= now + SKEW and now < expiry <= begin + MAX_HORIZON, 'window must start now (not in the future), end in the future and span at most 7 days')
     native = native_helper()
     manifest_sha256 = native.sha(native.canonical(native.read_manifest(Path(manifest_path).read_text())))
     producer = producer_rows((ROOT / '.github/workflows/fable-external-reference-source.yml').read_text())
-    value = tuple_of(templates, CALLER_REPOSITORY, caller, producer, manifest_sha256, roots_sha256(), not_after)
+    check_plan_defaults(json.loads(Path(plan_path).read_text()), archive_path, producer['version'])
+    value = tuple_of(templates, CALLER_REPOSITORY, caller, producer, manifest_sha256, roots_sha256(), start, not_after)
     return admission_string(value), value
 
 
@@ -207,12 +252,17 @@ def main(argv=None):
     one.add_argument('--templates', required=True, help='Templates commit the run will execute')
     one.add_argument('--caller', required=True, help='Rendering commit the run is dispatched at')
     one.add_argument('--manifest', required=True, type=Path)
-    one.add_argument('--not-after', required=True, help='UTC expiry, e.g. 2026-11-02T00:00:00Z (max 7 days)')
+    one.add_argument('--not-after', required=True, help='UTC expiry, e.g. 2026-11-02T00:00:00Z (max 7 days after now)')
+    one.add_argument('--plan', required=True, type=Path, help='the typed current-composition plan the run will use (ProviderTool current-composition-plan output)')
+    one.add_argument('--template-archive', required=True, type=Path, help='the published template nupkg the plan names')
+    sub.add_parser('census-dry-run', help='read-only: prove the caller identity and run-list access inside the reusable workflow')
     sub.add_parser('guard', help='verify the supplied admission against the running tuple and run the single-run census')
     args = parser.parse_args(argv)
     if args.command == 'issue':
-        text, value = issue(args.templates, args.caller, args.manifest, args.not_after)
+        text, value = issue(args.templates, args.caller, args.manifest, args.not_after, args.plan, args.template_archive)
         print(json.dumps({'admission': text, 'tuple': value}, indent=2, sort_keys=True))
+    elif args.command == 'census-dry-run':
+        print(json.dumps(census_dry_run(os.environ), sort_keys=True))
     else:
         print(json.dumps(guard(os.environ, with_census=True), sort_keys=True))
     return 0
