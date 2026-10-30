@@ -23,7 +23,7 @@ PACKAGE="$(lane_package_path "$WORK")"
 echo "fable-bindings composition: installing $PACKAGE"
 dotnet new install "$PACKAGE" >/dev/null
 assert_provider_lifecycle_matrix fable-bindings "$PACKAGE" "$WORK/lifecycle-matrix" productName=MatrixBindings rootNamespace=MatrixBindings
-dotnet new fs-gg-fable-bindings -o "$WORK/product" --name AcmeBindings --productName AcmeBindings --rootNamespace AcmeBindings --npmPackage=@babylonjs/core --npmVersion 9.19.0 --bindingTarget browser >/dev/null
+dotnet new fs-gg-fable-bindings -o "$WORK/product" --name AcmeBindings --productName AcmeBindings --rootNamespace AcmeBindings --npmPackage=@babylonjs/core --npmVersion 9.33.1 --bindingTarget browser >/dev/null
 if dotnet new fs-gg-fable-bindings -o "$WORK/rejected" --name Rejected --npmPackage other --npmVersion 1.0.0 --bindingTarget node >/dev/null 2>&1; then echo "unqualified corpus unexpectedly accepted" >&2; exit 1; fi
 
 for f in declaration-lock.json binding-plan.json coverage-and-drift.json generated-candidates/declaration-analysis.json package.json .config/dotnet-tools.json src/AcmeBindings/AcmeBindings.fsproj tests/AcmeBindings.CompileTests/AcmeBindings.CompileTests.fsproj samples/Consumer/README.md; do test -f "$WORK/product/$f"; done
@@ -37,7 +37,7 @@ for f in declaration-lock.json binding-plan.json coverage-and-drift.json generat
 # and reds on an absent selected skill, a skill the manifest does not select for this template, an
 # undeclared (dangling) skill directory, a drifted digest, or a missing/non-canonical manifest.
 dotnet fsi "$ROOT/scripts/generate-skill-manifest.fsx" --assert-product "$WORK/product" --template fs-gg-fable-bindings
-grep -Fq '"@babylonjs/core": "9.19.0"' "$WORK/product/package.json"
+grep -Fq '"@babylonjs/core": "9.33.1"' "$WORK/product/package.json"
 grep -Fq '@babylonjs/core/Engines/nullEngine.d.ts' "$WORK/product/declaration-lock.json"
 grep -Fq 'ImportAll("@babylonjs/loaders/glTF/index.js")' "$WORK/product/src/AcmeBindings/Bindings.fs"
 grep -Fq 'GENERATED CANDIDATE — NOT COMPILED' "$WORK/product/generated-candidates/BabylonBindings.generated.fs"
@@ -54,7 +54,7 @@ sdk = [e for e in project.findall('./ItemGroup/PackageReference') if e.get('Incl
 assert len(sdk) == 1 and sdk[0].get('PrivateAssets') == 'all', 'SDK must be private'
 assert set(sdk[0].get('IncludeAssets', '').split(';')) == {'runtime', 'build', 'native', 'contentfiles', 'analyzers', 'buildtransitive'}, 'SDK build assets'
 npm = project.findall('./PropertyGroup/NpmDependencies/NpmPackage')
-assert len(npm) == 2 and {e.get('Name'): e.get('Version') for e in npm} == {'@babylonjs/core': '9.19.0', '@babylonjs/loaders': '9.19.0'}, 'exact Femto metadata'
+assert len(npm) == 2 and {e.get('Name'): e.get('Version') for e in npm} == {'@babylonjs/core': '9.33.1', '@babylonjs/loaders': '9.33.1'}, 'exact Femto metadata'
 central = ET.parse(product / 'Directory.Packages.props').getroot()
 core = [e.get('Version') for e in central.findall('./ItemGroup/PackageVersion') if e.get('Include') == 'Fable.Core']
 assert len(core) == 1, 'one central Fable.Core selection'
@@ -147,15 +147,23 @@ let engine: Engine = nullEngine ()
 let scene: Scene = scene engine
 let position: Vector3 = vector3 0. 0. 0.
 let direction: Vector3 = vector3 0. 1. 0.
-let camera: Camera = freeCamera "consumer-camera" position scene
-let light: Light = hemisphericLight "consumer-light" direction scene
-let mesh: Box = box "consumer-box" scene
+let camera: Camera = arcRotateCamera "consumer-camera" 0.5 1.0 10. position scene
+let light: Light = directionalLight "consumer-light" direction scene
+let mesh: Mesh = sphere "consumer-sphere" 1. 8 scene
+let material: PbrMaterial = pbrMaterial "consumer-material" scene
 if isNull engine || isNull scene || isNull position || isNull direction ||
-   isNull camera || isNull light || isNull mesh then
+   isNull camera || isNull light || isNull mesh || isNull material then
     failwith "packed binding returned a missing native object"
+setAlbedoColor material (color3 0.2 0.4 0.8)
+setMaterial mesh material
+render scene
+if meshCount scene <> 1 then
+    failwith "packed binding did not add the mesh to the scene"
 initialiseLoader ()
 if not (loaderRegistered ()) then
     failwith "packed binding glTF loader import did not register the plugin"
+disposeScene scene
+disposeEngine engine
 printfn "consumer passed"
 FS_BINDING_CONSUMER
 cp "$WORK/product/package.json" "$WORK/product/package-lock.json" "$consumer/app/"
@@ -165,7 +173,7 @@ cp "$WORK/product/package.json" "$WORK/product/package-lock.json" "$consumer/app
   mkdir -p "$DOTNET_CLI_HOME"
   dotnet restore "$consumer/app/Consumer.fsproj" --configfile "$consumer/app/NuGet.Config" >/dev/null
   (cd "$consumer/app" && npm ci --ignore-scripts >/dev/null)
-  grep -Fq 'sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeGpS/bQ3NzwtApB84GScm9v8w==' "$consumer/app/package-lock.json"
+  grep -Fq 'sha512-NoIfREw4QeoXzRPpXnbUpmxxPIjuRi9iS4xFDbPgXHiLwCeHSI13DJHF8YB2gKHp6rA6T5R7BAevPvWHklvXWQ==' "$consumer/app/package-lock.json"
   fable_version="$(cat "$consumer/app/fable-version.txt")"
   dotnet tool install Fable --tool-path "$consumer/fable" --version "$fable_version" >/dev/null
   "$consumer/fable/fable" "$consumer/app/Consumer.fsproj" --outDir "$consumer/app/dist" --noCache >/dev/null
@@ -254,6 +262,8 @@ printf '%s\n' 'export declare const original: string;' > "$fixture/node_modules/
 node "$WORK/product/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --entry example/entry.d.ts --lock "$fixture/lock.json" --write >/dev/null
 printf '%s\n' 'export declare const changed: string;' > "$fixture/node_modules/example/side.d.ts"
 if node "$WORK/product/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --entry example/entry.d.ts --lock "$fixture/lock.json"; then exit 1; fi
+# The comment-aware scanner's edge, asset and external-module rules (FS.GG.Templates#809).
+bash "$ROOT/tests/toolchain/fable-bindings/closure-scanner-fixture.sh" "$WORK/product/scripts/lock-declarations.mjs"
 # A second corpus is data, not a script copy (FS.GG.Templates#807): a single-artifact corpus.json
 # drives the same lock script, and an installed artifact that differs from its pin is refused.
 printf '%s\n' '{"name":"example","version":"1.0.0"}' > "$fixture/node_modules/example/package.json"
@@ -264,14 +274,14 @@ printf '%s\n' '{"name":"example","version":"1.0.1"}' > "$fixture/node_modules/ex
 if node "$WORK/product/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --corpus "$fixture/corpus.json" --lock "$fixture/corpus-lock.json" >/dev/null 2>&1; then echo "installed artifact differing from the corpus pin was accepted" >&2; exit 1; fi
 # The doctor keeps the npm closure coherent with corpus.json.
 cp "$WORK/product/corpus.json" "$WORK/corpus.json.orig"
-jq '.npmArtifacts[1].version = "9.19.1"' "$WORK/corpus.json.orig" > "$WORK/product/corpus.json"
+jq '.npmArtifacts[1].version = "9.33.2"' "$WORK/corpus.json.orig" > "$WORK/product/corpus.json"
 if (cd "$WORK/product" && npm run doctor >/dev/null 2>&1); then echo "doctor accepted a corpus that disagrees with package.json" >&2; exit 1; fi
 cp "$WORK/corpus.json.orig" "$WORK/product/corpus.json"
 # The packed binding's Femto <NpmDependencies> is what consumers' npm install follows, so a
 # companion pinned at another version than corpus.json must red before anything ships.
 binding_project="$WORK/product/src/AcmeBindings/AcmeBindings.fsproj"
 cp "$binding_project" "$WORK/binding-project.orig"
-sed -i 's|<NpmPackage Name="@babylonjs/loaders" Version="9.19.0" />|<NpmPackage Name="@babylonjs/loaders" Version="9.19.1" />|' "$binding_project"
+sed -i 's|<NpmPackage Name="@babylonjs/loaders" Version="9.33.1" />|<NpmPackage Name="@babylonjs/loaders" Version="9.33.2" />|' "$binding_project"
 if cmp -s "$binding_project" "$WORK/binding-project.orig"; then echo "NpmDependencies mutation did not apply" >&2; exit 1; fi
 if (cd "$WORK/product" && npm run doctor >/dev/null 2>&1); then echo "doctor accepted a binding project whose NpmDependencies disagree with corpus.json" >&2; exit 1; fi
 cp "$WORK/binding-project.orig" "$binding_project"

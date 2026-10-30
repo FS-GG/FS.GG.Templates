@@ -2,8 +2,8 @@
   <PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><PackageId>BindingsProduct</PackageId><Version>0.1.0</Version><GeneratePackageOnBuild>true</GeneratePackageOnBuild><FablePackageType>binding</FablePackageType><PackageTags>fable-javascript;babylon;bindings</PackageTags><PackageReadmeFile>README.md</PackageReadmeFile><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup>
   <PropertyGroup>
     <NpmDependencies>
-      <NpmPackage Name="@babylonjs/core" Version="9.19.0" />
-      <NpmPackage Name="@babylonjs/loaders" Version="9.19.0" />
+      <NpmPackage Name="@babylonjs/core" Version="9.33.1" />
+      <NpmPackage Name="@babylonjs/loaders" Version="9.33.1" />
     </NpmDependencies>
   </PropertyGroup>
   <ItemGroup><Compile Include="Bindings.fs" /></ItemGroup>

@@ -29,9 +29,9 @@ test "$core_version" = "5.6.1"
 grep -Fq "| Fable tool / Fable.Core | $fable_version / $core_version |" "$DOC"
 test -f "$SPIKE/package-lock.json"
 test -f "$SPIKE/declaration-lock.json"
-grep -Fq '"@babylonjs/core": "9.19.0"' "$SPIKE/package.json"
-jq -e '.npmArtifacts == [{"name":"@babylonjs/core","version":"9.19.0"},{"name":"@babylonjs/loaders","version":"9.19.0"}]' "$SPIKE/corpus.json" >/dev/null
-grep -Fq 'sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeGpS/bQ3NzwtApB84GScm9v8w==' "$SPIKE/package-lock.json"
+grep -Fq '"@babylonjs/core": "9.33.1"' "$SPIKE/package.json"
+jq -e '.npmArtifacts == [{"name":"@babylonjs/core","version":"9.33.1"},{"name":"@babylonjs/loaders","version":"9.33.1"}]' "$SPIKE/corpus.json" >/dev/null
+grep -Fq 'sha512-NoIfREw4QeoXzRPpXnbUpmxxPIjuRi9iS4xFDbPgXHiLwCeHSI13DJHF8YB2gKHp6rA6T5R7BAevPvWHklvXWQ==' "$SPIKE/package-lock.json"
 grep -Fq 'Glutinum.Template@1.1.1' "$DOC"
 grep -Fq 'ts2fable is legacy comparison input only' "$DOC"
 grep -Fq 'can never overwrite' "$DOC"
@@ -66,6 +66,7 @@ if node "$SPIKE/scripts/lock-declarations.mjs" --declarations-root "$fixture/nod
   echo "transitive declaration drift unexpectedly passed" >&2
   exit 1
 fi
+bash "$ROOT/tests/toolchain/fable-bindings/closure-scanner-fixture.sh" "$SPIKE/scripts/lock-declarations.mjs"
 
 # Install the packed Fable library and npm runtime in a clean consumer root.
 consumer="$(mktemp -d)"
@@ -75,10 +76,10 @@ dotnet pack "$SPIKE/BabylonBindings.fsproj" -c Release --no-restore -o "$consume
 printf '%s\n' '<configuration><packageSources><clear /><add key="local" value="'"$consumer"'/feed" /><add key="nuget.org" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>' > "$consumer/app/NuGet.Config"
 printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup><ItemGroup><Compile Include="Program.fs" /><PackageReference Include="Qualification.BabylonBindings" Version="0.0.1-spike" /><PackageReference Include="Fable.Core" Version="'"$core_version"'" /></ItemGroup></Project>' > "$consumer/app/Consumer.fsproj"
 printf '%s\n' 'open Qualification.Babylon' 'let engine = nullEngine ()' 'let scene = scene engine' 'let _ = box "consumer-box" scene' 'initialiseLoader ()' 'printfn "consumer passed"' > "$consumer/app/Program.fs"
-printf '%s\n' '{"private":true,"type":"module","dependencies":{"@babylonjs/core":"9.19.0","@babylonjs/loaders":"9.19.0"}}' > "$consumer/app/package.json"
+printf '%s\n' '{"private":true,"type":"module","dependencies":{"@babylonjs/core":"9.33.1","@babylonjs/loaders":"9.33.1"}}' > "$consumer/app/package.json"
 dotnet restore "$consumer/app/Consumer.fsproj" --configfile "$consumer/app/NuGet.Config" >/dev/null
 (cd "$consumer/app" && npm install --ignore-scripts >/dev/null)
-grep -Fq 'sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeGpS/bQ3NzwtApB84GScm9v8w==' "$consumer/app/package-lock.json"
+grep -Fq 'sha512-NoIfREw4QeoXzRPpXnbUpmxxPIjuRi9iS4xFDbPgXHiLwCeHSI13DJHF8YB2gKHp6rA6T5R7BAevPvWHklvXWQ==' "$consumer/app/package-lock.json"
 dotnet tool install Fable --tool-path "$consumer/fable" --version "$fable_version" >/dev/null
 "$consumer/fable/fable" "$consumer/app/Consumer.fsproj" --outDir "$consumer/app/dist" --noCache >/dev/null
 node "$consumer/app/dist/Program.js"

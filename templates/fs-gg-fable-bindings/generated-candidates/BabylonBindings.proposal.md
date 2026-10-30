@@ -1,8 +1,8 @@
 # Generated candidate proposal
 
-Input declaration closure SHA-256: `3171be522100b5cd9be0d9c58b22de86afd6401979ea01549795dd879885e7e4`
+Input declaration closure SHA-256: `0bffc55f982e606c74c3f5612250dfc3387fbed8aec2f2c3a0cd5c0c5c2de841`
 
-The generator inspected 2898 locked declaration files with the TypeScript parser. It
+The generator inspected 2976 locked declaration files with the TypeScript parser. It
 writes review inputs only and never changes maintained bindings, `binding-plan.json`, or the lock.
 
 ## Construct pressure
@@ -12,7 +12,7 @@ writes review inputs only and never changes maintained bindings, `binding-plan.j
 | conditionalTypes | 56 |
 | mappedTypes | 19 |
 | templateLiteralTypes | 0 |
-| indexSignatures | 270 |
+| indexSignatures | 278 |
 | inferredTypes | 21 |
 
 ## Cross-file declaration-merging candidates
@@ -35,7 +35,7 @@ writes review inputs only and never changes maintained bindings, `binding-plan.j
 - `FreeCameraInputsManager` — 4 declaration files
 - `FresnelParameters` — 2 declaration files
 - `GLTFLoader` — 2 declaration files
-- `GLTFLoaderExtensionOptions` — 43 declaration files
+- `GLTFLoaderExtensionOptions` — 44 declaration files
 - `IGLTFLoaderExtension` — 2 declaration files
 
 Use `declaration-analysis.json` for the complete machine-readable inventory. Review strongly

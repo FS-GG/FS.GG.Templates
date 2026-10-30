@@ -1,11 +1,41 @@
 {
   "schemaVersion": 2,
   "bindingPlan": "binding-plan.json",
-  "typedCoverage": [ "NullEngine", "Scene", "Vector3", "FreeCamera", "HemisphericLight", "MeshBuilder.CreateBox", "glTF loader registration" ],
+  "typedCoverage": [
+    "NullEngine",
+    "Engine (WebGL)",
+    "WebGPUEngine",
+    "AbstractEngine.runRenderLoop/stopRenderLoop/resize/dispose",
+    "Scene",
+    "Scene.render/clearColor/meshes.length/dispose",
+    "Vector3",
+    "Color3",
+    "FreeCamera",
+    "ArcRotateCamera",
+    "TargetCamera.setTarget",
+    "HemisphericLight",
+    "DirectionalLight",
+    "PointLight",
+    "Light.intensity",
+    "CreateBox",
+    "CreateSphere",
+    "CreateGround",
+    "AbstractMesh.position/rotation/scaling/material/dispose",
+    "StandardMaterial",
+    "PBRMaterial",
+    "glTF loader registration",
+    "ImportMeshAsync",
+    "HTMLCanvasElement"
+  ],
   "typedPassThrough": [],
   "dynamicEscapeHatches": [ "internal only; excluded from typed coverage" ],
   "unsupportedConstructs": [ "overloaded constructors", "conditional/mapped/template-literal types", "index signatures", "module augmentation outside the selected registration path" ],
-  "evidenceJourneys": [ "fresh Node process proves glTF is absent without the side effect", "Node executes Fable-emitted modular scene and observes glTF registration", "Chromium executes the same Fable-emitted modular scene and observes glTF registration" ],
+  "evidenceJourneys": [
+    "fresh Node process proves glTF is absent without the side effect",
+    "Node imports every binding-plan entry point and runs the JavaScript renderer journey with a real glTF import",
+    "Node executes the Fable-emitted renderer journey on a NullEngine: cameras, lights, meshes, materials, glTF registration and import, render loop and dispose",
+    "Chromium executes the same Fable-emitted journey and additionally renders it on a WebGL Engine; a WebGPU engine initialises when the browser reports support"
+  ],
   "declarationLock": "declaration-lock.json",
-  "status": "reviewed-babylon-modular-slice"
+  "status": "reviewed-babylon-3d-renderer-slice"
 }

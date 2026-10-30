@@ -2,16 +2,28 @@
   "schemaVersion": 1,
   "id": "babylon-modular-scene",
   "npmArtifacts": [
-    { "name": "@babylonjs/core", "version": "9.19.0" },
-    { "name": "@babylonjs/loaders", "version": "9.19.0" }
+    { "name": "@babylonjs/core", "version": "9.33.1" },
+    { "name": "@babylonjs/loaders", "version": "9.33.1" }
   ],
   "declarationEntryPoints": [
     "@babylonjs/core/Engines/nullEngine.d.ts",
+    "@babylonjs/core/Engines/engine.d.ts",
+    "@babylonjs/core/Engines/webgpuEngine.d.ts",
     "@babylonjs/core/scene.d.ts",
     "@babylonjs/core/Maths/math.vector.d.ts",
+    "@babylonjs/core/Maths/math.color.d.ts",
     "@babylonjs/core/Cameras/freeCamera.d.ts",
+    "@babylonjs/core/Cameras/arcRotateCamera.d.ts",
     "@babylonjs/core/Lights/hemisphericLight.d.ts",
+    "@babylonjs/core/Lights/directionalLight.d.ts",
+    "@babylonjs/core/Lights/pointLight.d.ts",
     "@babylonjs/core/Meshes/meshBuilder.d.ts",
+    "@babylonjs/core/Meshes/Builders/boxBuilder.d.ts",
+    "@babylonjs/core/Meshes/Builders/sphereBuilder.d.ts",
+    "@babylonjs/core/Meshes/Builders/groundBuilder.d.ts",
+    "@babylonjs/core/Materials/standardMaterial.d.ts",
+    "@babylonjs/core/Materials/PBR/pbrMaterial.d.ts",
+    "@babylonjs/core/Loading/sceneLoader.d.ts",
     "@babylonjs/loaders/glTF/index.d.ts"
   ],
   "candidateStem": "BabylonBindings"
