@@ -369,3 +369,36 @@ Limits, stated rather than inferred:
   evidence.
 
 Controls: `CommittedFacilityControls` in `test-current-reference-native-input.py`.
+
+
+## Dispatch-bound admission of the full run
+
+`CURRENT_PUBLIC_AT_ADMISSION` stays `None`: no value is fixed in source and the route is held
+by default. Root lifts the hold for one run by supplying `current-public-at-admission` at
+dispatch. `current-reference-at-admission.py issue` prints the string
+`fsgg.at-admission/1;notBefore=<UTC>;notAfter=<UTC>;sha256=<digest>` for an exact tuple: the
+Templates revision that will execute, the caller (Rendering) revision it is dispatched at, the
+producer rows (version, source, run, artifact, archive and custody digests), the facility
+manifest digest, the install-roots digest and the window (at most 7 days, starting no later than
+issuance). `issue` first checks that the typed plan's template (`--plan`, with the published
+archive `--template-archive`, whose digest must equal the plan's) defaults the same FS.GG.UI
+version as the producer in both `SvgFoundation.fsproj` and `Studio.fsproj`, and refuses
+otherwise. Every guard site recomputes the tuple from what is actually running and refuses on any
+difference, outside the window, or on an arbitrary value.
+
+The workflow guard step additionally runs the single-run census, scoped to the exact caller
+workflow path (`FS-GG/FS.GG.Rendering/.github/workflows/templates-external-reference-qualification.yml`)
+and to runs created inside the window: attempt 1 only; refuse if another run in the window has
+passed the guard step; refuse if another run in the window is queued or running its current-public
+job (regardless of run id, a queued job with no steps included, and a run whose jobs are not yet
+created). A pass created before `notBefore`, i.e. under an earlier admission, does not count. A
+concurrent preflight of the same route therefore also refuses; do not overlap them. A run refused
+at the guard does not consume the admission.
+
+`census-dry-run` runs in the callee for any `current-public-composition` dispatch, including a
+preflight, before the guard: it reads the caller's run list with the job token and prints the
+identity (`GITHUB_WORKFLOW_REF`) the reusable workflow sees. It admits nothing and consumes
+nothing; it exists so the identity the census relies on is observed before a real run.
+
+The string is not a credential. Its strength is the exact binding, the window and the census.
+The census fails closed when it cannot read the run list.

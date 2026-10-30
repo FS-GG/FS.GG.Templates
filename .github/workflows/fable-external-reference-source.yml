@@ -49,6 +49,8 @@ on:
       - 'tests/composition/fable-game/current-reference-noble-transaction.py'
       - 'tests/composition/fable-game/current-reference-noble-factory.py'
       - 'tests/composition/fable-game/current-reference-noble-install.py'
+      - 'tests/composition/fable-game/current-reference-at-admission.py'
+      - 'tests/composition/fable-game/test-current-reference-at-admission.py'
       - 'tests/composition/fable-game/test-current-reference-noble-install.py'
       - 'tests/composition/fable-game/native-input-facility/**'
       - 'tests/composition/fable-game/test-current-reference-noble-factory.py'
@@ -103,6 +105,7 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-transaction.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-factory.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-install.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-at-admission.py
       - name: Simulate snapshot provisioning against the runner's real dpkg status (no install, no privilege)
         run: |
           timeout --kill-after=10s 600s python3 -B tests/composition/fable-game/current-reference-noble-install.py --simulate --private "$RUNNER_TEMP/snapshot-simulation" --receipt "$RUNNER_TEMP/snapshot-simulation.json"
@@ -213,9 +216,16 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-native-input.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-acquisition.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-transaction.py
+      - name: Dry-run the single-run census identity (read-only, no admission)
+        if: ${{ inputs.rendering-input-source == 'current-public-composition' }}
+        run: python3 -B tests/composition/fable-game/current-reference-at-admission.py census-dry-run
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Refuse held current AT before acquisition or setup
         if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition' }}
         run: python3 -B tests/composition/fable-game/current-reference-at-caller.py guard
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Verify native producer run and authenticated archive before compilation
         env:
           GH_TOKEN: ${{ github.token }}
