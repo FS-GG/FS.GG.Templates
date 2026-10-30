@@ -16,6 +16,8 @@ on:
       - 'tests/composition/fable-game/orca-playwright-browser.cjs'
       - 'tests/composition/fable-game/speech-dispatcher-preflight.py'
       - 'tests/composition/fable-game/svg-input-orca.py'
+      - 'tests/composition/fable-game/verify-palette-candidate.sh'
+      - 'tests/composition/fable-game/test-current-reference-at.py'
       - 'tests/composition/fable-game/svg-preview-c-public-api.json'
       - 'tests/composition/fable-game/verify-svg-preview-c-source.sh'
       - 'tests/composition/fable-game/verify-soldier-reference-candidate.sh'
@@ -39,6 +41,8 @@ on:
       - 'tests/composition/fable-game/orca-playwright-browser.cjs'
       - 'tests/composition/fable-game/speech-dispatcher-preflight.py'
       - 'tests/composition/fable-game/svg-input-orca.py'
+      - 'tests/composition/fable-game/verify-palette-candidate.sh'
+      - 'tests/composition/fable-game/test-current-reference-at.py'
       - 'tests/composition/fable-game/svg-preview-c-public-api.json'
       - 'tests/composition/fable-game/verify-svg-preview-c-source.sh'
       - 'tests/composition/fable-game/verify-soldier-reference-candidate.sh'
@@ -272,3 +276,87 @@ jobs:
             ${{ runner.temp }}/svg-preview-c-source/complete-*.junit.xml
           if-no-files-found: warn
           retention-days: 90
+
+  palette-candidate:
+    name: Unpublished palette candidate with Orca46.1
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      PALETTE_RENDERING_SOURCE: da9345daa50daf449299fddbff6932954ab31c5e
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Check out exact unpublished producer
+        uses: actions/checkout@v7
+        with:
+          repository: FS-GG/FS.GG.Rendering
+          ref: da9345daa50daf449299fddbff6932954ab31c5e
+          path: .tmp/palette-rendering
+          persist-credentials: false
+      - name: Preflight candidate identity and observer refusals
+        run: |
+          set -euo pipefail
+          test "$(git -C .tmp/palette-rendering rev-parse HEAD)" = "$PALETTE_RENDERING_SOURCE"
+          python3 -B tests/composition/fable-game/test-current-reference-at.py PaletteAnnouncementControls PaletteCandidateInputControls
+          bash -n tests/composition/fable-game/verify-palette-candidate.sh
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.401'
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+      - name: Install existing headed browser and Orca46.1 route
+        working-directory: templates/fs-gg-fable-game/Browser.Tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install --yes dbus-x11 espeak-ng gir1.2-atspi-2.0 openbox orca pulseaudio pulseaudio-utils python3-gi python3-speechd speech-dispatcher-espeak-ng x11-utils xdotool xvfb
+          test "$(orca --version)" = 46.1
+      - name: Pack exact producer and private Templates receiver
+        run: |
+          set -euo pipefail
+          # Existing fixture packs all three producer archives with source provenance.
+          SVG_SCENE_FOCUS_SDK=10.0.401 timeout --signal=TERM --kill-after=15s 10m \
+            bash .tmp/palette-rendering/tests/Scene.SvgBrowser.Tests/build-fixture.sh "$RUNNER_TEMP/palette-rendering"
+          mkdir "$RUNNER_TEMP/palette-template-feed"
+          . tests/composition/fable-game/svg-source-python-fixture.sh
+          prepare_svg_source_python_fixture "$GITHUB_WORKSPACE" "$RUNNER_TEMP/palette-template-feed"
+          # Select the fixture's exact SDK, rather than the repository's ambient SDK.
+          (cd "$RUNNER_TEMP/palette-rendering" && dotnet pack "$GITHUB_WORKSPACE/FS.GG.Templates.csproj" -c Release \
+            -o "$RUNNER_TEMP/palette-template-feed" -p:ContinuousIntegrationBuild=true --disable-build-servers)
+      - name: Qualify separate candidate Studio and actual speech
+        run: |
+          set -euo pipefail
+          mapfile -t templates < <(find "$RUNNER_TEMP/palette-template-feed" -maxdepth 1 -name '*.nupkg' -type f)
+          test "${#templates[@]}" = 1
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
+            PLAYWRIGHT_MODULE_ROOT="$GITHUB_WORKSPACE/templates/fs-gg-fable-game/Browser.Tests/node_modules" \
+            timeout --signal=TERM --kill-after=15s 15m \
+            bash tests/composition/fable-game/verify-palette-candidate.sh \
+              "$GITHUB_WORKSPACE/.tmp/palette-rendering" "$PALETTE_RENDERING_SOURCE" \
+              "$RUNNER_TEMP/palette-rendering" "${templates[0]}" "$RUNNER_TEMP/palette-candidate"
+      - name: Retain separate candidate evidence including first failure
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: palette-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/palette-rendering/logs/**
+            ${{ runner.temp }}/palette-rendering/source-manifest*.tsv
+            ${{ runner.temp }}/palette-rendering/feed/*.nupkg
+            ${{ runner.temp }}/palette-template-feed/*.nupkg
+            ${{ runner.temp }}/palette-template-feed/python-fixture-projection.json
+            ${{ runner.temp }}/palette-template-feed/python-fixture-preflight/**
+            ${{ runner.temp }}/palette-candidate/*.json
+            ${{ runner.temp }}/palette-candidate/*.log
+            ${{ runner.temp }}/palette-candidate/*.speechd-logs/**
+            ${{ runner.temp }}/palette-candidate/receiver/SvgFoundation/Studio/packages.lock.json
+            ${{ runner.temp }}/palette-candidate/receiver/SvgFoundation/Studio/obj/project.assets.json
+          if-no-files-found: error

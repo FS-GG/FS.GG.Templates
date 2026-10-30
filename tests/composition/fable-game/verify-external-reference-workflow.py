@@ -62,11 +62,23 @@ def validate_current_at_registration(workflow):
     return True
 
 validate_current_at_registration(text)
-blocks=re.findall(r"          python3 - <<'(PY(?:INPUT)?)'\n(.*?)\n          \1",text,re.S)
-codes=[ '\n'.join(line[10:] for line in code.splitlines()) for _,code in blocks ]
-for code in codes:
-    ast.parse(code)
-assert len(codes)==5, len(codes)
+def assertion_codes(workflow):
+    result=[]
+    for name,count in [('Reject invalid caller or Templates identity before checkout',1),('Verify native producer run and authenticated archive before compilation',2),('Record authenticated preflight identity',1),('Bind successful full result to requested Templates source',1)]:
+        marker='      - name: '+name+'\n'
+        assert workflow.count(marker)==1, 'missing/ambiguous actual assertion step: '+name
+        start=workflow.index(marker)+len(marker)
+        end=workflow.find('\n      - ',start)
+        section=workflow[start:end if end!=-1 else len(workflow)]
+        blocks=re.findall(r"          python3 - <<'(PY(?:INPUT)?)'\n(.*?)\n          \1",section,re.S)
+        assert len(blocks)==count, 'actual assertion body count differs: '+name
+        result.extend('\n'.join(line[10:] for line in code.splitlines()) for _,code in blocks)
+    for code in result:ast.parse(code)
+    return result
+
+codes=assertion_codes(text)
+# A preceding preparation body must never become the authorization reader under test.
+assert assertion_codes(text.replace('      - name: Reject invalid caller',"      - name: Inert extra preparation\n        run: |\n          python3 - <<'PY'\n          raise AssertionError('not an authorization reader')\n          PY\n      - name: Reject invalid caller",1))==codes
 assert 'create-github-app-token' not in text and 'secrets.' not in text
 assert 'workflow_dispatch:' not in text and 'workflow_call:' in text
 assert 'GH_TOKEN: ${{ github.token }}' in text
@@ -79,6 +91,7 @@ for step in ['actions/setup-dotnet@v6','actions/setup-node@v6','Install pinned n
     position=text.index(step)
     section=text[position:text.find('\n      - ',position) if '\n      - ' in text[position:] else len(text)]
     expected = "if: ${{ !inputs.preflight-only || inputs.rendering-input-source == 'current-public-composition' }}" if step == 'actions/setup-dotnet@v6' else 'if: ${{ !inputs.preflight-only }}'
+    if step in ['Qualify exact generated','Bind successful full']:expected="if: ${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}"
     assert expected in section, step
 assert "'qualification':'not-run'" in codes[3] and "'disposition':'preflight-passed'" in codes[3]
 assert "packet['disposition']=='passed'" in codes[4]
@@ -86,15 +99,15 @@ assert "['chromium','firefox','webkit']" in codes[4]
 
 # Read the actual closed GitHub expressions; producer rows are immutable workflow
 # choices, not overridable caller inputs. The public row is the currently published default
-# (Rendering 0.32.3, published original 4ec6 bytes); it is never caller-overridable.
+# (Rendering 0.32.4, published original 4ede bytes); it is never caller-overridable.
 PRODUCER_ROWS = {
     'public': {
-        'PRODUCER_SOURCE':'4ec6eafbbbf02264db9b0db4780c590abe0bf9cd',
-        'PRODUCER_RUN':'39509314882','PRODUCER_ARTIFACT':'12305198394',
-        'PRODUCER_ARCHIVE_SHA256':'84647332c124e511545787c8c3f8634d4f5177068521acfc86c93430ac73ef63',
-        'PRODUCER_CUSTODY_SHA256':'7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9',
-        'PRODUCER_ARCHIVE_SIZE_BYTES':'15073469',
-        'PRODUCER_VERSION':'0.32.3','PRODUCER_PLAN':'eng/release/font-disposal-0.32.3.json',
+        'PRODUCER_SOURCE':'4ede04be66cedffc8551cd14045bab714aa358a7',
+        'PRODUCER_RUN':'40737624380','PRODUCER_ARTIFACT':'12838338215',
+        'PRODUCER_ARCHIVE_SHA256':'baaa17b807bd52c9297dafbfd9161ec84fec4842317bb1f5df4e3d40d837c8bf',
+        'PRODUCER_CUSTODY_SHA256':'89ea6424cae4d06969f0a60394679e9892bd2b873fb46ebd281aa10616809720',
+        'PRODUCER_ARCHIVE_SIZE_BYTES':'15375023',
+        'PRODUCER_VERSION':'0.32.4','PRODUCER_PLAN':'eng/release/palette-heading-0.32.4.json',
     },
     'candidate': {
         'PRODUCER_SOURCE':'9b73395658d4683a067d150ca9441b04e802c4af',
@@ -168,24 +181,72 @@ for mode in ['unknown','public\n','PUBLIC']:
     execute(codes[0],{**env,'RENDERING_INPUT_SOURCE':mode},False)
 for key,value in [('CALLER_REPOSITORY','FS-GG/FS.GG.Templates'),('CALLER_REPOSITORY','other/repository'),('TEMPLATES_SOURCE','main'),('TEMPLATES_SOURCE','a'*39),('TEMPLATES_SOURCE','A'*40),('TEMPLATES_SOURCE','a'*40+'\n')]:
     execute(codes[0],{**env,key:value},False)
+# New operands are caller-provided inert fixtures here, never production defaults.
+with tempfile.TemporaryDirectory() as directory:
+    selected={'producerSha':'4ede04be66cedffc8551cd14045bab714aa358a7','producerRun':11,'producerAttempt':1,'producerArtifact':12,'outerSha256':'b'*64,'outerSizeBytes':1234,'custodySha256':'c'*64}
+    palette={**env,'RENDERING_INPUT_SOURCE':'palette-heading','RENDERING_SUCCESSOR_INPUT':json.dumps(selected),'GITHUB_ENV':str(Path(directory)/'environment')}
+    execute(codes[0],palette,True)
+    exported=dict(line.split('=',1) for line in Path(palette['GITHUB_ENV']).read_text().splitlines())
+    assert exported['PRODUCER_SOURCE']==selected['producerSha'] and exported['PRODUCER_VERSION']=='0.32.4'
+    for key,value in [('producerSha',source),('producerRun',True),('producerAttempt',0),('producerAttempt',2),('outerSha256','missing'),('outerSizeBytes',67108865)]:
+        bad={**selected,key:value};execute(codes[0],{**palette,'RENDERING_SUCCESSOR_INPUT':json.dumps(bad)},False)
+    execute(codes[0],{**palette,'CALLER_REPOSITORY':'FS-GG/FS.GG.Templates'},False)
+    execute(codes[0],{**palette,'RENDERING_SUCCESSOR_INPUT':'{}'},False)
+    execute(codes[0],{**palette,'RENDERING_SUCCESSOR_INPUT':'{\"producerRun\":99,'+json.dumps(selected)[1:]},False)
+    path=Path(directory)
+    r={'id':11,'head_sha':selected['producerSha'],'run_attempt':1,'conclusion':'success','path':'.github/workflows/release.yml'}
+    a={'id':12,'expired':False,'size_in_bytes':1234,'digest':'sha256:'+'b'*64,'workflow_run':{'id':11,'head_sha':r['head_sha']},'name':'rendering-source-candidate-'+r['head_sha']+'-0.32.4'}
+    required=['Static release source and plan guard','Package consumption (release-only)','Generated product (template instantiation, release-only)','Qualify complete successor archive custody without publication']
+    steps=['Pack the complete source candidate and verify custody','ApiCompat against the selected published baseline','Qualify all three browser families against original candidate archives without repacking']
+    jobs={'total_count':4,'jobs':[{'name':name,'conclusion':'success','run_id':11,'run_attempt':1,'head_sha':r['head_sha'],'steps':[{'name':step,'conclusion':'success'} for step in steps]} for name in required]}
+    writers=['Protected publication preflight (no mutation) [org-publication-writer]','Publish FS.GG.UI.* to org GitHub Packages (release-only) [org-publication-writer]']
+    jobs['jobs'].extend({'name':name,'conclusion':'skipped','run_id':11,'run_attempt':1,'head_sha':r['head_sha'],'steps':[]} for name in writers);jobs['total_count']=6
+    metadata_env={**palette,**exported,'RUNNER_TEMP':directory}
+    class Digest:
+        def hexdigest(self):return '4bcbb1c756a799ab634e14d1fc9191ac51a8cd5d3537aec75eeab1c1d545deaa'
+    def palette_metadata(run,artifact,job_rows,success,attempt='1'):
+        (path/'rendering-run.json').write_text(json.dumps(run));(path/'rendering-artifact.json').write_text(json.dumps(artifact));(path/'rendering-jobs.json').write_text(json.dumps(job_rows))
+        with patch.object(Path,'read_bytes',return_value=b'plan-byte-fixture'),patch('hashlib.sha256',return_value=Digest()):execute(codes[1],{**metadata_env,'PRODUCER_ATTEMPT':attempt},success)
+    palette_metadata(r,a,jobs,True)
+    palette_metadata({**r,'run_attempt':2},a,jobs,False)
+    later=json.loads(json.dumps(jobs))
+    for job in later['jobs']:job['run_attempt']=2
+    palette_metadata({**r,'run_attempt':2},a,later,False,attempt='2')
+    palette_metadata(r,{**a,'workflow_run':{'id':99,'head_sha':r['head_sha']}},jobs,False)
+    palette_metadata(r,a,{**jobs,'total_count':7},False)
+    for index in range(4):
+        bad=json.loads(json.dumps(jobs));bad['jobs'][index]['conclusion']='cancelled';palette_metadata(r,a,bad,False)
+    for index in range(3):
+        bad=json.loads(json.dumps(jobs));bad['jobs'][3]['steps'][index]['conclusion']='failure';palette_metadata(r,a,bad,False)
+    bad=json.loads(json.dumps(jobs));bad['jobs'][0]['head_sha']='a'*40;palette_metadata(r,a,bad,False)
+    for index in [4,5]:
+        bad=json.loads(json.dumps(jobs));bad['jobs'][index]['conclusion']='success';palette_metadata(r,a,bad,False)
+print('PASS actual palette caller coordinates and mandatory producer/package/ApiCompat/three-browser refusal controls')
+
 with tempfile.TemporaryDirectory() as directory:
     path=Path(directory); env['RUNNER_TEMP']=directory
     for mode in ['candidate','public','font-disposal','current-public-composition']:
         env.update(selected_producer(text,mode))
         run={'id':int(env['PRODUCER_RUN']),'head_sha':env['PRODUCER_SOURCE'],'conclusion':'success','path':'.github/workflows/release.yml','run_attempt':1}
         artifact={'id':int(env['PRODUCER_ARTIFACT']),'expired':False,'size_in_bytes':int(env['PRODUCER_ARCHIVE_SIZE_BYTES']),'digest':'sha256:'+env['PRODUCER_ARCHIVE_SHA256'],'workflow_run':{'id':run['id'],'head_sha':run['head_sha']},'name':'rendering-source-candidate-'+run['head_sha']+'-'+env['PRODUCER_VERSION']}
-        def metadata(r,a,success,plan_good=True):
+        # Per-mode plan identity: the font-disposal plan and the palette-heading plan have different bytes.
+        PLAN_IDENTITY={'font-disposal':(3490,'89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239'),'current-public-composition':(3514,'4bcbb1c756a799ab634e14d1fc9191ac51a8cd5d3537aec75eeab1c1d545deaa')}
+        def metadata(r,a,success,plan_good=True,plan_identity=None):
             (path/'rendering-run.json').write_text(json.dumps(r)); (path/'rendering-artifact.json').write_text(json.dumps(a))
             # Closed plan-byte seam: metadata fixtures do not acquire a producer checkout.
+            size,digest=plan_identity or PLAN_IDENTITY.get(mode,(3490,'89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239'))
             class PlanDigest:
-                def hexdigest(self): return '89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239' if plan_good else '0'*64
-            with patch.object(Path,'read_bytes',return_value=b'x'*3490), patch.object(hashlib,'sha256',side_effect=lambda raw: PlanDigest()):
+                def hexdigest(self): return digest if plan_good else '0'*64
+            with patch.object(Path,'read_bytes',return_value=b'x'*size), patch.object(hashlib,'sha256',side_effect=lambda raw: PlanDigest()):
                 execute(codes[1],env,success)
 
         metadata(run,artifact,True)
-        if mode=='font-disposal':
+        if mode in PLAN_IDENTITY:
             metadata({**run,'run_attempt':2},artifact,False)
             metadata(run,artifact,False,plan_good=False)
+            # Causal control: the other plan's size and digest must be refused for this mode.
+            wrong=PLAN_IDENTITY['font-disposal' if mode=='current-public-composition' else 'current-public-composition']
+            metadata(run,artifact,False,plan_identity=wrong)
         for key,value in [('id',0),('head_sha','b'*40),('conclusion','failure'),('path','.github/workflows/other.yml')]:
             metadata({**run,key:value},artifact,False)
         for key,value in [('id',0),('expired',True),('size_in_bytes',1),('digest','sha256:'+'0'*64),('name','other'),('workflow_run',{'id':0,'head_sha':run['head_sha']}),('workflow_run',{'id':run['id'],'head_sha':'b'*40})]:
@@ -228,6 +289,40 @@ with tempfile.TemporaryDirectory() as directory:
     zip_case(19); execute(codes[2],env,True)
     for count,duplicate,tamper in [(18,False,False),(20,False,False),(19,True,False),(19,False,True)]:
         zip_case(count,duplicate,tamper); execute(codes[2],env,False)
+    env['RENDERING_INPUT_SOURCE']='palette-heading'
+    zip_case(19);execute(codes[2],env,True)
+    with ZipFile(path/'rendering-packet.zip','a') as archive:archive.writestr('unexpected.txt',b'not original custody')
+    execute(codes[2],env,False)
+    with ZipFile(path/'rendering-packet.zip','w') as archive:
+        for n in range(19):archive.writestr(('../escape.nupkg' if n==0 else f'package{n}.nupkg'),b'fixture')
+        archive.writestr('release-custody.json',custody)
+    execute(codes[2],env,False)
+# Match the actual upload allowlist against emitted companions and the retained failing path.
+# A broad output-tree glob selected the colon-bearing NuGet HTTP cache in40740615402.
+def palette_upload_controls(workflow):
+    import glob
+    marker='      - name: Upload source qualification evidence\n'
+    assert workflow.count(marker)==1
+    section=workflow.split(marker,1)[1]
+    paths=section.split('          path: |\n',1)[1].splitlines()
+    patterns=[line.strip().replace('${{ runner.temp }}/','') for line in paths if line.startswith('            ${{ runner.temp }}/')]
+    required=['palette-candidate/qualification.json','palette-candidate/candidate-input.json','palette-candidate/orca-input.json','palette-candidate/consumer-before.json','palette-candidate/consumer-after.json','palette-candidate/server.log','palette-candidate/orca-version.log','palette-candidate/orca-input.json.orca-debug.log','palette-candidate/orca-input.json.orca.log','palette-candidate/orca-input.json.speechd-preflight.json','palette-candidate/orca-input.json.browser-dom.json','palette-candidate/orca-input.json.speechd-logs/espeak-ng.log','palette-candidate/orca-input.json.speechd-logs/speech-dispatcher.log','palette-candidate/receiver/SvgFoundation/Studio/packages.lock.json','palette-candidate/receiver/SvgFoundation/Studio/obj/project.assets.json','palette-template-feed/FS.GG.Workspace.Template.fixture.nupkg','palette-template-feed/python-fixture-projection.json','palette-template-feed/python-fixture-preflight/qualification.json','external-reference-preflight.json','rendering-packet.zip','rendering-packet/release-custody.json','rendering-run.json','rendering-artifact.json','rendering-jobs.json']
+    excluded=['palette-candidate/http/670c1461c29885f9aa22c281d8b7da90845b38e4$ps:_api.nuget.org_v3_index.json/list_fable.browser.blob.dat','palette-candidate/packages/unrelated.nupkg','palette-candidate/receiver/node_modules/unrelated.json']
+    with tempfile.TemporaryDirectory() as directory:
+        base=Path(directory)
+        for name in required+excluded:
+            file=base/name;file.parent.mkdir(parents=True,exist_ok=True);file.write_bytes(b'inert emitted evidence')
+        selected={str(Path(name).relative_to(base)) for pattern in patterns for name in glob.glob(str(base/pattern),recursive=True) if Path(name).is_file()}
+        assert set(required)<=selected, 'required qualification companion omitted'
+        assert not set(excluded)&selected, 'cache or generated tree selected for evidence upload'
+        assert not any(re.search(r'["<>|*?:\r\n]',name) for name in selected), 'upload-invalid retained path selected'
+    return True
+
+assert palette_upload_controls(text)
+try:palette_upload_controls(text.replace('${{ runner.temp }}/palette-candidate/*.json','${{ runner.temp }}/palette-candidate/**',1))
+except AssertionError:pass
+else:raise AssertionError('original broad upload regression accepted')
+print('PASS actual upload allowlist:24 required companions selected; original colon-bearing cache and generated trees refused')
 print(f'PASS: {checks} actual workflow assertion fixtures; source/permission/order/phase controls')
 
 # Execute the actual provision shell against a finite npm command fixture. No packages install.
@@ -366,10 +461,10 @@ expanded=spec.replace('Studio ${cancellation} prevents a late genuine font load 
     'Studio timeout prevents a late genuine font load from mounting or leaking\nStudio replacement prevents a late genuine font load from mounting or leaking')
 assert len(titles)==7 and all(expanded.count(title)==1 for title in titles)
 assert 'for (const cancellation of ["timeout", "replacement"] as const)' in spec
-assert "timeout-minutes: ${{ inputs.rendering-input-source == 'font-disposal' && 60 || 35 }}" in text
+assert "timeout-minutes: ${{ inputs.rendering-input-source == 'palette-heading' && 30 || inputs.rendering-input-source == 'font-disposal' && 60 || 35 }}" in text
 assert text.index('Require fresh exact SDK root') < text.index('actions/setup-dotnet') < text.index('test "$(dotnet --version)" = 10.0.401')
 sdk=text.split('      - name: Require fresh exact SDK root',1)[1].split('      - uses:',1)[0]
-assert "!inputs.preflight-only && inputs.rendering-input-source == 'font-disposal'" in sdk
+assert "!inputs.preflight-only && (inputs.rendering-input-source == 'font-disposal' || inputs.rendering-input-source == 'palette-heading')" in sdk
 assert '! -e "$expected" && ! -L "$expected"' in sdk and '>> "$GITHUB_ENV"' in sdk
 selector=receiver['browser_selector']
 assert selector('candidate')==selector('public')=='external authority reference|FourD reference'

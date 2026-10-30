@@ -244,7 +244,7 @@ class CurrentAtTests(unittest.TestCase):
                    'FSGG_CURRENT_PUBLIC_AT_ADMISSION': 'cannot-lift-none'}
             commands = [
                 ['bash', str(Path(__file__).with_name('verify-external-reference-candidate.sh')), '/absent', '/absent',
-                 '0.32.3', target, '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd', 'current-public-composition',
+                 '0.32.4', target, '4ede04be66cedffc8551cd14045bab714aa358a7', 'current-public-composition',
                  '/absent.nupkg', 'a' * 64, 'current-at-full'],
                 ['bash', str(Path(__file__).with_name('observe-external-reference-orca.sh')), target,
                  '/absent.json', 'current-public-local-save'],
@@ -520,6 +520,255 @@ class CurrentAtTests(unittest.TestCase):
         names = O.reference_navigation_self_test()
         self.assertIn("actual-observer-recovery-sequence-original-generation", names)
         self.assertIn("old-generation-reconciliation-remains-refused", names)
+
+
+class PaletteAnnouncementControls(unittest.TestCase):
+    """Execute the real observer functions without importing GI or running AT."""
+    def observer(self, directory, spoken):
+        source = Path(__file__).with_name("svg-input-orca.py").read_text()
+        tree = ast.parse(source)
+        selected = {"speech_log_offset", "wait_for_speech", "open_command_palette"}
+        module = ast.Module(body=[node for node in tree.body
+                                  if isinstance(node, ast.FunctionDef) and node.name in selected], type_ignores=[])
+        log = directory / "palette.orca-debug.log"
+        log.write_text("SPEECH OUTPUT: Command palette dialog Command palette heading level 2\n")
+        calls = []
+        class Clock:
+            now = 0
+            def time(self):
+                return self.now
+            def sleep(self, seconds):
+                self.now += seconds
+        def key(value):
+            calls.append(("key", value))
+            with log.open("a") as stream:
+                stream.write(spoken)
+        namespace = {"os": os, "time": Clock(), "output": str(directory / "palette"),
+                     "key": key, "find": lambda *a, **k: calls.append(("find", a, k)),
+                     "wait_for_focus": lambda *a, **k: calls.append(("focus", a, k))}
+        exec(compile(module, "svg-input-orca.py selected functions", "exec"), namespace)
+        return namespace, calls, log
+
+    def test_palette_uses_fresh_speech_and_actual_initial_heading_focus(self):
+        with tempfile.TemporaryDirectory() as directory:
+            namespace, calls, log = self.observer(Path(directory), "SPEECH OUTPUT: Command palette dialog Command palette heading level 2\n")
+            start = log.stat().st_size
+            receipt = namespace["open_command_palette"]()
+            self.assertEqual(receipt, {"name": "Command palette", "role": "dialog",
+                                       "initialFocus": "heading", "speechAfter": start})
+            self.assertEqual(calls, [("key", "Return"),
+                                    ("find", ("dialog",), {"name": "Command palette"}),
+                                    ("focus", ("Command palette",), {"role": "heading", "dom_role": "heading"})])
+
+    def test_palette_refuses_stale_missing_role_and_debug_only_speech(self):
+        for spoken in ["", "SPEECH OUTPUT: Command palette\n", "SPEECH OUTPUT: Command palette dialog\n", "DEBUG: Command palette dialog\n"]:
+            with self.subTest(spoken=spoken), tempfile.TemporaryDirectory() as directory:
+                namespace, _, _ = self.observer(Path(directory), spoken)
+                with self.assertRaisesRegex(RuntimeError, "expected speech output"):
+                    namespace["open_command_palette"]()
+
+    def test_original_hosted_palette_speech_refuses_unspoken_dialog_role(self):
+        # Original PR806 run40715363708/a1, artifact12829051309, Orca46.1.
+        # Actual post-Return speech conveyed content/status, but no dialog role.
+        # Preserve this failure instead of accepting an AT-tree role as speech.
+        spoken = ("15:34:11.931113 - SPEECH OUTPUT: 'main content'\n"
+                  "15:34:11.933564 - SPEECH OUTPUT: 'region Generated SVG scene studio'\n"
+                  "15:34:11.935807 - SPEECH OUTPUT: 'Command palette. Available workspace commands. clickable.'\n"
+                  "15:34:12.000036 - SPEECH OUTPUT: 'Command palette opened'\n")
+        with tempfile.TemporaryDirectory() as directory:
+            namespace, _, _ = self.observer(Path(directory), spoken)
+            with self.assertRaisesRegex(RuntimeError, "expected speech output"):
+                namespace["open_command_palette"]()
+
+    def test_actual_heading_focus_requires_fresh_named_dom_and_atspi_agreement(self):
+        from types import SimpleNamespace
+        source = ast.parse(Path(__file__).with_name("svg-input-orca.py").read_text())
+        function = next(node for node in source.body if isinstance(node, ast.FunctionDef)
+                        and node.name == "wait_for_focus")
+        for mutant in [None, "wrong-dom-role", "wrong-at-role", "stale-dom", "document-blurred"]:
+            with self.subTest(mutant=mutant), tempfile.TemporaryDirectory() as directory:
+                namespace, _, _ = self.observer(Path(directory), "")
+                value = {"schema": "fsgg.orca-browser-dom/v1", "browserFamily": "chromium",
+                         "sampleSequence": 1, "sampledAt": "fixture", "sampledAtUnixMs": 0,
+                         "observation": {"documentHasFocus": mutant != "document-blurred",
+                                         "activeElement": {"role": "button" if mutant == "wrong-dom-role" else "heading",
+                                                           "ariaLabel": "Command palette"}}}
+                if mutant == "stale-dom":
+                    value["sampledAtUnixMs"] = -3000
+                Path(namespace["output"] + ".browser-dom.json").write_text(json.dumps(value))
+                node = SimpleNamespace(get_state_set=lambda: SimpleNamespace(contains=lambda _: True),
+                                       get_name=lambda: "Command palette",
+                                       get_role_name=lambda: "push button" if mutant == "wrong-at-role" else "heading")
+                namespace.update(json=json, walk=lambda _: [node], focused=lambda: None,
+                                 Atspi=SimpleNamespace(get_desktop=lambda _: None,
+                                                       StateType=SimpleNamespace(FOCUSED=1)))
+                exec(compile(ast.Module(body=[function], type_ignores=[]), "actual focus observer", "exec"), namespace)
+                with patch.dict(os.environ, {"SVG_ORCA_BROWSER_FAMILY": "chromium"}):
+                    if mutant is None:
+                        self.assertIs(namespace["wait_for_focus"]("Command palette", role="heading", dom_role="heading"), node)
+                    else:
+                        with self.assertRaisesRegex(RuntimeError, "focus was not restored"):
+                            namespace["wait_for_focus"]("Command palette", role="heading", dom_role="heading", timeout=.2)
+
+    def test_palette_focus_failure_cannot_be_replaced_by_matching_speech(self):
+        with tempfile.TemporaryDirectory() as directory:
+            namespace, _, _ = self.observer(Path(directory), "SPEECH OUTPUT: Command palette dialog Command palette heading level 2\n")
+            def wrong_focus(*args, **kwargs):
+                raise RuntimeError("wrong actual focus")
+            namespace["wait_for_focus"] = wrong_focus
+            with self.assertRaisesRegex(RuntimeError, "wrong actual focus"):
+                namespace["open_command_palette"]()
+
+
+class PaletteCandidateInputControls(unittest.TestCase):
+    def test_actual_candidate_metadata_refuses_foreign_source_and_missing_archives(self):
+        from zipfile import ZipFile
+        script = Path(__file__).with_name("verify-palette-candidate.sh").read_text()
+        metadata = script.split("<<'PY'\n", 1)[1].split("\nPY\n", 1)[0]
+        code = compile(metadata, "actual palette candidate metadata reader", "exec")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); feed = root / "feed"; feed.mkdir()
+            template = root / "template.nupkg"
+            with ZipFile(template, "w") as package:
+                package.writestr("FS.GG.Workspace.Template.nuspec", '<package><metadata><id>FS.GG.Workspace.Template</id>'
+                                 '<version>fixture</version><repository commit="' + "c" * 40 + '"/></metadata></package>')
+            output = root / "candidate-input.json"; source = "a" * 40
+            identities = ["FS.GG.UI.Scene", "FS.GG.UI.KeyboardInput", "FS.GG.UI.Scene.SvgBrowser"]
+            def archive(identity, revision):
+                path = feed / (identity + ".0.32.0.nupkg")
+                with ZipFile(path, "w") as package:
+                    package.writestr(identity + ".nuspec", '<package><metadata><version>0.32.0</version>'
+                                     '<repository commit="' + revision + '"/></metadata></package>')
+                return path
+            for identity in identities:
+                archive(identity, source)
+            def read():
+                with patch.object(sys, "argv", ["metadata", str(feed), source, str(template), str(output), "c" * 40]):
+                    exec(code, {})
+            read()
+            receipt = json.loads(output.read_text())
+            self.assertEqual(receipt["renderingSource"], source)
+            self.assertEqual(len(receipt["archives"]), 3)
+            self.assertIs(receipt["publication"], False)
+            self.assertIs(receipt["installedPublicAcceptance"], False)
+            output.unlink()
+            for identity in identities:
+                with self.subTest(identity=identity):
+                    archive(identity, "b" * 40)
+                    with self.assertRaisesRegex(SystemExit, "source differs"):
+                        read()
+                    self.assertFalse(output.exists())
+                    path = archive(identity, source); path.unlink()
+                    with self.assertRaisesRegex(SystemExit, "missing or linked"):
+                        read()
+                    self.assertFalse(output.exists())
+                    archive(identity, source)
+
+    def test_retained0324_metadata_binds_native_caller_and_complete_custody(self):
+        from zipfile import ZipFile
+        import hashlib
+        script=Path(__file__).with_name("verify-palette-candidate.sh").read_text()
+        code=compile(script.split("<<'PY'\n",1)[1].split("\nPY\n",1)[0],"actual retained palette metadata","exec")
+        with tempfile.TemporaryDirectory() as value:
+            root=Path(value);feed=root/'originals';feed.mkdir();source='a'*40;templates='c'*40
+            for identity in ['FS.GG.UI.Scene','FS.GG.UI.KeyboardInput','FS.GG.UI.Scene.SvgBrowser']:
+                with ZipFile(feed/(identity+'.0.32.4.nupkg'),'w') as archive:
+                    archive.writestr(identity+'.nuspec','<package><metadata><version>0.32.4</version><repository commit="'+source+'"/></metadata></package>')
+            template=root/'template.nupkg'
+            with ZipFile(template,'w') as archive:
+                archive.writestr('FS.GG.Workspace.Template.nuspec','<package><metadata><id>FS.GG.Workspace.Template</id><version>fixture</version><repository commit="'+templates+'"/></metadata></package>')
+            plan=root/'plan.json';plan.write_text('inert plan bytes')
+            custody=root/'release-custody.json';custody.write_text(json.dumps({'archives':[{'id':'fixture'+str(n)} for n in range(19)]}))
+            preflight=root/'preflight.json';output=root/'input.json'
+            baseline={'requestedPhase':'full','disposition':'preflight-passed','qualification':'not-run','publication':False,'installedAcceptance':False,'caller':{'repository':'FS-GG/FS.GG.Rendering','revision':'d'*40,'run':'11','attempt':'1'},'templates':{'revision':templates},'renderingInputSource':'palette-heading','producer':{'revision':source,'version':'0.32.4','custodySha256':hashlib.sha256(custody.read_bytes()).hexdigest(),'rawPlanSha256':hashlib.sha256(plan.read_bytes()).hexdigest()}}
+            def read(record):
+                preflight.write_text(json.dumps(record))
+                with patch.object(sys,'argv',['metadata',str(feed),source,str(template),str(output),templates,'0.32.4',str(custody),str(plan),str(preflight)]):exec(code,{})
+            read(baseline);result=json.loads(output.read_text());self.assertEqual((19,'0.32.4'),(result['originalArchiveCount'],result['renderingVersion']))
+            self.assertEqual(baseline,result['nativePreflight']);self.assertEqual(hashlib.sha256(preflight.read_bytes()).hexdigest(),result['nativePreflightSha256'])
+            for section,key,bad in [('caller','repository','FS-GG/FS.GG.Templates'),('templates','revision','b'*40),('producer','revision','b'*40),('producer','custodySha256','0'*64),('producer','rawPlanSha256','0'*64),('producer','version','0.32.0')]:
+                with self.subTest(section=section,key=key):
+                    record=json.loads(json.dumps(baseline));record[section][key]=bad;output.unlink(missing_ok=True)
+                    with self.assertRaises(SystemExit):read(record)
+                    self.assertFalse(output.exists())
+            for key,bad in [('requestedPhase','preflight'),('disposition','passed'),('qualification','passed'),('publication',True),('installedAcceptance',True)]:
+                record={**baseline,key:bad};output.unlink(missing_ok=True)
+                with self.assertRaises(SystemExit):read(record)
+                self.assertFalse(output.exists())
+        self.assertLess(script.index('verify_original_custody\n'),script.index('mkdir -m 700'))
+        self.assertLess(script.index('wait "$server"'),script.rindex('verify_original_custody\n'))
+        self.assertLess(script.rindex('verify_original_custody\n'),script.index("record.update(schema='fsgg.palette-candidate-qualification/1'"))
+
+    def test_actual_receiver_join_checks_private_folder_bytes_source_and_closure(self):
+        from zipfile import ZipFile
+        import hashlib
+        script = Path(__file__).with_name("verify-palette-candidate.sh").read_text()
+        reader = script.split("<<'PYCONSUMER'\n", 1)[1].split("\nPYCONSUMER\n", 1)[0]
+        code = compile(reader, "actual restored palette receiver join", "exec")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory); packages = root / "receiver/.nuget/packages"
+            assets_path = root / "receiver/SvgFoundation/Studio/obj/project.assets.json"
+            assets_path.parent.mkdir(parents=True)
+            rows = []; libraries = {}; source = "a" * 40
+            for identity in ["FS.GG.UI.Scene", "FS.GG.UI.KeyboardInput", "FS.GG.UI.Scene.SvgBrowser"]:
+                key = identity.lower() + "/0.32.0"; path = packages / key / (identity.lower() + ".0.32.0.nupkg")
+                path.parent.mkdir(parents=True)
+                with ZipFile(path, "w") as archive:
+                    archive.writestr(identity + ".nuspec", '<package><metadata><repository commit="' + source + '"/></metadata></package>')
+                rows.append({"id": identity, "version": "0.32.0", "bytes": path.stat().st_size,
+                             "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+                libraries[identity + "/0.32.0"] = {"type": "package", "path": key}
+            record = {"renderingSource": source, "archives": rows}
+            (root / "candidate-input.json").write_text(json.dumps(record))
+            assets = {"packageFolders": {str(packages): {}}, "libraries": libraries}
+            def read(stage="before"):
+                assets_path.write_text(json.dumps(assets))
+                with patch.object(sys, "argv", ["consumer", str(root), stage]):
+                    exec(code, {})
+            read(); read("after")
+            self.assertEqual(len(json.loads((root / "consumer-after.json").read_text())["archives"]), 3)
+            assets["packageFolders"] = {str(root / "foreign-cache"): {}}
+            with self.assertRaisesRegex(SystemExit, "package folder differs"):
+                read()
+            assets["packageFolders"] = {str(packages): {}}
+            assets["libraries"]["FS.GG.UI.Extra/0.32.0"] = {"type": "package", "path": "fs.gg.ui.extra/0.32.0"}
+            with self.assertRaisesRegex(SystemExit, "closure differs"):
+                read()
+            del assets["libraries"]["FS.GG.UI.Extra/0.32.0"]
+            row = rows[0]; path = packages / (row["id"].lower() + "/0.32.0") / (row["id"].lower() + ".0.32.0.nupkg")
+            with ZipFile(path, "w") as archive:
+                archive.writestr(row["id"] + ".nuspec", '<package><metadata><repository commit="' + "b" * 40 + '"/></metadata></package>')
+            with self.assertRaisesRegex(SystemExit, "archive differs"):
+                read()
+            row.update(bytes=path.stat().st_size, sha256=hashlib.sha256(path.read_bytes()).hexdigest())
+            (root / "candidate-input.json").write_text(json.dumps(record))
+            with self.assertRaisesRegex(SystemExit, "source differs"):
+                read()
+
+    def test_candidate_mapping_is_not_inherited_by_generated_tool_restore(self):
+        import re
+        from pathlib import PurePosixPath
+        from xml.etree import ElementTree as ET
+        script = Path(__file__).with_name("verify-palette-candidate.sh").read_text()
+        match = re.search(r'cat > "(\$out/[^"\n]*NuGet.Config)" <<EOF\n(.*?)\nEOF', script, re.S)
+        self.assertIsNotNone(match)
+        config = PurePosixPath(match[1].replace("$out", "/candidate"))
+        receiver = PurePosixPath("/candidate/receiver")
+        # Original40722583617 put candidate/public mappings at /candidate.
+        # The receiver clears sources to nuget.org, leaving fable unmapped.
+        self.assertNotIn(config.parent, [receiver, *receiver.parents],
+                         "candidate-only mapping reaches generated dotnet tool restore")
+        sources = {node.attrib["key"] for node in ET.fromstring(match[2]).findall("packageSources/add")}
+        mappings = {node.attrib["key"] for node in ET.fromstring(match[2]).findall("packageSourceMapping/packageSource")}
+        self.assertEqual(sources, mappings)
+        self.assertIn('--configfile "' + match[1] + '"', script)
+
+    def test_candidate_bad_identity_cannot_reach_generation(self):
+        script = Path(__file__).with_name("verify-palette-candidate.sh")
+        result = subprocess.run(["bash", str(script), "/absent-producer", "not-a-commit",
+                                 "/absent-fixture", "/absent-template", "/absent-output"], capture_output=True, text=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertNotIn("dotnet", result.stderr)
 
 
 if __name__ == "__main__":

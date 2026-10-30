@@ -452,25 +452,25 @@ let private compositionSelection =
 
 let private compositionRendering =
         {|
-            version = "0.32.3"
-            sourceCommit = "4ec6eafbbbf02264db9b0db4780c590abe0bf9cd"
-            custodySha256 = "7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9"
+            version = "0.32.4"
+            sourceCommit = "4ede04be66cedffc8551cd14045bab714aa358a7"
+            custodySha256 = "89ea6424cae4d06969f0a60394679e9892bd2b873fb46ebd281aa10616809720"
             packages =
                 [
                     {|
                         id = "FS.GG.UI.Scene"
-                        sha256 = "9cc74f6af082089fb269d7d12c7f1e7ee7684ae3bdab51918b65e06e072a7ac8"
-                        lockContentHash = "CxghwCbdT5kQz3DArIFkFE1zVmtxmS5LCxR21l+hLwX4mu1xQCmPdAcaYDDOggOsIw9vMuOQGWmc1BImrNCPNg=="
+                        sha256 = "dbc63e39782fb3f614233167aa4171f7d1a621b0348a7ddaeca323f8d27a2562"
+                        lockContentHash = "h6me4Zq56jV/4cM0vrJPXiZvetZxq8IkF3ETE/KrIZsTEhqxa07Lv61W2FqPVS1FAngXAC0RkZQuFEHWv9ifzw=="
                     |};
                     {|
                         id = "FS.GG.UI.KeyboardInput"
-                        sha256 = "99aa6564e7a3b323da8346c50894f28eca8b981cc31ac763b8f34b19fd8beb4c"
-                        lockContentHash = "sz7lovxAAfq70N5eACOroVJsElW6zws7ig+NCQtO6E495YvaHgLcYbxaOp9ZXrrnluWx/a9KfMJsTVelVsMbmQ=="
+                        sha256 = "09a9f6f04c7190111de4521daf544f8521aebe4c8f8ee96443a85049b4cf8389"
+                        lockContentHash = "Q120NaTCDFJtYnRNBbdS5FvIzXwGCI7P5h8DuLNrHmEmODNC8B2SShpZ+6ELaFBuZbWGfPfU3srQwN9iInIPrg=="
                     |};
                     {|
                         id = "FS.GG.UI.Scene.SvgBrowser"
-                        sha256 = "8764ce047628f7f58d77e430b2afa0ffafb47560f7633abcf1c8dd12bf8710ad"
-                        lockContentHash = "VcRGZ+vro3Y0vaLspoWZKsOB1b+2fL5tXeorz8PfsxWRme1gJlIGBX8zkHGAbvBF/a8f4XzpdilcnXPV8jQ9WA=="
+                        sha256 = "8fea42eb4a385ce2b08921c8679786e6f9d2e945bcbb54eb095cb2659b46f8d2"
+                        lockContentHash = "5WPXpVlOGYEBBQWyktep6O9JbsayIVOCEnX5MlflMsv+z5pw8BLjWw0GlvLYKMu9pRNGtRnJnscRjW3lLfJcIQ=="
                     |}
                 ]
         |}
@@ -639,7 +639,7 @@ let private validateCompositionPlanDigest (expectedDigest: string) (json: string
     with _ -> Error "current-composition-plan-refused"
 
 let validateCurrentCompositionPlan (json: string) =
-    validateCompositionPlanDigest "d3f0839a5bf1faa3fd274a16d558c7d339431d1d41a8477265a23de54e60b4a1" json
+    validateCompositionPlanDigest "94f5e0dcf48b978744fdad64f5d70d49e2dd6f0ccd081a4536317d48d03c7672" json
 
 // The same typed Rendering/Game/selection pins and the same maintained cases, but the template under test is
 // packed from the checked-out protected Templates source instead of a published archive. Its identity is therefore
@@ -665,7 +665,7 @@ let renderSourceBuiltCompositionPlan () =
     JsonSerializer.Serialize(sourceBuiltCompositionPlan(), JsonSerializerOptions(WriteIndented = true))
 
 let validateSourceBuiltCompositionPlan (json: string) =
-    validateCompositionPlanDigest "3343e2f42377d4eb88c2b5288f286db060f2bf24f2bad7233d271f52d526ee10" json
+    validateCompositionPlanDigest "5b426a72428ae6239a1f7481001b73bac6b20a7d57a624e530ae1447906c70d8" json
 
 let private descriptorCheck selectedVersion (provider: Provider) =
     let lifecycle = provider.Parameters |> List.filter (fun p -> p.Key = "lifecycle")

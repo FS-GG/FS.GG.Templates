@@ -81,19 +81,6 @@ type GameHubTests() =
             return! tcs.Task
         }
 
-    let nextRaw (connection: HubConnection) : Task<string> =
-        let tcs = TaskCompletionSource<string>()
-
-        let subscription =
-            connection.On<string>("Message", fun json -> tcs.TrySetResult json |> ignore)
-
-        task {
-            use _ = subscription
-            use cts = new CancellationTokenSource(5000)
-            use _ = cts.Token.Register(fun () -> tcs.TrySetCanceled() |> ignore)
-            return! tcs.Task
-        }
-
     let bootstrap name =
         match Program.bootstrap { Version = 1; PlayerName = name } with
         | Ok response -> response
@@ -157,7 +144,16 @@ type GameHubTests() =
             let response = bootstrap sentinel
             Assert.DoesNotContain(sentinel, BootstrapV1.encodeResponse response)
             use connection = buildConnection ()
-            let waiting = nextRaw connection
+            let observed = System.Collections.Concurrent.ConcurrentQueue<string>()
+            use observation = connection.On<string>("Message", fun wire -> observed.Enqueue wire)
+
+            // Joining the broadcast group can deliver a tick before the hello's resync.
+            // Inspect every received wire payload while waiting for the required resync.
+            let waiting =
+                nextMatchingV3 connection (function
+                    | RealtimeV3.ResyncSnapshotMessage _ -> true
+                    | _ -> false)
+
             do! connection.StartAsync()
 
             let hello =
@@ -170,15 +166,18 @@ type GameHubTests() =
                 )
 
             do! connection.InvokeAsync("SendMessage", hello)
-            let! wire = waiting
-            Assert.DoesNotContain(sentinel, wire)
-            Assert.DoesNotContain(response.SessionCapability, wire)
-
-            match RealtimeV3.messageFromJson wire with
-            | Ok(RealtimeV3.ResyncSnapshotMessage snapshot) -> Assert.Equal(3, snapshot.Version)
-            | other -> Assert.Fail $"expected V3 resync, got {other}"
-
+            let! message = waiting
             do! connection.StopAsync()
+
+            Assert.NotEmpty observed
+
+            for wire in observed do
+                Assert.DoesNotContain(sentinel, wire)
+                Assert.DoesNotContain(response.SessionCapability, wire)
+
+            match message with
+            | RealtimeV3.ResyncSnapshotMessage snapshot -> Assert.Equal(3, snapshot.Version)
+            | other -> Assert.Fail $"expected V3 resync, got {other}"
         }
 
     [<Fact>]

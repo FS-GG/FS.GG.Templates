@@ -3638,7 +3638,11 @@ def self_test(logging_controls=True):
             raise RuntimeError("DOM text substituted for Orca speech")
     workflow = (ROOT / ".github/workflows/fable-external-reference-source.yml").read_text()
     workflow_guard(workflow)
-    for bad in [workflow.replace("external-reference-orca.py --self-test", "true"), workflow.replace("if: ${{ !inputs.preflight-only }}", "if: always()"), workflow.replace("external-reference/orca/**", "missing"), workflow.replace("--capture-activation", "--missing-capture"), workflow.replace("${{ runner.temp }}/external-reference/orca-activation-provenance.json", "missing")]:
+    for bad in [workflow.replace("external-reference-orca.py --self-test", "true"), workflow.replace("if: ${{ !inputs.preflight-only }}", "if: always()"), workflow.replace("external-reference/orca/**", "missing"), workflow.replace("--capture-activation", "--missing-capture"), workflow.replace("${{ runner.temp }}/external-reference/orca-activation-provenance.json", "missing"),
+            workflow.replace("${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}", "${{ !inputs.preflight-only }}"),
+            workflow.replace("${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}", "${{ inputs.rendering-input-source != 'palette-heading' }}"),
+            workflow.replace("${{ !inputs.preflight-only && inputs.rendering-input-source == 'palette-heading' }}", "${{ inputs.rendering-input-source == 'palette-heading' }}"),
+            workflow.replace("${{ !inputs.preflight-only && inputs.rendering-input-source == 'palette-heading' }}", "${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}")]:
         try:
             workflow_guard(bad)
         except (RuntimeError, IndexError):
@@ -5846,9 +5850,24 @@ def workflow_guard(workflow):
             workflow.index('test "$(node --version)" = v26.10.0') < workflow.index("external-reference-orca.py --browser-self-test") <
             workflow.index("Qualify exact generated"), "actual pinned Node adapter controls missing or misplaced")
     require(workflow.count("external-reference-orca.py --self-test") == 2, "static controls missing from PR/reusable path")
-    for name in ["Provision external reference assistive technology", "Observe actual external reference Orca journey"]:
-        section = workflow.split("      - name: " + name, 1)[1].split("\n      - ", 1)[0]
-        require("if: ${{ !inputs.preflight-only }}" in section, "AT workload unguarded")
+    full_only = "${{ !inputs.preflight-only }}"
+    legacy_only = "${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}"
+    palette_only = "${{ !inputs.preflight-only && inputs.rendering-input-source == 'palette-heading' }}"
+    conditions = {
+        "Provision external reference assistive technology": full_only,
+        "Qualify exact generated candidate and existing publication validator": legacy_only,
+        "Observe actual external reference Orca journey": legacy_only,
+        "Bind successful full result to requested Templates source": legacy_only,
+        "Qualify complete palette journey from retained0324 originals": palette_only,
+    }
+    for name, condition in conditions.items():
+        marker = "      - name: " + name + "\n"
+        require(workflow.count(marker) == 1, "AT workload step missing or ambiguous: " + name)
+        section = workflow.split(marker, 1)[1].split("\n      - ", 1)[0]
+        require(re.findall(r"^        if: (.+)$", section, re.M) == [condition], "AT workload branch differs: " + name)
+    require(workflow.index("Provision external reference assistive technology") <
+            workflow.index("Qualify complete palette journey from retained0324 originals"),
+            "palette journey precedes actual AT provisioning")
     require(workflow.index("external-reference-orca.py --self-test") < workflow.index("Verify native producer run"), "AT static controls after acquisition")
     require(workflow.index("Qualify exact generated") < workflow.index("Observe actual external reference") < workflow.index("Bind successful full"), "AT dependency ordering drift")
     require("external-reference/orca/**" in workflow, "AT original failure evidence omitted")

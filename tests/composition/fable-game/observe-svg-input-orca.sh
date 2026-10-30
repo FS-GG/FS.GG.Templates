@@ -72,12 +72,24 @@ if [[ "$browser_family" == firefox || "$browser_family" == chromium ]]; then
     SVG_ORCA_BROWSER_FAMILY="$browser_family" \
     "$node_bin" "$script_dir/orca-playwright-browser.cjs" "$address" "$output.browser-dom.json" "$browser_profile" \
     >"$output.browser.log" 2>&1 & browser_launcher_pid=$!
-  for _ in {1..80}; do
+  # First DOM follows native launch, navigation and the real Studio heading.
+  # Give startup the same finite45s budget as the window lookup below; the
+  # original eight-second poll expired while hosted Orca was still initializing.
+  for _ in {1..450}; do
     [[ -s "$output.browser-dom.json" ]] && break
-    kill -0 "$browser_launcher_pid" 2>/dev/null
+    if ! kill -0 "$browser_launcher_pid" 2>/dev/null; then
+      browser_exit=0
+      wait "$browser_launcher_pid" || browser_exit=$?
+      browser_launcher_pid="" # Reaped: cleanup must never signal a released PID.
+      printf 'browser launcher exited before first DOM observation (exit=%s); see %s\n' "$browser_exit" "$output.browser.log" >&2
+      exit 1
+    fi
     sleep .1
   done
-  test -s "$output.browser-dom.json"
+  if [[ ! -s "$output.browser-dom.json" ]]; then
+    printf 'browser first DOM observation unavailable within45s; see %s\n' "$output.browser.log" >&2
+    exit 1
+  fi
   if [[ "$browser_family" == firefox ]]; then
     browser_class='firefox|Navigator'
   else

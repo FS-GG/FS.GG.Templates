@@ -15,7 +15,7 @@ current_stage="${9:-}"
 [[ -z "$templates_package" && -z "$templates_package_sha" || -n "$templates_package" && "$templates_package_sha" =~ ^[0-9a-f]{64}$ ]] || { echo "external template package requires exact path and SHA256" >&2; exit 1; }
 [[ "$input_mode" == candidate || "$input_mode" == public || "$input_mode" == font-disposal || "$input_mode" == current-public-composition ]] || { echo "unknown input mode" >&2; exit 1; }
 if [[ "$input_mode" == public ]]; then
-  [[ "$version" == 0.32.3 && "$expected_source" == 4ec6eafbbbf02264db9b0db4780c590abe0bf9cd ]]
+  [[ "$version" == 0.32.4 && "$expected_source" == 4ede04be66cedffc8551cd14045bab714aa358a7 ]]
   [[ -z "${FsGgSvgInputVersion:-}" && -z "${FsGgSvgAuthoringVersion:-}" ]] || { echo "public defaults cannot be overridden" >&2; exit 1; }
 fi
 if [[ "$input_mode" == font-disposal ]]; then

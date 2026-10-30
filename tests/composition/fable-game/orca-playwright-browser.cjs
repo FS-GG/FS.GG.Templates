@@ -17,6 +17,7 @@ function write(value) {
 }
 
 (async () => {
+  console.error(`${new Date().toISOString()} browser startup: launch ${browserFamily}`);
   const context = await browserType.launchPersistentContext(profile, {
     headless: false,
     executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH,
@@ -38,8 +39,11 @@ function write(value) {
       window.__fsggOrcaDom.keys.push({ at: performance.now(), key: event.key, target: describe(event.target) });
     }, true);
   });
+  console.error(`${new Date().toISOString()} browser startup: navigate`);
   await page.goto(address);
+  console.error(`${new Date().toISOString()} browser startup: wait for Studio heading`);
   await page.getByRole("heading", { name: "Generated SVG scene studio" }).waitFor();
+  console.error(`${new Date().toISOString()} browser startup: Studio heading ready`);
   let stopping = false;
   let sampleSequence = 0;
   const sample = async () => {
@@ -72,6 +76,7 @@ function write(value) {
   process.on("SIGINT", stop);
   await new Promise(() => {});
 })().catch(error => {
+  console.error(`${new Date().toISOString()} browser startup/observation failed: ${String(error?.stack || error)}`);
   write({ schema: "fsgg.orca-browser-dom/v1", browserFamily, address, error: String(error?.stack || error) });
   process.exit(1);
 });
