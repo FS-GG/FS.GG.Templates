@@ -8,6 +8,12 @@ if [[ "${SVG_ORCA_INNER:-}" != 1 ]]; then
   exec dbus-run-session -- env SVG_ORCA_INNER=1 xvfb-run -a bash "$0" "$address" "$output"
 fi
 
+# Only these allow-listed alternatives may be selected; any other value is refused before Orca or the browser starts.
+journey_script="${SVG_ORCA_JOURNEY:-svg-input-orca.py}"
+browser_script="${SVG_ORCA_BROWSER_SCRIPT:-orca-playwright-browser.cjs}"
+case "$journey_script" in svg-input-orca.py|provider-studio-orca.py) ;; *) echo "unsupported Orca journey: $journey_script" >&2; exit 2 ;; esac
+case "$browser_script" in orca-playwright-browser.cjs|provider-studio-browser.cjs) ;; *) echo "unsupported Orca browser script: $browser_script" >&2; exit 2 ;; esac
+
 export NO_AT_BRIDGE=0 GTK_MODULES="${GTK_MODULES:-gail:atk-bridge}"
 gsettings set org.gnome.desktop.interface toolkit-accessibility true
 gsettings set org.gnome.desktop.a11y.applications screen-reader-enabled true
@@ -70,7 +76,7 @@ if [[ "$browser_family" == firefox || "$browser_family" == chromium ]]; then
   node_bin="$(command -v node)"
   PLAYWRIGHT_MODULE_ROOT="${PLAYWRIGHT_MODULE_ROOT:?Playwright module root required}" \
     SVG_ORCA_BROWSER_FAMILY="$browser_family" \
-    "$node_bin" "$script_dir/orca-playwright-browser.cjs" "$address" "$output.browser-dom.json" "$browser_profile" \
+    "$node_bin" "$script_dir/$browser_script" "$address" "$output.browser-dom.json" "$browser_profile" \
     >"$output.browser.log" 2>&1 & browser_launcher_pid=$!
   # First DOM follows native launch, navigation and the real Studio heading.
   # Give startup the same finite45s budget as the window lookup below; the
@@ -112,4 +118,4 @@ xdotool windowfocus --sync "$browser_window"
 } >>"$output.x11.log"
 browser_pid="$(xdotool getwindowpid "$browser_window")"
 ORCA_PID="$orca_pid" BROWSER_PID="$browser_pid" SVG_ORCA_BROWSER_FAMILY="$browser_family" \
-  /usr/bin/python3 "$script_dir/svg-input-orca.py" "$output"
+  /usr/bin/python3 "$script_dir/$journey_script" "$output"

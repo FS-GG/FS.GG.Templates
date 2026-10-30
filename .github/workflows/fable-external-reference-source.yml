@@ -43,6 +43,13 @@ on:
       - 'tests/composition/fable-game/observe-external-reference-orca.sh'
       - 'tests/composition/fable-game/external-reference-orca.py'
       - 'tests/composition/fable-game/test-current-reference-at.py'
+      - 'tests/composition/fable-game/current-reference-provider-studio.py'
+      - 'tests/composition/fable-game/test-current-reference-provider-studio.py'
+      - 'tests/composition/fable-game/provider-studio-orca.py'
+      - 'tests/composition/fable-game/provider-studio-browser.cjs'
+      - 'tests/composition/fable-game/fixtures/provider-studio-orca-speech.json'
+      - 'tests/composition/fable-game/fixtures/studio-0.20.0.fsproj'
+      - 'tests/composition/fable-game/fixtures/studio-0.20.1.fsproj'
       - 'tests/composition/fable-game/current-reference-at-caller.py'
       - 'tests/composition/fable-game/current-reference-native-input.py'
       - 'tests/composition/fable-game/current-reference-noble-acquisition.py'
@@ -100,6 +107,7 @@ jobs:
           python3 tests/composition/fable-game/test-external-reference-public.py
           python3 tests/composition/fable-game/external-reference-orca.py --self-test
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --cpu=120 --fsize=16777216 python3 -I -B tests/composition/fable-game/test-current-reference-at.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-provider-studio.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-native-input.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-acquisition.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-transaction.py
@@ -213,6 +221,7 @@ jobs:
           python3 tests/composition/fable-game/test-external-reference-public.py
           python3 tests/composition/fable-game/external-reference-orca.py --self-test
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --cpu=120 --fsize=16777216 python3 -I -B tests/composition/fable-game/test-current-reference-at.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-provider-studio.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-native-input.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-acquisition.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-transaction.py
@@ -446,6 +455,14 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH="$RUNNER_TEMP/external-reference/browsers" \
             bash tests/composition/fable-game/observe-external-reference-orca.sh \
             "$RUNNER_TEMP/external-reference" "$RUNNER_TEMP/external-reference-preflight.json" "$journey"
+      - name: Observe provider/Studio Orca journey
+        if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition' }}
+        run: |
+          set -euo pipefail
+          # Held: the entry runs the maintained admission guard before any effect. The journey drives the
+          # generated receiver's own Studio and joins it to the local-save observation of this same run.
+          PLAYWRIGHT_BROWSERS_PATH="$RUNNER_TEMP/external-reference/browsers" \
+            python3 -B tests/composition/fable-game/current-reference-provider-studio.py run "$RUNNER_TEMP"
       - name: Bind successful full result to requested Templates source
         if: ${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}
         env:
@@ -498,6 +515,7 @@ jobs:
             ${{ runner.temp }}/external-reference/*-restore.log
             ${{ runner.temp }}/external-reference/producer-*.json
             ${{ runner.temp }}/external-reference/orca/**
+            ${{ runner.temp }}/provider-studio/**
             ${{ runner.temp }}/external-reference/orca-host-packages.txt
             ${{ runner.temp }}/external-reference/orca-activation-provenance.json
             ${{ runner.temp }}/external-reference/feed/public-readback.json

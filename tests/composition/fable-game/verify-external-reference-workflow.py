@@ -570,3 +570,15 @@ for changes,good in [({},True),({'version':'0.32.2'},False),({'expected_source':
     result=subprocess.run(['/bin/bash','-c',actual_guard],env={**guard_env,**changes},capture_output=True,text=True,timeout=5)
     assert (result.returncode==0)==good and ('GUARD_ACCEPTED' in result.stdout)==good, 'actual pre-effect guard disposition differs'
 print('PASS actual closed-mode pre-effect shell guard: correct0323 accepted; historical/source/package/override/unknown controls refused without product effects')
+
+# The provider/Studio journey (FS-GG/.github#4817 item 3) is registered, held to the current-public branch and watched.
+provider_studio=runpy.run_path(str(root/'tests/composition/fable-game/current-reference-provider-studio.py'))
+assert provider_studio['workflow_guard'](text), 'provider/Studio registration'
+for mutant in [text.replace('      - name: Observe provider/Studio Orca journey\n','      - name: Observe other journey\n'),
+               text.replace('current-reference-provider-studio.py run "$RUNNER_TEMP"','true')]:
+    try:
+        provider_studio['workflow_guard'](mutant)
+    except ValueError:
+        continue
+    raise AssertionError('provider/Studio registration mutant accepted')
+print('PASS provider/Studio journey registration: held to current-public, ordered after local-save and before bind, evidence retained, pure controls in both static paths')
