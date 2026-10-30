@@ -174,13 +174,20 @@ The closure scanner was replaced in Templates#809; see "Closure scanner" below.
 ## Closure scanner and Babylon 9.33.1 re-lock (2026-10-30, Templates#809)
 
 `scripts/lock-declarations.mjs` (identical in the spike and the template) no longer uses a
-regular expression. It runs TypeScript's own pre-processor, `ts.preProcessFile` from the pinned
-TypeScript 6.0.3, on every declaration file in the closure. The pre-processor uses the TypeScript
-scanner, so comments and JSDoc are skipped. From each file the lock follows:
+regular expression. It reads every declaration file in the closure with the pinned TypeScript
+6.0.3, in two passes. Comments and JSDoc are never edges in either pass.
 
-- `import`/`export` edges, `import()` types and `declare module` augmentation targets;
-- `/// <reference path>` directives (for example, global mixins);
-- `/// <reference types>` directives.
+- A syntax-tree pass (`ts.createSourceFile`) collects module specifiers from `import` and `export`
+  declarations, including `export * as ns from` and `export type * as ns from`; from
+  `import x = require()`; from `import()` types; and from `declare module "m"` targets.
+- `ts.preProcessFile` supplies the `/// <reference path>` and `/// <reference types>`
+  directives (for example, global mixins). It does not report `export * as` edges, which is why
+  the specifiers come from the syntax tree. Its own module list is a cross-check: a specifier it
+  reports that the syntax-tree pass missed is an error.
+
+The scanner fails loudly instead of omitting a reference. It throws on an `import()` whose
+argument is not a string literal, on a `require()` or dynamic `import()` call, and on any other
+module-specifier node whose specifier is not a string literal.
 
 Specifiers resolve like this:
 
@@ -191,20 +198,27 @@ Specifiers resolve like this:
   package's `types` field is used. Modules outside the pinned artifacts are listed in the lock's
   `externalModules` and are not followed. For Babylon that list is `babylonjs-gltf2interface`,
   the loaders' peer types package.
-- A specifier with a non-script extension and no declaration (`.frag`, `.vert`, `.wgsl`, `.glsl`,
-  `.css`, `.json`, ...) is a bundler asset. It is listed in `nonDeclarationAssets` and is never
-  read, so a missing asset file is not an error.
-- Any other unresolved reference still fails the lock.
+- A specifier with no declaration whose extension is on an explicit asset allowlist is a bundler
+  asset. It is listed in `nonDeclarationAssets` and is never read, so a missing asset file is not
+  an error. The allowlist is `.frag`, `.vert`, `.wgsl`, `.glsl`, `.fx`, `.css`, `.scss`, `.sass`,
+  `.less`, `.json`, `.svg`, `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.ktx`, `.ktx2`, `.dds`,
+  `.env`, `.hdr`, `.glb`, `.gltf`, `.bin`, `.wasm`, `.txt` and `.html`.
+- Any other unresolved reference, including a dotted name with an extension not on the allowlist,
+  still fails the lock.
 
 The two new lock fields appear only when non-empty. The lock stays schema 2, and hashing and
 drift detection are unchanged. `tests/toolchain/fable-bindings/closure-scanner-fixture.sh` pins
-each rule: reference paths and types, folder imports, bare imports into the artifact, a JSDoc
-`import()` example, a `.frag` asset, external modules, drift through a referenced mixin, and the
-failure on a real missing import. The toolchain gate and the composition lane both run it.
+each rule: reference paths and types, folder imports, bare imports into the artifact, files
+reachable only through `export * as` and `export type * as` (and drift in them), a JSDoc
+`import()` example, a `.frag` asset, external modules, drift through a referenced mixin, an
+unresolved dotted name that is not an allowlisted asset, an unsupported specifier form, and the
+failure on a real missing import. The `export * as` case fails against the earlier
+`preProcessFile`-only scanner, which omitted those files without any error. The toolchain gate
+and the composition lane both run the fixture.
 
 Closure counts:
 
-| Corpus | Regex tracer | `preProcessFile` scanner |
+| Corpus | Regex tracer | Current scanner |
 | --- | --- | --- |
 | Babylon `9.19.0`, original 7 entry points | 2,898 | 2,893. The regex followed two JSDoc import examples in `rawTexture2DArray.functions.d.ts` into five `texture2DArrayImageSource` files. |
 | Babylon `9.33.1`, original 7 entry points | 2,976 | 2,976 |

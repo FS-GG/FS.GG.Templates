@@ -49,12 +49,15 @@ const declarationCandidates = requested => {
   if (javascript) return [`${requested.slice(0, -javascript[0].length)}.d.${javascript[1]}ts`];
   return [`${requested}.d.ts`, `${requested}/index.d.ts`];
 };
-// A module path that has no declaration and carries a non-script extension (.frag, .vert,
-// .wgsl, .glsl, .css, .json, ...) is a bundler asset: recorded, never read or hashed.
-const isAssetPath = requested => {
-  const extension = extname(requested);
-  return extension !== "" && !/^\.(?:[mc]?[jt]sx?)$/.test(extension);
-};
+// A module path that has no declaration and carries a bundler-asset extension (shaders,
+// styles, data, media) is recorded, never read or hashed. The list is explicit: any other
+// dotted name that does not resolve is an error, not a silently omitted file.
+const assetExtensions = new Set([
+  ".frag", ".vert", ".wgsl", ".glsl", ".fx", ".css", ".scss", ".sass", ".less", ".json",
+  ".svg", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".ktx", ".ktx2", ".dds", ".env", ".hdr",
+  ".glb", ".gltf", ".bin", ".wasm", ".txt", ".html"
+]);
+const isAssetPath = requested => assetExtensions.has(extname(requested).toLowerCase());
 
 const assets = new Set();
 const external = new Set();
@@ -97,12 +100,42 @@ const inRootPath = path => {
   return normalized;
 };
 
-// TypeScript's own pre-processor reads imports, exports, import() types, module augmentation
-// targets and triple-slash references. It skips comments, so JSDoc examples are not edges.
+// Module specifiers are read from the syntax tree, because ts.preProcessFile does not report
+// `export * as ns from` or `export type * as ns from`. A node that carries a module reference
+// in a form this scanner does not follow is an error, never a silent omission.
+const moduleSpecifiers = (path, source) => {
+  const found = new Set();
+  const take = (node, literal) => {
+    if (literal === undefined || !ts.isStringLiteralLike(literal)) {
+      throw new Error(`${path}: unsupported module specifier syntax (${ts.SyntaxKind[node.kind]}) at offset ${node.getStart()}`);
+    }
+    found.add(literal.text);
+  };
+  const visit = node => {
+    if (node.moduleSpecifier !== undefined) take(node, node.moduleSpecifier); // import / export declarations
+    else if (ts.isExternalModuleReference(node)) take(node, node.expression); // import x = require("m")
+    else if (ts.isImportTypeNode(node)) take(node, ts.isLiteralTypeNode(node.argument) ? node.argument.literal : undefined); // import("m").T
+    else if (ts.isModuleDeclaration(node) && ts.isStringLiteralLike(node.name)) found.add(node.name.text); // declare module "m"
+    else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
+      throw new Error(`${path}: unsupported module specifier syntax (call to ${node.expression.getText()}) at offset ${node.getStart()}`);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS));
+  return found;
+};
+
+// TypeScript's own pre-processor reads triple-slash references and skips comments, so JSDoc
+// examples are not edges. It is also a cross-check: every module specifier it reports must have
+// been found in the syntax tree.
 const references = async (path, source) => {
   const info = ts.preProcessFile(source, true, false);
+  const specifiers = moduleSpecifiers(path, source);
+  for (const reference of info.importedFiles) {
+    if (!specifiers.has(reference.fileName)) throw new Error(`${path}: module specifier ${reference.fileName} was not found in the syntax tree`);
+  }
   const edges = [
-    ...info.importedFiles.map(reference => resolveModule(path, reference.fileName)),
+    ...[...specifiers].map(specifier => resolveModule(path, specifier)),
     ...info.referencedFiles.map(reference => resolvePath(inRootPath(resolve(dirname(resolve(root, path)), reference.fileName)), path, reference.fileName)),
     ...info.typeReferenceDirectives.map(reference => resolveTypes(path, reference.fileName))
   ];
