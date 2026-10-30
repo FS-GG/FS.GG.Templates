@@ -49,7 +49,7 @@ def local_save_storage(plan):
     titles = {row['title'] for row in plan['browsers']['cases']}
     chosen = [title in titles for title in DURABLE_LOCAL_SAVE_TITLES]
     require(all(chosen) or not any(chosen), 'durable local-save cases must be selected together')
-    return 'synthetic-in-memory-and-durable-browser' if all(chosen) else 'synthetic-in-memory'
+    return 'synthetic-in-memory-and-synthetic-durable-browser' if all(chosen) else 'synthetic-in-memory'
 
 
 def require(ok, message):

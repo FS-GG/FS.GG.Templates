@@ -317,6 +317,32 @@ class CurrentAtTests(unittest.TestCase):
         self.assertEqual(tail(legacy), tail(current))
         self.assertLess(current.index('current-reference-noble-install.py --install'), current.index('orca-host-packages.txt'))
 
+    def test_every_writer_derives_the_storage_label_and_the_receipt_pins_the_in_memory_journey_label(self):
+        import ast
+        here = Path(__file__).parent
+        # AT receipt writer: localSaveStorage comes from local_save_storage(plan); atLocalSaveStorage is the literal in-memory label.
+        tree = ast.parse((here / 'external-reference-orca.py').read_text())
+        updates = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == 'update'
+                   and {k.arg for k in n.keywords} >= {'localSaveStorage', 'atLocalSaveStorage', 'durableSaveAcceptance'}]
+        self.assertEqual(1, len(updates))
+        keywords = {k.arg: k.value for k in updates[0].keywords}
+        self.assertEqual('synthetic-in-memory', ast.literal_eval(keywords['atLocalSaveStorage']))
+        self.assertIs(False, ast.literal_eval(keywords['durableSaveAcceptance']))
+        self.assertIsInstance(keywords['localSaveStorage'], ast.Call)
+        self.assertEqual('local_save_storage', keywords['localSaveStorage'].func.attr)
+        # no source assigns a literal localSaveStorage any more
+        for name in ['external-reference-orca.py', 'current-composition-local.py', 'verify-external-reference-candidate.sh']:
+            text = (here / name).read_text()
+            self.assertNotRegex(text, r"""localSaveStorage['"]?\s*[:=]\s*['"]synthetic""", name)
+            self.assertNotRegex(text, r"""localSaveStorage=['"]""", name)
+        # the shell stage and the local stage derive the packet label from the plan
+        script = (here / 'verify-external-reference-candidate.sh').read_text()
+        self.assertIn("packet['localSaveStorage']=observations_module['local_save_storage'](packet['currentCompositionPlan'])", script)
+        self.assertIn("'localSaveStorage': observations.local_save_storage(plan)", (here / 'current-composition-local.py').read_text())
+        # the label cannot be read as real durable storage
+        self.assertEqual('synthetic-in-memory-and-synthetic-durable-browser',
+                         O.composition_observations().local_save_storage({'browsers': {'cases': [{'title': t} for t in O.composition_observations().DURABLE_LOCAL_SAVE_TITLES]}}))
+
     def test_wrong_or_missing_authenticated_join_refuses(self):
         for target, field, bad in [("preflight", "templates", {"revision": "0" * 40, "tree": "b" * 40}),
                                     ("preflight", "observerSourceSha256", "0" * 64),
@@ -438,7 +464,7 @@ class CurrentAtTests(unittest.TestCase):
                 return
             observations = O.composition_observations()
             durable_titles = list(observations.DURABLE_LOCAL_SAVE_TITLES)
-            combined = "synthetic-in-memory-and-durable-browser"
+            combined = "synthetic-in-memory-and-synthetic-durable-browser"
             self.assertEqual("synthetic-in-memory", receipt["localSaveStorage"])
             # the storage label must describe what the plan selects and what the journey pressed, nothing broader
             for label, change in {"claims durable for an in-memory plan": lambda r, p: r.update(localSaveStorage=combined),
