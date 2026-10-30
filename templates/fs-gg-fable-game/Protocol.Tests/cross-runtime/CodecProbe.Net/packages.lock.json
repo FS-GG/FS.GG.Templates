@@ -4,9 +4,9 @@
     "net10.0": {
       "FS.GG.UI.Scene": {
         "type": "Direct",
-        "requested": "[0.32.3, 0.32.3]",
-        "resolved": "0.32.3",
-        "contentHash": "CxghwCbdT5kQz3DArIFkFE1zVmtxmS5LCxR21l+hLwX4mu1xQCmPdAcaYDDOggOsIw9vMuOQGWmc1BImrNCPNg==",
+        "requested": "[0.32.4, 0.32.4]",
+        "resolved": "0.32.4",
+        "contentHash": "h6me4Zq56jV/4cM0vrJPXiZvetZxq8IkF3ETE/KrIZsTEhqxa07Lv61W2FqPVS1FAngXAC0RkZQuFEHWv9ifzw==",
         "dependencies": {
           "FSharp.Core": "10.1.401"
         }

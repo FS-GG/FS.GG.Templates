@@ -12,24 +12,24 @@ import urllib.request
 import xml.etree.ElementTree as ET
 from zipfile import ZipFile
 
-# Published Rendering 0.32.3: original producer 4ec6 (source run 39509314882/1, artifact
-# 12305198394, custody 7dbd), published byte-for-byte by protected publisher 39817794639/1.
-VERSION = '0.32.3'
-SOURCE = '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd'
-CUSTODY_SHA256 = '7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9'
+# Published Rendering 0.32.4: original producer 4ede (source run 40737624380/1, artifact
+# 12838338215, custody 89ea6424), published byte-for-byte by protected publisher 40997955966/1.
+VERSION = '0.32.4'
+SOURCE = '4ede04be66cedffc8551cd14045bab714aa358a7'
+CUSTODY_SHA256 = '89ea6424cae4d06969f0a60394679e9892bd2b873fb46ebd281aa10616809720'
 # Raw NuGet repository-signed archive hashes, observed 2026-10-22; NOT lock hashes.
 PUBLIC_SHA256 = {
-    'FS.GG.UI.Scene': '9cc74f6af082089fb269d7d12c7f1e7ee7684ae3bdab51918b65e06e072a7ac8',
-    'FS.GG.UI.KeyboardInput': '99aa6564e7a3b323da8346c50894f28eca8b981cc31ac763b8f34b19fd8beb4c',
-    'FS.GG.UI.Scene.SvgBrowser': '8764ce047628f7f58d77e430b2afa0ffafb47560f7633abcf1c8dd12bf8710ad',
+    'FS.GG.UI.Scene': 'dbc63e39782fb3f614233167aa4171f7d1a621b0348a7ddaeca323f8d27a2562',
+    'FS.GG.UI.KeyboardInput': '09a9f6f04c7190111de4521daf544f8521aebe4c8f8ee96443a85049b4cf8389',
+    'FS.GG.UI.Scene.SvgBrowser': '8fea42eb4a385ce2b08921c8679786e6f9d2e945bcbb54eb095cb2659b46f8d2',
 }
 # NuGet signed GetContentHash excludes signature context. Authentic original archives
 # supply these hashes; PackageArchiveReader.GetContentHashForSignedPackage in NuGet.Client
 # delegates to SignedPackageArchiveUtility.GetPackageContentHash. Locked restore verifies.
 LOCK_HASH = {
-    'FS.GG.UI.Scene': 'CxghwCbdT5kQz3DArIFkFE1zVmtxmS5LCxR21l+hLwX4mu1xQCmPdAcaYDDOggOsIw9vMuOQGWmc1BImrNCPNg==',
-    'FS.GG.UI.KeyboardInput': 'sz7lovxAAfq70N5eACOroVJsElW6zws7ig+NCQtO6E495YvaHgLcYbxaOp9ZXrrnluWx/a9KfMJsTVelVsMbmQ==',
-    'FS.GG.UI.Scene.SvgBrowser': 'VcRGZ+vro3Y0vaLspoWZKsOB1b+2fL5tXeorz8PfsxWRme1gJlIGBX8zkHGAbvBF/a8f4XzpdilcnXPV8jQ9WA==',
+    'FS.GG.UI.Scene': 'h6me4Zq56jV/4cM0vrJPXiZvetZxq8IkF3ETE/KrIZsTEhqxa07Lv61W2FqPVS1FAngXAC0RkZQuFEHWv9ifzw==',
+    'FS.GG.UI.KeyboardInput': 'Q120NaTCDFJtYnRNBbdS5FvIzXwGCI7P5h8DuLNrHmEmODNC8B2SShpZ+6ELaFBuZbWGfPfU3srQwN9iInIPrg==',
+    'FS.GG.UI.Scene.SvgBrowser': '5WPXpVlOGYEBBQWyktep6O9JbsayIVOCEnX5MlflMsv+z5pw8BLjWw0GlvLYKMu9pRNGtRnJnscRjW3lLfJcIQ==',
 }
 
 

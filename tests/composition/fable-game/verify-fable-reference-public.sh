@@ -559,7 +559,7 @@ params = {x['key']: x['value'] for x in p['effectiveParameters']}
 assert p['generator'] == {'id': 'FS.GG.SDD.Artifacts', 'version': '2.4.0'}, 'public default generator drifted'
 assert params.get('lifecycle') == 'typed-sdd' and params.get('bundle') == 'player', 'public default lifecycle/bundle drifted: %r' % params
 assert not (root/'SvgFoundation/Studio').exists() and not (root/'SvgFoundation/Examples/Wasm').exists(), 'player default must omit Studio and WASM'
-assert re.search(r"'\$\(FsGgSvgInputVersion\)' == ''\">0\.32\.3<", (root/'SvgFoundation/SvgFoundation.fsproj').read_text()), 'public default SVG input is not Rendering 0.32.3'
+assert re.search(r"'\$\(FsGgSvgInputVersion\)' == ''\">0\.32\.4<", (root/'SvgFoundation/SvgFoundation.fsproj').read_text()), 'public default SVG input is not Rendering 0.32.4'
 assert (root/'ReferenceWizardPublic.slnx').is_file() and (root/'.fsgg/knowledge-guide.md').is_file()
 PUBLIC_DEFAULT
 fi

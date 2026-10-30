@@ -244,7 +244,7 @@ class CurrentAtTests(unittest.TestCase):
                    'FSGG_CURRENT_PUBLIC_AT_ADMISSION': 'cannot-lift-none'}
             commands = [
                 ['bash', str(Path(__file__).with_name('verify-external-reference-candidate.sh')), '/absent', '/absent',
-                 '0.32.3', target, '4ec6eafbbbf02264db9b0db4780c590abe0bf9cd', 'current-public-composition',
+                 '0.32.4', target, '4ede04be66cedffc8551cd14045bab714aa358a7', 'current-public-composition',
                  '/absent.nupkg', 'a' * 64, 'current-at-full'],
                 ['bash', str(Path(__file__).with_name('observe-external-reference-orca.sh')), target,
                  '/absent.json', 'current-public-local-save'],

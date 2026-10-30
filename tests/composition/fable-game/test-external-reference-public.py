@@ -177,7 +177,7 @@ class PublicInputTests(unittest.TestCase):
         source = (HERE / 'verify-svg-preview-c-source.sh').read_text()
         match = re.search(r"<<'PYSOURCEPIN'\n(.*?)\nPYSOURCEPIN", source, re.S)
         self.assertIsNotNone(match)
-        for xml, expected in [('<Project><PropertyGroup><FsGgSvgInputVersion>0.32.3</FsGgSvgInputVersion></PropertyGroup></Project>', '0.32.3'), ('<Project><FsGgSvgInputVersion>0.32.1</FsGgSvgInputVersion></Project>', None), ('<Project><FsGgSvgInputVersion>0.31.0</FsGgSvgInputVersion></Project>', None), ('<Project/>', None), ('<Project><FsGgSvgInputVersion>main</FsGgSvgInputVersion></Project>', None), ('<Project><FsGgSvgInputVersion>0.32.1</FsGgSvgInputVersion><FsGgSvgInputVersion>0.31.0</FsGgSvgInputVersion></Project>', None)]:
+        for xml, expected in [('<Project><PropertyGroup><FsGgSvgInputVersion>0.32.4</FsGgSvgInputVersion></PropertyGroup></Project>', '0.32.4'), ('<Project><FsGgSvgInputVersion>0.32.3</FsGgSvgInputVersion></Project>', None), ('<Project><FsGgSvgInputVersion>0.32.1</FsGgSvgInputVersion></Project>', None), ('<Project><FsGgSvgInputVersion>0.31.0</FsGgSvgInputVersion></Project>', None), ('<Project/>', None), ('<Project><FsGgSvgInputVersion>main</FsGgSvgInputVersion></Project>', None), ('<Project><FsGgSvgInputVersion>0.32.1</FsGgSvgInputVersion><FsGgSvgInputVersion>0.31.0</FsGgSvgInputVersion></Project>', None)]:
             path = self.root / 'pin.fsproj'; path.write_text(xml)
             result = subprocess.run(['python3', '-', str(path)], input=match.group(1), text=True, capture_output=True)
             if expected is None: self.assertNotEqual(result.returncode, 0)
@@ -187,11 +187,11 @@ class PublicInputTests(unittest.TestCase):
         import re
         code = re.search(r"<<'PYCURRENTPIN'\n(.*?)\nPYCURRENTPIN", (HERE / 'verify-svg-preview-c-source.sh').read_text(), re.S).group(1)
         refs = ''.join(f'<PackageReference Include="{identity}" Version="[$(FsGgSvgInputVersion)]"/>' for identity in ['FS.GG.UI.Scene', 'FS.GG.UI.Scene.SvgBrowser', 'FS.GG.UI.KeyboardInput'])
-        xml = '<Project><FsGgSvgInputVersion>0.32.3</FsGgSvgInputVersion>' + refs + '</Project>'
-        fixtures = [(xml, True), (xml.replace('<FsGgSvgInputVersion>0.32.3', '<FsGgSvgInputVersion>0.31.0'), False), (xml.replace('<FsGgSvgInputVersion>0.32.3', '<FsGgSvgInputVersion>0.32.1'), False), (xml.replace('Include="FS.GG.UI.KeyboardInput"', 'Include="Unrelated"'), False), (xml.replace('Version="[$(FsGgSvgInputVersion)]"', 'Version="[0.31.0]"', 1), False)]
+        xml = '<Project><FsGgSvgInputVersion>0.32.4</FsGgSvgInputVersion>' + refs + '</Project>'
+        fixtures = [(xml, True), (xml.replace('<FsGgSvgInputVersion>0.32.4', '<FsGgSvgInputVersion>0.31.0'), False), (xml.replace('<FsGgSvgInputVersion>0.32.4', '<FsGgSvgInputVersion>0.32.1'), False), (xml.replace('<FsGgSvgInputVersion>0.32.4', '<FsGgSvgInputVersion>0.32.3'), False), (xml.replace('Include="FS.GG.UI.KeyboardInput"', 'Include="Unrelated"'), False), (xml.replace('Version="[$(FsGgSvgInputVersion)]"', 'Version="[0.31.0]"', 1), False)]
         for value, valid in fixtures:
             path = self.root / 'generated.fsproj'; path.write_text(value)
-            result = subprocess.run(['python3', '-', str(path), '0.32.3'], input=code, text=True, capture_output=True)
+            result = subprocess.run(['python3', '-', str(path), '0.32.4'], input=code, text=True, capture_output=True)
             self.assertEqual(result.returncode == 0, valid)
 
     def test_public_route_keeps_locked_resolution_and_candidate_branch(self):

@@ -6,7 +6,7 @@
     <NuGetLockFilePath Condition="'$(FsGgWasmPolicyExample)' == 'true'">$(MSBuildProjectDirectory)/Examples/Wasm/packages.lock.json</NuGetLockFilePath>
     <DefineConstants Condition="'$(FsGgWasmPolicyExample)' == 'true' and Exists('Examples/Wasm/WasmPolicyExample.fs') and '$(FsGgLegacyPreview)' != 'true'">$(DefineConstants);WASM_POLICY_EXAMPLE</DefineConstants>
     <TargetFramework>net10.0</TargetFramework>
-    <FsGgSvgInputVersion Condition="'$(FsGgSvgInputVersion)' == ''">0.32.3</FsGgSvgInputVersion>
+    <FsGgSvgInputVersion Condition="'$(FsGgSvgInputVersion)' == ''">0.32.4</FsGgSvgInputVersion>
     <!-- External authority reference requires explicit selection; the default player omits it. -->
     <FsGgExternalReferenceCandidate Condition="'$(FsGgExternalReferenceCandidate)' == ''">false</FsGgExternalReferenceCandidate>
     <FsGgGameRuntimeVersion Condition="'$(FsGgGameRuntimeVersion)' == ''">0.16.0</FsGgGameRuntimeVersion>

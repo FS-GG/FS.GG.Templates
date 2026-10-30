@@ -19,13 +19,13 @@
 # It left "RE-COUPLE at 0.2.0" untouched beside it, because the sed matched only the full
 # `0.2.0-preview.1` token — a self-contradicting line, and the tell that no human wrote it.
 # ─────────────────────────────────────────────────────────────────────────────────────────────
-# pin-tag: fs-gg-ui-template/v0.32.3
-# pin-contract: fs-gg-ui-template@0.32.3
+# pin-tag: fs-gg-ui-template/v0.32.4
+# pin-contract: fs-gg-ui-template@0.32.4
 #
 # BEGIN GENERATED: effective-providers
 # Effective providers — generated; ordered by unique provider name.
 # Review this block for the current selection; the release narrative remains in PIN HISTORY.
-# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.32.3 | contract=2.0.0
+# effective[1]: name=rendering | template=fs-gg-ui | source=FS.GG.UI.Template::0.32.4 | contract=2.0.0
 # END GENERATED: effective-providers
 #
 # ─────────────────────────────────────────────────────────────────────────────────────────────
@@ -53,6 +53,17 @@
 #
 #
 #
+#
+# 0.32.4 — 2026-10-30. FS.GG.Rendering palette-heading patch, original producer
+#   4ede04be66cedffc8551cd14045bab714aa358a7 (source run 40737624380/1, artifact
+#   12838338215, custody 89ea6424). FRAMEWORK + TEMPLATE PATCH: the generated Studio
+#   Command palette focuses its visible heading, so Orca announces the dialog and heading.
+#   All nineteen original coherent archives were published by protected publisher
+#   40997955966/1 (executor f8f23a7a3677da2fb3d2090119443059e160a68c) to nuget.org, with
+#   tags settled by 40997578723; every nuget.org archive is its original custody archive
+#   plus the repository signature, and the framework pin is 0.32.4. Public-package Orca
+#   qualification of the heading is separate acceptance (FS-GG/.github#4817); the earlier
+#   retained-original qualification (Rendering run 40744519859/1) is not relabelled.
 # 0.32.3 — 2026-10-22. FS.GG.Rendering font-disposal patch, original producer
 #   4ec6eafbbbf02264db9b0db4780c590abe0bf9cd (source run 39509314882/1, artifact
 #   12305198394, custody 7dbd4329). FRAMEWORK + TEMPLATE PATCH: all nineteen original
@@ -275,7 +286,7 @@ providers:
   - name: rendering
     contractVersion: "2.0.0"      # scaffold-provider 1.1.0: this descriptor declares identifierParameter (below)
     templateId: fs-gg-ui          # FS.GG.Rendering's runnable Skia/Elmish app template
-    source: FS.GG.UI.Template::0.32.3   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
+    source: FS.GG.UI.Template::0.32.4   # MACHINE-MAINTAINED value (bump-rendering-pin.sh). Published NuGet package, version-pinned; publish-before-flip FR-007. What this version IS: see the PIN HISTORY block at the top of this file.
     # scaffold-provider identifier split (FS.GG.SDD feature 080, FS.GG.Rendering#142): the raw
     # product name flows to `productName` (verbatim in string/path/.fsproj/.slnx contexts), and
     # `fsgg-sdd scaffold` forwards an SDD-DERIVED valid-F# namespace to `rootNamespace`, which the

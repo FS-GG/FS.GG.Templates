@@ -11,6 +11,6 @@
   </ItemGroup>
   <ItemGroup>
     <PackageReference Update="FSharp.Core" Version="[10.1.401]" />
-    <PackageReference Include="FS.GG.UI.Scene" Version="[0.32.3]" />
+    <PackageReference Include="FS.GG.UI.Scene" Version="[0.32.4]" />
   </ItemGroup>
 </Project>

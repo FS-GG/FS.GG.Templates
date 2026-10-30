@@ -488,7 +488,7 @@ let main _ =
         ("0.20.0", "1b9b1ca92556eb1acd0e4d1c9cb851a8c7906f86", "e12b36d2d087d0f788894fdec9ba3b3ed1406c1e7237ebee40602c2f7c23355c", "11c7e338b1fa2c29e6d8c2277758f59aeadc9144b1b568204596a0c4152833ee")
         (composition.template.version, composition.template.sourceCommit, composition.template.sha256, composition.template.descriptorSha256)
     assertEqual "current composition Rendering provenance is fixed"
-        ("0.32.3", "4ec6eafbbbf02264db9b0db4780c590abe0bf9cd", "7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9")
+        ("0.32.4", "4ede04be66cedffc8551cd14045bab714aa358a7", "89ea6424cae4d06969f0a60394679e9892bd2b873fb46ebd281aa10616809720")
         (composition.rendering.version, composition.rendering.sourceCommit, composition.rendering.custodySha256)
     let identities = composition.browsers.cases |> List.map (fun row -> row.file, row.suite, row.title)
     assertEqual "current composition has eleven unique full DOM identities" (11, 11) (identities.Length, (Set.ofList identities).Count)

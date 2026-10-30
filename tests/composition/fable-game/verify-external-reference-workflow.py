@@ -99,15 +99,15 @@ assert "['chromium','firefox','webkit']" in codes[4]
 
 # Read the actual closed GitHub expressions; producer rows are immutable workflow
 # choices, not overridable caller inputs. The public row is the currently published default
-# (Rendering 0.32.3, published original 4ec6 bytes); it is never caller-overridable.
+# (Rendering 0.32.4, published original 4ede bytes); it is never caller-overridable.
 PRODUCER_ROWS = {
     'public': {
-        'PRODUCER_SOURCE':'4ec6eafbbbf02264db9b0db4780c590abe0bf9cd',
-        'PRODUCER_RUN':'39509314882','PRODUCER_ARTIFACT':'12305198394',
-        'PRODUCER_ARCHIVE_SHA256':'84647332c124e511545787c8c3f8634d4f5177068521acfc86c93430ac73ef63',
-        'PRODUCER_CUSTODY_SHA256':'7dbd4329546932c4c1d12767550b7b78aae85e32c81b354935b2c615b3e298c9',
-        'PRODUCER_ARCHIVE_SIZE_BYTES':'15073469',
-        'PRODUCER_VERSION':'0.32.3','PRODUCER_PLAN':'eng/release/font-disposal-0.32.3.json',
+        'PRODUCER_SOURCE':'4ede04be66cedffc8551cd14045bab714aa358a7',
+        'PRODUCER_RUN':'40737624380','PRODUCER_ARTIFACT':'12838338215',
+        'PRODUCER_ARCHIVE_SHA256':'baaa17b807bd52c9297dafbfd9161ec84fec4842317bb1f5df4e3d40d837c8bf',
+        'PRODUCER_CUSTODY_SHA256':'89ea6424cae4d06969f0a60394679e9892bd2b873fb46ebd281aa10616809720',
+        'PRODUCER_ARCHIVE_SIZE_BYTES':'15375023',
+        'PRODUCER_VERSION':'0.32.4','PRODUCER_PLAN':'eng/release/palette-heading-0.32.4.json',
     },
     'candidate': {
         'PRODUCER_SOURCE':'9b73395658d4683a067d150ca9441b04e802c4af',
