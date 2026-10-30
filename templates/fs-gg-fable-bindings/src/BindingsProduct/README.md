@@ -1,7 +1,7 @@
 # BindingsProduct
 
-This NuGet package contains compiled Fable bindings for `@babylonjs/core@9.19.0` and
-`@babylonjs/loaders@9.19.0`, targeting JavaScript. Consumers must separately install both supported
+This NuGet package contains compiled Fable bindings for `@babylonjs/core@9.33.1` and
+`@babylonjs/loaders@9.33.1`, targeting JavaScript. Consumers must separately install both supported
 npm artifacts; this package never bundles or republishes their implementation.
 
 The project declares the native npm requirements through Femto's `NpmDependencies` metadata.

@@ -1,5 +1,5 @@
 // GENERATED CANDIDATE — NOT COMPILED, PACKED, OR PUBLIC
-// declaration closure SHA-256: 3171be522100b5cd9be0d9c58b22de86afd6401979ea01549795dd879885e7e4
+// declaration closure SHA-256: 0bffc55f982e606c74c3f5612250dfc3387fbed8aec2f2c3a0cd5c0c5c2de841
 // Review into src/BabylonBindings.fs; never overwrite maintained bindings.
 module Qualification.Candidate
 
