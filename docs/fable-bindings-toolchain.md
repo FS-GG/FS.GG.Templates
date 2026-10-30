@@ -113,7 +113,7 @@ The machinery was moved to current supported tools and re-qualified on the uncha
 
 | Input | Before | After | Basis |
 | --- | --- | --- | --- |
-| .NET SDK | 10.0.401 | 10.0.401 (unchanged) | Newest feature band and patch used across FS-GG (`global.json` in Game, Rendering, SDD, Governance, Audio, Net and the other Templates workspaces). 10.0.403 is published; `rollForward: latestPatch` admits it, but the exact pin moves with an FS-GG-wide SDK change. |
+| .NET SDK | 10.0.401 | 10.0.401 (unchanged) | Newest feature band and patch used across FS-GG (`global.json` in Game, Rendering, SDD, Governance, Audio, Net and the other Templates workspaces). 10.0.402 and 10.0.403 (October 2026 servicing, including security fixes) are published, and `rollForward: latestPatch` admits them. Moving the exact pin is an FS-GG-wide SDK change that is outside Templates#807 and has no owner yet. |
 | Node / npm | 26.10.0 / 12.1.0 | 26.13.0 / 12.2.1 | 26.13.0 is the first Node 26 Active LTS release (`lts: Lithium`); npm 12.2.1 is the current `latest`. The `composition` and `release` gates install the same pair. |
 | Fable tool / Fable.Core | 5.18.0 / 5.3.0 | 5.26.0 / 5.6.1 | Latest stable. Fable.Core 5.6.1 still floors FSharp.Core at 4.7.2, so the netstandard2.1 lock shape is unchanged. |
 | Fable.Package.SDK | 1.4.1 | 1.4.1 | Already current. |
@@ -128,7 +128,10 @@ Evidence on the unchanged corpus:
 
 - The declaration lock is byte-identical, still 2,898 hashed transitive declaration files.
   Generated candidates and `declaration-analysis.json` produce no diff.
-- `tests/toolchain/fable-bindings/run.sh` passes under the new pins. It covers drift, the transitive
+- `tests/toolchain/fable-bindings/run.sh` passes under the new pins. It admits any SDK that the
+  spike's `global.json` admits (10.0.4xx at or above 10.0.401). Its Xantham step packs
+  `FS.GG.Templates.csproj`, so it needs `FSGG_PYTHON_COORDINATION_ROOT` to name the Coordination
+  fixture checkout recorded in `eng/portable-workspace/python-fixture-source.json`. It covers drift, the transitive
   drift negative fixture, the Node runtime smoke and the Fable-emitted slice in Node. It also covers
   the protected-file hashes across a candidate rerun, and a clean consumer restoring the packed
   library with Fable 5.26.0 / Fable.Core 5.6.1 and the exact npm artifact. It finishes with the
@@ -147,10 +150,24 @@ A corpus is data plus curated source. Do not copy scripts. Write `corpus.json` w
 `schemaVersion` 1, a slug `id`, exact `npmArtifacts`, `.d.ts` `declarationEntryPoints` inside
 those artifacts, and a PascalCase `candidateStem`. Pin the same artifacts in `package.json`, then
 run `npm ci` and `npm run lock:declarations`. The lock script refuses an installed artifact whose
-version differs from the corpus, and the lock keeps schema 2. In the template, `npm run doctor`
-reds when `package.json`, `scaffold-provenance.json`, the declaration lock or the binding-plan
-runtime entries disagree with `corpus.json`. Curated bindings, the mapping ledger, coverage and
-the runtime/browser smokes stay per corpus and reviewed.
+version differs from the corpus, and the lock keeps schema 2.
+
+Every other place that names the npm closure must agree with `corpus.json`:
+
+| Place | Checked by |
+| --- | --- |
+| `package.json` dependencies | `npm run doctor` |
+| `src/<Product>/<Product>.fsproj` `<NpmDependencies>` (Femto metadata in the packed NuGet package) | `npm run doctor` |
+| `scaffold-provenance.json` `npmClosure` | `npm run doctor` |
+| `declaration-lock.json` package identity and entry points | `npm run doctor`, `npm run check:drift` |
+| `binding-plan.json` runtime entry points (inside the artifacts) | `npm run doctor` |
+| `.template.config/template.json` `npmPackage`/`npmVersion` choices and defaults (primary artifact) | `fable-bindings` composition lane |
+| `providers/fable-bindings.providers.yml` | Declares the `npmPackage`/`npmVersion`/`bindingTarget` keys only, with no values; nothing to update |
+
+The composition lane reds the doctor on a mismatched `corpus.json` and on a binding project whose
+`<NpmDependencies>` pin another version. It also requires the spike and template copies of
+`scripts/corpus.mjs` and `scripts/lock-declarations.mjs` to stay identical. Curated bindings, the
+mapping ledger, coverage and the runtime/browser smokes stay per corpus and are reviewed.
 
 The closure scanner is unchanged. Its lexical rules fit Babylon, but a probe of `pixi.js@8.22.0`
 (`lib/index.d.ts`) found four gaps for the next corpus (Templates#808):
@@ -158,7 +175,8 @@ The closure scanner is unchanged. Its lexical rules fit Babylon, but a probe of 
 - Global mixins arrive through `/// <reference path>` directives, which the scanner does not follow.
 - Extensionless specifiers resolve to `dir/index.d.ts`, not only `x.d.ts`.
 - JSDoc examples contain `import('./gl/init')` for files that do not exist.
-- Declarations import non-declaration assets (`*.frag`).
+- Declarations import shader assets that have no `.d.ts`: 8 distinct `.frag`, 5 `.vert` and 10
+  `.wgsl` specifiers.
 
 A comment-aware scanner (TypeScript `preProcessFile`) also follows `declare module` augmentation
 targets. On the Babylon closure it yields 2,893 instead of 2,898 files. The regex follows two

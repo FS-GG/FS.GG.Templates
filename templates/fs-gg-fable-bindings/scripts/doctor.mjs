@@ -17,11 +17,18 @@ const coverage = JSON.parse(readFileSync("coverage-and-drift.json"));
 if (!plan.slice?.journey || plan.mappingLedger?.length === 0) throw new Error("binding plan has no executable slice or mapping ledger");
 if (coverage.bindingPlan !== "binding-plan.json" || coverage.schemaVersion < 2) throw new Error("coverage report is not bound to the advanced mapping plan");
 if (plan.mappingLedger.some(row => row.coverage === "dynamic") && coverage.typedCoverage.includes(plan.mappingLedger.find(row => row.coverage === "dynamic")?.symbol)) throw new Error("dynamic escape hatch counted as typed coverage");
-// One corpus declaration drives the lock; every other place naming the npm closure must agree with it.
+// corpus.json is the one declaration of the npm closure. The workspace files that also name it
+// (package.json, the binding project's Femto <NpmDependencies>, scaffold provenance, and the
+// declaration lock) must agree with it, as must the binding plan's runtime entry points. The
+// template's own parameter choices live outside a generated workspace; the composition lane
+// checks those against the template's corpus.json.
 const corpus = await loadCorpus("corpus.json");
 const pinned = corpus.npmArtifacts.map(({ name, version }) => `${name}@${version}`);
 const dependencies = JSON.parse(readFileSync("package.json")).dependencies ?? {};
 if (JSON.stringify(Object.entries(dependencies).map(([name, version]) => `${name}@${version}`).sort()) !== JSON.stringify([...pinned].sort())) throw new Error(`package.json dependencies differ from corpus.json npmArtifacts (${pinned.join(", ")})`);
+const bindingProject = readFileSync("src/BindingsProduct/BindingsProduct.fsproj", "utf8");
+const femto = [...bindingProject.matchAll(/<NpmPackage\s+Name="([^"]+)"\s+Version="([^"]+)"\s*\/>/g)].map(([, name, version]) => `${name}@${version}`);
+if (JSON.stringify(femto.sort()) !== JSON.stringify([...pinned].sort())) throw new Error(`binding project <NpmDependencies> (${femto.join(", ")}) differ from corpus.json npmArtifacts (${pinned.join(", ")}); the packed NuGet package would declare a different npm runtime`);
 if (JSON.stringify(provenance.npmClosure) !== JSON.stringify(pinned)) throw new Error("scaffold-provenance.json npmClosure differs from corpus.json npmArtifacts");
 const lock = JSON.parse(readFileSync("declaration-lock.json"));
 const identity = lockIdentity(corpus);

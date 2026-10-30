@@ -267,5 +267,30 @@ cp "$WORK/product/corpus.json" "$WORK/corpus.json.orig"
 jq '.npmArtifacts[1].version = "9.19.1"' "$WORK/corpus.json.orig" > "$WORK/product/corpus.json"
 if (cd "$WORK/product" && npm run doctor >/dev/null 2>&1); then echo "doctor accepted a corpus that disagrees with package.json" >&2; exit 1; fi
 cp "$WORK/corpus.json.orig" "$WORK/product/corpus.json"
+# The packed binding's Femto <NpmDependencies> is what consumers' npm install follows, so a
+# companion pinned at another version than corpus.json must red before anything ships.
+binding_project="$WORK/product/src/AcmeBindings/AcmeBindings.fsproj"
+cp "$binding_project" "$WORK/binding-project.orig"
+sed -i 's|<NpmPackage Name="@babylonjs/loaders" Version="9.19.0" />|<NpmPackage Name="@babylonjs/loaders" Version="9.19.1" />|' "$binding_project"
+if cmp -s "$binding_project" "$WORK/binding-project.orig"; then echo "NpmDependencies mutation did not apply" >&2; exit 1; fi
+if (cd "$WORK/product" && npm run doctor >/dev/null 2>&1); then echo "doctor accepted a binding project whose NpmDependencies disagree with corpus.json" >&2; exit 1; fi
+cp "$WORK/binding-project.orig" "$binding_project"
 (cd "$WORK/product" && npm run doctor >/dev/null)
+# Template parameter choices are outside the generated workspace, so the source template is
+# checked here: its npmPackage/npmVersion choices and defaults name exactly corpus.json's primary
+# artifact. (The provider descriptor declares those keys without values.)
+python3 - "$ROOT/templates/fs-gg-fable-bindings" <<'PY_CORPUS_PARAMETERS'
+import json, pathlib, sys
+template = pathlib.Path(sys.argv[1])
+corpus = json.loads((template / 'corpus.json').read_text())
+symbols = json.loads((template / '.template.config/template.json').read_text())['symbols']
+primary = corpus['npmArtifacts'][0]
+for key, value in [('npmPackage', primary['name']), ('npmVersion', primary['version'])]:
+    choices = [c['choice'] for c in symbols[key]['choices']]
+    assert choices == [value] and symbols[key]['defaultValue'] == value, f'template.json {key} {choices}/{symbols[key]["defaultValue"]} differs from corpus.json {value}'
+PY_CORPUS_PARAMETERS
+# The spike and template carry one corpus reader and one lock script; their copies must not fork.
+for shared in scripts/corpus.mjs scripts/lock-declarations.mjs; do
+  cmp "$ROOT/spikes/fable-bindings/$shared" "$ROOT/templates/fs-gg-fable-bindings/$shared"
+done
 echo 'PASS fable-bindings template executes locked declaration, candidate, NuGet/npm/Fable/Node/Chromium, SDD, doctor, Governance, drift-review and owner-sourced product-skill delivery evidence'

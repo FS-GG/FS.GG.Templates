@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 # Reproducible qualification gate for declaration-to-curated-Fable workflow.
+#
+# Prerequisites: SDK, Node and npm at the pins below, jq, network for npm/NuGet restore, and
+# FSGG_PYTHON_COORDINATION_ROOT naming a checkout of FS-GG/FS.GG.Coordination at the commit
+# recorded in eng/portable-workspace/python-fixture-source.json. The Xantham step
+# (xantham-second-runtime.sh) packs FS.GG.Templates.csproj, and that pack refuses to run
+# without it. The composition workflow checks out the same fixture.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
@@ -9,7 +15,11 @@ DOC="$ROOT/docs/fable-bindings-toolchain.md"
 # Exact toolchain pins (docs/fable-bindings-toolchain.md). The Fable tool and Fable.Core
 # selections are read from the spike's own manifests so the consumer below cannot drift
 # onto an older pair than the library it consumes.
-test "$(cd "$SPIKE" && dotnet --version)" = "10.0.401"
+# global.json pins 10.0.401 with rollForward latestPatch, so admit exactly what it admits:
+# a 10.0.4xx SDK whose patch is at least 01.
+sdk="$(cd "$SPIKE" && dotnet --version)"
+[[ "$sdk" =~ ^10\.0\.4([0-9][0-9])$ ]] && (( 10#${BASH_REMATCH[1]} >= 1 )) || { echo "SDK $sdk is not admitted by spikes/fable-bindings/global.json (10.0.401, latestPatch)" >&2; exit 1; }
+jq -e '.sdk.version == "10.0.401" and .sdk.rollForward == "latestPatch"' "$SPIKE/global.json" >/dev/null
 test "$(node --version)" = "v26.13.0"
 test "$(npm --version)" = "12.2.1"
 fable_version="$(jq -r '.tools.fable.version' "$SPIKE/.config/dotnet-tools.json")"
