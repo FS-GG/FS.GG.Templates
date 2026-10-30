@@ -198,7 +198,7 @@ manifest was not read, so no custody claim is made. `publishedAcceptance`, `host
 ## Source-only release and island cases (after 0.20.1)
 
 The Qualification section of the staged-adoption plan names pointer coordinates under SVG transforms, blur/visibility transitions, editable focus and repeated mount/dispose. Three
-more typed cases close what the 0.20.1 matrix above states as limits. Each runs only in `--source-built` mode (16 cases per browser, 48 in total); the published plan keeps its thirteen until
+more typed cases close what the matrix above states as limits. Each runs only in `--source-built` mode (16 cases per browser, 48 in total); the published plan does not select them until
 the next Workspace.Template release carries them. They change only the template's `two-client.spec.ts`; no reference runtime source changed, and none of them exercises a real input method.
 
 | case | what it adds | causal controls (scratch regressions, each fails the case in Chromium, Firefox and WebKit; the other maintained cases are unaffected by construction) |
