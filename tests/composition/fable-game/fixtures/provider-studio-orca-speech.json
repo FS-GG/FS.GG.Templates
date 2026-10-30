@@ -1,0 +1,119 @@
+{
+ "source": "FS-GG/FS.GG.Templates run 41034550000 artifact palette-candidate-41034550000-1, orca-input.json.orca-debug.log (Orca 46.1, unpublished 0.32.0 palette fixture); verbatim SPEECH OUTPUT lines used only to calibrate the expected phrases, not as acceptance evidence",
+ "lines": {
+  "tab-to-rectangle": [
+   {
+    "line": 20250,
+    "text": "09:39:03.451552 - SPEECH OUTPUT: 'Rectangle push button.' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   }
+  ],
+  "create-rectangle": [
+   {
+    "line": 20316,
+    "text": "09:39:04.196493 - SPEECH OUTPUT: 'return' {'established': False}"
+   },
+   {
+    "line": 20597,
+    "text": "09:39:04.271809 - SPEECH OUTPUT: 'Current selection Rectangle created and selected' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   },
+   {
+    "line": 20751,
+    "text": "09:39:04.351123 - SPEECH OUTPUT: 'Current selection Selected element: rectangle-1' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   },
+   {
+    "line": 20791,
+    "text": "09:39:04.451725 - SPEECH OUTPUT: 'Rectangle created and selected' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   }
+  ],
+  "edit-scene-properties": [
+   {
+    "line": 21554,
+    "text": "09:39:05.221332 - SPEECH OUTPUT: 'Scene properties and grid edited' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   }
+  ],
+  "place-two-instances-refused": [
+   {
+    "line": 21966,
+    "text": "09:39:06.053831 - SPEECH OUTPUT: 'Validation error: save the sample asset first' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   }
+  ],
+  "tab-to-command-palette": [
+   {
+    "line": 54801,
+    "text": "09:40:36.178931 - SPEECH OUTPUT: 'Command palette push button.' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   }
+  ],
+  "open-command-palette": [
+   {
+    "line": 55448,
+    "text": "09:40:37.085916 - SPEECH OUTPUT: 'main content' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   },
+   {
+    "line": 55457,
+    "text": "09:40:37.089471 - SPEECH OUTPUT: 'region Generated SVG scene studio' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   },
+   {
+    "line": 55466,
+    "text": "09:40:37.092980 - SPEECH OUTPUT: 'dialog' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   },
+   {
+    "line": 55473,
+    "text": "09:40:37.096020 - SPEECH OUTPUT: 'Command palette heading level 2 clickable.' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   },
+   {
+    "line": 55505,
+    "text": "09:40:37.104074 - SPEECH OUTPUT: 'Command palette opened' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   }
+  ],
+  "escape-restores-scene-focus": [
+   {
+    "line": 55667,
+    "text": "09:40:37.791384 - SPEECH OUTPUT: 'escape' {'established': False}"
+   }
+  ],
+  "enter-focus-mode": [
+   {
+    "line": 56155,
+    "text": "09:40:38.712353 - SPEECH OUTPUT: 'Focus mode' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   }
+  ],
+  "input-help-shortcut": [
+   {
+    "line": 56516,
+    "text": "09:40:39.499939 - SPEECH OUTPUT: 'g' {'established': False}"
+   },
+   {
+    "line": 56596,
+    "text": "09:40:39.515941 - SPEECH OUTPUT: 'h' {'established': False}"
+   },
+   {
+    "line": 57017,
+    "text": "09:40:39.622345 - SPEECH OUTPUT: 'Possible input help. Shortcuts update with the current mode. clickable.' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   },
+   {
+    "line": 57497,
+    "text": "09:40:39.680369 - SPEECH OUTPUT: 'Possible input help opened' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   }
+  ],
+  "open-rebind": [
+   {
+    "line": 58181,
+    "text": "09:40:41.251689 - SPEECH OUTPUT: 'Rebind command. Press a new input. Conflict feedback: no displacement. clickable.' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   },
+   {
+    "line": 58348,
+    "text": "09:40:41.306599 - SPEECH OUTPUT: 'Rebind capture waiting for raw input' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   }
+  ],
+  "arrange-mode": [
+   {
+    "line": 59033,
+    "text": "09:40:42.986994 - SPEECH OUTPUT: 'Arrange mode toggle button pressed.' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   },
+   {
+    "line": 59522,
+    "text": "09:40:43.031287 - SPEECH OUTPUT: 'Mode: Arrange' {'established': False, 'family': {'name': None, 'gender': None, 'lang': None, 'dialect': None, 'variant': None}}"
+   }
+  ]
+ }
+}
