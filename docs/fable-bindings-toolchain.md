@@ -19,7 +19,7 @@ findings are now enforced by the generated workspace and composition gate.
 | Fable.Package.SDK | 1.4.1 |
 | TypeScript declaration parser | 6.0.3 |
 | Glutinum template | `Glutinum.Template@1.1.1` |
-| npm corpus | `@babylonjs/core@9.33.1`, `@babylonjs/loaders@9.33.1` |
+| npm corpus | `@babylonjs/core@9.33.1`, `@babylonjs/loaders@9.33.1`; `pixi.js@8.22.0` |
 | core artifact integrity | `sha512-NoIfREw4QeoXzRPpXnbUpmxxPIjuRi9iS4xFDbPgXHiLwCeHSI13DJHF8YB2gKHp6rA6T5R7BAevPvWHklvXWQ==` |
 
 The selected corpus is declared once in `corpus.json` (spike and template): the exact npm
@@ -261,4 +261,193 @@ unchanged against `9.33.1`.
 A probe lock of `pixi.js@8.22.0` (`lib/index.d.ts`, not committed) now succeeds with 687
 declaration files. It follows the `/// <reference path>` mixins and folder imports. It records
 23 shader assets (8 `.frag`, 5 `.vert`, 10 `.wgsl`) and the external modules `@pixi/colord`,
-`earcut`, `eventemitter3` and `tiny-lru`. The Pixi corpus itself stays with Templates#808.
+`earcut`, `eventemitter3` and `tiny-lru`. The Pixi corpus is delivered by Templates#808; see "PixiJS 8.22.0 corpus" below.
+
+## PixiJS 8.22.0 corpus (2026-10-30, Templates#808)
+
+### Package home
+
+The PixiJS bindings live in the same template as the Babylon bindings: FS-GG/FS.GG.Templates,
+template `fs-gg-fable-bindings`, selected with `--npmPackage=pixi.js --npmVersion 8.22.0`. The
+default stays Babylon (`@babylonjs/core 9.33.1`). Babylon is the template root; the Pixi files are
+`templates/fs-gg-fable-bindings/corpora/pixi/`, the same layout, delivered over the root by a second
+`sources` entry when `npmPackage` is `pixi.js`. The first source withdraws exactly the root files the
+overlay supplies, so no target is written twice, and `corpora/` itself never reaches a product. The
+shared scripts (`corpus.mjs`, `lock-declarations.mjs`, `generate-candidate.mjs`, `doctor.mjs`) are
+not copied: they read `corpus.json`.
+
+The packaged artifact is what a product generates and packs, as for Babylon. `dotnet new
+fs-gg-fable-bindings --name <Name> --npmPackage=pixi.js --npmVersion 8.22.0` produces a workspace
+whose `src/<Name>/<Name>.fsproj` is a Fable `binding` package (module `Qualification.Pixi`, Femto
+`<NpmDependencies>` naming `pixi.js@8.22.0`). FS.GG.Game consumes it as the packed `.nupkg` (the clean
+consumer route below) or with a `ProjectReference` to that project, plus `pixi.js@8.22.0` in its own
+`package.json`. Nothing is published; publication stays a separate, explicit Delivery.
+
+The template's `npmPackage` and `npmVersion` choices are now the primary artifacts of the corpora it
+delivers. The pair is not validated by the template engine, so the requested values are written into
+`scaffold-provenance.json` (`requestedCorpus`) and `npm run doctor` fails when they are not the
+delivered corpus's primary artifact. A mismatched pair such as `pixi.js` with `9.33.1` therefore reds
+the first doctor run.
+
+### Locked inputs
+
+| Item | Value |
+| --- | --- |
+| npm artifact | `pixi.js@8.22.0`, the npm `latest` (major 8) |
+| integrity | `sha512-QbTANHMZ751MIjLiLSUSM8a7LNMWwMIf0KbRCqlW+SPS9hNLfSVS+cl1O2SEp9g1K/wyLzj/OJHv+1TUfiPr/w==` |
+| entry points | `pixi.js/lib/index.d.ts`, `pixi.js/lib/events/init.d.ts` |
+| hashed declaration files | 688 (687 reached from `index.d.ts`; `events/init.d.ts` is the one more) |
+| `nonDeclarationAssets` | 23 shader files (8 `.frag`, 5 `.vert`, 10 `.wgsl`); none is in the package |
+| `externalModules` | `*.frag`, `*.vert`, `*.wgsl` (ambient wildcard declarations in `Shaders.d.ts`), `@pixi/colord`, `earcut`, `eventemitter3`, `tiny-lru` |
+
+The scanner needed no change. It follows the 22 `/// <reference path>` mixins and ambient files, the folder
+`index.d.ts` imports and `export * from` edges, and ignores the JSDoc `import('./gl/init')` example.
+
+### External-module curation
+
+An external module is followed only if the curated binding exposes or depends on its types. None
+does: the F# surface uses opaque interfaces, integers for colours and plain functions for listeners.
+All four packages are therefore recorded and not followed, and the decision is executable instead of
+prose:
+
+- `coverage-and-drift.json` has an `externalModules` row per entry in the lock (a decision, a reason,
+  and for a package its exact version and integrity).
+- `npm run doctor` fails when the rows and the lock's `externalModules` differ, when a row has no
+  reason, or when a package row differs from what `package-lock.json` locks. A moved external
+  dependency is a reviewed change. The Babylon corpus gained the same row for
+  `babylonjs-gltf2interface`.
+
+| Module | Locked | Why not followed |
+| --- | --- | --- |
+| `eventemitter3` | 5.0.4 | `Container.on/once/off/emit/listenerCount/removeAllListeners` are emitted native calls, and no `eventemitter3` type appears in the binding. This is the closest call: events are in scope, so the runtime journeys call each of those methods, and a changed version moves `package-lock.json` and the doctor row. |
+| `@pixi/colord` | 2.9.6 | Colour parsing internal to `Color`; colours cross the binding as `0xRRGGBB` integers. |
+| `earcut` | 3.2.4 | Triangulation internal to `Graphics`. |
+| `tiny-lru` | 11.4.7 | Cache internal to the text and texture systems. |
+
+Following `eventemitter3` would mean pinning a transitive dependency as a direct one in every
+consumer's `package.json` and `<NpmDependencies>`. That is the cost of a stronger event-type contract;
+revisit it if the binding ever exposes an emitter type.
+
+### Curated 2D surface
+
+Every call is an `Import`/`Emit` native declaration over opaque interface types. The package root
+`pixi.js` is the only runtime import (plus the `pixi.js/events` side effect), so a bundler or import
+map chooses the build. The module is `Qualification.Pixi`.
+
+- `Application`: construct, asynchronous `init` on a canvas with width, height, background,
+  antialiasing and a `"webgl"`/`"webgpu"` preference, `stage`, `canvas`, `screen`, renderer name,
+  resize, background colour, render, destroy, and `readPixel` for render verification.
+- `Container`: add, remove and index children, position, scale, pivot, rotation, alpha, visibility,
+  `zIndex`, sorting, label, bounds and destroy. `Sprite`, `Graphics` and `Text` inherit it.
+- `Sprite`, `Texture` and `Assets`: anchor, tint, size and texture; `Texture.WHITE`/`EMPTY`, a
+  canvas-backed texture and a sub-texture frame; `Assets.load/add/get/unload` and a cache query.
+- `Graphics`: rect, rounded rect, circle, ellipse, polygon, move/line/close, fill with alpha, stroke
+  and clear.
+- `Text`: construct from content, fill, size and family; read and set content, fill and size; layout
+  width and height (browser only).
+- `Ticker`: a new or the shared ticker; add, add-once and remove listeners; start, stop, manual
+  `update`; `deltaMS`, `deltaTime`, `elapsedMS`, `FPS`, `speed`, `minFPS`, `maxFPS`; the listener
+  count.
+- Events: the `pixi.js/events` side-effect registration and a query for it; `eventMode`, cursor and
+  `hitArea`; `on/once/off/emit/listenerCount`; the event's global position, local position, button and
+  `stopPropagation`.
+- `Rectangle` and `Point`.
+
+Listener removal is by subscription, not by function name. Fable turns a module-level F# function
+passed as an argument into a new JavaScript closure at every call site, so `remove(step)` after
+`add(step)` removes nothing. `addTicker`, `onEvent` and the once variants return an opaque
+`Subscription`, the exact function Pixi holds, and `removeTicker`/`offEvent` take it. The packed
+consumer registers and removes module-level functions to hold this in place.
+
+Out of scope for this slice, and named as `unsupportedConstructs` in `coverage-and-drift.json`: the
+`math-extras`, `gif`, `html-source` and compressed-texture add-ons, filters, meshes, bitmap and HTML
+text, particle containers, tiling and nine-slice sprites, masks and render textures beyond what the
+slice touches.
+
+### Build boundary: `lib` or `dist`
+
+Node resolves `pixi.js` to `lib/index.mjs`, whose graph covers the hashed declarations. A browser
+cannot load that graph from an import map: `eventemitter3` and `@xmldom/xmldom` are CommonJS-only. The
+Chromium page therefore maps both `pixi.js` and `pixi.js/events` to the package's self-contained
+`dist/pixi.mjs`, which is the same locked artifact with those dependencies bundled and the event
+system included. A consumer using a bundler gets `lib`.
+
+Two PixiJS behaviours shape the side effect. `import 'pixi.js'` does not register the event mixin: it
+is added by `pixi.js/events` or lazily by `Application.init` in a browser. The negative control is a
+fresh Node process that finds no `eventMode` on `Container.prototype`; the positive journey registers
+it with `enableEvents ()`. Pointer events also hit-test the last rendered frame, and pixel extraction
+renders its own copy, so a test renders once more before dispatching.
+
+### Performance-first
+
+There is no producer-owned typed performance intent for this bindings product, and no timing target is
+invented. What applies to a binding is its cost shape, and the representative workload is declared in
+the compile test that traverses the real binding route:
+
+- Workload: one container holding 1,000 sprites (a small 2D game scene) positioned, sized and tinted
+  through the binding, 60 manual ticker frames, and 40 columns by 25 rows of bounds that must equal
+  398 x 248.
+- Structural counters, asserted rather than timed: 1,000 children, a ticker listener count that
+  returns to zero after removal, a listener that runs once per `update`, and 3 stage children plus
+  more than zero application ticks in Chromium.
+- Cost shape: each call is emitted as the native member call itself. The composition lane asserts
+  that the hot loop is emitted as `world.addChild(s);`, `s.position.set(...)` and `s.tint = ...`, and
+  that the binding emits no JavaScript module of its own, so it adds no wrapper, closure or
+  allocation per call.
+- The headless Chromium run uses SwiftShader WebGL. It is bounded headless evidence and is labelled so.
+  It does not substitute for live-compositor or swapchain evidence, which belongs to the Game adapter
+  (FS-GG/FS.GG.Game#730).
+
+### Evidence
+
+All of it runs in `tests/composition/fable-bindings/pixi-corpus.sh`, called from the `fable-bindings`
+composition lane against the packed template archive:
+
+- the delivered product has the Pixi files and neither `corpora/` nor any Babylon candidate;
+- locked NuGet and npm restore, the doctor, drift, and the closure scanner fixture on the product's
+  script;
+- `test:side-effect-control` (no event mixin without the import) and `test:imports` (Node imports both
+  plan entry points and runs a JavaScript journey);
+- the Fable 5.26.0 emitted journey in Node, then in headless Chromium, where it renders on a WebGL
+  `Application`: a filled rectangle, a canvas-backed sprite and a decoded PNG asset are read back pixel
+  for pixel, a real DOM pointer event reaches the stage listener with the right local position, the
+  application ticker runs, and a WebGPU preference yields WebGPU where supported and WebGL otherwise;
+- drift negatives: a changed direct declaration (`Ticker.d.ts`) and a changed reference-only mixin
+  (`GraphicsMixins.d.ts`) red `check:drift`, and `npm ci` restores it;
+- doctor negatives for a missing curation row, a curated external module at another version or
+  integrity, a row with no reason, a corpus pin that disagrees with `package.json`, a requested pair that
+  is not the delivered corpus, and Femto `<NpmDependencies>` at another version;
+- candidate stability: regenerating candidates changes neither `Bindings.fs` nor the lock, and leaves no
+  diff;
+- a packed clean consumer: the `.nupkg` is inspected (compiled binding, no source, no bundled npm
+  payload, no `Fable.Package.SDK` dependency, the binding tags; both defect shapes are mutated and
+  rejected), restored from a local feed with an empty NuGet cache, compiled by Fable with the exact
+  `pixi.js@8.22.0` integrity installed, and run in Node.
+
+The default Chromium run is software WebGL (SwiftShader) and is what CI runs. A host with a GPU adds a
+hardware run of the same emitted program: set `FSGG_BROWSER_GPU_ARGS` (for example `--headless=new
+--use-angle=vulkan --enable-features=Vulkan --ignore-gpu-blocklist`), which `browser-smoke.mjs` receives
+as `BROWSER_SMOKE_ARGS`, and the lane requires that the recorded WebGL device is not SwiftShader. The
+page records the unmasked renderer string of every run. On the development host (AMD Ryzen 9 7900
+integrated GPU) the two runs reported
+`ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) ...), SwiftShader driver)` and
+`ANGLE (AMD, Vulkan 1.4.354 (AMD Ryzen 9 7900 12-Core Processor (RADV RAPHAEL_MENDOCINO) ...), radv)`,
+and both passed every pixel, pointer, ticker and asset check.
+
+The Chromium run needs real time: `chromium --dump-dom` reports a page before an image decode finishes
+under its virtual-time budget, so `scripts/browser-smoke.mjs` serves the workspace, drives headless
+Chromium over the DevTools protocol and waits for the page's result. Text is verified by layout height.
+A host with no fonts measures every width as 0 (this development host has none), so the width
+comparison runs only when a width can be measured.
+
+### Not covered
+
+- WebGPU is not a dependency of the evidence. With the hardware flags above, the development host's
+  headless Chromium reported WebGPU as supported and the `"webgpu"` preference then yielded a WebGPU
+  renderer in the same program (observed on repeated local runs); the default software run reports it
+  unsupported and exercises the fallback to WebGL. Whether headless WebGPU is reliable elsewhere,
+  including CI, is Unknown, and nothing here asserts it.
+- Glyph pixels were not rendered, because of the missing fonts above on this host.
+- Installed or published consumption: nothing is published, so FS.GG.Game's adapter (Game#730) is the
+  first consumer of the packed artifact.
+

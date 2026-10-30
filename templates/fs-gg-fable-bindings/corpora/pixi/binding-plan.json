@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "runtimeTarget": "browser",
+  "slice": {
+    "name": "pixi-2d-renderer",
+    "journey": "construct an Application on a WebGL or WebGPU renderer and a Container scene graph of Sprite, Graphics and Text nodes with Texture and Assets loading; wire pointer events and a Ticker; render frames and destroy",
+    "entryPoints": [
+      "pixi.js",
+      "pixi.js/events"
+    ]
+  },
+  "architecture": {
+    "fileStrategy": "one subsystem-ordered Bindings.fs: shims, application, containers, sprites and textures, assets, graphics, text, geometry, ticker, events; strongly connected and declaration-merged types stay together",
+    "browserTypeBoundary": "browser types (HTMLCanvasElement) require an explicit opaque shim or maintained package boundary; the binding keeps them opaque",
+    "moduleAugmentation": "registration modules are explicit side effects and require a negative control",
+    "buildBoundary": "every import names the package root `pixi.js`: a bundler or import map selects the lib ES modules or the self-contained dist build"
+  },
+  "mappingLedger": [
+    { "symbol": "Application", "representation": "opaque instance; asynchronous init with an option object", "import": "named", "coverage": "typed" },
+    { "symbol": "Application.stage/canvas/screen/renderer.name/render/destroy/ticker", "representation": "instance member emission", "import": "none", "coverage": "typed" },
+    { "symbol": "Renderer.resize/background.color/extract.pixels", "representation": "instance member emission", "import": "named", "coverage": "typed" },
+    { "symbol": "isWebGPUSupported", "representation": "promise of a boolean", "import": "named", "coverage": "typed" },
+    { "symbol": "Container", "representation": "opaque instance", "import": "named", "coverage": "typed" },
+    { "symbol": "Container.addChild/removeChild/removeChildren/children/getChildAt/parent/destroy/getBounds", "representation": "instance member emission", "import": "none", "coverage": "typed" },
+    { "symbol": "Container.position/scale/pivot/rotation/alpha/visible/zIndex/sortableChildren/label", "representation": "instance property and point-setter emission", "import": "none", "coverage": "typed" },
+    { "symbol": "Sprite", "representation": "opaque instance extending Container", "import": "named", "coverage": "typed" },
+    { "symbol": "Sprite.anchor/tint/texture/setSize", "representation": "instance member emission", "import": "none", "coverage": "typed" },
+    { "symbol": "Texture", "representation": "opaque instance; WHITE and EMPTY statics; canvas source; sub-texture frame", "import": "named", "coverage": "typed" },
+    { "symbol": "Assets", "representation": "static load/add/get/cache/unload emission", "import": "named", "coverage": "typed" },
+    { "symbol": "Graphics", "representation": "opaque instance extending Container", "import": "named", "coverage": "typed" },
+    { "symbol": "Graphics.rect/roundRect/circle/ellipse/poly/moveTo/lineTo/closePath/fill/stroke/clear", "representation": "path and paint method emission with option-object fills", "import": "none", "coverage": "typed" },
+    { "symbol": "Text", "representation": "opaque instance extending Container; option-object constructor", "import": "named", "coverage": "typed" },
+    { "symbol": "Text.text/style.fill/style.fontSize/width", "representation": "instance member emission", "import": "none", "coverage": "typed" },
+    { "symbol": "Rectangle", "representation": "opaque instance", "import": "named", "coverage": "typed" },
+    { "symbol": "Point", "representation": "opaque instance", "import": "named", "coverage": "typed" },
+    { "symbol": "Ticker", "representation": "opaque instance; shared static", "import": "named", "coverage": "typed" },
+    { "symbol": "Ticker.add/addOnce/remove/count/start/stop/started/update/deltaMS/deltaTime/elapsedMS/FPS/speed/minFPS/maxFPS", "representation": "instance member emission; listener is the caller's function value", "import": "none", "coverage": "typed" },
+    { "symbol": "pixi.js/events registration", "representation": "side-effect import plus typed registration query", "import": "side-effect", "coverage": "typed" },
+    { "symbol": "Container.eventMode/cursor/hitArea", "representation": "instance property emission", "import": "none", "coverage": "typed" },
+    { "symbol": "Container.on/once/off/emit/listenerCount/removeAllListeners (eventemitter3)", "representation": "instance method emission; the eventemitter3 declarations are recorded, not followed", "import": "none", "coverage": "typed" },
+    { "symbol": "FederatedPointerEvent.global/button/getLocalPosition/stopPropagation", "representation": "opaque instance; member emission", "import": "none", "coverage": "typed" },
+    { "symbol": "HTMLCanvasElement", "representation": "opaque browser shim via document.getElementById and createElement", "import": "none", "coverage": "typed" }
+  ]
+}

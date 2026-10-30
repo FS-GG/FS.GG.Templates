@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><PackageId>BindingsProduct</PackageId><Version>0.1.0</Version><GeneratePackageOnBuild>true</GeneratePackageOnBuild><FablePackageType>binding</FablePackageType><PackageTags>fable-javascript;pixijs;bindings</PackageTags><PackageReadmeFile>README.md</PackageReadmeFile><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup>
+  <PropertyGroup>
+    <NpmDependencies>
+      <NpmPackage Name="pixi.js" Version="8.22.0" />
+    </NpmDependencies>
+  </PropertyGroup>
+  <ItemGroup><Compile Include="Bindings.fs" /></ItemGroup>
+  <ItemGroup><PackageReference Include="Fable.Core" /><PackageReference Include="Fable.Package.SDK" PrivateAssets="all" IncludeAssets="runtime;build;native;contentfiles;analyzers;buildtransitive" /><None Include="README.md" Pack="true" PackagePath="\" /></ItemGroup>
+</Project>

@@ -33,5 +33,30 @@ if (JSON.stringify(provenance.npmClosure) !== JSON.stringify(pinned)) throw new 
 const lock = JSON.parse(readFileSync("declaration-lock.json"));
 const identity = lockIdentity(corpus);
 if (Object.keys(identity).some(key => JSON.stringify(lock[key]) !== JSON.stringify(identity[key])) || JSON.stringify(lock.entryPoints) !== JSON.stringify(corpus.declarationEntryPoints)) throw new Error("declaration-lock.json was not produced from corpus.json; run npm run lock:declarations and review");
-if (!plan.slice.entryPoints.every(entry => corpus.npmArtifacts.some(({ name }) => entry.startsWith(`${name}/`)))) throw new Error("binding-plan.json runtime entry point is outside the corpus npm artifacts");
+if (!plan.slice.entryPoints.every(entry => corpus.npmArtifacts.some(({ name }) => entry === name || entry.startsWith(`${name}/`)))) throw new Error("binding-plan.json runtime entry point is outside the corpus npm artifacts");
+// The template parameters choose which corpus is delivered; the pair the product asked for is
+// written into provenance at instantiation. An unfilled placeholder means the file was not
+// instantiated (the template source itself), which is not a mismatch.
+const requested = provenance.requestedCorpus ?? {};
+const [primary] = corpus.npmArtifacts;
+for (const [key, expected] of [["npmPackage", primary.name], ["npmVersion", primary.version]]) {
+  if (typeof requested[key] !== "string") throw new Error(`scaffold-provenance.json requestedCorpus.${key} is missing`);
+  if (!requested[key].startsWith("@@") && requested[key] !== expected) throw new Error(`the product asked for ${key} ${requested[key]}, but the delivered corpus is ${primary.name}@${primary.version}; regenerate with a matching --npmPackage/--npmVersion pair`);
+}
+// Declarations of modules outside the pinned artifacts are recorded in the lock, not hashed. Each
+// needs an explicit curation row, and a package row must match the exact version and integrity
+// npm locked, so a moved external dependency is a reviewed change.
+const curated = new Map((coverage.externalModules ?? []).map(row => [row.module, row]));
+const locked = lock.externalModules ?? [];
+if (JSON.stringify([...curated.keys()].sort()) !== JSON.stringify([...locked].sort())) throw new Error(`coverage-and-drift.json externalModules (${[...curated.keys()].join(", ")}) differ from the declaration lock's externalModules (${locked.join(", ")}); curate each recorded external module`);
+const packages = JSON.parse(readFileSync("package-lock.json")).packages ?? {};
+for (const [module, row] of curated) {
+  if (row.decision !== "recorded-not-followed" || typeof row.reason !== "string" || row.reason.length === 0) throw new Error(`external module ${module} needs decision "recorded-not-followed" and a reason`);
+  if (module.startsWith("*")) {
+    if ("version" in row || "integrity" in row) throw new Error(`ambient pattern ${module} is not a package and must not carry a version`);
+    continue;
+  }
+  const installed = packages[`node_modules/${module}`];
+  if (installed?.version !== row.version || installed?.integrity !== row.integrity) throw new Error(`external module ${module} is curated at ${row.version} but package-lock.json locks ${installed?.version}; review the new declarations and update the curation row`);
+}
 console.log("fable-bindings doctor passed: local proof remains required before publication")
