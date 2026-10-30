@@ -26,8 +26,11 @@ first="$(sha256sum "$PRODUCT/generated-candidates/xantham/proposal/AnsiRegex.fs"
 test "$first" = "$(sha256sum "$PRODUCT/generated-candidates/xantham/proposal/AnsiRegex.fs" "$PRODUCT/generated-candidates/xantham/proposal/manifest.json" "$PRODUCT/generated-candidates/xantham/proposal/symbols.jsonl")"
 test "$maintained_before" = "$(sha256sum "$PRODUCT/src/BindingsProduct/Bindings.fs" "$PRODUCT/declaration-lock.json" "$PRODUCT/binding-plan.json" "$PRODUCT/coverage-and-drift.json")"
 
-fable="$PRODUCT/.nuget/xantham-tools/fable/fable"
-if [[ ! -x "$fable" ]]; then (cd "$ROOT" && dotnet tool install Fable --version 5.13.0 --tool-path "$PRODUCT/.nuget/xantham-tools/fable" >/dev/null); fi
+# The candidate is Fable-compiled with the workspace's own pinned tool, cached per version so a
+# stale earlier compiler in the excluded tool directory can never stand in for the current pin.
+fable_version="$(jq -r '.tools.fable.version' "$PRODUCT/.config/dotnet-tools.json")"
+fable="$PRODUCT/.nuget/xantham-tools/fable-$fable_version/fable"
+if [[ ! -x "$fable" ]]; then (cd "$ROOT" && dotnet tool install Fable --version "$fable_version" --tool-path "$PRODUCT/.nuget/xantham-tools/fable-$fable_version" >/dev/null); fi
 "$fable" "$PRODUCT/xantham/qualification/Runtime.fsproj" --outDir "$PRODUCT/.nuget/xantham-tools/pilot/runtime-dist" --noCache >/dev/null
 grep -Eq '^import [A-Za-z0-9_]+ from "ansi-regex";' "$PRODUCT/.nuget/xantham-tools/pilot/runtime-dist/Program.js"
 node "$PRODUCT/.nuget/xantham-tools/pilot/runtime-dist/Program.js" | grep -Fq 'PASS Xantham ANSI candidate'

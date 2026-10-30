@@ -435,13 +435,13 @@ jobs:
           dotnet-version: '10.0.401'
       - uses: actions/setup-node@v6
         with:
-          node-version: '26.10.0'
+          node-version: '26.13.0'
       - name: Install exact npm toolchain
-        run: npm install --global npm@12.1.0
+        run: npm install --global npm@12.2.1
       - name: Assert exact Node and npm toolchain
         run: |
-          test "$(node --version)" = 'v26.10.0'
-          test "$(npm --version)" = '12.1.0'
+          test "$(node --version)" = 'v26.13.0'
+          test "$(npm --version)" = '12.2.1'
 
       - name: Download immutable release artifact
         uses: actions/download-artifact@v8

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { loadCorpus } from "./corpus.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 if (process.argv.length > 2) {
@@ -16,6 +17,7 @@ if (process.argv.length > 2) {
   process.exit(child.status ?? 1);
 }
 const { default: ts } = await import("typescript");
+const { candidateStem } = await loadCorpus(resolve(root, "corpus.json"));
 const lockBytes = await readFile(resolve(root, "declaration-lock.json"));
 const lock = JSON.parse(lockBytes);
 const digest = createHash("sha256").update(lockBytes).digest("hex");
@@ -79,7 +81,7 @@ const mergeLines = topMerged.length === 0
 
 await mkdir(candidates, { recursive: true });
 await writeFile(resolve(candidates, "declaration-analysis.json"), `${JSON.stringify(analysis, null, 2)}\n`);
-await writeFile(resolve(candidates, "BabylonBindings.generated.fs"), `// GENERATED CANDIDATE — NOT COMPILED, PACKED, OR PUBLIC
+await writeFile(resolve(candidates, `${candidateStem}.generated.fs`), `// GENERATED CANDIDATE — NOT COMPILED, PACKED, OR PUBLIC
 // declaration closure SHA-256: ${digest}
 // Review the analysis and mapping ledger before curating src/BindingsProduct/Bindings.fs.
 module Qualification.Candidate
@@ -87,7 +89,7 @@ module Qualification.Candidate
 // This intentionally contains no public binding guesses. Generation inventories risk;
 // maintained source owns F# names, file boundaries, imports, nullability and overloads.
 `);
-await writeFile(resolve(candidates, "BabylonBindings.proposal.md"), `# Generated candidate proposal
+await writeFile(resolve(candidates, `${candidateStem}.proposal.md`), `# Generated candidate proposal
 
 Input declaration closure SHA-256: \`${digest}\`
 

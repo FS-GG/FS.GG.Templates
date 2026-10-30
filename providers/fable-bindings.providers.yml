@@ -14,6 +14,13 @@
 # The claim is executable, not schema: the scaffold-provider contract (1.1.0) has no delivered-skill
 # field, so what holds it up is the `assert-product` arm of scripts/generate-skill-manifest.fsx,
 # run against a product instantiated from the packed archive in tests/composition/fable-bindings/run.sh.
+#
+# TOOLCHAIN AND CORPUS (FS.GG.Templates#807). This descriptor carries no tool pins. The template's
+# SDK, Node/npm, Fable/Fable.Core, TypeScript parser, Glutinum and Xantham selections are listed
+# in docs/fable-bindings-toolchain.md, and the delivered workspace's own manifests enforce them.
+# The npm corpus is declared once in the template's corpus.json, which `npm run doctor` keeps
+# coherent with package.json, provenance and the declaration lock. A toolchain move changes
+# neither `source` nor `contractVersion` here until a release selects it.
 schemaVersion: 1
 # BEGIN GENERATED: effective-providers
 # Effective providers — generated; ordered by unique provider name.
