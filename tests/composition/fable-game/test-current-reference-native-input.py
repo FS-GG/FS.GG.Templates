@@ -382,6 +382,39 @@ class CommittedFacilityControls(unittest.TestCase):
             declared = next(p for p in value['packages'] if p['name'].removesuffix(':amd64') == row['package'])
             self.assertEqual((declared['version'], declared['debSha256']), (row['version'], row['binary']['sha256']))
 
+    def test_keymap_pins_come_from_discriminating_live_dumps_and_the_route_keeps_a_client_alive(self):
+        provenance = json.loads((FACILITY / 'noble-20261024.provenance.json').read_text())
+        value = N.read_manifest(committed_facility_raw())
+        evidence = provenance['readback']['keymaps']
+        self.assertIn('live', evidence['method'])
+        self.assertIn('-noreset', evidence['method'])
+        self.assertEqual(['start', 'de', 'us', 'de'], evidence['sequence'])
+        self.assertTrue(evidence['usEqualsServerStart'] and evidence['deDiffersFromUs'] and evidence['deRepeatable'])
+        self.assertNotEqual(value['keymaps']['us'], value['keymaps']['de'])
+        # the stock-server cause, stated exactly, and no claim that the loader is broken
+        self.assertIn('last client', evidence['cause'])
+        self.assertNotIn('unproven', json.dumps(evidence))
+        source = (HERE / 'external-reference-orca.py').read_text()
+        xvfb, openbox, start = (source.index(token) for token in ['launch(["Xvfb"', 'launch(["openbox"', 'native.start('])
+        self.assertTrue(xvfb < openbox < start, 'a long-lived X client must exist before the keymap is applied')
+        self.assertNotIn('-noreset', source[xvfb:xvfb + 200])
+
+    def test_preparation_is_reproducible_from_repository_inputs_only(self):
+        prepare = FACILITY / 'prepare'
+        driver = (prepare / 'reproduce.sh').read_text()
+        self.assertIn('noble-source-prefix-request.json', driver)
+        for committed_name in ['noble-20261024.manifest.json', 'noble-20261024.package-request.json', 'noble-20261024.closure.txt']:
+            self.assertRegex(driver, r'cmp [^\n]*' + re.escape(committed_name))
+        self.assertIn('@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852', driver)
+        self.assertNotRegex('\n'.join(l for l in driver.splitlines() if not l.lstrip().startswith('#')), r'(?i)token|password|secret|\.netrc')
+        provenance = json.loads((FACILITY / 'noble-20261024.provenance.json').read_text())
+        self.assertEqual(sorted(p.name for p in prepare.iterdir()), sorted(provenance['scripts']))
+        for name, digest in provenance['scripts'].items():
+            self.assertEqual(digest, N.sha((prepare / name).read_bytes()))
+        # the roots the installer used are exactly the committed 32-row request
+        roots = json.loads((HERE / 'fixtures/noble-source-prefix-request.json').read_text())['packages']
+        self.assertEqual(32, len(roots))
+
     def test_every_missing_or_malformed_pin_refuses_the_manifest_reader(self):
         value = json.loads(committed_facility_raw())
         refusals = 0

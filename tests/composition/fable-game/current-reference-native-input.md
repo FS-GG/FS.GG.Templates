@@ -328,18 +328,41 @@ data hashes were read from the installed files in a rootless Podman `ubuntu:24.0
 container and cross-checked against the same files inside the signed archives
 (`prepare/crosscheck-archives.py`; 0 mismatches).
 
+Reproduction: `native-input-facility/prepare/reproduce.sh <empty private dir>` rebuilds the
+package request, manifest and closure list from this repository alone (the 32 roots are read
+from `fixtures/noble-source-prefix-request.json`; the base image is pinned by digest; the Ubuntu
+keyring is checked against the helper's pinned hash; the container's apt uses the host's public
+CA bundle) and ends with `cmp` against the committed files.
+
+Hosted provisioning: `current-reference-noble-install.py` is the current-public full route's
+installer. After the existing `None` admission guard it installs the same 32 roots from the
+signed snapshot through a private keyring-pinned `Signed-By` source with
+`--no-install-recommends`, then refuses unless every root and manifest package version, every
+manifest package `.deb` hash and every object and data-file hash match the supplied manifest.
+Before the privileged call, `--install` simulates the transaction on the actual image and refuses on any
+removal or any downgrade of a non-root package; root downgrades (to the pinned versions) are recorded in the
+receipt, and `--allow-downgrades` (which apt cannot scope to named packages) is passed only when the classified
+simulation contains such a root downgrade. `--simulate` runs the same classification without privilege or install against the runner's real
+dpkg status; the Templates static job runs it on every PR. The
+historical and font routes keep their live-mirror provisioning step.
+
+Keymap pins are live dumps. A stock Xvfb (21.1.12-1ubuntu1.9, also the Noble release build)
+resets its keyboard to the compiled default when its last client disconnects, and `setxkbmap`
+is that client, so a bare `setxkbmap -layout de; xkbcomp -xkb :97 -` reads US again (the server
+compiles `pc+de`, then `pc+us`). The preparation runs Xvfb with `-noreset` and takes the dumps
+live in the order start, `de`, `us`, `de`: `us` equals the server start and differs from `de`,
+`de` repeats, and the German `AE12` row is `dead_acute`. The maintained route keeps openbox
+connected from before the native step until teardown, so it does not hit the reset; a control
+checks that order in `external-reference-orca.py`.
+
 Limits, stated rather than inferred:
 
 - Schema 1 only. It has no compiled-schema derivation and no input-tree closure;
   those are schema 2 and need the private ATv2 factory guest.
-- The pinned packages come from the snapshot. The existing hosted provisioning step
-  installs from the live runner mirror and does not install the IBus, libpinyin or
-  GTK3 packages at all, so a hosted full run will refuse on installed versions until
-  that provisioning is made to match. This change does not alter provisioning.
-- The container Xvfb accepted core keyboard-mapping changes but did not apply
-  `setxkbmap`/`xkbcomp` layout loads. The keymap pins are therefore the `xkbcomp -xkb`
-  dump of the compiled keymap file; for US that dump is byte-identical to the live
-  server dump, for German the live application is unproven.
+- The provisioning step has not yet run with an admission. Whether the hosted image's installed
+  packages allow the exact-root transaction is shown only by the `--simulate` result of the static
+  job; the install and readback themselves are exercised by fixtures here, not on a runner.
+- The keymap dumps come from a rootless container on fdev, not from a hosted runner.
 - No IBus engine, browser, Orca or journey ran. This is facility input, not IME
   evidence.
 

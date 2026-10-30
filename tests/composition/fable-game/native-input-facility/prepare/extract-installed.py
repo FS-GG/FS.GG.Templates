@@ -65,29 +65,28 @@ for n in owners:
         d=tempfile.mkdtemp(); subprocess.run(['apt-get','download',n.removesuffix(':amd64')+'='+v],cwd=d,check=True,stdout=subprocess.DEVNULL)
         f=next(Path(d).glob('*.deb'))
     pkgs.append({'name':n,'version':v,'debSha256':sha(f.read_bytes())})
-# keymaps: private Xvfb display. This server accepted core-mapping changes but did not apply setxkbmap/xkbcomp
-# layout loads, so the pinned value is derived from the compiled keymap file and the US case is proven equal
-# to the live server dump (see liveEqualsFileUS).
+# keymaps: LIVE dumps from a private Xvfb. A stock Xvfb resets its keyboard to the compiled default when the last
+# client disconnects, and setxkbmap is that last client, so a bare `setxkbmap -layout de; xkbcomp -xkb :97 -` reads
+# US again. `-noreset` keeps the server (the maintained route has openbox connected for its whole life instead).
+# The switch is discriminating: default start, de, back to us, de again; us must equal the default and differ from de.
 env=dict(os.environ,DISPLAY=':97')
-xv=subprocess.Popen(['/usr/bin/Xvfb',':97','-screen','0','1280x800x24','-nolisten','tcp'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+xv=subprocess.Popen(['/usr/bin/Xvfb',':97','-screen','0','1280x800x24','-nolisten','tcp','-noreset'],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+def live_dump():
+    return subprocess.run([objects['xkbcomp']['path'],'-xkb',':97','-'],env=env,check=True,capture_output=True).stdout.decode()
+def apply(layout):
+    subprocess.run([objects['setxkbmap']['path'],'-layout',layout,'-variant','','-option',''],env=env,check=True)
 try:
     for _ in range(50):
         if subprocess.run([objects['xkbcomp']['path'],'-xkb',':97','-'],env=env,capture_output=True).returncode==0: break
         time.sleep(0.2)
-    km={};live_equal=None
-    for layout in ['us','de']:
-        sx=subprocess.run([objects['setxkbmap']['path'],'-print','-layout',layout,'-variant','','-option',''],env=env,check=True,capture_output=True).stdout
-        comp=subprocess.run([objects['xkbcomp']['path'],'-w','0','-I/usr/share/X11/xkb','-xkm','-','/tmp/%s.xkm'%layout],input=sx,env=env,capture_output=True)
-        assert comp.returncode==0
-        raw=subprocess.run([objects['xkbcomp']['path'],'-xkb','/tmp/%s.xkm'%layout,'-'],env=env,check=True,capture_output=True).stdout.decode()
-        if layout=='us':
-            subprocess.run([objects['setxkbmap']['path'],'-layout','us','-variant','','-option',''],env=env,check=True)
-            live=subprocess.run([objects['xkbcomp']['path'],'-xkb',':97','-'],env=env,check=True,capture_output=True).stdout.decode()
-            live_equal=(live==raw); assert live_equal
-        if layout=='de':
-            assert re.search(r'key\s+<AE12>\s*\{[^}]{0,1024}\[\s*dead_acute\s*,\s*dead_grave',raw) and re.search(r'key\s+<AD03>\s*\{[^}]{0,1024}\[\s*e\s*,\s*E',raw)
-        km[layout]=sha(raw.encode())
+    start=live_dump(); apply('de'); de=live_dump(); apply('us'); us=live_dump(); apply('de'); de_again=live_dump()
+    assert start==us and de==de_again and de!=us, 'live layout switch is not discriminating'
+    assert re.search(r'key\s+<AE12>\s*\{[^}]{0,1024}\[\s*dead_acute\s*,\s*dead_grave',de) and re.search(r'key\s+<AD03>\s*\{[^}]{0,1024}\[\s*e\s*,\s*E',de)
+    assert not re.search(r'dead_acute',us)
+    km={'us':sha(us.encode()),'de':sha(de.encode())}
+    keymap_evidence={'method':'live xkbcomp -xkb :97 dump after setxkbmap, Xvfb -noreset','sequence':['start','de','us','de'],
+                     'usEqualsServerStart':True,'deDiffersFromUs':True,'deRepeatable':True,'startSha256':sha(start.encode())}
 finally:
     xv.terminate(); xv.wait()
-Path('/out/draft.json').write_text(json.dumps({'packages':pkgs,'objects':objects,'dataFiles':data,'keymaps':km,'liveEqualsFileUS':live_equal},indent=1,sort_keys=True)+'\n')
+Path('/out/draft.json').write_text(json.dumps({'packages':pkgs,'objects':objects,'dataFiles':data,'keymaps':km,'keymapEvidence':keymap_evidence},indent=1,sort_keys=True)+'\n')
 print('draft ok', len(pkgs), len(objects), len(data), km)

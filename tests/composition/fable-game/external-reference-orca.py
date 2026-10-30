@@ -3638,14 +3638,18 @@ def self_test(logging_controls=True):
             raise RuntimeError("DOM text substituted for Orca speech")
     workflow = (ROOT / ".github/workflows/fable-external-reference-source.yml").read_text()
     workflow_guard(workflow)
-    for bad in [workflow.replace("external-reference-orca.py --self-test", "true"), workflow.replace("if: ${{ !inputs.preflight-only }}", "if: always()"), workflow.replace("external-reference/orca/**", "missing"), workflow.replace("--capture-activation", "--missing-capture"), workflow.replace("${{ runner.temp }}/external-reference/orca-activation-provenance.json", "missing"),
+    for bad in [workflow.replace("external-reference-orca.py --self-test", "true"), workflow.replace("if: ${{ !inputs.preflight-only && inputs.rendering-input-source != 'current-public-composition' }}", "if: always()"),
+            workflow.replace("if: ${{ !inputs.preflight-only && inputs.rendering-input-source != 'current-public-composition' }}", "if: ${{ !inputs.preflight-only }}"),
+            workflow.replace("if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition' }}\n        run: |\n          set -euo pipefail\n          mkdir -p \"$RUNNER_TEMP/external-reference\"\n          python3 -B tests/composition/fable-game/current-reference-noble-install.py", "if: ${{ !inputs.preflight-only }}\n        run: |\n          set -euo pipefail\n          mkdir -p \"$RUNNER_TEMP/external-reference\"\n          python3 -B tests/composition/fable-game/current-reference-noble-install.py"),
+            workflow.replace("current-reference-noble-install.py --install", "current-reference-noble-install.py --simulate"),
+            workflow.replace("        if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition' }}\n        run: |\n          set -euo pipefail\n          mkdir -p \"$RUNNER_TEMP/external-reference\"\n          python3 -B tests/composition/fable-game/current-reference-noble-install.py", "        if: always()\n        run: |\n          set -euo pipefail\n          mkdir -p \"$RUNNER_TEMP/external-reference\"\n          python3 -B tests/composition/fable-game/current-reference-noble-install.py"), workflow.replace("external-reference/orca/**", "missing"), workflow.replace("--capture-activation", "--missing-capture"), workflow.replace("${{ runner.temp }}/external-reference/orca-activation-provenance.json", "missing"),
             workflow.replace("${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}", "${{ !inputs.preflight-only }}"),
             workflow.replace("${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}", "${{ inputs.rendering-input-source != 'palette-heading' }}"),
             workflow.replace("${{ !inputs.preflight-only && inputs.rendering-input-source == 'palette-heading' }}", "${{ inputs.rendering-input-source == 'palette-heading' }}"),
             workflow.replace("${{ !inputs.preflight-only && inputs.rendering-input-source == 'palette-heading' }}", "${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}")]:
         try:
             workflow_guard(bad)
-        except (RuntimeError, IndexError):
+        except (RuntimeError, IndexError, ValueError):
             pass
         else:
             raise RuntimeError("unsafe AT workflow accepted")
@@ -5853,8 +5857,11 @@ def workflow_guard(workflow):
     full_only = "${{ !inputs.preflight-only }}"
     legacy_only = "${{ !inputs.preflight-only && inputs.rendering-input-source != 'palette-heading' }}"
     palette_only = "${{ !inputs.preflight-only && inputs.rendering-input-source == 'palette-heading' }}"
+    legacy_provision = "${{ !inputs.preflight-only && inputs.rendering-input-source != 'current-public-composition' }}"
+    current_provision = "${{ !inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition' }}"
     conditions = {
-        "Provision external reference assistive technology": full_only,
+        "Install declared Noble snapshot roots and read them back against the facility manifest": current_provision,
+        "Provision external reference assistive technology": legacy_provision,
         "Qualify exact generated candidate and existing publication validator": legacy_only,
         "Observe actual external reference Orca journey": legacy_only,
         "Bind successful full result to requested Templates source": legacy_only,
@@ -5865,16 +5872,20 @@ def workflow_guard(workflow):
         require(workflow.count(marker) == 1, "AT workload step missing or ambiguous: " + name)
         section = workflow.split(marker, 1)[1].split("\n      - ", 1)[0]
         require(re.findall(r"^        if: (.+)$", section, re.M) == [condition], "AT workload branch differs: " + name)
-    require(workflow.index("Provision external reference assistive technology") <
+    require(workflow.index("Install declared Noble snapshot roots and read them back against the facility manifest") <
+            workflow.index("Provision external reference assistive technology") <
             workflow.index("Qualify complete palette journey from retained0324 originals"),
             "palette journey precedes actual AT provisioning")
     require(workflow.index("external-reference-orca.py --self-test") < workflow.index("Verify native producer run"), "AT static controls after acquisition")
     require(workflow.index("Qualify exact generated") < workflow.index("Observe actual external reference") < workflow.index("Bind successful full"), "AT dependency ordering drift")
     require("external-reference/orca/**" in workflow, "AT original failure evidence omitted")
     capture = 'external-reference-orca.py --capture-activation "$RUNNER_TEMP/external-reference/orca-activation-provenance.json"'
-    require(workflow.count(capture) == 1, "activation capture missing/ambiguous")
+    require(workflow.count(capture) == 2, "activation capture missing/ambiguous (one per provisioning route)")
     provision = workflow.split("      - name: Provision external reference assistive technology", 1)[1].split("\n      - ", 1)[0]
-    require(provision.index("apt-get install") < provision.index(capture), "activation readback before installed source")
+    require(provision.count(capture) == 1 and provision.index("apt-get install") < provision.index(capture), "activation readback before installed source")
+    snapshot = workflow.split("      - name: Install declared Noble snapshot roots and read them back against the facility manifest", 1)[1].split("\n      - ", 1)[0]
+    require(snapshot.count(capture) == 1 and snapshot.index("current-reference-noble-install.py --install") < snapshot.index(capture),
+            "snapshot activation readback before installed source")
     require("${{ runner.temp }}/external-reference/orca-activation-provenance.json" in workflow,
             "activation original failure evidence omitted")
 

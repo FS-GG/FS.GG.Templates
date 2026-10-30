@@ -7,7 +7,7 @@ URIs: https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/
 Suites: noble noble-updates noble-security
 Components: main universe
 Architectures: amd64
-Signed-By: /in/ubuntu-archive-keyring.gpg
+Signed-By: /in/keyring.gpg
 EOS
 printf '#!/bin/sh\nexit 101\n' > /usr/sbin/policy-rc.d; chmod 755 /usr/sbin/policy-rc.d
 echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99snapshot
