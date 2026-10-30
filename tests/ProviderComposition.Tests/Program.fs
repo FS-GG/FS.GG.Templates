@@ -500,9 +500,23 @@ let main _ =
         (composition.rendering, composition.game, composition.selection, "source-built")
         (sourceBuilt.rendering, sourceBuilt.game, sourceBuilt.selection, sourceBuilt.template.origin)
     let sourceBuiltIdentities = sourceBuilt.browsers.cases |> List.map (fun row -> row.file, row.suite, row.title)
-    assertEqual "source-built plan selects exactly the thirteen published cases"
-        (identities, 13, 13)
-        (sourceBuiltIdentities, sourceBuiltIdentities.Length, (Set.ofList sourceBuiltIdentities).Count)
+    let sourceOnly =
+        [ "FourD reference pointer hit testing inverts a wheel zoom and a narrow viewport and still selects the painted target"
+          "FourD reference held input is released by hidden visibility, focus leaving the reference and disposal"
+          "external authority reference note, caret and focus survive snapshot application, reconnect and authority replacement" ]
+    assertEqual "source-built plan is the thirteen published cases followed by the three source-only release and island cases"
+        (identities, 16, 16, sourceOnly)
+        (sourceBuiltIdentities |> List.take identities.Length, sourceBuiltIdentities.Length, (Set.ofList sourceBuiltIdentities).Count,
+         sourceBuiltIdentities |> List.skip identities.Length |> List.map (fun (_, _, title) -> title))
+    assertEqual "published plan never selects a source-only case" 0
+        (identities |> List.filter (fun (_, _, title) -> List.contains title sourceOnly) |> List.length)
+    let changedSourceBuilt (change: System.Text.Json.Nodes.JsonNode -> unit) =
+        let node = System.Text.Json.Nodes.JsonNode.Parse sourceBuiltJson
+        change node
+        validateSourceBuiltCompositionPlan (node.ToJsonString())
+    for fromEnd in 1 .. 3 do
+        assertEqual $"source-built plan missing source-only case {fromEnd} from the end refuses" (Error "current-composition-plan-refused")
+            (changedSourceBuilt (fun n -> let cases = n.["browsers"].["cases"].AsArray() in cases.RemoveAt(cases.Count - fromEnd)))
     assertEqual "published durable cases are real browser entrypoints"
         [ "Local synthetic snapshot survives page recreation with lossless uint64 order and typed refusals"
           "Local synthetic snapshot storage failures and late loads preserve accepted state and settle disposal" ]
