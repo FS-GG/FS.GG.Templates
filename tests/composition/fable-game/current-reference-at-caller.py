@@ -141,7 +141,9 @@ def source(root, owner):
 
 if __name__ == '__main__':
     if sys.argv[1:] == ['guard']:
-        guard(os.environ)
+        # Workflow entry: the admission must verify against the running tuple, then the single-run census.
+        admission = load('current_at_admission', HERE / 'current-reference-at-admission.py')
+        print(json.dumps(admission.guard(os.environ, with_census=True), sort_keys=True))
     elif len(sys.argv) == 4 and sys.argv[1] in ['prepare', 'source']:
         (prepare if sys.argv[1] == 'prepare' else source)(Path(sys.argv[2]), Path(sys.argv[3]))
     else:

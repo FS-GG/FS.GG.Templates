@@ -369,3 +369,22 @@ Limits, stated rather than inferred:
   evidence.
 
 Controls: `CommittedFacilityControls` in `test-current-reference-native-input.py`.
+
+
+## Dispatch-bound admission of the full run
+
+`CURRENT_PUBLIC_AT_ADMISSION` stays `None`: no value is fixed in source and the route is held
+by default. Root lifts the hold for one run by supplying `current-public-at-admission` at
+dispatch. `current-reference-at-admission.py issue` prints the string
+`fsgg.at-admission/1;notAfter=<UTC>;sha256=<digest>` for an exact tuple: the Templates
+revision that will execute, the caller (Rendering) revision it is dispatched at, the producer
+rows (version, source, run, artifact, archive and custody digests), the facility manifest
+digest, the install-roots digest and the expiry (at most 7 days). Every guard site recomputes that
+tuple from what is actually running and refuses on any difference, on expiry, or on an arbitrary
+value. The workflow guard step additionally runs the single-run census: attempt 1 only, and no
+other run of the same caller workflow may have passed the guard step (an earlier run still at it
+also refuses; a run that was refused at the guard does not consume the admission).
+
+The string is not a credential. Its strength is the exact binding, the expiry and the census.
+The census reads the caller repository's run list with the job token (`actions: read`) and fails
+closed when it cannot.

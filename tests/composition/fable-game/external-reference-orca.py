@@ -25,8 +25,10 @@ import types
 
 ROOT = Path(__file__).resolve().parents[3]
 SCHEMA = "fsgg.external-reference-orca-observation/1"
-# Source-only extension. Activation and the authenticated current-public caller
-# remain separate work; no environment value can lift this None gate.
+# No source-fixed admission value. The route is held unless the dispatch supplies an admission string that
+# current-reference-at-admission.py verifies against the exact tuple actually running (Templates revision, caller
+# revision, producer, facility manifest, install roots, expiry); an arbitrary environment value cannot lift it.
+# A non-None value here would be a source-fixed admission compared by equality, as before.
 CURRENT_PUBLIC_AT_ADMISSION = None
 LOCAL_SAVE_JOURNEY = "current-public-local-save"
 PHRASES = {
@@ -52,8 +54,12 @@ def native_input_helper(expected_sha=None):
 
 
 def current_public_at_admission(environment):
-    require(CURRENT_PUBLIC_AT_ADMISSION is not None,
-            "current public AT held: no selected source admission")
+    if CURRENT_PUBLIC_AT_ADMISSION is None:
+        spec = importlib.util.spec_from_file_location("current_at_admission", Path(__file__).with_name("current-reference-at-admission.py"))
+        admission = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(admission)
+        admission.verify(environment)
+        return
     require(environment.get("FSGG_CURRENT_PUBLIC_AT_ADMISSION") == CURRENT_PUBLIC_AT_ADMISSION,
             "current public AT owning admission differs")
 
