@@ -4,7 +4,7 @@
     {
       "id": "fable-bindings",
       "scope": "product",
-      "sha256": "ddc040fd17342b30ef84523c5b7ccd2d974278d7704f09e7357495dead5fccd5",
+      "sha256": "4a80ba26942465983249b0f9e381fea8366bca470c1c730cc3954b63275df849",
       "resolvablePath": ".agents/skills/fable-bindings/SKILL.md",
       "materializes-when": "template in [fable-bindings]",
       "supplied-by": "template/product-skills/fable-bindings/"

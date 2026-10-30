@@ -2,6 +2,8 @@
 
 The initial qualified forcing corpus is `@babylonjs/core@9.19.0` plus `@babylonjs/loaders@9.19.0`: a narrow, modular scene path (NullEngine, Scene, maths, camera/light, box, and explicit glTF side effect). Run locked restores, curate `src/`, then run compile, emitted-import, Node and real-browser runtime, drift, and clean-consumer evidence before release. `./build.sh` restores the pinned Fable tool and executes JavaScript emitted from the curated F# compile test; the browser page imports that same emitted program, so handwritten JavaScript is not allowed to stand in for binding evidence.
 
+`corpus.json` declares the corpus once: exact npm artifacts, `.d.ts` entry points and the candidate file stem. `npm run lock:declarations` reads it and refuses installed artifacts that differ from it. `npm run doctor` reds when `package.json`, `scaffold-provenance.json`, the lock or the binding-plan runtime entries disagree with it.
+
 `npm run generate:candidate` writes only tracked `generated-candidates/`; it never overwrites maintained source or advances the declaration lock. `npm run check:drift` follows every selected relative declaration import/export and fails on changed transitive hashes. Keep the slice, symbol-to-import mapping, declaration-merging decisions, dependency order, side effects, typed pass-throughs, and unsupported constructs in `binding-plan.json` and `coverage-and-drift.json`; never silently expose a failed conversion as `obj`. Product skills are supplied by the Templates-owned `fable-bindings` skill manifest rather than copied into this provider template. Local proof precedes publication and any registry/wizard activation.
 
 Xantham is an explicit candidate backend for the qualified `ansi-regex@6.2.2` pilot. `npm run

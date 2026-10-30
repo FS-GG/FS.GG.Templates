@@ -21,7 +21,9 @@ declarations, the emitted ESM graph, and the public F# API as four related but d
 Pin the npm package/version and lockfile, selected declaration entry points and transitive `.d.ts`
 hashes, .NET SDK, Fable/Fable.Core, generator, Node, and package manager. An upstream update must red
 until the declaration lock, mapping decisions, maintained source, coverage, runtime evidence, and
-release notes are reviewed together.
+release notes are reviewed together. Declare the corpus once in `corpus.json` (exact npm artifacts,
+`.d.ts` entry points, candidate file stem); the lock and candidate scripts read it, and
+`npm run doctor` reds when `package.json`, provenance or the lock disagree with it.
 
 ## Design a slice before writing bindings
 

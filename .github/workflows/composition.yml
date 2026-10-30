@@ -224,15 +224,15 @@ jobs:
       - uses: actions/setup-node@v6
         if: steps.scope.outputs.run == 'true'
         with:
-          node-version: '26.10.0'
+          node-version: '26.13.0'
       - name: Install exact npm toolchain
         if: steps.scope.outputs.run == 'true'
-        run: npm install --global npm@12.1.0
+        run: npm install --global npm@12.2.1
       - name: Assert exact Node and npm toolchain
         if: steps.scope.outputs.run == 'true'
         run: |
-          test "$(node --version)" = 'v26.10.0'
-          test "$(npm --version)" = '12.1.0'
+          test "$(node --version)" = 'v26.13.0'
+          test "$(npm --version)" = '12.2.1'
       # Offline test of the scheduled Xantham upstream watch (FS.GG.Templates#751): fake fetch and gh,
       # no network, seconds. The watch workflow itself runs only on schedule / workflow_dispatch.
       - name: Test the scheduled Xantham upstream watch (offline)
