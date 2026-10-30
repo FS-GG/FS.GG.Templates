@@ -547,7 +547,7 @@ let private optionsAndFocusCases =
         |}
     ]
 
-// These cases require source carrying the durable fixture codec; the pinned public 0.20.0 plan is unchanged.
+// These cases require source carrying the durable fixture codec (absent from the published 0.20.0 archive, present in 0.20.1).
 let private durableLocalSaveCases =
     [
         {|
@@ -570,10 +570,10 @@ let currentCompositionPlan () =
         template =
             {|
                 id = "FS.GG.Workspace.Template"
-                version = "0.20.0"
-                sha256 = "e12b36d2d087d0f788894fdec9ba3b3ed1406c1e7237ebee40602c2f7c23355c"
-                sourceCommit = "1b9b1ca92556eb1acd0e4d1c9cb851a8c7906f86"
-                descriptorSha256 = "11c7e338b1fa2c29e6d8c2277758f59aeadc9144b1b568204596a0c4152833ee"
+                version = "0.20.1"
+                sha256 = "e84d5188b510937fb54218faf4cabbad93a801b58f24fd6e5bfbeba632c44a6a"
+                sourceCommit = "df896c4bd587b5ef8dd990bc39c0dcb661bf2193"
+                descriptorSha256 = "66dd8f066a5fd958e45b1681b934b44b68258efa4cecb2d72aa553839ee4b4a9"
             |}
         selection = compositionSelection
         rendering = compositionRendering
@@ -583,13 +583,13 @@ let currentCompositionPlan () =
                 families = [ "chromium"; "firefox"; "webkit" ]
                 retries = 0
                 workers = 1
-                cases = baseCompositionCases @ optionsAndFocusCases
+                cases = baseCompositionCases @ optionsAndFocusCases @ durableLocalSaveCases
             |}
-        acceptanceScope = "eleven maintained DOM-automation composition cases on the published 0.20.0 template only; local save remains synthetic in-memory; no durable/product/AT/whole4818 acceptance"
+        acceptanceScope = "thirteen maintained DOM-automation composition cases on the published 0.20.1 template only, including the explicit durable synthetic browser-storage save/load; no product-save/AT/IME/whole4818 acceptance"
     |}
 
 // The generated-receiver conformance check for the composition plan. It is bound to the template identity the typed
-// plan carries (the published 0.20.0 archive), not to the D5 current-public pin, so moving the plan to a newer
+// plan carries (the published 0.20.1 archive), not to the D5 current-public pin, so moving the plan to a newer
 // published template never edits the D5 lane's frozen 0.19.3 selector.
 let validateCurrentCompositionReceiver archive receiver route lifecycle bundle product =
     let template = (currentCompositionPlan ()).template
@@ -639,7 +639,7 @@ let private validateCompositionPlanDigest (expectedDigest: string) (json: string
     with _ -> Error "current-composition-plan-refused"
 
 let validateCurrentCompositionPlan (json: string) =
-    validateCompositionPlanDigest "94f5e0dcf48b978744fdad64f5d70d49e2dd6f0ccd081a4536317d48d03c7672" json
+    validateCompositionPlanDigest "754b5ee32db3a58c590f11ac4de4b9e8ea8e847e5a15821276ef852f93f206d0" json
 
 // The same typed Rendering/Game/selection pins and the same maintained cases, but the template under test is
 // packed from the checked-out protected Templates source instead of a published archive. Its identity is therefore

@@ -485,28 +485,28 @@ let main _ =
     let compositionJson = renderCurrentCompositionPlan ()
     assertEqual "current composition renderer closes exact source DTO" (Ok ()) (validateCurrentCompositionPlan compositionJson)
     assertEqual "current composition template source and raw pin are fixed"
-        ("0.20.0", "1b9b1ca92556eb1acd0e4d1c9cb851a8c7906f86", "e12b36d2d087d0f788894fdec9ba3b3ed1406c1e7237ebee40602c2f7c23355c", "11c7e338b1fa2c29e6d8c2277758f59aeadc9144b1b568204596a0c4152833ee")
+        ("0.20.1", "df896c4bd587b5ef8dd990bc39c0dcb661bf2193", "e84d5188b510937fb54218faf4cabbad93a801b58f24fd6e5bfbeba632c44a6a", "66dd8f066a5fd958e45b1681b934b44b68258efa4cecb2d72aa553839ee4b4a9")
         (composition.template.version, composition.template.sourceCommit, composition.template.sha256, composition.template.descriptorSha256)
     assertEqual "current composition Rendering provenance is fixed"
         ("0.32.4", "4ede04be66cedffc8551cd14045bab714aa358a7", "89ea6424cae4d06969f0a60394679e9892bd2b873fb46ebd281aa10616809720")
         (composition.rendering.version, composition.rendering.sourceCommit, composition.rendering.custodySha256)
     let identities = composition.browsers.cases |> List.map (fun row -> row.file, row.suite, row.title)
-    assertEqual "current composition has eleven unique full DOM identities" (11, 11) (identities.Length, (Set.ofList identities).Count)
+    assertEqual "current composition has thirteen unique full DOM identities" (13, 13) (identities.Length, (Set.ofList identities).Count)
     let sourceBuiltJson = renderSourceBuiltCompositionPlan ()
     assertEqual "source-built composition plan closes its own DTO and pins no template archive" (Ok (), false)
-        (validateSourceBuiltCompositionPlan sourceBuiltJson, sourceBuiltJson.Contains "\"sha256\": \"e12b36d2")
+        (validateSourceBuiltCompositionPlan sourceBuiltJson, sourceBuiltJson.Contains "\"sha256\": \"e84d5188")
     let sourceBuilt = sourceBuiltCompositionPlan ()
     assertEqual "source-built plan reuses the published Rendering, Game and selection and labels itself source-built"
         (composition.rendering, composition.game, composition.selection, "source-built")
         (sourceBuilt.rendering, sourceBuilt.game, sourceBuilt.selection, sourceBuilt.template.origin)
     let sourceBuiltIdentities = sourceBuilt.browsers.cases |> List.map (fun row -> row.file, row.suite, row.title)
-    assertEqual "source-built plan retains every published case before the two durable fixture cases"
+    assertEqual "source-built plan selects exactly the thirteen published cases"
         (identities, 13, 13)
-        (sourceBuiltIdentities |> List.take identities.Length, sourceBuiltIdentities.Length, (Set.ofList sourceBuiltIdentities).Count)
-    assertEqual "source-built durable cases are real browser entrypoints"
+        (sourceBuiltIdentities, sourceBuiltIdentities.Length, (Set.ofList sourceBuiltIdentities).Count)
+    assertEqual "published durable cases are real browser entrypoints"
         [ "Local synthetic snapshot survives page recreation with lossless uint64 order and typed refusals"
           "Local synthetic snapshot storage failures and late loads preserve accepted state and settle disposal" ]
-        (sourceBuiltIdentities |> List.skip identities.Length |> List.map (fun (_, _, title) -> title))
+        (identities |> List.skip 11 |> List.map (fun (_, _, title) -> title))
     use compositionDocument = System.Text.Json.JsonDocument.Parse compositionJson
     let gameFields = compositionDocument.RootElement.GetProperty("game").EnumerateObject() |> Seq.map (fun row -> row.Name) |> Set.ofSeq
     assertEqual "Game has exact known lock identity without an invented raw hash" (Set.ofList [ "id"; "version"; "lockContentHash" ]) gameFields
@@ -526,6 +526,12 @@ let main _ =
         (changedComposition (fun n -> n.["browsers"].["cases"].AsArray().RemoveAt(9)))
     assertEqual "composition missing focus and editing survival case refuses" (Error "current-composition-plan-refused")
         (changedComposition (fun n -> n.["browsers"].["cases"].AsArray().RemoveAt(10)))
+    assertEqual "composition missing durable page-recreation case refuses" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["browsers"].["cases"].AsArray().RemoveAt(11)))
+    assertEqual "composition missing durable storage-failure case refuses" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["browsers"].["cases"].AsArray().RemoveAt(12)))
+    assertEqual "composition template version drift back to 0.20.0 refuses" (Error "current-composition-plan-refused")
+        (changedComposition (fun n -> n.["template"].["version"] <- System.Text.Json.Nodes.JsonValue.Create("0.20.0")))
     assertEqual "composition template source commit drift refuses" (Error "current-composition-plan-refused")
         (changedComposition (fun n -> n.["template"].["sourceCommit"] <- System.Text.Json.Nodes.JsonValue.Create("7be0bcf5886d39a8161b186beb8cc06e82415f1e")))
     assertEqual "composition template version drift back to 0.19.3 refuses" (Error "current-composition-plan-refused")

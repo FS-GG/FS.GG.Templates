@@ -173,8 +173,30 @@ covered by its own cases; it is not the reference `localSaved`. The reference-le
 Workspace.Template release**, per Root's re-binding on FS-GG/.github#4818 (2026-10-25: a reference-level durable `localSaved` becomes a source obligation for the next Workspace.Template release), because 0.20.0 shipped without any template source for it, and a published-byte case cannot precede the
 published source. Product-level durable save is FourD's under FS-GG/.github#4819.
 
+## Published 0.20.1 bytes (observed 2026-10-30)
+
+`FS.GG.Workspace.Template` 0.20.1 is published (Templates#815 accepted its payload `7c48b222`; FS-GG/.github#3010 closed on its installed provider journeys). The typed
+`current-composition-plan` now pins that archive: signed nuget.org SHA-256 `e84d5188b510937fb54218faf4cabbad93a801b58f24fd6e5bfbeba632c44a6a`
+(1,215,582 bytes, 621 entries = the 620 payload entries plus the repository signature), repository commit `df896c4bd587b5ef8dd990bc39c0dcb661bf2193` read from the
+archive's nuspec, and descriptor `providers/fable-game.providers.yml` SHA-256 `66dd8f066a5fd958e45b1681b934b44b68258efa4cecb2d72aa553839ee4b4a9` (the file at that commit; the
+0.20.0 pin used the same derivation). The plan selects thirteen cases: the eleven of 0.20.0 plus the two durable synthetic snapshot cases, so the route runs 39 (13 x Chromium, Firefox, WebKit).
+The source-built plan now selects the same thirteen. The plan's Rendering pin was already 0.32.4, which the 0.20.0 archive's lock did not match; the 0.20.1 lock does.
+
+Run (ADR-0096 ordinary verification, fdev KVM guest, glibc 2.44, user-scope `CPUQuota=200%` `MemoryMax=4G`, one fresh private root, closed environment, 2 CPUs, host-libraries container image `789c96b69ae3`
+rebuilt from the digest-pinned Ubuntu base, no credential, nuget.org read credential-free, Node 24.20.0 from a SHA-256-verified private distribution) at checkout head `ed31faec` (tree `d0f7c389`, clean):
+
+| check | result |
+|---|---|
+| template archive downloaded from nuget.org | SHA-256 equals the typed pin |
+| Chromium / Firefox / WebKit | 13 / 13 / 13 passed, 0 skipped, 0 flaky, 0 retries (39/39); listing equals the thirteen typed identities |
+| wall time | source stage 128 s; browsers 12 s, 20 s, 19 s |
+
+Verdict `dom-observed-local-reference-only` with `origin: published`. `actualProducerCustodyReadback` is **false** in this run: the retained Rendering 0.32.3 custody read of the earlier runs is not present on this host and the 0.32.4 custody
+manifest was not read, so no custody claim is made. `publishedAcceptance`, `hostedRuntimeAdmission`, installed, product-save, AT, IME and whole-#4818 flags stay false. The durable reference `localSaved` journey
+(IndexedDB through `BrowserPersistenceHost`, lossless uint64 order, typed refusals, injected quota failure, late load and disposal) therefore has published-byte evidence on 0.20.1.
+
 ## Boundaries that remain
 
 - `actualProducerCustodyReadback` is false unless the run is given `--custody-evidence` and `--rendering-source` (the previous section).
-- `localSaved` is the synthetic in-memory journey, in 0.20.0 as in 0.19.3. A durable reference `localSaved` is owed to the next template release (above); product save is #4819; the AT journey is #4817.
+- `localSaved` is the synthetic in-memory journey in 0.20.0 and 0.19.3; 0.20.1 carries the durable synthetic browser-storage journey (above). Product save is #4819; the AT journey is #4817.
 - Host-library gaps are solved by the container, not by weakening a case; a missing library fails the listing or run.

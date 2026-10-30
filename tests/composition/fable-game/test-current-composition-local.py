@@ -433,13 +433,19 @@ class Controls(unittest.TestCase):
         for title in titles:
             self.assertEqual(spec.count('test("'+title+'"'),1,title)
             self.assertNotIn(title,base)
-        # The published plan and the source-built plan select exactly the same maintained base plus the added cases.
-        self.assertEqual(source.count('cases = baseCompositionCases @ optionsAndFocusCases'),2)
-        # The published template identity is the signed nuget.org 0.20.0 archive and its source commit.
+        # The published plan and the source-built plan select exactly the same maintained base plus the added and durable cases.
+        self.assertEqual(source.count('cases = baseCompositionCases @ optionsAndFocusCases @ durableLocalSaveCases'),2)
+        durable=re.search(r'let private durableLocalSaveCases =(.*?)\n\n// ',source,re.S)[1]
+        durable_titles=re.findall(r'title = "([^"]+)"',durable)
+        self.assertEqual(len(durable_titles),2)
+        for title in durable_titles:
+            self.assertEqual(spec.count('test("'+title+'"'),1,title)
+            self.assertNotIn(title,base)
+        # The published template identity is the signed nuget.org 0.20.1 archive and its repository commit.
         published=re.search(r'let currentCompositionPlan \(\) =(.*?)\n\n// ',source,re.S)[1]
-        for pinned in ('version = "0.20.0"','sha256 = "e12b36d2d087d0f788894fdec9ba3b3ed1406c1e7237ebee40602c2f7c23355c"','sourceCommit = "1b9b1ca92556eb1acd0e4d1c9cb851a8c7906f86"'):
+        for pinned in ('version = "0.20.1"','sha256 = "e84d5188b510937fb54218faf4cabbad93a801b58f24fd6e5bfbeba632c44a6a"','sourceCommit = "df896c4bd587b5ef8dd990bc39c0dcb661bf2193"'):
             self.assertIn(pinned,published)
-        self.assertNotIn('0.19.3',published)
+        for stale in ('0.19.3','0.20.0','e12b36d2'):self.assertNotIn(stale,published)
         # The island's controls are authored once, in the reference, and carry the names the cases look up.
         reference=(HERE.parents[2]/'templates/fs-gg-fable-game/SvgFoundation/FourDReference.fs').read_text()
         for name in ('Encounter options','Difficulty','Show hints','Camera','Overview','Close focus'):self.assertIn('"%s"'%name,reference)
