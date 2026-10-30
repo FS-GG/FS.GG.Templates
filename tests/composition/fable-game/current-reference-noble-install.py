@@ -110,10 +110,16 @@ def apt_options(private):
 def install_argv(private, root_rows, simulate, allow_downgrades=False):
     """The one install transaction: exact roots, no recommends. apt offers --allow-downgrades only globally, so it is
     added solely when the unflagged simulation proved a downgrade is required, and the flagged simulation is then
-    classified so that only root packages (pinned to their reviewed versions) may be downgraded."""
+    classified so that only root packages (pinned to their reviewed versions) may be downgraded. --no-remove makes
+    apt itself refuse any removal at install time, in the simulation and in the privileged call alike."""
     return (['apt-get'] + apt_options(private) + (['--simulate'] if simulate else ['--yes']) +
-            ['install', '--no-install-recommends'] + (['--allow-downgrades'] if allow_downgrades else []) +
+            ['install', '--no-install-recommends', '--no-remove'] + (['--allow-downgrades'] if allow_downgrades else []) +
             ['%s=%s' % row for row in root_rows])
+
+
+def transaction_key(argv):
+    """The argv minus the only flags allowed to differ between simulation and installation."""
+    return [a for a in argv if a not in ('--simulate', '--yes', '--allow-downgrades')]
 
 
 CLEAN_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8', 'DEBIAN_FRONTEND': 'noninteractive'}
@@ -212,7 +218,11 @@ def main(argv=None):
         result = {'mode': 'simulate', 'allowDowngrades': allow, **planned}
     else:
         # The same classified transaction is the privileged one; nothing broader runs.
-        run(install_argv(args.private, root_rows, False, allow), privileged=True)
+        simulated = install_argv(args.private, root_rows, True, True)
+        privileged = install_argv(args.private, root_rows, False, allow)
+        need(transaction_key(simulated) == transaction_key(privileged) and '--no-remove' in privileged,
+             'privileged transaction differs from the simulated one')
+        run(privileged, privileged=True)
         result = {'mode': 'install', 'allowDowngrades': allow, **planned,
                   **readback(manifest, root_rows, installed_version, archive_hash_factory(args.private), N.verify_files)}
     result.update(schema='fsgg.current-reference-noble-snapshot-provisioning/1', snapshot=A.BASE,

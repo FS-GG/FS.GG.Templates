@@ -342,7 +342,9 @@ manifest package `.deb` hash and every object and data-file hash match the suppl
 Before the privileged call, `--install` simulates the transaction on the actual image and refuses on any
 removal or any downgrade of a non-root package; root downgrades (to the pinned versions) are recorded in the
 receipt, and `--allow-downgrades` (which apt cannot scope to named packages) is passed only when the classified
-simulation contains such a root downgrade. `--simulate` runs the same classification without privilege or install against the runner's real
+simulation contains such a root downgrade. Both the simulation and the privileged
+call carry `--no-remove`, so apt itself refuses a removal at install time, and the privileged argv must equal the simulated one
+apart from `--simulate`/`--yes` and `--allow-downgrades` or the step refuses before the privileged call. `--simulate` runs the same classification without privilege or install against the runner's real
 dpkg status; the Templates static job runs it on every PR. The
 historical and font routes keep their live-mirror provisioning step.
 
