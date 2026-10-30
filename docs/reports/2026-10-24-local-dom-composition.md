@@ -195,6 +195,21 @@ Verdict `dom-observed-local-reference-only` with `origin: published`. `actualPro
 manifest was not read, so no custody claim is made. `publishedAcceptance`, `hostedRuntimeAdmission`, installed, product-save, AT, IME and whole-#4818 flags stay false. The durable reference `localSaved` journey
 (IndexedDB through `BrowserPersistenceHost`, lossless uint64 order, typed refusals, injected quota failure, late load and disposal) therefore has published-byte evidence on 0.20.1.
 
+## Source-only release and island cases (after 0.20.1)
+
+The Qualification section of the staged-adoption plan names pointer coordinates under SVG transforms, blur/visibility transitions, editable focus and repeated mount/dispose. Three
+more typed cases close what the 0.20.1 matrix above states as limits. Each runs only in `--source-built` mode (16 cases per browser, 48 in total); the published plan keeps its thirteen until
+the next Workspace.Template release carries them. They change only the template's `two-client.spec.ts`; no reference runtime source changed, and none of them exercises a real input method.
+
+| case | what it adds | causal controls (scratch regressions, each fails the case in Chromium, Firefox and WebKit; the other maintained cases are unaffected by construction) |
+| --- | --- | --- |
+| `FourD reference pointer hit testing inverts a wheel zoom and a narrow viewport and still selects the painted target` | real wheel events zoom the retained camera out about the origin cell; the destination's paint moves and shrinks; a click at its pre-zoom point does not select it (so a hit test that ignored the camera would), the painted centres of both cells select them, only the destination admits a command; a retained scene update keeps the zoomed camera; the same after a 320 px viewport | wheel zoom factor made inert (`1.0000001`): fails at the camera-change assertion. The camera-survives-update assertion has **no** reference-level causal control: a reference whose scene camera follows the revision still passes, because SvgBrowser keeps the user camera on `ReplaceScene`; it guards that Rendering behaviour only |
+| `FourD reference held input is released by hidden visibility, focus leaving the reference and disposal` | a `visibilitychange` while visible keeps the hold; a hidden document releases it and the late `keyup` does not hold again; focus moving to the reference's own note keeps the hold, focus leaving releases; disposal while held releases and leaves the disposed element neutral | held release ignored in the reference's handler: fails; reference disposal skips the input host: fails |
+| `external authority reference note, caret and focus survive snapshot application, reconnect and authority replacement` | the external reference's native note keeps focus, text, selection and node identity across two snapshots, disconnect/reconnect and an authority replacement; an active composition makes the same invocation inert; Enter in the composing note admits nothing; after disposal the note is still editable and admits nothing | the note re-parented on every `describe`: fails |
+
+Honest limits: the hidden-visibility case overrides `document.hidden` and dispatches `visibilitychange` (headless pages are always visible); the composition is a synthetic `compositionstart`/`compositionend`; the camera
+is changed by wheel only (the reference has no pan control).
+
 ## Boundaries that remain
 
 - `actualProducerCustodyReadback` is false unless the run is given `--custody-evidence` and `--rendering-source` (the previous section).
