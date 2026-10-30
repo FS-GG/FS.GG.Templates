@@ -239,7 +239,7 @@ def retain_current_at_inputs(root, plan, producer_custody):
         'sourceStageInputsSha256': sha256(product / 'current-source-inputs.json'),
         'browserFamilies': list(FAMILIES), 'passedPerFamily': len(plan['browsers']['cases']), 'skipped': 0,
         'browserReportSha256': {family: hashlib.sha256(data).hexdigest() for family, data in reports.items()},
-        'domAutomation': True, 'actualScreenReader': 'not-observed', 'localSaveStorage': 'synthetic-in-memory',
+        'domAutomation': True, 'actualScreenReader': 'not-observed', 'localSaveStorage': observations.local_save_storage(plan),
         'authenticatedNativeCaller': False, 'hostedRuntimeAdmission': False, 'actualAT': False,
         'publication': False, 'publishedAcceptance': False, 'installedAcceptance': False,
         'durableSaveAcceptance': False, 'providerMatrixAcceptance': False, 'nativeImeAcceptance': False,

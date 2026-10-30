@@ -32,6 +32,7 @@ def inputs():
     packet = {"currentCompositionPlan": plan, "templates": {"revision": template["sourceCommit"], "tree": None},
               "templatesInputSource": "exact-current-public-archive", "templatePackageInput": package,
               "actualProducerCustodyReadback": True, "disposition": "passed", "qualificationMode": "current-public-composition",
+              "localSaveStorage": "synthetic-in-memory",
               "producer": {"revision": "e" * 40, "custodyManifestSha256": "f" * 64},
               "browserFamilies": plan["browsers"]["families"], "passedPerFamily": 1, "skipped": 0}
     preflight = {"atJourney": O.LOCAL_SAVE_JOURNEY, "renderingInputSource": "current-public-composition",
@@ -413,7 +414,8 @@ class CurrentAtTests(unittest.TestCase):
                        "producer": preflight["producer"], **journey, "currentPublicAt": identity, "keyboard": "xdotool-X11",
                        "speechBoundary": "Orca SPEECH OUTPUT", "physicalAudioHardware": "not-observed", "cleanup": cleanup,
                        "sourceQualificationSha256": O.digest(directory / "source-qualification.json"),
-                       "localSaveStorage": "synthetic-in-memory", "durableSaveAcceptance": False, "providerMatrixAcceptance": False,
+                       "localSaveStorage": O.composition_observations().local_save_storage(packet["currentCompositionPlan"]),
+                       "atLocalSaveStorage": "synthetic-in-memory", "durableSaveAcceptance": False, "providerMatrixAcceptance": False,
                        "nativeImeAcceptance": False, "whole4817Acceptance": False,
                        "evidenceSha256": {name: O.digest(directory / name) for name in names}}
             self.assertTrue(O.validate(receipt, packet, preflight, directory))
@@ -434,6 +436,31 @@ class CurrentAtTests(unittest.TestCase):
                         O.validate(altered, packet, preflight, directory)
                 self.assertEqual(originals, {path.name: path.read_bytes() for path in directory.iterdir() if path.is_file()})
                 return
+            observations = O.composition_observations()
+            durable_titles = list(observations.DURABLE_LOCAL_SAVE_TITLES)
+            combined = "synthetic-in-memory-and-durable-browser"
+            self.assertEqual("synthetic-in-memory", receipt["localSaveStorage"])
+            # the storage label must describe what the plan selects and what the journey pressed, nothing broader
+            for label, change in {"claims durable for an in-memory plan": lambda r, p: r.update(localSaveStorage=combined),
+                                  "claims something else": lambda r, p: r.update(localSaveStorage="durable"),
+                                  "empty label": lambda r, p: r.update(localSaveStorage=""),
+                                  "AT journey claims durable": lambda r, p: r.update(atLocalSaveStorage=combined),
+                                  "AT journey label absent": lambda r, p: r.pop("atLocalSaveStorage"),
+                                  "packet label differs": lambda r, p: p.update(localSaveStorage=combined),
+                                  "packet label absent": lambda r, p: p.pop("localSaveStorage"),
+                                  "durable acceptance claimed": lambda r, p: r.update(durableSaveAcceptance=True)}.items():
+                altered, altered_packet = copy.deepcopy(receipt), copy.deepcopy(packet)
+                change(altered, altered_packet)
+                with self.subTest(label), self.assertRaisesRegex(RuntimeError, "storage label or acceptance claim"):
+                    O.validate(altered, altered_packet, preflight, directory)
+            # a plan that selects the two durable cases exercises durable browser storage and must say so
+            durable_plan = copy.deepcopy(packet["currentCompositionPlan"])
+            durable_plan["browsers"]["cases"] += [{"file": "two-client.spec.ts", "suite": [], "title": title} for title in durable_titles]
+            self.assertEqual(combined, observations.local_save_storage(durable_plan))
+            with self.assertRaisesRegex(ValueError, "durable local-save cases must be selected together"):
+                half = copy.deepcopy(packet["currentCompositionPlan"])
+                half["browsers"]["cases"].append({"file": "two-client.spec.ts", "suite": [], "title": durable_titles[0]})
+                observations.local_save_storage(half)
             derived = copy.deepcopy(receipt)
             derived["browser"]["transportOutcome"] = {"reported": False, "stage": "not-observed"}
             self.assertTrue(O.validate(derived, packet, preflight, directory))
