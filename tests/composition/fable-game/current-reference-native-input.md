@@ -304,3 +304,43 @@ root-private. The factory accepts only the completed fixed root-owned pool and
 rechecks the seal, exact membership, ancestors and bytes. These are maintained
 source prerequisites; the AT-capable baked layer and actual private workflow
 still need delivery and separate facility qualification.
+
+
+## Committed Noble facility manifest (prepared input only)
+
+`native-input-facility/noble-20261024.manifest.json` is the reviewed schema-1
+facility tuple for the declared Noble snapshot `20261024T000000Z`: 12 packages,
+11 object roles, 28 package-owned data files (22 libpinyin dictionary files, three
+XKB sources, one Compose table, two schemas) and the compiled US/German keymap
+hashes. The file is the canonical single-line JSON, 11,150 bytes (limit 65,536),
+and its SHA256 is `073f3a94a98c34068c40ea887cba5c6b09836b4cc8a67b287978ea1e5cff6a31`.
+It is passed verbatim as the `native-input-facility` dispatch input; nothing reads
+it from the repository, so committing it grants no admission and runs nothing.
+`CURRENT_PUBLIC_AT_ADMISSION` stays `None`.
+
+Its sibling files bind the preparation: `…package-request.json` (the same 12 rows,
+run through `current-reference-noble-acquisition.py --package-request`),
+`…acquisition.json` (that helper's closed receipt: all declared binary and source
+archives verified, installation false), `…closure.txt` (the 480 installed
+package/version pairs of the disposable container) and `…provenance.json`
+(digests of all of the above and of the `prepare/` scripts). The 39 object and
+data hashes were read from the installed files in a rootless Podman `ubuntu:24.04`
+container and cross-checked against the same files inside the signed archives
+(`prepare/crosscheck-archives.py`; 0 mismatches).
+
+Limits, stated rather than inferred:
+
+- Schema 1 only. It has no compiled-schema derivation and no input-tree closure;
+  those are schema 2 and need the private ATv2 factory guest.
+- The pinned packages come from the snapshot. The existing hosted provisioning step
+  installs from the live runner mirror and does not install the IBus, libpinyin or
+  GTK3 packages at all, so a hosted full run will refuse on installed versions until
+  that provisioning is made to match. This change does not alter provisioning.
+- The container Xvfb accepted core keyboard-mapping changes but did not apply
+  `setxkbmap`/`xkbcomp` layout loads. The keymap pins are therefore the `xkbcomp -xkb`
+  dump of the compiled keymap file; for US that dump is byte-identical to the live
+  server dump, for German the live application is unproven.
+- No IBus engine, browser, Orca or journey ran. This is facility input, not IME
+  evidence.
+
+Controls: `CommittedFacilityControls` in `test-current-reference-native-input.py`.

@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -320,6 +321,174 @@ console.log('PASS actual capture-only handlers; no browser/IME');
             module = Path(tmp) / 'companion.cjs'; module.write_text(browser)
             runner = Path(tmp) / 'controls.cjs'; runner.write_text(script)
             subprocess.run(['node', '--max-old-space-size=128', str(runner), str(module)], check=True, timeout=15)
+
+
+
+FACILITY = HERE / 'native-input-facility'
+# Reviewed digest of the committed Noble IME facility manifest. A change to any pin changes this value.
+COMMITTED_FACILITY_SHA256 = '073f3a94a98c34068c40ea887cba5c6b09836b4cc8a67b287978ea1e5cff6a31'
+
+
+def committed_facility_raw():
+    return (FACILITY / 'noble-20261024.manifest.json').read_text()
+
+
+class CommittedFacilityControls(unittest.TestCase):
+    """The committed manifest is an input to Root's dispatch, never an admission or a native result."""
+
+    def test_committed_manifest_is_the_reviewed_canonical_closed_tuple(self):
+        raw = committed_facility_raw()
+        self.assertEqual(COMMITTED_FACILITY_SHA256, N.sha(raw.encode()))
+        self.assertLessEqual(len(raw.encode()), 65536)
+        value = N.read_manifest(raw)
+        self.assertEqual(raw.encode(), N.canonical(value))
+        self.assertEqual(N.SCHEMA, value['schema'])
+        self.assertEqual(N.ROLES, set(value['objects']))
+        self.assertEqual({'dictionary', 'xkb', 'schema', 'compose'}, {row['kind'] for row in value['dataFiles']})
+        self.assertEqual({'us', 'de'}, set(value['keymaps']))
+        owners = {row['package'] for row in [*value['objects'].values(), *value['dataFiles']]}
+        self.assertEqual(owners, {row['name'] for row in value['packages']})
+        self.assertEqual(11, len(value['objects']))
+        self.assertEqual(28, len(value['dataFiles']))
+        self.assertEqual(12, len(value['packages']))
+
+    def test_package_rows_equal_the_archive_only_request_and_provenance_binds_every_artifact(self):
+        value = N.read_manifest(committed_facility_raw())
+        request = json.loads((FACILITY / 'noble-20261024.package-request.json').read_text())
+        self.assertEqual({'schema', 'packages'}, set(request))
+        self.assertEqual('fsgg.current-reference-noble-package-request/1', request['schema'])
+        self.assertEqual(N.validate_packages(request['packages']), [row['name'] for row in value['packages']])
+        self.assertEqual(request['packages'], value['packages'])
+        provenance = json.loads((FACILITY / 'noble-20261024.provenance.json').read_text())
+        receipt = json.loads((FACILITY / 'noble-20261024.acquisition.json').read_text())
+        file_digest = lambda name: N.sha((FACILITY / name).read_bytes())
+        self.assertEqual(COMMITTED_FACILITY_SHA256, provenance['manifest']['sha256'])
+        self.assertEqual(file_digest('noble-20261024.package-request.json'), provenance['packageRequest']['fileSha256'])
+        self.assertEqual(N.sha(N.canonical(request)), provenance['packageRequest']['canonicalSha256'])
+        self.assertEqual(receipt['packageRequestSha256'], provenance['packageRequest']['canonicalSha256'])
+        self.assertEqual('source-package-request', receipt['inputKind'])
+        self.assertEqual(file_digest('noble-20261024.acquisition.json'), provenance['acquisition']['fileSha256'])
+        self.assertEqual(file_digest('noble-20261024.closure.txt'), provenance['installEnvironment']['closure']['fileSha256'])
+        self.assertEqual(provenance['installEnvironment']['closure']['installedPackages'],
+                         len((FACILITY / 'noble-20261024.closure.txt').read_text().splitlines()))
+        self.assertEqual(N.sha((HERE / 'current-reference-noble-acquisition.py').read_bytes()), receipt['acquisitionHelperSha256'])
+        self.assertTrue(receipt['declaredArchivesVerified'])
+        for flag in ['installation', 'runtimeQualification', 'actualAT', 'nativeImeAcceptance']:
+            self.assertIs(False, receipt[flag])
+        for name, digest in provenance['scripts'].items():
+            self.assertEqual(digest, file_digest('prepare/' + name))
+        self.assertEqual({row['name'].removesuffix(':amd64') for row in value['packages']}, {row['package'] for row in receipt['packages']})
+        for row in receipt['packages']:
+            declared = next(p for p in value['packages'] if p['name'].removesuffix(':amd64') == row['package'])
+            self.assertEqual((declared['version'], declared['debSha256']), (row['version'], row['binary']['sha256']))
+
+    def test_every_missing_or_malformed_pin_refuses_the_manifest_reader(self):
+        value = json.loads(committed_facility_raw())
+        refusals = 0
+        def refuse(change):
+            nonlocal refusals
+            bad = copy.deepcopy(value); change(bad)
+            with self.assertRaises((RuntimeError, KeyError, TypeError, ValueError)):
+                N.read_manifest(json.dumps(bad))
+            refusals += 1
+        for field in list(value):
+            refuse(lambda v, f=field: v.pop(f))
+        refuse(lambda v: v.update(extra='unreviewed field'))
+        refuse(lambda v: v.update(schema='fsgg.current-reference-native-input-facility/9'))
+        refuse(lambda v: v.update(platform='ubuntu-22.04-x11'))
+        refuse(lambda v: v.update(packages=[]))
+        refuse(lambda v: v['packages'].append(copy.deepcopy(v['packages'][0])))
+        for index in range(len(value['packages'])):
+            for field in ['version', 'debSha256', 'sourceUri', 'sourceSha256']:
+                refuse(lambda v, i=index, f=field: v['packages'][i].pop(f))
+        refuse(lambda v: v['packages'][0].update(debSha256='A' * 64))
+        refuse(lambda v: v['packages'][0].update(sourceUri='http://snapshot.ubuntu.com/x.dsc'))
+        for role in value['objects']:
+            refuse(lambda v, r=role: v['objects'].pop(r))
+            refuse(lambda v, r=role: v['objects'][r].pop('sha256'))
+            refuse(lambda v, r=role: v['objects'][r].update(sha256='z' * 64))
+            refuse(lambda v, r=role: v['objects'][r].update(package='not-a-listed-package'))
+            refuse(lambda v, r=role: v['objects'][r].update(path='/opt/ambient/' + r))
+        for kind in {'dictionary', 'xkb', 'schema', 'compose'}:
+            refuse(lambda v, k=kind: v.update(dataFiles=[r for r in v['dataFiles'] if r['kind'] != k]))
+        refuse(lambda v: v['dataFiles'].append(copy.deepcopy(v['dataFiles'][0])))
+        refuse(lambda v: v['dataFiles'][0].pop('sha256'))
+        refuse(lambda v: v['dataFiles'].append({**copy.deepcopy(next(r for r in v['dataFiles'] if r['kind'] == 'compose')), 'path': '/usr/share/X11/locale/other/Compose'}))
+        for layout in ['us', 'de']:
+            refuse(lambda v, l=layout: v['keymaps'].pop(l))
+            refuse(lambda v, l=layout: v['keymaps'].update({l: 'short'}))
+        refuse(lambda v: v['keymaps'].update(fr='a' * 64))
+        self.assertGreaterEqual(refusals, 100)
+        print('missing/malformed pin refusals:', refusals)
+
+    def test_tampered_pin_refuses_installed_file_readback_while_the_committed_tuple_passes(self):
+        import types, stat
+        value = N.read_manifest(committed_facility_raw())
+        rows = [*value['objects'].values(), *value['dataFiles']]
+        installed = {row['path']: ('installed:' + row['path']).encode() for row in rows}
+        pinned = {installed[row['path']]: row['sha256'] for row in rows}
+        real_sha = N.sha
+        info = types.SimpleNamespace(st_mode=stat.S_IFREG | 0o644, st_uid=0, st_size=64)
+        def read(path):
+            return b'ID=ubuntu\nVERSION_ID="24.04"\n' if path == '/etc/os-release' else installed[path]
+        with patch.object(N, 'sha', lambda raw: pinned.get(raw) or real_sha(raw)):
+            self.assertTrue(N.verify_files(value, read, lambda path: info))
+            tampered = 0
+            for index, row in enumerate(rows):
+                bad = copy.deepcopy(value)
+                target = next(r for r in [*bad['objects'].values(), *bad['dataFiles']] if r['path'] == row['path'])
+                target['sha256'] = ('0' if row['sha256'][0] != '0' else '1') + row['sha256'][1:]
+                with self.assertRaisesRegex(RuntimeError, 'facility file bytes differ'):
+                    N.verify_files(bad, read, lambda path: info)
+                tampered += 1
+            self.assertEqual(39, tampered)
+            print('tampered-pin readback refusals:', tampered)
+
+    def test_tampered_package_or_source_pin_refuses_signed_archive_selection(self):
+        spec = importlib.util.spec_from_file_location('acq_controls', HERE / 'current-reference-noble-acquisition.py')
+        A = importlib.util.module_from_spec(spec); spec.loader.exec_module(A)
+        request = json.loads((FACILITY / 'noble-20261024.package-request.json').read_text())
+        selected = 0
+        for row in request['packages']:
+            name = row['name'].removesuffix(':amd64')
+            path = row['sourceUri'][len(A.BASE):]
+            binary = {'Package': name, 'Version': row['version'], 'Architecture': 'amd64', 'SHA256': row['debSha256'],
+                      'Size': '1', 'Filename': 'pool/main/x/%s/%s_%s_amd64.deb' % (name, name, re.sub(r'[^A-Za-z0-9+.~-]', '_', row['version'])), 'Source': name}
+            source = {'Package': name, 'Version': row['version'], 'Directory': str(Path(path).parent),
+                      'Checksums-Sha256': ' %s 1 %s' % (row['sourceSha256'], Path(path).name)}
+            self.assertEqual(name, A.select(row, [binary], [source])['package'])
+            selected += 1
+            for field in ['debSha256', 'sourceSha256']:
+                bad = {**row, field: ('0' if row[field][0] != '0' else '1') + row[field][1:]}
+                with self.assertRaises(RuntimeError):
+                    A.select(bad, [binary], [source])
+            with self.assertRaises(RuntimeError):
+                A.select({**row, 'version': row['version'] + '+tampered'}, [binary], [source])
+        self.assertEqual(12, selected)
+
+    def test_full_caller_reads_the_committed_manifest_only_after_the_none_gate_and_refuses_damage(self):
+        spec = importlib.util.spec_from_file_location('native_caller_manifest_controls', HERE / 'current-reference-at-caller.py')
+        caller = importlib.util.module_from_spec(spec); spec.loader.exec_module(caller)
+        self.assertIsNone(caller.observer.CURRENT_PUBLIC_AT_ADMISSION)
+        raw = committed_facility_raw()
+        damaged = {'missing': '', 'truncated': raw[:-40], 'duplicate-field': raw.replace('"keymaps"', '"keymaps":{},"keymaps"', 1),
+                   'dropped-object': raw.replace('"xdotool":', '"renamed":', 1), 'oversized': raw + ' ' * 65536}
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); (root / 'external-reference-preflight.json').write_text('{"requestedPhase":"full"}')
+            # Source gate: with the real None gate and the real manifest, full mode is held before any read or tool.
+            with patch.dict(N.os.environ, FSGG_CURRENT_PUBLIC_AT_ADMISSION='inert-control-only', FSGG_CURRENT_NATIVE_INPUT_FACILITY=raw), \
+                 patch.object(caller.subprocess, 'check_output', side_effect=AssertionError('tool reached')):
+                with self.assertRaisesRegex(RuntimeError, 'held'):
+                    caller.prepare(root, Path('/absent-owner'))
+            for label, payload in damaged.items():
+                with patch.object(caller.observer, 'CURRENT_PUBLIC_AT_ADMISSION', 'inert-control-only'), \
+                     patch.dict(N.os.environ, FSGG_CURRENT_PUBLIC_AT_ADMISSION='inert-control-only', FSGG_CURRENT_NATIVE_INPUT_FACILITY=payload), \
+                     patch.object(caller.subprocess, 'check_output', side_effect=AssertionError('tool reached')), \
+                     patch.object(caller.public, 'acquire', side_effect=AssertionError('acquisition reached')):
+                    with self.assertRaises((RuntimeError, ValueError), msg=label) as raised:
+                        caller.prepare(root, Path('/absent-owner'))
+                    self.assertNotIsInstance(raised.exception, AssertionError, label)
+        self.assertIsNone(caller.observer.CURRENT_PUBLIC_AT_ADMISSION)
 
 
 if __name__ == '__main__':

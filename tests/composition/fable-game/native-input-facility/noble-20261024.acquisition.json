@@ -1,0 +1,476 @@
+{
+  "schema": "fsgg.current-reference-noble-acquisition/1",
+  "snapshot": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/",
+  "keyringSha256": "80a36b0a6de2f69f49d2df75ef473ccde121e9e190b9ea01d20a4f63778d5c31",
+  "inputKind": "source-package-request",
+  "packageRequestSha256": "f9e4556da9e9568b41e981dc6b1cea89f097b923e0dc2c865350059483f3f5e7",
+  "acquisitionHelperSha256": "4b6048a1c1fafbc87f8fbe149f25e0377cc31a95b371289e140f3f326484290a",
+  "releases": [
+    {
+      "suite": "noble",
+      "sha256": "cdb2f31d809f589719a53c6ad15f255b27569c4059542ada282aaa21b8e164b0",
+      "signer": "F6ECB3762474EDA9D21B7022871920D1991BC93C"
+    },
+    {
+      "suite": "noble-updates",
+      "sha256": "4fcba3fb02086679f7e86677e320b92e0d076a8c02e30dc0abbbe06b67640db7",
+      "signer": "F6ECB3762474EDA9D21B7022871920D1991BC93C"
+    },
+    {
+      "suite": "noble-security",
+      "sha256": "e56daa3c9903f06da8161b4f0e61a747aab215647f4bfabbecd5655631200f09",
+      "signer": "F6ECB3762474EDA9D21B7022871920D1991BC93C"
+    }
+  ],
+  "indexes": [
+    {
+      "suite": "noble",
+      "path": "main/binary-amd64/Packages.xz",
+      "sha256": "2a6a199e1031a5c279cb346646d594993f35b1c03dd4a82aaa0323980dd92451",
+      "bytes": 1401160
+    },
+    {
+      "suite": "noble",
+      "path": "main/source/Sources.xz",
+      "sha256": "4f8e45d8f84dd2a6b7ce87695c70336114b9e96e6fd6db066c115f758e39308e",
+      "bytes": 1383940
+    },
+    {
+      "suite": "noble",
+      "path": "universe/binary-amd64/Packages.xz",
+      "sha256": "ba9057fa1b91438cc8a1d26808d00c85389fe101d0c1496254df97236405599a",
+      "bytes": 15037908
+    },
+    {
+      "suite": "noble",
+      "path": "universe/source/Sources.xz",
+      "sha256": "796c4253df46fe9d0b468c5b18259f8d5172bf6c8b3b17451ba98ffc1781f682",
+      "bytes": 19839948
+    },
+    {
+      "suite": "noble-updates",
+      "path": "main/binary-amd64/Packages.xz",
+      "sha256": "d0b639b8d595c448980c171d7a2d197db2fda7d34122c9468fb9ba2f32e62aba",
+      "bytes": 1400216
+    },
+    {
+      "suite": "noble-updates",
+      "path": "main/source/Sources.xz",
+      "sha256": "976bc2fdc7fc5a9f59e35e7b570c8412aa7feacce405de62ed24b8df2a0ea2f8",
+      "bytes": 575696
+    },
+    {
+      "suite": "noble-updates",
+      "path": "universe/binary-amd64/Packages.xz",
+      "sha256": "cb4e519b8a6565aa8cb10d3866e55831bb3efee0344ff1204ed831d6f58d19b4",
+      "bytes": 1705924
+    },
+    {
+      "suite": "noble-updates",
+      "path": "universe/source/Sources.xz",
+      "sha256": "a651efc2db827d38e39ca52cb4c16b1463179b16f76178fa8fc21c8a1dd02863",
+      "bytes": 531404
+    },
+    {
+      "suite": "noble-security",
+      "path": "main/binary-amd64/Packages.xz",
+      "sha256": "c53b5309c8002317a835d695237d46b10d9da10c33420aa4d819ba7bfadb8afd",
+      "bytes": 1145772
+    },
+    {
+      "suite": "noble-security",
+      "path": "main/source/Sources.xz",
+      "sha256": "a5029756dd83d0d1138f41c012128b730e18c540eee37855de02181fba0c3328",
+      "bytes": 308272
+    },
+    {
+      "suite": "noble-security",
+      "path": "universe/binary-amd64/Packages.xz",
+      "sha256": "d0d62e01efe4cf8ede2d8d636d3375c532e63f70f5202f72e9e8de4aa3529c79",
+      "bytes": 1222216
+    },
+    {
+      "suite": "noble-security",
+      "path": "universe/source/Sources.xz",
+      "sha256": "f5f11cc3f26310b91c55ba6543b13f91e75b4bf76ccb6bfab0f2de0892506715",
+      "bytes": 370708
+    }
+  ],
+  "packages": [
+    {
+      "package": "dconf-service",
+      "version": "0.40.0-4ubuntu0.1",
+      "architecture": "amd64",
+      "binary": {
+        "path": "pool/main/d/dconf/dconf-service_0.40.0-4ubuntu0.1_amd64.deb",
+        "sha256": "49bf5473474228d48373da639bbe3e77157b03d4467bfa2deb56168c2c03cd81",
+        "bytes": 27576
+      },
+      "sourcePackage": "dconf",
+      "sourceVersion": "0.40.0-4ubuntu0.1",
+      "sourceFiles": [
+        {
+          "path": "pool/main/d/dconf/dconf_0.40.0.orig.tar.xz",
+          "sha256": "cf7f22a4c9200421d8d3325c5c1b8b93a36843650c9f95d6451e20f0bcb24533",
+          "bytes": 117764
+        },
+        {
+          "path": "pool/main/d/dconf/dconf_0.40.0-4ubuntu0.1.debian.tar.xz",
+          "sha256": "5ff0fb472fd6a451142c052ebe06df43444a57a42c305af89036c7c5265776d6",
+          "bytes": 12104
+        },
+        {
+          "path": "pool/main/d/dconf/dconf_0.40.0-4ubuntu0.1.dsc",
+          "sha256": "fc203d2c4d398304eeed43ba53292e6e4fc952bb4259c7ffc6dc41b2f237711b",
+          "bytes": 2810
+        }
+      ],
+      "depends": "default-dbus-session-bus | dbus-session-bus, libdconf1 (= 0.40.0-4ubuntu0.1), procps, libc6 (>= 2.34), libglib2.0-0t64 (>= 2.79.0)",
+      "preDepends": ""
+    },
+    {
+      "package": "dpkg",
+      "version": "1.22.6ubuntu6.6",
+      "architecture": "amd64",
+      "binary": {
+        "path": "pool/main/d/dpkg/dpkg_1.22.6ubuntu6.6_amd64.deb",
+        "sha256": "ceb6aa4da59fbcb8a3b0549b4280c60b7d849b519859797c8668bdfbe378fb3b",
+        "bytes": 1282284
+      },
+      "sourcePackage": "dpkg",
+      "sourceVersion": "1.22.6ubuntu6.6",
+      "sourceFiles": [
+        {
+          "path": "pool/main/d/dpkg/dpkg_1.22.6ubuntu6.6.tar.xz",
+          "sha256": "7048ee31e30066ae123cdcb891cfa1ad55b2f42a4e04fca2c5db41607ae25196",
+          "bytes": 5548716
+        },
+        {
+          "path": "pool/main/d/dpkg/dpkg_1.22.6ubuntu6.6.dsc",
+          "sha256": "5828d5dd77635c8bd0197116446bc64ec76913500affbcb42aaae1644acb749d",
+          "bytes": 3156
+        }
+      ],
+      "depends": "tar (>= 1.28-1)",
+      "preDepends": "libbz2-1.0, libc6 (>= 2.38), liblzma5 (>= 5.4.0), libmd0 (>= 0.0.0), libselinux1 (>= 3.1~), libzstd1 (>= 1.5.5), zlib1g (>= 1:1.1.4)"
+    },
+    {
+      "package": "ibus",
+      "version": "1.5.29-2",
+      "architecture": "amd64",
+      "binary": {
+        "path": "pool/main/i/ibus/ibus_1.5.29-2_amd64.deb",
+        "sha256": "5c6c0af5583353bdcf18369e72afdf410c7dad23668919a6a006e7eaef043e61",
+        "bytes": 320288
+      },
+      "sourcePackage": "ibus",
+      "sourceVersion": "1.5.29-2",
+      "sourceFiles": [
+        {
+          "path": "pool/main/i/ibus/ibus_1.5.29-2.dsc",
+          "sha256": "6c25cd73f9de93aa58f43b075ee81804abf469120c765d6515a2f418f9fa925f",
+          "bytes": 3505
+        },
+        {
+          "path": "pool/main/i/ibus/ibus_1.5.29.orig.tar.gz",
+          "sha256": "3a27ed120485b2077c62e36e788c302f34544ceac3b3b9cda28b7418e8051415",
+          "bytes": 3991416
+        },
+        {
+          "path": "pool/main/i/ibus/ibus_1.5.29-2.debian.tar.xz",
+          "sha256": "4f6b5a7d82ebb5f8e90a90c22cc2db8688612ea13423ba3e3c65f297ac9a832a",
+          "bytes": 30044
+        }
+      ],
+      "depends": "init-system-helpers (>= 1.52), python3:any, libatk1.0-0t64 (>= 1.12.4), libc6 (>= 2.38), libcairo2 (>= 1.2.4), libdbusmenu-glib4 (>= 0.4.2), libdbusmenu-gtk3-4 (>= 0.4.2), libdconf1 (>= 0.14.0), libgdk-pixbuf-2.0-0 (>= 2.22.0), libglib2.0-0t64 (>= 2.79.0), libgtk-3-0t64 (>= 3.21.5), libibus-1.0-5 (>= 1.5.29~), libnotify4 (>= 0.7.0), libpango-1.0-0 (>= 1.14.0), libpangocairo-1.0-0 (>= 1.14.0), libwayland-client0 (>= 1.20.0), libx11-6, libxfixes3 (>= 1:6.0.0), libxi6 (>= 2:1.2.99.4), libxkbcommon0 (>= 0.5.0), adwaita-icon-theme, dconf-cli, ibus-data (= 1.5.29-2), gir1.2-gtk-3.0 (>= 3.8.5), gir1.2-ibus-1.0 (= 1.5.29-2), python3-gi, python3-ibus-1.0 (= 1.5.29-2)",
+      "preDepends": ""
+    },
+    {
+      "package": "ibus-data",
+      "version": "1.5.29-2",
+      "architecture": "all",
+      "binary": {
+        "path": "pool/main/i/ibus/ibus-data_1.5.29-2_all.deb",
+        "sha256": "1a3fac02f9bb69ad32e68e0f9e00fc98cccf2bacf5c9d2f034676a821c266c7c",
+        "bytes": 13473108
+      },
+      "sourcePackage": "ibus",
+      "sourceVersion": "1.5.29-2",
+      "sourceFiles": [
+        {
+          "path": "pool/main/i/ibus/ibus_1.5.29-2.dsc",
+          "sha256": "6c25cd73f9de93aa58f43b075ee81804abf469120c765d6515a2f418f9fa925f",
+          "bytes": 3505
+        },
+        {
+          "path": "pool/main/i/ibus/ibus_1.5.29.orig.tar.gz",
+          "sha256": "3a27ed120485b2077c62e36e788c302f34544ceac3b3b9cda28b7418e8051415",
+          "bytes": 3991416
+        },
+        {
+          "path": "pool/main/i/ibus/ibus_1.5.29-2.debian.tar.xz",
+          "sha256": "4f6b5a7d82ebb5f8e90a90c22cc2db8688612ea13423ba3e3c65f297ac9a832a",
+          "bytes": 30044
+        }
+      ],
+      "depends": "dconf-gsettings-backend | gsettings-backend, librsvg2-common",
+      "preDepends": ""
+    },
+    {
+      "package": "ibus-gtk3",
+      "version": "1.5.29-2",
+      "architecture": "amd64",
+      "binary": {
+        "path": "pool/main/i/ibus/ibus-gtk3_1.5.29-2_amd64.deb",
+        "sha256": "c2602a2c2edc6e305a98f3a683af35f89fcc9dba3cd6aff8582ffb414f85d817",
+        "bytes": 17610
+      },
+      "sourcePackage": "ibus",
+      "sourceVersion": "1.5.29-2",
+      "sourceFiles": [
+        {
+          "path": "pool/main/i/ibus/ibus_1.5.29-2.dsc",
+          "sha256": "6c25cd73f9de93aa58f43b075ee81804abf469120c765d6515a2f418f9fa925f",
+          "bytes": 3505
+        },
+        {
+          "path": "pool/main/i/ibus/ibus_1.5.29.orig.tar.gz",
+          "sha256": "3a27ed120485b2077c62e36e788c302f34544ceac3b3b9cda28b7418e8051415",
+          "bytes": 3991416
+        },
+        {
+          "path": "pool/main/i/ibus/ibus_1.5.29-2.debian.tar.xz",
+          "sha256": "4f6b5a7d82ebb5f8e90a90c22cc2db8688612ea13423ba3e3c65f297ac9a832a",
+          "bytes": 30044
+        }
+      ],
+      "depends": "libc6 (>= 2.4), libglib2.0-0t64 (>= 2.68.0), libgtk-3-0t64 (>= 3.9.10), libibus-1.0-5 (>= 1.5.28), libpango-1.0-0 (>= 1.14.0)",
+      "preDepends": ""
+    },
+    {
+      "package": "ibus-libpinyin",
+      "version": "1.15.7-1build2",
+      "architecture": "amd64",
+      "binary": {
+        "path": "pool/main/i/ibus-libpinyin/ibus-libpinyin_1.15.7-1build2_amd64.deb",
+        "sha256": "d577f4061c0f98dfe979aec9e0aabde0e5114eaeef37817894ce18fff5ab91c0",
+        "bytes": 794036
+      },
+      "sourcePackage": "ibus-libpinyin",
+      "sourceVersion": "1.15.7-1build2",
+      "sourceFiles": [
+        {
+          "path": "pool/main/i/ibus-libpinyin/ibus-libpinyin_1.15.7-1build2.dsc",
+          "sha256": "b72913f982f9534d7989080c7652d679688d803f80fcd9c89bc2adacc5e271c8",
+          "bytes": 2438
+        },
+        {
+          "path": "pool/main/i/ibus-libpinyin/ibus-libpinyin_1.15.7.orig.tar.gz",
+          "sha256": "90b19cf0c6899c4e07f6cb24c33806e55ece96b57fe5882431e4dbd82e9c8031",
+          "bytes": 1305740
+        },
+        {
+          "path": "pool/main/i/ibus-libpinyin/ibus-libpinyin_1.15.7-1build2.debian.tar.xz",
+          "sha256": "3519cda602d19ebbdc86b4f228f2d1404038c1d07ce55f446c837657bcc0dddc",
+          "bytes": 4644
+        }
+      ],
+      "depends": "ibus, python3-gi, dconf-gsettings-backend | gsettings-backend, python3:any, libc6 (>= 2.38), libgcc-s1 (>= 3.3.1), libglib2.0-0t64 (>= 2.79.0), libibus-1.0-5 (>= 1.5.14), libjson-glib-1.0-0 (>= 1.5.2), liblua5.4-0 (>= 5.4.6), libopencc1.1 (>= 1.1.4+ds1), libpinyin15 (>= 2.7.92), libsoup-3.0-0 (>= 2.41.90), libsqlite3-0 (>= 3.6.11), libstdc++6 (>= 5.2)",
+      "preDepends": ""
+    },
+    {
+      "package": "libgtk-3-0t64",
+      "version": "3.24.41-4ubuntu1.3",
+      "architecture": "amd64",
+      "binary": {
+        "path": "pool/main/g/gtk+3.0/libgtk-3-0t64_3.24.41-4ubuntu1.3_amd64.deb",
+        "sha256": "fd61e308234b12d243160798216d0efcb605d83af185bf3414ac99c2ed5166fc",
+        "bytes": 2913080
+      },
+      "sourcePackage": "gtk+3.0",
+      "sourceVersion": "3.24.41-4ubuntu1.3",
+      "sourceFiles": [
+        {
+          "path": "pool/main/g/gtk+3.0/gtk+3.0_3.24.41.orig.tar.xz",
+          "sha256": "47da61487af3087a94bc49296fd025ca0bc02f96ef06c556e7c8988bd651b6fa",
+          "bytes": 13188312
+        },
+        {
+          "path": "pool/main/g/gtk+3.0/gtk+3.0_3.24.41-4ubuntu1.3.debian.tar.xz",
+          "sha256": "1a82c70d722296f15af0a00a737a0c552580c6bf3f527f9ef7e66f192fe1831c",
+          "bytes": 3666360
+        },
+        {
+          "path": "pool/main/g/gtk+3.0/gtk+3.0_3.24.41-4ubuntu1.3.dsc",
+          "sha256": "b7ea9dda7ffd3f01f97d7ee673f130a82db5b346ade2d003e609e27886b35269",
+          "bytes": 4996
+        }
+      ],
+      "depends": "adwaita-icon-theme, hicolor-icon-theme, shared-mime-info, libatk-bridge2.0-0t64 (>= 2.15.1), libatk1.0-0t64 (>= 2.35.1), libc6 (>= 2.38), libcairo-gobject2 (>= 1.14.0), libcairo2 (>= 1.14.0), libcolord2 (>= 0.1.10), libcups2t64 (>= 2.3~b6), libepoxy0 (>= 1.4.3), libfontconfig1 (>= 2.12.6), libfribidi0 (>= 0.19.7), libgdk-pixbuf-2.0-0 (>= 2.40.0), libglib2.0-0t64 (>= 2.79.0), libharfbuzz0b (>= 2.2.0), libpango-1.0-0 (>= 1.45.5), libpangocairo-1.0-0 (>= 1.44.0), libpangoft2-1.0-0 (>= 1.44.0), libwayland-client0 (>= 1.20.0), libwayland-cursor0 (>= 1.14.91), libwayland-egl1 (>= 1.15.0), libx11-6 (>= 2:1.4.99.1), libxcomposite1 (>= 1:0.4.5), libxcursor1 (>> 1.1.2), libxdamage1 (>= 1:1.1), libxext6, libxfixes3, libxi6 (>= 2:1.2.99.4), libxinerama1 (>= 2:1.1.4), libxkbcommon0 (>= 0.5.0), libxrandr2 (>= 2:1.5.0), libgtk-3-common (>= 3.24.41-4ubuntu1.3)",
+      "preDepends": ""
+    },
+    {
+      "package": "libpinyin-data",
+      "version": "2.8.1-1build3",
+      "architecture": "amd64",
+      "binary": {
+        "path": "pool/main/libp/libpinyin/libpinyin-data_2.8.1-1build3_amd64.deb",
+        "sha256": "70b9e111b6f425c6e363f848e7a826c16b499f62af5eed5b7dd862ca49341733",
+        "bytes": 13552192
+      },
+      "sourcePackage": "libpinyin",
+      "sourceVersion": "2.8.1-1build3",
+      "sourceFiles": [
+        {
+          "path": "pool/main/libp/libpinyin/libpinyin_2.8.1-1build3.dsc",
+          "sha256": "8153d9859fb6d3469a10e76d4c7d81fd8edcaef465dd0d478f38fcc587e6d17d",
+          "bytes": 2667
+        },
+        {
+          "path": "pool/main/libp/libpinyin/libpinyin_2.8.1.orig.tar.gz",
+          "sha256": "353154f06d71dd0737b77ddcb27cb0dcaddb00f7ccd695bc0314bb42050e9050",
+          "bytes": 20594925
+        },
+        {
+          "path": "pool/main/libp/libpinyin/libpinyin_2.8.1-1build3.debian.tar.xz",
+          "sha256": "e5e77c06787d6f7eae6f431f014cf4fe6c499832a84a84d43828a3dbf4e26456",
+          "bytes": 6092
+        }
+      ],
+      "depends": "",
+      "preDepends": ""
+    },
+    {
+      "package": "libx11-data",
+      "version": "2:1.8.7-1ubuntu0.1",
+      "architecture": "all",
+      "binary": {
+        "path": "pool/main/libx/libx11/libx11-data_1.8.7-1ubuntu0.1_all.deb",
+        "sha256": "5cb70f7a8e7178e0bae4fd49eee49feaed623d2d821caf6ea5862b66f9e9630b",
+        "bytes": 115970
+      },
+      "sourcePackage": "libx11",
+      "sourceVersion": "2:1.8.7-1ubuntu0.1",
+      "sourceFiles": [
+        {
+          "path": "pool/main/libx/libx11/libx11_1.8.7.orig.tar.gz",
+          "sha256": "793ebebf569f12c864b77401798d38814b51790fce206e01a431e5feb982e20b",
+          "bytes": 3185363
+        },
+        {
+          "path": "pool/main/libx/libx11/libx11_1.8.7.orig.tar.gz.asc",
+          "sha256": "c1cba69555c89e503abac81ebf1113a756f2fafd72677e7862b40f12208e0260",
+          "bytes": 833
+        },
+        {
+          "path": "pool/main/libx/libx11/libx11_1.8.7-1ubuntu0.1.diff.gz",
+          "sha256": "5adfae5baf2f8b8aa9b515ee4f07a1316a696caab91d6528956f2de6e4715a57",
+          "bytes": 78671
+        },
+        {
+          "path": "pool/main/libx/libx11/libx11_1.8.7-1ubuntu0.1.dsc",
+          "sha256": "4e88bfd3799fd193cd270da600ad263c946d6495500a30d58ae744512c2fcf05",
+          "bytes": 2287
+        }
+      ],
+      "depends": "",
+      "preDepends": ""
+    },
+    {
+      "package": "x11-xkb-utils",
+      "version": "7.7+8build2",
+      "architecture": "amd64",
+      "binary": {
+        "path": "pool/main/x/x11-xkb-utils/x11-xkb-utils_7.7+8build2_amd64.deb",
+        "sha256": "69df4191e165f8b89d067f6234fcce89a4923d27d1e66dd92e6d63d6da93cdb0",
+        "bytes": 170314
+      },
+      "sourcePackage": "x11-xkb-utils",
+      "sourceVersion": "7.7+8build2",
+      "sourceFiles": [
+        {
+          "path": "pool/main/x/x11-xkb-utils/x11-xkb-utils_7.7+8build2.dsc",
+          "sha256": "451a1724e791d6651807ed8988da5de215e37c51f463df3fa4cab01ac4f693ae",
+          "bytes": 1907
+        },
+        {
+          "path": "pool/main/x/x11-xkb-utils/x11-xkb-utils_7.7+8build2.tar.xz",
+          "sha256": "8c15f2bc3f9e2b48fc0e8c459fb5e090bfb67b3ebef56fe2316d93ebcb5e8236",
+          "bytes": 342576
+        }
+      ],
+      "depends": "libc6 (>= 2.38), libx11-6, libxaw7 (>= 2:1.0.14), libxkbfile1 (>= 1:1.1.0), libxrandr2 (>= 2:1.2.99.2), libxt6t64",
+      "preDepends": ""
+    },
+    {
+      "package": "xdotool",
+      "version": "1:3.20160805.1-5build1",
+      "architecture": "amd64",
+      "binary": {
+        "path": "pool/universe/x/xdotool/xdotool_3.20160805.1-5build1_amd64.deb",
+        "sha256": "58a202c74bce31ca2d72d4d514942a5ab6191932696adc5d21d909c9216b13cb",
+        "bytes": 42556
+      },
+      "sourcePackage": "xdotool",
+      "sourceVersion": "1:3.20160805.1-5build1",
+      "sourceFiles": [
+        {
+          "path": "pool/universe/x/xdotool/xdotool_3.20160805.1-5build1.dsc",
+          "sha256": "8db6877b5b8a70ed3fb5870ab906ff99f7a632a160b6dfcf810cba5f9f6a18a3",
+          "bytes": 2446
+        },
+        {
+          "path": "pool/universe/x/xdotool/xdotool_3.20160805.1.orig.tar.gz",
+          "sha256": "1723c48b9b437a9637a2ddf3011c19df96dd0f9eba44478e40a5f5419f6d5a56",
+          "bytes": 104965
+        },
+        {
+          "path": "pool/universe/x/xdotool/xdotool_3.20160805.1-5build1.debian.tar.xz",
+          "sha256": "ea0db76873819b1f560619c3173ff0fc7555f030f0d93392a241bc3c082269e3",
+          "bytes": 7672
+        }
+      ],
+      "depends": "libc6 (>= 2.38), libx11-6, libxdo3 (>= 1:3.20150503.1)",
+      "preDepends": ""
+    },
+    {
+      "package": "xkb-data",
+      "version": "2.41-2ubuntu1.1",
+      "architecture": "all",
+      "binary": {
+        "path": "pool/main/x/xkeyboard-config/xkb-data_2.41-2ubuntu1.1_all.deb",
+        "sha256": "e99f2a0b4c56cdf35dec489e56b6a8418826cab8ce6306ec6d0bd98e2cd0014a",
+        "bytes": 397328
+      },
+      "sourcePackage": "xkeyboard-config",
+      "sourceVersion": "2.41-2ubuntu1.1",
+      "sourceFiles": [
+        {
+          "path": "pool/main/x/xkeyboard-config/xkeyboard-config_2.41.orig.tar.gz",
+          "sha256": "8af4ed51ce0dc6fcf8cd9291355eec0221b3f0e531ad3ab022f086c05b7fe93f",
+          "bytes": 1697731
+        },
+        {
+          "path": "pool/main/x/xkeyboard-config/xkeyboard-config_2.41-2ubuntu1.1.diff.gz",
+          "sha256": "4962300f6d3eeaa579c42d11de7fa5e4d0800b18037d20560b99535f4bf3a6c4",
+          "bytes": 43597
+        },
+        {
+          "path": "pool/main/x/xkeyboard-config/xkeyboard-config_2.41-2ubuntu1.1.dsc",
+          "sha256": "f6ae180603c1dee0578aeb46ef615ef0b01cece5ae301129204d688a1f43a810",
+          "bytes": 2227
+        }
+      ],
+      "depends": "",
+      "preDepends": ""
+    }
+  ],
+  "bytes": 132493572,
+  "requests": 56,
+  "declaredArchivesVerified": true,
+  "dependencyResolution": "not-run",
+  "installation": false,
+  "runtimeQualification": false,
+  "actualAT": false,
+  "nativeImeAcceptance": false
+}

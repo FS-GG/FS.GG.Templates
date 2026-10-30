@@ -1,0 +1,57 @@
+{
+  "acquisition": {
+    "bytes": 132493572,
+    "declaredArchivesVerified": true,
+    "file": "noble-20261024.acquisition.json",
+    "fileSha256": "f24ee588d406aedb49a4b0a366b16a2f4c9e86f966ddbe4704607e2a4e6b83a0",
+    "helperSha256": "4b6048a1c1fafbc87f8fbe149f25e0377cc31a95b371289e140f3f326484290a",
+    "keyringSha256": "80a36b0a6de2f69f49d2df75ef473ccde121e9e190b9ea01d20a4f63778d5c31",
+    "mode": "--package-request",
+    "requests": 56,
+    "snapshot": "https://snapshot.ubuntu.com/ubuntu/20261024T000000Z/"
+  },
+  "installEnvironment": {
+    "aptSource": "snapshot.ubuntu.com 20261024T000000Z noble, noble-updates, noble-security (main, universe), signed by the retained Ubuntu archive keyring",
+    "baseListSha256": "eb5773119306df0525988a82da1849be2b23f0769aa459390f09b7ceea4823f6",
+    "basePackages": 92,
+    "closure": {
+      "file": "noble-20261024.closure.txt",
+      "fileSha256": "4687310b03fe041107b3253bb60644ef2197a2978825bd95a226e9b145fc09c3",
+      "installedPackages": 480
+    },
+    "image": "docker.io/library/ubuntu:24.04",
+    "imageIndexDigest": "sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852",
+    "install": "apt-get install --no-install-recommends of the 32 exact roots in fixtures/noble-source-prefix-request.json, service start denied by policy-rc.d 101",
+    "kind": "rootless Podman container on fdev (disposable, removed after readback)"
+  },
+  "manifest": {
+    "bytes": 11150,
+    "canonical": true,
+    "file": "noble-20261024.manifest.json",
+    "sha256": "073f3a94a98c34068c40ea887cba5c6b09836b4cc8a67b287978ea1e5cff6a31"
+  },
+  "packageRequest": {
+    "canonicalSha256": "f9e4556da9e9568b41e981dc6b1cea89f097b923e0dc2c865350059483f3f5e7",
+    "file": "noble-20261024.package-request.json",
+    "fileSha256": "aabdf9ba5b4676073ef18863b10114a0cc2e88168cbf6c0977d15dd70de12855"
+  },
+  "readback": {
+    "keymaps": {
+      "limit": "The container Xvfb 21.1.12 accepted core keyboard-mapping changes but did not apply setxkbmap/xkbcomp layout loads, so the pin is derived from the compiled keymap file rather than the live server. For US the file dump is byte-identical to the live server dump (liveEqualsFileUS true); the German live application is unproven here.",
+      "method": "xkbcomp -xkb of the xkbcomp-compiled setxkbmap -print keymap (US and German, empty variant/option)"
+    },
+    "mismatches": 0,
+    "objectsAndDataFilesCrossCheckedAgainstSignedArchives": 39,
+    "ownership": "every object and data row is owned by exactly the named dpkg package (dpkg-query -S), including Multi-Arch :amd64 spellings"
+  },
+  "schema": "fsgg.current-reference-native-input-facility-provenance/1",
+  "schemaChoice": "schema 1: the hosted ubuntu-24.04 route has no schema-2 compiled-schema derivation; schema 2 needs the private ATv2 factory guest",
+  "scripts": {
+    "build-package-request.py": "c0d060c7f8292e4474954b71f0d31078466645a7605f354bbafd61e170fdb658",
+    "crosscheck-archives.py": "cf730d6c0c4ab5a4dd5573e5b20073aa38ec70035ff3c1200e67f012618e3f48",
+    "extract-installed.py": "adf1703ee75d72270cf48145487399476339db2bbcd6e1616bb239f83a54d158",
+    "install-in-container.sh": "088b44a976440696004d02370dba462c2dc84b7d785d53eaaccdde78a2088eaa"
+  },
+  "status": "prepared-input-only; grants no desktop operation, admission or native IME acceptance",
+  "subject": "FS-GG/.github#4817 current-public IME facility (schema 1, ubuntu-24.04-x11)"
+}

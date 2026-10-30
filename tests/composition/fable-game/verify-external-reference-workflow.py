@@ -155,6 +155,27 @@ for key in PRODUCER_ROWS['public']:
         except AssertionError: pass
         else: raise AssertionError('altered producer binding accepted: '+key)
         selector_cases.append('selector-altered-'+mode+'-'+key)
+# Stale 0.32.3 producer tuple (#4817): the current-public-composition slot must never fall back to the
+# retained 0.32.3 font-disposal tuple, whole or in part, while the published default stays 0.32.4.
+def stale_current_slot(candidate, key):
+    pattern=re.compile(r"(^      "+key+r": \$\{\{ inputs\.rendering-input-source == 'current-public-composition' && ')([^']+)(')",re.M)
+    assert len(pattern.findall(candidate))==1, 'single current-public slot required: '+key
+    return pattern.sub(lambda match: match.group(1)+PRODUCER_ROWS['font-disposal'][key]+match.group(3),candidate)
+assert selected_producer(text,'current-public-composition')['PRODUCER_VERSION']=='0.32.4'
+selector_cases.append('selector-current-public-0.32.4-passes')
+for key in PRODUCER_ROWS['public']:
+    stale=stale_current_slot(text,key)
+    assert stale!=text, 'stale fixture must change the workflow: '+key
+    try: selected_producer(stale,'current-public-composition')
+    except AssertionError as refusal: assert 'current producer row differs: '+key in str(refusal), 'stale refusal names the wrong binding'
+    else: raise AssertionError('stale 0.32.3 current-public producer accepted: '+key)
+    selector_cases.append('selector-stale-0.32.3-current-public-composition-'+key)
+whole=text
+for key in PRODUCER_ROWS['public']: whole=stale_current_slot(whole,key)
+try: selected_producer(whole,'current-public-composition')
+except AssertionError: selector_cases.append('selector-stale-0.32.3-current-public-composition-whole-tuple')
+else: raise AssertionError('whole stale 0.32.3 tuple accepted')
+print('PASS current-public producer tuple: 0.32.4 accepted; %d stale 0.32.3 single-field and whole-tuple mutants refused by name'%sum('stale-0.32.3' in name for name in selector_cases))
 checks=0
 assertion_cases=[]
 def execute(code,env,should_pass):
