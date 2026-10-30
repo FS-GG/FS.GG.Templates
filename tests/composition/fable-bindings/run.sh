@@ -254,4 +254,18 @@ printf '%s\n' 'export declare const original: string;' > "$fixture/node_modules/
 node "$WORK/product/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --entry example/entry.d.ts --lock "$fixture/lock.json" --write >/dev/null
 printf '%s\n' 'export declare const changed: string;' > "$fixture/node_modules/example/side.d.ts"
 if node "$WORK/product/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --entry example/entry.d.ts --lock "$fixture/lock.json"; then exit 1; fi
+# A second corpus is data, not a script copy (FS.GG.Templates#807): a single-artifact corpus.json
+# drives the same lock script, and an installed artifact that differs from its pin is refused.
+printf '%s\n' '{"name":"example","version":"1.0.0"}' > "$fixture/node_modules/example/package.json"
+printf '%s\n' '{"schemaVersion":1,"id":"example-slice","npmArtifacts":[{"name":"example","version":"1.0.0"}],"declarationEntryPoints":["example/entry.d.ts"],"candidateStem":"ExampleBindings"}' > "$fixture/corpus.json"
+node "$WORK/product/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --corpus "$fixture/corpus.json" --lock "$fixture/corpus-lock.json" --write >/dev/null
+jq -e '.package == "example@1.0.0" and (has("companionPackage") | not) and .entryPoints == ["example/entry.d.ts"] and (.files | length) == 2' "$fixture/corpus-lock.json" >/dev/null
+printf '%s\n' '{"name":"example","version":"1.0.1"}' > "$fixture/node_modules/example/package.json"
+if node "$WORK/product/scripts/lock-declarations.mjs" --declarations-root "$fixture/node_modules" --corpus "$fixture/corpus.json" --lock "$fixture/corpus-lock.json" >/dev/null 2>&1; then echo "installed artifact differing from the corpus pin was accepted" >&2; exit 1; fi
+# The doctor keeps the npm closure coherent with corpus.json.
+cp "$WORK/product/corpus.json" "$WORK/corpus.json.orig"
+jq '.npmArtifacts[1].version = "9.19.1"' "$WORK/corpus.json.orig" > "$WORK/product/corpus.json"
+if (cd "$WORK/product" && npm run doctor >/dev/null 2>&1); then echo "doctor accepted a corpus that disagrees with package.json" >&2; exit 1; fi
+cp "$WORK/corpus.json.orig" "$WORK/product/corpus.json"
+(cd "$WORK/product" && npm run doctor >/dev/null)
 echo 'PASS fable-bindings template executes locked declaration, candidate, NuGet/npm/Fable/Node/Chromium, SDD, doctor, Governance, drift-review and owner-sourced product-skill delivery evidence'

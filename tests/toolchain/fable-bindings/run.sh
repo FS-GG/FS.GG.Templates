@@ -6,12 +6,21 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 SPIKE="$ROOT/spikes/fable-bindings"
 DOC="$ROOT/docs/fable-bindings-toolchain.md"
 
-test "$(dotnet --version)" = "10.0.401"
-test "$(node --version)" = "v26.10.0"
-test "$(npm --version)" = "12.1.0"
+# Exact toolchain pins (docs/fable-bindings-toolchain.md). The Fable tool and Fable.Core
+# selections are read from the spike's own manifests so the consumer below cannot drift
+# onto an older pair than the library it consumes.
+test "$(cd "$SPIKE" && dotnet --version)" = "10.0.401"
+test "$(node --version)" = "v26.13.0"
+test "$(npm --version)" = "12.2.1"
+fable_version="$(jq -r '.tools.fable.version' "$SPIKE/.config/dotnet-tools.json")"
+core_version="$(sed -n 's/.*Include="Fable.Core" Version="\([^"]*\)".*/\1/p' "$SPIKE/Directory.Packages.props")"
+test "$fable_version" = "5.26.0"
+test "$core_version" = "5.6.1"
+grep -Fq "| Fable tool / Fable.Core | $fable_version / $core_version |" "$DOC"
 test -f "$SPIKE/package-lock.json"
 test -f "$SPIKE/declaration-lock.json"
 grep -Fq '"@babylonjs/core": "9.19.0"' "$SPIKE/package.json"
+jq -e '.npmArtifacts == [{"name":"@babylonjs/core","version":"9.19.0"},{"name":"@babylonjs/loaders","version":"9.19.0"}]' "$SPIKE/corpus.json" >/dev/null
 grep -Fq 'sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeGpS/bQ3NzwtApB84GScm9v8w==' "$SPIKE/package-lock.json"
 grep -Fq 'Glutinum.Template@1.1.1' "$DOC"
 grep -Fq 'ts2fable is legacy comparison input only' "$DOC"
@@ -36,6 +45,8 @@ git -C "$ROOT" diff --exit-code -- "spikes/fable-bindings/generated-candidates/"
 
 # A tiny fixture proves the lock follows relative declaration imports/exports.
 fixture="$(mktemp -d)"
+consumer=""
+trap 'rm -rf "$fixture" ${consumer:+"$consumer"}' EXIT
 mkdir -p "$fixture/node_modules/example"
 printf '%s\n' 'import "./side.js"; export {};' > "$fixture/node_modules/example/entry.d.ts"
 printf '%s\n' 'export declare const original: string;' > "$fixture/node_modules/example/side.d.ts"
@@ -52,13 +63,13 @@ mkdir -p "$consumer/app" "$consumer/feed"
 dotnet build "$SPIKE/BabylonBindings.fsproj" -c Release --no-restore >/dev/null
 dotnet pack "$SPIKE/BabylonBindings.fsproj" -c Release --no-restore -o "$consumer/feed" >/dev/null
 printf '%s\n' '<configuration><packageSources><clear /><add key="local" value="'"$consumer"'/feed" /><add key="nuget.org" value="https://api.nuget.org/v3/index.json" /></packageSources></configuration>' > "$consumer/app/NuGet.Config"
-printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup><ItemGroup><Compile Include="Program.fs" /><PackageReference Include="Qualification.BabylonBindings" Version="0.0.1-spike" /><PackageReference Include="Fable.Core" Version="5.2.0" /></ItemGroup></Project>' > "$consumer/app/Consumer.fsproj"
+printf '%s\n' '<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>netstandard2.1</TargetFramework><RestorePackagesWithLockFile>true</RestorePackagesWithLockFile></PropertyGroup><ItemGroup><Compile Include="Program.fs" /><PackageReference Include="Qualification.BabylonBindings" Version="0.0.1-spike" /><PackageReference Include="Fable.Core" Version="'"$core_version"'" /></ItemGroup></Project>' > "$consumer/app/Consumer.fsproj"
 printf '%s\n' 'open Qualification.Babylon' 'let engine = nullEngine ()' 'let scene = scene engine' 'let _ = box "consumer-box" scene' 'initialiseLoader ()' 'printfn "consumer passed"' > "$consumer/app/Program.fs"
 printf '%s\n' '{"private":true,"type":"module","dependencies":{"@babylonjs/core":"9.19.0","@babylonjs/loaders":"9.19.0"}}' > "$consumer/app/package.json"
 dotnet restore "$consumer/app/Consumer.fsproj" --configfile "$consumer/app/NuGet.Config" >/dev/null
 (cd "$consumer/app" && npm install --ignore-scripts >/dev/null)
 grep -Fq 'sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeGpS/bQ3NzwtApB84GScm9v8w==' "$consumer/app/package-lock.json"
-dotnet tool install Fable --tool-path "$consumer/fable" --version 5.13.0 >/dev/null
+dotnet tool install Fable --tool-path "$consumer/fable" --version "$fable_version" >/dev/null
 "$consumer/fable/fable" "$consumer/app/Consumer.fsproj" --outDir "$consumer/app/dist" --noCache >/dev/null
 node "$consumer/app/dist/Program.js"
 

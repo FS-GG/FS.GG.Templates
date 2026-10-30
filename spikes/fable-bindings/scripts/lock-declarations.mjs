@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, extname, normalize, relative, resolve } from "node:path";
+import { loadCorpus, lockIdentity } from "./corpus.mjs";
 
 const args = process.argv.slice(2);
 const valueAfter = flag => {
@@ -9,15 +10,15 @@ const valueAfter = flag => {
 };
 const root = resolve(valueAfter("--declarations-root") ?? resolve(import.meta.dirname, "..", "node_modules"));
 const lockPath = resolve(valueAfter("--lock") ?? resolve(import.meta.dirname, "..", "declaration-lock.json"));
-const entryPoints = valueAfter("--entry") ? [valueAfter("--entry")] : [
-  "@babylonjs/core/Engines/nullEngine.d.ts",
-  "@babylonjs/core/scene.d.ts",
-  "@babylonjs/core/Maths/math.vector.d.ts",
-  "@babylonjs/core/Cameras/freeCamera.d.ts",
-  "@babylonjs/core/Lights/hemisphericLight.d.ts",
-  "@babylonjs/core/Meshes/meshBuilder.d.ts",
-  "@babylonjs/loaders/glTF/index.d.ts"
-];
+const corpus = await loadCorpus(resolve(valueAfter("--corpus") ?? resolve(import.meta.dirname, "..", "corpus.json")));
+const entryPoints = valueAfter("--entry") ? [valueAfter("--entry")] : corpus.declarationEntryPoints;
+// The closure is labelled with the corpus pins, so the installed artifacts must be exactly those.
+if (!valueAfter("--entry")) {
+  for (const { name, version } of corpus.npmArtifacts) {
+    const installed = JSON.parse(await readFile(resolve(root, name, "package.json"), "utf8")).version;
+    if (installed !== version) throw new Error(`installed ${name}@${installed} differs from corpus pin ${version}; run npm ci or review the corpus`);
+  }
+}
 
 const declarationPath = (from, specifier) => {
   const requested = normalize(resolve(dirname(resolve(root, from)), specifier));
@@ -44,7 +45,7 @@ const files = await Promise.all([...seen].sort().map(async path => ({
   path,
   sha256: createHash("sha256").update(await readFile(resolve(root, path))).digest("hex")
 })));
-const document = { schema: 2, package: "@babylonjs/core@9.19.0", companionPackage: "@babylonjs/loaders@9.19.0", entryPoints, files };
+const document = { schema: 2, ...lockIdentity(corpus), entryPoints, files };
 const rendered = `${JSON.stringify(document, null, 2)}\n`;
 if (args.includes("--write")) {
   await writeFile(lockPath, rendered);

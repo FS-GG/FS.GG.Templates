@@ -14,13 +14,17 @@ findings are now enforced by the generated workspace and composition gate.
 | Input | Pin |
 | --- | --- |
 | .NET SDK | 10.0.401 |
-| Node / npm | 26.10.0 / 12.1.0 |
-| Fable tool / Fable.Core | 5.18.0 / 5.3.0 |
+| Node / npm | 26.13.0 / 12.2.1 |
+| Fable tool / Fable.Core | 5.26.0 / 5.6.1 |
+| Fable.Package.SDK | 1.4.1 |
+| TypeScript declaration parser | 6.0.3 |
 | Glutinum template | `Glutinum.Template@1.1.1` |
 | npm corpus | `@babylonjs/core@9.19.0`, `@babylonjs/loaders@9.19.0` |
 | core artifact integrity | `sha512-8bQfSnXnFVEUolPBl5Y3S1WDmQKpPKfguOQvGdCxjTIHlLku8Crc0DdvlFbmqeGpS/bQ3NzwtApB84GScm9v8w==` |
 
-The selected closure is recorded in `spikes/fable-bindings/declaration-lock.json`.
+The selected corpus is declared once in `corpus.json` (spike and template): the exact npm
+artifacts, the `.d.ts` entry points and the candidate file stem. The selected closure is recorded
+in `spikes/fable-bindings/declaration-lock.json`.
 It covers deep ESM engine, scene, maths, camera, light, mesh-builder, and glTF
 loader entry points, then deterministically follows every relative declaration
 `import`/`export` edge. Every transitive declaration file is individually
@@ -101,3 +105,65 @@ Fable tool and executes the curated F# slice after emission; Node and Chromium
 run that same emitted program. A separate fresh Node process proves glTF is not
 registered without the side-effect import before the positive binding journey
 observes that registration.
+
+## Current-toolchain re-qualification (2026-10-30, Templates#807)
+
+The machinery was moved to current supported tools and re-qualified on the unchanged Babylon
+`9.19.0` corpus. The Babylon version bump is separate (Templates#809).
+
+| Input | Before | After | Basis |
+| --- | --- | --- | --- |
+| .NET SDK | 10.0.401 | 10.0.401 (unchanged) | Newest feature band and patch used across FS-GG (`global.json` in Game, Rendering, SDD, Governance, Audio, Net and the other Templates workspaces). 10.0.403 is published; `rollForward: latestPatch` admits it, but the exact pin moves with an FS-GG-wide SDK change. |
+| Node / npm | 26.10.0 / 12.1.0 | 26.13.0 / 12.2.1 | 26.13.0 is the first Node 26 Active LTS release (`lts: Lithium`); npm 12.2.1 is the current `latest`. The `composition` and `release` gates install the same pair. |
+| Fable tool / Fable.Core | 5.18.0 / 5.3.0 | 5.26.0 / 5.6.1 | Latest stable. Fable.Core 5.6.1 still floors FSharp.Core at 4.7.2, so the netstandard2.1 lock shape is unchanged. |
+| Fable.Package.SDK | 1.4.1 | 1.4.1 | Already current. |
+| TypeScript declaration parser | 5.9.3 | 6.0.3 | Latest JavaScript-API TypeScript. TypeScript 7 is the native compiler and remains only Xantham's pinned compiler. `declaration-analysis.json` and the candidate proposal are byte-identical under 5.9.3 and 6.0.3. |
+| Glutinum | `Glutinum.Template@1.1.1` | `Glutinum.Template@1.1.1` | Still the latest template. It remains a comparison input, not a closure-scoped generator. |
+| Xantham candidate | `0.1.0-alpha.2` | `0.1.0-alpha.2` (retained) | `Xantham.Fable.Core.TS` still publishes only `net8.0`, so 0.1.0 remains blocked (see `xantham/release-assessments.json`). Upstream source movement is tracked by the FBX-07 watch (#751, signal #805). |
+
+The Xantham pilot's F#/Fable check now reads the workspace's Fable pin instead of a separate
+5.13.0 install, so the candidate path compiles under the same Fable as the curated slice.
+
+Evidence on the unchanged corpus:
+
+- The declaration lock is byte-identical, still 2,898 hashed transitive declaration files.
+  Generated candidates and `declaration-analysis.json` produce no diff.
+- `tests/toolchain/fable-bindings/run.sh` passes under the new pins. It covers drift, the transitive
+  drift negative fixture, the Node runtime smoke and the Fable-emitted slice in Node. It also covers
+  the protected-file hashes across a candidate rerun, and a clean consumer restoring the packed
+  library with Fable 5.26.0 / Fable.Core 5.6.1 and the exact npm artifact. It finishes with the
+  Xantham ANSI and strip-ansi qualification (deterministic bytes, rejection fixtures, Fable/Node
+  witnesses, packed members).
+- The `fable-bindings` composition lane runs the packed template on the new pins. It covers locked
+  NuGet/npm restore, doctor, drift, the side-effect negative control, emitted imports, the Node and
+  Chromium runtimes, the clean NuGet/npm consumer, the SDD lifecycle and the Governance drift block.
+  It also covers a single-artifact `corpus.json` fixture and a doctor corpus-mismatch control.
+- `Glutinum.Template@1.1.1` still installs and instantiates on SDK 10.0.401. Its `git init`
+  post-action still requires explicit consent.
+
+### Adding a corpus
+
+A corpus is data plus curated source. Do not copy scripts. Write `corpus.json` with
+`schemaVersion` 1, a slug `id`, exact `npmArtifacts`, `.d.ts` `declarationEntryPoints` inside
+those artifacts, and a PascalCase `candidateStem`. Pin the same artifacts in `package.json`, then
+run `npm ci` and `npm run lock:declarations`. The lock script refuses an installed artifact whose
+version differs from the corpus, and the lock keeps schema 2. In the template, `npm run doctor`
+reds when `package.json`, `scaffold-provenance.json`, the declaration lock or the binding-plan
+runtime entries disagree with `corpus.json`. Curated bindings, the mapping ledger, coverage and
+the runtime/browser smokes stay per corpus and reviewed.
+
+The closure scanner is unchanged. Its lexical rules fit Babylon, but a probe of `pixi.js@8.22.0`
+(`lib/index.d.ts`) found four gaps for the next corpus (Templates#808):
+
+- Global mixins arrive through `/// <reference path>` directives, which the scanner does not follow.
+- Extensionless specifiers resolve to `dir/index.d.ts`, not only `x.d.ts`.
+- JSDoc examples contain `import('./gl/init')` for files that do not exist.
+- Declarations import non-declaration assets (`*.frag`).
+
+A comment-aware scanner (TypeScript `preProcessFile`) also follows `declare module` augmentation
+targets. On the Babylon closure it yields 2,893 instead of 2,898 files. The regex follows two
+import examples inside a JSDoc comment (`rawTexture2DArray.functions.d.ts`), which pull in five
+`texture2DArrayImageSource` files. Changing the scanner therefore needs a reviewed re-lock of the Babylon
+corpus as well. Do it as one deliberate change, with Templates#809's Babylon re-lock, not as a
+silent rewrite.
+

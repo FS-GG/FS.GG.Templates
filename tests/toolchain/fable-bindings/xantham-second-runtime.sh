@@ -30,9 +30,10 @@ jq -e '
 (cd "$PRODUCT" && node scripts/generate-candidate.mjs --backend xantham --config xantham/strip-ansi.json >/dev/null)
 test "$first" = "$(sha256sum "${proposal[@]}")"
 
-fable="$PRODUCT/.nuget/xantham-tools/fable/fable"
+fable_version="$(jq -r '.tools.fable.version' "$PRODUCT/.config/dotnet-tools.json")"
+fable="$PRODUCT/.nuget/xantham-tools/fable-$fable_version/fable"
 if [[ ! -x "$fable" ]]; then
-  dotnet tool install Fable --version 5.13.0 --tool-path "$PRODUCT/.nuget/xantham-tools/fable" >/dev/null
+  dotnet tool install Fable --version "$fable_version" --tool-path "$PRODUCT/.nuget/xantham-tools/fable-$fable_version" >/dev/null
 fi
 out="$PRODUCT/.nuget/xantham-tools/pilot/strip-ansi-runtime-dist"
 "$fable" "$PRODUCT/xantham/qualification/StripAnsi.fsproj" --outDir "$out" --noCache >/dev/null
