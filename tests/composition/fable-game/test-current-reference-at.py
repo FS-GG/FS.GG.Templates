@@ -283,6 +283,30 @@ class CurrentAtTests(unittest.TestCase):
         self.assertFalse(O.prerequisites(packet, preflight, lambda _: True, identity))
         self.assertTrue(O.prerequisites(packet, preflight, lambda _: True))
 
+    def test_identity_binder_binds_the_committed_facility_and_refuses_missing_or_tampered_pins(self):
+        committed = json.loads((Path(__file__).with_name('native-input-facility') / 'noble-20261024.manifest.json').read_text())
+        packet, preflight, controller = inputs()
+        preflight['nativeInputFacility'] = copy.deepcopy(committed)
+        identity = O.current_public_identity(packet, preflight, controller, "1" * 64, "2" * 64, "4" * 64)
+        native = O.native_input_helper(preflight['nativeInputHelperSha256'])
+        self.assertEqual(identity['nativeInputFacilitySha256'], '073f3a94a98c34068c40ea887cba5c6b09836b4cc8a67b287978ea1e5cff6a31')
+        self.assertEqual(identity['nativeInputFacilitySha256'], native.sha(native.canonical(committed)))
+        refused = 0
+        for label, change in [('role', lambda v: v['objects'].pop('ibusDaemon')), ('package', lambda v: v['packages'].pop()),
+                              ('keymap', lambda v: v['keymaps'].pop('de')), ('family', lambda v: v.update(dataFiles=[r for r in v['dataFiles'] if r['kind'] != 'compose'])),
+                              ('hash', lambda v: v['objects']['xkbcomp'].update(sha256='g' * 64))]:
+            bad = copy.deepcopy(committed); change(bad)
+            packet, preflight, controller = inputs(); preflight['nativeInputFacility'] = bad
+            with self.subTest(pin=label), self.assertRaises((RuntimeError, KeyError)):
+                O.current_public_identity(packet, preflight, controller, "1" * 64, "2" * 64, "4" * 64)
+            refused += 1
+        self.assertEqual(5, refused)
+        # A well-formed but different hash is not an input-shape error: it changes the bound facility digest.
+        other = copy.deepcopy(committed); other['objects']['xkbcomp']['sha256'] = '0' * 64
+        packet, preflight, controller = inputs(); preflight['nativeInputFacility'] = other
+        changed = O.current_public_identity(packet, preflight, controller, "1" * 64, "2" * 64, "4" * 64)
+        self.assertNotEqual(changed['nativeInputFacilitySha256'], identity['nativeInputFacilitySha256'])
+
     def test_wrong_or_missing_authenticated_join_refuses(self):
         for target, field, bad in [("preflight", "templates", {"revision": "0" * 40, "tree": "b" * 40}),
                                     ("preflight", "observerSourceSha256", "0" * 64),
