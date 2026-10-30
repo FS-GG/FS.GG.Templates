@@ -249,7 +249,7 @@ def active_matches(active, expected):
             (expected['domRole'] is None or active.get('role') == expected['domRole']))
 
 
-def run_steps(p, custody_before, sleep=time.sleep, clock=time.monotonic):
+def run_steps(p, custody_before, sleep=time.sleep, clock=time.monotonic, wait_tree=True):
     """Perform provider steps 1-4 and every Studio step through `p`; return the step records.
 
     Primitives: speech_offset(), speech_between(start, end), dom(), key(*keys), activate(name, role),
@@ -264,7 +264,7 @@ def run_steps(p, custody_before, sleep=time.sleep, clock=time.monotonic):
     served = p.served_index_sha256()
     records.append({'id': 'studio-served-bytes', 'kind': 'provider', 'bound': custody_before['studio']['distIndexSha256'], 'served': served})
     for step in STUDIO_STEPS:
-        records.append(run_studio_step(step, p, sleep, clock))
+        records.append(run_studio_step(step, p, sleep, clock, wait_tree))
     return records
 
 
@@ -282,31 +282,40 @@ def fresh_after(p, sequence, sleep, clock):
     return wait_for(lambda: (lambda d: d if d['sampleSequence'] > sequence else None)(p.dom()), 10, sleep, clock, 'no browser sample after the action')
 
 
-def run_studio_step(step, p, sleep, clock):
+def tree_state(step, p):
+    """One observation of the AT tree: which required objects are present, which removed ones are absent."""
+    present = [p.present(role, name) is True for role, name in step.get('present', [])]
+    absent = [p.present(role, name) is not True for role, name in step.get('absent', [])]
+    return present, absent
+
+
+def run_studio_step(step, p, sleep, clock, wait_tree=True):
+    """Perform one action and record what was observed. `wait_tree=False` is a control seam only: it removes the
+    runner's own tree wait so the validator's independent check of the recorded observation can be exercised."""
     how = step['how']
     record = {'id': step['id'], 'kind': 'studio', 'how': how}
     before = p.dom()
     start = p.speech_offset()
-    presence_before = {}
     for role, name in step.get('absent', []):
-        presence_before[role or '', name] = p.present(role, name)
+        require(p.present(role, name) is True, 'removal without prior presence: %s %s' % (role, name))
     if how == 'tree':
         for role, name in step['present']:
             wait_for(lambda role=role, name=name: p.present(role, name), 30, sleep, clock, 'AT-SPI object unavailable: %s %s' % (role, name))
-        record['tree'] = {'present': [list(v) for v in step['present']], 'absent': []}
-        record.update(keys=[], keysTrusted=True, domBefore=slim(before), domAfter=slim(before))
+        present, absent = tree_state(step, p)
+        record['tree'] = {'present': [list(v) for v in step['present']], 'absent': [], 'presentAfter': present, 'absentAfter': absent}
+        record.update(keyEvents=[], domBefore=slim(before), domAfter=slim(before))
         return record
-    keys = []
+    hop_rows = []
     if how == 'tab':
-        # Real Tab presses until each hop, then the target, is the DOM-active and AT-SPI-focused control.
-        hops = step['via'] + [step['target']]
-        for hop in hops:
-            for _ in range(120):
+        # Real Tab presses until each hop, then the target, is the DOM-active and AT-SPI-focused control; one row per hop.
+        for hop in step['via'] + [step['target']]:
+            for presses in range(1, 121):
                 p.key('Tab')
                 dom = p.dom()
-                expected = {'name': hop, 'domId': None, 'domRole': None}
-                if dom['observation']['documentHasFocus'] and active_matches(dom['observation']['activeElement'], expected) and \
-                        any(f['name'] == hop for f in p.focused()):
+                active = dom['observation']['activeElement']
+                landed = [dict(f) for f in p.focused() if f['name'] == hop][:1]
+                if dom['observation']['documentHasFocus'] and active_matches(active, {'name': hop, 'domId': None, 'domRole': None}) and landed:
+                    hop_rows.append({'target': hop, 'presses': presses, 'domActive': dict(active), 'atspi': landed})
                     break
             else:
                 raise ValueError('keyboard focus did not reach ' + hop)
@@ -317,13 +326,14 @@ def run_studio_step(step, p, sleep, clock):
     else:
         raise ValueError('unknown step kind')
     deadline = clock() + 15
-    spoken = ''
     while True:
         spoken_end = p.speech_offset()
         spoken = p.speech_between(start, spoken_end)
         conditions = [phrase in spoken for phrase in step.get('speech', [])]
-        tree_ok = all(p.present(role, name) for role, name in step.get('present', [])) and \
-            all(not p.present(role, name) for role, name in step.get('absent', []))
+        tree_ok = True
+        if wait_tree:
+            present, absent = tree_state(step, p)
+            tree_ok = all(present) and all(absent)
         focus_ok = True
         if step.get('focus'):
             dom = p.dom()
@@ -335,17 +345,20 @@ def run_studio_step(step, p, sleep, clock):
         require(clock() < deadline, 'step did not complete causally within its deadline: ' + step['id'])
         sleep(.1)
     after = fresh_after(p, before['sampleSequence'], sleep, clock)
-    new = [k for k in after['observation']['keys'] if k['n'] > before['observation']['keysTotal']]
-    record['keys'] = [k['key'] for k in new]
-    record['keysTrusted'] = all(k['trusted'] is True for k in new)
+    # The observation recorded for the validator is a separate final read, never the wait condition itself.
+    present, absent = tree_state(step, p)
+    record['keyEvents'] = [{'n': k['n'], 'key': k['key'], 'trusted': k['trusted']} for k in after['observation']['keys']
+                           if k['n'] > before['observation']['keysTotal']]
     record['domBefore'], record['domAfter'] = slim(before), slim(after)
+    if hop_rows:
+        record['hops'] = hop_rows
     if step.get('speech'):
-        record['speech'] = {'expect': list(step.get('speech', [])), 'offsetBefore': start, 'start': start, 'end': spoken_end}
+        record['speech'] = {'expect': list(step['speech']), 'offsetBefore': start, 'start': start, 'end': spoken_end}
     if step.get('focus'):
         record['focus'] = {'expect': dict(step['focus']), 'atspi': [dict(f) for f in p.focused()
                            if f['name'] == step['focus']['name'] and f['role'] == step['focus']['role']][:1]}
     record['tree'] = {'present': [list(v) for v in step.get('present', [])], 'absent': [list(v) for v in step.get('absent', [])],
-                      'absentWasPresentBefore': [presence_before.get((r or '', n)) is True for r, n in step.get('absent', [])]}
+                      'presentAfter': present, 'absentAfter': absent}
     return record
 
 
@@ -358,58 +371,97 @@ def slim(sample):
 
 # ---------------------------------------------------------------- validation
 
-def validate_keys(step, record):
-    keys = record['keys']
+def new_state():
+    return {'end': 0, 'sequence': 0, 'sampledAt': 0, 'keysTotal': None, 'observed': {}, 'events': []}
+
+
+def validate_keys(step, record, before, after):
+    events = record['keyEvents']
+    keys = [e['key'] for e in events]
+    require([e['n'] for e in events] == list(range(before['keysTotal'] + 1, after['keysTotal'] + 1)),
+            'key events are not exactly the counter delta after the pre-sample: ' + step['id'])
     how = step['how']
     if how == 'tab':
-        require(len(keys) >= 1 + len(step['via']) and set(keys) == {'Tab'} and record['keysTrusted'] is True, 'Tab navigation lacks trusted key events: ' + step['id'])
+        hops = record.get('hops', [])
+        require([h['target'] for h in hops] == step['via'] + [step['target']] and sum(h['presses'] for h in hops) == len(events) and
+                all(h['presses'] >= 1 for h in hops), 'Tab hops differ: ' + step['id'])
+        for hop in hops:
+            require(active_matches(hop['domActive'], {'name': hop['target'], 'domId': None, 'domRole': None}) and
+                    [a['name'] for a in hop['atspi']] == [hop['target']], 'Tab hop not on its control: ' + hop['target'])
+        require(set(keys) == {'Tab'} and all(e['trusted'] is True for e in events), 'Tab navigation lacks trusted key events: ' + step['id'])
     elif how == 'keys':
         # xdotool names the key; the browser reports event.key (Return -> Enter).
-        require(keys == step['domKeys'] and record['keysTrusted'] is True,
-                'expected trusted key events absent: ' + step['id'])
+        require(keys == step['domKeys'] and all(e['trusted'] is True for e in events), 'expected trusted key events absent: ' + step['id'])
     else:
-        require(how != 'atspi' or keys == [], 'AT-SPI action is not a key route: ' + step['id'])
+        # AT-SPI actions and Orca-modifier chords reach the page as no key event at all.
+        require(events == [], 'step is not a keyless route: ' + step['id'])
 
 
-def validate_studio_step(step, record, prior_end, read_speech):
+def validate_studio_step(step, record, state, read_speech):
     require(record['kind'] == 'studio' and record['how'] == step['how'], 'step shape differs: ' + step['id'])
-    if step['how'] == 'tree':
-        require(record['tree']['present'] == [list(v) for v in step['present']], 'tree evidence differs: ' + step['id'])
-        return prior_end
     before, after = record['domBefore'], record['domAfter']
-    require(type(before['sampleSequence']) is int and after['sampleSequence'] > before['sampleSequence'] and
-            after['sampledAtUnixMs'] >= before['sampledAtUnixMs'], 'post-action browser sample is not after the action: ' + step['id'])
+    require(type(before['sampleSequence']) is int and before['sampleSequence'] >= state['sequence'] and
+            before['sampledAtUnixMs'] >= state['sampledAt'], 'pre-action sample precedes the previous step: ' + step['id'])
+    if state['keysTotal'] is not None:
+        require(before['keysTotal'] == state['keysTotal'], 'key counter moved between steps: ' + step['id'])
+    if step['how'] == 'tree':
+        require(canonical(before) == canonical(after), 'tree step needs one sample: ' + step['id'])
+    else:
+        require(after['sampleSequence'] > before['sampleSequence'] and after['sampledAtUnixMs'] >= before['sampledAtUnixMs'],
+                'post-action browser sample is not after the action: ' + step['id'])
     require(after['keysTotal'] >= before['keysTotal'], 'key counter moved backwards: ' + step['id'])
-    validate_keys(step, record)
-    if step['how'] in ('keys', 'tab'):
-        require(after['keysTotal'] - before['keysTotal'] == len(record['keys']), 'key counter disagrees with observed keys: ' + step['id'])
+    validate_keys(step, record, before, after)
     speech = record.get('speech')
-    if step['speech']:
+    if step.get('speech'):
         # Steps that expect speech carry a window taken before the action; silent steps (removal, restore) rest on tree and focus.
         require(speech is not None and speech['expect'] == step['speech'], 'speech expectation differs: ' + step['id'])
         start, end = speech['start'], speech['end']
-        require(type(start) is int and type(end) is int and speech['offsetBefore'] == start and prior_end <= start < end,
+        require(type(start) is int and type(end) is int and speech['offsetBefore'] == start and state['end'] <= start < end,
                 'speech window is not a fresh window taken before the action: ' + step['id'])
         text = read_speech(start, end)
         require(all(phrase in text for phrase in step['speech']), 'actual Orca speech absent from the post-action window: ' + step['id'])
-        prior_end = end
+        state['end'] = end
     else:
         require(speech is None, 'silent step carries a speech window: ' + step['id'])
     if step.get('focus'):
         focus = record['focus']
+        wanted = {'name': step['focus']['name'], 'role': step['focus']['role']}
         require(focus['expect'] == step['focus'] and after['documentHasFocus'] is True and
-                active_matches(after['active'], step['focus']) and len(focus['atspi']) == 1, 'focus not on the expected control: ' + step['id'])
+                active_matches(after['active'], step['focus']) and focus['atspi'] == [wanted], 'focus not on the expected control: ' + step['id'])
         if step['changes']:
             require(before['active'] != after['active'], 'focus did not change after the action: ' + step['id'])
-    expected_tree = record['tree']
-    require(expected_tree['present'] == [list(v) for v in step.get('present', [])] and
-            expected_tree['absent'] == [list(v) for v in step.get('absent', [])], 'tree expectation differs: ' + step['id'])
-    require(all(v is True for v in expected_tree['absentWasPresentBefore']) and
-            len(expected_tree['absentWasPresentBefore']) == len(step.get('absent', [])), 'removed object was not present before the action: ' + step['id'])
-    return prior_end
+    tree = record['tree']
+    present, absent = [list(v) for v in step.get('present', [])], [list(v) for v in step.get('absent', [])]
+    require(tree['present'] == present and tree['absent'] == absent, 'tree expectation differs: ' + step['id'])
+    # The observed post-action tree, not the static step table: required objects are showing, removed ones are gone.
+    require(tree['presentAfter'] == [True] * len(present) and tree['absentAfter'] == [True] * len(absent),
+            'observed tree state differs after the action: ' + step['id'])
+    for role, name in absent:
+        # A removal is evidence only if an earlier step observed the object present and nothing since observed it gone.
+        require(state['observed'].get((role, name)) is True, 'removed object was never observed present: %s %s (%s)' % (role, name, step['id']))
+        state['observed'][(role, name)] = False
+    for role, name in present:
+        state['observed'][(role, name)] = True
+    state.update(sequence=after['sampleSequence'], sampledAt=after['sampledAtUnixMs'], keysTotal=after['keysTotal'])
+    state['events'].extend(record['keyEvents'])
+    return state
 
 
-def validate_journey(steps, before, after, read_speech):
+def validate_final_dom(final, state):
+    """The retained last browser sample must contain every recorded key event, unchanged, and no others after them."""
+    require(final.get('schema') == 'fsgg.orca-browser-dom/v1' and final.get('browserFamily') == 'chromium' and
+            type(final.get('sampleSequence')) is int and 'observation' in final, 'retained browser sample malformed')
+    observation = final['observation']
+    require(final['sampleSequence'] >= state['sequence'] and observation['keysTotal'] == state['keysTotal'],
+            'retained browser sample disagrees with the journey key counter')
+    retained = {k['n']: k for k in observation['keys']}
+    for event in state['events']:
+        row = retained.get(event['n'])
+        require(row is not None and row['key'] == event['key'] and row['trusted'] == event['trusted'],
+                'recorded key event is not in the retained browser sample: %s' % event['n'])
+
+
+def validate_journey(steps, before, after, read_speech, final_dom):
     """Strict, ordered, complete: a missing, extra, reordered or duplicated step refuses."""
     require([r.get('id') for r in steps] == STEP_IDS, 'provider/Studio step population or order differs')
     by_id = {r['id']: r for r in steps}
@@ -424,13 +476,16 @@ def validate_journey(steps, before, after, read_speech):
     after_record = by_id['provider-custody-after']
     require(after_record['kind'] == 'provider' and after_record['bound'] == sha256_bytes(canonical(after).encode()) and
             after_record['reaped'] is True, 'provider custody after the journey is unbound')
-    prior = 0
+    state = new_state()
     for step in STUDIO_STEPS:
-        prior = validate_studio_step(step, by_id[step['id']], prior, read_speech)
+        validate_studio_step(step, by_id[step['id']], state, read_speech)
+    validate_final_dom(final_dom, state)
     return True
 
 
-def validate_receipt(receipt, plan, preflight, directory, local_save):
+def validate_receipt(receipt, plan, preflight, directory, local_save, claim=True):
+    """Every provider/Studio check. `claim=False` validates a draft whose acceptance flags are still False;
+    the run derives its acceptance from this returning, and `claim=True` revalidates the stored receipt."""
     directory = Path(directory)
     require(receipt['schema'] == SCHEMA and receipt['result'] == 'passed' and receipt['journey'] == JOURNEY, 'provider/Studio result incomplete')
     for name, sha in receipt['evidenceSha256'].items():
@@ -440,17 +495,16 @@ def validate_receipt(receipt, plan, preflight, directory, local_save):
     before = json.loads((directory / 'custody-before.json').read_text())
     after = json.loads((directory / 'custody-after.json').read_text())
     steps = json.loads((directory / 'journey.json').read_text())['steps']
+    final_dom = json.loads((directory / 'browser-dom.json').read_text())
     require(canonical(steps) == canonical(receipt['steps']), 'receipt steps differ from the original journey')
-    validate_journey(steps, before, after, lambda start, end: speech_text(directory / 'orca-debug.log', start, end))
+    validate_journey(steps, before, after, lambda start, end: speech_text(directory / 'orca-debug.log', start, end), final_dom)
     require(before['selection'] == plan['selection'] and before['provider']['version'] == plan['template']['version'] and
             before['provider']['archiveSha256'] == plan['template']['sha256'] and
             before['provider']['descriptorSha256'] == plan['template']['descriptorSha256'], 'custody differs from the typed plan')
     require(receipt['templates'] == preflight['templates'] and receipt['caller'] == preflight['caller'] and
             receipt['producer'] == preflight['producer'], 'provider/Studio identity differs from the authenticated preflight')
-    require(receipt['matrix'] == {'cells': [{'route': plan['selection']['route'], 'bundle': plan['selection']['bundle'],
-                                              'lifecycle': plan['selection']['lifecycle'], 'studio': True}],
-                                  'observed': [{'route': plan['selection']['route'], 'bundle': plan['selection']['bundle'],
-                                                'lifecycle': plan['selection']['lifecycle'], 'studio': True}]}, 'provider matrix cell unobserved')
+    cell = {'route': plan['selection']['route'], 'bundle': plan['selection']['bundle'], 'lifecycle': plan['selection']['lifecycle'], 'studio': True}
+    require(receipt['matrix'] == {'cells': [cell], 'observed': [cell]}, 'provider matrix cell unobserved')
     require(local_save['result'] == 'passed' and local_save['currentPublicAt']['controller'] == preflight['templates'] and
             receipt['localSaveJoin'] == {'observationSha256': local_save['_sha256'], 'currentPublicAtSha256': sha256_bytes(canonical(local_save['currentPublicAt']).encode())},
             'local-save observation of the same run is unbound')
@@ -460,8 +514,8 @@ def validate_receipt(receipt, plan, preflight, directory, local_save):
             receipt['orcaVersion'] == '46.1', 'actual AT boundary absent')
     server = json.loads((directory / 'server.json').read_text())
     require(server == {'signal': 'SIGTERM', 'exit': -15, 'reaped': True}, 'owned Studio server was not reaped')
-    require(receipt['providerMatrixAcceptance'] is True and receipt['studioAtAcceptance'] is True and
-            all(receipt[k] is False for k in ['nativeImeAcceptance', 'durableSaveAcceptance', 'whole4817Acceptance']), 'acceptance flags differ')
+    require(all(receipt[k] is False for k in ['nativeImeAcceptance', 'durableSaveAcceptance', 'whole4817Acceptance']) and
+            receipt['providerMatrixAcceptance'] is claim and receipt['studioAtAcceptance'] is claim, 'acceptance flags differ')
     return True
 
 
@@ -486,10 +540,26 @@ def workflow_guard(workflow):
 
 # ---------------------------------------------------------------- native run (held behind the admission guard)
 
-def run(root, environment=None, run_session=None, download=None, guard=None):
+def wait_server_ready(server, address=ADDRESS, seconds=30, sleep=time.sleep, clock=time.monotonic):
+    """Poll the owned Studio server until it answers 200; an early exit or silence refuses before any session starts."""
+    end = clock() + seconds
+    while True:
+        require(server.poll() is None, 'owned Studio server exited before the session')
+        try:
+            with urllib.request.urlopen(address, timeout=2) as response:
+                if response.status == 200:
+                    return
+        except OSError:
+            pass
+        require(clock() < end, 'owned Studio server did not answer')
+        sleep(.25)
+
+
+def run(root, environment=None, run_session=None, download=None, guard=None, ready=None):
     """Held run entry. The existing admission guard is the first effect-free statement.
 
-    `guard` exists only for inert controls; the default is the maintained observer's own guard."""
+    `guard`, `run_session`, `download` and `ready` exist only for inert controls; the defaults are the maintained
+    observer's own guard, the native Orca session, a pinned raw fetch and a poll of the owned server."""
     environment = os.environ if environment is None else environment
     observer = load('provider_studio_observer', HERE / 'external-reference-orca.py')
     (guard or observer.current_public_at_admission)(environment)
@@ -512,27 +582,31 @@ def run(root, environment=None, run_session=None, download=None, guard=None):
         server = subprocess.Popen(['/usr/bin/python3', '-m', 'http.server', '8144', '--bind', '127.0.0.1'], cwd=receiver / 'SvgFoundation/Studio/dist',
                                   stdout=server_log, stderr=subprocess.STDOUT, start_new_session=True)
         try:
+            (ready or wait_server_ready)(server)
             run_session(out, preflight, before) if run_session else native_session(observer, receiver, out, before)
         finally:
             server.send_signal(signal.SIGTERM)
             code = server.wait(timeout=15)
-    (out / 'server.json').write_text(json.dumps({'signal': 'SIGTERM', 'exit': code, 'reaped': True}) + '\n')
+    (out / 'server.json').write_text(json.dumps({'signal': 'SIGTERM', 'exit': code, 'reaped': code == -15}) + '\n')
     after = custody(receiver, plan, archive, descriptor)
     (out / 'custody-after.json').write_text(json.dumps(after, indent=2, sort_keys=True) + '\n')
     journey = json.loads((out / 'journey.json').read_text())
     journey['steps'].append({'id': 'provider-custody-after', 'kind': 'provider', 'bound': sha256_bytes(canonical(after).encode()), 'reaped': code == -15})
     (out / 'journey.json').write_text(json.dumps(journey, indent=2) + '\n')
     cell = {'route': plan['selection']['route'], 'bundle': plan['selection']['bundle'], 'lifecycle': plan['selection']['lifecycle'], 'studio': True}
-    receipt = {'schema': SCHEMA, 'result': 'passed', 'journey': JOURNEY, 'templates': preflight['templates'], 'caller': preflight['caller'],
-               'producer': preflight['producer'], 'process': journey['process'], 'browser': journey['browser'], 'keyboard': 'xdotool-X11',
-               'speechBoundary': 'Orca SPEECH OUTPUT', 'physicalAudioHardware': 'not-observed', 'orcaVersion': journey['orcaVersion'],
-               'steps': journey['steps'], 'matrix': {'cells': [cell], 'observed': [cell]},
-               'localSaveJoin': {'observationSha256': local['_sha256'], 'currentPublicAtSha256': sha256_bytes(canonical(local['currentPublicAt']).encode())},
-               'providerMatrixAcceptance': True, 'studioAtAcceptance': True, 'nativeImeAcceptance': False,
-               'durableSaveAcceptance': False, 'whole4817Acceptance': False,
-               'evidenceSha256': {n: sha256_file(out / n) for n in ['custody-before.json', 'custody-after.json', 'journey.json', 'orca-debug.log',
-                                                                    'browser-dom.json', 'server.json', 'descriptor.yml']}}
-    validate_receipt(receipt, plan, preflight, out, local)
+    draft = {'schema': SCHEMA, 'result': 'passed', 'journey': JOURNEY, 'templates': preflight['templates'], 'caller': preflight['caller'],
+             'producer': preflight['producer'], 'process': journey['process'], 'browser': journey['browser'], 'keyboard': 'xdotool-X11',
+             'speechBoundary': 'Orca SPEECH OUTPUT', 'physicalAudioHardware': 'not-observed', 'orcaVersion': journey['orcaVersion'],
+             'steps': journey['steps'], 'matrix': {'cells': [cell], 'observed': [cell]},
+             'localSaveJoin': {'observationSha256': local['_sha256'], 'currentPublicAtSha256': sha256_bytes(canonical(local['currentPublicAt']).encode())},
+             'providerMatrixAcceptance': False, 'studioAtAcceptance': False, 'nativeImeAcceptance': False,
+             'durableSaveAcceptance': False, 'whole4817Acceptance': False,
+             'evidenceSha256': {n: sha256_file(out / n) for n in ['custody-before.json', 'custody-after.json', 'journey.json', 'orca-debug.log',
+                                                                  'browser-dom.json', 'server.json', 'descriptor.yml']}}
+    # Acceptance is derived from validation: it is True only because the full validator returned for this draft.
+    accepted = validate_receipt(draft, plan, preflight, out, local, claim=False) is True
+    receipt = dict(draft, providerMatrixAcceptance=accepted, studioAtAcceptance=accepted)
+    validate_receipt(receipt, plan, preflight, out, local, claim=True)
     (out / 'receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
     return receipt
 

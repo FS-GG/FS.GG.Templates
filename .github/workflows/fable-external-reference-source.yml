@@ -48,6 +48,8 @@ on:
       - 'tests/composition/fable-game/provider-studio-orca.py'
       - 'tests/composition/fable-game/provider-studio-browser.cjs'
       - 'tests/composition/fable-game/fixtures/provider-studio-orca-speech.json'
+      - 'tests/composition/fable-game/fixtures/studio-0.20.0.fsproj'
+      - 'tests/composition/fable-game/fixtures/studio-0.20.1.fsproj'
       - 'tests/composition/fable-game/current-reference-at-caller.py'
       - 'tests/composition/fable-game/current-reference-native-input.py'
       - 'tests/composition/fable-game/current-reference-noble-acquisition.py'
