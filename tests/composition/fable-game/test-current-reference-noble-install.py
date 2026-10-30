@@ -182,6 +182,64 @@ class SnapshotProvisioningControls(unittest.TestCase):
             self.run_install('Inst libstray [2.1] (2.0 Ubuntu:24.04/noble [amd64])\n' + self.SUMMARY, tmp)
         self.assertFalse(any(priv for _, priv in self.calls))
 
+    def test_privileged_argv_equals_the_simulated_argv_apart_from_the_two_allowed_flags(self):
+        name, version = I.roots()[0]
+        cases = {'no downgrade': 'Inst newpkg (1.0 Ubuntu:24.04/noble [amd64])\n' + self.SUMMARY,
+                 'root downgrade': 'Inst %s [%s9] (%s Ubuntu:24.04/noble [amd64])\n' % (name, version, version) + self.SUMMARY}
+        for label, simulation in cases.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as tmp:
+                self.run_install(simulation, tmp)
+                simulated = [argv for argv, priv in self.calls if '--simulate' in argv]
+                privileged = [argv for argv, priv in self.calls if priv]
+                self.assertEqual(1, len(simulated)); self.assertEqual(1, len(privileged))
+                self.assertEqual(I.transaction_key(list(simulated[0])), I.transaction_key(list(privileged[0])))
+                differing = set(simulated[0]) ^ set(privileged[0])
+                expected = {'--simulate', '--yes'} | (set() if label == 'root downgrade' else {'--allow-downgrades'})
+                self.assertEqual(expected, set(simulated[0]) ^ set(privileged[0]))
+                self.assertEqual(32, sum('=' in a and not a.startswith(('Dir::', 'Acquire::', 'APT::')) for a in privileged[0]))
+
+    def test_dropping_a_root_or_adding_an_extra_package_from_the_privileged_argv_is_refused_before_it_runs(self):
+        real = I.install_argv
+        def drop_root(private, rows, simulate, allow=False):
+            return real(private, rows if simulate else rows[:-1], simulate, allow)
+        def add_extra(private, rows, simulate, allow=False):
+            return real(private, rows, simulate, allow) + ([] if simulate else ['extra-pkg=1'])
+        def drop_flag(private, rows, simulate, allow=False):
+            return [a for a in real(private, rows, simulate, allow) if a != '--no-install-recommends' or simulate]
+        for label, mutant in {'drop a root': drop_root, 'extra package': add_extra, 'recommends dropped': drop_flag}.items():
+            with self.subTest(label), tempfile.TemporaryDirectory() as tmp, patch.object(I, 'install_argv', mutant), \
+                 self.assertRaisesRegex(I.Refused, 'differs from the simulated'):
+                self.run_install('Inst newpkg (1.0 Ubuntu:24.04/noble [amd64])\n' + self.SUMMARY, tmp)
+            self.assertFalse(any(priv for _, priv in self.calls), label)
+
+    def test_no_remove_is_in_the_simulated_and_the_privileged_transaction_and_a_forbidden_removal_stops_it(self):
+        rows = I.roots()
+        for simulate in (True, False):
+            for allow in (False, True):
+                argv = I.install_argv('/p', rows, simulate, allow)
+                self.assertEqual(1, argv.count('--no-remove'))
+                self.assertLess(argv.index('install'), argv.index('--no-remove'))
+        with tempfile.TemporaryDirectory() as tmp:
+            self.run_install('Inst newpkg (1.0 Ubuntu:24.04/noble [amd64])\n' + self.SUMMARY, tmp)
+        self.assertTrue(all('--no-remove' in argv for argv, _ in self.calls if 'install' in argv))
+        privileged = [argv for argv, priv in self.calls if priv]
+        self.assertIn('--no-remove', privileged[0])
+        # apt exits non-zero when --no-remove forbids a needed removal: no privileged call follows.
+        import types
+        calls = []
+        def failing(argv, privileged=False, capture=True, cwd=None):
+            calls.append(privileged)
+            if '--simulate' in argv:
+                raise I.Refused('snapshot provisioning: command failed (100): E: Packages need to be removed but remove is disabled.')
+            return ''
+        caller = types.SimpleNamespace(guard=lambda environment: None)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(I, 'run', failing), patch.object(I, 'prepare_private', lambda p: None), \
+             patch.object(I, 'load', side_effect=lambda name, path, _l=I.load: caller if 'caller' in name else _l(name, path)), \
+             patch.dict(os.environ, FSGG_CURRENT_NATIVE_INPUT_FACILITY=I.COMMITTED.read_text()):
+            with self.assertRaisesRegex(I.Refused, 'remove is disabled'):
+                I.main(['--install', '--private', str(Path(tmp) / 'p')])
+        self.assertNotIn(True, calls)
+
     def test_install_records_root_downgrades_and_only_then_allows_downgrades(self):
         name, version = I.roots()[0]
         down = 'Inst %s [%s9] (%s Ubuntu:24.04/noble [amd64])\n' % (name, version, version)
