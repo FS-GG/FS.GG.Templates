@@ -236,10 +236,7 @@ def journey():
     step("removal-focus-spoken-by-orca", focus_spoken)
 
     def status_exposed():
-        # Deterministic AT-SPI read of the polite live region. Whether Orca *speaks* the
-        # update is recorded but not gated: Orca 46.1 flushes live-region messages on key
-        # presses and spoke this region in some runs and not others (a timing race that
-        # the browser/AT-SPI exposure below does not share).
+        # Deterministic AT-SPI read of the polite live region, independent of speech.
         end = time.time() + 8
         found = None
         while time.time() < end and found is None:
@@ -259,13 +256,16 @@ def journey():
         text, attributes = found
         if attributes.get("container-live") != "polite" or attributes.get("live") not in ("polite", None):
             raise RuntimeError(f"status region is not exposed as polite live region: {attributes}")
-        try:
-            wait_for_speech("Focused soldier removed", after=state["offset"], timeout=3)
-            spoken = True
-        except Exception:
-            spoken = False
-        return {"text": text, "containerLive": attributes.get("container-live"), "orcaSpokeLiveRegion": spoken}
+        return {"text": text, "containerLive": attributes.get("container-live")}
     step("removal-status-exposed-as-polite-live-region", status_exposed)
+
+    def status_spoken():
+        # Orca's debug file is line-buffered by soldier-orca-launcher.py, so the
+        # speech log is current when read. A retained run proved Orca does speak this
+        # message shortly after the focus speech.
+        speech = wait_for_speech("Focused soldier removed", after=state["offset"], timeout=10)
+        return {"speech": speech}
+    step("removal-status-spoken-by-orca", status_spoken)
 
     def roster_traversal():
         key("Tab")

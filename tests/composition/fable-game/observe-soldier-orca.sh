@@ -61,7 +61,7 @@ export SPEECHD_ADDRESS="unix_socket:$speechd_socket"
 timeout --signal=TERM --kill-after=5s 30s /usr/bin/python3 "$script_dir/speech-dispatcher-preflight.py" \
   "$output.speechd-preflight.json"
 
-/usr/bin/python3 "$script_dir/orca-faulthandler.py" --replace --debug \
+/usr/bin/python3 "$script_dir/soldier-orca-launcher.py" --replace --debug \
   --debug-file="$output.orca-debug.log" >"$output.orca.log" 2>&1 & orca_pid=$!
 sleep 3
 browser_family="${SVG_ORCA_BROWSER_FAMILY:-chromium}"

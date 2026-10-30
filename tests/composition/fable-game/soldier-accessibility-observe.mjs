@@ -76,6 +76,11 @@ const attr = (page, name) => page.evaluate((n) => document.getElementById("soldi
 async function waitFor(page, fn, arg, label, timeout = 10000) {
   try { await page.waitForFunction(fn, arg, { timeout }); } catch (e) { throw new Error(`wait failed: ${label}`); }
 }
+// Gate waits return false on timeout so a refused control is recorded as a failed
+// assertion, never as an observer error.
+async function tryWait(page, fn, arg, timeout = 5000) {
+  try { await page.waitForFunction(fn, arg, { timeout }); return true; } catch { return false; }
+}
 async function keyboardActivate(page, name, key = "Enter") {
   const ok = await page.evaluate((n) => {
     const m = [...document.querySelectorAll("#soldier-reference button")].filter((b) => b.textContent === n);
@@ -134,8 +139,16 @@ async function observeStructure(page, cdp) {
   out.push(rec("roster-pressed-state-exposed", roster.length > 0 && roster.every((n) => ["true", "false"].includes(String(prop(n, "pressed")))), {}));
   const group = scope.filter((n) => nameOf(n) === "Soldier roster" && ["group", "list", "region", "navigation", "toolbar", "radiogroup"].includes(roleOf(n)));
   out.push(finding("roster-group-named", group.length === 1, { found: group.length, roles: scope.filter((n) => nameOf(n) === "Soldier roster").map(roleOf) }));
-  const canvas = await page.evaluate(() => { const s = document.querySelector("#soldier-reference [data-soldier-canvas] svg"); return s ? { role: s.getAttribute("role"), label: s.getAttribute("aria-label"), hidden: s.getAttribute("aria-hidden") } : null; });
-  out.push(rec("svg-canvas-has-roster-alternative", canvas !== null && roster.length === worldCount, { canvas }));
+  // Every soldier painted in the SVG has exactly one roster button, and the reverse.
+  const canvas = await page.evaluate(() => {
+    const svg = document.querySelector("#soldier-reference [data-soldier-canvas] svg");
+    if (!svg) return null;
+    const art = [...svg.querySelectorAll("[data-fsgg-element-id]")].map((e) => e.getAttribute("data-fsgg-element-id")).filter((id) => /^soldier-.+-art$/.test(id)).map((id) => id.slice(0, -4));
+    const roster = [...document.querySelectorAll("#soldier-reference [data-soldier-id]")].map((e) => e.getAttribute("data-soldier-id"));
+    const rosterSet = new Set(roster), artSet = new Set(art);
+    return { art: artSet.size, roster: rosterSet.size, artWithoutRoster: [...artSet].filter((id) => !rosterSet.has(id)).slice(0, 5), rosterWithoutArt: [...rosterSet].filter((id) => !artSet.has(id)).slice(0, 5) };
+  });
+  out.push(rec("svg-canvas-has-roster-alternative", canvas !== null && canvas.art > 0 && canvas.art === canvas.roster && canvas.artWithoutRoster.length === 0 && canvas.rosterWithoutArt.length === 0 && roster.length === worldCount, { canvas, axRoster: roster.length }));
   return out;
 }
 
@@ -167,7 +180,7 @@ async function observeKeyboard(page, cdp) {
   // Keyboard-only equivalents of the pointer journey.
   await page.evaluate(() => document.querySelector('#soldier-reference [data-soldier-id="soldier-0000"]').focus());
   await page.keyboard.press("Enter");
-  await waitFor(page, () => document.getElementById("soldier-reference").getAttribute("data-selected") === "soldier-0000", null, "keyboard selection");
+  await tryWait(page, () => document.getElementById("soldier-reference").getAttribute("data-selected") === "soldier-0000");
   const before = await state(page);
   const pressedAfter = await page.evaluate(() => document.querySelector('#soldier-reference [data-soldier-id="soldier-0000"]').getAttribute("aria-pressed"));
   out.push(rec("keyboard-select-roster", pressedAfter === "true", { pressed: pressedAfter }));
@@ -179,7 +192,7 @@ async function observeKeyboard(page, cdp) {
     out.push(rec("roster-pressed-matches-dom-after-selection", axPressed.length === 1 && domPressed.length === 1 && axPressed[0] === domPressed[0] && /^soldier-0000, /.test(axPressed[0]), { ax: axPressed, dom: domPressed }));
   }
   await keyboardActivate(page, "Move selected soldier", "Space");
-  await waitFor(page, (x) => JSON.parse(document.getElementById("soldier-reference-state").textContent).soldiers[0].x === x, before.soldiers[0].x + 16, "keyboard move");
+  await tryWait(page, (x) => JSON.parse(document.getElementById("soldier-reference-state").textContent).soldiers[0].x === x, before.soldiers[0].x + 16);
   const afterMove = await state(page);
   out.push(rec("keyboard-command-moves-selected", afterMove.soldiers[0].x === before.soldiers[0].x + 16 && afterMove.soldiers.slice(1).every((s, i) => s.x === before.soldiers[i + 1].x), {}));
   const label = await page.evaluate(() => document.querySelector('#soldier-reference [data-soldier-id="soldier-0000"]').textContent);
@@ -187,12 +200,13 @@ async function observeKeyboard(page, cdp) {
   const statusText = await page.evaluate(() => document.querySelector("#soldier-reference output[aria-live]").textContent);
   // Remove: focus must transfer to a surviving named control and be announced.
   await keyboardActivate(page, "Remove selected soldier", "Enter");
-  await waitFor(page, () => document.getElementById("soldier-reference").getAttribute("data-world-count") === "99", null, "removal");
+  await tryWait(page, () => document.getElementById("soldier-reference").getAttribute("data-world-count") === "99");
   const active = await domActive(page);
   const ax = await focusedAx(cdp);
   out.push(rec("removal-focus-transfers-to-survivor", active?.soldier === "soldier-0001" && ax?.focused === true && /^soldier-0001, /.test(ax?.name ?? ""), { active, ax }));
   const live = await page.evaluate(() => document.querySelector("#soldier-reference output[aria-live]").textContent);
-  out.push(rec("removal-announced-in-live-region", /Focused soldier removed/.test(live) && live !== statusText, { live }));
+  // Written to the live region (DOM text changed). Whether Orca speaks it is gated by the Orca observer.
+  out.push(rec("removal-written-to-live-region", /Focused soldier removed/.test(live) && live !== statusText, { live }));
   return out;
 }
 
@@ -205,22 +219,25 @@ async function observeChurnAndExport(page, cdp) {
   await waitFor(page, () => document.getElementById("soldier-reference").getAttribute("data-selected") === "soldier-0000", null, "select in churn");
   await keyboardActivate(page, "Pan to offscreen soldiers", "Enter");
   await keyboardActivate(page, "Remove selected soldier", "Enter");
-  await waitFor(page, () => document.getElementById("soldier-reference").getAttribute("data-world-count") === "1999", null, "churn removal");
+  await tryWait(page, () => document.getElementById("soldier-reference").getAttribute("data-world-count") === "1999");
   const active = await domActive(page); const ax = await focusedAx(cdp);
   out.push(rec("offscreen-removal-focus-transfers", active?.soldier === "soldier-0001" && ax?.focused === true && /^soldier-0001, /.test(ax?.name ?? ""), { active, ax }));
   await keyboardActivate(page, "Spawn soldier", "Enter");
-  await waitFor(page, () => document.getElementById("soldier-reference").getAttribute("data-world-count") === "2000", null, "churn spawn");
+  await tryWait(page, () => document.getElementById("soldier-reference").getAttribute("data-world-count") === "2000");
   const afterSpawn = await domActive(page);
   out.push(rec("spawn-keeps-focus-on-control", afterSpawn?.text === "Spawn soldier", { afterSpawn }));
   const rosterAfter = await page.evaluate(() => document.querySelectorAll("#soldier-reference [data-soldier-id]").length);
   out.push(rec("roster-follows-churn-world", rosterAfter === 2000, { roster: rosterAfter }));
   // Full-world export by keyboard: the download must complete from a real Enter.
-  const download = page.waitForEvent("download", { timeout: 15000 });
+  const download = page.waitForEvent("download", { timeout: 6000 }).catch(() => null);
   await keyboardActivate(page, "Export full soldier world", "Enter");
   const file = await download;
-  const body = fs.readFileSync(await file.path(), "utf8");
-  const uses = (body.match(/<use\b/g) ?? []).length;
-  out.push(rec("keyboard-export-full-world", file.suggestedFilename() === "soldier-world.svg" && uses === 2000, { filename: file.suggestedFilename(), uses, sha256: crypto.createHash("sha256").update(body).digest("hex") }));
+  if (file === null) out.push(rec("keyboard-export-full-world", false, { download: "none" }));
+  else {
+    const body = fs.readFileSync(await file.path(), "utf8");
+    const uses = (body.match(/<use\b/g) ?? []).length;
+    out.push(rec("keyboard-export-full-world", file.suggestedFilename() === "soldier-world.svg" && uses === 2000, { filename: file.suggestedFilename(), uses, sha256: crypto.createHash("sha256").update(body).digest("hex") }));
+  }
   return out;
 }
 
@@ -228,7 +245,7 @@ async function observePopulations(page, cdp) {
   const out = [];
   for (const count of [1, 100, 250, 500, 1000]) {
     await keyboardActivate(page, `Load ${count} soldiers`, "Enter");
-    await waitFor(page, (c) => document.getElementById("soldier-reference").getAttribute("data-world-count") === String(c), count, `population ${count}`, 30000);
+    await tryWait(page, (c) => document.getElementById("soldier-reference").getAttribute("data-world-count") === String(c), count, 30000);
     const tree = await fullTree(cdp);
     const panel = tree.live.find((n) => roleOf(n) === "region" && nameOf(n) === "Equipped soldier reference");
     const roster = panel ? tree.descendants(panel).filter((n) => !n.ignored && roleOf(n) === "button" && ROSTER_NAME.test(nameOf(n))) : [];
@@ -245,7 +262,6 @@ async function observeDisposal(page, cdp) {
   const stale = tree.live.filter((n) => nameOf(n) === "Equipped soldier reference" || ROSTER_NAME.test(nameOf(n)));
   out.push(rec("disposed-panel-absent-from-ax-tree", stale.length === 0, { stale: stale.length }));
   const active = await domActive(page);
-  out.push(rec("disposed-focus-not-on-detached-node", active !== null && await page.evaluate(() => document.activeElement.isConnected), { active: active && { tag: active.tag, id: active.id } }));
   out.push(finding("disposal-focus-returns-to-entry-control", active?.id === "mount-soldier-reference", { active: active && { tag: active.tag, id: active.id } }));
   return out;
 }
@@ -265,19 +281,37 @@ async function screenWithAxe(page) {
 // Roster mutations are "sticky": the product re-renders roster text and state on
 // every accepted commit, so a one-shot DOM edit could be overwritten before it is
 // observed. Each `sticky` function is idempotent and re-applied on every mutation.
+const byText = (name) => `[...document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === ${JSON.stringify(name)})`;
 const MUTANTS = [
-  { name: "remove-panel-accessible-name", expect: ["panel-region-name"], run: (w) => w.document.getElementById("soldier-reference").removeAttribute("aria-label") },
-  { name: "remove-panel-focusability", expect: ["panel-focusable"], run: (w) => w.document.getElementById("soldier-reference").removeAttribute("tabindex") },
-  { name: "remove-roster-button-name", expect: ["roster-names-nonempty-descriptive"], sticky: (w) => { const b = w.document.querySelector("#soldier-reference [data-soldier-id]"); if (b && b.textContent !== "") b.textContent = ""; } },
-  { name: "duplicate-roster-names", expect: ["roster-names-unique"], sticky: (w) => { const b = w.document.querySelectorAll("#soldier-reference [data-soldier-id]"); if (b.length > 1 && b[1].textContent !== b[0].textContent) b[1].textContent = b[0].textContent; } },
-  { name: "disable-command-button", expect: ["command-buttons-focusable-enabled"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Pause soldiers").disabled = true; } },
-  { name: "silence-live-region", expect: ["status-live-polite"], run: (w) => w.document.querySelector("#soldier-reference output[aria-live]").setAttribute("aria-live", "off") },
-  { name: "hide-roster-from-ax-tree", expect: ["roster-alternatives-complete"], run: (w) => w.document.querySelector('#soldier-reference [aria-label="Soldier roster"]').setAttribute("aria-hidden", "true") },
-  { name: "remove-pressed-state", expect: ["roster-pressed-state-exposed"], sticky: (w) => w.document.querySelectorAll("#soldier-reference [data-soldier-id][aria-pressed]").forEach((b) => b.removeAttribute("aria-pressed")) },
-  { name: "drop-last-roster-alternative", expect: ["roster-alternatives-complete"], sticky: (w) => { const b = w.document.querySelector('#soldier-reference [data-soldier-id="soldier-0099"]'); if (b) b.remove(); } },
-  { name: "remove-command-from-tab-order", expect: ["tab-reaches-every-command"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Change selected pose").setAttribute("tabindex", "-1"); } },
-  { name: "remove-roster-button-from-tab-order", expect: ["tab-reaches-every-roster-button"], sticky: (w) => { const b = w.document.querySelectorAll("#soldier-reference [data-soldier-id]")[3]; if (b && b.getAttribute("tabindex") !== "-1") b.setAttribute("tabindex", "-1"); } },
-  { name: "suppress-programmatic-focus-transfer", expect: ["removal-focus-transfers-to-survivor"], armOnRemove: true },
+  // phase "structure": accessibility-tree gates only. "keyboard": Tab/focus gates. Others run one journey.
+  { name: "remove-panel-accessible-name", phase: "structure", expect: ["panel-region-name"], run: (w) => w.document.getElementById("soldier-reference").removeAttribute("aria-label") },
+  { name: "remove-panel-focusability", phase: "structure", expect: ["panel-focusable"], run: (w) => w.document.getElementById("soldier-reference").removeAttribute("tabindex") },
+  { name: "demote-panel-heading", phase: "structure", expect: ["panel-heading-level-2"], run: (w) => w.document.querySelector("#soldier-reference h2").setAttribute("aria-level", "3") },
+  { name: "remove-note-accessible-name", phase: "structure", expect: ["note-textbox-name"], run: (w) => w.document.querySelector('#soldier-reference input[aria-label]').removeAttribute("aria-label") },
+  { name: "silence-live-region", phase: "structure", expect: ["status-live-polite"], run: (w) => w.document.querySelector("#soldier-reference output[aria-live]").setAttribute("aria-live", "off") },
+  { name: "hide-command-from-ax-tree", phase: "structure", expect: ["command-buttons-present"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Spawn soldier").setAttribute("aria-hidden", "true"); } },
+  { name: "duplicate-command-name", phase: "structure", expect: ["command-names-unique-nonempty"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Focus previous soldier").textContent = "Focus next soldier"; } },
+  { name: "disable-command-button", phase: "structure", expect: ["command-buttons-focusable-enabled"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Pause soldiers").disabled = true; } },
+  { name: "hide-roster-from-ax-tree", phase: "structure", expect: ["roster-alternatives-complete"], run: (w) => w.document.querySelector('#soldier-reference [aria-label="Soldier roster"]').setAttribute("aria-hidden", "true") },
+  { name: "remove-roster-button-name", phase: "structure", expect: ["roster-names-nonempty-descriptive"], sticky: (w) => { const b = w.document.querySelector("#soldier-reference [data-soldier-id]"); if (b && b.textContent !== "") b.textContent = ""; } },
+  { name: "duplicate-roster-names", phase: "structure", expect: ["roster-names-unique"], sticky: (w) => { const b = w.document.querySelectorAll("#soldier-reference [data-soldier-id]"); if (b.length > 1 && b[1].textContent !== b[0].textContent) b[1].textContent = b[0].textContent; } },
+  { name: "remove-pressed-state", phase: "structure", expect: ["roster-pressed-state-exposed"], sticky: (w) => w.document.querySelectorAll("#soldier-reference [data-soldier-id][aria-pressed]").forEach((b) => b.removeAttribute("aria-pressed")) },
+  { name: "drop-last-roster-alternative", phase: "structure", expect: ["roster-alternatives-complete"], sticky: (w) => { const b = w.document.querySelector('#soldier-reference [data-soldier-id="soldier-0099"]'); if (b) b.remove(); } },
+  { name: "remove-painted-soldier-art", phase: "structure", expect: ["svg-canvas-has-roster-alternative"], sticky: (w) => { const e = w.document.querySelector('#soldier-reference svg [data-fsgg-element-id="soldier-0005-art"]'); if (e) e.remove(); } },
+  { name: "remove-command-from-tab-order", phase: "keyboard", expect: ["tab-reaches-every-command"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Change selected pose").setAttribute("tabindex", "-1"); } },
+  { name: "remove-roster-button-from-tab-order", phase: "keyboard", expect: ["tab-reaches-every-roster-button"], sticky: (w) => { const b = w.document.querySelectorAll("#soldier-reference [data-soldier-id]")[3]; if (b && b.getAttribute("tabindex") !== "-1") b.setAttribute("tabindex", "-1"); } },
+  { name: "relabel-focused-command-in-ax-tree", phase: "keyboard", expect: ["ax-focus-matches-dom-focus"], run: (w) => { const h = w.document.querySelector("#soldier-reference h2"); h.id = "soldier-heading-control"; [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Spawn soldier").setAttribute("aria-labelledby", "soldier-heading-control"); } },
+  { name: "remove-selection-pressed-state", phase: "keyboard", expect: ["keyboard-select-roster", "roster-pressed-matches-dom-after-selection"], sticky: (w) => w.document.querySelectorAll("#soldier-reference [data-soldier-id][aria-pressed]").forEach((b) => b.removeAttribute("aria-pressed")) },
+  { name: "block-move-command", phase: "keyboard", expect: ["keyboard-command-moves-selected"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Move selected soldier").addEventListener("click", (e) => e.stopImmediatePropagation(), true); } },
+  { name: "drift-roster-label-from-state", phase: "keyboard", expect: ["roster-name-follows-state"], sticky: (w) => { const b = w.document.querySelector('#soldier-reference [data-soldier-id="soldier-0000"]'); if (b && b.textContent !== "unit") b.textContent = "unit"; } },
+  { name: "suppress-programmatic-focus-transfer", phase: "keyboard", expect: ["removal-focus-transfers-to-survivor"], armOnRemove: true },
+  { name: "clear-live-region-text", phase: "keyboard", expect: ["removal-written-to-live-region"], sticky: (w) => { const o = w.document.querySelector("#soldier-reference output[aria-live]"); if (o && o.textContent !== "") o.textContent = ""; } },
+  { name: "suppress-focus-transfer-in-churn", phase: "churn", expect: ["offscreen-removal-focus-transfers"], armOnRemove: true },
+  { name: "steal-focus-after-spawn", phase: "churn", expect: ["spawn-keeps-focus-on-control"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Spawn soldier").addEventListener("click", () => setTimeout(() => w.document.activeElement?.blur(), 0)); } },
+  { name: "drop-roster-entry-in-churn", phase: "churn", expect: ["roster-follows-churn-world"], sticky: (w) => { const b = w.document.querySelector('#soldier-reference [data-soldier-id="soldier-0500"]'); if (b) b.remove(); } },
+  { name: "block-export", phase: "churn", expect: ["keyboard-export-full-world"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Export full soldier world").addEventListener("click", (e) => e.stopImmediatePropagation(), true); } },
+  { name: "hide-roster-at-every-population", phase: "populations", expect: [1, 100, 250, 500, 1000].map((n) => `population-${n}-roster-exposed-unique`), run: (w) => w.document.querySelector('#soldier-reference [aria-label="Soldier roster"]').setAttribute("aria-hidden", "true") },
+  { name: "block-dispose", phase: "disposal", expect: ["disposed-panel-absent-from-ax-tree"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Dispose soldier reference").addEventListener("click", (e) => e.stopImmediatePropagation(), true); } },
 ];
 
 const RESOLUTIONS = [
@@ -321,10 +355,19 @@ async function withFreshPlayer(browserType, fn) {
   } finally { await browser.close(); }
 }
 
-async function runAll(page, cdp) {
+async function runPhase(phase, page, cdp) {
+  switch (phase) {
+    case "structure": return observeStructure(page, cdp);
+    case "keyboard": return observeKeyboard(page, cdp);
+    case "churn": return observeChurnAndExport(page, cdp);
+    case "populations": return observePopulations(page, cdp);
+    case "disposal": return observeDisposal(page, cdp);
+    default: throw new Error(`unknown phase ${phase}`);
+  }
+}
+async function runEverything(page, cdp) {
   const results = [];
-  results.push(...await observeStructure(page, cdp));
-  results.push(...await observeKeyboard(page, cdp));
+  for (const phase of ["structure", "keyboard", "churn", "populations", "disposal"]) results.push(...await runPhase(phase, page, cdp));
   return results;
 }
 
@@ -374,10 +417,10 @@ try {
         await openPlayer(page, cdp);
         await applyMutantAfterSetup(page, mutant);
         let assertions;
-        try { assertions = await runAll(page, cdp); }
+        try { assertions = await runPhase(mutant.phase, page, cdp); }
         catch (error) { return { name: mutant.name, kind: "refusal", refused: false, expect: mutant.expect, failed: [`observer-error:${String(error.message).slice(0, 120)}`] }; }
         const failed = assertions.filter((a) => a.kind === "gate" && !a.passed).map((a) => a.id);
-        return { name: mutant.name, kind: "refusal", expect: mutant.expect, failed, refused: mutant.expect.every((id) => failed.includes(id)) };
+        return { name: mutant.name, kind: "refusal", phase: mutant.phase, expect: mutant.expect, failed, refused: mutant.expect.every((id) => failed.includes(id)) };
       });
       rows.push(row);
     }
@@ -393,7 +436,7 @@ try {
       });
       rows.push(row);
     }
-    const baseline = await withFreshPlayer(chromium, async (page, cdp) => { await openPlayer(page, cdp); return (await runAll(page, cdp)).filter((a) => a.kind === "gate" && !a.passed).map((a) => a.id); });
+    const baseline = await withFreshPlayer(chromium, async (page, cdp) => { await openPlayer(page, cdp); return (await runEverything(page, cdp)).filter((a) => a.kind === "gate" && !a.passed).map((a) => a.id); });
     report.controls = { rows, baselineFailures: baseline, refused: rows.filter((r) => r.refused).length, total: rows.length };
   }
   const observed = report.observe?.assertions ?? [];

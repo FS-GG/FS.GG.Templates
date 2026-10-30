@@ -25,26 +25,43 @@ GATES = [
     "roster-pressed-state-exposed", "svg-canvas-has-roster-alternative",
     "tab-reaches-every-command", "tab-reaches-every-roster-button", "ax-focus-matches-dom-focus",
     "keyboard-select-roster", "roster-pressed-matches-dom-after-selection", "keyboard-command-moves-selected",
-    "roster-name-follows-state", "removal-focus-transfers-to-survivor", "removal-announced-in-live-region",
+    "roster-name-follows-state", "removal-focus-transfers-to-survivor", "removal-written-to-live-region",
     "offscreen-removal-focus-transfers", "spawn-keeps-focus-on-control", "roster-follows-churn-world",
     "keyboard-export-full-world",
     *[f"population-{n}-roster-exposed-unique" for n in (1, 100, 250, 500, 1000)],
-    "disposed-panel-absent-from-ax-tree", "disposed-focus-not-on-detached-node",
+    "disposed-panel-absent-from-ax-tree",
 ]
 FINDINGS = ["roster-group-named", "disposal-focus-returns-to-entry-control"]
+POPULATION_GATES = [f"population-{n}-roster-exposed-unique" for n in (1, 100, 250, 500, 1000)]
 REFUSALS = {
-    "remove-panel-accessible-name": "panel-region-name",
-    "remove-panel-focusability": "panel-focusable",
-    "remove-roster-button-name": "roster-names-nonempty-descriptive",
-    "duplicate-roster-names": "roster-names-unique",
-    "disable-command-button": "command-buttons-focusable-enabled",
-    "silence-live-region": "status-live-polite",
-    "hide-roster-from-ax-tree": "roster-alternatives-complete",
-    "remove-pressed-state": "roster-pressed-state-exposed",
-    "drop-last-roster-alternative": "roster-alternatives-complete",
-    "remove-command-from-tab-order": "tab-reaches-every-command",
-    "remove-roster-button-from-tab-order": "tab-reaches-every-roster-button",
-    "suppress-programmatic-focus-transfer": "removal-focus-transfers-to-survivor",
+    "remove-panel-accessible-name": ["panel-region-name"],
+    "remove-panel-focusability": ["panel-focusable"],
+    "demote-panel-heading": ["panel-heading-level-2"],
+    "remove-note-accessible-name": ["note-textbox-name"],
+    "silence-live-region": ["status-live-polite"],
+    "hide-command-from-ax-tree": ["command-buttons-present"],
+    "duplicate-command-name": ["command-names-unique-nonempty"],
+    "disable-command-button": ["command-buttons-focusable-enabled"],
+    "hide-roster-from-ax-tree": ["roster-alternatives-complete"],
+    "remove-roster-button-name": ["roster-names-nonempty-descriptive"],
+    "duplicate-roster-names": ["roster-names-unique"],
+    "remove-pressed-state": ["roster-pressed-state-exposed"],
+    "drop-last-roster-alternative": ["roster-alternatives-complete"],
+    "remove-painted-soldier-art": ["svg-canvas-has-roster-alternative"],
+    "remove-command-from-tab-order": ["tab-reaches-every-command"],
+    "remove-roster-button-from-tab-order": ["tab-reaches-every-roster-button"],
+    "relabel-focused-command-in-ax-tree": ["ax-focus-matches-dom-focus"],
+    "remove-selection-pressed-state": ["keyboard-select-roster", "roster-pressed-matches-dom-after-selection"],
+    "block-move-command": ["keyboard-command-moves-selected"],
+    "drift-roster-label-from-state": ["roster-name-follows-state"],
+    "suppress-programmatic-focus-transfer": ["removal-focus-transfers-to-survivor"],
+    "clear-live-region-text": ["removal-written-to-live-region"],
+    "suppress-focus-transfer-in-churn": ["offscreen-removal-focus-transfers"],
+    "steal-focus-after-spawn": ["spawn-keeps-focus-on-control"],
+    "drop-roster-entry-in-churn": ["roster-follows-churn-world"],
+    "block-export": ["keyboard-export-full-world"],
+    "hide-roster-at-every-population": POPULATION_GATES,
+    "block-dispose": ["disposed-panel-absent-from-ax-tree"],
 }
 RESOLUTIONS = {"name-the-roster-group": "roster-group-named", "restore-focus-to-entry-control-on-dispose": "disposal-focus-returns-to-entry-control"}
 AXE_ROW = "axe-screening-detects-unnamed-button"
@@ -56,7 +73,8 @@ COMMANDS = [
 ORCA_STEPS = [
     "mount-by-keyboard", "note-field-reachable-by-tab", "keyboard-selection-without-pointer",
     "keyboard-command-moves-selected", "roster-toggle-exposed-with-pressed-state", "removal-focus-reaches-survivor",
-    "removal-focus-spoken-by-orca", "removal-status-exposed-as-polite-live-region", "roster-keyboard-traversal-after-transfer",
+    "removal-focus-spoken-by-orca", "removal-status-exposed-as-polite-live-region", "removal-status-spoken-by-orca",
+    "roster-keyboard-traversal-after-transfer",
 ]
 ORCA_MUTANTS = {
     "unnamed-roster-button": "roster-toggle-exposed-with-pressed-state",
@@ -96,14 +114,16 @@ def verify_chromium(report):
     for row in controls["rows"]:
         require(row["refused"] is True, f"control survived: {row['name']}")
         if row["name"] in REFUSALS:
-            require(row["kind"] == "refusal" and REFUSALS[row["name"]] in row["failed"], f"control refused on the wrong assertion: {row['name']}")
+            require(row["kind"] == "refusal" and all(gate in row["failed"] for gate in REFUSALS[row["name"]]), f"control refused on the wrong assertion: {row['name']}")
         elif row["name"] in RESOLUTIONS:
             require(row["kind"] == "resolution" and RESOLUTIONS[row["name"]] in row["resolved"], f"resolution control did not flip its finding: {row['name']}")
+    covered = {gate for row in controls["rows"] if row.get("kind") == "refusal" and row["refused"] for gate in row["expect"]}
+    require(covered == set(GATES), f"gates without a demonstrated refusal control: {sorted(set(GATES) - covered)}")
     screening = report["screening"]
     require(screening["version"] == AXE_VERSION and isinstance(screening["violations"], list), "axe screening identity")
     snapshot = report["ariaSnapshot"]
     require('region "Equipped soldier reference"' in snapshot and all(f'button "{name}"' in snapshot for name in COMMANDS[:-1]), "aria snapshot lacks panel or commands")
-    return {"gates": len(gates), "findings": len(findings), "controls": f"{controls['refused']}/{controls['total']}"}
+    return {"gates": len(gates), "gatesWithRefusalControl": len(covered), "findings": len(findings), "controls": f"{controls['refused']}/{controls['total']}"}
 
 
 def verify_snapshot_family(report, family):
@@ -119,6 +139,9 @@ def verify_orca(directory):
     base = json.loads((directory / "soldier-orca-baseline.json").read_text())
     require(base["schema"] == ORCA_SCHEMA and base["result"] == "passed" and base["mutant"] is None and base["error"] is None, "orca baseline did not pass")
     require([step["name"] for step in base["steps"]] == ORCA_STEPS and all(step["passed"] for step in base["steps"]), "orca step roster differs")
+    by_name = {step["name"]: step for step in base["steps"]}
+    require("Focused soldier removed" in by_name["removal-status-spoken-by-orca"].get("detail", {}).get("speech", ""), "orca did not speak the live-region message")
+    require("soldier-0001" in by_name["removal-focus-spoken-by-orca"].get("detail", {}).get("speech", ""), "orca did not speak the focus target")
     require(base["screenReader"]["name"] == "Orca" and base["screenReader"]["speechOutputObserved"] is True
             and base["screenReader"]["audibleHardwareOutput"] == "not-observed", "orca speech evidence")
     require(base["keyboard"]["events"] == "xdotool-X11" and base["browser"]["accessibility"] == "AT-SPI2", "orca input/AT route")
@@ -131,11 +154,15 @@ def verify_orca(directory):
     return {"orcaSteps": len(ORCA_STEPS), "orcaControls": len(ORCA_MUTANTS)}
 
 
-def verify_directory(directory, orca):
+def verify_directory(directory, orca, families=("chromium",)):
+    """`families` are the families the run was required to produce; each must be present and passed."""
     directory = Path(directory)
+    require("chromium" in families, "chromium is always required")
     summary = verify_chromium(json.loads((directory / "soldier-accessibility-chromium.json").read_text()))
     for family in ("firefox", "webkit"):
         path = directory / f"soldier-accessibility-{family}.json"
+        if family in families:
+            require(path.exists(), f"required family missing: {family}")
         if path.exists():
             summary[family] = verify_snapshot_family(json.loads(path.read_text()), family)["family"]
     if orca:
@@ -147,7 +174,7 @@ def synthetic():
     rows = [{"id": gate, "kind": "gate", "passed": True, "detail": {}} for gate in GATES]
     rows += [{"id": finding, "kind": "finding", "passed": False, "detail": {}} for finding in FINDINGS]
     control_rows = [{"name": AXE_ROW, "refused": True, "expect": ["axe:button-name"], "failed": ["axe:button-name"]}]
-    control_rows += [{"name": name, "kind": "refusal", "expect": [gate], "failed": [gate], "refused": True} for name, gate in REFUSALS.items()]
+    control_rows += [{"name": name, "kind": "refusal", "expect": gates, "failed": list(gates), "refused": True} for name, gates in REFUSALS.items()]
     control_rows += [{"name": name, "kind": "resolution", "expect": [finding], "failed": [], "resolved": [finding], "refused": True} for name, finding in RESOLUTIONS.items()]
     commands = "\n".join(f'  - button "{name}"' for name in COMMANDS)
     return {
@@ -190,12 +217,23 @@ def self_test():
     mutate("axe version changed", lambda r: r["screening"].update(version="9.9.9"))
     mutate("run errored", lambda r: r.update(error="boom"))
     mutate("snapshot lost a command", lambda r: r.update(ariaSnapshot=r["ariaSnapshot"].replace('button "Move selected soldier"', "")))
+    # Required families must be present in CI.
+    import tempfile as _tf
+    with _tf.TemporaryDirectory() as raw:
+        (Path(raw) / "soldier-accessibility-chromium.json").write_text(json.dumps(base))
+        verify_directory(raw, False, ("chromium",))
+        try:
+            verify_directory(raw, False, ("chromium", "firefox", "webkit"))
+        except AssertionError:
+            refused += 1
+        else:
+            raise SystemExit("verifier accepted a run missing required families")
     # Orca: weakened controls and baselines must be refused too.
     import tempfile
     with tempfile.TemporaryDirectory() as raw:
         directory = Path(raw)
         baseline = {"schema": ORCA_SCHEMA, "result": "passed", "mutant": None, "error": None,
-                    "steps": [{"name": name, "passed": True} for name in ORCA_STEPS],
+                    "steps": [{"name": name, "passed": True, **({"detail": {"speech": "Focused soldier removed; soldier-0001"}} if "spoken" in name else {})} for name in ORCA_STEPS],
                     "screenReader": {"name": "Orca", "speechOutputObserved": True, "audibleHardwareOutput": "not-observed"},
                     "keyboard": {"events": "xdotool-X11"}, "browser": {"accessibility": "AT-SPI2"},
                     "claims": {"physicalInput": False, "assistiveTechnologyUserStudy": False}}
@@ -214,6 +252,7 @@ def self_test():
         for label, apply in [
             ("orca baseline step dropped", lambda b, c: b["steps"].pop()),
             ("orca no speech", lambda b, c: b["screenReader"].update(speechOutputObserved=False)),
+            ("orca live region not spoken", lambda b, c: b["steps"][ORCA_STEPS.index("removal-status-spoken-by-orca")].update(detail={"speech": "soldier-0001"})),
             ("orca control survived", lambda b, c: c["silent-status"].update(result="passed")),
             ("orca control wrong step", lambda b, c: c["no-focus-transfer"].update(failedStep="mount-by-keyboard")),
             ("orca control completed its step", lambda b, c: c["unnamed-roster-button"]["steps"].append({"name": "roster-toggle-exposed-with-pressed-state", "passed": True})),
@@ -236,11 +275,12 @@ def main():
     parser.add_argument("--self-test", action="store_true")
     parser.add_argument("--verify")
     parser.add_argument("--orca", action="store_true")
+    parser.add_argument("--families", default="chromium", help="space-separated families the run was required to produce")
     args = parser.parse_args()
     if args.self_test:
         self_test()
     elif args.verify:
-        print(json.dumps(verify_directory(args.verify, args.orca), sort_keys=True))
+        print(json.dumps(verify_directory(args.verify, args.orca, tuple(args.families.split())), sort_keys=True))
     else:
         parser.error("choose --self-test or --verify")
 

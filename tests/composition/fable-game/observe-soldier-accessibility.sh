@@ -60,9 +60,9 @@ executable_args=()
 [[ -z "${PLAYWRIGHT_EXECUTABLE_PATH:-}" ]] || executable_args=(--executable "$PLAYWRIGHT_EXECUTABLE_PATH")
 for family in ${SOLDIER_A11Y_FAMILIES:-chromium}; do
   mode=observe; [[ "$family" != chromium ]] || mode=all
-  timeout --signal=TERM --kill-after=15s 20m node "$script_dir/soldier-accessibility-observe.mjs" \
+  timeout --signal=TERM --kill-after=15s 50m node "$script_dir/soldier-accessibility-observe.mjs" \
     --base-url "$origin/" --out "$evidence/soldier-accessibility-$family.json" --module-root "$PLAYWRIGHT_MODULE_ROOT" \
-    --axe "$SOLDIER_AXE_JS" --family "$family" --mode "$mode" --deadline-ms 1080000 "${executable_args[@]}" \
+    --axe "$SOLDIER_AXE_JS" --family "$family" --mode "$mode" --deadline-ms 2900000 "${executable_args[@]}" \
     >"$evidence/soldier-accessibility-$family.log" 2>&1 || { tail -n 20 "$evidence/soldier-accessibility-$family.log" >&2; exit 1; }
 done
 
@@ -81,5 +81,7 @@ if [[ "$with_orca" == orca ]]; then
 fi
 stop_server
 trap - EXIT
-python3 "$script_dir/test-soldier-accessibility.py" --verify "$evidence" ${with_orca:+--orca}
+families="${SOLDIER_A11Y_FAMILIES:-chromium}"
+# Every requested family must have produced a passing result file.
+python3 "$script_dir/test-soldier-accessibility.py" --verify "$evidence" --families "chromium $families" ${with_orca:+--orca}
 printf 'soldier-accessibility: verified; evidence=%s\n' "$evidence"

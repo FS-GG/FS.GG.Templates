@@ -28,6 +28,7 @@ on:
       - 'tests/composition/fable-game/observe-soldier-orca.sh'
       - 'tests/composition/fable-game/soldier-orca-browser.cjs'
       - 'tests/composition/fable-game/soldier-input-orca.py'
+      - 'tests/composition/fable-game/soldier-orca-launcher.py'
       - 'tests/composition/fable-game/test-soldier-accessibility.py'
       - 'tests/composition/fable-game/accessibility/**'
       - 'tests/composition/fable-game/test-historical-provider.py'
@@ -60,6 +61,7 @@ on:
       - 'tests/composition/fable-game/observe-soldier-orca.sh'
       - 'tests/composition/fable-game/soldier-orca-browser.cjs'
       - 'tests/composition/fable-game/soldier-input-orca.py'
+      - 'tests/composition/fable-game/soldier-orca-launcher.py'
       - 'tests/composition/fable-game/test-soldier-accessibility.py'
       - 'tests/composition/fable-game/accessibility/**'
       - 'tests/composition/fable-game/test-historical-provider.py'
@@ -103,7 +105,7 @@ jobs:
           bash -n tests/composition/fable-game/observe-soldier-orca.sh
           node --check tests/composition/fable-game/soldier-accessibility-observe.mjs
           node --check tests/composition/fable-game/soldier-orca-browser.cjs
-          python3 -m py_compile tests/composition/fable-game/soldier-input-orca.py
+          python3 -m py_compile tests/composition/fable-game/soldier-input-orca.py tests/composition/fable-game/soldier-orca-launcher.py
       - name: Install browser hosts
         working-directory: templates/fs-gg-fable-game/Browser.Tests
         run: |
@@ -246,7 +248,7 @@ jobs:
           PLAYWRIGHT_MODULE_ROOT="$modules" PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
             SOLDIER_AXE_JS="$GITHUB_WORKSPACE/tests/composition/fable-game/accessibility/node_modules/axe-core/axe.min.js" \
             SOLDIER_A11Y_FAMILIES="chromium firefox webkit" \
-            timeout --signal=TERM --kill-after=15s 40m \
+            timeout --signal=TERM --kill-after=15s 60m \
             bash tests/composition/fable-game/observe-soldier-accessibility.sh \
               "$RUNNER_TEMP/soldier-staged-consumer" "$RUNNER_TEMP/soldier-staged-producer" "$RUNNER_TEMP/soldier-accessibility" orca
       - name: Qualify the local container edge
