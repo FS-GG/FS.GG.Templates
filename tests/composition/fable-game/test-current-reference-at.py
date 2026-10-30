@@ -32,6 +32,7 @@ def inputs():
     packet = {"currentCompositionPlan": plan, "templates": {"revision": template["sourceCommit"], "tree": None},
               "templatesInputSource": "exact-current-public-archive", "templatePackageInput": package,
               "actualProducerCustodyReadback": True, "disposition": "passed", "qualificationMode": "current-public-composition",
+              "localSaveStorage": "synthetic-in-memory",
               "producer": {"revision": "e" * 40, "custodyManifestSha256": "f" * 64},
               "browserFamilies": plan["browsers"]["families"], "passedPerFamily": 1, "skipped": 0}
     preflight = {"atJourney": O.LOCAL_SAVE_JOURNEY, "renderingInputSource": "current-public-composition",
@@ -316,6 +317,32 @@ class CurrentAtTests(unittest.TestCase):
         self.assertEqual(tail(legacy), tail(current))
         self.assertLess(current.index('current-reference-noble-install.py --install'), current.index('orca-host-packages.txt'))
 
+    def test_every_writer_derives_the_storage_label_and_the_receipt_pins_the_in_memory_journey_label(self):
+        import ast
+        here = Path(__file__).parent
+        # AT receipt writer: localSaveStorage comes from local_save_storage(plan); atLocalSaveStorage is the literal in-memory label.
+        tree = ast.parse((here / 'external-reference-orca.py').read_text())
+        updates = [n for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == 'update'
+                   and {k.arg for k in n.keywords} >= {'localSaveStorage', 'atLocalSaveStorage', 'durableSaveAcceptance'}]
+        self.assertEqual(1, len(updates))
+        keywords = {k.arg: k.value for k in updates[0].keywords}
+        self.assertEqual('synthetic-in-memory', ast.literal_eval(keywords['atLocalSaveStorage']))
+        self.assertIs(False, ast.literal_eval(keywords['durableSaveAcceptance']))
+        self.assertIsInstance(keywords['localSaveStorage'], ast.Call)
+        self.assertEqual('local_save_storage', keywords['localSaveStorage'].func.attr)
+        # no source assigns a literal localSaveStorage any more
+        for name in ['external-reference-orca.py', 'current-composition-local.py', 'verify-external-reference-candidate.sh']:
+            text = (here / name).read_text()
+            self.assertNotRegex(text, r"""localSaveStorage['"]?\s*[:=]\s*['"]synthetic""", name)
+            self.assertNotRegex(text, r"""localSaveStorage=['"]""", name)
+        # the shell stage and the local stage derive the packet label from the plan
+        script = (here / 'verify-external-reference-candidate.sh').read_text()
+        self.assertIn("packet['localSaveStorage']=observations_module['local_save_storage'](packet['currentCompositionPlan'])", script)
+        self.assertIn("'localSaveStorage': observations.local_save_storage(plan)", (here / 'current-composition-local.py').read_text())
+        # the label cannot be read as real durable storage
+        self.assertEqual('synthetic-in-memory-and-synthetic-durable-browser',
+                         O.composition_observations().local_save_storage({'browsers': {'cases': [{'title': t} for t in O.composition_observations().DURABLE_LOCAL_SAVE_TITLES]}}))
+
     def test_wrong_or_missing_authenticated_join_refuses(self):
         for target, field, bad in [("preflight", "templates", {"revision": "0" * 40, "tree": "b" * 40}),
                                     ("preflight", "observerSourceSha256", "0" * 64),
@@ -413,7 +440,8 @@ class CurrentAtTests(unittest.TestCase):
                        "producer": preflight["producer"], **journey, "currentPublicAt": identity, "keyboard": "xdotool-X11",
                        "speechBoundary": "Orca SPEECH OUTPUT", "physicalAudioHardware": "not-observed", "cleanup": cleanup,
                        "sourceQualificationSha256": O.digest(directory / "source-qualification.json"),
-                       "localSaveStorage": "synthetic-in-memory", "durableSaveAcceptance": False, "providerMatrixAcceptance": False,
+                       "localSaveStorage": O.composition_observations().local_save_storage(packet["currentCompositionPlan"]),
+                       "atLocalSaveStorage": "synthetic-in-memory", "durableSaveAcceptance": False, "providerMatrixAcceptance": False,
                        "nativeImeAcceptance": False, "whole4817Acceptance": False,
                        "evidenceSha256": {name: O.digest(directory / name) for name in names}}
             self.assertTrue(O.validate(receipt, packet, preflight, directory))
@@ -434,6 +462,31 @@ class CurrentAtTests(unittest.TestCase):
                         O.validate(altered, packet, preflight, directory)
                 self.assertEqual(originals, {path.name: path.read_bytes() for path in directory.iterdir() if path.is_file()})
                 return
+            observations = O.composition_observations()
+            durable_titles = list(observations.DURABLE_LOCAL_SAVE_TITLES)
+            combined = "synthetic-in-memory-and-synthetic-durable-browser"
+            self.assertEqual("synthetic-in-memory", receipt["localSaveStorage"])
+            # the storage label must describe what the plan selects and what the journey pressed, nothing broader
+            for label, change in {"claims durable for an in-memory plan": lambda r, p: r.update(localSaveStorage=combined),
+                                  "claims something else": lambda r, p: r.update(localSaveStorage="durable"),
+                                  "empty label": lambda r, p: r.update(localSaveStorage=""),
+                                  "AT journey claims durable": lambda r, p: r.update(atLocalSaveStorage=combined),
+                                  "AT journey label absent": lambda r, p: r.pop("atLocalSaveStorage"),
+                                  "packet label differs": lambda r, p: p.update(localSaveStorage=combined),
+                                  "packet label absent": lambda r, p: p.pop("localSaveStorage"),
+                                  "durable acceptance claimed": lambda r, p: r.update(durableSaveAcceptance=True)}.items():
+                altered, altered_packet = copy.deepcopy(receipt), copy.deepcopy(packet)
+                change(altered, altered_packet)
+                with self.subTest(label), self.assertRaisesRegex(RuntimeError, "storage label or acceptance claim"):
+                    O.validate(altered, altered_packet, preflight, directory)
+            # a plan that selects the two durable cases exercises durable browser storage and must say so
+            durable_plan = copy.deepcopy(packet["currentCompositionPlan"])
+            durable_plan["browsers"]["cases"] += [{"file": "two-client.spec.ts", "suite": [], "title": title} for title in durable_titles]
+            self.assertEqual(combined, observations.local_save_storage(durable_plan))
+            with self.assertRaisesRegex(ValueError, "durable local-save cases must be selected together"):
+                half = copy.deepcopy(packet["currentCompositionPlan"])
+                half["browsers"]["cases"].append({"file": "two-client.spec.ts", "suite": [], "title": durable_titles[0]})
+                observations.local_save_storage(half)
             derived = copy.deepcopy(receipt)
             derived["browser"]["transportOutcome"] = {"reported": False, "stage": "not-observed"}
             self.assertTrue(O.validate(derived, packet, preflight, directory))

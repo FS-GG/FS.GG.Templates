@@ -377,7 +377,8 @@ if template_input:
 if sys.argv[6]=='current-public-composition':
     import runpy
     actual=json.loads((Path(sys.argv[5])/'public-readback.json').read_text())
-    runpy.run_path(str(root/'tests/composition/fable-game/current-composition-observations.py'))['validate_public_readback'](json.loads((out/'current-composition-plan.json').read_text()),actual)
+    observations_module=runpy.run_path(str(root/'tests/composition/fable-game/current-composition-observations.py'))
+    observations_module['validate_public_readback'](json.loads((out/'current-composition-plan.json').read_text()),actual)
     assert all(row['payloadMatched'] is True for row in actual['records'])
     assert actual['custodySha256']==packet['producer']['custodyManifestSha256']
     packet['actualProducerCustodyReadback']=True
@@ -385,7 +386,7 @@ if sys.argv[6]=='current-public-composition':
     packet['schema']='fsgg.current-composition-source-qualification/1'
     packet['currentCompositionPlan']=json.loads((out/'current-composition-plan.json').read_text())
     packet['templatesInputSource']='exact-current-public-archive'
-    packet['localSaveStorage']='synthetic-in-memory'
+    packet['localSaveStorage']=observations_module['local_save_storage'](packet['currentCompositionPlan'])
     packet['durableSaveAcceptance']=False
     packet['actualAT']=False
     packet['providerMatrixAcceptance']=False

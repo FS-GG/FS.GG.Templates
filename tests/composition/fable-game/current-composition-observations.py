@@ -36,6 +36,22 @@ def check_admission(env):
     raise ValueError('current composition needs the local ADR-0096 verification gate (the hosted route is retired)')
 
 
+# The two explicit durable (browser storage) cases of the typed plan. A plan that selects them exercises durable
+# browser storage with synthetic snapshots; it still establishes no product save.
+DURABLE_LOCAL_SAVE_TITLES = (
+    'Local synthetic snapshot survives page recreation with lossless uint64 order and typed refusals',
+    'Local synthetic snapshot storage failures and late loads preserve accepted state and settle disposal',
+)
+
+
+def local_save_storage(plan):
+    """What the selected DOM cases actually exercise, derived from the plan rather than asserted."""
+    titles = {row['title'] for row in plan['browsers']['cases']}
+    chosen = [title in titles for title in DURABLE_LOCAL_SAVE_TITLES]
+    require(all(chosen) or not any(chosen), 'durable local-save cases must be selected together')
+    return 'synthetic-in-memory-and-synthetic-durable-browser' if all(chosen) else 'synthetic-in-memory'
+
+
 def require(ok, message):
     if not ok:
         raise ValueError(message)
