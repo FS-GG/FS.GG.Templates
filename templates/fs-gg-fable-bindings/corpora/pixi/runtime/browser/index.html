@@ -1,0 +1,21 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Pixi binding browser smoke</title>
+<output>running</output>
+<canvas id="renderCanvas" width="320" height="240"></canvas>
+<canvas id="gpuCanvas" width="320" height="240"></canvas>
+<!--
+  Both specifiers resolve to the package's self-contained `dist/pixi.mjs`. The `lib/` ES modules
+  need a bundler because two of their dependencies (eventemitter3 and @xmldom/xmldom) are
+  CommonJS-only; `dist/pixi.mjs` is the same locked artifact with them bundled, and it already
+  includes the event system that `pixi.js/events` registers for a tree-shaken build.
+-->
+<script type="importmap">
+{
+  "imports": {
+    "pixi.js": "/node_modules/pixi.js/dist/pixi.mjs",
+    "pixi.js/events": "/node_modules/pixi.js/dist/pixi.mjs"
+  }
+}
+</script>
+<script type="module" src="/runtime/fable-dist/Program.js"></script>

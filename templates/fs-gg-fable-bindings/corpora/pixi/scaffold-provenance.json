@@ -1,0 +1,1 @@
+{ "schemaVersion": 1, "provider": "fable-bindings", "template": "fs-gg-fable-bindings", "source": "FS.GG.Workspace.Template", "npmClosure": [ "pixi.js@8.22.0" ], "requestedCorpus": { "npmPackage": "@@NPM_PACKAGE@@", "npmVersion": "@@NPM_VERSION@@" }, "activation": "not-published-or-registry-active" }

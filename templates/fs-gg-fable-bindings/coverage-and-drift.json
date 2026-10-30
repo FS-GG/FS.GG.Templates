@@ -30,6 +30,9 @@
   "typedPassThrough": [],
   "dynamicEscapeHatches": [ "internal only; excluded from typed coverage" ],
   "unsupportedConstructs": [ "overloaded constructors", "conditional/mapped/template-literal types", "index signatures", "module augmentation outside the selected registration path" ],
+  "externalModules": [
+    {"module": "babylonjs-gltf2interface", "decision": "recorded-not-followed", "version": "9.33.1", "integrity": "sha512-WO+yIioJNvm34o9qQs8Xd3OyGOyRQA6Z7kqLGsmlUx6PU/bbjsuPCO6QjBFWSuhL1oInUJF0xZpXSLXZ80Zr2Q==", "reason": "The glTF loaders' peer types package. No glTF interface type appears in the binding: the loader is a side-effect registration and ImportMeshAsync returns an opaque result."}
+  ],
   "evidenceJourneys": [
     "fresh Node process proves glTF is absent without the side effect",
     "Node imports every binding-plan entry point and runs the JavaScript renderer journey with a real glTF import",

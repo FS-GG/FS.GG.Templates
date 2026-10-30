@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 2,
+  "bindingPlan": "binding-plan.json",
+  "typedCoverage": [
+    "Application",
+    "Application.stage/canvas/screen/renderer.name/render/destroy/ticker",
+    "Renderer.resize/background.color/extract.pixels",
+    "isWebGPUSupported",
+    "Container",
+    "Container.addChild/removeChild/removeChildren/children/getChildAt/parent/destroy/getBounds",
+    "Container.position/scale/pivot/rotation/alpha/visible/zIndex/sortableChildren/label",
+    "Sprite",
+    "Sprite.anchor/tint/texture/setSize",
+    "Texture",
+    "Assets",
+    "Graphics",
+    "Graphics.rect/roundRect/circle/ellipse/poly/moveTo/lineTo/closePath/fill/stroke/clear",
+    "Text",
+    "Text.text/style.fill/style.fontSize/width",
+    "Rectangle",
+    "Point",
+    "Ticker",
+    "Ticker.add/addOnce/remove/count/start/stop/started/update/deltaMS/deltaTime/elapsedMS/FPS/speed/minFPS/maxFPS",
+    "pixi.js/events registration",
+    "Container.eventMode/cursor/hitArea",
+    "Container.on/once/off/emit/listenerCount/removeAllListeners (eventemitter3)",
+    "FederatedPointerEvent.global/button/getLocalPosition/stopPropagation",
+    "HTMLCanvasElement"
+  ],
+  "typedPassThrough": [],
+  "dynamicEscapeHatches": [
+    "internal only; excluded from typed coverage"
+  ],
+  "unsupportedConstructs": [
+    "overloaded constructors",
+    "conditional/mapped/template-literal types",
+    "index signatures",
+    "module augmentation outside the selected registration path",
+    "the pixi.js/math-extras, gif, html-source and compressed-texture add-ons",
+    "filters, meshes, bitmap and HTML text, particle containers, tiling and nine-slice sprites, masks and render textures beyond the covered surface"
+  ],
+  "externalModules": [
+    {
+      "module": "*.frag",
+      "decision": "recorded-not-followed",
+      "reason": "Ambient wildcard module declaration for a shader asset (pixi.js lib/Shaders.d.ts). It is a declaration inside the hashed closure, not a package; the binding imports no shader."
+    },
+    {
+      "module": "*.vert",
+      "decision": "recorded-not-followed",
+      "reason": "Ambient wildcard module declaration for a shader asset (pixi.js lib/Shaders.d.ts). It is a declaration inside the hashed closure, not a package; the binding imports no shader."
+    },
+    {
+      "module": "*.wgsl",
+      "decision": "recorded-not-followed",
+      "reason": "Ambient wildcard module declaration for a shader asset (pixi.js lib/Shaders.d.ts). It is a declaration inside the hashed closure, not a package; the binding imports no shader."
+    },
+    {
+      "module": "@pixi/colord",
+      "decision": "recorded-not-followed",
+      "version": "2.9.6",
+      "integrity": "sha512-nezytU2pw587fQstUu1AsJZDVEynjskwOL+kibwcdxsMBFqPsFFNA7xl0ii/gXuDi6M0xj3mfRJj8pBSc2jCfA==",
+      "reason": "Colour parsing internal to Color. The binding passes colours as 0xRRGGBB integers and never exposes a Colord type."
+    },
+    {
+      "module": "earcut",
+      "decision": "recorded-not-followed",
+      "version": "3.2.4",
+      "integrity": "sha512-FHc6yNpnTORB0tM5kmZ03iD2mDuNakDE2lvf4Hw1XkfxtEHIGVi01B/GqUSwx+NcC1WGjidAfpTXzeALtPtfpg==",
+      "reason": "Polygon triangulation internal to Graphics. No earcut type appears in the binding."
+    },
+    {
+      "module": "eventemitter3",
+      "decision": "recorded-not-followed",
+      "version": "5.0.4",
+      "integrity": "sha512-mlsTRyGaPBjPedk6Bvw+aqbsXDtoAyAzm5MO7JgU+yVRyMQ5O8bD4Kcci7BS85f93veegeCPkL8R4GLClnjLFw==",
+      "reason": "Container.on/once/off/emit/listenerCount/removeAllListeners are emitted native calls. Listeners are typed as FederatedPointerEvent -> unit and payloads are generic, so no eventemitter3 type appears in the binding; the runtime journeys call each of those methods."
+    },
+    {
+      "module": "tiny-lru",
+      "decision": "recorded-not-followed",
+      "version": "11.4.7",
+      "integrity": "sha512-w/Te7uMUVeH0CR8vZIjr+XiN41V+30lkDdK+NRIDCUYKKuL9VcmaUEmaPISuwGhLlrTGh5yu18lENtR9axSxYw==",
+      "reason": "Cache internal to the text and texture systems. No tiny-lru type appears in the binding."
+    }
+  ],
+  "evidenceJourneys": [
+    "fresh Node process proves the pixi.js/events registration is absent without the side effect",
+    "Node imports every binding-plan entry point and runs the JavaScript renderer-free journey",
+    "Node executes the Fable-emitted renderer-free journey: a 1,000-sprite field with bounds, graphics, text content, events through a real EventBoundary hit test, a manual ticker and asset aliases",
+    "Chromium executes the same Fable-emitted journey and additionally renders it on a WebGL Application: pixel reads, a canvas-backed texture, text layout, a real DOM pointer event, the application ticker, an Assets image load and a WebGPU preference that falls back to WebGL when the browser has no WebGPU"
+  ],
+  "declarationLock": "declaration-lock.json",
+  "status": "reviewed-pixi-2d-renderer-slice"
+}

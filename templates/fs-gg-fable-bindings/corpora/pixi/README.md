@@ -1,0 +1,65 @@
+# BindingsProduct Fable bindings workspace
+
+The qualified forcing corpus is `pixi.js@8.22.0`: a curated PixiJS 2D renderer slice (`Application` with a WebGL or WebGPU preference, `Container` scene graph, `Sprite`, `Graphics`, `Text`, `Texture` and `Assets`, `Ticker`, and the `pixi.js/events` side effect with pointer-event listeners). Run locked restores, curate `src/`, then run compile, emitted-import, Node and real-browser runtime, drift, and clean-consumer evidence before release. `./build.sh` restores the pinned Fable tool and executes JavaScript emitted from the curated F# compile test; the browser page imports that same emitted program, so handwritten JavaScript is not allowed to stand in for binding evidence. `npm run test:browser` serves this workspace, opens `runtime/browser/` in headless Chromium and waits in real time for the page's result, because an image decode outlasts `chromium --dump-dom`'s virtual-time budget.
+
+`corpus.json` declares the corpus once: exact npm artifacts, `.d.ts` entry points and the candidate file stem. `npm run lock:declarations` reads it and refuses installed artifacts that differ from it. `npm run doctor` reds when `package.json`, `scaffold-provenance.json`, the lock or the binding-plan runtime entries disagree with it.
+
+`npm run generate:candidate` writes only tracked `generated-candidates/`; it never overwrites maintained source or advances the declaration lock. `npm run check:drift` follows every declaration edge it reads from the TypeScript syntax tree and pre-processor (imports, exports including `export * as`, `import()` types, module augmentations, `/// <reference path>` and `/// <reference types>`, folder `index.d.ts` imports, and bare imports into the pinned artifacts), skips comments, records allowlisted non-declaration asset imports and modules outside the pinned artifacts, fails on any module reference it cannot follow, and fails on changed transitive hashes. Keep the slice, symbol-to-import mapping, declaration-merging decisions, dependency order, side effects, typed pass-throughs, and unsupported constructs in `binding-plan.json` and `coverage-and-drift.json`; never silently expose a failed conversion as `obj`. Product skills are supplied by the Templates-owned `fable-bindings` skill manifest rather than copied into this provider template. Local proof precedes publication and any registry/wizard activation.
+
+Xantham is an explicit candidate backend for the qualified `ansi-regex@6.2.2` pilot. `npm run
+xantham:prepare` installs the exact reviewed CLI and native TypeScript compiler under excluded
+`.nuget/xantham-tools`; normal builds and skill loading do not install it. Then run `npm run
+generate:candidate -- --backend xantham --config xantham/ansi-regex.json`. Each bounded Linux-x64 run
+uses a fresh child-only home/cache, verifies tool versions and hashes, and retains a versioned report
+under `generated-candidates/xantham/runs/`. Only a bounded, import-resolved, compiling candidate with
+accounted losses updates `generated-candidates/xantham/proposal`; it never changes `src/`, declaration
+locks, mapping decisions or accepted coverage. Process-group RSS and generated output are sampled every
+100 ms and oversize results are rejected; timeout/log capture are bounded by the runner, while the
+8 GiB address-space ceiling is enforced by the operating system.
+Preparation fingerprints the NuGet package and its CLI/generator assemblies. It executes the verified
+CLI assembly through the selected `dotnet` host because the SDK-generated tool launcher is not
+byte-stable across installations and therefore cannot serve as a portable package identity.
+
+`npm run xantham:assess` performs bounded, read-only checks of the NuGet CLI/Wire/support indexes and
+the upstream GitHub source head/diff. It distinguishes published packages from source-only work and
+prints affected contracts plus qualification steps. Add `-- --output
+generated-candidates/xantham/update-assessment.json` to retain the schema-v1 report. A partial or
+unavailable network check stays explicit and never changes pins or executes downloaded code.
+
+Reviewed release results live in `xantham/release-assessments.json`. The 0.1.0 stable generator is useful
+for public subpaths, export layout, documentation and shared declaration catalogs, and its ANSI output
+passes the Fable/Node journey on `net8.0`. Keep the alpha.2 executable baseline for this template until
+`Xantham.Fable.Core.TS` can restore into `netstandard2.1`, or stable generated output stops requiring its
+unused DOM namespace; the assessment command reports that gate and the exact requalification steps.
+
+For an existing workspace, first install the exact Templates package and instantiate a temporary clean
+workspace, then compare its `scripts/`, `xantham/`, package commands and
+`.agents/skills/fable-bindings/SKILL.md` with the workspace. Merge those additions deliberately; keep
+owner edits and resolve conflicts instead of forcing the new files over maintained bindings,
+declaration locks, mapping decisions or accepted coverage. Run `npm run doctor`, the existing curated
+build/runtime checks, then the Xantham pilot before treating the workspace as upgraded. A fresh
+template install alone does not modify an existing workspace or establish per-load assessment there.
+
+## Package locking
+
+`./build.sh` (also `npm run build`) is this workspace's .NET entrypoint: it asserts the lockfiles, restores in locked mode, builds, then runs the pinned npm install, doctor, drift and Node runtime lanes.
+
+This workspace restores in **locked mode** (`RestoreLockedMode` in `Directory.Build.props`), so every `packages.lock.json` beside a project is enforced: a package whose content hash differs from the committed one fails the restore rather than being silently substituted.
+
+Locked mode is only meaningful if the lock can be regenerated, so here is the path. After changing any `PackageVersion` in `Directory.Packages.props` or any `PackageReference`, regenerate and commit the affected locks:
+
+```bash
+dotnet restore BindingsProduct.slnx --force-evaluate
+```
+
+Never hand-edit a lock file; a hash typed by a human is a hash no restore can reproduce.
+
+Three settings keep those hashes reproducible, and all are load-bearing (see `FS.GG.Templates#384`, whose root cause was established by `#380`):
+
+- **`NuGet.config` pins the source.** Its `<clear />` drops every source inherited from the machine, so a package is never served by whatever local feed the host happens to configure. To use a private or mirrored feed, add it there and then regenerate the locks with the command above.
+- **`DisableImplicitLibraryPacksFolder` in `Directory.Build.props`** stops the F# SDK appending its own bundled `library-packs` folder to the restore sources. That folder ships an `FSharp.Core` archive with the same version as nuget.org's but different bytes, so leaving it enabled lets one restore record one content hash and the next restore reject it with `NU1403: Package content hash validation failed`. These projects target `netstandard2.1` and resolve FSharp.Core 4.7.2 transitively, which the SDK folder does not ship, so today this is a forward guardrail rather than a live repair — it stops the collision arriving unobserved when a floor or a target framework moves.
+- **`RestorePackagesPath` in `Directory.Build.props`** gives this workspace its own `.nuget/packages` folder instead of the machine-wide one. Source pinning alone is not enough: NuGet's shared package folder is keyed by id and version only, so whichever build reached it first decides which archive lives there, and a later restore validates the committed hash against *that* entry. A private folder is what makes the committed hash enforceable on any machine rather than only on machines that happen to agree. Packages are not shared with your other checkouts, so a cold build downloads its own copies. The selected lifecycle owns the generated root `.gitignore`; for `--lifecycle none`, add `.nuget/`, `bin/`, `obj/`, `node_modules/`, and `runtime/fable-dist/` before committing build output.
+
+`build.sh` refuses to restore at all if the lock files are missing, and `npm run doctor` fails on the same condition, because a locked-mode restore with no lock on disk does not fail — it quietly writes a new lock from whatever the machine resolves, which defeats the entire mechanism.
+
+`node scripts/lifecycle-evidence.mjs --expect clean --junit reports/bindings.junit.xml --handoff readiness/002-bindings-upstream-review/governance-handoff.json` turns the executable closure check into runner evidence and a narrow upstream-review verdict. `npm run test:lifecycle` first records the Governance F# public-surface receipt, then imports the report into the supported SDD lifecycle and requires observed verification, ship readiness, and a coherent doctor result. The composition acceptance routes both the SDD-emitted handoff and the upstream-review verdict through Governance: unchanged pins pass, while upstream declaration drift is a blocking review state. These commands are local acceptance only; they do not publish or activate the provider.

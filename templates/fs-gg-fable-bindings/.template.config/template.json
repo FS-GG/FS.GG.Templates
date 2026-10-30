@@ -19,13 +19,53 @@
         "**/*.user",
         "**/node_modules/**",
         "**/.nuget/**",
-        "**/generated-candidates/xantham/runs/**"
+        "**/generated-candidates/xantham/runs/**",
+        "corpora/**"
       ],
       "modifiers": [
         {
           "condition": "(lifecycle != \"typed-sdd\")",
           "exclude": [ ".github/workflows/project-knowledge.yml", "scripts/check-project-knowledge.py" ]
+        },
+        {
+          "//": "The default corpus is the Babylon one at the template root. Selecting pixi.js withdraws exactly the root files the Pixi corpus supplies from corpora/pixi/ (the second source), so no target is written twice.",
+          "condition": "(npmPackage == \"pixi.js\")",
+          "exclude": [
+            "corpus.json",
+            "package.json",
+            "package-lock.json",
+            "binding-plan.json",
+            "coverage-and-drift.json",
+            "declaration-lock.json",
+            "scaffold-provenance.json",
+            "README.md",
+            "generated-candidates/BabylonBindings.generated.fs",
+            "generated-candidates/BabylonBindings.proposal.md",
+            "generated-candidates/declaration-analysis.json",
+            "src/BindingsProduct/Bindings.fs",
+            "src/BindingsProduct/BindingsProduct.fsproj",
+            "src/BindingsProduct/README.md",
+            "tests/BindingsProduct.CompileTests/Program.fs",
+            "runtime/browser/index.html",
+            "runtime/node/smoke.mjs",
+            "runtime/node/without-loader.mjs"
+          ]
         }
+      ]
+    },
+    {
+      "//": "The Pixi corpus (FS.GG.Templates#808): the same file layout as the Babylon root, delivered over it when npmPackage is pixi.js. The exclude list is restated verbatim from the first source because declaring `exclude` replaces the engine default wholesale, and the default would strip the lock files (see the long comment on the first source).",
+      "source": "./corpora/pixi/",
+      "target": "./",
+      "condition": "(npmPackage == \"pixi.js\")",
+      "exclude": [
+        "**/[Bb]in/**",
+        "**/[Oo]bj/**",
+        "**/.template.config/**",
+        "**/*.filelist",
+        "**/*.user",
+        "**/node_modules/**",
+        "**/.nuget/**"
       ]
     }
   ],
@@ -43,9 +83,9 @@
       ]
     },
     "productName": { "type": "parameter", "datatype": "text", "defaultValue": "", "description": "Binding/library name; --name is used when omitted." },
-    "npmPackage": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "@babylonjs/core" } ], "defaultValue": "@babylonjs/core", "description": "The selected v1 declaration corpus; arbitrary packages require a separately qualified template." },
-    "npmVersion": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "9.33.1" } ], "defaultValue": "9.33.1", "description": "Exact selected Babylon declaration-corpus version." },
-    "bindingTarget": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "browser" } ], "defaultValue": "browser", "description": "Selected corpus has real-browser evidence; node remains an additional smoke lane." },
+    "npmPackage": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "@babylonjs/core", "description": "Babylon.js 3D renderer corpus (default; the template root)." }, { "choice": "pixi.js", "description": "PixiJS 2D renderer corpus (corpora/pixi)." } ], "defaultValue": "@babylonjs/core", "description": "The selected declaration corpus; arbitrary packages require a separately qualified corpus. Pair it with the matching npmVersion.", "replaces": "@@NPM_PACKAGE@@" },
+    "npmVersion": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "9.33.1", "description": "With @babylonjs/core." }, { "choice": "8.22.0", "description": "With pixi.js." } ], "defaultValue": "9.33.1", "description": "Exact version of the selected corpus's primary npm artifact. A pair that does not match the delivered corpus fails npm run doctor.", "replaces": "@@NPM_VERSION@@" },
+    "bindingTarget": { "type": "parameter", "datatype": "choice", "choices": [ { "choice": "browser" } ], "defaultValue": "browser", "description": "Selected corpora have real-browser evidence; node remains an additional smoke lane." },
     "productNameTrimmed": { "type": "generated", "generator": "regex", "dataType": "string", "parameters": { "source": "productName", "steps": [ { "regex": "^\\s+|\\s+$", "replacement": "" } ] } },
     "effectiveName": { "type": "generated", "generator": "coalesce", "parameters": { "sourceVariableName": "productNameTrimmed", "fallbackVariableName": "name" }, "replaces": "BindingsProduct", "fileRename": "BindingsProduct" },
     "//effectiveNameLower": "Required by FS.GG.Templates#384, and only once the lockfiles actually reach a product. NuGet writes a ProjectReference into `packages.lock.json` under the referenced project's LOWERCASED name — `tests/BindingsProduct.CompileTests/packages.lock.json` carries a `\"bindingsproduct\"` entry. `effectiveName` above renames the project to the product's name but does not touch that lowercase spelling, so a delivered lock would name a project the generated workspace does not contain and `--locked-mode` would refuse the restore with NU1004 (`The packages lock file is inconsistent with the project dependencies`). This symbol is what keeps the delivered lock describing the delivered projects. `fs-gg-console` has carried the same symbol for the same lowercase reason since before this item.",

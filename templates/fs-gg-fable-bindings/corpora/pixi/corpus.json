@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "id": "pixi-2d-renderer",
+  "npmArtifacts": [
+    {
+      "name": "pixi.js",
+      "version": "8.22.0"
+    }
+  ],
+  "declarationEntryPoints": [
+    "pixi.js/lib/index.d.ts",
+    "pixi.js/lib/events/init.d.ts"
+  ],
+  "candidateStem": "PixiBindings"
+}

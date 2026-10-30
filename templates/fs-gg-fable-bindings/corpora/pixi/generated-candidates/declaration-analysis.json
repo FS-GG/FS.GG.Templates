@@ -1,0 +1,458 @@
+{
+  "schemaVersion": 1,
+  "declarationClosureSha256": "bc42d8aee015a85fbf4d31c4905b45018bdaabbddb906c59d3a6415eeb2676ff",
+  "declarationFileCount": 688,
+  "hazardCounts": {
+    "conditionalTypes": 8,
+    "mappedTypes": 7,
+    "templateLiteralTypes": 2,
+    "indexSignatures": 22,
+    "inferredTypes": 4
+  },
+  "declarationMergingCandidates": [
+    {
+      "symbol": "AnimatedSprite",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/sprite-animated/AnimatedSprite.d.ts"
+      ]
+    },
+    {
+      "symbol": "AnimatedSpriteOptions",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/sprite-animated/AnimatedSprite.d.ts"
+      ]
+    },
+    {
+      "symbol": "Application",
+      "files": [
+        "pixi.js/lib/app/Application.d.ts",
+        "pixi.js/lib/app/ApplicationMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "ApplicationOptions",
+      "files": [
+        "pixi.js/lib/app/Application.d.ts",
+        "pixi.js/lib/app/ApplicationMixins.d.ts",
+        "pixi.js/lib/culling/CullingMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "AssetsPreferences",
+      "files": [
+        "pixi.js/lib/assets/Assets.d.ts",
+        "pixi.js/lib/assets/AssetsMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "BitmapText",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/text-bitmap/BitmapText.d.ts"
+      ]
+    },
+    {
+      "symbol": "CanvasOptions",
+      "files": [
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/rendering/renderers/canvas/CanvasRenderer.d.ts"
+      ]
+    },
+    {
+      "symbol": "CanvasPipes",
+      "files": [
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/rendering/renderers/canvas/CanvasRenderer.d.ts",
+        "pixi.js/lib/scene/graphics/GraphicsMixins.d.ts",
+        "pixi.js/lib/scene/sprite-nine-slice/NineSliceSpriteMixins.d.ts",
+        "pixi.js/lib/scene/sprite-tiling/TilingSpriteMixins.d.ts",
+        "pixi.js/lib/scene/text-bitmap/TextBitmapMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "CanvasSystems",
+      "files": [
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/rendering/renderers/canvas/CanvasRenderer.d.ts",
+        "pixi.js/lib/scene/graphics/GraphicsMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "Container",
+      "files": [
+        "pixi.js/lib/accessibility/AccessibilityMixins.d.ts",
+        "pixi.js/lib/culling/CullingMixins.d.ts",
+        "pixi.js/lib/events/EventsMixins.d.ts",
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/container/Container.d.ts"
+      ]
+    },
+    {
+      "symbol": "ContainerEvents",
+      "files": [
+        "pixi.js/lib/events/EventsMixins.d.ts",
+        "pixi.js/lib/scene/container/Container.d.ts"
+      ]
+    },
+    {
+      "symbol": "ContainerOptions",
+      "files": [
+        "pixi.js/lib/accessibility/AccessibilityMixins.d.ts",
+        "pixi.js/lib/culling/CullingMixins.d.ts",
+        "pixi.js/lib/events/EventsMixins.d.ts",
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/container/Container.d.ts"
+      ]
+    },
+    {
+      "symbol": "global",
+      "files": [
+        "pixi.js/lib/WebGPUCanvas.d.ts",
+        "pixi.js/lib/accessibility/AccessibilityMixins.d.ts",
+        "pixi.js/lib/app/ApplicationMixins.d.ts",
+        "pixi.js/lib/assets/AssetsMixins.d.ts",
+        "pixi.js/lib/culling/CullingMixins.d.ts",
+        "pixi.js/lib/dom/DOMMixins.d.ts",
+        "pixi.js/lib/events/EventsMixins.d.ts",
+        "pixi.js/lib/filters/FilterMixins.d.ts",
+        "pixi.js/lib/html-source/HTMLSourceMixins.d.ts",
+        "pixi.js/lib/math-extras/MathExtraMixins.d.ts",
+        "pixi.js/lib/prepare/PrepareMixins.d.ts",
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/graphics/GraphicsMixins.d.ts",
+        "pixi.js/lib/scene/mesh/MeshMixins.d.ts",
+        "pixi.js/lib/scene/particle-container/ParticleMixins.d.ts",
+        "pixi.js/lib/scene/sprite-nine-slice/NineSliceSpriteMixins.d.ts",
+        "pixi.js/lib/scene/sprite-tiling/TilingSpriteMixins.d.ts",
+        "pixi.js/lib/scene/text-bitmap/TextBitmapMixins.d.ts",
+        "pixi.js/lib/scene/text-html/TextHTMLMixins.d.ts",
+        "pixi.js/lib/scene/text/TextMixins.d.ts",
+        "pixi.js/lib/utils/global/globalHooks.d.ts"
+      ]
+    },
+    {
+      "symbol": "Graphics",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/graphics/shared/Graphics.d.ts"
+      ]
+    },
+    {
+      "symbol": "GraphicsOptions",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/graphics/shared/Graphics.d.ts"
+      ]
+    },
+    {
+      "symbol": "HTMLText",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/text-html/HTMLText.d.ts"
+      ]
+    },
+    {
+      "symbol": "HTMLTextOptions",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/text-html/HTMLText.d.ts"
+      ]
+    },
+    {
+      "symbol": "ICanvas",
+      "files": [
+        "pixi.js/lib/environment/canvas/ICanvas.d.ts",
+        "pixi.js/lib/rendering/RenderingMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "MaskMode",
+      "files": [
+        "pixi.js/lib/rendering/mask/alpha/AlphaMaskPipe.d.ts",
+        "pixi.js/lib/rendering/mask/stencil/StencilMaskTypes.d.ts"
+      ]
+    },
+    {
+      "symbol": "Mesh",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/mesh/shared/Mesh.d.ts"
+      ]
+    },
+    {
+      "symbol": "MeshOptions",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/mesh/shared/Mesh.d.ts"
+      ]
+    },
+    {
+      "symbol": "NineSliceSprite",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/sprite-nine-slice/NineSliceSprite.d.ts"
+      ]
+    },
+    {
+      "symbol": "NineSliceSpriteOptions",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/sprite-nine-slice/NineSliceSprite.d.ts"
+      ]
+    },
+    {
+      "symbol": "ObservablePoint",
+      "files": [
+        "pixi.js/lib/math-extras/MathExtraMixins.d.ts",
+        "pixi.js/lib/maths/point/ObservablePoint.d.ts"
+      ]
+    },
+    {
+      "symbol": "ParticleContainer",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/particle-container/shared/ParticleContainer.d.ts"
+      ]
+    },
+    {
+      "symbol": "ParticleContainerOptions",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/particle-container/shared/ParticleContainer.d.ts"
+      ]
+    },
+    {
+      "symbol": "PixiMixins",
+      "files": [
+        "pixi.js/lib/accessibility/AccessibilityMixins.d.ts",
+        "pixi.js/lib/app/ApplicationMixins.d.ts",
+        "pixi.js/lib/assets/AssetsMixins.d.ts",
+        "pixi.js/lib/culling/CullingMixins.d.ts",
+        "pixi.js/lib/dom/DOMMixins.d.ts",
+        "pixi.js/lib/events/EventsMixins.d.ts",
+        "pixi.js/lib/filters/FilterMixins.d.ts",
+        "pixi.js/lib/html-source/HTMLSourceMixins.d.ts",
+        "pixi.js/lib/math-extras/MathExtraMixins.d.ts",
+        "pixi.js/lib/prepare/PrepareMixins.d.ts",
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/graphics/GraphicsMixins.d.ts",
+        "pixi.js/lib/scene/mesh/MeshMixins.d.ts",
+        "pixi.js/lib/scene/particle-container/ParticleMixins.d.ts",
+        "pixi.js/lib/scene/sprite-nine-slice/NineSliceSpriteMixins.d.ts",
+        "pixi.js/lib/scene/sprite-tiling/TilingSpriteMixins.d.ts",
+        "pixi.js/lib/scene/text-bitmap/TextBitmapMixins.d.ts",
+        "pixi.js/lib/scene/text-html/TextHTMLMixins.d.ts",
+        "pixi.js/lib/scene/text/TextMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "Point",
+      "files": [
+        "pixi.js/lib/math-extras/MathExtraMixins.d.ts",
+        "pixi.js/lib/maths/point/Point.d.ts"
+      ]
+    },
+    {
+      "symbol": "Rectangle",
+      "files": [
+        "pixi.js/lib/math-extras/MathExtraMixins.d.ts",
+        "pixi.js/lib/maths/shapes/Rectangle.d.ts"
+      ]
+    },
+    {
+      "symbol": "RendererOptions",
+      "files": [
+        "pixi.js/lib/accessibility/AccessibilityMixins.d.ts",
+        "pixi.js/lib/events/EventsMixins.d.ts",
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/rendering/renderers/types.d.ts",
+        "pixi.js/lib/scene/graphics/GraphicsMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "RendererPipes",
+      "files": [
+        "pixi.js/lib/dom/DOMMixins.d.ts",
+        "pixi.js/lib/filters/FilterMixins.d.ts",
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/scene/mesh/MeshMixins.d.ts",
+        "pixi.js/lib/scene/particle-container/ParticleMixins.d.ts",
+        "pixi.js/lib/scene/text-html/TextHTMLMixins.d.ts",
+        "pixi.js/lib/scene/text/TextMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "RendererSystems",
+      "files": [
+        "pixi.js/lib/accessibility/AccessibilityMixins.d.ts",
+        "pixi.js/lib/events/EventsMixins.d.ts",
+        "pixi.js/lib/filters/FilterMixins.d.ts",
+        "pixi.js/lib/prepare/PrepareMixins.d.ts",
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/scene/text-html/TextHTMLMixins.d.ts",
+        "pixi.js/lib/scene/text/TextMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "SplitBitmapText",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/text-split/SplitBitmapText.d.ts"
+      ]
+    },
+    {
+      "symbol": "SplitBitmapTextOptions",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/text-split/SplitBitmapText.d.ts"
+      ]
+    },
+    {
+      "symbol": "SplitText",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/text-split/SplitText.d.ts"
+      ]
+    },
+    {
+      "symbol": "SplitTextOptions",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/text-split/SplitText.d.ts"
+      ]
+    },
+    {
+      "symbol": "Sprite",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/sprite/Sprite.d.ts"
+      ]
+    },
+    {
+      "symbol": "SpriteOptions",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/sprite/Sprite.d.ts"
+      ]
+    },
+    {
+      "symbol": "System",
+      "files": [
+        "pixi.js/lib/rendering/renderers/shared/system/System.d.ts",
+        "pixi.js/lib/rendering/renderers/shared/system/utils/typeUtils.d.ts"
+      ]
+    },
+    {
+      "symbol": "Text",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/text/Text.d.ts"
+      ]
+    },
+    {
+      "symbol": "TextOptions",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/text/AbstractText.d.ts"
+      ]
+    },
+    {
+      "symbol": "TextureSourceResources",
+      "files": [
+        "pixi.js/lib/html-source/HTMLSourceMixins.d.ts",
+        "pixi.js/lib/rendering/RenderingMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "TilingSprite",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/sprite-tiling/TilingSprite.d.ts"
+      ]
+    },
+    {
+      "symbol": "TilingSpriteOptions",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/sprite-tiling/TilingSprite.d.ts"
+      ]
+    },
+    {
+      "symbol": "ViewContainer",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/view/ViewContainer.d.ts"
+      ]
+    },
+    {
+      "symbol": "ViewContainerOptions",
+      "files": [
+        "pixi.js/lib/scene/SceneMixins.d.ts",
+        "pixi.js/lib/scene/view/ViewContainer.d.ts"
+      ]
+    },
+    {
+      "symbol": "WebGLOptions",
+      "files": [
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/rendering/renderers/gl/WebGLRenderer.d.ts"
+      ]
+    },
+    {
+      "symbol": "WebGLPipes",
+      "files": [
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/rendering/renderers/gl/WebGLRenderer.d.ts",
+        "pixi.js/lib/scene/graphics/GraphicsMixins.d.ts",
+        "pixi.js/lib/scene/sprite-nine-slice/NineSliceSpriteMixins.d.ts",
+        "pixi.js/lib/scene/sprite-tiling/TilingSpriteMixins.d.ts",
+        "pixi.js/lib/scene/text-bitmap/TextBitmapMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "WebGLSystems",
+      "files": [
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/rendering/renderers/gl/WebGLRenderer.d.ts",
+        "pixi.js/lib/scene/graphics/GraphicsMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "WebGPUOptions",
+      "files": [
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/rendering/renderers/gpu/WebGPURenderer.d.ts"
+      ]
+    },
+    {
+      "symbol": "WebGPUPipes",
+      "files": [
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/rendering/renderers/gpu/WebGPURenderer.d.ts",
+        "pixi.js/lib/scene/graphics/GraphicsMixins.d.ts",
+        "pixi.js/lib/scene/sprite-nine-slice/NineSliceSpriteMixins.d.ts",
+        "pixi.js/lib/scene/sprite-tiling/TilingSpriteMixins.d.ts",
+        "pixi.js/lib/scene/text-bitmap/TextBitmapMixins.d.ts"
+      ]
+    },
+    {
+      "symbol": "WebGPUSystems",
+      "files": [
+        "pixi.js/lib/rendering/RenderingMixins.d.ts",
+        "pixi.js/lib/rendering/renderers/gpu/WebGPURenderer.d.ts",
+        "pixi.js/lib/scene/graphics/GraphicsMixins.d.ts"
+      ]
+    }
+  ],
+  "bareModuleReferences": [
+    "@pixi/colord",
+    "earcut",
+    "eventemitter3",
+    "tiny-lru"
+  ],
+  "interpretation": "Counts identify manual review pressure; they are not typed-coverage claims."
+}

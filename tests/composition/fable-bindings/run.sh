@@ -286,21 +286,36 @@ if cmp -s "$binding_project" "$WORK/binding-project.orig"; then echo "NpmDepende
 if (cd "$WORK/product" && npm run doctor >/dev/null 2>&1); then echo "doctor accepted a binding project whose NpmDependencies disagree with corpus.json" >&2; exit 1; fi
 cp "$WORK/binding-project.orig" "$binding_project"
 (cd "$WORK/product" && npm run doctor >/dev/null)
+# A recorded external module (declaration lock `externalModules`) needs a curation row that matches
+# the exact version and integrity npm locked (FS.GG.Templates#808).
+cp "$WORK/product/coverage-and-drift.json" "$WORK/coverage.orig"
+jq '.externalModules = []' "$WORK/coverage.orig" > "$WORK/product/coverage-and-drift.json"
+if (cd "$WORK/product" && npm run doctor >/dev/null 2>&1); then echo "doctor accepted an external module with no curation row" >&2; exit 1; fi
+jq '.externalModules[0].version = "9.0.0"' "$WORK/coverage.orig" > "$WORK/product/coverage-and-drift.json"
+if (cd "$WORK/product" && npm run doctor >/dev/null 2>&1); then echo "doctor accepted an external module curated at another version" >&2; exit 1; fi
+cp "$WORK/coverage.orig" "$WORK/product/coverage-and-drift.json"
+(cd "$WORK/product" && npm run doctor >/dev/null)
 # Template parameter choices are outside the generated workspace, so the source template is
-# checked here: its npmPackage/npmVersion choices and defaults name exactly corpus.json's primary
-# artifact. (The provider descriptor declares those keys without values.)
+# checked here: its npmPackage/npmVersion choices are exactly the primary artifacts of the corpora
+# it delivers (the root corpus.json, the default, and each corpora/<name>/corpus.json), and the
+# defaults name the root corpus. (The provider descriptor declares those keys without values.)
 python3 - "$ROOT/templates/fs-gg-fable-bindings" <<'PY_CORPUS_PARAMETERS'
 import json, pathlib, sys
 template = pathlib.Path(sys.argv[1])
-corpus = json.loads((template / 'corpus.json').read_text())
 symbols = json.loads((template / '.template.config/template.json').read_text())['symbols']
-primary = corpus['npmArtifacts'][0]
-for key, value in [('npmPackage', primary['name']), ('npmVersion', primary['version'])]:
+corpora = [template / 'corpus.json'] + sorted((template / 'corpora').glob('*/corpus.json'))
+primaries = [json.loads(path.read_text())['npmArtifacts'][0] for path in corpora]
+root = primaries[0]
+for key, field, default in [('npmPackage', 'name', root['name']), ('npmVersion', 'version', root['version'])]:
     choices = [c['choice'] for c in symbols[key]['choices']]
-    assert choices == [value] and symbols[key]['defaultValue'] == value, f'template.json {key} {choices}/{symbols[key]["defaultValue"]} differs from corpus.json {value}'
+    expected = [primary[field] for primary in primaries]
+    assert choices == expected and symbols[key]['defaultValue'] == default, f'template.json {key} {choices}/{symbols[key]["defaultValue"]} differs from the corpora {expected} (default {default})'
+    assert symbols[key].get('replaces') == '@@NPM_' + ('PACKAGE' if key == 'npmPackage' else 'VERSION') + '@@', f'template.json {key} does not record the requested value in provenance'
 PY_CORPUS_PARAMETERS
 # The spike and template carry one corpus reader and one lock script; their copies must not fork.
 for shared in scripts/corpus.mjs scripts/lock-declarations.mjs; do
   cmp "$ROOT/spikes/fable-bindings/$shared" "$ROOT/templates/fs-gg-fable-bindings/$shared"
 done
+# The PixiJS corpus of the same template (FS.GG.Templates#808), generated from the same archive.
+bash "$ROOT/tests/composition/fable-bindings/pixi-corpus.sh" "$WORK"
 echo 'PASS fable-bindings template executes locked declaration, candidate, NuGet/npm/Fable/Node/Chromium, SDD, doctor, Governance, drift-review and owner-sourced product-skill delivery evidence'

@@ -18,7 +18,7 @@ fsgg-fsharp-surface --root "$ROOT" --project src/AcmeBindings/AcmeBindings.fspro
 
 fsgg-sdd init --root "$ROOT" >"$ROOT/reports/sdd-init.json"
 run charter >"$ROOT/reports/sdd-charter.json"
-run specify --input $'value: maintain a verified Fable binding package\nscope: one pinned Babylon binding workspace\nrequirement: execute the pinned runtime and reject declaration drift' >"$ROOT/reports/sdd-specify.json"
+run specify --input $'value: maintain a verified Fable binding package\nscope: one pinned npm binding workspace\nrequirement: execute the pinned runtime and reject declaration drift' >"$ROOT/reports/sdd-specify.json"
 run clarify >"$ROOT/reports/sdd-clarify.json"
 run checklist >"$ROOT/reports/sdd-checklist.json"
 run plan >"$ROOT/reports/sdd-plan.json"
