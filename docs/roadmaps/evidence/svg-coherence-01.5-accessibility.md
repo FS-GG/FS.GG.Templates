@@ -77,7 +77,9 @@ fdev, 2026-10-30, Ubuntu 24.04 container with the CI package set (Orca 46.1), Ch
 153.0.8010.12, Playwright 1.63.0, bounded `systemd-run` (200% CPU, 4 GiB): Chromium observer passed
 33/33 gates, 15/15 controls (557.6 s under load); Orca baseline and 3 controls passed
 (`orca` 9 steps). Firefox `ariaSnapshot` passed. WebKit could not run in that container (missing system
-libraries) and is covered only by the hosted job. Source: Rendering `c921eb13` staged fixture
+libraries) and is covered only by the hosted job.
+
+Hosted record: [run 41132832166](https://github.com/FS-GG/FS.GG.Templates/actions/runs/41132832166) at head `f51d7103e5f22a93c4cab946c9c74009ccb338f6` (Release C public producer source qualification, 28m58s, success). Its uploaded evidence passes `test-soldier-accessibility.py --verify --orca` when re-verified offline: Chromium 33 gates and 15/15 controls, Firefox and WebKit `ariaSnapshot`, Orca 9 steps and 3/3 controls. `orcaSpokeLiveRegion` was `false` in the hosted baseline too. Source: Rendering `c921eb13` staged fixture
 unchanged (manifest `cb9636c5...`).
 
 ## Not claimed
