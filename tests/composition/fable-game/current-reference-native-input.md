@@ -407,7 +407,7 @@ The census fails closed when it cannot read the run list.
 ## Local-save storage labels
 
 `localSaveStorage` is derived from the typed plan, not asserted: `current-composition-observations.py`
-`local_save_storage(plan)` returns `synthetic-in-memory-and-durable-browser` when the plan selects the two
+`local_save_storage(plan)` returns `synthetic-in-memory-and-synthetic-durable-browser` when the plan selects the two
 explicit durable-storage cases (they must be selected together) and `synthetic-in-memory` otherwise. The
 source-qualification packet and the AT receipt must both carry that value. The AT receipt adds
 `atLocalSaveStorage: synthetic-in-memory`, because the keys the Orca journey presses only exercise the in-memory
