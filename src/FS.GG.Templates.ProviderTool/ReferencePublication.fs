@@ -562,6 +562,29 @@ let private durableLocalSaveCases =
         |}
     ]
 
+// Source-only cases added after the 0.20.1 publication: pointer hit testing under a wheel-zoomed camera and a narrow viewport,
+// held-input release on hidden visibility / focus leaving / disposal, and the external reference's DOM island surviving
+// snapshots, reconnect and authority replacement. They are absent from every published archive, so only the source-built
+// plan selects them; the published plan gains them with the next Workspace.Template release.
+let private releaseAndIslandCases =
+    [
+        {|
+            file = "two-client.spec.ts"
+            suite = ([]: string list)
+            title = "FourD reference pointer hit testing inverts a wheel zoom and a narrow viewport and still selects the painted target"
+        |};
+        {|
+            file = "two-client.spec.ts"
+            suite = ([]: string list)
+            title = "FourD reference held input is released by hidden visibility, focus leaving the reference and disposal"
+        |};
+        {|
+            file = "two-client.spec.ts"
+            suite = ([]: string list)
+            title = "external authority reference note, caret and focus survive snapshot application, reconnect and authority replacement"
+        |}
+    ]
+
 // One current public execution selector for the maintained DOM composition consumer.
 // This is source data, not runtime/publication/AT/whole-Delivery acceptance.
 let currentCompositionPlan () =
@@ -656,16 +679,16 @@ let sourceBuiltCompositionPlan () =
                 families = [ "chromium"; "firefox"; "webkit" ]
                 retries = 0
                 workers = 1
-                cases = baseCompositionCases @ optionsAndFocusCases @ durableLocalSaveCases
+                cases = baseCompositionCases @ optionsAndFocusCases @ durableLocalSaveCases @ releaseAndIslandCases
             |}
-        acceptanceScope = "source-built DOM-automation composition cases including explicit durable synthetic save/load only; no published, installed, product-save, AT or whole4818 acceptance"
+        acceptanceScope = "source-built DOM-automation composition cases including explicit durable synthetic save/load, wheel-zoom hit testing, held-input release and external DOM-island survival; no published, installed, product-save, AT or whole4818 acceptance"
     |}
 
 let renderSourceBuiltCompositionPlan () =
     JsonSerializer.Serialize(sourceBuiltCompositionPlan(), JsonSerializerOptions(WriteIndented = true))
 
 let validateSourceBuiltCompositionPlan (json: string) =
-    validateCompositionPlanDigest "5b426a72428ae6239a1f7481001b73bac6b20a7d57a624e530ae1447906c70d8" json
+    validateCompositionPlanDigest "ef5711498bc0b9ba7d5fd91e89eafb437fbfe8e7e52794d0c67f5af312a79292" json
 
 let private descriptorCheck selectedVersion (provider: Provider) =
     let lifecycle = provider.Parameters |> List.filter (fun p -> p.Key = "lifecycle")
