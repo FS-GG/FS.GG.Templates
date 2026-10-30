@@ -40,7 +40,7 @@
       "cause": "A stock Xvfb 21.1.12-1ubuntu1.9 (also the Noble release build) resets its keyboard to the compiled default when its last client disconnects; setxkbmap is that last client, so a bare setxkbmap then xkbcomp -xkb :97 reads US again (the server compiles pc+de then pc+us). With -noreset, or any long-lived X client, the layout stays. The maintained route has openbox connected before the native step.",
       "deDiffersFromUs": true,
       "deRepeatable": true,
-      "fileDerivedDump": "the earlier compiled-file proxy gave identical hashes for us and de",
+      "fileDerivedDump": "An earlier derivation from the compiled keymap file (setxkbmap -print, xkbcomp -xkm, then xkbcomp -xkb of the file) gave different US and German dumps; both are byte-identical to the live dumps pinned here.",
       "method": "live xkbcomp -xkb :97 dump after setxkbmap, Xvfb -noreset",
       "sequence": [
         "start",

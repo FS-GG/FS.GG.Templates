@@ -339,8 +339,11 @@ installer. After the existing `None` admission guard it installs the same 32 roo
 signed snapshot through a private keyring-pinned `Signed-By` source with
 `--no-install-recommends`, then refuses unless every root and manifest package version, every
 manifest package `.deb` hash and every object and data-file hash match the supplied manifest.
-`--simulate` runs the same transaction without privilege or install against the runner's real
-dpkg status and refuses on any removal; the Templates static job runs it on every PR. The
+Before the privileged call, `--install` simulates the transaction on the actual image and refuses on any
+removal or any downgrade of a non-root package; root downgrades (to the pinned versions) are recorded in the
+receipt, and `--allow-downgrades` (which apt cannot scope to named packages) is passed only when the classified
+simulation contains such a root downgrade. `--simulate` runs the same classification without privilege or install against the runner's real
+dpkg status; the Templates static job runs it on every PR. The
 historical and font routes keep their live-mirror provisioning step.
 
 Keymap pins are live dumps. A stock Xvfb (21.1.12-1ubuntu1.9, also the Noble release build)

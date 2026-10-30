@@ -107,10 +107,13 @@ def apt_options(private):
             '-o', 'APT::Sandbox::User=root']
 
 
-def install_argv(private, root_rows, simulate):
-    """The one install transaction: exact roots, no recommends, downgrades only where an exact root requires them."""
+def install_argv(private, root_rows, simulate, allow_downgrades=False):
+    """The one install transaction: exact roots, no recommends. apt offers --allow-downgrades only globally, so it is
+    added solely when the unflagged simulation proved a downgrade is required, and the flagged simulation is then
+    classified so that only root packages (pinned to their reviewed versions) may be downgraded."""
     return (['apt-get'] + apt_options(private) + (['--simulate'] if simulate else ['--yes']) +
-            ['install', '--no-install-recommends', '--allow-downgrades'] + ['%s=%s' % row for row in root_rows])
+            ['install', '--no-install-recommends'] + (['--allow-downgrades'] if allow_downgrades else []) +
+            ['%s=%s' % row for row in root_rows])
 
 
 CLEAN_ENV = {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'LANG': 'C.UTF-8', 'DEBIAN_FRONTEND': 'noninteractive'}
@@ -128,17 +131,27 @@ def version_less(new, old):
     return subprocess.run(['dpkg', '--compare-versions', new, 'lt', old]).returncode == 0
 
 
-def classify_simulation(output):
-    """Count the simulated transaction; any removal refuses (the runner image must not lose tools)."""
+def classify_simulation(output, root_names):
+    """Classify the simulated transaction on the actual image. Any removal refuses; a downgrade of a package that is
+    not one of the reviewed roots refuses; downgrades of roots (to their pinned versions) are returned for the receipt."""
     inst = re.findall(r'^Inst (\S+)(?: \[([^\]]+)\])? \(([^ ]+) ', output, re.M)
     removed = re.findall(r'^Remv (\S+)', output, re.M)
     need(not removed, 'simulated transaction removes packages: ' + ', '.join(sorted(removed)[:8]))
     need(re.search(r'^\d+ upgraded, \d+ newly installed, \d+ to remove', output, re.M), 'simulation summary absent')
-    downgrades = []
-    for name, old, new in inst:
-        if old and version_less(new, old):
-            downgrades.append(name)
-    return {'install': len(inst), 'downgrades': sorted(downgrades), 'removals': 0}
+    downgrades = sorted(name for name, old, new in inst if old and version_less(new, old))
+    stray = [name for name in downgrades if name.split(':')[0] not in root_names]
+    need(not stray, 'simulated transaction downgrades non-root packages: ' + ', '.join(stray[:8]))
+    return {'install': len(inst), 'rootDowngrades': downgrades, 'removals': 0}
+
+
+def plan(private, root_rows):
+    """Simulate the transaction on the actual image with downgrades permitted so that any are visible, classify it, and
+    return (allow_downgrades, classification). The privileged install carries --allow-downgrades only when the
+    classified simulation contains downgrades, and then only of root packages; otherwise it is run without the flag,
+    so apt itself refuses any downgrade that was not simulated. apt cannot scope the flag to named packages."""
+    names = {name for name, _ in root_rows}
+    planned = classify_simulation(run(install_argv(private, root_rows, True, True)), names)
+    return bool(planned['rootDowngrades']), planned
 
 
 def readback(manifest, root_rows, query, download_hash, verify_files):
@@ -194,11 +207,14 @@ def main(argv=None):
     args.private.mkdir(mode=0o700, exist_ok=True)
     prepare_private(args.private)
     run(['apt-get'] + apt_options(args.private) + ['update'])
+    allow, planned = plan(args.private, root_rows)
     if args.simulate:
-        result = {'mode': 'simulate', **classify_simulation(run(install_argv(args.private, root_rows, True)))}
+        result = {'mode': 'simulate', 'allowDowngrades': allow, **planned}
     else:
-        run(install_argv(args.private, root_rows, False), privileged=True)
-        result = {'mode': 'install', **readback(manifest, root_rows, installed_version, archive_hash_factory(args.private), N.verify_files)}
+        # The same classified transaction is the privileged one; nothing broader runs.
+        run(install_argv(args.private, root_rows, False, allow), privileged=True)
+        result = {'mode': 'install', 'allowDowngrades': allow, **planned,
+                  **readback(manifest, root_rows, installed_version, archive_hash_factory(args.private), N.verify_files)}
     result.update(schema='fsgg.current-reference-noble-snapshot-provisioning/1', snapshot=A.BASE,
                   manifestSha256=N.sha(N.canonical(manifest)), helperSha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                   signedBy='pinned keyring sha256 ' + A.KEYRING_SHA256, installRecommends=False)
