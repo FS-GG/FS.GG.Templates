@@ -10,6 +10,16 @@
         "responseSha256": "06c18d6ae5bb95560b3aaf924119c2ecbd29a69e9f4f8a67dc2bb1d7bc726c5e",
         "observedUtc": "2026-10-25T04:22:05Z"
       }
+    },
+    {
+      "payloadIdentitySha256": "7c48b222603bf437dcb0b266143a6a1f8156652409766feff5488883b05c45eb",
+      "package": "FS.GG.Workspace.Template 0.20.1",
+      "evidence": "https://github.com/FS-GG/.github/issues/3010#issuecomment-6520252958",
+      "acceptance": "https://github.com/FS-GG/.github/issues/3010#issuecomment-6520252958",
+      "npmAuditObservation": {
+        "responseSha256": "06c18d6ae5bb95560b3aaf924119c2ecbd29a69e9f4f8a67dc2bb1d7bc726c5e",
+        "observedUtc": "2026-10-30T10:01:08Z"
+      }
     }
   ]
 }
