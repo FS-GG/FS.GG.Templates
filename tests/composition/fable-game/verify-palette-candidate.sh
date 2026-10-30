@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Separate unpublished producer/receiver qualification; never public0.32.3 acceptance.
+# Separate unpublished producer/receiver qualification; never public 0.32.4 acceptance.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 producer="${1:?exact Rendering checkout required}"

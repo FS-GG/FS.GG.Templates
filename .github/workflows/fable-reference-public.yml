@@ -226,7 +226,7 @@ jobs:
           # Published Workspace.Template 0.19.3 (annotated fs-gg-templates/v0.19.3 = 386e32b7, peeling to
           # 7be0bcf5; signed nuget.org archive; release run 39910502481; byte-verified: 512 signature-excluded
           # entries equal the original). It carries the FS.GG.Wasm [0.7.0] receiver (FS-GG/FS.GG.Game#727) whose
-          # guest SDK is acquired below, with Rendering 0.32.3 defaults unchanged from 0.19.2. 0.19.0 Complete
+          # guest SDK is acquired below, with the Rendering 0.32.3 defaults that published template 0.19.3 carries, unchanged from 0.19.2 (this repository's source now pins 0.32.4; the published template does not). 0.19.0 Complete
           # scaffolds truncate the WASM guest policy.c; 0.19.1/0.19.2 carry the 0.3.0 receiver.
           TEMPLATE_VERSION = "0.19.3"
           PUBLISHED = "7be0bcf5886d39a8161b186beb8cc06e82415f1e"

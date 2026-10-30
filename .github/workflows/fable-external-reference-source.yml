@@ -265,7 +265,8 @@ jobs:
               assert run['run_attempt']==1
               plan=Path('.tmp/rendering-source')/os.environ['PRODUCER_PLAN']
               raw=plan.read_bytes()
-              assert len(raw)==3490 and hashlib.sha256(raw).hexdigest()=='89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239'
+              expected_size,expected_sha={'font-disposal':(3490,'89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239'),'current-public-composition':(3514,'4bcbb1c756a799ab634e14d1fc9191ac51a8cd5d3537aec75eeab1c1d545deaa')}[os.environ['RENDERING_INPUT_SOURCE']]
+              assert len(raw)==expected_size and hashlib.sha256(raw).hexdigest()==expected_sha
           PY
           gh api "repos/FS-GG/FS.GG.Rendering/actions/artifacts/$PRODUCER_ARTIFACT/zip" > "$RUNNER_TEMP/rendering-packet.zip"
           printf '%s  %s\n' "$PRODUCER_ARCHIVE_SHA256" "$RUNNER_TEMP/rendering-packet.zip" | sha256sum --check --strict

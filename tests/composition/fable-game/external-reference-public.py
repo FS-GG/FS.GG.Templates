@@ -17,7 +17,7 @@ from zipfile import ZipFile
 VERSION = '0.32.4'
 SOURCE = '4ede04be66cedffc8551cd14045bab714aa358a7'
 CUSTODY_SHA256 = '89ea6424cae4d06969f0a60394679e9892bd2b873fb46ebd281aa10616809720'
-# Raw NuGet repository-signed archive hashes, observed 2026-10-22; NOT lock hashes.
+# Raw NuGet repository-signed archive hashes for 0.32.4, observed 2026-10-30; NOT lock hashes.
 PUBLIC_SHA256 = {
     'FS.GG.UI.Scene': 'dbc63e39782fb3f614233167aa4171f7d1a621b0348a7ddaeca323f8d27a2562',
     'FS.GG.UI.KeyboardInput': '09a9f6f04c7190111de4521daf544f8521aebe4c8f8ee96443a85049b4cf8389',

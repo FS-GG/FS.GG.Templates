@@ -229,18 +229,24 @@ with tempfile.TemporaryDirectory() as directory:
         env.update(selected_producer(text,mode))
         run={'id':int(env['PRODUCER_RUN']),'head_sha':env['PRODUCER_SOURCE'],'conclusion':'success','path':'.github/workflows/release.yml','run_attempt':1}
         artifact={'id':int(env['PRODUCER_ARTIFACT']),'expired':False,'size_in_bytes':int(env['PRODUCER_ARCHIVE_SIZE_BYTES']),'digest':'sha256:'+env['PRODUCER_ARCHIVE_SHA256'],'workflow_run':{'id':run['id'],'head_sha':run['head_sha']},'name':'rendering-source-candidate-'+run['head_sha']+'-'+env['PRODUCER_VERSION']}
-        def metadata(r,a,success,plan_good=True):
+        # Per-mode plan identity: the font-disposal plan and the palette-heading plan have different bytes.
+        PLAN_IDENTITY={'font-disposal':(3490,'89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239'),'current-public-composition':(3514,'4bcbb1c756a799ab634e14d1fc9191ac51a8cd5d3537aec75eeab1c1d545deaa')}
+        def metadata(r,a,success,plan_good=True,plan_identity=None):
             (path/'rendering-run.json').write_text(json.dumps(r)); (path/'rendering-artifact.json').write_text(json.dumps(a))
             # Closed plan-byte seam: metadata fixtures do not acquire a producer checkout.
+            size,digest=plan_identity or PLAN_IDENTITY.get(mode,(3490,'89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239'))
             class PlanDigest:
-                def hexdigest(self): return '89369de0c0944c66a52c6ed914cef78d6bb7670866baedf85cd8a198c5c46239' if plan_good else '0'*64
-            with patch.object(Path,'read_bytes',return_value=b'x'*3490), patch.object(hashlib,'sha256',side_effect=lambda raw: PlanDigest()):
+                def hexdigest(self): return digest if plan_good else '0'*64
+            with patch.object(Path,'read_bytes',return_value=b'x'*size), patch.object(hashlib,'sha256',side_effect=lambda raw: PlanDigest()):
                 execute(codes[1],env,success)
 
         metadata(run,artifact,True)
-        if mode=='font-disposal':
+        if mode in PLAN_IDENTITY:
             metadata({**run,'run_attempt':2},artifact,False)
             metadata(run,artifact,False,plan_good=False)
+            # Causal control: the other plan's size and digest must be refused for this mode.
+            wrong=PLAN_IDENTITY['font-disposal' if mode=='current-public-composition' else 'current-public-composition']
+            metadata(run,artifact,False,plan_identity=wrong)
         for key,value in [('id',0),('head_sha','b'*40),('conclusion','failure'),('path','.github/workflows/other.yml')]:
             metadata({**run,key:value},artifact,False)
         for key,value in [('id',0),('expired',True),('size_in_bytes',1),('digest','sha256:'+'0'*64),('name','other'),('workflow_run',{'id':0,'head_sha':run['head_sha']}),('workflow_run',{'id':run['id'],'head_sha':'b'*40})]:
