@@ -104,8 +104,8 @@ Declare native npm requirements using Femto's project metadata:
 ```xml
 <PropertyGroup>
   <NpmDependencies>
-    <NpmPackage Name="@babylonjs/core" Version="9.19.0" />
-    <NpmPackage Name="@babylonjs/loaders" Version="9.19.0" />
+    <NpmPackage Name="@babylonjs/core" Version="9.33.1" />
+    <NpmPackage Name="@babylonjs/loaders" Version="9.33.1" />
   </NpmDependencies>
 </PropertyGroup>
 ```

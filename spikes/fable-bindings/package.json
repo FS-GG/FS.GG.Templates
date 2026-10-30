@@ -5,8 +5,8 @@
   "type": "module",
   "engines": { "node": "26.13.0", "npm": "12.2.1" },
   "dependencies": {
-    "@babylonjs/core": "9.19.0",
-    "@babylonjs/loaders": "9.19.0"
+    "@babylonjs/core": "9.33.1",
+    "@babylonjs/loaders": "9.33.1"
   },
   "devDependencies": { "typescript": "6.0.3" },
   "scripts": {

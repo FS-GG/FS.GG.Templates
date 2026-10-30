@@ -1,12 +1,12 @@
 {
   "schemaVersion": 1,
-  "declarationClosureSha256": "3171be522100b5cd9be0d9c58b22de86afd6401979ea01549795dd879885e7e4",
-  "declarationFileCount": 2898,
+  "declarationClosureSha256": "0bffc55f982e606c74c3f5612250dfc3387fbed8aec2f2c3a0cd5c0c5c2de841",
+  "declarationFileCount": 2976,
   "hazardCounts": {
     "conditionalTypes": 56,
     "mappedTypes": 19,
     "templateLiteralTypes": 0,
-    "indexSignatures": 270,
+    "indexSignatures": 278,
     "inferredTypes": 21
   },
   "declarationMergingCandidates": [
@@ -187,7 +187,7 @@
     {
       "symbol": "GLTFLoader",
       "files": [
-        "@babylonjs/loaders/glTF/1.0/glTFLoader.d.ts",
+        "@babylonjs/loaders/glTF/1.0/glTFLoader.pure.d.ts",
         "@babylonjs/loaders/glTF/2.0/glTFLoader.pure.d.ts"
       ]
     },
@@ -218,6 +218,7 @@
         "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_ior.types.d.ts",
         "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_iridescence.types.d.ts",
         "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_pbrSpecularGlossiness.types.d.ts",
+        "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_scatter.types.d.ts",
         "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_sheen.types.d.ts",
         "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_specular.types.d.ts",
         "@babylonjs/loaders/glTF/2.0/Extensions/KHR_materials_transmission.types.d.ts",
@@ -514,9 +515,17 @@
     "@babylonjs/core/Cameras/camera.pure.js",
     "@babylonjs/core/Culling/boundingInfo.js",
     "@babylonjs/core/FlowGraph/Blocks/flowGraphBlockNames.js",
+    "@babylonjs/core/FlowGraph/CustomTypes/flowGraphInteger.pure.js",
+    "@babylonjs/core/FlowGraph/flowGraph.js",
     "@babylonjs/core/FlowGraph/flowGraphBlock.js",
+    "@babylonjs/core/FlowGraph/flowGraphContext.js",
+    "@babylonjs/core/FlowGraph/flowGraphCoordinator.js",
     "@babylonjs/core/FlowGraph/flowGraphDataConnection.js",
+    "@babylonjs/core/FlowGraph/flowGraphDataConnection.pure.js",
+    "@babylonjs/core/FlowGraph/flowGraphExecutionBlock.js",
+    "@babylonjs/core/FlowGraph/flowGraphHostResolver.js",
     "@babylonjs/core/FlowGraph/flowGraphRichTypes.js",
+    "@babylonjs/core/FlowGraph/flowGraphSignalConnection.pure.js",
     "@babylonjs/core/FlowGraph/typeDefinitions.js",
     "@babylonjs/core/Lights/light.js",
     "@babylonjs/core/Loading/sceneLoader.js",
@@ -524,9 +533,11 @@
     "@babylonjs/core/Materials/PBR/pbrMaterial.js",
     "@babylonjs/core/Materials/Textures/baseTexture.js",
     "@babylonjs/core/Materials/Textures/texture.js",
-    "@babylonjs/core/Materials/effect.js",
+    "@babylonjs/core/Materials/Textures/texture.pure.js",
+    "@babylonjs/core/Materials/effect.pure.js",
     "@babylonjs/core/Materials/material.js",
-    "@babylonjs/core/Materials/shaderMaterial.js",
+    "@babylonjs/core/Materials/material.pure.js",
+    "@babylonjs/core/Materials/shaderMaterial.pure.js",
     "@babylonjs/core/Maths/math.color.js",
     "@babylonjs/core/Maths/math.color.pure.js",
     "@babylonjs/core/Maths/math.vector.pure.js",
@@ -549,6 +560,7 @@
     "@babylonjs/core/assetContainer.js",
     "@babylonjs/core/node.js",
     "@babylonjs/core/scene.js",
+    "@babylonjs/core/scene.pure.js",
     "@babylonjs/core/types.js",
     "babylonjs-gltf2interface"
   ],
