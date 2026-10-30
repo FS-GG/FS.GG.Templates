@@ -162,7 +162,7 @@ jobs:
           fetch-depth: 1
           lfs: false
           submodules: false
-          sparse-checkout: eng/managed_group_owner.py
+          sparse-checkout: /eng/
           sparse-checkout-cone-mode: false
       - name: Check out immutable published reference fixture source
         if: steps.scope.outputs.run == 'true'
@@ -201,10 +201,7 @@ jobs:
           path: .tmp/python-fixture-coordination
           persist-credentials: false
           fetch-depth: 1
-          sparse-checkout: |
-            tests/portable-workspace/image/fixture/python/app.py
-            tests/portable-workspace/image/fixture/python/build.py
-            tests/portable-workspace/image/fixture/python/test.py
+          sparse-checkout: /tests/portable-workspace/image/fixture/python/
           sparse-checkout-cone-mode: false
       # Cheap static/source preflight before SDK, Node and authenticated CLI setup. The projector
       # verifies the exact Coordination commit, tree and three blob hashes and refuses a missing,

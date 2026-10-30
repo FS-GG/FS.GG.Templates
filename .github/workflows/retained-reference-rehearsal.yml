@@ -97,7 +97,7 @@ jobs:
           fetch-depth: 1
           lfs: false
           submodules: false
-          sparse-checkout: eng/managed_group_owner.py
+          sparse-checkout: /eng/
           sparse-checkout-cone-mode: false
       - name: Record original outer capacity and refuse a unit collision
         id: capacity
@@ -235,7 +235,7 @@ jobs:
           fetch-depth: 1
           lfs: false
           submodules: false
-          sparse-checkout: eng/managed_group_owner.py
+          sparse-checkout: /eng/
           sparse-checkout-cone-mode: false
       - name: Record original outer capacity and refuse a unit collision
         id: capacity
@@ -395,7 +395,7 @@ jobs:
           fetch-depth: 1
           lfs: false
           submodules: false
-          sparse-checkout: eng/managed_group_owner.py
+          sparse-checkout: /eng/
           sparse-checkout-cone-mode: false
       - name: Record original outer capacity and refuse a unit collision
         id: capacity

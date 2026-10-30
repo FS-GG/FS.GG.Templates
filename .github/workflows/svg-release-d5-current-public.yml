@@ -155,7 +155,7 @@ jobs:
           fetch-depth: 1
           lfs: false
           submodules: false
-          sparse-checkout: eng/managed_group_owner.py
+          sparse-checkout: /eng/
           sparse-checkout-cone-mode: false
       - name: Original capacity, clock and unit collision guard
         id: capacity
