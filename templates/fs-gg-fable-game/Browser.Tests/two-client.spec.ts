@@ -1358,6 +1358,14 @@ test("FourD reference pointer hit testing inverts a wheel zoom and a narrow view
   await expect(reference).toHaveAttribute("data-hit", "full-cell:1:1:1:1");
   await expect(reference).toHaveAttribute("data-command-order", "1");
 
+  // A retained scene update keeps the user's camera, so the painted target and its hit test stay where the user left them.
+  const zoomedTransform = await cameraTransform(destination);
+  expect(zoomedTransform).not.toBe(transformBefore);
+  const appliedBefore = await appliedCount(reference);
+  await pressWithoutFocus(page, "Complete current projection");
+  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(appliedBefore);
+  expect(await cameraTransform(destination)).toBe(zoomedTransform);
+
   // The same camera in a narrow viewport moves the paint again; the pointer still resolves the painted cell.
   await page.setViewportSize({ width: 320, height: 568 });
   const narrowOrigin = await centre(origin);
