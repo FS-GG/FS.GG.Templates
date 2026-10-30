@@ -19,7 +19,7 @@
       "fileSha256": "4687310b03fe041107b3253bb60644ef2197a2978825bd95a226e9b145fc09c3",
       "installedPackages": 480
     },
-    "image": "docker.io/library/ubuntu:24.04",
+    "image": "docker.io/library/ubuntu:24.04@sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852",
     "imageIndexDigest": "sha256:fe81560990fae86dc4743202b2cb4d3df98d0bcf949173cecef15ce1127ef852",
     "install": "apt-get install --no-install-recommends of the 32 exact roots in fixtures/noble-source-prefix-request.json, service start denied by policy-rc.d 101",
     "kind": "rootless Podman container on fdev (disposable, removed after readback)"
@@ -37,20 +37,39 @@
   },
   "readback": {
     "keymaps": {
-      "limit": "The container Xvfb 21.1.12 accepted core keyboard-mapping changes but did not apply setxkbmap/xkbcomp layout loads, so the pin is derived from the compiled keymap file rather than the live server. For US the file dump is byte-identical to the live server dump (liveEqualsFileUS true); the German live application is unproven here.",
-      "method": "xkbcomp -xkb of the xkbcomp-compiled setxkbmap -print keymap (US and German, empty variant/option)"
+      "cause": "A stock Xvfb 21.1.12-1ubuntu1.9 (also the Noble release build) resets its keyboard to the compiled default when its last client disconnects; setxkbmap is that last client, so a bare setxkbmap then xkbcomp -xkb :97 reads US again (the server compiles pc+de then pc+us). With -noreset, or any long-lived X client, the layout stays. The maintained route has openbox connected before the native step.",
+      "deDiffersFromUs": true,
+      "deRepeatable": true,
+      "fileDerivedDump": "the earlier compiled-file proxy gave identical hashes for us and de",
+      "method": "live xkbcomp -xkb :97 dump after setxkbmap, Xvfb -noreset",
+      "sequence": [
+        "start",
+        "de",
+        "us",
+        "de"
+      ],
+      "serverStartSha256": "0e0746bf5f507ac5d73d7614f65d4c1c6bafcebf64edff570957cc2ddc0a75e5",
+      "usEqualsServerStart": true
     },
     "mismatches": 0,
     "objectsAndDataFilesCrossCheckedAgainstSignedArchives": 39,
     "ownership": "every object and data row is owned by exactly the named dpkg package (dpkg-query -S), including Multi-Arch :amd64 spellings"
   },
+  "reproduction": {
+    "driver": "prepare/reproduce.sh",
+    "inputs": "32 roots read from fixtures/noble-source-prefix-request.json; Ubuntu keyring checked against the helper pin; public CA bundle for the container apt only (not committed)",
+    "result": "manifest, package request and closure.txt byte-identical to the committed files; 39 file hashes cross-checked, 0 mismatches",
+    "verifiedOn": "2026-10-30"
+  },
   "schema": "fsgg.current-reference-native-input-facility-provenance/1",
   "schemaChoice": "schema 1: the hosted ubuntu-24.04 route has no schema-2 compiled-schema derivation; schema 2 needs the private ATv2 factory guest",
   "scripts": {
+    "assemble-manifest.py": "aac830f06eafe7c7fba8e5497dfde87e962c68228cb355674912d5a871506a89",
     "build-package-request.py": "c0d060c7f8292e4474954b71f0d31078466645a7605f354bbafd61e170fdb658",
     "crosscheck-archives.py": "cf730d6c0c4ab5a4dd5573e5b20073aa38ec70035ff3c1200e67f012618e3f48",
-    "extract-installed.py": "adf1703ee75d72270cf48145487399476339db2bbcd6e1616bb239f83a54d158",
-    "install-in-container.sh": "088b44a976440696004d02370dba462c2dc84b7d785d53eaaccdde78a2088eaa"
+    "extract-installed.py": "b66255995d501bc9f40139df7e733c575ba1ef8c450c7b6b6e6b8ec57abb750c",
+    "install-in-container.sh": "036230010afbbd578c2034561c2b031b75d0252050eb9ad0bd21bf59731decdb",
+    "reproduce.sh": "6d12e8a81d25375cd0937da87a67089f4776bc70f8aa2cb67d690bd31c491c33"
   },
   "status": "prepared-input-only; grants no desktop operation, admission or native IME acceptance",
   "subject": "FS-GG/.github#4817 current-public IME facility (schema 1, ubuntu-24.04-x11)"

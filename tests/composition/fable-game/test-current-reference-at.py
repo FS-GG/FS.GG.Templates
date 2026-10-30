@@ -307,6 +307,15 @@ class CurrentAtTests(unittest.TestCase):
         changed = O.current_public_identity(packet, preflight, controller, "1" * 64, "2" * 64, "4" * 64)
         self.assertNotEqual(changed['nativeInputFacilitySha256'], identity['nativeInputFacilitySha256'])
 
+    def test_current_route_provisioning_feeds_the_same_activation_capture_as_the_legacy_step(self):
+        workflow = (Path(__file__).parents[3] / '.github/workflows/fable-external-reference-source.yml').read_text()
+        current = workflow.split('      - name: Install declared Noble snapshot roots', 1)[1].split('      - name: Provision external reference assistive technology', 1)[0]
+        legacy = workflow.split('      - name: Provision external reference assistive technology\n', 1)[1].split('      - name: Qualify complete palette journey', 1)[0]
+        tail = lambda body: [line.strip() for line in body.splitlines() if 'orca-host-packages.txt' in line or '--capture-activation' in line]
+        self.assertEqual(2, len(tail(current)))
+        self.assertEqual(tail(legacy), tail(current))
+        self.assertLess(current.index('current-reference-noble-install.py --install'), current.index('orca-host-packages.txt'))
+
     def test_wrong_or_missing_authenticated_join_refuses(self):
         for target, field, bad in [("preflight", "templates", {"revision": "0" * 40, "tree": "b" * 40}),
                                     ("preflight", "observerSourceSha256", "0" * 64),

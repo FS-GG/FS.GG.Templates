@@ -48,6 +48,9 @@ on:
       - 'tests/composition/fable-game/current-reference-noble-acquisition.py'
       - 'tests/composition/fable-game/current-reference-noble-transaction.py'
       - 'tests/composition/fable-game/current-reference-noble-factory.py'
+      - 'tests/composition/fable-game/current-reference-noble-install.py'
+      - 'tests/composition/fable-game/test-current-reference-noble-install.py'
+      - 'tests/composition/fable-game/native-input-facility/**'
       - 'tests/composition/fable-game/test-current-reference-noble-factory.py'
       - 'tests/composition/fable-game/test-current-reference-noble-transaction.py'
       - 'tests/composition/fable-game/fixtures/noble-c068-status.xz'
@@ -99,6 +102,10 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-acquisition.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-transaction.py
           PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-factory.py
+          PYTHONDONTWRITEBYTECODE=1 timeout --kill-after=5s 120s prlimit --as=2147483648 --cpu=120 python3 -I -B tests/composition/fable-game/test-current-reference-noble-install.py
+      - name: Simulate snapshot provisioning against the runner's real dpkg status (no install, no privilege)
+        run: |
+          timeout --kill-after=10s 600s python3 -B tests/composition/fable-game/current-reference-noble-install.py --simulate --private "$RUNNER_TEMP/snapshot-simulation" --receipt "$RUNNER_TEMP/snapshot-simulation.json"
       - name: Check actual Noble solver tools and c068 fixture before work
         run: |
           env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 \
@@ -385,8 +392,16 @@ jobs:
             "$GITHUB_WORKSPACE/templates/.tmp/rendering-source" "$RUNNER_TEMP/rendering-packet" \
             "$PRODUCER_VERSION" "$RUNNER_TEMP/external-reference" "$PRODUCER_SOURCE" "$RENDERING_INPUT_SOURCE"
           fi
+      - name: Install declared Noble snapshot roots and read them back against the facility manifest
+        if: ${{ !inputs.preflight-only && inputs.rendering-input-source == 'current-public-composition' }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/external-reference"
+          python3 -B tests/composition/fable-game/current-reference-noble-install.py --install --private "$RUNNER_TEMP/snapshot-provisioning" --receipt "$RUNNER_TEMP/external-reference/snapshot-provisioning.json"
+          dpkg-query --show --showformat='${Package} ${Version}\n' orca at-spi2-core dbus dbus-daemon dbus-session-bus-common libatspi2.0-0t64 libatk-bridge2.0-0t64 xvfb openbox speech-dispatcher speech-dispatcher-espeak-ng python3-gi python3-speechd gsettings-desktop-schemas libglib2.0-0t64 pulseaudio espeak-ng > "$RUNNER_TEMP/external-reference/orca-host-packages.txt"
+          python3 -B tests/composition/fable-game/external-reference-orca.py --capture-activation "$RUNNER_TEMP/external-reference/orca-activation-provenance.json"
       - name: Provision external reference assistive technology
-        if: ${{ !inputs.preflight-only }}
+        if: ${{ !inputs.preflight-only && inputs.rendering-input-source != 'current-public-composition' }}
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/external-reference"
