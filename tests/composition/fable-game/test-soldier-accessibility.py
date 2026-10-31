@@ -22,16 +22,17 @@ GATES = [
     "panel-region-name", "panel-focusable", "panel-heading-level-2", "note-textbox-name", "status-live-polite",
     "command-buttons-present", "command-names-unique-nonempty", "command-buttons-focusable-enabled",
     "roster-alternatives-complete", "roster-names-unique", "roster-names-nonempty-descriptive",
-    "roster-pressed-state-exposed", "svg-canvas-has-roster-alternative",
+    "roster-pressed-state-exposed", "roster-group-named", "svg-canvas-has-roster-alternative",
     "tab-reaches-every-command", "tab-reaches-every-roster-button", "ax-focus-matches-dom-focus",
     "keyboard-select-roster", "roster-pressed-matches-dom-after-selection", "keyboard-command-moves-selected",
     "roster-name-follows-state", "removal-focus-transfers-to-survivor", "removal-written-to-live-region",
     "offscreen-removal-focus-transfers", "spawn-keeps-focus-on-control", "roster-follows-churn-world",
     "keyboard-export-full-world",
     *[f"population-{n}-roster-exposed-unique" for n in (1, 100, 250, 500, 1000)],
-    "disposed-panel-absent-from-ax-tree",
+    "disposed-panel-absent-from-ax-tree", "disposal-focus-returns-to-entry-control",
 ]
-FINDINGS = ["roster-group-named", "disposal-focus-returns-to-entry-control"]
+# Open findings are promoted to gates when their fix lands; the mechanism stays for future findings.
+FINDINGS = []
 POPULATION_GATES = [f"population-{n}-roster-exposed-unique" for n in (1, 100, 250, 500, 1000)]
 REFUSALS = {
     "remove-panel-accessible-name": ["panel-region-name"],
@@ -43,6 +44,8 @@ REFUSALS = {
     "duplicate-command-name": ["command-names-unique-nonempty"],
     "disable-command-button": ["command-buttons-focusable-enabled"],
     "hide-roster-from-ax-tree": ["roster-alternatives-complete"],
+    "remove-roster-group-role": ["roster-group-named"],
+    "remove-roster-group-name": ["roster-group-named"],
     "remove-roster-button-name": ["roster-names-nonempty-descriptive"],
     "duplicate-roster-names": ["roster-names-unique"],
     "remove-pressed-state": ["roster-pressed-state-exposed"],
@@ -61,9 +64,10 @@ REFUSALS = {
     "drop-roster-entry-in-churn": ["roster-follows-churn-world"],
     "block-export": ["keyboard-export-full-world"],
     "hide-roster-at-every-population": POPULATION_GATES,
+    "suppress-focus-return-on-dispose": ["disposal-focus-returns-to-entry-control"],
     "block-dispose": ["disposed-panel-absent-from-ax-tree"],
 }
-RESOLUTIONS = {"name-the-roster-group": "roster-group-named", "restore-focus-to-entry-control-on-dispose": "disposal-focus-returns-to-entry-control"}
+RESOLUTIONS = {}
 AXE_ROW = "axe-screening-detects-unnamed-button"
 COMMANDS = [
     "Select focused soldier", "Focus next soldier", "Focus previous soldier", "Move selected soldier",
@@ -211,7 +215,13 @@ def self_test():
     mutate("control count lowered", lambda r: (r["controls"]["rows"].pop(), r["controls"].update(total=len(r["controls"]["rows"]), refused=len(r["controls"]["rows"]))))
     mutate("control refused on wrong assertion", lambda r: r["controls"]["rows"][1].update(failed=["panel-focusable"] if r["controls"]["rows"][1]["expect"] != ["panel-focusable"] else ["panel-region-name"]))
     mutate("baseline failure", lambda r: r["controls"].update(baselineFailures=["panel-region-name"]))
-    mutate("resolution not flipped", lambda r: r["controls"]["rows"][-1].update(resolved=[]))
+    if RESOLUTIONS:
+        mutate("resolution not flipped", lambda r: r["controls"]["rows"][-1].update(resolved=[]))
+    # The two promoted findings must stay gates with their own refusal controls.
+    for promoted in ("roster-group-named", "disposal-focus-returns-to-entry-control"):
+        mutate(f"{promoted} demoted to finding", lambda r, promoted=promoted: next(a for a in r["observe"]["assertions"] if a["id"] == promoted).update(kind="finding"))
+        mutate(f"{promoted} failing", lambda r, promoted=promoted: next(a for a in r["observe"]["assertions"] if a["id"] == promoted).update(passed=False))
+        mutate(f"{promoted} refusal control dropped", lambda r, promoted=promoted: r["controls"].update(rows=[row for row in r["controls"]["rows"] if promoted not in row.get("expect", [])], total=len(r["controls"]["rows"]) - sum(promoted in row.get("expect", []) for row in r["controls"]["rows"]), refused=len(r["controls"]["rows"]) - sum(promoted in row.get("expect", []) for row in r["controls"]["rows"])))
     mutate("physical input claimed", lambda r: r["claims"].update(physicalInput=True))
     mutate("axe promoted to conformance", lambda r: r["claims"].update(axeIsConformanceClaim=True))
     mutate("axe version changed", lambda r: r["screening"].update(version="9.9.9"))
