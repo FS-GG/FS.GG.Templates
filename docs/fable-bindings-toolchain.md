@@ -13,7 +13,7 @@ findings are now enforced by the generated workspace and composition gate.
 
 | Input | Pin |
 | --- | --- |
-| .NET SDK | 10.0.401 |
+| .NET SDK | 10.0.403 |
 | Node / npm | 26.13.0 / 12.2.1 |
 | Fable tool / Fable.Core | 5.26.0 / 5.6.1 |
 | Fable.Package.SDK | 1.4.1 |
@@ -113,7 +113,7 @@ The machinery was moved to current supported tools and re-qualified on the uncha
 
 | Input | Before | After | Basis |
 | --- | --- | --- | --- |
-| .NET SDK | 10.0.401 | 10.0.401 (unchanged) | Newest feature band and patch used across FS-GG (`global.json` in Game, Rendering, SDD, Governance, Audio, Net and the other Templates workspaces). 10.0.402 and 10.0.403 (October 2026 servicing, including security fixes) are published, and `rollForward: latestPatch` admits them. Moving the exact pin is an FS-GG-wide SDK change that is outside Templates#807; it is tracked by FS-GG/.github#4935. |
+| .NET SDK | 10.0.401 | 10.0.403 | The October 2026 servicing band, which carries security fixes (FS-GG/.github#4935). The spike and the `fs-gg-fable-bindings` template keep `rollForward: latestPatch`; the other Templates workspaces keep `disable`. Their exact pins, locks and gates move together; Templates#807 deliberately left this to the FS-GG-wide change. |
 | Node / npm | 26.10.0 / 12.1.0 | 26.13.0 / 12.2.1 | 26.13.0 is the first Node 26 Active LTS release (`lts: Lithium`); npm 12.2.1 is the current `latest`. The `composition` and `release` gates install the same pair. |
 | Fable tool / Fable.Core | 5.18.0 / 5.3.0 | 5.26.0 / 5.6.1 | Latest stable. Fable.Core 5.6.1 still floors FSharp.Core at 4.7.2, so the netstandard2.1 lock shape is unchanged. |
 | Fable.Package.SDK | 1.4.1 | 1.4.1 | Already current. |
@@ -129,7 +129,7 @@ Evidence on the unchanged corpus:
 - The declaration lock is byte-identical, still 2,898 hashed transitive declaration files.
   Generated candidates and `declaration-analysis.json` produce no diff.
 - `tests/toolchain/fable-bindings/run.sh` passes under the new pins. It admits any SDK that the
-  spike's `global.json` admits (10.0.4xx at or above 10.0.401). Its Xantham step packs
+  spike's `global.json` admits (10.0.4xx at or above 10.0.403). Its Xantham step packs
   `FS.GG.Templates.csproj`, so it needs `FSGG_PYTHON_COORDINATION_ROOT` to name the Coordination
   fixture checkout recorded in `eng/portable-workspace/python-fixture-source.json`. It covers drift, the transitive
   drift negative fixture, the Node runtime smoke and the Fable-emitted slice in Node. It also covers
@@ -141,7 +141,7 @@ Evidence on the unchanged corpus:
   NuGet/npm restore, doctor, drift, the side-effect negative control, emitted imports, the Node and
   Chromium runtimes, the clean NuGet/npm consumer, the SDD lifecycle and the Governance drift block.
   It also covers a single-artifact `corpus.json` fixture and a doctor corpus-mismatch control.
-- `Glutinum.Template@1.1.1` still installs and instantiates on SDK 10.0.401. Its `git init`
+- `Glutinum.Template@1.1.1` still installs and instantiates on SDK 10.0.401 (measured before the 10.0.403 move). Its `git init`
   post-action still requires explicit consent.
 
 ### Adding a corpus

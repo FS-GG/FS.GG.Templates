@@ -15,11 +15,11 @@ DOC="$ROOT/docs/fable-bindings-toolchain.md"
 # Exact toolchain pins (docs/fable-bindings-toolchain.md). The Fable tool and Fable.Core
 # selections are read from the spike's own manifests so the consumer below cannot drift
 # onto an older pair than the library it consumes.
-# global.json pins 10.0.401 with rollForward latestPatch, so admit exactly what it admits:
-# a 10.0.4xx SDK whose patch is at least 01.
+# global.json pins 10.0.403 with rollForward latestPatch, so admit exactly what it admits:
+# a 10.0.4xx SDK whose patch is at least 03.
 sdk="$(cd "$SPIKE" && dotnet --version)"
-[[ "$sdk" =~ ^10\.0\.4([0-9][0-9])$ ]] && (( 10#${BASH_REMATCH[1]} >= 1 )) || { echo "SDK $sdk is not admitted by spikes/fable-bindings/global.json (10.0.401, latestPatch)" >&2; exit 1; }
-jq -e '.sdk.version == "10.0.401" and .sdk.rollForward == "latestPatch"' "$SPIKE/global.json" >/dev/null
+[[ "$sdk" =~ ^10\.0\.4([0-9][0-9])$ ]] && (( 10#${BASH_REMATCH[1]} >= 3 )) || { echo "SDK $sdk is not admitted by spikes/fable-bindings/global.json (10.0.403, latestPatch)" >&2; exit 1; }
+jq -e '.sdk.version == "10.0.403" and .sdk.rollForward == "latestPatch"' "$SPIKE/global.json" >/dev/null
 test "$(node --version)" = "v26.13.0"
 test "$(npm --version)" = "12.2.1"
 fable_version="$(jq -r '.tools.fable.version' "$SPIKE/.config/dotnet-tools.json")"
