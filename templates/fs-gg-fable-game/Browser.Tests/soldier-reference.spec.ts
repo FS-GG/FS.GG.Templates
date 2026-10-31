@@ -211,8 +211,12 @@ test("soldier reference bounded population churn focus export and disposal journ
     (window as any).__soldierDetachedMove = [...document.querySelectorAll<HTMLButtonElement>("#soldier-reference button")]
       .find(button => button.textContent === "Move selected soldier");
   });
+  // The roster keeps its accessible name: a role-less div drops aria-label.
+  await expect(root.getByRole("group", { name: "Soldier roster", exact: true })).toHaveCount(1);
   await control(page, "Dispose soldier reference").click();
   await expect(root).toHaveCount(0);
+  // Focus returns to the entry control instead of falling to body.
+  await expect(page.getByRole("button", { name: "Mount soldier reference", exact: true })).toBeFocused();
   expect(await page.evaluate(() => {
     const element = (window as any).__soldierDisposed as HTMLElement;
     (window as any).__soldierDetachedMove.click();
