@@ -203,7 +203,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.401'
+          dotnet-version: '10.0.403'
       - name: Bind actual checkout and temporary receipt path
         run: |
           set -euo pipefail
@@ -269,7 +269,7 @@ jobs:
             --output "${{ runner.temp }}/python-fixture-preflight"
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.401'
+          dotnet-version: '10.0.403'
 
       - name: Run focused ProviderTool tests before candidate packing
         if: github.event_name == 'pull_request'
@@ -426,7 +426,7 @@ jobs:
           # Composition invokes one generated-product build from the checkout root, where the
           # product's global.json is not in the SDK resolver search path. Match the exact SDK and
           # FSharp.Core identity carried by the generated workspace lock files.
-          dotnet-version: '10.0.401'
+          dotnet-version: '10.0.403'
       - uses: actions/setup-node@v6
         with:
           node-version: '26.13.0'
@@ -565,7 +565,7 @@ jobs:
         timeout-minutes: 32
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.401'
+          dotnet-version: '10.0.403'
 
       - name: Download verified release artifact
         uses: actions/download-artifact@v8

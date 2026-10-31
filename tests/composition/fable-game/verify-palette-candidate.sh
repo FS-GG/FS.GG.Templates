@@ -86,7 +86,7 @@ cat > "$out/candidate-config/NuGet.Config" <<EOF
 EOF
 (
  cd "$out/receiver"
- [[ "$(dotnet --version)" == 10.0.401 ]]
+ [[ "$(dotnet --version)" == 10.0.403 ]]
  dotnet restore SvgFoundation/Studio/Studio.fsproj --configfile "$out/candidate-config/NuGet.Config" \
    -p:FsGgSvgAuthoringVersion="$version" -p:RestoreLockedMode=false -p:RestoreForceEvaluate=true \
    >"$out/candidate-restore.log" 2>&1

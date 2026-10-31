@@ -82,7 +82,9 @@ jobs:
           python3 tests/composition/fable-game/test-quint-evaluator-acquisition.py
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.401'
+          dotnet-version: |
+            10.0.401
+            10.0.403
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
@@ -349,7 +351,9 @@ jobs:
           bash -n tests/composition/fable-game/verify-palette-candidate.sh
       - uses: actions/setup-dotnet@v6
         with:
-          dotnet-version: '10.0.401'
+          dotnet-version: |
+            10.0.401
+            10.0.403
       - uses: actions/setup-node@v6
         with:
           node-version: '24'
