@@ -49,6 +49,9 @@ let private download (_svg: string) : unit = jsNative
 [<Emit("$0.isConnected")>]
 let private isConnected (_element: Element) : bool = jsNative
 
+[<Emit("(document.activeElement === null || document.activeElement === document.body)")>]
+let private focusIsOnBody () : bool = jsNative
+
 let mount () : IDisposable =
     let root = document.createElement "section"
     root.id <- "soldier-reference"
@@ -71,6 +74,8 @@ let mount () : IDisposable =
     canvas.setAttribute("data-soldier-canvas", "true")
     root.appendChild canvas |> ignore
     let roster = document.createElement "div"
+    // A bare div drops its aria-label from the accessibility tree; the group role keeps the name.
+    roster.setAttribute("role", "group")
     roster.setAttribute("aria-label", "Soldier roster")
     root.appendChild roster |> ignore
     let export = document.createElement "output"
@@ -365,6 +370,10 @@ let mount () : IDisposable =
             root.setAttribute("data-adapter-listeners", string (listeners.Count + rosterHandlers.Count))
             root.setAttribute("data-svg-count", string (canvas.querySelectorAll("svg").length))
             root.remove()
+            // Removing the focused control drops focus to body. Return it to the entry control that
+            // opened the panel; focus that is already elsewhere on the page is left alone.
+            let opener = document.getElementById "mount-soldier-reference"
+            if focusIsOnBody () && not (isNull opener) then opener.focus()
     button controls "Dispose soldier reference" dispose |> ignore
     start "local"
     { new IDisposable with member _.Dispose() = dispose () }

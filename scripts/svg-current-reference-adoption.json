@@ -63,7 +63,8 @@
       "afff7dd20aa2384b4d3ff1c6f71e106614692213c7051d48d6a914c8cabd3a13"
     ],
     "Browser.Tests/soldier-reference.spec.ts": [
-      "a82d75067af339c552cadb975b876c65e9965c26ff6bf605f25b89fb5b97c3f4"
+      "a82d75067af339c552cadb975b876c65e9965c26ff6bf605f25b89fb5b97c3f4",
+      "af105bec8aae4f6ca1797bbc9b8b221977d656947ad097aea7a0893cb025bcfb"
     ],
     "Browser.Tests/two-client.spec.ts": [
       "7eacfc875e0449c18e4095d2cfc3cc30f004258c04335cc153e911f3d120ea9d",
@@ -402,6 +403,7 @@
     ],
     "SvgFoundation/SoldierReference.fs": [
       "37d6d774cb8d6607663879cf302d7219b2ce8202a876c8b1a87c682796771dd5",
+      "60f2e0ebd7c549b7c1e6d9276b528ac339e03bfb27dcf1620d5e4e4739df4763",
       "94c3a33214895eee2d3fd79939aacc7ee6ff824fae5b69fe59bd80e72eefec18"
     ],
     "SvgFoundation/SoldierReferenceExternal.fs": [
