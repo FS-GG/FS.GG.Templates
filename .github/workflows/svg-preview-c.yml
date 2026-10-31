@@ -23,6 +23,14 @@ on:
       - 'tests/composition/fable-game/verify-soldier-reference-candidate.sh'
       - 'tests/composition/fable-game/soldier-staged-journey.js'
       - 'tests/composition/fable-game/test-soldier-staged-fixture.py'
+      - 'tests/composition/fable-game/soldier-accessibility-observe.mjs'
+      - 'tests/composition/fable-game/observe-soldier-accessibility.sh'
+      - 'tests/composition/fable-game/observe-soldier-orca.sh'
+      - 'tests/composition/fable-game/soldier-orca-browser.cjs'
+      - 'tests/composition/fable-game/soldier-input-orca.py'
+      - 'tests/composition/fable-game/soldier-orca-launcher.py'
+      - 'tests/composition/fable-game/test-soldier-accessibility.py'
+      - 'tests/composition/fable-game/accessibility/**'
       - 'tests/composition/fable-game/test-historical-provider.py'
       - '.github/workflows/svg-preview-c.yml'
   push:
@@ -48,6 +56,14 @@ on:
       - 'tests/composition/fable-game/verify-soldier-reference-candidate.sh'
       - 'tests/composition/fable-game/soldier-staged-journey.js'
       - 'tests/composition/fable-game/test-soldier-staged-fixture.py'
+      - 'tests/composition/fable-game/soldier-accessibility-observe.mjs'
+      - 'tests/composition/fable-game/observe-soldier-accessibility.sh'
+      - 'tests/composition/fable-game/observe-soldier-orca.sh'
+      - 'tests/composition/fable-game/soldier-orca-browser.cjs'
+      - 'tests/composition/fable-game/soldier-input-orca.py'
+      - 'tests/composition/fable-game/soldier-orca-launcher.py'
+      - 'tests/composition/fable-game/test-soldier-accessibility.py'
+      - 'tests/composition/fable-game/accessibility/**'
       - 'tests/composition/fable-game/test-historical-provider.py'
       - '.github/workflows/svg-preview-c.yml'
 
@@ -84,6 +100,12 @@ jobs:
           node .tmp/soldier-staged-rendering/tests/Scene.SvgBrowser.Tests/suite-control-test.mjs
           python3 tests/composition/fable-game/test-soldier-staged-fixture.py
           bash -n tests/composition/fable-game/verify-soldier-reference-candidate.sh
+          python3 -B tests/composition/fable-game/test-soldier-accessibility.py --self-test
+          bash -n tests/composition/fable-game/observe-soldier-accessibility.sh
+          bash -n tests/composition/fable-game/observe-soldier-orca.sh
+          node --check tests/composition/fable-game/soldier-accessibility-observe.mjs
+          node --check tests/composition/fable-game/soldier-orca-browser.cjs
+          python3 -m py_compile tests/composition/fable-game/soldier-input-orca.py tests/composition/fable-game/soldier-orca-launcher.py
       - name: Install browser hosts
         working-directory: templates/fs-gg-fable-game/Browser.Tests
         run: |
@@ -212,6 +234,23 @@ jobs:
             bash tests/composition/fable-game/verify-soldier-reference-candidate.sh \
               "$producer" "$RUNNER_TEMP/soldier-staged-producer/feed" 0.32.0 \
               "$RUNNER_TEMP/soldier-staged-consumer" "$expected_source" "$manifest_sha" staged
+      - name: Observe accessible alternatives and focus in the actual soldier player
+        # Container-qualified .5 evidence: browser accessibility tree (CDP and
+        # ariaSnapshot), trusted keyboard focus, axe-core as screening only, and the
+        # Orca/AT-SPI observer, each with causal controls. Not physical-input or
+        # assistive-technology user evidence. Reuses the staged server and sealed webroot.
+        shell: bash
+        run: |
+          set -euo pipefail
+          (cd tests/composition/fable-game/accessibility && npm ci --ignore-scripts)
+          modules="$GITHUB_WORKSPACE/templates/fs-gg-fable-game/Browser.Tests/node_modules"
+          browser_path="$(node -e "process.stdout.write(require('./templates/fs-gg-fable-game/Browser.Tests/node_modules/@playwright/test').chromium.executablePath())")"
+          PLAYWRIGHT_MODULE_ROOT="$modules" PLAYWRIGHT_EXECUTABLE_PATH="$browser_path" \
+            SOLDIER_AXE_JS="$GITHUB_WORKSPACE/tests/composition/fable-game/accessibility/node_modules/axe-core/axe.min.js" \
+            SOLDIER_A11Y_FAMILIES="chromium firefox webkit" \
+            timeout --signal=TERM --kill-after=15s 60m \
+            bash tests/composition/fable-game/observe-soldier-accessibility.sh \
+              "$RUNNER_TEMP/soldier-staged-consumer" "$RUNNER_TEMP/soldier-staged-producer" "$RUNNER_TEMP/soldier-accessibility" orca
       - name: Qualify the local container edge
         shell: bash
         run: |
@@ -251,6 +290,10 @@ jobs:
             ${{ runner.temp }}/soldier-staged-consumer/*.tsv
             ${{ runner.temp }}/soldier-staged-consumer/*.log
             ${{ runner.temp }}/soldier-staged-consumer/*.world.svg
+            ${{ runner.temp }}/soldier-accessibility/*.json
+            ${{ runner.temp }}/soldier-accessibility/*.log
+            ${{ runner.temp }}/soldier-accessibility/*.speechd-*.json
+            ${{ runner.temp }}/soldier-accessibility/*.browser-dom.json
             ${{ runner.temp }}/soldier-staged-consumer/complete/SvgFoundation/obj/project.assets.json
             ${{ runner.temp }}/svg-preview-c-quint-evaluator/**
             ${{ runner.temp }}/svg-preview-c-source/qualification.json

@@ -1,0 +1,6 @@
+{
+  "name": "fsgg-soldier-accessibility-screening",
+  "private": true,
+  "description": "Pinned axe-core used as SCREENING only by soldier-accessibility-observe.mjs; not a conformance claim.",
+  "devDependencies": { "axe-core": "4.11.0" }
+}
