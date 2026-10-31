@@ -138,7 +138,7 @@ async function observeStructure(page, cdp) {
   out.push(rec("roster-names-nonempty-descriptive", scope.filter((n) => roleOf(n) === "button" && nameOf(n).trim() === "").length === 0, {}));
   out.push(rec("roster-pressed-state-exposed", roster.length > 0 && roster.every((n) => ["true", "false"].includes(String(prop(n, "pressed")))), {}));
   const group = scope.filter((n) => nameOf(n) === "Soldier roster" && ["group", "list", "region", "navigation", "toolbar", "radiogroup"].includes(roleOf(n)));
-  out.push(finding("roster-group-named", group.length === 1, { found: group.length, roles: scope.filter((n) => nameOf(n) === "Soldier roster").map(roleOf) }));
+  out.push(rec("roster-group-named", group.length === 1, { found: group.length, roles: scope.filter((n) => nameOf(n) === "Soldier roster").map(roleOf) }));
   // Every soldier painted in the SVG has exactly one roster button, and the reverse.
   const canvas = await page.evaluate(() => {
     const svg = document.querySelector("#soldier-reference [data-soldier-canvas] svg");
@@ -262,7 +262,7 @@ async function observeDisposal(page, cdp) {
   const stale = tree.live.filter((n) => nameOf(n) === "Equipped soldier reference" || ROSTER_NAME.test(nameOf(n)));
   out.push(rec("disposed-panel-absent-from-ax-tree", stale.length === 0, { stale: stale.length }));
   const active = await domActive(page);
-  out.push(finding("disposal-focus-returns-to-entry-control", active?.id === "mount-soldier-reference", { active: active && { tag: active.tag, id: active.id } }));
+  out.push(rec("disposal-focus-returns-to-entry-control", active?.id === "mount-soldier-reference", { active: active && { tag: active.tag, id: active.id } }));
   return out;
 }
 
@@ -293,6 +293,8 @@ const MUTANTS = [
   { name: "duplicate-command-name", phase: "structure", expect: ["command-names-unique-nonempty"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Focus previous soldier").textContent = "Focus next soldier"; } },
   { name: "disable-command-button", phase: "structure", expect: ["command-buttons-focusable-enabled"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Pause soldiers").disabled = true; } },
   { name: "hide-roster-from-ax-tree", phase: "structure", expect: ["roster-alternatives-complete"], run: (w) => w.document.querySelector('#soldier-reference [aria-label="Soldier roster"]').setAttribute("aria-hidden", "true") },
+  { name: "remove-roster-group-role", phase: "structure", expect: ["roster-group-named"], run: (w) => w.document.querySelector('#soldier-reference [aria-label="Soldier roster"]').removeAttribute("role") },
+  { name: "remove-roster-group-name", phase: "structure", expect: ["roster-group-named"], run: (w) => w.document.querySelector('#soldier-reference [aria-label="Soldier roster"]').removeAttribute("aria-label") },
   { name: "remove-roster-button-name", phase: "structure", expect: ["roster-names-nonempty-descriptive"], sticky: (w) => { const b = w.document.querySelector("#soldier-reference [data-soldier-id]"); if (b && b.textContent !== "") b.textContent = ""; } },
   { name: "duplicate-roster-names", phase: "structure", expect: ["roster-names-unique"], sticky: (w) => { const b = w.document.querySelectorAll("#soldier-reference [data-soldier-id]"); if (b.length > 1 && b[1].textContent !== b[0].textContent) b[1].textContent = b[0].textContent; } },
   { name: "remove-pressed-state", phase: "structure", expect: ["roster-pressed-state-exposed"], sticky: (w) => w.document.querySelectorAll("#soldier-reference [data-soldier-id][aria-pressed]").forEach((b) => b.removeAttribute("aria-pressed")) },
@@ -311,19 +313,11 @@ const MUTANTS = [
   { name: "drop-roster-entry-in-churn", phase: "churn", expect: ["roster-follows-churn-world"], sticky: (w) => { const b = w.document.querySelector('#soldier-reference [data-soldier-id="soldier-0500"]'); if (b) b.remove(); } },
   { name: "block-export", phase: "churn", expect: ["keyboard-export-full-world"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Export full soldier world").addEventListener("click", (e) => e.stopImmediatePropagation(), true); } },
   { name: "hide-roster-at-every-population", phase: "populations", expect: [1, 100, 250, 500, 1000].map((n) => `population-${n}-roster-exposed-unique`), run: (w) => w.document.querySelector('#soldier-reference [aria-label="Soldier roster"]').setAttribute("aria-hidden", "true") },
+  // The product's focus restore runs inside the Dispose click; arm the suppression in the capture phase of that click only.
+  { name: "suppress-focus-return-on-dispose", phase: "disposal", expect: ["disposal-focus-returns-to-entry-control"], run: (w) => { const original = w.HTMLElement.prototype.focus; [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Dispose soldier reference").addEventListener("click", () => { w.HTMLElement.prototype.focus = function () {}; setTimeout(() => { w.HTMLElement.prototype.focus = original; }, 400); }, true); } },
   { name: "block-dispose", phase: "disposal", expect: ["disposed-panel-absent-from-ax-tree"], run: (w) => { [...w.document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Dispose soldier reference").addEventListener("click", (e) => e.stopImmediatePropagation(), true); } },
 ];
 
-const RESOLUTIONS = [
-  { name: "name-the-roster-group", resolves: "roster-group-named", phase: "structure",
-    apply: () => document.querySelector('#soldier-reference [aria-label="Soldier roster"]').setAttribute("role", "group") },
-  { name: "restore-focus-to-entry-control-on-dispose", resolves: "disposal-focus-returns-to-entry-control", phase: "disposal",
-    apply: () => {
-      const dispose = [...document.querySelectorAll("#soldier-reference button")].find((b) => b.textContent === "Dispose soldier reference");
-      dispose.addEventListener("click", () => setTimeout(() => document.getElementById("mount-soldier-reference").focus(), 0));
-    } },
-];
-const observeDisposalWithFixup = (page, cdp) => observeDisposal(page, cdp);
 
 async function applyMutantAfterSetup(page, mutant) {
   if (mutant.armOnRemove) {
@@ -421,18 +415,6 @@ try {
         catch (error) { return { name: mutant.name, kind: "refusal", refused: false, expect: mutant.expect, failed: [`observer-error:${String(error.message).slice(0, 120)}`] }; }
         const failed = assertions.filter((a) => a.kind === "gate" && !a.passed).map((a) => a.id);
         return { name: mutant.name, kind: "refusal", phase: mutant.phase, expect: mutant.expect, failed, refused: mutant.expect.every((id) => failed.includes(id)) };
-      });
-      rows.push(row);
-    }
-    // Positive controls: making the product do the missing thing must flip the
-    // matching finding to resolved, proving the finding detectors can see it.
-    for (const control of RESOLUTIONS) {
-      const row = await withFreshPlayer(chromium, async (page, cdp) => {
-        await openPlayer(page, cdp);
-        await page.evaluate(control.apply);
-        const assertions = control.phase === "structure" ? await observeStructure(page, cdp) : await observeDisposalWithFixup(page, cdp);
-        const resolved = assertions.filter((a) => a.kind === "finding" && a.passed).map((a) => a.id);
-        return { name: control.name, kind: "resolution", expect: [control.resolves], failed: [], resolved, refused: resolved.includes(control.resolves) };
       });
       rows.push(row);
     }
