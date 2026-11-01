@@ -434,7 +434,15 @@ class Controls(unittest.TestCase):
             self.assertEqual(spec.count('test("'+title+'"'),1,title)
             self.assertNotIn(title,base)
         # The published plan and the source-built plan select exactly the same maintained base plus the added and durable cases.
-        self.assertEqual(source.count('cases = baseCompositionCases @ optionsAndFocusCases @ durableLocalSaveCases'),2)
+        self.assertEqual(source.count('cases = baseCompositionCases @ optionsAndFocusCases @ durableLocalSaveCases @ releaseAndIslandCases'),1)
+        self.assertEqual(source.count('cases = baseCompositionCases @ optionsAndFocusCases @ durableLocalSaveCases\n'),1)
+        extra=re.search(r'let private releaseAndIslandCases =(.*?)\n\n// ',source,re.S)[1]
+        extra_titles=re.findall(r'title = "([^"]+)"',extra)
+        self.assertEqual(len(extra_titles),3)
+        for title in extra_titles:
+            self.assertEqual(spec.count('test("'+title+'"'),1,title)
+            self.assertNotIn(title,base)
+        self.assertNotIn('releaseAndIslandCases',re.search(r'let currentCompositionPlan \(\) =(.*?)\n\n// ',source,re.S)[1])  # source-only cases never enter the published plan
         durable=re.search(r'let private durableLocalSaveCases =(.*?)\n\n// ',source,re.S)[1]
         durable_titles=re.findall(r'title = "([^"]+)"',durable)
         self.assertEqual(len(durable_titles),2)
