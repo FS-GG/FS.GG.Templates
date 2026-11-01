@@ -223,6 +223,8 @@ class PublicInputTests(unittest.TestCase):
             'SvgFoundation/packages.lock.json': complete,
             'SvgFoundation/Studio/packages.lock.json': complete,
             'SvgFoundation/Examples/Wasm/packages.lock.json': complete,
+            # The Fable client's FS.GG.Game.Render path (Templates#834) pins the same public set directly.
+            'Client/packages.lock.json': complete,
             'Protocol.Tests/cross-runtime/CodecProbe.Net/packages.lock.json': scene_only,
             'Protocol.Tests/cross-runtime/CodecProbe.Fable/packages.lock.json': scene_only,
             'SvgFoundation/Examples/Tactical/packages.lock.json': scene_only,

@@ -72,10 +72,30 @@ for product in Omitted Player; do
   if find "$work/$product" -type f \( -iname '*.qnt' -o -iname '*.java' \) -print -quit | grep -q .; then
     echo "bundle composition: player contains Quint or Java source" >&2; exit 1
   fi
+  # GAME-RENDER-ADOPT-01.10 (Templates#834): the Fable client deliberately carries the published FS.GG.Game.Render
+  # three-adapter path, whose BabylonJS surface is declared in exactly these five source files (the renderers, the
+  # conformance run and its spec, and the package and project that name @babylonjs/core). Any other file naming
+  # Babylon, and React or Feliz anywhere, is still an accidental closure, and nothing under SvgFoundation/ (the player)
+  # may name Babylon.
+  sanctioned_babylon=(
+    "$work/$product/Browser.Tests/renderer-conformance.spec.ts"
+    "$work/$product/Client/package.json"
+    "$work/$product/Client/Conformance.fs"
+    "$work/$product/Client/Client.fsproj"
+    "$work/$product/Client/Renderers.fs"
+  )
   if grep -RIlE --exclude='.*' --exclude-dir='.*' \
        --exclude=README.md --exclude=packages.lock.json --exclude=package-lock.json \
-       'babylon|fable\.react|feliz' "$work/$product" >/dev/null; then
+       'fable\.react|feliz' "$work/$product" >/dev/null; then
     echo "bundle composition: player contains an accidental Babylon/React/Feliz closure" >&2; exit 1
+  fi
+  if grep -RIlE --exclude='.*' --exclude-dir='.*' \
+       --exclude=README.md --exclude=packages.lock.json --exclude=package-lock.json \
+       'babylon' "$work/$product" | grep -vxF "$(printf '%s\n' "${sanctioned_babylon[@]}")" >/dev/null; then
+    echo "bundle composition: player contains an accidental Babylon/React/Feliz closure" >&2; exit 1
+  fi
+  if grep -RIlE --exclude='.*' --exclude-dir='.*' 'babylon' "$work/$product/SvgFoundation" >/dev/null; then
+    echo "bundle composition: the SVG player names Babylon" >&2; exit 1
   fi
 done
 assert_path "$work/Studio/SvgFoundation/Studio/Studio.fsproj"

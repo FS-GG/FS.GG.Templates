@@ -3,6 +3,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <EnableDefaultItems>false</EnableDefaultItems>
+    <!-- The public FS.GG.UI set the Rendering pin selects, the same default SvgFoundation.fsproj carries. The Render
+         packages only declare a floor (0.31.0), so these direct references keep the client's closure on the pinned set
+         instead of the floor. -->
+    <FsGgSvgInputVersion Condition="'$(FsGgSvgInputVersion)' == ''">0.32.4</FsGgSvgInputVersion>
     <DefineConstants Condition="'$(FsGgSvgNetworkCandidate)' == 'true'">$(DefineConstants);SVG_NETWORK_CANDIDATE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
@@ -43,6 +47,9 @@
          Conformance.fs runs the kit; `renderers.html` is the page that loads it. The JavaScript the surfaces import
          (@babylonjs/core 9.33.1, pixi.js 8.22.0) is pinned in package.json beside this file, and only
          `renderers.html` reaches it: the game page never loads a renderer. -->
+    <PackageReference Include="FS.GG.UI.Scene" Version="[$(FsGgSvgInputVersion)]" />
+    <PackageReference Include="FS.GG.UI.Scene.SvgBrowser" Version="[$(FsGgSvgInputVersion)]" />
+    <PackageReference Include="FS.GG.UI.KeyboardInput" Version="[$(FsGgSvgInputVersion)]" />
     <PackageReference Include="FS.GG.Game.Render" Version="[$(FsGgGameRenderVersion)]" />
     <PackageReference Include="FS.GG.Game.Render.Browser" Version="[$(FsGgGameRenderVersion)]" />
   </ItemGroup>

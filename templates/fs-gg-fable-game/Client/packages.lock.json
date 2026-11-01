@@ -70,6 +70,37 @@
           "Fable.Core": "5.6.1"
         }
       },
+      "FS.GG.UI.KeyboardInput": {
+        "type": "Direct",
+        "requested": "[0.32.4, 0.32.4]",
+        "resolved": "0.32.4",
+        "contentHash": "Q120NaTCDFJtYnRNBbdS5FvIzXwGCI7P5h8DuLNrHmEmODNC8B2SShpZ+6ELaFBuZbWGfPfU3srQwN9iInIPrg==",
+        "dependencies": {
+          "FS.GG.UI.Scene": "0.32.4",
+          "FSharp.Core": "10.1.401"
+        }
+      },
+      "FS.GG.UI.Scene": {
+        "type": "Direct",
+        "requested": "[0.32.4, 0.32.4]",
+        "resolved": "0.32.4",
+        "contentHash": "h6me4Zq56jV/4cM0vrJPXiZvetZxq8IkF3ETE/KrIZsTEhqxa07Lv61W2FqPVS1FAngXAC0RkZQuFEHWv9ifzw==",
+        "dependencies": {
+          "FSharp.Core": "10.1.401"
+        }
+      },
+      "FS.GG.UI.Scene.SvgBrowser": {
+        "type": "Direct",
+        "requested": "[0.32.4, 0.32.4]",
+        "resolved": "0.32.4",
+        "contentHash": "5WPXpVlOGYEBBQWyktep6O9JbsayIVOCEnX5MlflMsv+z5pw8BLjWw0GlvLYKMu9pRNGtRnJnscRjW3lLfJcIQ==",
+        "dependencies": {
+          "FS.GG.UI.KeyboardInput": "0.32.4",
+          "FS.GG.UI.Scene": "0.32.4",
+          "FSharp.Core": "10.1.401",
+          "Fable.Browser.Dom": "2.20.0"
+        }
+      },
       "FSharp.Core": {
         "type": "Direct",
         "requested": "[10.1.403, )",
@@ -122,34 +153,6 @@
           "FSharp.Core": "4.7.2",
           "Fable.Browser.Event": "1.6.0",
           "Fable.Core": "3.2.8"
-        }
-      },
-      "FS.GG.UI.KeyboardInput": {
-        "type": "Transitive",
-        "resolved": "0.31.0",
-        "contentHash": "SaxeJjtdPZDT9a8JTlmEEyQHfyvx8lxIPW7P39gh8GLYqRmP4WTMol4iEEcw4aetI9vFONy1EhDj+Ei4UTQgSg==",
-        "dependencies": {
-          "FS.GG.UI.Scene": "0.31.0",
-          "FSharp.Core": "10.1.302"
-        }
-      },
-      "FS.GG.UI.Scene": {
-        "type": "Transitive",
-        "resolved": "0.31.0",
-        "contentHash": "dVTWndymoCm70yhVNDEejsvHIAKeL122RnOmRKd8wgGFtyskMvruie2dUJgqkdK8e4pobULfgwyFrNJv32zNFA==",
-        "dependencies": {
-          "FSharp.Core": "10.1.302"
-        }
-      },
-      "FS.GG.UI.Scene.SvgBrowser": {
-        "type": "Transitive",
-        "resolved": "0.31.0",
-        "contentHash": "MCaSCkJWdt8UfwNAcgNw8KRgHTzYotLCzf5ThHSc3xEbxpK7SeUSkfEz8k02aXiTHtwjdgXzOU0QynOCIappcg==",
-        "dependencies": {
-          "FS.GG.UI.KeyboardInput": "0.31.0",
-          "FS.GG.UI.Scene": "0.31.0",
-          "FSharp.Core": "10.1.302",
-          "Fable.Browser.Dom": "2.20.0"
         }
       }
     }
