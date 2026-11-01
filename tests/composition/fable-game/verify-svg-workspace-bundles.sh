@@ -49,10 +49,13 @@ refute_path() { [[ ! -e "$1" ]] || { echo "bundle composition: unexpected $1" >&
 # Files that may name Babylon (any case), relative to a generated product. Nothing under SvgFoundation/ (the player) may.
 babylon_sanctioned=(
   Browser.Tests/renderer-conformance.spec.ts
+  Browser.Tests/renderer-journey.spec.ts
   Client/package.json
   Client/Conformance.fs
   Client/Client.fsproj
   Client/Renderers.fs
+  Client/Stage.fs
+  Client/index.html
   Client/renderers.html
 )
 unsanctioned_babylon() {
@@ -106,8 +109,9 @@ for product in Omitted Player; do
   fi
   # GAME-RENDER-ADOPT-01.10 (Templates#834): the Fable client deliberately carries the published FS.GG.Game.Render
   # three-adapter path, whose BabylonJS surface is declared in exactly the files listed in babylon_sanctioned (the
-  # renderers, the conformance run, its page and spec, and the package and project that name @babylonjs/core). Any
-  # other file naming Babylon in any case, and React or Feliz anywhere, is still an accidental closure.
+  # renderers, the stage that mounts them on the game page and its selector, the conformance run, its page and the specs,
+  # and the package and project that name @babylonjs/core). Any other file naming Babylon in any case,
+  # and React or Feliz anywhere, is still an accidental closure.
   if grep -RIlE --exclude='.*' --exclude-dir='.*' \
        --exclude=README.md --exclude=packages.lock.json --exclude=package-lock.json \
        'fable\.react|feliz' "$work/$product" >/dev/null; then

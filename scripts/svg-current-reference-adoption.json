@@ -14,10 +14,13 @@
     "Browser.Tests/external-command-outcomes.spec.ts",
     "Browser.Tests/playwright.renderers.config.ts",
     "Browser.Tests/renderer-conformance.spec.ts",
+    "Browser.Tests/renderer-journey.spec.ts",
+    "Browser.Tests/renderer-support.ts",
     "Browser.Tests/soldier-reference.spec.ts",
     "Browser.Tests/wasm-policy.spec.ts",
     "Client/Conformance.fs",
     "Client/Renderers.fs",
+    "Client/Stage.fs",
     "Client/renderers.html",
     "SvgFoundation/Examples/ExternalAuthority/README.md",
     "SvgFoundation/Examples/ExternalAuthority/reference.json",
@@ -51,8 +54,11 @@
   "candidateOptionalPaths": [
     "Browser.Tests/playwright.renderers.config.ts",
     "Browser.Tests/renderer-conformance.spec.ts",
+    "Browser.Tests/renderer-journey.spec.ts",
+    "Browser.Tests/renderer-support.ts",
     "Client/Conformance.fs",
     "Client/Renderers.fs",
+    "Client/Stage.fs",
     "Client/renderers.html"
   ],
   "candidateCanonicalDigests": {
@@ -74,13 +80,22 @@
     ],
     "Browser.Tests/playwright.config.ts": [
       "5d26ecd5e560ab338582fc497e2d2523892cc7a12764c1760e315ebce4be56de",
+      "9cda09216e02ef9659584ee6c87cf3162e29d35fa3ce1e5b998ae4c7af947b29",
       "afff7dd20aa2384b4d3ff1c6f71e106614692213c7051d48d6a914c8cabd3a13"
     ],
     "Browser.Tests/playwright.renderers.config.ts": [
+      "43c8968308f9507871801a241c2ecda7c59c472e04203a1489ee51426f4cdd3e",
       "93a58322fef7168d93309cb6ff5b14deb6b241cda936cfc8829770277f3a9f33"
     ],
     "Browser.Tests/renderer-conformance.spec.ts": [
+      "4e7be02b545604ae3eefa2994ca2096bc1e053290faef7c16a95191fc44aa85e",
       "ef8e27c0961dc2818f30f1013a40b565f2206eaca3ae024671b358f105860075"
+    ],
+    "Browser.Tests/renderer-journey.spec.ts": [
+      "e7decfaeb0c896a45cdd133d460f755dcdddafbf360fff3f8e67383e1e1351df"
+    ],
+    "Browser.Tests/renderer-support.ts": [
+      "12f59f0c8a820ae0e6fd4de9a7d2788db2de92d81aee5fe35b4c0c51357210ee"
     ],
     "Browser.Tests/soldier-reference.spec.ts": [
       "a82d75067af339c552cadb975b876c65e9965c26ff6bf605f25b89fb5b97c3f4",
@@ -100,13 +115,16 @@
     ],
     "Client/App.fs": [
       "544d28777031571a3fbbfa8b8732a41cc700448eee0917370ab885521a99d42f",
-      "70e79cbdc1f25e060700b0ae1a50b8dfd63eaa1643071a4d3a9623f1083f2ca8"
+      "70e79cbdc1f25e060700b0ae1a50b8dfd63eaa1643071a4d3a9623f1083f2ca8",
+      "9feca997ef09c2482a8d6ab5eb979751596e58bb43b6b87ebebbf5d49f0ec93d"
     ],
     "Client/Client.fsproj": [
       "4ae9e31427d179bd580b75ba43a087df07966b024d341b04ba9283ca39278588",
-      "51c76c8a2ccf67cdc196cdd13edbb0beb8b11e8c1f519dbc318ee9eafb414637"
+      "51c76c8a2ccf67cdc196cdd13edbb0beb8b11e8c1f519dbc318ee9eafb414637",
+      "8f1e04173dfffd0df17e346dd39d8fe5070f858465ec4027ca68fbb85b4df5c6"
     ],
     "Client/Conformance.fs": [
+      "9ed3b437f262cb85bca654efc32af9018b72e0d44c05c1e2a5daf05022fdec60",
       "c6dcb5e622da7aa40b4852b474bea879388066fcf926abeef6acf69ab85ec7b4"
     ],
     "Client/Movement.fs": [
@@ -114,18 +132,24 @@
       "c90eaed039c410320368131714721caaf1387b6984f6f1ccbaae11483367b3d5"
     ],
     "Client/Program.fs": [
+      "840d3721112d939ca65acdf800ebf4bd70ccc7693bd3d9f29fa856185fbcd5e7",
       "a208eaa92041ee14b597de11689654e4047ad162a4418ff3a38c36e577eb7236",
       "d2d878297c78e268235aaa512ae6b6db8cbab8a9ac313ad6959b6453db59e067"
     ],
     "Client/Renderers.fs": [
-      "31d240a92187f33c375479abf73e9b7418f3f70a017ae09394ad6ec81dedbd1c"
+      "31d240a92187f33c375479abf73e9b7418f3f70a017ae09394ad6ec81dedbd1c",
+      "6bd4ea966a5f49e79f205f94db3eece2a4045b920e3d525aa636368f349be3a8"
     ],
     "Client/SignalR.fs": [
       "2f413cc932e308959c147996982996167f0e96a6aa51c6b310d8617796199e80",
       "482addfb743a8af9f19362c32533e9644e1d9a897b6199f2feec923d785060d6"
     ],
+    "Client/Stage.fs": [
+      "ea1f5d08d5bae345c89ffd0dddcbc1f025c9d1206d24d3c17f064e667938aaa9"
+    ],
     "Client/index.html": [
-      "acc72f7cf3c25585c53fde439b04dfc59c01345c8fe6f7c36623a87319f3257c"
+      "acc72f7cf3c25585c53fde439b04dfc59c01345c8fe6f7c36623a87319f3257c",
+      "b300e1a1cd385039519a80eec2f96b193d3f253ca779768c2d995854758104d1"
     ],
     "Client/package-lock.json": [
       "451496f25d3ac9ebdc7135c37672f7f685e7c88fe9af388215c450a31a8100e4",
@@ -144,7 +168,8 @@
     ],
     "Client/vite.config.ts": [
       "49aa78eae4d937d81a10a46de940c8901b6dac4fa721dc0a98dc15231ef32571",
-      "5281622e7b6118a1ef9952b3f116e428e4048413d97817e4c127a348dec813f4"
+      "5281622e7b6118a1ef9952b3f116e428e4048413d97817e4c127a348dec813f4",
+      "8966baeb0a8d4745a8931d6db058b78cf6e9a7ec5ce79f26e24e6b39caf645c8"
     ],
     "Conformance/GeneratedArenaRuleModel.fs": [
       "df0e49c4a588e4791aaf49eb146a8ebd3dad87400bea0cfa10989462336b7463",
@@ -523,6 +548,7 @@
     ],
     "build.sh": [
       "287cf4e6709e477d4d76c615a419f61dc718551dcc8c874af34d5e94cbebf3e6",
+      "e3d7cdd5580fdee785c9885f431f58481ee71095e1280f1176187ce804e27922",
       "eda2af06085a7f337629c2e0517343474ce995734d9223c1b9efb6909d75c781"
     ],
     "docs/playground/selected-examples.md": [
