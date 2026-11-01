@@ -16,7 +16,7 @@ VERSION = "0.90.0"
 SOURCE = "3adada5a9738464291088830c47a30a3a8fc9561"
 # The sealed 0.90.0 bridge keeps its original source. The current Kit bump
 # workflow must understand coherent-set tags used by the 0.91.x publisher.
-CURRENT_KIT_WORKFLOW_SOURCE = "941a82c0e06c9afe9db4c88fc29997d7627a5895"
+CURRENT_KIT_WORKFLOW_SOURCE = "f1ac83ac4f5c2c60251dd6e5f07ffe4f745de5eb"
 WORKFLOW_SOURCES = {
     "kit-materialize": CURRENT_KIT_WORKFLOW_SOURCE,
     "lockfile-sync": SOURCE,
