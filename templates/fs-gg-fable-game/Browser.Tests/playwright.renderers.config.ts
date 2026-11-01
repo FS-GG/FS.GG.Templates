@@ -13,6 +13,9 @@ const extraArgs = (process.env.PLAYWRIGHT_CHROMIUM_ARGS ?? "").split(/\s+/).filt
 export default defineConfig({
   testDir: ".",
   testMatch: /renderer-conformance\.spec\.ts/,
+  // Playwright empties its output directory when a run starts. The game journeys' report (test-results/browser.json)
+  // is kept by this run only because this one writes elsewhere.
+  outputDir: "../artifacts/renderer-test-output",
   projects: [{
     name: "chromium",
     use: {
@@ -25,7 +28,7 @@ export default defineConfig({
   }],
   reporter: [
     ["junit", { outputFile: "../artifacts/test-results/browser.renderers.chromium.junit.xml" }],
-    ["json", { outputFile: "test-results/browser.renderers.json" }]
+    ["json", { outputFile: "../artifacts/test-results/browser.renderers.json" }]
   ],
   use: {
     baseURL: "http://127.0.0.1:5300"
