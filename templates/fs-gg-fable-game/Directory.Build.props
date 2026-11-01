@@ -3,8 +3,12 @@
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <RestoreLockedMode>true</RestoreLockedMode>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <FsGgGameVersion Condition="'$(FsGgGameVersion)' == ''">0.16.0</FsGgGameVersion>
-    <FsGgGameNetworkVersion Condition="'$(FsGgGameNetworkVersion)' == ''">0.16.0</FsGgGameNetworkVersion>
+    <FsGgGameVersion Condition="'$(FsGgGameVersion)' == ''">0.18.0</FsGgGameVersion>
+    <FsGgGameNetworkVersion Condition="'$(FsGgGameNetworkVersion)' == ''">0.18.0</FsGgGameNetworkVersion>
+    <!-- GAME-RENDER-ADOPT-01.10 (FS.GG.Templates#834): the published FS.GG.Game.Render and FS.GG.Game.Render.Browser
+         (the three-adapter authoring path and conformance kit, FS.GG.Game 0.18.0). Both packages and Game.Core are one
+         coherent set, so `FsGgGameVersion` follows it: Render depends on Game.Core of its own version. -->
+    <FsGgGameRenderVersion Condition="'$(FsGgGameRenderVersion)' == ''">0.18.0</FsGgGameRenderVersion>
     <FsGgNetNetworkVersion Condition="'$(FsGgNetNetworkVersion)' == ''">0.6.0</FsGgNetNetworkVersion>
     <FsGgSvgNetworkCandidate Condition="'$(FsGgSvgNetworkCandidate)' == ''">true</FsGgSvgNetworkCandidate>
 

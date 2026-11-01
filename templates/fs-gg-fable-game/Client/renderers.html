@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FableGameWorkspace renderer conformance</title>
+    <style>
+      body { font-family: system-ui, sans-serif; background: #10131a; color: #e8e8e8; }
+      #conformance-result { white-space: pre-wrap; font-size: 0.85rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>FableGameWorkspace renderer conformance</h1>
+      <p>
+        Runs the FS.GG.Game.Render conformance kit on <code>Renderers.conformance</code> against the SVG, Pixi and
+        Babylon backends. The verdict is written below and to <code>body[data-conformance]</code>.
+      </p>
+    </main>
+    <script type="module" src="./output/Conformance.js"></script>
+  </body>
+</html>
