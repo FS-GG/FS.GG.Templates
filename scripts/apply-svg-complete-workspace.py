@@ -14,6 +14,7 @@ import shutil
 import stat
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
 
 TEMPLATE_PRODUCT = "FableGame" + "Workspace"
 TEMPLATE_NAMESPACE = TEMPLATE_PRODUCT + "Namespace"
@@ -420,7 +421,12 @@ def current_reference_manifest(path: Path, extension: dict) -> dict:
         fail("current reference additional baselines must name only added managed paths")
     baseline_digests = {version: {**rows, **extra_baselines.get(version, {})}
                         for version, rows in baseline["baselineDigests"].items()}
+    optional = extension.get("candidateOptionalPaths", [])
+    if (not isinstance(optional, list) or optional != sorted(set(optional))
+            or not set(optional) <= set(additions)):
+        fail("current reference optional paths must be a sorted unique subset of the additions")
     return {**baseline, "managedPaths": combined, "baselineDigests": baseline_digests,
+            "candidateOptionalPaths": optional,
             "currentPublishedReference": CURRENT_REFERENCE,
             "candidateCanonicalDigests": canonical,
             "sourceCandidates": [CURRENT_REFERENCE]}
@@ -480,6 +486,41 @@ def manifest_data(path: Path) -> tuple[dict, list[str], list[str], dict[str, set
     return manifest, managed, retired, allowed
 
 
+def compile_closure_conflicts(candidate: Path, managed: list[str], solution: Path) -> list[dict]:
+    """Refuse a candidate whose managed project compiles a file the manifest does not manage.
+
+    Adoption replaces a receiver's managed project files with the candidate's, so an unconditional
+    `Compile Include` that is not itself managed would reach the receiver as a reference to a file the
+    transaction never delivers (FS0225 at the receiver's first build). Includes guarded by a Condition or
+    an MSBuild property are optional by construction and are not part of the closure."""
+    managed_set = set(managed)
+    conflicts = []
+    for logical in managed:
+        if not logical.endswith(".fsproj"):
+            continue
+        project = candidate_path(candidate, logical, solution)
+        if not project.is_file():
+            continue
+        try:
+            root = ET.parse(project).getroot()
+        except ET.ParseError as error:
+            conflicts.append({"path": logical, "reason": f"candidate project is not well-formed XML: {error}"})
+            continue
+        for group in root.iter("ItemGroup"):
+            if group.get("Condition") is not None:
+                continue
+            for item in group.findall("Compile"):
+                include = item.get("Include")
+                if include is None or item.get("Condition") is not None or "$(" in include:
+                    continue
+                target = PurePosixPath(os.path.normpath(
+                    (PurePosixPath(logical).parent / include.replace("\\", "/")).as_posix())).as_posix()
+                if target not in managed_set:
+                    conflicts.append({"path": logical,
+                                      "reason": f"candidate project compiles {target}, outside the managed closure"})
+    return conflicts
+
+
 def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
     manifest, managed, retired, allowed = manifest_data(manifest_path)
     managed, retired = effective_paths(workspace, managed, retired)
@@ -489,9 +530,14 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
     candidate_hash_rows = []
     managed_actual = set()
     diff_parts = []
+    # Paths a successor candidate adds beyond an earlier published reference: managed when the candidate carries
+    # them, and simply absent from the transaction when it does not (the published donor predates them).
+    optional = set(manifest.get("candidateOptionalPaths", []))
     for logical in managed:
-        destination = actual_path(workspace, logical, destination_solution)
         source_path = candidate_path(candidate, logical, source_solution)
+        if logical in optional and not source_path.exists():
+            continue
+        destination = actual_path(workspace, logical, destination_solution)
         reject_symlink_chain(candidate, source_path, "candidate managed")
         reject_symlink_chain(workspace, destination, "workspace managed")
         managed_actual.add(destination.relative_to(workspace).as_posix())
@@ -576,6 +622,10 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
                     diff_parts.extend(difflib.unified_diff(before, [], fromfile=f"a/{logical}", tofile="/dev/null"))
                 except UnicodeDecodeError:
                     diff_parts.append(f"Binary file retired: {logical}\n")
+    conflicts.extend(compile_closure_conflicts(
+        candidate,
+        [value for value in managed if value not in optional or candidate_path(candidate, value, source_solution).exists()],
+        source_solution))
     preserved = []
     for path in relevant_files(workspace):
         rel = path.relative_to(workspace).as_posix()
@@ -798,9 +848,12 @@ def apply(args: list[str]) -> None:
     if not current["ready"]:
         fail("inventory contains managed collisions", 3)
 
-    _, managed, retired, _ = manifest_data(manifest_path)
+    manifest, managed, retired, _ = manifest_data(manifest_path)
     managed, retired = effective_paths(workspace, managed, retired)
     source_product, source_namespace, source_solution = identity(candidate)
+    optional = set(manifest.get("candidateOptionalPaths", []))
+    managed = [value for value in managed
+               if value not in optional or candidate_path(candidate, value, source_solution).exists()]
     destination_product, destination_namespace, destination_solution = identity(workspace)
     backup.mkdir(parents=True)
     (backup / "files").mkdir()

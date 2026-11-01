@@ -186,21 +186,25 @@ jobs:
           cases=[node for node in ET.parse(trx).findall('.//t:UnitTestResult',ns)
                  if node.attrib.get('testName','').endswith('Local save replay finite conformance')]
           assert len(cases)==1 and cases[0].attrib.get('outcome')=='Passed', 'named local save replay .NET case must execute once and pass'
-          package_hash='mn66KeVyqj0kphAn8Nm11GbEUbmGcO28uRMFiuX6FdQv87Zvv4kXTV7MqwTVeH3GQtA2Nna56Okd6IaCSHH6Bg=='
+          # Domain.Tests locks the Game.Core the server, Domain and Fable client share (0.18.0, the version
+          # FS.GG.Game.Render 0.18.0 depends on, Templates#834); the static player keeps 0.16.0.
+          game_core={'Domain.Tests':('0.18.0','Zy+o+7AVCOBzCuhn94TRRVU6l5wsRC58HHVQkWJKEz9zvJKf+9ejtrp8l1OqCR7tKS12HKSjXbojSwfo7ocVtg=='),
+                     'SvgFoundation':('0.16.0','mn66KeVyqj0kphAn8Nm11GbEUbmGcO28uRMFiuX6FdQv87Zvv4kXTV7MqwTVeH3GQtA2Nna56Okd6IaCSHH6Bg==')}
           report={'dotnetCase':cases[0].attrib['testName'],'browserCases':{},'packages':{}}
           for project in ['Domain.Tests','SvgFoundation']:
+              core_version,package_hash=game_core[project]
               lock=workspace/project/'packages.lock.json'
               assets=workspace/project/'obj/project.assets.json'
               locked=json.loads(lock.read_text())
               found=[item['FS.GG.Game.Core'] for item in locked['dependencies'].values() if 'FS.GG.Game.Core' in item]
-              assert found and all(item['resolved']=='0.16.0' and item['contentHash']==package_hash for item in found), project+' locked Game.Core identity mismatch'
+              assert found and all(item['resolved']==core_version and item['contentHash']==package_hash for item in found), project+' locked Game.Core identity mismatch'
               resolved=json.loads(assets.read_text())
-              library=resolved['libraries']['FS.GG.Game.Core/0.16.0']
+              library=resolved['libraries']['FS.GG.Game.Core/'+core_version]
               assert library['type']=='package' and library['sha512']==package_hash, project+' must resolve package-backed Game.Core'
               original=Path('templates/fs-gg-fable-game')/project/'packages.lock.json'
               assert lock.read_bytes()==original.read_bytes(), project+' generated lock changed'
               for path in [lock,assets]: shutil.copy2(path,evidence/(project+'-'+path.name))
-              report['packages'][project]={'version':'0.16.0','contentHash':package_hash,'lockSha256':hashlib.sha256(lock.read_bytes()).hexdigest()}
+              report['packages'][project]={'version':core_version,'contentHash':package_hash,'lockSha256':hashlib.sha256(lock.read_bytes()).hexdigest()}
           def specs(suites):
               for suite in suites:
                   yield from suite.get('specs',[])

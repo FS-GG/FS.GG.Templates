@@ -46,6 +46,38 @@ DOTNET_CLI_HOME="$home" dotnet new install "$package" >/dev/null
 assert_path() { [[ -e "$1" ]] || { echo "bundle composition: missing $1" >&2; exit 1; }; }
 refute_path() { [[ ! -e "$1" ]] || { echo "bundle composition: unexpected $1" >&2; exit 1; }; }
 
+# Files that may name Babylon (any case), relative to a generated product. Nothing under SvgFoundation/ (the player) may.
+babylon_sanctioned=(
+  Browser.Tests/renderer-conformance.spec.ts
+  Client/package.json
+  Client/Conformance.fs
+  Client/Client.fsproj
+  Client/Renderers.fs
+  Client/renderers.html
+)
+unsanctioned_babylon() {
+  local dir="$1" sanctioned=() name
+  for name in "${babylon_sanctioned[@]}"; do sanctioned+=("$dir/$name"); done
+  { grep -RIliE --exclude='.*' --exclude-dir='.*' \
+      --exclude=README.md --exclude=packages.lock.json --exclude=package-lock.json 'babylon' "$dir" || true; } \
+    | { grep -vxF "$(printf '%s\n' "${sanctioned[@]}")" || true; }
+}
+# Controls: the guard flags a capitalised Babylon in an unsanctioned file and under SvgFoundation/, and stays quiet for the
+# sanctioned files and for a file that does not name it.
+control="$work/babylon-control"
+mkdir -p "$control/Client" "$control/SvgFoundation" "$control/Other"
+printf '%s\n' 'open Pixi' >"$control/Other/Quiet.fs"
+printf '%s\n' 'RendererBackend.Babylon' >"$control/Client/Renderers.fs"
+[[ -z "$(unsanctioned_babylon "$control")" ]] || { echo "bundle composition: Babylon guard flags a sanctioned file" >&2; exit 1; }
+printf '%s\n' 'let backend = Babylon' >"$control/Other/Leak.fs"
+[[ "$(unsanctioned_babylon "$control")" == "$control/Other/Leak.fs" ]] \
+  || { echo "bundle composition: Babylon guard misses a capitalised Babylon" >&2; exit 1; }
+rm "$control/Other/Leak.fs"
+printf '%s\n' 'new BABYLON.Engine()' >"$control/SvgFoundation/Player.fs"
+[[ "$(unsanctioned_babylon "$control")" == "$control/SvgFoundation/Player.fs" ]] \
+  || { echo "bundle composition: Babylon guard misses the player" >&2; exit 1; }
+rm -r "$control"
+
 create() {
   local name="$1"; shift
   DOTNET_CLI_HOME="$home" dotnet new fs-gg-fable-game -n "$name" -o "$work/$name" --lifecycle none "$@" >/dev/null
@@ -72,9 +104,16 @@ for product in Omitted Player; do
   if find "$work/$product" -type f \( -iname '*.qnt' -o -iname '*.java' \) -print -quit | grep -q .; then
     echo "bundle composition: player contains Quint or Java source" >&2; exit 1
   fi
+  # GAME-RENDER-ADOPT-01.10 (Templates#834): the Fable client deliberately carries the published FS.GG.Game.Render
+  # three-adapter path, whose BabylonJS surface is declared in exactly the files listed in babylon_sanctioned (the
+  # renderers, the conformance run, its page and spec, and the package and project that name @babylonjs/core). Any
+  # other file naming Babylon in any case, and React or Feliz anywhere, is still an accidental closure.
   if grep -RIlE --exclude='.*' --exclude-dir='.*' \
        --exclude=README.md --exclude=packages.lock.json --exclude=package-lock.json \
-       'babylon|fable\.react|feliz' "$work/$product" >/dev/null; then
+       'fable\.react|feliz' "$work/$product" >/dev/null; then
+    echo "bundle composition: player contains an accidental Babylon/React/Feliz closure" >&2; exit 1
+  fi
+  if unsanctioned_babylon "$work/$product" | grep . >/dev/null; then
     echo "bundle composition: player contains an accidental Babylon/React/Feliz closure" >&2; exit 1
   fi
 done

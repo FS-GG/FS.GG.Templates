@@ -16,6 +16,9 @@ const studioServer = existsSync("../SvgFoundation/Studio/Studio.fsproj") ? [{
 
 export default defineConfig({
   testDir: ".",
+  // The renderer conformance spec has its own configuration (playwright.renderers.config.ts): it needs WebGL and the
+  // built client, and runs as its own `npm run test:renderers` step of build.sh.
+  testIgnore: /renderer-conformance\.spec\.ts/,
   projects: [{
     name: browserName,
     use: {

@@ -8,6 +8,9 @@ on:
       - 'providers/fable-game.providers.yml'
       - 'templates/fs-gg-fable-game/**'
       - 'tests/composition/fable-game/verify-svg-release-d5-source.sh'
+      - 'tests/composition/fable-game/verify-source-candidate-adoption.sh'
+      - 'scripts/apply-svg-complete-workspace.py'
+      - 'scripts/svg-current-reference-adoption.json'
       - 'tests/composition/lib/lifecycle-contract.py'
       - 'tests/composition/lib/lifecycle-matrix.sh'
       - '.github/workflows/svg-release-d5-source.yml'
@@ -18,6 +21,9 @@ on:
       - 'providers/fable-game.providers.yml'
       - 'templates/fs-gg-fable-game/**'
       - 'tests/composition/fable-game/verify-svg-release-d5-source.sh'
+      - 'tests/composition/fable-game/verify-source-candidate-adoption.sh'
+      - 'scripts/apply-svg-complete-workspace.py'
+      - 'scripts/svg-current-reference-adoption.json'
       - 'tests/composition/lib/lifecycle-contract.py'
       - 'tests/composition/lib/lifecycle-matrix.sh'
       - '.github/workflows/svg-release-d5-source.yml'
@@ -68,6 +74,13 @@ jobs:
           QUINT_BIN: ${{ runner.temp }}/d5-tools/quint
           LMT_BIN: ${{ runner.temp }}/d5-tools/lmt
         run: bash tests/composition/fable-game/verify-svg-release-d5-source.sh "$RUNNER_TEMP/svg-release-d5-source"
+      - name: Adopt a retained workspace from the source candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          package="$(find "$RUNNER_TEMP/svg-release-d5-source/feed" -maxdepth 1 -type f -name '*.nupkg')"
+          [[ "$(wc -l <<<"$package")" == 1 ]]
+          bash tests/composition/fable-game/verify-source-candidate-adoption.sh "$package" "$RUNNER_TEMP/source-candidate-adoption"
       - name: Upload candidate evidence
         if: always()
         uses: actions/upload-artifact@v7

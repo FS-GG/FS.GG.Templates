@@ -8,7 +8,9 @@
     "build": "dotnet tool restore && dotnet fable . -o output --noCache && vite build"
   },
   "dependencies": {
-    "@microsoft/signalr": "10.0.11"
+    "@babylonjs/core": "9.33.1",
+    "@microsoft/signalr": "10.0.11",
+    "pixi.js": "8.22.0"
   },
   "devDependencies": {
     "vite": "7.3.6"

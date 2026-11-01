@@ -111,6 +111,38 @@ The realtime baseline has four deliberately small but production-relevant rules:
   capability remains available for its bounded reconnect window, keeping the starter
   zero-config while making the resource boundary visible and testable.
 
+## Renderers: the three-adapter authoring path and conformance kit
+
+The Fable client carries the published `FS.GG.Game.Render` and `FS.GG.Game.Render.Browser` `0.18.0` authoring
+path (FS.GG.Game's "Three-adapter authoring path"): one `Renderers.view` projects the game's state onto a Scene,
+and the SVG, PixiJS and BabylonJS surfaces all draw that Scene. `Client/Renderers.fs` is the module
+`scripts/new-game-renderers.sh` of FS.GG.Game `0.18.0` generates (`--module Renderers --state App.Model`), with
+`view` written for this game's arena (the arena, the selected path, the other players and this client's own
+player). `Renderers.start` starts the renderers on a `RendererDriver`; dispatch `RendererMsg.StateChanged state`
+for each new state and `RendererMsg.SelectBackend backend` to switch at runtime, and offer
+`RendererSelection.available driver.Model` in a selector. The game state survives every switch.
+
+`Client/Conformance.fs` runs the kit (`RendererConformance.run`) on `Renderers.conformance`: registry, round trip,
+switching, disposal, late and present failures, each checked against what the page itself observes (SVG DOM,
+canvas pixels, WebGL contexts, Babylon engines, Pixi applications). `Client/renderers.html` loads it, and
+`Browser.Tests/renderer-conformance.spec.ts` requires every requirement to pass on all three backends. It runs as
+the last step of `build.sh` (`cd Browser.Tests && npm run test:renderers`, after the client is built), in
+Chromium with software WebGL; set `PLAYWRIGHT_CHROMIUM_ARGS` to add launch flags (for example a GPU host's ANGLE
+flags). The game page (`index.html`) never imports the renderers or the PixiJS and BabylonJS they need, so the
+game ships none of it unless it chooses to.
+
+To bring your own state, edit `Renderers.view` and the `states` list in `Conformance.fs` (at least two states
+that look different). Play in this arena is cell selection (`CellClicked`, `handleCellKey`, `aria-selected` in
+`App.fs`), and the kit has an `interaction` section for exactly such games (`SceneInteraction` and
+`RendererConformance.withInteraction`, which needs a driver of real input). This template does not run that section
+yet: `index.html` still draws the arena with its DOM grid, not through the three renderers, so a newly generated
+game is not yet playable on SVG, Pixi and Babylon. Wiring the page to `Renderers.start` through `SceneInteraction`,
+with runtime backend switching and a real-input journey, is the remaining step of FS.GG.Templates#834.
+
+The client's Game.Core is `FsGgGameVersion` (and `FsGgGameNetworkVersion`, the server's), `0.18.0`, because
+`FS.GG.Game.Render` of a version depends on Game.Core of that version. The static SVG player and Studio under
+`SvgFoundation/` keep their own Game.Core pins (`FsGgGameRuntimeVersion`, `FsGgGameReplayVersion`).
+
 ## Running it
 
 For local authority development, run `dotnet run --project Server/Server.fsproj`; the
@@ -143,8 +175,8 @@ See `docs/runbooks/build-evidence-and-deploy.md` for the exact VPS bootstrap, DN
 `bash ./build.sh` runs the product qualification build: locked restore/build/test the `.NET` solution
 (`Domain`, `Protocol`, `Server`, and their `.Tests` projects), the cross-runtime
 V1/V2/V3 codec and replay proof, bounded authored-rule Quint simulation, the Fable/Vite client production build, and the
-selected SVG player (plus Studio when present), authority publish, and Playwright
-`Browser.Tests` two-context scenario. It writes TRX/JUnit evidence to
+selected SVG player (plus Studio when present), authority publish, the Playwright
+`Browser.Tests` two-context scenario, and the renderer conformance kit on SVG, Pixi and Babylon. It writes TRX/JUnit evidence to
 `artifacts/test-results/`; import those observed reports with
 `fsgg-sdd evidence --from-test-report`. SDD remains the single lifecycle owner.
 Set `QUINT_BIN` to the executable for Quint 0.32.0 before running the build. The

@@ -101,7 +101,11 @@ refs={node.attrib['Include']:node.attrib['Version'] for node in root.findall('./
 assert refs=={identity:'[$(FsGgSvgInputVersion)]' for identity in ['FS.GG.UI.Scene','FS.GG.UI.Scene.SvgBrowser','FS.GG.UI.KeyboardInput']}, 'generated UI package references mismatch'
 PYCURRENTPIN
 for expected in "$rendering_version" "$game_version" "$audio_version"; do grep -F "$expected" "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null; done
-grep -F ">$game_version</FsGgGameNetworkVersion>" "$out/direct/Directory.Build.props" >/dev/null
+# The server, Domain and Fable client share one Game.Core (the client previews with the very Pathfinding the server commits
+# with), and FS.GG.Game.Render 0.18.0 depends on Game.Core of its own version (Templates#834), so the generated
+# Directory.Build.props defaults the network Game.Core to the 0.18.0 set. The static player above keeps $game_version.
+network_game_version=0.18.0
+grep -F ">$network_game_version</FsGgGameNetworkVersion>" "$out/direct/Directory.Build.props" >/dev/null
 grep -F ">$net_version</FsGgNetNetworkVersion>" "$out/direct/Directory.Build.props" >/dev/null
 for flag in FsGgSvgInputCandidate FsGgSvgRuntimeCandidate FsGgSvgPresentCandidate FsGgSvgScaleCandidate; do grep -F ">true</$flag>" "$out/direct/SvgFoundation/SvgFoundation.fsproj" >/dev/null; done
 test -f "$out/direct/SvgFoundation/PresentationPlayer.fs"
