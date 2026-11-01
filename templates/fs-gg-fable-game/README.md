@@ -132,9 +132,12 @@ flags). The game page (`index.html`) never imports the renderers or the PixiJS a
 game ships none of it unless it chooses to.
 
 To bring your own state, edit `Renderers.view` and the `states` list in `Conformance.fs` (at least two states
-that look different). The kit also has an `interaction` section for games whose play is selection
-(`SceneInteraction` and `RendererConformance.withInteraction`, which needs a driver of real input); this
-template's arena is not played by selection, so it does not run that section.
+that look different). Play in this arena is cell selection (`CellClicked`, `handleCellKey`, `aria-selected` in
+`App.fs`), and the kit has an `interaction` section for exactly such games (`SceneInteraction` and
+`RendererConformance.withInteraction`, which needs a driver of real input). This template does not run that section
+yet: `index.html` still draws the arena with its DOM grid, not through the three renderers, so a newly generated
+game is not yet playable on SVG, Pixi and Babylon. Wiring the page to `Renderers.start` through `SceneInteraction`,
+with runtime backend switching and a real-input journey, is the remaining step of FS.GG.Templates#834.
 
 The client's Game.Core is `FsGgGameVersion` (and `FsGgGameNetworkVersion`, the server's), `0.18.0`, because
 `FS.GG.Game.Render` of a version depends on Game.Core of that version. The static SVG player and Studio under

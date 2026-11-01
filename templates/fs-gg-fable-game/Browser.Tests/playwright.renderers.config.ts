@@ -2,8 +2,8 @@ import { defineConfig } from "@playwright/test";
 
 // The renderer conformance run (GAME-RENDER-ADOPT-01.10): `npm run test:renderers`, after the client is built
 // (`cd Client && npm run build`). It serves Client/dist with `vite preview` and opens renderers.html, which runs the
-// FS.GG.Game.Render conformance kit on the game's renderers (Client/Renderers.fs) against the SVG, Pixi and Babylon
-// backends. Pixi and Babylon need WebGL, so Chromium runs with software WebGL (SwiftShader) unless the host provides
+// FS.GG.Game.Render conformance kit on the game's renderers (Client/Renderers.fs) against the SVG and the two WebGL
+// backends. The WebGL backends need a GL context, so Chromium runs with software WebGL (SwiftShader) unless the host provides
 // more: PLAYWRIGHT_CHROMIUM_ARGS adds space-separated launch flags (for example a GPU host's ANGLE flags) and
 // PLAYWRIGHT_EXECUTABLE_PATH selects the browser, as in playwright.config.ts. Chromium only: it is the browser the
 // WebGL surfaces are qualified on, and the other families run the game journeys in playwright.config.ts.

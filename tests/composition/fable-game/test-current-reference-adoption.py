@@ -43,6 +43,9 @@ class CurrentReference(unittest.TestCase):
         for logical in managed:
             if logical.startswith(('.agents/', '.claude/')):
                 continue
+            # The published reference predates the successor-only paths; its candidate simply lacks them.
+            if logical in manifest.get('candidateOptionalPaths', []) and not (FIXTURE_ROOT / 'templates/fs-gg-fable-game' / logical).exists():
+                continue
             raw = (FIXTURE_ROOT / 'templates/fs-gg-fable-game' / logical).read_bytes()
             destination = self.candidate / ('SyntheticReference403.slnx' if logical == 'FableGameWorkspace.slnx' else logical)
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -157,6 +160,29 @@ class CurrentReference(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.inventory_receiver()
         self.assertEqual(self.tree(), before)
+
+    def test_candidate_project_compiling_an_unmanaged_file_is_a_closure_conflict(self):
+        # FS.GG.Templates#834: a managed project that compiles a file the manifest does not manage would reach the
+        # receiver as a dangling reference. Conditional and property-named includes are optional by construction.
+        root = self.root / 'closure'
+        (root / 'Client').mkdir(parents=True)
+        (root / 'Client/Client.fsproj').write_text(
+            '<Project><ItemGroup><Compile Include="../Protocol/Http.fs" /><Compile Include="App.fs" />'
+            '<Compile Include="Renderers.fs" /><Compile Include="Skipped.fs" Condition="Exists(\'Skipped.fs\')" />'
+            '<Compile Include="$(Generated)/Gen.fs" /></ItemGroup>'
+            '<ItemGroup Condition="false"><Compile Include="Guarded.fs" /></ItemGroup></Project>')
+        solution = root / 'X.slnx'
+        managed = ['Client/Client.fsproj', 'Protocol/Http.fs', 'Client/App.fs']
+        found = adopter.compile_closure_conflicts(root, managed, solution)
+        self.assertEqual([row['reason'] for row in found],
+                         ['candidate project compiles Client/Renderers.fs, outside the managed closure'])
+        self.assertEqual(adopter.compile_closure_conflicts(root, managed + ['Client/Renderers.fs'], solution), [])
+
+    def test_optional_paths_must_be_successor_additions(self):
+        self.extension['candidateOptionalPaths'] = ['Domain/Room.fs']
+        self.write_extension()
+        with self.assertRaises(SystemExit):
+            self.inventory_receiver()
 
     def test_copied_receiver_harness_checks_full_target_and_recovery(self):
         before = self.tree()

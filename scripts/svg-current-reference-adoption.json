@@ -12,8 +12,13 @@
   "additionalManagedPaths": [
     ".config/dotnet-tools.json",
     "Browser.Tests/external-command-outcomes.spec.ts",
+    "Browser.Tests/playwright.renderers.config.ts",
+    "Browser.Tests/renderer-conformance.spec.ts",
     "Browser.Tests/soldier-reference.spec.ts",
     "Browser.Tests/wasm-policy.spec.ts",
+    "Client/Conformance.fs",
+    "Client/Renderers.fs",
+    "Client/renderers.html",
     "SvgFoundation/Examples/ExternalAuthority/README.md",
     "SvgFoundation/Examples/ExternalAuthority/reference.json",
     "SvgFoundation/Examples/FourD/LocalSaveReplayExample.TestEntry.fs",
@@ -43,6 +48,13 @@
     "SvgFoundation/SoldierReferenceExternal.fs",
     "SvgFoundation/SoldierReferenceLocal.fs"
   ],
+  "candidateOptionalPaths": [
+    "Browser.Tests/playwright.renderers.config.ts",
+    "Browser.Tests/renderer-conformance.spec.ts",
+    "Client/Conformance.fs",
+    "Client/Renderers.fs",
+    "Client/renderers.html"
+  ],
   "candidateCanonicalDigests": {
     ".config/dotnet-tools.json": [
       "cf622605d9b06ccacfc5fd98e58783a1cdb2a1d190efdf4a6b4649be493f6374"
@@ -57,10 +69,18 @@
       "f5ed53b9ee86e12f3053e0378fcd1c6d65e925e86792bd3cd82466141c49e67a"
     ],
     "Browser.Tests/package.json": [
-      "937e6ea99087b1c1b223876822778d3831d5ba0eac13f8065f1d5b6ab46e9fad"
+      "937e6ea99087b1c1b223876822778d3831d5ba0eac13f8065f1d5b6ab46e9fad",
+      "b0b6860438f04bc83c9cf8ac6fe719d3f68461d2a028b48261c7041137ee7fd4"
     ],
     "Browser.Tests/playwright.config.ts": [
+      "5d26ecd5e560ab338582fc497e2d2523892cc7a12764c1760e315ebce4be56de",
       "afff7dd20aa2384b4d3ff1c6f71e106614692213c7051d48d6a914c8cabd3a13"
+    ],
+    "Browser.Tests/playwright.renderers.config.ts": [
+      "93a58322fef7168d93309cb6ff5b14deb6b241cda936cfc8829770277f3a9f33"
+    ],
+    "Browser.Tests/renderer-conformance.spec.ts": [
+      "ef8e27c0961dc2818f30f1013a40b565f2206eaca3ae024671b358f105860075"
     ],
     "Browser.Tests/soldier-reference.spec.ts": [
       "a82d75067af339c552cadb975b876c65e9965c26ff6bf605f25b89fb5b97c3f4",
@@ -83,7 +103,11 @@
       "70e79cbdc1f25e060700b0ae1a50b8dfd63eaa1643071a4d3a9623f1083f2ca8"
     ],
     "Client/Client.fsproj": [
+      "4ae9e31427d179bd580b75ba43a087df07966b024d341b04ba9283ca39278588",
       "51c76c8a2ccf67cdc196cdd13edbb0beb8b11e8c1f519dbc318ee9eafb414637"
+    ],
+    "Client/Conformance.fs": [
+      "c6dcb5e622da7aa40b4852b474bea879388066fcf926abeef6acf69ab85ec7b4"
     ],
     "Client/Movement.fs": [
       "87376b79a56076f175d867e0fc6abba23d1e2f8ec4f2ea7265a74c7845076111",
@@ -93,6 +117,9 @@
       "a208eaa92041ee14b597de11689654e4047ad162a4418ff3a38c36e577eb7236",
       "d2d878297c78e268235aaa512ae6b6db8cbab8a9ac313ad6959b6453db59e067"
     ],
+    "Client/Renderers.fs": [
+      "31d240a92187f33c375479abf73e9b7418f3f70a017ae09394ad6ec81dedbd1c"
+    ],
     "Client/SignalR.fs": [
       "2f413cc932e308959c147996982996167f0e96a6aa51c6b310d8617796199e80",
       "482addfb743a8af9f19362c32533e9644e1d9a897b6199f2feec923d785060d6"
@@ -101,16 +128,23 @@
       "acc72f7cf3c25585c53fde439b04dfc59c01345c8fe6f7c36623a87319f3257c"
     ],
     "Client/package-lock.json": [
+      "451496f25d3ac9ebdc7135c37672f7f685e7c88fe9af388215c450a31a8100e4",
       "cfe8d8f3600f7e4cfaf7542a9f24a168da61f46a8def6a31bae29730a60fc907"
     ],
     "Client/package.json": [
+      "e0f04ee18b83a028fa911c85be1a8a2239a543a30e99012d0f8de99eadda55f5",
       "e67f6dbca0ffc1a1ef03f4b7ef84a66b0facb1260cfa29d79b335e767031928e"
     ],
     "Client/packages.lock.json": [
-      "29bb4f78ce84db0ddc6373d2f13d76907ddc768ed133aa3702f7c2ab6208fc42"
+      "29bb4f78ce84db0ddc6373d2f13d76907ddc768ed133aa3702f7c2ab6208fc42",
+      "4108b86eb512264699326f7e4229820e7320512b7371f768fd4e423a51b759f9"
+    ],
+    "Client/renderers.html": [
+      "a2a4289a01d28519e01f750a29e13da06bf83ae69b2c52974147d9cbb21df890"
     ],
     "Client/vite.config.ts": [
-      "49aa78eae4d937d81a10a46de940c8901b6dac4fa721dc0a98dc15231ef32571"
+      "49aa78eae4d937d81a10a46de940c8901b6dac4fa721dc0a98dc15231ef32571",
+      "5281622e7b6118a1ef9952b3f116e428e4048413d97817e4c127a348dec813f4"
     ],
     "Conformance/GeneratedArenaRuleModel.fs": [
       "df0e49c4a588e4791aaf49eb146a8ebd3dad87400bea0cfa10989462336b7463",
@@ -131,7 +165,8 @@
       "fe1eba0359ce97e7e4417bd4096335590a716c4371d05981c5964a8dc21d5f5a"
     ],
     "Directory.Build.props": [
-      "0f6739afc8083038e36ffd0b2f7ce8fd3718ff34fcb6459494ab3823dc138c78"
+      "0f6739afc8083038e36ffd0b2f7ce8fd3718ff34fcb6459494ab3823dc138c78",
+      "9de52a14a01dc4a7719cf528072d96ace8d83d1ad431966508d29cfd0c44dab0"
     ],
     "Domain.Tests/Domain.Tests.fsproj": [
       "a66901a8545fc99a67b6d3d42e0a3b62a038b5cb7ab61b1248a555a1bd0d519c"
@@ -141,7 +176,8 @@
       "597a2b9946c6dc8b63f5520092f255439bac68da976f3c235145dc3e1ae0d699"
     ],
     "Domain.Tests/packages.lock.json": [
-      "2f846ff97ad008ae625e92c51e237b1df80b649ea9a56766351c8a58633f2029"
+      "2f846ff97ad008ae625e92c51e237b1df80b649ea9a56766351c8a58633f2029",
+      "f7423bb2333694e9fb9b530981800804e82292d6ecb4045e1111a37fc505f624"
     ],
     "Domain/ArcadeRules.fs": [
       "c5ba79ac22ad1bf351234091072d55630ad7b36484d39c5630514893d9274280",
@@ -167,7 +203,8 @@
       "d920458b0dd18e04d2b9d30fd3184c95cd031428653fd3d929d2621427c17a77"
     ],
     "Domain/packages.lock.json": [
-      "716f2fceee456c3749bfdd5e9a7c7680cd5e453befb029fe498beb18c8fb496d"
+      "716f2fceee456c3749bfdd5e9a7c7680cd5e453befb029fe498beb18c8fb496d",
+      "f30199dfc759c9e8020d61722cc10f96ae04a53c5e02e13972df42165c63dede"
     ],
     "FableGameWorkspace.slnx": [
       "2d50d93813c9691e3c96dce44409d84515472528da12363278fc20e71db4aaba"
@@ -186,13 +223,15 @@
       "574299a1207367481728b7c80e553cea7ebb2dcf89f16b41827f27131bf3e31e"
     ],
     "Protocol.Tests/cross-runtime/CodecProbe.Fable/packages.lock.json": [
+      "4ee43318d3b614eb766f08551903b1b42b2b158423041e224ace1a57810babe8",
       "f7994c3d8c3042506cd2885f2f3e6b42d57f7537f444daa33fcfbd47d0cb2db2"
     ],
     "Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj": [
       "1d3e5f5e935de5912f944edbf56849c2293d04d32232a3f6bc86fe7b6a3c01ff"
     ],
     "Protocol.Tests/cross-runtime/CodecProbe.Net/packages.lock.json": [
-      "45e09f6b22b419ceccb09a6c36f7278e2947ab86ab02b4fd89ad8042d27964f1"
+      "45e09f6b22b419ceccb09a6c36f7278e2947ab86ab02b4fd89ad8042d27964f1",
+      "ac03ebaf8a834c0f5475317bbf5c8c27e6bc5107e0c08ec13c341b3cd949949d"
     ],
     "Protocol.Tests/cross-runtime/Program.fs": [
       "437a7b5b52aee22485741b74041f6c331524218b37e75b2e47d0b68395b012ca",
@@ -234,6 +273,7 @@
       "fdb8262394d8021dd5c514a6f5b22482881604093abd996d50a4836edf084ce3"
     ],
     "Server.Tests/packages.lock.json": [
+      "78900bedd5b213c0b65561082da75cebbd1d008043488953de616016ba5226c4",
       "a3496027663bc43cfeb82f10d55789f9bb8edbca81f3fb214ed033181c43f3a0"
     ],
     "Server/ArenaContentFile.fs": [
@@ -260,7 +300,8 @@
       "5e630f323309e6621cd4be358d34ceb5e4f5413fb5fb486c34fddc574a22b948"
     ],
     "Server/packages.lock.json": [
-      "20f0842c83822f1d6c546a06bead621d737f2bd34ea09c1b2d4981849629b10a"
+      "20f0842c83822f1d6c546a06bead621d737f2bd34ea09c1b2d4981849629b10a",
+      "df7d6e1c8c3bb35796e0ef9897353dc2d040dc0ff0a8bc99d97aee16beca3019"
     ],
     "Server/wwwroot/.gitkeep": [
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
@@ -481,6 +522,7 @@
       "fbc6e64d901fdba27327cd70d852918caff7e4f4908a640d8859061b6c4261d2"
     ],
     "build.sh": [
+      "287cf4e6709e477d4d76c615a419f61dc718551dcc8c874af34d5e94cbebf3e6",
       "eda2af06085a7f337629c2e0517343474ce995734d9223c1b9efb6909d75c781"
     ],
     "docs/playground/selected-examples.md": [
