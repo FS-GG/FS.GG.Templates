@@ -111,33 +111,61 @@ The realtime baseline has four deliberately small but production-relevant rules:
   capability remains available for its bounded reconnect window, keeping the starter
   zero-config while making the resource boundary visible and testable.
 
-## Renderers: the three-adapter authoring path and conformance kit
+## Renderers: a game playable on SVG, Pixi and Babylon
 
 The Fable client carries the published `FS.GG.Game.Render` and `FS.GG.Game.Render.Browser` `0.18.0` authoring
-path (FS.GG.Game's "Three-adapter authoring path"): one `Renderers.view` projects the game's state onto a Scene,
-and the SVG, PixiJS and BabylonJS surfaces all draw that Scene. `Client/Renderers.fs` is the module
-`scripts/new-game-renderers.sh` of FS.GG.Game `0.18.0` generates (`--module Renderers --state App.Model`), with
-`view` written for this game's arena (the arena, the selected path, the other players and this client's own
-player). `Renderers.start` starts the renderers on a `RendererDriver`; dispatch `RendererMsg.StateChanged state`
-for each new state and `RendererMsg.SelectBackend backend` to switch at runtime, and offer
-`RendererSelection.available driver.Model` in a selector. The game state survives every switch.
+path (FS.GG.Game's "Three-adapter authoring path" and "Interaction contract"), and its game page is playable on all
+three backends.
 
-`Client/Conformance.fs` runs the kit (`RendererConformance.run`) on `Renderers.conformance`: registry, round trip,
-switching, disposal, late and present failures, each checked against what the page itself observes (SVG DOM,
-canvas pixels, WebGL contexts, Babylon engines, Pixi applications). `Client/renderers.html` loads it, and
-`Browser.Tests/renderer-conformance.spec.ts` requires every requirement to pass on all three backends. It runs as
-the last step of `build.sh` (`cd Browser.Tests && npm run test:renderers`, after the client is built), in
-Chromium with software WebGL; set `PLAYWRIGHT_CHROMIUM_ARGS` to add launch flags (for example a GPU host's ANGLE
-flags). The game page (`index.html`) never imports the renderers or the PixiJS and BabylonJS they need, so the
-game ships none of it unless it chooses to.
+**What a player gets.** The page `Client/index.html` shows the arena as the DOM grid `App.view` maintains (the default,
+and the page the existing journeys drive) or drawn by the SVG, PixiJS or BabylonJS renderer. The `Renderer` selector
+(`#renderer-backend`) switches between them at run time, and the game state, which is the Elmish `App.Model`, survives
+every switch. On every renderer a cell is selected the same three ways, and each becomes the `CellClicked` message a
+click or Enter on a DOM grid cell dispatches (so the server stays the only authority for movement):
 
-To bring your own state, edit `Renderers.view` and the `states` list in `Conformance.fs` (at least two states
-that look different). Play in this arena is cell selection (`CellClicked`, `handleCellKey`, `aria-selected` in
-`App.fs`), and the kit has an `interaction` section for exactly such games (`SceneInteraction` and
-`RendererConformance.withInteraction`, which needs a driver of real input). This template does not run that section
-yet: `index.html` still draws the arena with its DOM grid, not through the three renderers, so a newly generated
-game is not yet playable on SVG, Pixi and Babylon. Wiring the page to `Renderers.start` through `SceneInteraction`,
-with runtime backend switching and a real-input journey, is the remaining step of FS.GG.Templates#834.
+| Input | SVG, Pixi and Babylon |
+|---|---|
+| Pointer | a primary press on a cell (each backend's own hit test; they agree with `SceneInteraction.hitTest`) |
+| Keyboard | the surface is a focusable `role=application`; the arrows move a focus through the cells in row-major order (the published contract: right or down is the next cell, left or up the previous), Enter or Space selects the focused cell, Escape clears the selection (`SelectionCleared`) |
+| Accessible mirror | one labelled button per cell (`Column 3, row 2: empty`), `aria-pressed` on the selected one and a polite status, kept out of sight until a button has the focus |
+
+The DOM grid keeps its own two-dimensional arrow keys; the renderers' arrows are the contract's linear order. The
+selected cell (`Model.Selected`) is game state, so each backend draws it and the mirror reports it after a switch.
+
+**Where the pieces are.** `Client/Renderers.fs` is the module `scripts/new-game-renderers.sh` of FS.GG.Game `0.18.0`
+generates (`--module Renderers --state App.Model`), with `view`, `objects` (one selectable object per arena cell) and
+`select` (the game's selection rule) written for this arena. `Client/Stage.fs` mounts them in `#renderer-stage`,
+starts a `RendererDriver`, binds the `SelectionRoute` to `CellClicked` and `SelectionCleared`, and keeps the renderers
+presenting the model; `Program.fs` calls it after `App.view`. To bring your own game, edit `view`, `objects` and
+`select`, and the `states` list in `Conformance.fs` (at least two states that look different).
+
+**Which page is served.** The default product serves the static SVG player (`SvgFoundation/`) from the authority
+server, and this client only when the product has no `SvgFoundation` (the legacy composition). Run the renderer page
+with `cd Client && npm run dev` beside `dotnet run --project Server/Server.fsproj`, or serve the built `Client/dist`
+(`vite preview`, with `FSGG_AUTHORITY` naming the server).
+
+**The conformance kit and the journeys.** `Client/Conformance.fs` runs the kit (`RendererConformance.run`) on
+`Renderers.conformance`, including its `interaction` section (hit test, keyboard, accessible mirror, input-host
+disposal, selection across a switch), each checked against what the page itself observes. `Client/renderers.html`
+loads it. `Browser.Tests/renderer-conformance.spec.ts` requires every requirement to pass on all three backends, driven
+with real pointer and keyboard input (`renderer-support.ts` exposes the test driver the kit asks for), and a control
+that gives the same objects a selection rule that ignores requests, which the kit must refuse on every backend.
+`Browser.Tests/renderer-journey.spec.ts` plays the real page against the authority server: on each backend a move by
+pointer, by keyboard and through the mirror, a switch through svg, pixi, babylon, svg, babylon, pixi and the DOM grid with
+the state kept, and a press outside the board that must play nothing. Both run as the last step of `build.sh`
+(`cd Browser.Tests && npm run test:renderers`), in Chromium with software WebGL; set `PLAYWRIGHT_CHROMIUM_ARGS` to add
+launch flags (for example a GPU host's ANGLE flags).
+
+**Cost.** The game page's JavaScript (measured with the built page loaded in Chromium, uncompressed and gzip): the
+page without renderers was 145,909 bytes (40,402 gzip) in 2 files; with all three it is 1,591,588 bytes (413,107 gzip)
+in 2 files at load, and choosing Pixi then Babylon loads 11 more files, 1,932,195 bytes (497,913 gzip) in all. Pixi and
+Babylon are imported statically by `BrowserRenderers`, so a page that starts on the DOM grid still pays for them until
+FS.GG.Game#774 (lazy loading) ships. `renderer-journey.spec.ts` records the number and bounds it at 4 MB.
+
+**Known limits.** Keep the board unscaled: Babylon's picking under CSS scaling and its pixel offsets are FS.GG.Game#753
+and #778. Babylon draws lit at about 0.75 of the scene colour. `SelectionRequest` carries no modifier keys
+(FS.GG.Game#771), so a shift or control click is a plain selection. The retained SVG surface does not tag `data-renderer`
+(FS.GG.Game#767), so the page uses the interactive `SvgSurface`.
 
 The client's Game.Core is `FsGgGameVersion` (and `FsGgGameNetworkVersion`, the server's), `0.18.0`, because
 `FS.GG.Game.Render` of a version depends on Game.Core of that version. The static SVG player and Studio under

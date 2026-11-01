@@ -21,6 +21,7 @@
     <Compile Include="Movement.fs" />
     <Compile Include="App.fs" />
     <Compile Include="Renderers.fs" />
+    <Compile Include="Stage.fs" />
     <Compile Include="Conformance.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
@@ -45,8 +46,8 @@
          SceneRenderers declaration and RendererConformance; Render.Browser the SVG, PixiJS and BabylonJS surfaces, the
          RendererDriver, BrowserRenderers and BrowserConformance. Renderers.fs declares the game's renderers and
          Conformance.fs runs the kit; `renderers.html` is the page that loads it. The JavaScript the surfaces import
-         (@babylonjs/core 9.33.1, pixi.js 8.22.0) is pinned in package.json beside this file, and only
-         `renderers.html` reaches it: the game page never loads a renderer. -->
+         (@babylonjs/core 9.33.1, pixi.js 8.22.0) is pinned in package.json beside this file.
+         `Stage.fs` mounts the renderers on the game page and `renderers.html` runs the conformance kit. -->
     <PackageReference Include="FS.GG.UI.Scene" Version="[$(FsGgSvgInputVersion)]" />
     <PackageReference Include="FS.GG.UI.Scene.SvgBrowser" Version="[$(FsGgSvgInputVersion)]" />
     <PackageReference Include="FS.GG.UI.KeyboardInput" Version="[$(FsGgSvgInputVersion)]" />

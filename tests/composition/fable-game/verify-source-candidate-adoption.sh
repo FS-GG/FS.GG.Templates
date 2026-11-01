@@ -93,8 +93,9 @@ if ! "$adopter" complete-inventory "$out/candidate" "$out/retained" "$manifest" 
   jq -c '.conflicts' "$out/inventory.json" >&2 || true
   fail 'the admitted candidate was not accepted'
 fi
-for added in Client/Renderers.fs Client/Conformance.fs Client/renderers.html \
-  Browser.Tests/renderer-conformance.spec.ts Browser.Tests/playwright.renderers.config.ts; do
+for added in Client/Renderers.fs Client/Conformance.fs Client/Stage.fs Client/renderers.html \
+  Browser.Tests/renderer-conformance.spec.ts Browser.Tests/renderer-journey.spec.ts Browser.Tests/renderer-support.ts \
+  Browser.Tests/playwright.renderers.config.ts; do
   jq -e --arg p "$added" '[.changes[] | select(.path==$p and .state=="add")] | length==1' "$out/inventory.json" >/dev/null \
     || fail "the inventory does not add $added"
 done
@@ -122,4 +123,4 @@ PY
   || { tail -n 60 "$out/client-build.log" >&2; fail 'the adopted receiver Client project does not compile with Fable'; }
 test -s "$out/client-output/Renderers.js" && test -s "$out/client-output/Conformance.js" \
   || fail 'Fable did not emit the adopted renderers'
-echo "source-candidate-adoption: baselines refusal named the unmanaged closure; admitted candidate adopted $old_version with 5 added files; Client restored locked and compiled with Fable"
+echo "source-candidate-adoption: baselines refusal named the unmanaged closure; admitted candidate adopted $old_version with 8 added files; Client restored locked and compiled with Fable"

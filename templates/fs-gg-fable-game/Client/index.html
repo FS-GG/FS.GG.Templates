@@ -12,6 +12,12 @@
       .cell:focus-visible { outline: 3px solid #fff; outline-offset: 2px; position: relative; z-index: 1; }
       .cell.self { background: #3fa7ff; }
       .cell.other { background: #ff7043; }
+      #renderer-stage:not([hidden]) { display: inline-block; }
+      /* The accessible mirror lists every cell as a button. It stays in the page for keyboard and assistive technology
+         users, out of sight until one of its buttons has the focus. */
+      #renderer-stage [data-scene-controls]:not(:focus-within) {
+        position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap;
+      }
       .cell.preview { outline: 2px dashed #ffd54f; outline-offset: -2px; }
     </style>
   </head>
@@ -26,6 +32,17 @@
         <button id="reconnect" type="button">Reconnect and resync</button>
       </p>
       <p id="player-id" hidden></p>
+      <p>
+        <label for="renderer-backend">Renderer</label>
+        <select id="renderer-backend">
+          <option value="grid" selected>DOM grid</option>
+          <option value="svg">SVG</option>
+          <option value="pixi">Pixi</option>
+          <option value="babylon">Babylon</option>
+        </select>
+        <span id="renderer-status">Renderer: DOM grid</span>
+      </p>
+      <div id="renderer-stage" hidden></div>
       <div id="arena" aria-busy="true"></div>
     </main>
     <script type="module" src="./output/Program.js"></script>

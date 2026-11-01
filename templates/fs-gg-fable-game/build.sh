@@ -133,9 +133,10 @@ dotnet publish Server/Server.fsproj -c Release --no-restore -o artifacts/authori
     fi
   fi
   npm test
-  # The game's renderers on all three backends: FS.GG.Game.Render's conformance kit, run in this browser against
-  # the client built above (GAME-RENDER-ADOPT-01.10). Its own configuration: it needs WebGL, and it keeps the game
-  # journeys' report above unchanged.
+  # The game's renderers on all three backends: FS.GG.Game.Render's conformance kit (interaction included) and the
+  # real-input journeys of the game page, run in this browser against the client and authority server built above
+  # (GAME-RENDER-ADOPT-01.10, #840). Its own configuration: it needs WebGL, and it keeps the game journeys'
+  # report above unchanged.
   npm run test:renderers
 )
 

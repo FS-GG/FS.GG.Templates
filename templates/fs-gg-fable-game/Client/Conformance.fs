@@ -13,10 +13,11 @@ open FS.GG.UI.Scene
 /// `renderers.html` loads this module, which runs the FS.GG.Game.Render conformance kit
 /// (`RendererConformance.run`) on `Renderers.conformance` against the SVG, Pixi and Babylon backends in the real
 /// browser, and then writes the verdict into `#conformance-result` for `Browser.Tests/renderer-conformance.spec.ts`.
-/// It is not part of the game page: `index.html` never imports it, so the game ships no renderer code it does not use.
+/// It is not part of the game page: `index.html` never imports it, so the game ships no test code.
 ///
-/// What a game edits to bring its own state: `Renderers.view` (the Scene), `states` (at least two game states that
-/// look different) and nothing else. `shows` reads each backend's output back from the page, independently of the
+/// What a game edits to bring its own state: `Renderers.view` (the Scene), `Renderers.objects` and `Renderers.select`
+/// (what a player can select and what selecting does), `states` (at least two game states that look different) and
+/// nothing else. `shows` reads each backend's output back from the page, independently of the
 /// adapter: the SVG DOM for SVG, and a canvas pixel through `BrowserConformance.readPixel` for Pixi and Babylon.
 module ConformancePage =
 
@@ -34,6 +35,7 @@ module ConformancePage =
                 Tick = 0
                 NextSequence = 1
                 PreviewPath = []
+                Selected = None
                 Status = "conformance"
             }
 
@@ -48,6 +50,7 @@ module ConformancePage =
             { alone with
                 Players = alone.Players |> Map.add "them" { Col = 10; Row = 6 }
                 PreviewPath = [ { Col = 3; Row = 3 }; { Col = 4; Row = 3 } ]
+                Selected = Some { Col = 4; Row = 3 }
                 Tick = 2
             }
 
@@ -105,8 +108,10 @@ module ConformancePage =
             | null -> nan
             | text -> float text
 
+        // The interactive SVG surface draws the Scene in the `game` layer and its transparent hit shapes, one per selectable
+        // cell, in the `selectables` layer: only the Scene's own nodes are what the backend shows of the state.
         let elements (selector: string) =
-            let found = container.querySelectorAll selector
+            let found = container.querySelectorAll ("[data-scene-layer-id='game'] " + selector)
             [ for index in 0 .. int found.length - 1 -> found.item index ]
 
         let rectangles = elements "rect"
@@ -238,6 +243,20 @@ module ConformancePage =
         | RendererBackend.Svg -> async { return svgShows container state }
         | _ -> canvasShows host container backend state
 
+    [<Emit("new URLSearchParams(window.location.search).get('control') || ''")>]
+    let private controlName () : string = jsNative
+
+    /// The interaction the kit runs on. `?control=ignore-selection` is a causal control for Browser.Tests: the same
+    /// objects, but a selection rule that ignores every request, which the kit's `interaction` section must refuse.
+    let private interactionUnderTest () : SceneInteraction<App.Model> =
+        match controlName () with
+        | "ignore-selection" ->
+            SceneInteraction.create
+                Renderers.objects
+                (fun state -> state.Selected |> Option.map Renderers.cellId)
+                (fun _ state -> state)
+        | _ -> Renderers.interaction
+
     [<Emit("console.log('RENDERER-CONFORMANCE checks=' + $0 + ' failures=' + $1)")>]
     let private announce (checks: int) (failures: int) : unit = jsNative
 
@@ -266,7 +285,7 @@ module ConformancePage =
 
                 // The kit, on SVG, Pixi and Babylon: registry, round trip, switching, disposal, late and present
                 // failures, each against what the page itself observes.
-                let! results = RendererConformance.run (Renderers.conformance stage states (shows stage))
+                let! results = RendererConformance.run (Renderers.conformance stage (interactionUnderTest ()) states (shows stage))
 
                 for result in results do
                     record ("kit: " + result.Check) result.Passed result.Detail
@@ -281,7 +300,7 @@ module ConformancePage =
                 // The authoring path's start: SVG first, then a runtime switch to each canvas backend with the game
                 // state kept, and disposal releasing the pending Pixi application.
                 let initial = states.[2]
-                let driver = Renderers.start stage initial ignore
+                let driver = Renderers.start stage initial (SelectionRoute.create ()) ignore
                 let offered = RendererSelection.available driver.Model
                 driver.Dispatch(RendererMsg.SelectBackend RendererBackend.Babylon)
                 let onBabylon = driver.Mounted = Some RendererBackend.Babylon && driver.Model.State = initial

@@ -29,6 +29,9 @@ module App =
             Tick: int
             NextSequence: int
             PreviewPath: Cell list
+            /// The cell the player chose last, on whichever surface (the DOM grid or any renderer). It is game
+            /// state, so every renderer shows it and it survives every backend switch (GAME-RENDER-ADOPT, #840).
+            Selected: Cell option
             Status: string
         }
 
@@ -47,6 +50,8 @@ module App =
 #endif
         | ReceivedRealtime of RealtimeV1.Message
         | CellClicked of Cell
+        /// Escape on a renderer surface: nothing is chosen.
+        | SelectionCleared
 
     /// The one live `SignalR.HubConnection`, outside `Model` because it is not data:
     /// Elmish models are compared/replaced by value, and a connection is an external
@@ -102,6 +107,7 @@ module App =
                 Tick = 0
                 NextSequence = 1
                 PreviewPath = []
+                Selected = None
                 Status = "bootstrapping"
             }
 
@@ -236,7 +242,10 @@ module App =
                 // client that does. Receiving one here would mean this client is talking
                 // to something other than this template's own server.
                 model, Cmd.none
+        | SelectionCleared -> { model with Selected = None }, Cmd.none
         | CellClicked target ->
+            let model = { model with Selected = Some target }
+
             match model.PlayerId with
             | None -> model, Cmd.none
             | Some playerId ->
