@@ -421,12 +421,16 @@ def current_reference_manifest(path: Path, extension: dict) -> dict:
         fail("current reference additional baselines must name only added managed paths")
     baseline_digests = {version: {**rows, **extra_baselines.get(version, {})}
                         for version, rows in baseline["baselineDigests"].items()}
-    optional = extension.get("candidateOptionalPaths", [])
-    if (not isinstance(optional, list) or optional != sorted(set(optional))
-            or not set(optional) <= set(additions)):
-        fail("current reference optional paths must be a sorted unique subset of the additions")
+    optional = extension.get("candidateOptionalSets", {})
+    flat = [path for paths in optional.values() if isinstance(paths, list) for path in paths] \
+        if isinstance(optional, dict) else []
+    if (not isinstance(optional, dict)
+            or any(not isinstance(name, str) or not name or not isinstance(paths, list) or not paths
+                   or paths != sorted(set(paths)) for name, paths in optional.items())
+            or len(flat) != len(set(flat)) or not set(flat) <= set(additions)):
+        fail("current reference optional sets must be named, sorted, unique, disjoint subsets of the additions")
     return {**baseline, "managedPaths": combined, "baselineDigests": baseline_digests,
-            "candidateOptionalPaths": optional,
+            "candidateOptionalSets": optional,
             "currentPublishedReference": CURRENT_REFERENCE,
             "candidateCanonicalDigests": canonical,
             "sourceCandidates": [CURRENT_REFERENCE]}
@@ -486,39 +490,181 @@ def manifest_data(path: Path) -> tuple[dict, list[str], list[str], dict[str, set
     return manifest, managed, retired, allowed
 
 
-def compile_closure_conflicts(candidate: Path, managed: list[str], solution: Path) -> list[dict]:
-    """Refuse a candidate whose managed project compiles a file the manifest does not manage.
+# The closure oracle is MSBuild itself (FS.GG.Templates#841). A hand-written evaluator of MSBuild conditions, globs and
+# imports will always lag the tool, so the question "does a project of the adopted tree name a file the manifest does
+# not manage?" is put to `dotnet msbuild` on an image of the post-adoption tree, in every configuration the template
+# defines, and anything MSBuild cannot evaluate is a conflict.
+_CLOSURE_ITEM_TYPES = ("Compile,EmbeddedResource,None,Content,Resource,CompileBefore,CompileAfter,ProjectReference,"
+                       "Reference,AdditionalFiles,Analyzer,Page")
+_CLOSURE_ITEM_NAMES = {name.lower() for name in _CLOSURE_ITEM_TYPES.split(",")}
+_CLOSURE_CONFIGURATIONS = ("Debug", "Release")
+_CLOSURE_PROJECTS = (".fsproj", ".csproj", ".vbproj")
+_closure_memo: dict[str, list[dict]] = {}
 
-    Adoption replaces a receiver's managed project files with the candidate's, so an unconditional
-    `Compile Include` that is not itself managed would reach the receiver as a reference to a file the
-    transaction never delivers (FS0225 at the receiver's first build). Includes guarded by a Condition or
-    an MSBuild property are optional by construction and are not part of the closure."""
-    managed_set = set(managed)
-    conflicts = []
-    for logical in managed:
-        if not logical.endswith(".fsproj"):
+
+def _msbuild_environment() -> dict[str, str]:
+    """The environment of an evaluation: the tool's own variables and nothing ambient, so a project cannot name a file
+    through a variable of the machine that happens to run the check."""
+    keep = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT")
+    environment = {key: value for key, value in os.environ.items()
+                   if key in keep or key.startswith(("DOTNET_", "NUGET_", "MSBUILD"))}
+    environment.update({"DOTNET_NOLOGO": "1", "DOTNET_CLI_TELEMETRY_OPTOUT": "1", "MSBUILDDISABLENODEREUSE": "1"})
+    return environment
+
+
+def _local_name(element) -> str:
+    return element.tag.rsplit("}", 1)[-1]
+
+
+def _closure_image(candidate: Path, image: Path) -> None:
+    """The candidate's tree as MSBuild will see it (build output and package folders left out)."""
+    for source in relevant_files(candidate):
+        # The candidate's SDK pin is left out: what a project names does not depend on the SDK's patch level, and a pin to
+        # an SDK this machine lacks would make every evaluation fail (the check still fails closed with no SDK at all).
+        if source.is_symlink() or source.name == "global.json":
             continue
-        project = candidate_path(candidate, logical, solution)
-        if not project.is_file():
-            continue
-        try:
-            root = ET.parse(project).getroot()
-        except ET.ParseError as error:
-            conflicts.append({"path": logical, "reason": f"candidate project is not well-formed XML: {error}"})
-            continue
-        for group in root.iter("ItemGroup"):
-            if group.get("Condition") is not None:
+        target = image / source.relative_to(candidate)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
+
+
+def _closure_key(image: Path, managed: set[str]) -> str:
+    digests = hashlib.sha256()
+    for path in sorted(image.rglob("*")):
+        if path.is_file():
+            digests.update(f"{path.relative_to(image).as_posix()}\0{digest(path.read_bytes())}\0".encode())
+    digests.update(("|".join(sorted(managed)) + "|".join(_CLOSURE_CONFIGURATIONS) + _CLOSURE_ITEM_TYPES).encode())
+    return digests.hexdigest()
+
+
+def _evaluate_project(image: Path, managed: set[str], logical: str, configuration: str) -> list[dict]:
+    """Ask MSBuild for the items and imports of one project in one configuration."""
+    import subprocess
+
+    def run(*arguments: str):
+        return subprocess.run(["dotnet", "msbuild", str(image / logical), "-nologo", "-nodeReuse:false",
+                               f"-p:Configuration={configuration}", "-p:EnableDefaultNoneItems=false",
+                               "-p:EnableDefaultContentItems=false", *arguments],
+                              cwd=image, env=_msbuild_environment(), capture_output=True, text=True, timeout=600)
+
+    def refuse(reason: str) -> list[dict]:
+        return [{"path": logical, "reason": f"candidate project cannot be evaluated by MSBuild ({configuration}): {reason}"}]
+
+    found: list[dict] = []
+    def said(result) -> str:
+        text = (result.stderr or result.stdout).strip()
+        return " / ".join(text.splitlines()[:2])[:300] if text else "no output"
+
+    try:
+        items = run(f"-getItem:{_CLOSURE_ITEM_TYPES}")
+    except (OSError, subprocess.SubprocessError) as error:
+        return refuse(f"{type(error).__name__}: {error}"[:300])
+    try:
+        value = json.loads(items.stdout) if items.returncode == 0 else None
+    except ValueError:
+        value = None
+    if not isinstance(value, dict) or "Items" not in value:
+        return refuse(said(items))
+    for kind, rows in value["Items"].items():
+        for row in rows:
+            full = Path(row.get("FullPath", ""))
+            try:
+                relative = full.resolve().relative_to(image.resolve())
+            except ValueError:
+                continue  # a package, an SDK file or another tree: not this tree's closure
+            if any(part in IGNORED_PARTS for part in relative.parts) or full.is_dir():
                 continue
-            for item in group.findall("Compile"):
-                include = item.get("Include")
-                if include is None or item.get("Condition") is not None or "$(" in include:
-                    continue
-                target = PurePosixPath(os.path.normpath(
-                    (PurePosixPath(logical).parent / include.replace("\\", "/")).as_posix())).as_posix()
-                if target not in managed_set:
-                    conflicts.append({"path": logical,
-                                      "reason": f"candidate project compiles {target}, outside the managed closure"})
+            if relative.as_posix() not in managed:
+                found.append({"path": logical,
+                              "reason": f"candidate project names {kind} {relative.as_posix()}, outside the managed closure"})
+    # Imports: MSBuild fails the evaluation of a file it cannot load (refused above); what is left to refuse here is items
+    # that only a target would add, which an evaluation does not see.
+    preprocessed = image.parent / f"closure-{configuration}-{logical.replace('/', '_')}.xml"
+    try:
+        result = run(f"-preprocess:{preprocessed}")
+        if result.returncode != 0 or not preprocessed.is_file():
+            return refuse(said(result))
+        loaded = {Path(line.strip()) for line in preprocessed.read_text(errors="replace").splitlines()
+                  if line.strip().startswith("/") and Path(line.strip()).is_file()}
+    except (OSError, subprocess.SubprocessError) as error:
+        return refuse(f"{type(error).__name__}: {error}"[:300])
+    finally:
+        preprocessed.unlink(missing_ok=True)
+    for file in sorted(loaded):
+        try:
+            relative = file.resolve().relative_to(image.resolve()).as_posix()
+        except ValueError:
+            continue
+        if relative not in managed:
+            found.append({"path": logical, "reason": f"candidate project imports {relative}, outside the managed closure"})
+        try:
+            root = ET.parse(file).getroot()
+        except ET.ParseError:
+            continue
+        for target in root.iter():
+            if _local_name(target) != "Target":
+                continue
+            for group in target.iter():
+                if _local_name(group) == "ItemGroup" and any(
+                        _local_name(child).lower() in _CLOSURE_ITEM_NAMES for child in group):
+                    found.append({"path": logical, "reason": (
+                        f"candidate project adds closure items in a target ({file.resolve().relative_to(image.resolve()).as_posix()}"
+                        f", {target.get('Name')}), which an evaluation does not see")})
+    return found
+
+
+def compile_closure_conflicts(candidate: Path, managed: list[str], solution: Path) -> list[dict]:
+    """Refuse a candidate whose managed MSBuild projects name a file the manifest does not manage.
+
+    Adoption replaces a receiver's managed files with the candidate's, so an item that names a file the transaction
+    never delivers reaches the receiver as a dangling reference (FS0225 at its first build). MSBuild answers the
+    question: the candidate's tree is copied to a scratch image, and each project in it is evaluated
+    with `dotnet msbuild -getItem` (and `-preprocess` for its imports) in Debug and Release, with the environment of the
+    tool only and the SDK's default None and Content globs off. An item whose path is inside the tree and not managed is a
+    conflict. A project MSBuild cannot
+    evaluate, a missing `dotnet`, and items only a target would add are conflicts too: the check fails closed.
+    Results are memoised on the image's bytes."""
+    conflicts: list[dict] = []
+    with tempfile.TemporaryDirectory(prefix="fsgg-closure-") as scratch:
+        image = Path(scratch) / "tree"
+        image.mkdir()
+        _closure_image(candidate, image)
+        delivered = {value for value in managed if (image / value).is_file()}
+        key = _closure_key(image, delivered)
+        if key in _closure_memo:
+            return [dict(row) for row in _closure_memo[key]]
+        # Only managed projects reach a receiver, so only they are evaluated.
+        projects = sorted(value for value in delivered if value.endswith(_CLOSURE_PROJECTS))
+        import concurrent.futures
+        jobs = [(logical, configuration) for logical in projects for configuration in _CLOSURE_CONFIGURATIONS]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, (os.cpu_count() or 2))) as pool:
+            for rows in pool.map(lambda job: _evaluate_project(image, delivered, *job), jobs):
+                for row in rows:
+                    if row not in conflicts:
+                        conflicts.append(row)
+    conflicts.sort(key=lambda row: (row["path"], row["reason"]))
+    _closure_memo[key] = [dict(row) for row in conflicts]
     return conflicts
+
+
+def optional_skipped(manifest: dict, candidate: Path, solution: Path) -> tuple[set[str], list[dict]]:
+    """The successor-only paths this candidate does not carry, and a conflict for every set it carries only in part.
+
+    A set (`candidateOptionalSets`) is admitted all or none: a candidate with some of a set's files but not the
+    rest would deliver a project that compiles files it never delivers, or files nothing compiles."""
+    skipped: set[str] = set()
+    conflicts: list[dict] = []
+    for name, paths in sorted(manifest.get("candidateOptionalSets", {}).items()):
+        carried = [value for value in paths if candidate_path(candidate, value, solution).exists()]
+        if not carried:
+            skipped.update(paths)
+        elif len(carried) != len(paths):
+            for value in paths:
+                if value not in carried:
+                    skipped.add(value)
+                    conflicts.append({"path": value, "reason": f"candidate carries only part of the optional set {name}: "
+                                      f"{len(carried)} of {len(paths)} files"})
+    return skipped, conflicts
 
 
 def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
@@ -532,10 +678,11 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
     diff_parts = []
     # Paths a successor candidate adds beyond an earlier published reference: managed when the candidate carries
     # them, and simply absent from the transaction when it does not (the published donor predates them).
-    optional = set(manifest.get("candidateOptionalPaths", []))
+    skipped, partial_sets = optional_skipped(manifest, candidate, source_solution)
+    conflicts.extend(partial_sets)
     for logical in managed:
         source_path = candidate_path(candidate, logical, source_solution)
-        if logical in optional and not source_path.exists():
+        if logical in skipped:
             continue
         destination = actual_path(workspace, logical, destination_solution)
         reject_symlink_chain(candidate, source_path, "candidate managed")
@@ -623,9 +770,7 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
                 except UnicodeDecodeError:
                     diff_parts.append(f"Binary file retired: {logical}\n")
     conflicts.extend(compile_closure_conflicts(
-        candidate,
-        [value for value in managed if value not in optional or candidate_path(candidate, value, source_solution).exists()],
-        source_solution))
+        candidate, [value for value in managed if value not in skipped], source_solution))
     preserved = []
     for path in relevant_files(workspace):
         rel = path.relative_to(workspace).as_posix()
@@ -851,9 +996,8 @@ def apply(args: list[str]) -> None:
     manifest, managed, retired, _ = manifest_data(manifest_path)
     managed, retired = effective_paths(workspace, managed, retired)
     source_product, source_namespace, source_solution = identity(candidate)
-    optional = set(manifest.get("candidateOptionalPaths", []))
-    managed = [value for value in managed
-               if value not in optional or candidate_path(candidate, value, source_solution).exists()]
+    skipped, _ = optional_skipped(manifest, candidate, source_solution)
+    managed = [value for value in managed if value not in skipped]
     destination_product, destination_namespace, destination_solution = identity(workspace)
     backup.mkdir(parents=True)
     (backup / "files").mkdir()

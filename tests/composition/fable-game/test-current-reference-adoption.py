@@ -2,12 +2,14 @@
 """Pure synthetic controls. No template engine, public archive or runtime proof."""
 import importlib.util
 import json
+import sys
 import os
 import subprocess
 from pathlib import Path
 import tempfile
 import unittest
 
+HERE = Path(__file__).resolve().parent
 ROOT = Path(__file__).resolve().parents[3]
 SPEC = importlib.util.spec_from_file_location('reference_harness', Path(__file__).with_name('verify-current-reference-adoption.py'))
 harness = importlib.util.module_from_spec(SPEC)
@@ -44,7 +46,8 @@ class CurrentReference(unittest.TestCase):
             if logical.startswith(('.agents/', '.claude/')):
                 continue
             # The published reference predates the successor-only paths; its candidate simply lacks them.
-            if logical in manifest.get('candidateOptionalPaths', []) and not (FIXTURE_ROOT / 'templates/fs-gg-fable-game' / logical).exists():
+            optional = [path for paths in manifest.get('candidateOptionalSets', {}).values() for path in paths]
+            if logical in optional and not (FIXTURE_ROOT / 'templates/fs-gg-fable-game' / logical).exists():
                 continue
             raw = (FIXTURE_ROOT / 'templates/fs-gg-fable-game' / logical).read_bytes()
             destination = self.candidate / ('SyntheticReference403.slnx' if logical == 'FableGameWorkspace.slnx' else logical)
@@ -161,28 +164,98 @@ class CurrentReference(unittest.TestCase):
             self.inventory_receiver()
         self.assertEqual(self.tree(), before)
 
-    def test_candidate_project_compiling_an_unmanaged_file_is_a_closure_conflict(self):
-        # FS.GG.Templates#834: a managed project that compiles a file the manifest does not manage would reach the
-        # receiver as a dangling reference. Conditional and property-named includes are optional by construction.
-        root = self.root / 'closure'
-        (root / 'Client').mkdir(parents=True)
-        (root / 'Client/Client.fsproj').write_text(
-            '<Project><ItemGroup><Compile Include="../Protocol/Http.fs" /><Compile Include="App.fs" />'
-            '<Compile Include="Renderers.fs" /><Compile Include="Skipped.fs" Condition="Exists(\'Skipped.fs\')" />'
-            '<Compile Include="$(Generated)/Gen.fs" /></ItemGroup>'
-            '<ItemGroup Condition="false"><Compile Include="Guarded.fs" /></ItemGroup></Project>')
-        solution = root / 'X.slnx'
-        managed = ['Client/Client.fsproj', 'Protocol/Http.fs', 'Client/App.fs']
-        found = adopter.compile_closure_conflicts(root, managed, solution)
-        self.assertEqual([row['reason'] for row in found],
-                         ['candidate project compiles Client/Renderers.fs, outside the managed closure'])
-        self.assertEqual(adopter.compile_closure_conflicts(root, managed + ['Client/Renderers.fs'], solution), [])
+    # FS.GG.Templates#834 and #841: a managed MSBuild project that names a file the manifest does not manage would reach the
+    # receiver as a dangling reference. The oracle is MSBuild itself (`dotnet msbuild -getItem` and `-preprocess`, in Debug
+    # and Release, on a copy of the candidate's tree); the cases are in closure_cases.py, one crafted project each.
+    @staticmethod
+    def closure_tree(root, body, extra, unmanaged):
+        files = {'X.slnx': '<Solution/>', 'Domain/Room.fs': 'module N.Domain\n', 'P/Ok.fs': 'x', 'P/Gen.fs': 'unmanaged',
+                 'P/P.fsproj': '<Project Sdk="Microsoft.NET.Sdk">\n<PropertyGroup><EnableDefaultItems>false</EnableDefaultItems>'
+                               f'<TargetFramework>net10.0</TargetFramework></PropertyGroup>\n{body}\n</Project>\n'}
+        files.update(extra)
+        for logical, text in files.items():
+            (root / logical).parent.mkdir(parents=True, exist_ok=True)
+            (root / logical).write_text(text)
+        return [logical for logical in files if logical not in ('P/Gen.fs', *unmanaged)]
 
-    def test_optional_paths_must_be_successor_additions(self):
-        self.extension['candidateOptionalPaths'] = ['Domain/Room.fs']
-        self.write_extension()
-        with self.assertRaises(SystemExit):
-            self.inventory_receiver()
+    def test_closure_oracle_agrees_with_msbuild_on_every_case(self):
+        import concurrent.futures
+        sys.path.insert(0, str(HERE))
+        from closure_cases import CASES
+
+        def run(item):
+            name, (body, extra, unmanaged, refused) = item
+            root = self.root / ('case-' + name)
+            managed = self.closure_tree(root, body, extra, unmanaged)
+            rows = adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')
+            return name, refused, [row['reason'] for row in rows]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(run, CASES.items()))
+        self.assertGreaterEqual(len(results), 55)
+        self.assertEqual([(name, refused) for name, refused, reasons in results if bool(reasons) != refused], [])
+        # Both kinds of verdict are exercised, and a refusal names the project's offending file or the failed evaluation.
+        self.assertTrue(any(refused for _, refused, _ in results) and any(not refused for _, refused, _ in results))
+        for name, refused, reasons in results:
+            if refused:
+                self.assertTrue(all('outside the managed closure' in reason or 'cannot be evaluated' in reason
+                                    or 'adds closure items in a target' in reason for reason in reasons), (name, reasons))
+
+    def test_closure_check_fails_closed_when_msbuild_cannot_run(self):
+        root = self.root / 'closed'
+        managed = self.closure_tree(root, '<ItemGroup><Compile Include="Ok.fs"/></ItemGroup>', {}, ())
+        self.assertEqual(adopter.compile_closure_conflicts(root, managed, root / 'X.slnx'), [])
+        import subprocess as process
+
+        def missing(*arguments, **options):
+            raise FileNotFoundError('dotnet')
+
+        broken = self.root / 'closed-broken'
+        managed = self.closure_tree(broken, '<ItemGroup><Compile Include="Ok.fs"/><Compile Include="x"/></ItemGroup>', {}, ())
+        original = process.run
+        process.run = missing
+        try:
+            rows = adopter.compile_closure_conflicts(broken, managed, broken / 'X.slnx')
+        finally:
+            process.run = original
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all('cannot be evaluated by MSBuild' in row['reason'] for row in rows))
+        # An unevaluable project: malformed XML is refused, not skipped.
+        bad = self.root / 'closed-xml'
+        managed = self.closure_tree(bad, '<ItemGroup><Compile Include="Ok.fs"/></Item>', {}, ())
+        self.assertTrue(adopter.compile_closure_conflicts(bad, managed, bad / 'X.slnx'))
+
+    def test_optional_sets_must_be_named_disjoint_successor_additions(self):
+        for sets in [{'a': ['Domain/Room.fs']}, {'a': []}, {'': ['Client/Renderers.fs']}, ['Client/Renderers.fs'],
+                     {'a': ['Client/Renderers.fs'], 'b': ['Client/Renderers.fs']}]:
+            with self.subTest(sets=sets):
+                self.extension['candidateOptionalSets'] = sets
+                self.write_extension()
+                with self.assertRaises(SystemExit):
+                    self.inventory_receiver()
+
+    def test_an_optional_set_is_admitted_all_or_none(self):
+        # The published reference carries none of the three-adapter files and adopts; a candidate carrying only some of
+        # them is refused, naming the files it lacks, and the receiver is untouched.
+        names = self.extension['candidateOptionalSets']['three-adapter-renderers']
+        before = self.tree()
+        self.inventory_receiver()
+        self.assertFalse(self.backup.exists())
+        for carried in [names[:1], names[:-1]]:
+            with self.subTest(carried=len(carried)):
+                for logical in carried:
+                    path = self.candidate / logical
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes((ROOT / 'templates/fs-gg-fable-game' / logical).read_bytes())
+                with self.assertRaises(SystemExit) as error:
+                    self.inventory_receiver()
+                self.assertEqual(error.exception.code, 3)
+                observed = json.loads(self.inventory.read_text())
+                self.assertEqual(len([row for row in observed['conflicts'] if 'only part of the optional set' in row['reason']]),
+                                 len(names) - len(carried))
+                self.assertEqual(self.tree(), before)
+                for logical in carried:
+                    (self.candidate / logical).unlink()
 
     def test_copied_receiver_harness_checks_full_target_and_recovery(self):
         before = self.tree()
