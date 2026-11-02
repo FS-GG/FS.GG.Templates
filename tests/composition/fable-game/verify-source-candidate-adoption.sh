@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
 #
-# The complete adoption route against the SOURCE candidate (FS.GG.Templates#834).
+# The complete adoption route against the SOURCE candidate (FS.GG.Templates#834 and #841).
 #
 # verify-svg-complete-adoption.sh runs the route with a published donor. The source tree is a candidate too, and
-# the route replaces a retained workspace's managed project files with the candidate's, so a file the candidate's
-# projects compile but the manifest does not manage reaches the receiver as a dangling reference (FS0225 at its
-# first build). This gate takes the packed source archive, scaffolds the candidate from it and adopts a retained
-# 0.10.0 workspace, and requires:
+# the route replaces a retained workspace's managed files with the candidate's, so a file the candidate's projects
+# name but the manifest does not manage reaches the receiver as a dangling reference (FS0225 at its first build), and
+# a managed file whose bytes the manifest does not admit is refused. This gate takes the packed source archive,
+# scaffolds the candidate from it and adopts a retained 0.10.0 workspace, with the COMMITTED manifests, and requires:
 #
 #   1. the historical baselines manifest REFUSES the candidate, naming the unmanaged compiled file (the closure
 #      refusal), and a receiver is left untouched;
-#   2. the current-reference manifest, with the candidate's own bytes admitted as its canonical digests, ACCEPTS it,
-#      adds the successor-only files, and the adopted receiver's Client project restores locked and compiles with Fable.
+#   2. the committed current-reference manifest ACCEPTS it, adds every file of its optional sets, preserves the
+#      receiver's authored files, and the adopted solution restores locked and builds with `dotnet build`, and its
+#      Fable client compiles to JavaScript;
+#   3. the manifest is what authenticates the candidate: a managed file edited after the manifest was written is
+#      refused, and a candidate carrying only part of an optional set is refused, each leaving the receiver untouched.
 #
-# The current-reference manifest authenticates the published 0.19.3 source; admitting the candidate is what a
-# successor release does, and is done here in a scratch copy so the committed manifest is not rewritten.
+# A change to a managed template file therefore needs its successor digest in scripts/svg-current-reference-adoption.json
+# in the same change; this gate is what says so.
 #
 #   usage: verify-source-candidate-adoption.sh <source-template.nupkg> <empty evidence directory>
 set -euo pipefail
@@ -67,55 +70,48 @@ jq -e '.ready==false and ([.conflicts[] | select(.path=="Client/Client.fsproj" a
   "$out/refused-inventory.json" >/dev/null || fail 'the refusal does not name Client/Renderers.fs'
 [[ "$(tree_sha "$out/untouched")" == "$(tree_sha "$out/retained")" ]] || fail 'a refused inventory changed the receiver'
 
-# 2. The current-reference manifest with the candidate admitted as its canonical digests.
-python3 -I - "$root" "$current" "$out/candidate" "$out/admitted" <<'PY'
-from pathlib import Path
-import importlib.util, json, sys
-
-root, current, candidate, admitted = map(Path, sys.argv[1:])
-spec = importlib.util.spec_from_file_location("adopter", root / "scripts/apply-svg-complete-workspace.py")
-adopter = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(adopter)
-product, namespace, _ = adopter.identity(candidate)
-extension = json.loads(current.read_text())
-for logical, digests in extension["candidateCanonicalDigests"].items():
-    path = candidate / logical
-    if path.is_file():
-        digests[:] = sorted(set(digests) | adopter.canonical_variants(path.read_bytes(), product, namespace))
-admitted.mkdir()
-(admitted / "svg-current-reference-adoption.json").write_text(json.dumps(extension, indent=2) + "\n")
-(admitted / "svg-complete-workspace-baselines.json").write_bytes((root / "scripts/svg-complete-workspace-baselines.json").read_bytes())
-PY
-manifest="$out/admitted/svg-current-reference-adoption.json"
+# 2. The committed current-reference manifest.
+manifest="$current"
 if ! "$adopter" complete-inventory "$out/candidate" "$out/retained" "$manifest" \
   "$out/inventory.json" "$out/review.diff" >"$out/inventory.log" 2>&1; then
   cat "$out/inventory.log" >&2
-  jq -c '.conflicts' "$out/inventory.json" >&2 || true
-  fail 'the admitted candidate was not accepted'
+  jq -c '.conflicts' "$out/inventory.json" >&2 2>/dev/null || true
+  fail 'the committed manifest did not accept the source candidate (a managed file changed without its digest, or a project names an unmanaged file)'
 fi
-for added in Client/Renderers.fs Client/Conformance.fs Client/Stage.fs Client/renderers.html \
-  Browser.Tests/renderer-conformance.spec.ts Browser.Tests/renderer-journey.spec.ts Browser.Tests/renderer-support.ts \
-  Browser.Tests/playwright.renderers.config.ts; do
+mapfile -t optional < <(jq -r '.candidateOptionalSets[][]' "$manifest")
+[[ ${#optional[@]} -gt 0 ]] || fail 'the manifest declares no optional set'
+for added in "${optional[@]}"; do
   jq -e --arg p "$added" '[.changes[] | select(.path==$p and .state=="add")] | length==1' "$out/inventory.json" >/dev/null \
     || fail "the inventory does not add $added"
 done
+
+# 3. The manifest authenticates the candidate. Both controls run before anything is applied.
+cp -a "$out/candidate" "$out/candidate-edited"
+printf '\n// edited after the manifest was written\n' >>"$out/candidate-edited/Client/App.fs"
+if "$adopter" complete-inventory "$out/candidate-edited" "$out/retained" "$manifest" \
+  "$out/edited-inventory.json" "$out/edited-review.diff" >"$out/edited.log" 2>&1; then
+  fail 'an edited managed file was accepted'
+fi
+grep -F 'candidate differs from published source: Client/App.fs' "$out/edited.log" >/dev/null \
+  || { cat "$out/edited.log" >&2; fail 'the refusal of an edited managed file does not name it'; }
+cp -a "$out/candidate" "$out/candidate-partial"
+rm "$out/candidate-partial/Client/Stage.fs"
+if "$adopter" complete-inventory "$out/candidate-partial" "$out/retained" "$manifest" \
+  "$out/partial-inventory.json" "$out/partial-review.diff" >"$out/partial.log" 2>&1; then
+  fail 'a candidate carrying part of an optional set was accepted'
+fi
+jq -e '[.conflicts[] | select(.reason|test("only part of the optional set"))] | length>=1' "$out/partial-inventory.json" >/dev/null \
+  || fail 'the refusal of a partial optional set does not say so'
+[[ "$(tree_sha "$out/untouched")" == "$(tree_sha "$out/retained")" ]] || fail 'a refused inventory changed the receiver'
+
 "$adopter" complete-apply "$out/candidate" "$out/retained" "$manifest" "$out/inventory.json" "$out/backup" >"$out/apply.log"
 [[ "$authored_before" == "$(sha256sum "$out/retained/authored/level.json")" ]] || fail 'authored file changed'
 grep -F 'Retained0100' "$out/retained/Client/Renderers.fs" >/dev/null || fail 'the adopted renderers carry the receiver namespace'
 
-# Every unconditional file the adopted Client project compiles exists in the receiver, and the project builds.
-python3 -I - "$out/retained/Client/Client.fsproj" <<'PY'
-from pathlib import Path
-import sys, xml.etree.ElementTree as ET
-project = Path(sys.argv[1]); missing = []
-for group in ET.parse(project).getroot().iter("ItemGroup"):
-    for item in group.findall("Compile"):
-        include = item.get("Include")
-        if include and item.get("Condition") is None and "$(" not in include and not (project.parent / include).is_file():
-            missing.append(include)
-if missing:
-    raise SystemExit("adopted Client project compiles files the receiver lacks: " + ", ".join(missing))
-PY
+# The adopted solution restores locked and builds: every project of the receiver, not only the Fable client.
+solution="$(cd "$out/retained" && ls ./*.slnx)"
+(cd "$out/retained" && dotnet restore "$solution" --locked-mode && dotnet build "$solution" --no-restore) >"$out/solution-build.log" 2>&1 \
+  || { tail -n 60 "$out/solution-build.log" >&2; fail 'the adopted receiver solution does not build'; }
 # The Fable client is built by Fable (its Protocol sources compile against Thoth.Json only under FABLE_COMPILER), so the
 # receiver's Client project is restored locked and compiled to JavaScript, the way its own build.sh builds it.
 (cd "$out/retained" && dotnet tool restore && dotnet restore Client/Client.fsproj --locked-mode \
@@ -123,4 +119,4 @@ PY
   || { tail -n 60 "$out/client-build.log" >&2; fail 'the adopted receiver Client project does not compile with Fable'; }
 test -s "$out/client-output/Renderers.js" && test -s "$out/client-output/Conformance.js" \
   || fail 'Fable did not emit the adopted renderers'
-echo "source-candidate-adoption: baselines refusal named the unmanaged closure; admitted candidate adopted $old_version with 8 added files; Client restored locked and compiled with Fable"
+echo "source-candidate-adoption: baselines refusal named the unmanaged closure; the committed manifest adopted $old_version with ${#optional[@]} added files; an edited file and a partial set were refused; the solution built and the Client compiled with Fable"

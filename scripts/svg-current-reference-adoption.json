@@ -24,6 +24,7 @@
     "Client/renderers.html",
     "SvgFoundation/Examples/ExternalAuthority/README.md",
     "SvgFoundation/Examples/ExternalAuthority/reference.json",
+    "SvgFoundation/Examples/FourD/LocalSaveReplayCodec.fs",
     "SvgFoundation/Examples/FourD/LocalSaveReplayExample.TestEntry.fs",
     "SvgFoundation/Examples/FourD/LocalSaveReplayExample.Tests.fs",
     "SvgFoundation/Examples/FourD/LocalSaveReplayExample.fs",
@@ -51,21 +52,27 @@
     "SvgFoundation/SoldierReferenceExternal.fs",
     "SvgFoundation/SoldierReferenceLocal.fs"
   ],
-  "candidateOptionalPaths": [
-    "Browser.Tests/playwright.renderers.config.ts",
-    "Browser.Tests/renderer-conformance.spec.ts",
-    "Browser.Tests/renderer-journey.spec.ts",
-    "Browser.Tests/renderer-support.ts",
-    "Client/Conformance.fs",
-    "Client/Renderers.fs",
-    "Client/Stage.fs",
-    "Client/renderers.html"
-  ],
+  "candidateOptionalSets": {
+    "durable-local-save": [
+      "SvgFoundation/Examples/FourD/LocalSaveReplayCodec.fs"
+    ],
+    "three-adapter-renderers": [
+      "Browser.Tests/playwright.renderers.config.ts",
+      "Browser.Tests/renderer-conformance.spec.ts",
+      "Browser.Tests/renderer-journey.spec.ts",
+      "Browser.Tests/renderer-support.ts",
+      "Client/Conformance.fs",
+      "Client/Renderers.fs",
+      "Client/Stage.fs",
+      "Client/renderers.html"
+    ]
+  },
   "candidateCanonicalDigests": {
     ".config/dotnet-tools.json": [
       "cf622605d9b06ccacfc5fd98e58783a1cdb2a1d190efdf4a6b4649be493f6374"
     ],
     ".github/workflows/product-ci.yml": [
+      "053e948437373f89239caf61ac971e78d3d558378a3d11c7f507f985dc7fb721",
       "51a0ca7209e45d3f08fa723d538f94c535081983d603f6c7bf83564906c12deb"
     ],
     "Browser.Tests/external-command-outcomes.spec.ts": [
@@ -102,6 +109,7 @@
       "af105bec8aae4f6ca1797bbc9b8b221977d656947ad097aea7a0893cb025bcfb"
     ],
     "Browser.Tests/two-client.spec.ts": [
+      "1e3b8b9ef0eb22af72cfc34a8a1946b3b9e3d6a16243b950e6bb614007e9e6d1",
       "7eacfc875e0449c18e4095d2cfc3cc30f004258c04335cc153e911f3d120ea9d",
       "9106d22a91e91ec746e11abc307198d7aeebcf050f2aabc6bade1642857cfdab",
       "9ea351cf95c131307621761e56a4555969a3ede4a54791ad444cb2fe5c5ab874"
@@ -194,6 +202,7 @@
       "9de52a14a01dc4a7719cf528072d96ace8d83d1ad431966508d29cfd0c44dab0"
     ],
     "Domain.Tests/Domain.Tests.fsproj": [
+      "26d50e987ff45ea20490328602906dff208da790de24800d668b20bf17e9504e",
       "a66901a8545fc99a67b6d3d42e0a3b62a038b5cb7ab61b1248a555a1bd0d519c"
     ],
     "Domain.Tests/RoomTests.fs": [
@@ -245,6 +254,7 @@
       "22c81ef94cfc8242b060226362bda66d6d03c8af79c3b00181dca3d790d051f6"
     ],
     "Protocol.Tests/cross-runtime/CodecProbe.Fable/CodecProbe.Fable.fsproj": [
+      "20da82d891d1c4bc16e4fa1e8e872390005fa378aaf2421ac5f175a6f02febd7",
       "574299a1207367481728b7c80e553cea7ebb2dcf89f16b41827f27131bf3e31e"
     ],
     "Protocol.Tests/cross-runtime/CodecProbe.Fable/packages.lock.json": [
@@ -252,7 +262,8 @@
       "f7994c3d8c3042506cd2885f2f3e6b42d57f7537f444daa33fcfbd47d0cb2db2"
     ],
     "Protocol.Tests/cross-runtime/CodecProbe.Net/CodecProbe.Net.fsproj": [
-      "1d3e5f5e935de5912f944edbf56849c2293d04d32232a3f6bc86fe7b6a3c01ff"
+      "1d3e5f5e935de5912f944edbf56849c2293d04d32232a3f6bc86fe7b6a3c01ff",
+      "91b9ec3604227382e540c2bb01be328c3b033363df5f460a6d4c7702539fe5b2"
     ],
     "Protocol.Tests/cross-runtime/CodecProbe.Net/packages.lock.json": [
       "45e09f6b22b419ceccb09a6c36f7278e2947ab86ab02b4fd89ad8042d27964f1",
@@ -266,6 +277,7 @@
       "3e17f9c103331baeb38aaff970ad05b5a4c4862e4f362b5c5527ab0a848f8adc"
     ],
     "Protocol.Tests/packages.lock.json": [
+      "1ddf480149f54023d57ff260043823dfd7e9a0e8c55f269815af8465e4212b67",
       "4672683ff671197f34b3a71182fa50416ef867c5a182f23dd0866bf61484ec1a"
     ],
     "Protocol/Http.fs": [
@@ -280,7 +292,8 @@
       "a60cc9bd950014e63ea7b5f2659e195372e1fef7db8790ac1a1cdc31404ec15d"
     ],
     "Protocol/packages.lock.json": [
-      "12a746ab2b06477694ad843a638eeabdaf10bc8c7a667f81643a234739655d6c"
+      "12a746ab2b06477694ad843a638eeabdaf10bc8c7a667f81643a234739655d6c",
+      "bc7bce8026ba95e58211c2315b47b927a8b02cbc62feb129cfa27fdfc2d12d17"
     ],
     "Server.Tests/AssemblyInfo.fs": [
       "70b7d4b24e7a9210e76e32bb1c8ddb0e77686d2662573cc73f7898ef4fd39056",
@@ -291,6 +304,7 @@
       "b52d79ec138792a3484c5eb62f0dc8d47d42078f098257a428ee224e8f490ee1"
     ],
     "Server.Tests/GameHubTests.fs": [
+      "667cc88016ae0a29606e2a84ddcd86bad5d5c9d037ecd3937723ee62eb4157b7",
       "b7fd2d2bfee0eafba0cb791dd80546f5f1ebc8a7f46aab3b2d57a143843508d3",
       "b9786ce5affa30a042c2b01a800b6029b05920320b3b8f83e37d83121b53d9ca"
     ],
@@ -351,11 +365,15 @@
     "SvgFoundation/Examples/ExternalAuthority/reference.json": [
       "294414661a023e80ab5f9a34b6c46e2b010c9206135d1c66039abcb42fbb137c"
     ],
+    "SvgFoundation/Examples/FourD/LocalSaveReplayCodec.fs": [
+      "0c27ee7a65781670abf9077487f4c1d274a93ee14c14b6ba8dcc1a147576f518"
+    ],
     "SvgFoundation/Examples/FourD/LocalSaveReplayExample.TestEntry.fs": [
       "a20b8b3b1536ac3a9ddb98907579be949635502424299f80a2689e4fa67ee5e0",
       "e051992ae6fa432bb3dfee97d87ac4460b784c1d570157d4a3a751765398be37"
     ],
     "SvgFoundation/Examples/FourD/LocalSaveReplayExample.Tests.fs": [
+      "055ed8d3d094fdcf252c3aff6f5380b142523b56e996eeda3ee31dba6a5eb3a4",
       "1b6443a37065ca1baee2cf4cc6d8c00587cb2d4438885c9f14c83ce8eb576a1b",
       "e02eebefea667fbff44463381cb7e8ba752c1603a7d667a293e6bf0131e014fa"
     ],
@@ -364,6 +382,7 @@
       "c5f64fabaa820615dbb6820999a68d8be7ca8503b6f73605327424933ac58fc0"
     ],
     "SvgFoundation/Examples/FourD/README.md": [
+      "2af218eb73443caf82f590d909f4e3dec5cd7e5b383cd3874147268d3bdd6542",
       "2dc72a08ee69e80364cf2a277c84cbea012373a396a4565147a4f8c064e0c2b1",
       "5579d1892d3920997e7923a8539beaeca296c88377be24b0e0b33698be326590"
     ],
@@ -395,10 +414,12 @@
       "54045a5031e3b38a3b5d933c42f81c87986c26987ab08b3737ad2a88d2ce5d10"
     ],
     "SvgFoundation/Examples/Tactical/TacticalCompatibility.Tests.fsproj": [
-      "cdfd89e542721db0c4e3fb3c9b080adf56819847e20d7fcba69770b3d83994f8"
+      "cdfd89e542721db0c4e3fb3c9b080adf56819847e20d7fcba69770b3d83994f8",
+      "e25a4005123788230c018583be36b9fc39c5418f14861bd78fc38c910d509f3a"
     ],
     "SvgFoundation/Examples/Tactical/packages.lock.json": [
-      "ad871af61c21cad71573e7afa11509dbdd385ffcfa33cfa1eb53ac595d257922"
+      "ad871af61c21cad71573e7afa11509dbdd385ffcfa33cfa1eb53ac595d257922",
+      "eadd1db1157a30e4b6d5f7dd9ef99df5c11d491e0226873404a88a1cf3b88bad"
     ],
     "SvgFoundation/Examples/Tactical/scene.json": [
       "fd3a16eedd57a312f456a0d9851a5d1d40e7af1aea3f621e66a2c37b25873cca"
@@ -437,7 +458,8 @@
       "79eedaeafad56dd7fe11e1790d23a906f315c3826074573845d9e0f4d3a7949e"
     ],
     "SvgFoundation/Examples/Wasm/packages.lock.json": [
-      "2dd1ebb5035ecf07e58e675b3de81c149aadb11746e2612f952df24384076f8b"
+      "2dd1ebb5035ecf07e58e675b3de81c149aadb11746e2612f952df24384076f8b",
+      "489c916cb9a1ec42a4a9da16ac6869845cb8616da467861702b19b7d029b0385"
     ],
     "SvgFoundation/ExternalAuthorityReference.fs": [
       "2d5c92a99374155aa32d51d3c1adab1745ee407c819f8bacfbd4c0469fc1709a",
@@ -446,6 +468,7 @@
     "SvgFoundation/FourDReference.fs": [
       "13599e587af10958eee18853fb4a44bb5991905238dc84a3f182932d59aa7042",
       "a1a74cdc57b403a533662e72d0ba273ae46f3d7904cd80276c8b2a9f3d18c0d9",
+      "d864ebca7e86f8f9846a86c378f5a792be59b313b80642caf2aad423934c8f7c",
       "fe31e4bbd37854f22674855dbaa2371d8857a12cd6fc02372bacf2a166035b3a"
     ],
     "SvgFoundation/PlayerInput.fs": [
@@ -489,6 +512,7 @@
       "ed23f5d219f638f84ea4552788be5a34b973c8a31c3e42262cd54a82539b3ee7"
     ],
     "SvgFoundation/Studio/Studio.fsproj": [
+      "23306213fbe4ab14d2caef951e128a280ce50c44e1e41fab955020e153395bdc",
       "e943dbdb36ebf2dd5b0f91d83631f1d6551d1a99e3d43adeabd18fa6d0f9263b"
     ],
     "SvgFoundation/Studio/SvgGeometryWorkerEntry.js": [
@@ -499,12 +523,14 @@
       "6be9aa6379858959e9456d247b0f0b13cec5d58e69b694627ff1534c4f2b56a8"
     ],
     "SvgFoundation/Studio/build.sh": [
+      "274f550b3dd930b949cfeb2ee3432abf29482b13d6300b8cccf0e0703feb8d7a",
       "bee6abef1b38a1f0cb03a5bd5a4b497b6e78453b2d9b6962e04bb9e6b5b06bd2"
     ],
     "SvgFoundation/Studio/index.html": [
       "a672cee7e1e3b389a780acc6b1fa4488b528e1cf504271d5aa203d9216fa9cb3"
     ],
     "SvgFoundation/Studio/packages.lock.json": [
+      "133050a602302e8319ba4eda66047280449bd04e3ba8616ef88d1fcb2c87fa1d",
       "a252899febde84572f22bee0ce947b35276ea705adf07b2dbb17638e39aada7e"
     ],
     "SvgFoundation/Studio/vite.config.js": [
@@ -515,7 +541,8 @@
       "f9a4dc51d09c17e218fb7c1d5903619bfa391529c0ca4130cf815e6171e32835"
     ],
     "SvgFoundation/SvgFoundation.fsproj": [
-      "a10c7e5e52b90a3d46352b5edfda65f0d6e439b5e6bfe097ae436d2a3636df4e"
+      "a10c7e5e52b90a3d46352b5edfda65f0d6e439b5e6bfe097ae436d2a3636df4e",
+      "fcfdecaa6a289e15b6cbb0291948b11428f1abda04be01929a73f96f94a5fc1f"
     ],
     "SvgFoundation/THIRD-PARTY-NOTICES.md": [
       "dd1c91d9184ee0436f6aa1f05b925f2280e748627ccaadf4632097f097966af1"
@@ -529,7 +556,8 @@
       "a20a3c6871a143fa602f34b41f7393f6434caf079725e3e87cf6ca8494bea89f"
     ],
     "SvgFoundation/build.sh": [
-      "0eb204de6e560cfb3e50ce2863bcb5aaf04257270441d446ffe9ad009f33c65e"
+      "0eb204de6e560cfb3e50ce2863bcb5aaf04257270441d446ffe9ad009f33c65e",
+      "8f6d366c817feada49faba0f155a1141e1059fbdbfb39cf7ceaaf88c2f31f0f1"
     ],
     "SvgFoundation/fonts/noto-sans-latin-400-normal.woff2": [
       "09aee8065d25508f23a4c3d92cd777ac869c52d93fd868a88f025d888a7937d6"
@@ -538,7 +566,8 @@
       "7e6a4d1edc809f9b643c89cbf0aa1a52b931fdc807c5a4375d201216244f9a03"
     ],
     "SvgFoundation/packages.lock.json": [
-      "0105cf5351a5ba478bcaa80261245f10bd948994496a8a86aeaa0b047fac6838"
+      "0105cf5351a5ba478bcaa80261245f10bd948994496a8a86aeaa0b047fac6838",
+      "c3d2eed80ab8193fa2b9696f2e049e4d67514f3ab05ea02f2ec6a800379c65c7"
     ],
     "SvgFoundation/public/movement-cue.wav": [
       "27be34132073d1e9400336988fd8f853173dd7e6238b2bc72477bbc1f0c129a5"
@@ -555,13 +584,15 @@
       "298aaf8682f27d98158c78914ff9ada7adc0d0afde39bd7c75a04f9e91b4cd7f"
     ],
     "docs/runbooks/build-evidence-and-deploy.md": [
-      "aaf88168ea124d5f881ffcf27bb4abe87707f90645327f1e9eaca0d8680b05f7"
+      "aaf88168ea124d5f881ffcf27bb4abe87707f90645327f1e9eaca0d8680b05f7",
+      "d920db32c4d8f1a555968967143f13e2b5d62882376b7fb3182e09ac4f35a0e7"
     ],
     "docs/tutorials/author-a-playable-svg-game.md": [
       "d67181d393cfeedbced23ed26eb89787cca22a20fb596d3be645f0586224d819"
     ],
     "global.json": [
-      "69554709212a18360c02a61d973cf9c1713f3725286ff237546b9909fc85d7da"
+      "69554709212a18360c02a61d973cf9c1713f3725286ff237546b9909fc85d7da",
+      "e1d1b329d397b5b59dc824c5de0deb1b0bf5a55eb90be3a0f8330299ca3bc2b9"
     ],
     "models/svg-arena/arena-rules.bindings.json": [
       "abddaa7646780f9948a05d5af1338124ce51d84c44162c9e7155ce88d145cee8"

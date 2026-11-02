@@ -44,7 +44,8 @@ class CurrentReference(unittest.TestCase):
             if logical.startswith(('.agents/', '.claude/')):
                 continue
             # The published reference predates the successor-only paths; its candidate simply lacks them.
-            if logical in manifest.get('candidateOptionalPaths', []) and not (FIXTURE_ROOT / 'templates/fs-gg-fable-game' / logical).exists():
+            optional = [path for paths in manifest.get('candidateOptionalSets', {}).values() for path in paths]
+            if logical in optional and not (FIXTURE_ROOT / 'templates/fs-gg-fable-game' / logical).exists():
                 continue
             raw = (FIXTURE_ROOT / 'templates/fs-gg-fable-game' / logical).read_bytes()
             destination = self.candidate / ('SyntheticReference403.slnx' if logical == 'FableGameWorkspace.slnx' else logical)
@@ -161,28 +162,114 @@ class CurrentReference(unittest.TestCase):
             self.inventory_receiver()
         self.assertEqual(self.tree(), before)
 
-    def test_candidate_project_compiling_an_unmanaged_file_is_a_closure_conflict(self):
-        # FS.GG.Templates#834: a managed project that compiles a file the manifest does not manage would reach the
-        # receiver as a dangling reference. Conditional and property-named includes are optional by construction.
-        root = self.root / 'closure'
-        (root / 'Client').mkdir(parents=True)
-        (root / 'Client/Client.fsproj').write_text(
-            '<Project><ItemGroup><Compile Include="../Protocol/Http.fs" /><Compile Include="App.fs" />'
-            '<Compile Include="Renderers.fs" /><Compile Include="Skipped.fs" Condition="Exists(\'Skipped.fs\')" />'
-            '<Compile Include="$(Generated)/Gen.fs" /></ItemGroup>'
-            '<ItemGroup Condition="false"><Compile Include="Guarded.fs" /></ItemGroup></Project>')
-        solution = root / 'X.slnx'
-        managed = ['Client/Client.fsproj', 'Protocol/Http.fs', 'Client/App.fs']
-        found = adopter.compile_closure_conflicts(root, managed, solution)
-        self.assertEqual([row['reason'] for row in found],
-                         ['candidate project compiles Client/Renderers.fs, outside the managed closure'])
-        self.assertEqual(adopter.compile_closure_conflicts(root, managed + ['Client/Renderers.fs'], solution), [])
+    # FS.GG.Templates#834 and #841: a managed MSBuild file that names a file the manifest does not manage would reach the
+    # receiver as a dangling reference. Each way a project can name a file has a control, and so does each way the check
+    # could wrongly stay silent or wrongly refuse.
+    def closure(self, projects, managed, extra_files=()):
+        root = self.root / ('closure-%d' % len(list(self.root.glob('closure-*'))))
+        for logical, text in projects.items():
+            (root / logical).parent.mkdir(parents=True, exist_ok=True)
+            (root / logical).write_text(text)
+        for logical in list(managed) + list(extra_files):
+            (root / logical).parent.mkdir(parents=True, exist_ok=True)
+            if not (root / logical).exists():
+                (root / logical).write_text('<Project />' if logical.endswith(('.fsproj', '.props')) else 'x')
+        return [row['reason'] for row in adopter.compile_closure_conflicts(root, list(managed), root / 'X.slnx')]
 
-    def test_optional_paths_must_be_successor_additions(self):
-        self.extension['candidateOptionalPaths'] = ['Domain/Room.fs']
-        self.write_extension()
-        with self.assertRaises(SystemExit):
-            self.inventory_receiver()
+    @staticmethod
+    def project(*items, props='', ns=''):
+        return f'<Project{ns}>{props}<ItemGroup>{"".join(items)}</ItemGroup></Project>'
+
+    def test_unconditional_unmanaged_includes_are_closure_conflicts(self):
+        for kind in ['Compile', 'EmbeddedResource', 'None', 'Content', 'ProjectReference']:
+            with self.subTest(kind=kind):
+                found = self.closure({'Client/Client.fsproj': self.project(f'<{kind} Include="Extra.fs" />')},
+                                     ['Client/Client.fsproj'], ['Client/Extra.fs'])
+                self.assertEqual(found, [f'candidate project names {kind} Client/Extra.fs, outside the managed closure'])
+        self.assertEqual(self.closure({'Client/Client.fsproj': self.project('<Compile Include="App.fs" />')},
+                                      ['Client/Client.fsproj', 'Client/App.fs']), [])
+
+    def test_conditional_includes_are_evaluated_against_the_post_adoption_tree(self):
+        guarded = lambda condition: self.project(f'<Compile Include="Codec.fs" Condition="{condition}" />')
+        managed = ['Domain.Tests/Domain.Tests.fsproj', 'Domain/Marker.fs']
+        outside = 'candidate project names Compile Domain.Tests/Codec.fs, outside the managed closure'
+        for condition, refused in [("Exists('../Domain/Marker.fs')", True), ("Exists('../Domain/Missing.fs')", False),
+                                   ("!Exists('../Domain/Missing.fs')", True), ("!Exists('../Domain/Marker.fs')", False),
+                                   ("Exists('../Domain/Marker.fs') And '$(Legacy)' != 'true'", True),
+                                   ("Exists('../Domain/Marker.fs') And '$(Legacy)' == 'true'", False),
+                                   ("'$(Legacy)' == 'true' Or Exists('../Domain/Marker.fs')", True),
+                                   ("(Exists('../Domain/Marker.fs'))", True)]:
+            with self.subTest(condition=condition):
+                found = self.closure({'Domain.Tests/Domain.Tests.fsproj': guarded(condition)}, managed, ['Domain.Tests/Codec.fs'])
+                self.assertEqual(found, [outside] if refused else [])
+        group = '<Project><ItemGroup Condition="Exists(\'../Domain/Marker.fs\')"><Compile Include="Codec.fs" /></ItemGroup></Project>'
+        self.assertEqual(self.closure({'Domain.Tests/Domain.Tests.fsproj': group}, managed, ['Domain.Tests/Codec.fs']), [outside])
+
+    def test_properties_come_from_the_project_and_directory_build_props(self):
+        item = '<Compile Include="$(Dir)/Codec.fs" Condition="\'$(Skip)\' != \'true\'" />'
+        managed = ['Client/Client.fsproj', 'Directory.Build.props']
+        props = '<Project><PropertyGroup><Dir>Gen</Dir></PropertyGroup></Project>'
+        found = self.closure({'Client/Client.fsproj': self.project(item), 'Directory.Build.props': props}, managed, ['Client/Gen/Codec.fs'])
+        self.assertEqual(found, ['candidate project names Compile Client/Gen/Codec.fs, outside the managed closure'])
+        skip = '<Project><PropertyGroup><Dir>Gen</Dir><Skip>true</Skip></PropertyGroup></Project>'
+        self.assertEqual(self.closure({'Client/Client.fsproj': self.project(item), 'Directory.Build.props': skip}, managed,
+                                      ['Client/Gen/Codec.fs']), [])
+        own = self.project(item, props='<PropertyGroup><Dir>Gen</Dir></PropertyGroup>')
+        self.assertEqual(len(self.closure({'Client/Client.fsproj': own}, ['Client/Client.fsproj'], ['Client/Gen/Codec.fs'])), 1)
+        # An undefined property is empty, so the path is not what the author meant: still outside the closure.
+        self.assertEqual(len(self.closure({'Client/Client.fsproj': self.project('<Compile Include="$(Nope)/Codec.fs" />')},
+                                          ['Client/Client.fsproj'])), 1)
+
+    def test_namespaced_projects_and_imports_are_read(self):
+        ns = ' xmlns="http://schemas.microsoft.com/developer/msbuild/2003"'
+        found = self.closure({'Client/Client.fsproj': self.project('<Compile Include="Extra.fs" />', ns=ns)},
+                             ['Client/Client.fsproj'], ['Client/Extra.fs'])
+        self.assertEqual(len(found), 1)
+        imports = '<Project><Import Project="Extra.props" /><Import Project="Gone.props" Condition="Exists(\'Gone.props\')" /></Project>'
+        self.assertEqual(self.closure({'Client/Client.fsproj': imports}, ['Client/Client.fsproj'], ['Client/Extra.props']),
+                         ['candidate project names Import Client/Extra.props, outside the managed closure'])
+        self.assertEqual(self.closure({'Client/Client.fsproj': imports}, ['Client/Client.fsproj', 'Client/Extra.props']), [])
+
+    def test_globs_and_unmodelled_constructs_fail_closed(self):
+        found = self.closure({'Client/Client.fsproj': self.project('<None Include="data/**" />')},
+                             ['Client/Client.fsproj', 'Client/data/a.json'], ['Client/data/b.json'])
+        self.assertEqual(found, ['candidate project names None Client/data/b.json, outside the managed closure'])
+        for text in ['<Project><Choose><When Condition="true"><ItemGroup><Compile Include="A.fs" /></ItemGroup></When></Choose></Project>',
+                     self.project('<Compile Include="A.fs" Condition="$(Odd) ~~ 1" />')]:
+            with self.subTest(text=text):
+                self.assertEqual(len(self.closure({'Client/Client.fsproj': text}, ['Client/Client.fsproj', 'Client/A.fs'])), 1)
+
+    def test_optional_sets_must_be_named_disjoint_successor_additions(self):
+        for sets in [{'a': ['Domain/Room.fs']}, {'a': []}, {'': ['Client/Renderers.fs']}, ['Client/Renderers.fs'],
+                     {'a': ['Client/Renderers.fs'], 'b': ['Client/Renderers.fs']}]:
+            with self.subTest(sets=sets):
+                self.extension['candidateOptionalSets'] = sets
+                self.write_extension()
+                with self.assertRaises(SystemExit):
+                    self.inventory_receiver()
+
+    def test_an_optional_set_is_admitted_all_or_none(self):
+        # The published reference carries none of the three-adapter files and adopts; a candidate carrying only some of
+        # them is refused, naming the files it lacks, and the receiver is untouched.
+        names = self.extension['candidateOptionalSets']['three-adapter-renderers']
+        before = self.tree()
+        self.inventory_receiver()
+        self.assertFalse(self.backup.exists())
+        for carried in [names[:1], names[:-1]]:
+            with self.subTest(carried=len(carried)):
+                for logical in carried:
+                    path = self.candidate / logical
+                    path.parent.mkdir(parents=True, exist_ok=True)
+                    path.write_bytes((ROOT / 'templates/fs-gg-fable-game' / logical).read_bytes())
+                with self.assertRaises(SystemExit) as error:
+                    self.inventory_receiver()
+                self.assertEqual(error.exception.code, 3)
+                observed = json.loads(self.inventory.read_text())
+                self.assertEqual(len([row for row in observed['conflicts'] if 'only part of the optional set' in row['reason']]),
+                                 len(names) - len(carried))
+                self.assertEqual(self.tree(), before)
+                for logical in carried:
+                    (self.candidate / logical).unlink()
 
     def test_copied_receiver_harness_checks_full_target_and_recovery(self):
         before = self.tree()

@@ -421,12 +421,16 @@ def current_reference_manifest(path: Path, extension: dict) -> dict:
         fail("current reference additional baselines must name only added managed paths")
     baseline_digests = {version: {**rows, **extra_baselines.get(version, {})}
                         for version, rows in baseline["baselineDigests"].items()}
-    optional = extension.get("candidateOptionalPaths", [])
-    if (not isinstance(optional, list) or optional != sorted(set(optional))
-            or not set(optional) <= set(additions)):
-        fail("current reference optional paths must be a sorted unique subset of the additions")
+    optional = extension.get("candidateOptionalSets", {})
+    flat = [path for paths in optional.values() if isinstance(paths, list) for path in paths] \
+        if isinstance(optional, dict) else []
+    if (not isinstance(optional, dict)
+            or any(not isinstance(name, str) or not name or not isinstance(paths, list) or not paths
+                   or paths != sorted(set(paths)) for name, paths in optional.items())
+            or len(flat) != len(set(flat)) or not set(flat) <= set(additions)):
+        fail("current reference optional sets must be named, sorted, unique, disjoint subsets of the additions")
     return {**baseline, "managedPaths": combined, "baselineDigests": baseline_digests,
-            "candidateOptionalPaths": optional,
+            "candidateOptionalSets": optional,
             "currentPublishedReference": CURRENT_REFERENCE,
             "candidateCanonicalDigests": canonical,
             "sourceCandidates": [CURRENT_REFERENCE]}
@@ -486,39 +490,268 @@ def manifest_data(path: Path) -> tuple[dict, list[str], list[str], dict[str, set
     return manifest, managed, retired, allowed
 
 
-def compile_closure_conflicts(candidate: Path, managed: list[str], solution: Path) -> list[dict]:
-    """Refuse a candidate whose managed project compiles a file the manifest does not manage.
+_CONDITION_TOKEN = re.compile(
+    r"\s*(?:(?P<string>'[^']*')|(?P<op>==|!=|\(|\)|!|,)|(?P<word>[A-Za-z_][A-Za-z0-9_.]*))")
 
-    Adoption replaces a receiver's managed project files with the candidate's, so an unconditional
-    `Compile Include` that is not itself managed would reach the receiver as a reference to a file the
-    transaction never delivers (FS0225 at the receiver's first build). Includes guarded by a Condition or
-    an MSBuild property are optional by construction and are not part of the closure."""
+
+class _Unsupported(Exception):
+    """An MSBuild construct this evaluator does not model: the caller fails closed."""
+
+
+def _expand(text: str, properties: dict[str, str]) -> str:
+    """Expand `$(Name)` from `properties`; an undefined property is the empty string, as in MSBuild."""
+    for _ in range(8):
+        expanded = re.sub(r"\$\(([A-Za-z_][A-Za-z0-9_.]*)\)", lambda m: properties.get(m.group(1), ""), text)
+        if expanded == text:
+            return expanded
+        text = expanded
+    raise _Unsupported("recursive property expansion")
+
+
+def _evaluate_condition(condition: str, properties: dict[str, str], exists) -> bool:
+    """Evaluate the MSBuild condition forms the generated projects use: `'a' == 'b'`, `!=`, `Exists('p')`, `!`,
+    `And`, `Or` and parentheses. Anything else raises `_Unsupported`."""
+    tokens = []
+    position = 0
+    text = condition.strip()
+    while position < len(text):
+        match = _CONDITION_TOKEN.match(text, position)
+        if match is None:
+            raise _Unsupported(f"condition cannot be read: {condition}")
+        position = match.end()
+        for kind in ("string", "op", "word"):
+            if match.group(kind) is not None:
+                tokens.append((kind, match.group(kind)))
+    index = 0
+
+    def peek():
+        return tokens[index] if index < len(tokens) else (None, None)
+
+    def take():
+        nonlocal index
+        token = peek()
+        index += 1
+        return token
+
+    def operand():
+        kind, value = take()
+        if kind == "string":
+            return _expand(value[1:-1], properties)
+        if kind == "word":
+            return value
+        raise _Unsupported(f"condition operand expected: {condition}")
+
+    def atom():
+        kind, value = peek()
+        if (kind, value) == ("op", "("):
+            take()
+            result = disjunction()
+            if take() != ("op", ")"):
+                raise _Unsupported(f"unbalanced condition: {condition}")
+            return result
+        if kind == "word" and value.lower() == "exists":
+            take()
+            if take() != ("op", "("):
+                raise _Unsupported(f"Exists needs a path: {condition}")
+            path = operand()
+            if take() != ("op", ")"):
+                raise _Unsupported(f"Exists needs a closing parenthesis: {condition}")
+            return exists(path)
+        left = operand()
+        kind, value = peek()
+        if (kind, value) in (("op", "=="), ("op", "!=")):
+            take()
+            right = operand()
+            return (left.lower() == right.lower()) == (value == "==")
+        if left.lower() in ("true", "false"):
+            return left.lower() == "true"
+        raise _Unsupported(f"condition operator expected: {condition}")
+
+    def negation():
+        if peek() == ("op", "!"):
+            take()
+            return not negation()
+        return atom()
+
+    def conjunction():
+        result = negation()
+        while peek()[0] == "word" and peek()[1].lower() == "and":
+            take()
+            result = negation() and result
+        return result
+
+    def disjunction():
+        result = conjunction()
+        while peek()[0] == "word" and peek()[1].lower() == "or":
+            take()
+            result = conjunction() or result
+        return result
+
+    result = disjunction()
+    if index != len(tokens):
+        raise _Unsupported(f"trailing condition text: {condition}")
+    return result
+
+
+_CLOSURE_ITEMS = {"Compile", "EmbeddedResource", "None", "Content", "ProjectReference"}
+_CLOSURE_FILES = (".fsproj", ".csproj", ".props", ".targets")
+
+
+def compile_closure_conflicts(candidate: Path, managed: list[str], solution: Path) -> list[dict]:
+    """Refuse a candidate whose managed MSBuild files name a file the manifest does not manage.
+
+    Adoption replaces a receiver's managed project files with the candidate's, so an item or import that names a
+    file the transaction never delivers reaches the receiver as a dangling reference (FS0225 at its first build).
+    The check models the post-adoption tree: a file exists there when it is managed and the candidate carries it.
+    It evaluates `Condition` on groups, items and imports against that tree, expands `$(Property)` from the
+    project's own and `Directory.Build.props` property groups (an undefined property is empty), reads namespaced
+    projects, and checks `Compile`, `EmbeddedResource`, `None`, `Content` and `ProjectReference` includes (globs
+    included) and `Import` projects. A construct it cannot evaluate (`Choose`, a condition it cannot read, an
+    unresolvable property in a path) is itself a conflict, so the check fails closed."""
     managed_set = set(managed)
-    conflicts = []
-    for logical in managed:
-        if not logical.endswith(".fsproj"):
-            continue
-        project = candidate_path(candidate, logical, solution)
-        if not project.is_file():
-            continue
+    present = {value for value in managed if candidate_path(candidate, value, solution).exists()}
+    prefixes = {parent.as_posix() for value in present for parent in PurePosixPath(value).parents if parent.as_posix() != "."}
+    conflicts: list[dict] = []
+    files: list[str] = []
+
+    def candidate_files() -> list[str]:
+        """Every file the candidate carries (build output excluded): what a glob can match."""
+        if not files:
+            files.extend(path.relative_to(candidate).as_posix() for path in relevant_files(candidate)
+                         if not path.is_symlink())
+        return files
+
+    def normalize(base: PurePosixPath, text: str) -> str:
+        return PurePosixPath(os.path.normpath((base / text.replace("\\", "/")).as_posix())).as_posix()
+
+    def exists(base: PurePosixPath, text: str) -> bool:
+        target = normalize(base, text)
+        return target in present or target in prefixes
+
+    def local(element) -> str:
+        return element.tag.rsplit("}", 1)[-1]
+
+    def load(logical: str):
         try:
-            root = ET.parse(project).getroot()
+            return ET.parse(candidate_path(candidate, logical, solution)).getroot()
         except ET.ParseError as error:
             conflicts.append({"path": logical, "reason": f"candidate project is not well-formed XML: {error}"})
-            continue
-        for group in root.iter("ItemGroup"):
-            if group.get("Condition") is not None:
-                continue
-            for item in group.findall("Compile"):
-                include = item.get("Include")
-                if include is None or item.get("Condition") is not None or "$(" in include:
+            return None
+
+    def read_properties(logical: str, properties: dict[str, str], seen: set[str]) -> None:
+        if logical in seen or logical not in present:
+            return
+        seen.add(logical)
+        root = load(logical)
+        if root is None:
+            return
+        base = PurePosixPath(logical).parent
+        for child in root:
+            name = local(child)
+            if name == "Import":
+                project = child.get("Project")
+                condition = child.get("Condition")
+                try:
+                    if project and "$(" not in project and (condition is None or _evaluate_condition(
+                            condition, properties, lambda p: exists(base, _expand(p, properties)))):
+                        read_properties(normalize(base, project), properties, seen)
+                except _Unsupported:
+                    pass
+            elif name == "PropertyGroup":
+                try:
+                    if child.get("Condition") is not None and not _evaluate_condition(
+                            child.get("Condition"), properties, lambda p: exists(base, _expand(p, properties))):
+                        continue
+                    for prop in child:
+                        if prop.get("Condition") is None or _evaluate_condition(
+                                prop.get("Condition"), properties, lambda p: exists(base, _expand(p, properties))):
+                            properties[local(prop)] = _expand((prop.text or "").strip(), properties)
+                except _Unsupported:
                     continue
-                target = PurePosixPath(os.path.normpath(
-                    (PurePosixPath(logical).parent / include.replace("\\", "/")).as_posix())).as_posix()
-                if target not in managed_set:
-                    conflicts.append({"path": logical,
-                                      "reason": f"candidate project compiles {target}, outside the managed closure"})
+
+    for logical in managed:
+        if not logical.endswith(_CLOSURE_FILES) or logical not in present:
+            continue
+        root = load(logical)
+        if root is None:
+            continue
+        base = PurePosixPath(logical).parent
+        properties = {"MSBuildThisFileDirectory": base.as_posix() + "/" if base.as_posix() != "." else "",
+                      "MSBuildProjectDirectory": base.as_posix() if base.as_posix() != "." else ""}
+        seen: set[str] = set()
+        for ancestor in [base, *base.parents]:
+            props_file = (ancestor / "Directory.Build.props").as_posix()
+            if props_file in present:
+                read_properties(props_file, properties, seen)
+                break
+        read_properties(logical, properties, seen)
+
+        def check(condition) -> bool:
+            return condition is None or _evaluate_condition(
+                condition, properties, lambda p: exists(base, _expand(p, properties)))
+
+        def flag(reason: str) -> None:
+            conflicts.append({"path": logical, "reason": reason})
+
+        def name_target(kind: str, include: str) -> None:
+            for part in filter(None, (piece.strip() for piece in include.split(";"))):
+                try:
+                    expanded = _expand(part, properties)
+                except _Unsupported as error:
+                    flag(f"candidate project cannot be evaluated: {error}")
+                    continue
+                if "$(" in expanded or "%(" in expanded or "@(" in expanded:
+                    flag(f"candidate project names {kind} {part}, whose path cannot be resolved")
+                    continue
+                if any(character in expanded for character in "*?"):
+                    pattern = re.escape(normalize(base, expanded)).replace(r"\*\*", ".*").replace(r"\*", "[^/]*").replace(r"\?", "[^/]")
+                    matched = [value for value in candidate_files() if re.fullmatch(pattern, value)]
+                    for value in matched:
+                        if value not in managed_set:
+                            flag(f"candidate project names {kind} {value}, outside the managed closure")
+                    continue
+                target = normalize(base, expanded)
+                if target not in managed_set and (candidate_path(candidate, target, solution).exists()
+                                                  or kind in ("Compile", "ProjectReference", "Import")):
+                    flag(f"candidate project names {kind} {target}, outside the managed closure")
+
+        try:
+            for child in root:
+                name = local(child)
+                if name == "Choose":
+                    flag("candidate project uses Choose, which the closure check does not model")
+                elif name == "Import":
+                    project = child.get("Project")
+                    if project and child.get("Sdk") is None and check(child.get("Condition")):
+                        name_target("Import", project)
+                elif name == "ItemGroup" and check(child.get("Condition")):
+                    for item in child:
+                        include = item.get("Include")
+                        if local(item) in _CLOSURE_ITEMS and include is not None and check(item.get("Condition")):
+                            name_target(local(item), include)
+        except _Unsupported as error:
+            flag(f"candidate project cannot be evaluated: {error}")
     return conflicts
+
+
+def optional_skipped(manifest: dict, candidate: Path, solution: Path) -> tuple[set[str], list[dict]]:
+    """The successor-only paths this candidate does not carry, and a conflict for every set it carries only in part.
+
+    A set (`candidateOptionalSets`) is admitted all or none: a candidate with some of a set's files but not the
+    rest would deliver a project that compiles files it never delivers, or files nothing compiles."""
+    skipped: set[str] = set()
+    conflicts: list[dict] = []
+    for name, paths in sorted(manifest.get("candidateOptionalSets", {}).items()):
+        carried = [value for value in paths if candidate_path(candidate, value, solution).exists()]
+        if not carried:
+            skipped.update(paths)
+        elif len(carried) != len(paths):
+            for value in paths:
+                if value not in carried:
+                    skipped.add(value)
+                    conflicts.append({"path": value, "reason": f"candidate carries only part of the optional set {name}: "
+                                      f"{len(carried)} of {len(paths)} files"})
+    return skipped, conflicts
 
 
 def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
@@ -532,10 +765,11 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
     diff_parts = []
     # Paths a successor candidate adds beyond an earlier published reference: managed when the candidate carries
     # them, and simply absent from the transaction when it does not (the published donor predates them).
-    optional = set(manifest.get("candidateOptionalPaths", []))
+    skipped, partial_sets = optional_skipped(manifest, candidate, source_solution)
+    conflicts.extend(partial_sets)
     for logical in managed:
         source_path = candidate_path(candidate, logical, source_solution)
-        if logical in optional and not source_path.exists():
+        if logical in skipped:
             continue
         destination = actual_path(workspace, logical, destination_solution)
         reject_symlink_chain(candidate, source_path, "candidate managed")
@@ -623,9 +857,7 @@ def classify(candidate: Path, workspace: Path, manifest_path: Path) -> dict:
                 except UnicodeDecodeError:
                     diff_parts.append(f"Binary file retired: {logical}\n")
     conflicts.extend(compile_closure_conflicts(
-        candidate,
-        [value for value in managed if value not in optional or candidate_path(candidate, value, source_solution).exists()],
-        source_solution))
+        candidate, [value for value in managed if value not in skipped], source_solution))
     preserved = []
     for path in relevant_files(workspace):
         rel = path.relative_to(workspace).as_posix()
@@ -851,9 +1083,8 @@ def apply(args: list[str]) -> None:
     manifest, managed, retired, _ = manifest_data(manifest_path)
     managed, retired = effective_paths(workspace, managed, retired)
     source_product, source_namespace, source_solution = identity(candidate)
-    optional = set(manifest.get("candidateOptionalPaths", []))
-    managed = [value for value in managed
-               if value not in optional or candidate_path(candidate, value, source_solution).exists()]
+    skipped, _ = optional_skipped(manifest, candidate, source_solution)
+    managed = [value for value in managed if value not in skipped]
     destination_product, destination_namespace, destination_solution = identity(workspace)
     backup.mkdir(parents=True)
     (backup / "files").mkdir()
