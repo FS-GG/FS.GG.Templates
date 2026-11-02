@@ -516,20 +516,73 @@ def _local_name(element) -> str:
     return element.tag.rsplit("}", 1)[-1]
 
 
-def _closure_image(candidate: Path, image: Path) -> None:
-    """The candidate's tree as MSBuild will see it (build output and package folders left out)."""
-    for source in relevant_files(candidate):
-        # The candidate's SDK pin is left out: what a project names does not depend on the SDK's patch level, and a pin to
-        # an SDK this machine lacks would make every evaluation fail (the check still fails closed with no SDK at all).
-        if source.is_symlink() or source.name == "global.json":
+def _closure_image(candidate: Path, image: Path, managed: list[str], solution: Path) -> None:
+    """Preserve candidate files for MSBuild globs and Exists conditions, including ignored directories.
+    Inventory filtering is not an evaluation boundary: unmanaged files must remain visible to the oracle."""
+    for source in candidate.rglob("*"):
+        if not source.is_file():
+            continue
+        if source.is_symlink():
             continue
         target = image / source.relative_to(candidate)
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
+    for logical in managed:
+        source = candidate_path(candidate, logical, solution)
+        if source.is_file() and not source.is_symlink() and not (image / logical).exists():
+            (image / logical).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, image / logical)
+
+
+def _dotnet_stamp(image: Path) -> str:
+    """What `dotnet` resolves in the image: its exit status and version, or that it is missing. It is part of the memo key,
+    so a cached verdict cannot outlive a change of SDK or of the candidate's pin."""
+    import subprocess
+    try:
+        result = subprocess.run(["dotnet", "--version"], cwd=image, env=_msbuild_environment(), capture_output=True,
+                                text=True, timeout=120)
+    except (OSError, subprocess.SubprocessError) as error:
+        return f"dotnet unavailable: {type(error).__name__}"
+    return f"{result.returncode}|{result.stdout.strip()}|{(result.stderr.strip().splitlines() or [''])[0][:120]}"
+
+
+def _drop_unresolvable_pin(image: Path) -> str | None:
+    """Fall back only after the resolver confirms a valid pin's SDK is absent. Uncertain resolution fails closed."""
+    import subprocess
+    pin = image / "global.json"
+    if not pin.is_file():
+        return None
+    try:
+        value = json.loads(pin.read_text())
+        sdk = value.get("sdk") if isinstance(value, dict) else None
+        version = sdk.get("version") if isinstance(sdk, dict) else None
+        if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version):
+            return "invalid global.json SDK pin"
+        result = subprocess.run(["dotnet", "--version"], cwd=image, env=_msbuild_environment(),
+                                capture_output=True, text=True, timeout=120)
+        if result.returncode == 0:
+            return None
+        # The host's SDK-not-found exit and diagnostic must agree with a successful installed-SDK census.
+        # Timeout, launch failure, malformed pin and unrelated host errors never authorize removing global.json.
+        if (result.returncode != 155 or "A compatible .NET SDK was not found." not in result.stderr
+                or f"Requested SDK version: {version}\n" not in result.stderr):
+            return "cannot resolve global.json SDK pin"
+        listed = subprocess.run(["dotnet", "--list-sdks"], cwd=image, env=_msbuild_environment(),
+                                capture_output=True, text=True, timeout=120)
+        rows = listed.stdout.strip().splitlines()
+        if listed.returncode != 0 or not rows or any(not re.fullmatch(r"\S+ \[.+\]", row) for row in rows):
+            return "cannot enumerate installed SDKs for global.json"
+        if version in {row.split()[0] for row in rows}:
+            return "global.json SDK resolution failed despite an installed pin"
+        pin.unlink()
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        return f"cannot resolve global.json SDK pin: {type(error).__name__}"
+    return None
 
 
 def _closure_key(image: Path, managed: set[str]) -> str:
     digests = hashlib.sha256()
+    digests.update(f"{_dotnet_stamp(image)}\0".encode())
     for path in sorted(image.rglob("*")):
         if path.is_file():
             digests.update(f"{path.relative_to(image).as_posix()}\0{digest(path.read_bytes())}\0".encode())
@@ -556,7 +609,7 @@ def _evaluate_project(image: Path, managed: set[str], logical: str, configuratio
         return " / ".join(text.splitlines()[:2])[:300] if text else "no output"
 
     try:
-        items = run(f"-getItem:{_CLOSURE_ITEM_TYPES}")
+        items = run(f"-getItem:{_CLOSURE_ITEM_TYPES}", "-getProperty:TargetFrameworks")
     except (OSError, subprocess.SubprocessError) as error:
         return refuse(f"{type(error).__name__}: {error}"[:300])
     try:
@@ -565,15 +618,22 @@ def _evaluate_project(image: Path, managed: set[str], logical: str, configuratio
         value = None
     if not isinstance(value, dict) or "Items" not in value:
         return refuse(said(items))
+    if str(value.get("Properties", {}).get("TargetFrameworks", "")).strip():
+        # The outer build of a multi-targeted project has no items of its own: its inner builds are not evaluated.
+        return refuse("multi-targeted projects (TargetFrameworks) are not modelled")
     for kind, rows in value["Items"].items():
         for row in rows:
             full = Path(row.get("FullPath", ""))
             try:
                 relative = full.resolve().relative_to(image.resolve())
             except ValueError:
-                continue  # a package, an SDK file or another tree: not this tree's closure
-            if any(part in IGNORED_PARTS for part in relative.parts) or full.is_dir():
+                # Outside the candidate's tree: a receiver has no such file, whatever it is.
+                found.append({"path": logical, "reason": f"candidate project names {kind} {row.get('FullPath', '')}, "
+                                                          "outside the candidate's tree"})
                 continue
+            if full.is_dir():
+                continue
+            # No directory is exempt: a closure item under vendor, output or dist is a file the receiver must be given too.
             if relative.as_posix() not in managed:
                 found.append({"path": logical,
                               "reason": f"candidate project names {kind} {relative.as_posix()}, outside the managed closure"})
@@ -604,6 +664,10 @@ def _evaluate_project(image: Path, managed: set[str], logical: str, configuratio
         for target in root.iter():
             if _local_name(target) != "Target":
                 continue
+            if any(_local_name(task) == "CreateItem" for task in target.iter()):
+                found.append({"path": logical, "reason": (
+                    f"candidate project adds items with a CreateItem task ({relative}, {target.get('Name')}), "
+                    "which an evaluation does not see")})
             for group in target.iter():
                 if _local_name(group) == "ItemGroup" and any(
                         _local_name(child).lower() in _CLOSURE_ITEM_NAMES for child in group):
@@ -618,17 +682,23 @@ def compile_closure_conflicts(candidate: Path, managed: list[str], solution: Pat
 
     Adoption replaces a receiver's managed files with the candidate's, so an item that names a file the transaction
     never delivers reaches the receiver as a dangling reference (FS0225 at its first build). MSBuild answers the
-    question: the candidate's tree is copied to a scratch image, and each project in it is evaluated
-    with `dotnet msbuild -getItem` (and `-preprocess` for its imports) in Debug and Release, with the environment of the
-    tool only and the SDK's default None and Content globs off. An item whose path is inside the tree and not managed is a
-    conflict. A project MSBuild cannot
-    evaluate, a missing `dotnet`, and items only a target would add are conflicts too: the check fails closed.
-    Results are memoised on the image's bytes."""
+    question: the candidate's tree is copied to a scratch image (with its `global.json` when the SDK it pins is installed),
+    and each managed project in it is evaluated with `dotnet msbuild -getItem` (and `-preprocess` for its imports) in Debug
+    and Release, with the tool's environment only and the SDK's default None and Content globs off. A closure item
+    whose path is not a managed file of the tree is a conflict: that includes files under vendor, output or dist, and any
+    path outside the tree. A project MSBuild cannot evaluate, a missing `dotnet` and imports of unmanaged files are conflicts.
+    The check fails closed on what an evaluation cannot see: closure items a target adds (`ItemGroup` or `CreateItem`) and
+    multi-targeted projects (`TargetFrameworks`, whose inner builds are not evaluated). Not modelled, and so a limit:
+    environment variables (cleared on purpose), and property or item values that only a build computes.
+    Results are memoised on the image's bytes and on what `dotnet` resolves in it."""
     conflicts: list[dict] = []
     with tempfile.TemporaryDirectory(prefix="fsgg-closure-") as scratch:
         image = Path(scratch) / "tree"
         image.mkdir()
-        _closure_image(candidate, image)
+        _closure_image(candidate, image, managed, solution)
+        pin_error = _drop_unresolvable_pin(image)
+        if pin_error:
+            return [{"path": "global.json", "reason": pin_error}]
         delivered = {value for value in managed if (image / value).is_file()}
         key = _closure_key(image, delivered)
         if key in _closure_memo:

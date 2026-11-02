@@ -192,6 +192,8 @@ class CurrentReference(unittest.TestCase):
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
             results = list(pool.map(run, CASES.items()))
+        print(f'closure cases: {len(results)} evaluated; {sum(refused for _, refused, _ in results)} expected refusals; '
+              f'{sum(not refused for _, refused, _ in results)} managed controls', file=sys.__stdout__)
         self.assertGreaterEqual(len(results), 55)
         self.assertEqual([(name, refused) for name, refused, reasons in results if bool(reasons) != refused], [])
         # Both kinds of verdict are exercised, and a refusal names the project's offending file or the failed evaluation.
@@ -199,7 +201,9 @@ class CurrentReference(unittest.TestCase):
         for name, refused, reasons in results:
             if refused:
                 self.assertTrue(all('outside the managed closure' in reason or 'cannot be evaluated' in reason
-                                    or 'adds closure items in a target' in reason for reason in reasons), (name, reasons))
+                                    or "outside the candidate's tree" in reason or 'imports ' in reason
+                                    or 'adds closure items in a target' in reason or 'CreateItem' in reason
+                                    for reason in reasons), (name, reasons))
 
     def test_closure_check_fails_closed_when_msbuild_cannot_run(self):
         root = self.root / 'closed'
@@ -224,6 +228,109 @@ class CurrentReference(unittest.TestCase):
         bad = self.root / 'closed-xml'
         managed = self.closure_tree(bad, '<ItemGroup><Compile Include="Ok.fs"/></Item>', {}, ())
         self.assertTrue(adopter.compile_closure_conflicts(bad, managed, bad / 'X.slnx'))
+
+    @staticmethod
+    def sdks():
+        """The installed SDK versions, and the one `dotnet` resolves with no `global.json`."""
+        import subprocess as process
+        listed = process.run(['dotnet', '--list-sdks'], capture_output=True, text=True, cwd=tempfile.gettempdir()).stdout
+        ambient = process.run(['dotnet', '--version'], capture_output=True, text=True, cwd=tempfile.gettempdir()).stdout.strip()
+        return [line.split()[0] for line in listed.splitlines() if line.strip()], ambient
+
+    def test_the_candidates_sdk_pin_is_kept_when_installed_and_left_out_when_absent(self):
+        # FS.GG.Templates#849. A pin to an SDK this machine lacks (the published 0.19.3 donor's) must not fail every
+        # evaluation, and a pin to an installed SDK must be the SDK that evaluates.
+        installed, ambient = self.sdks()
+        body = '<ItemGroup><Compile Include="Ok.fs"/></ItemGroup>'
+        for name, version, expected in [('absent', '9.9.9', []), ('ambient', ambient, [])]:
+            with self.subTest(pin=name):
+                root = self.root / ('pin-' + name)
+                managed = self.closure_tree(root, body, {'global.json': json.dumps({'sdk': {'version': version, 'rollForward': 'disable'}})}, ())
+                self.assertEqual(adopter.compile_closure_conflicts(root, managed, root / 'X.slnx'), expected)
+        others = [version for version in installed if version != ambient and version.split('.')[0] == ambient.split('.')[0]]
+        if not others:
+            self.skipTest('only one SDK is installed: the pinned SDK cannot be told from the ambient one')
+        pinned = others[0]
+        condition = f'<ItemGroup Condition="\'$(NETCoreSdkVersion)\' == \'{pinned}\'"><Compile Include="Gen.fs"/></ItemGroup>'
+        root = self.root / 'pin-installed'
+        managed = self.closure_tree(root, body + condition, {'global.json': json.dumps({'sdk': {'version': pinned, 'rollForward': 'disable'}})}, ())
+        rows = adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')
+        self.assertEqual([row['reason'] for row in rows], ['candidate project names Compile P/Gen.fs, outside the managed closure'])
+        # The same condition without the pin is not true: the ambient SDK evaluates.
+        root = self.root / 'pin-none'
+        managed = self.closure_tree(root, body + condition, {}, ())
+        self.assertEqual(adopter.compile_closure_conflicts(root, managed, root / 'X.slnx'), [])
+
+    def test_pin_resolution_uncertainty_never_uses_the_ambient_sdk(self):
+        from unittest.mock import patch
+        version = '9.9.9'
+        missing = subprocess.CompletedProcess([], 155, '',
+                    f'A compatible .NET SDK was not found.\nRequested SDK version: {version}\n')
+        listed = subprocess.CompletedProcess([], 0, '10.0.401 [/sdk]\n', '')
+        controls = [
+            ('timeout', [subprocess.TimeoutExpired('dotnet', 120)]),
+            ('launch-error', [OSError('dotnet failed')]),
+            ('unrelated-error', [subprocess.CompletedProcess([], 1, '', 'host error')]),
+            ('unconfirmed-absence', [subprocess.CompletedProcess([], 155, '', 'host error')]),
+            ('list-timeout', [missing, subprocess.TimeoutExpired('dotnet', 120)]),
+            ('list-error', [missing, subprocess.CompletedProcess([], 1, '', 'host error')]),
+            ('list-malformed', [missing, subprocess.CompletedProcess([], 0, 'not an SDK census', '')]),
+            ('pin-installed', [missing, subprocess.CompletedProcess([], 0, version + ' [/sdk]\n', '')]),
+        ]
+        for name, outcomes in controls:
+            with self.subTest(control=name):
+                root = self.root / ('pin-error-' + name)
+                managed = self.closure_tree(root, '<ItemGroup><Compile Include="Ok.fs"/></ItemGroup>',
+                    {'global.json': json.dumps({'sdk': {'version': version, 'rollForward': 'disable'}})}, ())
+                calls = []
+                def run(arguments, **options):
+                    calls.append(arguments)
+                    outcome = outcomes.pop(0)
+                    if isinstance(outcome, Exception):
+                        raise outcome
+                    return outcome
+                with patch.object(subprocess, 'run', side_effect=run):
+                    rows = adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')
+                self.assertEqual([row['path'] for row in rows], ['global.json'])
+                self.assertTrue(all('msbuild' not in call for call in calls))
+        for malformed in ['{', '{"sdk":{"version":42}}', '{"sdk":{"version":"bad"}}']:
+            with self.subTest(malformed=malformed):
+                root = self.root / ('pin-malformed-' + str(len(malformed)))
+                managed = self.closure_tree(root, '', {'global.json': malformed}, ())
+                with patch.object(subprocess, 'run', side_effect=AssertionError('must not launch')):
+                    self.assertEqual([row['path'] for row in adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')],
+                                     ['global.json'])
+        root = self.root / 'pin-confirmed-absent'
+        root.mkdir()
+        pin = root / 'global.json'
+        pin.write_text(json.dumps({'sdk': {'version': version, 'rollForward': 'disable'}}))
+        with patch.object(subprocess, 'run', side_effect=[missing, listed]):
+            self.assertIsNone(adopter._drop_unresolvable_pin(root))
+        self.assertFalse(pin.exists())
+        print(f'pin-resolution controls: {len(controls)} uncertain resolutions and 3 malformed pins refused; 1 confirmed absence allowed', file=sys.__stdout__)
+
+    def test_the_memo_follows_what_dotnet_resolves(self):
+        import subprocess as process
+        import uuid
+        root = self.root / 'memo'
+        managed = self.closure_tree(root, '<ItemGroup><Compile Include="Ok.fs"/></ItemGroup>', {'P/Unique.txt': uuid.uuid4().hex}, ())
+        calls = []
+        original_run, original_stamp = process.run, adopter._dotnet_stamp
+
+        def counting(arguments, *rest, **options):
+            if 'msbuild' in arguments:
+                calls.append(arguments)
+            return original_run(arguments, *rest, **options)
+
+        process.run = counting
+        try:
+            for stamp, evaluates in [('0|10.0.1|', True), ('0|10.0.1|', False), ('0|10.0.2|', True), ('dotnet unavailable: FileNotFoundError', True)]:
+                adopter._dotnet_stamp = lambda image, stamp=stamp: stamp
+                before = len(calls)
+                adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')
+                self.assertEqual(len(calls) > before, evaluates, stamp)
+        finally:
+            process.run, adopter._dotnet_stamp = original_run, original_stamp
 
     def test_optional_sets_must_be_named_disjoint_successor_additions(self):
         for sets in [{'a': ['Domain/Room.fs']}, {'a': []}, {'': ['Client/Renderers.fs']}, ['Client/Renderers.fs'],
