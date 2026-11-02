@@ -9,5 +9,5 @@
     "test:browser": "playwright test --config playwright.config.mjs",
     "verify": "npm run build && npm run test:domain && npm run test:browser"
   },
-  "devDependencies": { "@playwright/test": "1.63.0" }
+  "devDependencies": { "@playwright/test": "1.64.1" }
 }

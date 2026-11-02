@@ -334,12 +334,16 @@ def current_reference_tools(candidate: bytes, current: bytes | None) -> bytes:
         return value
 
     target = read(candidate)
-    target_fable = {"version": "5.18.0", "commands": ["fable"]}
-    if target["tools"].get("fable") != target_fable:
-        fail("current reference candidate must declare the exact Fable5.18.0 row")
+    historical_fable = {"version": "5.18.0", "commands": ["fable"]}
+    current_fable = {"version": "5.26.0", "commands": ["fable"]}
+    target_fable = target["tools"].get("fable")
+    if target_fable not in (historical_fable, current_fable):
+        fail("current reference candidate must declare an exact supported Fable row (5.18.0 or 5.26.0)")
     existing = target if current is None else read(current)
-    if existing["tools"].get("fable") not in (
-            {"version": "5.13.0", "commands": ["fable"]}, target_fable):
+    supported = [{"version": "5.13.0", "commands": ["fable"]}, target_fable]
+    if target_fable == current_fable:
+        supported.append(historical_fable)
+    if existing["tools"].get("fable") not in supported:
         fail("current reference Fable row is edited or unsupported", 3)
     # Other candidate defaults may fill absent tools. Existing co-tenant entries
     # and root metadata win; only the authenticated Fable row is replaced.

@@ -572,6 +572,48 @@ class CurrentReference(unittest.TestCase):
             harness.public_archive(path, adopter.CURRENT_REFERENCE['publicArchiveSha256'], '0.19.3')
 
 
+class CurrentCompilerUpgrade(unittest.TestCase):
+    @staticmethod
+    def tools(version):
+        return {'version': 1, 'isRoot': True, 'tools':
+                {'fable': {'version': version, 'commands': ['fable']}}}
+
+    def test_current_compiler_upgrades_supported_receivers_and_preserves_owner(self):
+        candidate = json.dumps(self.tools('5.26.0')).encode()
+        for version in ('5.13.0', '5.18.0', '5.26.0'):
+            with self.subTest(version=version):
+                current = self.tools(version)
+                current['ownerNote'] = {'keep': True}
+                current['tools']['owner.local'] = {'version': '9.0.0', 'commands': ['mine']}
+                merged = json.loads(adopter.current_reference_tools(candidate, json.dumps(current).encode()))
+                self.assertEqual(merged, {**current, 'tools': {**current['tools'],
+                    'fable': {'version': '5.26.0', 'commands': ['fable']}}})
+        self.assertEqual(json.loads(adopter.current_reference_tools(candidate, None)), self.tools('5.26.0'))
+
+    def test_unsupported_owner_edits_and_historical_downgrade_refuse(self):
+        candidate = json.dumps(self.tools('5.26.0')).encode()
+        edits = [self.tools('5.25.0'), self.tools('5.27.0')]
+        wrong_command = self.tools('5.18.0')
+        wrong_command['tools']['fable']['commands'] = ['other']
+        edits.append(wrong_command)
+        for current in edits:
+            with self.subTest(current=current), self.assertRaises(SystemExit) as error:
+                adopter.current_reference_tools(candidate, json.dumps(current).encode())
+            self.assertEqual(error.exception.code, 3)
+        with self.assertRaises(SystemExit) as error:
+            adopter.current_reference_tools(json.dumps(self.tools('5.18.0')).encode(), candidate)
+        self.assertEqual(error.exception.code, 3)
+
+    def test_unsupported_candidate_row_refuses(self):
+        for version in ('5.25.0', '5.27.0'):
+            with self.subTest(version=version), self.assertRaises(SystemExit):
+                adopter.current_reference_tools(json.dumps(self.tools(version)).encode(), None)
+        extra = self.tools('5.26.0')
+        extra['tools']['fable']['extra'] = True
+        with self.assertRaises(SystemExit):
+            adopter.current_reference_tools(json.dumps(extra).encode(), None)
+
+
 if __name__ == '__main__':
     print('SYNTHETIC copied source and owner sentinels; no template engine/package/build/browser acceptance.')
     unittest.main(verbosity=2, buffer=True)

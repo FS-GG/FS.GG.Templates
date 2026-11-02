@@ -17,7 +17,7 @@ import sys
 
 SCHEMA = "fsgg.soldier-accessibility-observation/v1"
 ORCA_SCHEMA = "fsgg.soldier-input-orca-observation/v1"
-AXE_VERSION = "4.11.0"
+AXE_VERSION = "4.14.0"
 GATES = [
     "panel-region-name", "panel-focusable", "panel-heading-level-2", "note-textbox-name", "status-live-polite",
     "command-buttons-present", "command-names-unique-nonempty", "command-buttons-focusable-enabled",

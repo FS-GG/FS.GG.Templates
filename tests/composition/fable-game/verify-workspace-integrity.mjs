@@ -26,6 +26,18 @@ const locks = [
 ];
 const npmRoots = ["Client", "Browser.Tests"];
 
+// Bind generated-workspace checks to the selected producer checkout, independently
+// of the workspace under test. Source dependency updates then carry their own pins.
+const producerJson = (path) => JSON.parse(readFileSync(new URL(`../../../templates/fs-gg-fable-game/${path}`, import.meta.url), "utf8"));
+const expectedFable = producerJson(".config/dotnet-tools.json").tools?.fable;
+const expectedClient = producerJson("Client/package.json");
+const expectedBrowser = producerJson("Browser.Tests/package.json");
+const expectedNpm = [expectedClient.dependencies?.["@microsoft/signalr"], expectedClient.devDependencies?.vite, expectedBrowser.devDependencies?.["@playwright/test"]];
+const exactStable = (value) => typeof value === "string" && /^[0-9]+\.[0-9]+\.[0-9]+$/.test(value);
+if (!exactStable(expectedFable?.version) || JSON.stringify(expectedFable.commands) !== '["fable"]' || !expectedNpm.every(exactStable))
+  fail("selected producer must declare exact stable compiler and npm pins");
+
+
 const auditNpmRoots = (run = spawnSync) => {
   for (const root of npmRoots) {
     const result = run("npm", ["audit", "--package-lock-only", "--omit=dev", "--audit-level=high"], {
@@ -76,7 +88,7 @@ const validate = (input) => {
   const global = JSON.parse(input.read("global.json"));
   const tools = JSON.parse(input.read(".config/dotnet-tools.json"));
   if (global.sdk?.version !== "10.0.403" || global.sdk?.rollForward !== "disable") fail("global.json SDK pin is not the supported exact toolchain metadata");
-  if (tools.tools?.fable?.version !== "5.18.0" || !tools.tools.fable.commands?.includes("fable")) fail("dotnet tool manifest lacks the exact Fable tool pin");
+  if (tools.tools?.fable?.version !== expectedFable.version || !tools.tools.fable.commands?.includes("fable")) fail("dotnet tool manifest lacks the exact Fable tool pin");
   const clientPackage = JSON.parse(input.read("Client/package.json"));
   const browserPackage = JSON.parse(input.read("Browser.Tests/package.json"));
   const clientLock = JSON.parse(input.read("Client/package-lock.json"));
@@ -84,21 +96,34 @@ const validate = (input) => {
   const coherentLock = (name, manifest, lock) => lock.lockfileVersion === 3 && lock.packages?.[""]?.name === manifest.name && JSON.stringify(lock.packages[""]?.dependencies ?? {}) === JSON.stringify(manifest.dependencies ?? {}) && JSON.stringify(lock.packages[""]?.devDependencies ?? {}) === JSON.stringify(manifest.devDependencies ?? {});
   if (!coherentLock("Client", clientPackage, clientLock)) fail("Client package manifest and lockfile are incoherent");
   if (!coherentLock("Browser.Tests", browserPackage, browserLock)) fail("Browser.Tests package manifest and lockfile are incoherent");
-  if (clientPackage.dependencies?.["@microsoft/signalr"] !== "10.0.11" || clientPackage.devDependencies?.vite !== "7.3.6" || browserPackage.devDependencies?.["@playwright/test"] !== "1.63.0") fail("npm toolchain pins are not exact and coherent");
+  if (clientPackage.dependencies?.["@microsoft/signalr"] !== expectedNpm[0] || clientPackage.devDependencies?.vite !== expectedNpm[1] || browserPackage.devDependencies?.["@playwright/test"] !== expectedNpm[2]) fail("npm toolchain pins are not exact and coherent");
 };
 
 const input = { read, required };
 validate(input);
 
-const mutateAndExpect = (path, mutate, expected) => {
+const mutateAndExpect = (path, mutate, expected, companions = []) => {
   const original = read(path);
-  const mutated = new Map([[path, mutate(original)]]);
+  const mutated = new Map([[path, mutate(original)], ...companions]);
   const mutant = { read: (requested) => mutated.get(requested) ?? read(requested), required };
   try { validate(mutant); fail(`${basename(path)} mutation survived`); }
   catch (error) { if (!String(error.message).includes(expected)) throw error; }
 };
 
 if (process.argv.includes("--self-test")) {
+  for (const change of [row => { row.version = "999.0.0"; }, row => { row.commands = ["other"]; }]) {
+    mutateAndExpect(".config/dotnet-tools.json", (source) => {
+      const value = JSON.parse(source); change(value.tools.fable); return JSON.stringify(value);
+    }, "dotnet tool manifest lacks the exact Fable tool pin");
+  }
+  for (const [root, kind, name] of [["Client", "dependencies", "@microsoft/signalr"], ["Client", "devDependencies", "vite"], ["Browser.Tests", "devDependencies", "@playwright/test"]]) {
+    const lockPath = `${root}/package-lock.json`;
+    const lock = JSON.parse(read(lockPath)); lock.packages[""][kind][name] = "999.0.0";
+    mutateAndExpect(`${root}/package.json`, (source) => {
+      const value = JSON.parse(source); value[kind][name] = "999.0.0"; return JSON.stringify(value);
+    }, "npm toolchain pins are not exact and coherent", [[lockPath, JSON.stringify(lock)]]);
+  }
+
   mutateAndExpect("Server/Server.fsproj", (source) => `${source}\n<ProjectReference Include=\"../Client/Client.fsproj\" />`, "Server dependency closure reaches forbidden Fable Client project");
   mutateAndExpect("Domain/Domain.fsproj", (source) => `${source}\n<ItemGroup><ProjectReference Include=\"../Client/Client.fsproj\" /></ItemGroup>`, "Server dependency closure reaches forbidden Fable Client project");
   mutateAndExpect("Domain/Domain.fsproj", (source) => `${source}\n<ItemGroup><PackageReference Include=\"Fable.Core\" Version=\"[5.2.0]\" /></ItemGroup>`, "Server dependency closure includes forbidden Fable package through Domain/Domain.fsproj");

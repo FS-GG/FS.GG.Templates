@@ -14,7 +14,6 @@ if [[ -z "$expectations" ]]; then
 fi
 case "$expectations" in
   source)
-    expected_fsharp_core=10.1.401
     expected_caddy='docker.io/library/caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b'
     expected_dockerfile_syntax='# syntax=docker/dockerfile:1.27'
     ;;
@@ -221,10 +220,24 @@ fi
   echo "bundle composition: mixed response-file contradiction wrote into $destination" >&2; exit 1;
 }
 
-jq -e --arg expected "$expected_fsharp_core" \
-  '.dependencies["net10.0"]["FSharp.Core"].resolved == $expected' \
-  "$work/Player/SvgFoundation/packages.lock.json" \
-  "$work/Studio/SvgFoundation/Studio/packages.lock.json" >/dev/null
+for project in "$work/Player/SvgFoundation/SvgFoundation.fsproj" \
+               "$work/Studio/SvgFoundation/Studio/Studio.fsproj"; do
+  if [[ "$expectations" == source ]]; then
+    # Evaluate the selected source project's SDK/package declaration independently
+    # of its lock. The generated global.json selects the exact SDK; no restore runs.
+    expected_fsharp_core="$(cd "$(dirname "$project")" && \
+      dotnet msbuild "$project" -nologo -getItem:PackageReference | \
+      jq -er '.Items.PackageReference | map(select(.Identity == "FSharp.Core")) |
+        if length == 1 and (.[0].Version | type == "string" and length > 0)
+        then .[0].Version else error("expected one declared FSharp.Core reference") end |
+        if test("^\\[[0-9]+\\.[0-9]+\\.[0-9]+\\]$") then .[1:-1]
+        elif test("^[0-9]+\\.[0-9]+\\.[0-9]+$") then .
+        else error("expected an exact stable FSharp.Core declaration") end')"
+  fi
+  jq -e --arg expected "$expected_fsharp_core" \
+    '.dependencies["net10.0"]["FSharp.Core"].resolved == $expected' \
+    "$(dirname "$project")/packages.lock.json" >/dev/null
+done
 grep -F 'artifacts/static-player' "$work/Player/build.sh" >/dev/null
 grep -F 'artifacts/authority-server' "$work/Player/build.sh" >/dev/null
 for deployment_path in \
