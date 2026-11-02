@@ -490,247 +490,160 @@ def manifest_data(path: Path) -> tuple[dict, list[str], list[str], dict[str, set
     return manifest, managed, retired, allowed
 
 
-_CONDITION_TOKEN = re.compile(
-    r"\s*(?:(?P<string>'[^']*')|(?P<op>==|!=|\(|\)|!|,)|(?P<word>[A-Za-z_][A-Za-z0-9_.]*))")
+# The closure oracle is MSBuild itself (FS.GG.Templates#841). A hand-written evaluator of MSBuild conditions, globs and
+# imports will always lag the tool, so the question "does a project of the adopted tree name a file the manifest does
+# not manage?" is put to `dotnet msbuild` on an image of the post-adoption tree, in every configuration the template
+# defines, and anything MSBuild cannot evaluate is a conflict.
+_CLOSURE_ITEM_TYPES = ("Compile,EmbeddedResource,None,Content,Resource,CompileBefore,CompileAfter,ProjectReference,"
+                       "Reference,AdditionalFiles,Analyzer,Page")
+_CLOSURE_ITEM_NAMES = {name.lower() for name in _CLOSURE_ITEM_TYPES.split(",")}
+_CLOSURE_CONFIGURATIONS = ("Debug", "Release")
+_CLOSURE_PROJECTS = (".fsproj", ".csproj", ".vbproj")
+_closure_memo: dict[str, list[dict]] = {}
 
 
-class _Unsupported(Exception):
-    """An MSBuild construct this evaluator does not model: the caller fails closed."""
+def _msbuild_environment() -> dict[str, str]:
+    """The environment of an evaluation: the tool's own variables and nothing ambient, so a project cannot name a file
+    through a variable of the machine that happens to run the check."""
+    keep = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT")
+    environment = {key: value for key, value in os.environ.items()
+                   if key in keep or key.startswith(("DOTNET_", "NUGET_", "MSBUILD"))}
+    environment.update({"DOTNET_NOLOGO": "1", "DOTNET_CLI_TELEMETRY_OPTOUT": "1", "MSBUILDDISABLENODEREUSE": "1"})
+    return environment
 
 
-def _expand(text: str, properties: dict[str, str]) -> str:
-    """Expand `$(Name)` from `properties`; an undefined property is the empty string, as in MSBuild."""
-    for _ in range(8):
-        expanded = re.sub(r"\$\(([A-Za-z_][A-Za-z0-9_.]*)\)", lambda m: properties.get(m.group(1), ""), text)
-        if expanded == text:
-            return expanded
-        text = expanded
-    raise _Unsupported("recursive property expansion")
+def _local_name(element) -> str:
+    return element.tag.rsplit("}", 1)[-1]
 
 
-def _evaluate_condition(condition: str, properties: dict[str, str], exists) -> bool:
-    """Evaluate the MSBuild condition forms the generated projects use: `'a' == 'b'`, `!=`, `Exists('p')`, `!`,
-    `And`, `Or` and parentheses. Anything else raises `_Unsupported`."""
-    tokens = []
-    position = 0
-    text = condition.strip()
-    while position < len(text):
-        match = _CONDITION_TOKEN.match(text, position)
-        if match is None:
-            raise _Unsupported(f"condition cannot be read: {condition}")
-        position = match.end()
-        for kind in ("string", "op", "word"):
-            if match.group(kind) is not None:
-                tokens.append((kind, match.group(kind)))
-    index = 0
-
-    def peek():
-        return tokens[index] if index < len(tokens) else (None, None)
-
-    def take():
-        nonlocal index
-        token = peek()
-        index += 1
-        return token
-
-    def operand():
-        kind, value = take()
-        if kind == "string":
-            return _expand(value[1:-1], properties)
-        if kind == "word":
-            return value
-        raise _Unsupported(f"condition operand expected: {condition}")
-
-    def atom():
-        kind, value = peek()
-        if (kind, value) == ("op", "("):
-            take()
-            result = disjunction()
-            if take() != ("op", ")"):
-                raise _Unsupported(f"unbalanced condition: {condition}")
-            return result
-        if kind == "word" and value.lower() == "exists":
-            take()
-            if take() != ("op", "("):
-                raise _Unsupported(f"Exists needs a path: {condition}")
-            path = operand()
-            if take() != ("op", ")"):
-                raise _Unsupported(f"Exists needs a closing parenthesis: {condition}")
-            return exists(path)
-        left = operand()
-        kind, value = peek()
-        if (kind, value) in (("op", "=="), ("op", "!=")):
-            take()
-            right = operand()
-            return (left.lower() == right.lower()) == (value == "==")
-        if left.lower() in ("true", "false"):
-            return left.lower() == "true"
-        raise _Unsupported(f"condition operator expected: {condition}")
-
-    def negation():
-        if peek() == ("op", "!"):
-            take()
-            return not negation()
-        return atom()
-
-    def conjunction():
-        result = negation()
-        while peek()[0] == "word" and peek()[1].lower() == "and":
-            take()
-            result = negation() and result
-        return result
-
-    def disjunction():
-        result = conjunction()
-        while peek()[0] == "word" and peek()[1].lower() == "or":
-            take()
-            result = conjunction() or result
-        return result
-
-    result = disjunction()
-    if index != len(tokens):
-        raise _Unsupported(f"trailing condition text: {condition}")
-    return result
+def _closure_image(candidate: Path, image: Path) -> None:
+    """The candidate's tree as MSBuild will see it (build output and package folders left out)."""
+    for source in relevant_files(candidate):
+        # The candidate's SDK pin is left out: what a project names does not depend on the SDK's patch level, and a pin to
+        # an SDK this machine lacks would make every evaluation fail (the check still fails closed with no SDK at all).
+        if source.is_symlink() or source.name == "global.json":
+            continue
+        target = image / source.relative_to(candidate)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(source, target)
 
 
-_CLOSURE_ITEMS = {"Compile", "EmbeddedResource", "None", "Content", "ProjectReference"}
-_CLOSURE_FILES = (".fsproj", ".csproj", ".props", ".targets")
+def _closure_key(image: Path, managed: set[str]) -> str:
+    digests = hashlib.sha256()
+    for path in sorted(image.rglob("*")):
+        if path.is_file():
+            digests.update(f"{path.relative_to(image).as_posix()}\0{digest(path.read_bytes())}\0".encode())
+    digests.update(("|".join(sorted(managed)) + "|".join(_CLOSURE_CONFIGURATIONS) + _CLOSURE_ITEM_TYPES).encode())
+    return digests.hexdigest()
+
+
+def _evaluate_project(image: Path, managed: set[str], logical: str, configuration: str) -> list[dict]:
+    """Ask MSBuild for the items and imports of one project in one configuration."""
+    import subprocess
+
+    def run(*arguments: str):
+        return subprocess.run(["dotnet", "msbuild", str(image / logical), "-nologo", "-nodeReuse:false",
+                               f"-p:Configuration={configuration}", "-p:EnableDefaultNoneItems=false",
+                               "-p:EnableDefaultContentItems=false", *arguments],
+                              cwd=image, env=_msbuild_environment(), capture_output=True, text=True, timeout=600)
+
+    def refuse(reason: str) -> list[dict]:
+        return [{"path": logical, "reason": f"candidate project cannot be evaluated by MSBuild ({configuration}): {reason}"}]
+
+    found: list[dict] = []
+    def said(result) -> str:
+        text = (result.stderr or result.stdout).strip()
+        return " / ".join(text.splitlines()[:2])[:300] if text else "no output"
+
+    try:
+        items = run(f"-getItem:{_CLOSURE_ITEM_TYPES}")
+    except (OSError, subprocess.SubprocessError) as error:
+        return refuse(f"{type(error).__name__}: {error}"[:300])
+    try:
+        value = json.loads(items.stdout) if items.returncode == 0 else None
+    except ValueError:
+        value = None
+    if not isinstance(value, dict) or "Items" not in value:
+        return refuse(said(items))
+    for kind, rows in value["Items"].items():
+        for row in rows:
+            full = Path(row.get("FullPath", ""))
+            try:
+                relative = full.resolve().relative_to(image.resolve())
+            except ValueError:
+                continue  # a package, an SDK file or another tree: not this tree's closure
+            if any(part in IGNORED_PARTS for part in relative.parts) or full.is_dir():
+                continue
+            if relative.as_posix() not in managed:
+                found.append({"path": logical,
+                              "reason": f"candidate project names {kind} {relative.as_posix()}, outside the managed closure"})
+    # Imports: MSBuild fails the evaluation of a file it cannot load (refused above); what is left to refuse here is items
+    # that only a target would add, which an evaluation does not see.
+    preprocessed = image.parent / f"closure-{configuration}-{logical.replace('/', '_')}.xml"
+    try:
+        result = run(f"-preprocess:{preprocessed}")
+        if result.returncode != 0 or not preprocessed.is_file():
+            return refuse(said(result))
+        loaded = {Path(line.strip()) for line in preprocessed.read_text(errors="replace").splitlines()
+                  if line.strip().startswith("/") and Path(line.strip()).is_file()}
+    except (OSError, subprocess.SubprocessError) as error:
+        return refuse(f"{type(error).__name__}: {error}"[:300])
+    finally:
+        preprocessed.unlink(missing_ok=True)
+    for file in sorted(loaded):
+        try:
+            relative = file.resolve().relative_to(image.resolve()).as_posix()
+        except ValueError:
+            continue
+        if relative not in managed:
+            found.append({"path": logical, "reason": f"candidate project imports {relative}, outside the managed closure"})
+        try:
+            root = ET.parse(file).getroot()
+        except ET.ParseError:
+            continue
+        for target in root.iter():
+            if _local_name(target) != "Target":
+                continue
+            for group in target.iter():
+                if _local_name(group) == "ItemGroup" and any(
+                        _local_name(child).lower() in _CLOSURE_ITEM_NAMES for child in group):
+                    found.append({"path": logical, "reason": (
+                        f"candidate project adds closure items in a target ({file.resolve().relative_to(image.resolve()).as_posix()}"
+                        f", {target.get('Name')}), which an evaluation does not see")})
+    return found
 
 
 def compile_closure_conflicts(candidate: Path, managed: list[str], solution: Path) -> list[dict]:
-    """Refuse a candidate whose managed MSBuild files name a file the manifest does not manage.
+    """Refuse a candidate whose managed MSBuild projects name a file the manifest does not manage.
 
-    Adoption replaces a receiver's managed project files with the candidate's, so an item or import that names a
-    file the transaction never delivers reaches the receiver as a dangling reference (FS0225 at its first build).
-    The check models the post-adoption tree: a file exists there when it is managed and the candidate carries it.
-    It evaluates `Condition` on groups, items and imports against that tree, expands `$(Property)` from the
-    project's own and `Directory.Build.props` property groups (an undefined property is empty), reads namespaced
-    projects, and checks `Compile`, `EmbeddedResource`, `None`, `Content` and `ProjectReference` includes (globs
-    included) and `Import` projects. A construct it cannot evaluate (`Choose`, a condition it cannot read, an
-    unresolvable property in a path) is itself a conflict, so the check fails closed."""
-    managed_set = set(managed)
-    present = {value for value in managed if candidate_path(candidate, value, solution).exists()}
-    prefixes = {parent.as_posix() for value in present for parent in PurePosixPath(value).parents if parent.as_posix() != "."}
+    Adoption replaces a receiver's managed files with the candidate's, so an item that names a file the transaction
+    never delivers reaches the receiver as a dangling reference (FS0225 at its first build). MSBuild answers the
+    question: the candidate's tree is copied to a scratch image, and each project in it is evaluated
+    with `dotnet msbuild -getItem` (and `-preprocess` for its imports) in Debug and Release, with the environment of the
+    tool only and the SDK's default None and Content globs off. An item whose path is inside the tree and not managed is a
+    conflict. A project MSBuild cannot
+    evaluate, a missing `dotnet`, and items only a target would add are conflicts too: the check fails closed.
+    Results are memoised on the image's bytes."""
     conflicts: list[dict] = []
-    files: list[str] = []
-
-    def candidate_files() -> list[str]:
-        """Every file the candidate carries (build output excluded): what a glob can match."""
-        if not files:
-            files.extend(path.relative_to(candidate).as_posix() for path in relevant_files(candidate)
-                         if not path.is_symlink())
-        return files
-
-    def normalize(base: PurePosixPath, text: str) -> str:
-        return PurePosixPath(os.path.normpath((base / text.replace("\\", "/")).as_posix())).as_posix()
-
-    def exists(base: PurePosixPath, text: str) -> bool:
-        target = normalize(base, text)
-        return target in present or target in prefixes
-
-    def local(element) -> str:
-        return element.tag.rsplit("}", 1)[-1]
-
-    def load(logical: str):
-        try:
-            return ET.parse(candidate_path(candidate, logical, solution)).getroot()
-        except ET.ParseError as error:
-            conflicts.append({"path": logical, "reason": f"candidate project is not well-formed XML: {error}"})
-            return None
-
-    def read_properties(logical: str, properties: dict[str, str], seen: set[str]) -> None:
-        if logical in seen or logical not in present:
-            return
-        seen.add(logical)
-        root = load(logical)
-        if root is None:
-            return
-        base = PurePosixPath(logical).parent
-        for child in root:
-            name = local(child)
-            if name == "Import":
-                project = child.get("Project")
-                condition = child.get("Condition")
-                try:
-                    if project and "$(" not in project and (condition is None or _evaluate_condition(
-                            condition, properties, lambda p: exists(base, _expand(p, properties)))):
-                        read_properties(normalize(base, project), properties, seen)
-                except _Unsupported:
-                    pass
-            elif name == "PropertyGroup":
-                try:
-                    if child.get("Condition") is not None and not _evaluate_condition(
-                            child.get("Condition"), properties, lambda p: exists(base, _expand(p, properties))):
-                        continue
-                    for prop in child:
-                        if prop.get("Condition") is None or _evaluate_condition(
-                                prop.get("Condition"), properties, lambda p: exists(base, _expand(p, properties))):
-                            properties[local(prop)] = _expand((prop.text or "").strip(), properties)
-                except _Unsupported:
-                    continue
-
-    for logical in managed:
-        if not logical.endswith(_CLOSURE_FILES) or logical not in present:
-            continue
-        root = load(logical)
-        if root is None:
-            continue
-        base = PurePosixPath(logical).parent
-        properties = {"MSBuildThisFileDirectory": base.as_posix() + "/" if base.as_posix() != "." else "",
-                      "MSBuildProjectDirectory": base.as_posix() if base.as_posix() != "." else ""}
-        seen: set[str] = set()
-        for ancestor in [base, *base.parents]:
-            props_file = (ancestor / "Directory.Build.props").as_posix()
-            if props_file in present:
-                read_properties(props_file, properties, seen)
-                break
-        read_properties(logical, properties, seen)
-
-        def check(condition) -> bool:
-            return condition is None or _evaluate_condition(
-                condition, properties, lambda p: exists(base, _expand(p, properties)))
-
-        def flag(reason: str) -> None:
-            conflicts.append({"path": logical, "reason": reason})
-
-        def name_target(kind: str, include: str) -> None:
-            for part in filter(None, (piece.strip() for piece in include.split(";"))):
-                try:
-                    expanded = _expand(part, properties)
-                except _Unsupported as error:
-                    flag(f"candidate project cannot be evaluated: {error}")
-                    continue
-                if "$(" in expanded or "%(" in expanded or "@(" in expanded:
-                    flag(f"candidate project names {kind} {part}, whose path cannot be resolved")
-                    continue
-                if any(character in expanded for character in "*?"):
-                    pattern = re.escape(normalize(base, expanded)).replace(r"\*\*", ".*").replace(r"\*", "[^/]*").replace(r"\?", "[^/]")
-                    matched = [value for value in candidate_files() if re.fullmatch(pattern, value)]
-                    for value in matched:
-                        if value not in managed_set:
-                            flag(f"candidate project names {kind} {value}, outside the managed closure")
-                    continue
-                target = normalize(base, expanded)
-                if target not in managed_set and (candidate_path(candidate, target, solution).exists()
-                                                  or kind in ("Compile", "ProjectReference", "Import")):
-                    flag(f"candidate project names {kind} {target}, outside the managed closure")
-
-        try:
-            for child in root:
-                name = local(child)
-                if name == "Choose":
-                    flag("candidate project uses Choose, which the closure check does not model")
-                elif name == "Import":
-                    project = child.get("Project")
-                    if project and child.get("Sdk") is None and check(child.get("Condition")):
-                        name_target("Import", project)
-                elif name == "ItemGroup" and check(child.get("Condition")):
-                    for item in child:
-                        include = item.get("Include")
-                        if local(item) in _CLOSURE_ITEMS and include is not None and check(item.get("Condition")):
-                            name_target(local(item), include)
-        except _Unsupported as error:
-            flag(f"candidate project cannot be evaluated: {error}")
+    with tempfile.TemporaryDirectory(prefix="fsgg-closure-") as scratch:
+        image = Path(scratch) / "tree"
+        image.mkdir()
+        _closure_image(candidate, image)
+        delivered = {value for value in managed if (image / value).is_file()}
+        key = _closure_key(image, delivered)
+        if key in _closure_memo:
+            return [dict(row) for row in _closure_memo[key]]
+        # Only managed projects reach a receiver, so only they are evaluated.
+        projects = sorted(value for value in delivered if value.endswith(_CLOSURE_PROJECTS))
+        import concurrent.futures
+        jobs = [(logical, configuration) for logical in projects for configuration in _CLOSURE_CONFIGURATIONS]
+        with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, (os.cpu_count() or 2))) as pool:
+            for rows in pool.map(lambda job: _evaluate_project(image, delivered, *job), jobs):
+                for row in rows:
+                    if row not in conflicts:
+                        conflicts.append(row)
+    conflicts.sort(key=lambda row: (row["path"], row["reason"]))
+    _closure_memo[key] = [dict(row) for row in conflicts]
     return conflicts
 
 

@@ -11,8 +11,8 @@
 #   1. the historical baselines manifest REFUSES the candidate, naming the unmanaged compiled file (the closure
 #      refusal), and a receiver is left untouched;
 #   2. the committed current-reference manifest ACCEPTS it, adds every file of its optional sets, preserves the
-#      receiver's authored files, and the adopted solution restores locked and builds with `dotnet build`, and its
-#      Fable client compiles to JavaScript;
+#      receiver's authored files, and EVERY project of the adopted receiver restores locked and builds (`dotnet build`, or
+#      Fable for the Fable applications);
 #   3. the manifest is what authenticates the candidate: a managed file edited after the manifest was written is
 #      refused, and a candidate carrying only part of an optional set is refused, each leaving the receiver untouched.
 #
@@ -108,15 +108,36 @@ jq -e '[.conflicts[] | select(.reason|test("only part of the optional set"))] | 
 [[ "$authored_before" == "$(sha256sum "$out/retained/authored/level.json")" ]] || fail 'authored file changed'
 grep -F 'Retained0100' "$out/retained/Client/Renderers.fs" >/dev/null || fail 'the adopted renderers carry the receiver namespace'
 
-# The adopted solution restores locked and builds: every project of the receiver, not only the Fable client.
-solution="$(cd "$out/retained" && ls ./*.slnx)"
-(cd "$out/retained" && dotnet restore "$solution" --locked-mode && dotnet build "$solution" --no-restore) >"$out/solution-build.log" 2>&1 \
-  || { tail -n 60 "$out/solution-build.log" >&2; fail 'the adopted receiver solution does not build'; }
-# The Fable client is built by Fable (its Protocol sources compile against Thoth.Json only under FABLE_COMPILER), so the
-# receiver's Client project is restored locked and compiled to JavaScript, the way its own build.sh builds it.
-(cd "$out/retained" && dotnet tool restore && dotnet restore Client/Client.fsproj --locked-mode \
-  && cd Client && dotnet fable . -o "$out/client-output" --noCache) >"$out/client-build.log" 2>&1 \
-  || { tail -n 60 "$out/client-build.log" >&2; fail 'the adopted receiver Client project does not compile with Fable'; }
-test -s "$out/client-output/Renderers.js" && test -s "$out/client-output/Conformance.js" \
+# Every project of the adopted receiver restores locked and compiles: not only the solution's, but SvgFoundation, Studio,
+# TacticalCompatibility.Tests and both codec probes too. The Fable applications (their Protocol sources compile against
+# Thoth.Json only under FABLE_COMPILER) are compiled to JavaScript the way their own builds do; every other project is
+# built with `dotnet build`. A project in neither list fails the gate, so a new project cannot go unbuilt.
+fable_projects=(
+  Client/Client.fsproj
+  Protocol.Tests/cross-runtime/CodecProbe.Fable/CodecProbe.Fable.fsproj
+  SvgFoundation/SvgFoundation.fsproj
+  SvgFoundation/Studio/Studio.fsproj
+)
+mapfile -t projects < <(cd "$out/retained" && find . -name '*.fsproj' -not -path './.nuget/*' -not -path '*/node_modules/*' \
+  -not -path '*/obj/*' -not -path '*/bin/*' | sed 's|^\./||' | sort)
+[[ ${#projects[@]} -ge 12 ]] || fail "the adopted receiver has only ${#projects[@]} projects"
+(cd "$out/retained" && dotnet tool restore) >"$out/tool-restore.log" 2>&1 || { cat "$out/tool-restore.log" >&2; fail 'dotnet tool restore failed'; }
+for project in "${projects[@]}"; do
+  log="$out/build-$(tr '/' '_' <<<"$project").log"
+  fable=0
+  for candidate_project in "${fable_projects[@]}"; do [[ $project == "$candidate_project" ]] && fable=1; done
+  if [[ $fable == 1 ]]; then
+    (cd "$out/retained" && dotnet restore "$project" --locked-mode \
+      && dotnet fable "$(dirname "$project")" -o "$out/fable-output/$(tr '/' '_' <<<"$project")" --noCache) >"$log" 2>&1 \
+      || { tail -n 40 "$log" >&2; fail "the adopted receiver's $project does not compile with Fable"; }
+  else
+    (cd "$out/retained" && dotnet restore "$project" --locked-mode && dotnet build "$project" --no-restore) >"$log" 2>&1 \
+      || { tail -n 40 "$log" >&2; fail "the adopted receiver's $project does not build"; }
+  fi
+done
+for fable_project in "${fable_projects[@]}"; do
+  printf '%s\n' "${projects[@]}" | grep -Fx "$fable_project" >/dev/null || fail "the receiver lacks the Fable project $fable_project"
+done
+test -s "$out/fable-output/Client_Client.fsproj/Renderers.js" && test -s "$out/fable-output/Client_Client.fsproj/Conformance.js" \
   || fail 'Fable did not emit the adopted renderers'
-echo "source-candidate-adoption: baselines refusal named the unmanaged closure; the committed manifest adopted $old_version with ${#optional[@]} added files; an edited file and a partial set were refused; the solution built and the Client compiled with Fable"
+echo "source-candidate-adoption: baselines refusal named the unmanaged closure; the committed manifest adopted $old_version with ${#optional[@]} added files; an edited file and a partial set were refused; all ${#projects[@]} projects of the adopted receiver built (${#fable_projects[@]} with Fable)"

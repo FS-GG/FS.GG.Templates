@@ -2,12 +2,14 @@
 """Pure synthetic controls. No template engine, public archive or runtime proof."""
 import importlib.util
 import json
+import sys
 import os
 import subprocess
 from pathlib import Path
 import tempfile
 import unittest
 
+HERE = Path(__file__).resolve().parent
 ROOT = Path(__file__).resolve().parents[3]
 SPEC = importlib.util.spec_from_file_location('reference_harness', Path(__file__).with_name('verify-current-reference-adoption.py'))
 harness = importlib.util.module_from_spec(SPEC)
@@ -162,82 +164,66 @@ class CurrentReference(unittest.TestCase):
             self.inventory_receiver()
         self.assertEqual(self.tree(), before)
 
-    # FS.GG.Templates#834 and #841: a managed MSBuild file that names a file the manifest does not manage would reach the
-    # receiver as a dangling reference. Each way a project can name a file has a control, and so does each way the check
-    # could wrongly stay silent or wrongly refuse.
-    def closure(self, projects, managed, extra_files=()):
-        root = self.root / ('closure-%d' % len(list(self.root.glob('closure-*'))))
-        for logical, text in projects.items():
+    # FS.GG.Templates#834 and #841: a managed MSBuild project that names a file the manifest does not manage would reach the
+    # receiver as a dangling reference. The oracle is MSBuild itself (`dotnet msbuild -getItem` and `-preprocess`, in Debug
+    # and Release, on a copy of the candidate's tree); the cases are in closure_cases.py, one crafted project each.
+    @staticmethod
+    def closure_tree(root, body, extra, unmanaged):
+        files = {'X.slnx': '<Solution/>', 'Domain/Room.fs': 'module N.Domain\n', 'P/Ok.fs': 'x', 'P/Gen.fs': 'unmanaged',
+                 'P/P.fsproj': '<Project Sdk="Microsoft.NET.Sdk">\n<PropertyGroup><EnableDefaultItems>false</EnableDefaultItems>'
+                               f'<TargetFramework>net10.0</TargetFramework></PropertyGroup>\n{body}\n</Project>\n'}
+        files.update(extra)
+        for logical, text in files.items():
             (root / logical).parent.mkdir(parents=True, exist_ok=True)
             (root / logical).write_text(text)
-        for logical in list(managed) + list(extra_files):
-            (root / logical).parent.mkdir(parents=True, exist_ok=True)
-            if not (root / logical).exists():
-                (root / logical).write_text('<Project />' if logical.endswith(('.fsproj', '.props')) else 'x')
-        return [row['reason'] for row in adopter.compile_closure_conflicts(root, list(managed), root / 'X.slnx')]
+        return [logical for logical in files if logical not in ('P/Gen.fs', *unmanaged)]
 
-    @staticmethod
-    def project(*items, props='', ns=''):
-        return f'<Project{ns}>{props}<ItemGroup>{"".join(items)}</ItemGroup></Project>'
+    def test_closure_oracle_agrees_with_msbuild_on_every_case(self):
+        import concurrent.futures
+        sys.path.insert(0, str(HERE))
+        from closure_cases import CASES
 
-    def test_unconditional_unmanaged_includes_are_closure_conflicts(self):
-        for kind in ['Compile', 'EmbeddedResource', 'None', 'Content', 'ProjectReference']:
-            with self.subTest(kind=kind):
-                found = self.closure({'Client/Client.fsproj': self.project(f'<{kind} Include="Extra.fs" />')},
-                                     ['Client/Client.fsproj'], ['Client/Extra.fs'])
-                self.assertEqual(found, [f'candidate project names {kind} Client/Extra.fs, outside the managed closure'])
-        self.assertEqual(self.closure({'Client/Client.fsproj': self.project('<Compile Include="App.fs" />')},
-                                      ['Client/Client.fsproj', 'Client/App.fs']), [])
+        def run(item):
+            name, (body, extra, unmanaged, refused) = item
+            root = self.root / ('case-' + name)
+            managed = self.closure_tree(root, body, extra, unmanaged)
+            rows = adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')
+            return name, refused, [row['reason'] for row in rows]
 
-    def test_conditional_includes_are_evaluated_against_the_post_adoption_tree(self):
-        guarded = lambda condition: self.project(f'<Compile Include="Codec.fs" Condition="{condition}" />')
-        managed = ['Domain.Tests/Domain.Tests.fsproj', 'Domain/Marker.fs']
-        outside = 'candidate project names Compile Domain.Tests/Codec.fs, outside the managed closure'
-        for condition, refused in [("Exists('../Domain/Marker.fs')", True), ("Exists('../Domain/Missing.fs')", False),
-                                   ("!Exists('../Domain/Missing.fs')", True), ("!Exists('../Domain/Marker.fs')", False),
-                                   ("Exists('../Domain/Marker.fs') And '$(Legacy)' != 'true'", True),
-                                   ("Exists('../Domain/Marker.fs') And '$(Legacy)' == 'true'", False),
-                                   ("'$(Legacy)' == 'true' Or Exists('../Domain/Marker.fs')", True),
-                                   ("(Exists('../Domain/Marker.fs'))", True)]:
-            with self.subTest(condition=condition):
-                found = self.closure({'Domain.Tests/Domain.Tests.fsproj': guarded(condition)}, managed, ['Domain.Tests/Codec.fs'])
-                self.assertEqual(found, [outside] if refused else [])
-        group = '<Project><ItemGroup Condition="Exists(\'../Domain/Marker.fs\')"><Compile Include="Codec.fs" /></ItemGroup></Project>'
-        self.assertEqual(self.closure({'Domain.Tests/Domain.Tests.fsproj': group}, managed, ['Domain.Tests/Codec.fs']), [outside])
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(run, CASES.items()))
+        self.assertGreaterEqual(len(results), 55)
+        self.assertEqual([(name, refused) for name, refused, reasons in results if bool(reasons) != refused], [])
+        # Both kinds of verdict are exercised, and a refusal names the project's offending file or the failed evaluation.
+        self.assertTrue(any(refused for _, refused, _ in results) and any(not refused for _, refused, _ in results))
+        for name, refused, reasons in results:
+            if refused:
+                self.assertTrue(all('outside the managed closure' in reason or 'cannot be evaluated' in reason
+                                    or 'adds closure items in a target' in reason for reason in reasons), (name, reasons))
 
-    def test_properties_come_from_the_project_and_directory_build_props(self):
-        item = '<Compile Include="$(Dir)/Codec.fs" Condition="\'$(Skip)\' != \'true\'" />'
-        managed = ['Client/Client.fsproj', 'Directory.Build.props']
-        props = '<Project><PropertyGroup><Dir>Gen</Dir></PropertyGroup></Project>'
-        found = self.closure({'Client/Client.fsproj': self.project(item), 'Directory.Build.props': props}, managed, ['Client/Gen/Codec.fs'])
-        self.assertEqual(found, ['candidate project names Compile Client/Gen/Codec.fs, outside the managed closure'])
-        skip = '<Project><PropertyGroup><Dir>Gen</Dir><Skip>true</Skip></PropertyGroup></Project>'
-        self.assertEqual(self.closure({'Client/Client.fsproj': self.project(item), 'Directory.Build.props': skip}, managed,
-                                      ['Client/Gen/Codec.fs']), [])
-        own = self.project(item, props='<PropertyGroup><Dir>Gen</Dir></PropertyGroup>')
-        self.assertEqual(len(self.closure({'Client/Client.fsproj': own}, ['Client/Client.fsproj'], ['Client/Gen/Codec.fs'])), 1)
-        # An undefined property is empty, so the path is not what the author meant: still outside the closure.
-        self.assertEqual(len(self.closure({'Client/Client.fsproj': self.project('<Compile Include="$(Nope)/Codec.fs" />')},
-                                          ['Client/Client.fsproj'])), 1)
+    def test_closure_check_fails_closed_when_msbuild_cannot_run(self):
+        root = self.root / 'closed'
+        managed = self.closure_tree(root, '<ItemGroup><Compile Include="Ok.fs"/></ItemGroup>', {}, ())
+        self.assertEqual(adopter.compile_closure_conflicts(root, managed, root / 'X.slnx'), [])
+        import subprocess as process
 
-    def test_namespaced_projects_and_imports_are_read(self):
-        ns = ' xmlns="http://schemas.microsoft.com/developer/msbuild/2003"'
-        found = self.closure({'Client/Client.fsproj': self.project('<Compile Include="Extra.fs" />', ns=ns)},
-                             ['Client/Client.fsproj'], ['Client/Extra.fs'])
-        self.assertEqual(len(found), 1)
-        imports = '<Project><Import Project="Extra.props" /><Import Project="Gone.props" Condition="Exists(\'Gone.props\')" /></Project>'
-        self.assertEqual(self.closure({'Client/Client.fsproj': imports}, ['Client/Client.fsproj'], ['Client/Extra.props']),
-                         ['candidate project names Import Client/Extra.props, outside the managed closure'])
-        self.assertEqual(self.closure({'Client/Client.fsproj': imports}, ['Client/Client.fsproj', 'Client/Extra.props']), [])
+        def missing(*arguments, **options):
+            raise FileNotFoundError('dotnet')
 
-    def test_globs_and_unmodelled_constructs_fail_closed(self):
-        found = self.closure({'Client/Client.fsproj': self.project('<None Include="data/**" />')},
-                             ['Client/Client.fsproj', 'Client/data/a.json'], ['Client/data/b.json'])
-        self.assertEqual(found, ['candidate project names None Client/data/b.json, outside the managed closure'])
-        for text in ['<Project><Choose><When Condition="true"><ItemGroup><Compile Include="A.fs" /></ItemGroup></When></Choose></Project>',
-                     self.project('<Compile Include="A.fs" Condition="$(Odd) ~~ 1" />')]:
-            with self.subTest(text=text):
-                self.assertEqual(len(self.closure({'Client/Client.fsproj': text}, ['Client/Client.fsproj', 'Client/A.fs'])), 1)
+        broken = self.root / 'closed-broken'
+        managed = self.closure_tree(broken, '<ItemGroup><Compile Include="Ok.fs"/><Compile Include="x"/></ItemGroup>', {}, ())
+        original = process.run
+        process.run = missing
+        try:
+            rows = adopter.compile_closure_conflicts(broken, managed, broken / 'X.slnx')
+        finally:
+            process.run = original
+        self.assertEqual(len(rows), 2)
+        self.assertTrue(all('cannot be evaluated by MSBuild' in row['reason'] for row in rows))
+        # An unevaluable project: malformed XML is refused, not skipped.
+        bad = self.root / 'closed-xml'
+        managed = self.closure_tree(bad, '<ItemGroup><Compile Include="Ok.fs"/></Item>', {}, ())
+        self.assertTrue(adopter.compile_closure_conflicts(bad, managed, bad / 'X.slnx'))
 
     def test_optional_sets_must_be_named_disjoint_successor_additions(self):
         for sets in [{'a': ['Domain/Room.fs']}, {'a': []}, {'': ['Client/Renderers.fs']}, ['Client/Renderers.fs'],
