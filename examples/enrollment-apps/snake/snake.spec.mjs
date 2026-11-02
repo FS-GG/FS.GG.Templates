@@ -5,14 +5,18 @@ const head = (page) => page.locator(".snake-head");
 const coord = async (locator) => ({ x: await locator.getAttribute("data-x"), y: await locator.getAttribute("data-y") });
 
 async function openWithClock(page) {
-  await page.clock.install();
+  await page.clock.install({ time: new Date("2026-01-01T00:00:00Z") });
   await page.goto("/snake/");
   await expect(page.getByRole("heading", { name: "Snake" })).toBeVisible();
+  // Installing a clock keeps it running; pause before deterministic input/ticks.
+  await page.clock.pauseAt(new Date("2026-01-01T00:01:00Z"));
 }
 
 async function start(page) {
   await page.getByRole("button", { name: "Start", exact: true }).click();
   await expect(board(page)).toBeFocused();
+  // Establish the RAF baseline and one frame of scheduling slack, below one tick.
+  await page.clock.runFor(32);
 }
 
 async function steps(page, count, milliseconds = 181) {
@@ -47,6 +51,8 @@ test("buffers two turns, rejects reversal, and pauses without fast-forward", asy
   await page.clock.runFor(5_000);
   await expect.poll(() => coord(head(page))).toEqual(stopped);
   await board(page).press("Space");
+  // Resume resets the RAF baseline, just like Start.
+  await page.clock.runFor(32);
   await page.clock.runFor(100);
   await expect.poll(() => coord(head(page))).toEqual(stopped);
   await page.clock.runFor(100);
@@ -73,7 +79,7 @@ test("loses at a wall, refuses terminal input, then restarts a second run", asyn
   await page.getByRole("button", { name: "Restart", exact: true }).click();
   await expect(page.locator("#state-value")).toHaveText("Ready");
   await expect(head(page)).toHaveAttribute("data-x", "16");
-  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await start(page);
   await steps(page, 1);
   await expect(head(page)).toHaveAttribute("data-x", "17");
 });
@@ -116,6 +122,7 @@ test("small viewport retains keyboard-operable controls and a bounded board", as
 
 test("retained real-clock smoke proves the live timer is connected", async ({ page }) => {
   await page.goto("/snake/");
-  await start(page);
+  await page.getByRole("button", { name: "Start", exact: true }).click();
+  await expect(board(page)).toBeFocused();
   await expect(head(page)).toHaveAttribute("data-x", "17", { timeout: 1_500 });
 });
