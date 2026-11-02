@@ -517,9 +517,11 @@ def _local_name(element) -> str:
 
 
 def _closure_image(candidate: Path, image: Path, managed: list[str], solution: Path) -> None:
-    """The candidate's tree as MSBuild will see it: its files (build output and package folders left out) and every
-    managed file, wherever it lives."""
-    for source in relevant_files(candidate):
+    """Preserve candidate files for MSBuild globs and Exists conditions, including ignored directories.
+    Inventory filtering is not an evaluation boundary: unmanaged files must remain visible to the oracle."""
+    for source in candidate.rglob("*"):
+        if not source.is_file():
+            continue
         if source.is_symlink():
             continue
         target = image / source.relative_to(candidate)
@@ -544,14 +546,38 @@ def _dotnet_stamp(image: Path) -> str:
     return f"{result.returncode}|{result.stdout.strip()}|{(result.stderr.strip().splitlines() or [''])[0][:120]}"
 
 
-def _drop_unresolvable_pin(image: Path) -> None:
-    """Keep the candidate's `global.json` when the SDK it pins is installed, so the evaluation runs on the SDK the product
-    builds with. A pin to an SDK this machine lacks (the published 0.19.3 donor's) would make every evaluation fail, and what
-    a project names does not depend on the SDK's patch level, so it is left out then; with no SDK at all the evaluation
-    still fails closed."""
+def _drop_unresolvable_pin(image: Path) -> str | None:
+    """Fall back only after the resolver confirms a valid pin's SDK is absent. Uncertain resolution fails closed."""
+    import subprocess
     pin = image / "global.json"
-    if pin.is_file() and _dotnet_stamp(image).split("|", 1)[0] != "0":
+    if not pin.is_file():
+        return None
+    try:
+        value = json.loads(pin.read_text())
+        sdk = value.get("sdk") if isinstance(value, dict) else None
+        version = sdk.get("version") if isinstance(sdk, dict) else None
+        if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version):
+            return "invalid global.json SDK pin"
+        result = subprocess.run(["dotnet", "--version"], cwd=image, env=_msbuild_environment(),
+                                capture_output=True, text=True, timeout=120)
+        if result.returncode == 0:
+            return None
+        # The host's SDK-not-found exit and diagnostic must agree with a successful installed-SDK census.
+        # Timeout, launch failure, malformed pin and unrelated host errors never authorize removing global.json.
+        if (result.returncode != 155 or "A compatible .NET SDK was not found." not in result.stderr
+                or f"Requested SDK version: {version}\n" not in result.stderr):
+            return "cannot resolve global.json SDK pin"
+        listed = subprocess.run(["dotnet", "--list-sdks"], cwd=image, env=_msbuild_environment(),
+                                capture_output=True, text=True, timeout=120)
+        rows = listed.stdout.strip().splitlines()
+        if listed.returncode != 0 or not rows or any(not re.fullmatch(r"\S+ \[.+\]", row) for row in rows):
+            return "cannot enumerate installed SDKs for global.json"
+        if version in {row.split()[0] for row in rows}:
+            return "global.json SDK resolution failed despite an installed pin"
         pin.unlink()
+    except (OSError, ValueError, subprocess.SubprocessError) as error:
+        return f"cannot resolve global.json SDK pin: {type(error).__name__}"
+    return None
 
 
 def _closure_key(image: Path, managed: set[str]) -> str:
@@ -670,7 +696,9 @@ def compile_closure_conflicts(candidate: Path, managed: list[str], solution: Pat
         image = Path(scratch) / "tree"
         image.mkdir()
         _closure_image(candidate, image, managed, solution)
-        _drop_unresolvable_pin(image)
+        pin_error = _drop_unresolvable_pin(image)
+        if pin_error:
+            return [{"path": "global.json", "reason": pin_error}]
         delivered = {value for value in managed if (image / value).is_file()}
         key = _closure_key(image, delivered)
         if key in _closure_memo:

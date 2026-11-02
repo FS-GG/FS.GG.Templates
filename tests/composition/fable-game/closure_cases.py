@@ -98,4 +98,7 @@ CASES = {
     "68-closure-item-under-vendor": ('<ItemGroup><Compile Include="vendor/V.fs"/></ItemGroup>', {"P/vendor/V.fs": "x"}, ("P/vendor/V.fs",), True),
     "69-closure-item-under-output": ('<ItemGroup><Compile Include="output/O.fs"/><Compile Include="dist/D.fs"/></ItemGroup>', {"P/output/O.fs": "x", "P/dist/D.fs": "x"}, ("P/output/O.fs", "P/dist/D.fs"), True),
     "70-managed-file-under-an-ignored-directory": ('<ItemGroup><Compile Include="output/O.fs"/></ItemGroup>', {"P/output/O.fs": "x"}, (), False),
+    "71-unmanaged-vendor-glob": ('<ItemGroup><Compile Include="vendor/*.fs"/></ItemGroup>', {"P/vendor/V.fs": "x"}, ("P/vendor/V.fs",), True),
+    "72-unmanaged-vendor-exists": ('<ItemGroup Condition="Exists(\'vendor/V.fs\')"><Compile Include="vendor/V.fs"/></ItemGroup>', {"P/vendor/V.fs": "x"}, ("P/vendor/V.fs",), True),
+    "73-managed-output-glob": ('<ItemGroup><Compile Include="output/*.fs"/></ItemGroup>', {"P/output/O.fs": "x"}, (), False),
 }

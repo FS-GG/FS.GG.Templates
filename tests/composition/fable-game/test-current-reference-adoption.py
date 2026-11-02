@@ -192,6 +192,8 @@ class CurrentReference(unittest.TestCase):
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
             results = list(pool.map(run, CASES.items()))
+        print(f'closure cases: {len(results)} evaluated; {sum(refused for _, refused, _ in results)} expected refusals; '
+              f'{sum(not refused for _, refused, _ in results)} managed controls', file=sys.__stdout__)
         self.assertGreaterEqual(len(results), 55)
         self.assertEqual([(name, refused) for name, refused, reasons in results if bool(reasons) != refused], [])
         # Both kinds of verdict are exercised, and a refusal names the project's offending file or the failed evaluation.
@@ -258,6 +260,54 @@ class CurrentReference(unittest.TestCase):
         root = self.root / 'pin-none'
         managed = self.closure_tree(root, body + condition, {}, ())
         self.assertEqual(adopter.compile_closure_conflicts(root, managed, root / 'X.slnx'), [])
+
+    def test_pin_resolution_uncertainty_never_uses_the_ambient_sdk(self):
+        from unittest.mock import patch
+        version = '9.9.9'
+        missing = subprocess.CompletedProcess([], 155, '',
+                    f'A compatible .NET SDK was not found.\nRequested SDK version: {version}\n')
+        listed = subprocess.CompletedProcess([], 0, '10.0.401 [/sdk]\n', '')
+        controls = [
+            ('timeout', [subprocess.TimeoutExpired('dotnet', 120)]),
+            ('launch-error', [OSError('dotnet failed')]),
+            ('unrelated-error', [subprocess.CompletedProcess([], 1, '', 'host error')]),
+            ('unconfirmed-absence', [subprocess.CompletedProcess([], 155, '', 'host error')]),
+            ('list-timeout', [missing, subprocess.TimeoutExpired('dotnet', 120)]),
+            ('list-error', [missing, subprocess.CompletedProcess([], 1, '', 'host error')]),
+            ('list-malformed', [missing, subprocess.CompletedProcess([], 0, 'not an SDK census', '')]),
+            ('pin-installed', [missing, subprocess.CompletedProcess([], 0, version + ' [/sdk]\n', '')]),
+        ]
+        for name, outcomes in controls:
+            with self.subTest(control=name):
+                root = self.root / ('pin-error-' + name)
+                managed = self.closure_tree(root, '<ItemGroup><Compile Include="Ok.fs"/></ItemGroup>',
+                    {'global.json': json.dumps({'sdk': {'version': version, 'rollForward': 'disable'}})}, ())
+                calls = []
+                def run(arguments, **options):
+                    calls.append(arguments)
+                    outcome = outcomes.pop(0)
+                    if isinstance(outcome, Exception):
+                        raise outcome
+                    return outcome
+                with patch.object(subprocess, 'run', side_effect=run):
+                    rows = adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')
+                self.assertEqual([row['path'] for row in rows], ['global.json'])
+                self.assertTrue(all('msbuild' not in call for call in calls))
+        for malformed in ['{', '{"sdk":{"version":42}}', '{"sdk":{"version":"bad"}}']:
+            with self.subTest(malformed=malformed):
+                root = self.root / ('pin-malformed-' + str(len(malformed)))
+                managed = self.closure_tree(root, '', {'global.json': malformed}, ())
+                with patch.object(subprocess, 'run', side_effect=AssertionError('must not launch')):
+                    self.assertEqual([row['path'] for row in adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')],
+                                     ['global.json'])
+        root = self.root / 'pin-confirmed-absent'
+        root.mkdir()
+        pin = root / 'global.json'
+        pin.write_text(json.dumps({'sdk': {'version': version, 'rollForward': 'disable'}}))
+        with patch.object(subprocess, 'run', side_effect=[missing, listed]):
+            self.assertIsNone(adopter._drop_unresolvable_pin(root))
+        self.assertFalse(pin.exists())
+        print(f'pin-resolution controls: {len(controls)} uncertain resolutions and 3 malformed pins refused; 1 confirmed absence allowed', file=sys.__stdout__)
 
     def test_the_memo_follows_what_dotnet_resolves(self):
         import subprocess as process
