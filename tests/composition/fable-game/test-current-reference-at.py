@@ -5,6 +5,7 @@ No GI import, Node, browser, SDK, network, live unit or AT operation is selected
 The embedded companion's new JS handler controls are source-prepared separately.
 """
 import copy
+import datetime
 import ast
 import importlib.util
 import io
@@ -133,6 +134,45 @@ def template_archive(ui_default, projects=None):
 
 
 class CurrentAtTests(unittest.TestCase):
+    def test_no_admission_controls_isolate_a_valid_ambient_admission(self):
+        # A fictitious caller/producer selects only the four inert negative tests.
+        # Prove the ambient tuple is valid, so an already-held token cannot hide
+        # leakage of the surrounding workflow's admission into these controls.
+        spec = importlib.util.spec_from_file_location(
+            'ambient_admission_controls', Path(__file__).with_name('current-reference-at-admission.py'))
+        admission = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(admission)
+        manifest = Path(__file__).with_name('native-input-facility') / 'noble-20261024.manifest.json'
+        native = admission.native_helper()
+        producer = {'version': 'fixture', 'source': 'b' * 40, 'run': '1', 'artifact': '1',
+                    'archiveSha256': '2' * 64, 'custodySha256': '3' * 64}
+        revision = subprocess.check_output(
+            ['git', '-C', str(admission.ROOT), 'rev-parse', 'HEAD'], text=True).strip()
+        now = datetime.datetime.now(datetime.timezone.utc)
+        start = (now - datetime.timedelta(minutes=1)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        expiry = (now + datetime.timedelta(minutes=5)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        facts = admission.tuple_of(
+            revision, admission.CALLER_REPOSITORY, 'a' * 40, producer,
+            native.sha(native.canonical(native.read_manifest(manifest.read_text()))),
+            admission.roots_sha256(), start, expiry)
+        environment = {**os.environ, 'RENDERING_INPUT_SOURCE': 'current-public-composition',
+                       'GITHUB_REPOSITORY': admission.CALLER_REPOSITORY, 'GITHUB_SHA': 'a' * 40,
+                       'FSGG_CURRENT_NATIVE_INPUT_FACILITY': manifest.read_text(),
+                       'FSGG_CURRENT_PUBLIC_AT_ADMISSION': admission.admission_string(facts)}
+        environment.update({name: producer[key] for key, name in admission.PRODUCER_KEYS.items()})
+        self.assertEqual(facts, admission.verify(environment, now=now))
+        controls = [
+            'test_full_caller_source_entry_is_held_before_any_tools_or_inputs',
+            'test_actual_full_prepare_cannot_bypass_gate_with_supplied_receipt',
+            'test_actual_main_is_held_before_files_signals_or_qualify',
+            'test_direct_entry_is_also_held',
+        ]
+        result = subprocess.run(
+            [sys.executable, '-I', '-B', str(Path(__file__).resolve()),
+             *['CurrentAtTests.' + name for name in controls]],
+            env=environment, text=True, capture_output=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
     def caller(self):
         spec = importlib.util.spec_from_file_location('current_at_caller', Path(__file__).with_name('current-reference-at-caller.py'))
         module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
@@ -140,7 +180,8 @@ class CurrentAtTests(unittest.TestCase):
 
     def test_full_caller_source_entry_is_held_before_any_tools_or_inputs(self):
         caller = self.caller()
-        with patch.object(caller.subprocess, 'run', side_effect=AssertionError('tool reached')), \
+        with patch.dict(os.environ, FSGG_CURRENT_PUBLIC_AT_ADMISSION=''), \
+             patch.object(caller.subprocess, 'run', side_effect=AssertionError('tool reached')), \
              patch.object(Path, 'read_text', side_effect=AssertionError('input reached')):
             with self.assertRaisesRegex(RuntimeError, 'held'):
                 caller.source(Path('/absent'), Path('/absent'))
@@ -350,7 +391,8 @@ class CurrentAtTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             O.write(root / 'external-reference-preflight.json', {'requestedPhase': 'full'})
-            with patch.object(caller.subprocess, 'check_output', side_effect=AssertionError('tool reached')):
+            with patch.dict(os.environ, FSGG_CURRENT_PUBLIC_AT_ADMISSION=''), \
+                 patch.object(caller.subprocess, 'check_output', side_effect=AssertionError('tool reached')):
                 with self.assertRaisesRegex(RuntimeError, 'held'):
                     caller.prepare(root, Path('/typed-owner.dll'))
             self.assertFalse((root / 'current-composition-plan.json').exists())
@@ -379,14 +421,16 @@ class CurrentAtTests(unittest.TestCase):
         self.assertNotIn("gi.repository.Atspi", sys.modules)
 
     def test_actual_main_is_held_before_files_signals_or_qualify(self):
-        with patch.object(sys, "argv", ["observer", "--current-public-local-save", "/missing", "/missing"]), \
+        with patch.dict(os.environ, FSGG_CURRENT_PUBLIC_AT_ADMISSION=''), \
+             patch.object(sys, "argv", ["observer", "--current-public-local-save", "/missing", "/missing"]), \
              patch.object(O, "qualify", side_effect=AssertionError("qualify reached")), \
              patch.object(O, "capture_termination", side_effect=AssertionError("signals reached")):
             with self.assertRaisesRegex(RuntimeError, "held"):
                 O.main()
 
     def test_direct_entry_is_also_held(self):
-        with patch.object(O.subprocess, "check_output", side_effect=AssertionError("native reached")):
+        with patch.dict(os.environ, FSGG_CURRENT_PUBLIC_AT_ADMISSION=''), \
+             patch.object(O.subprocess, "check_output", side_effect=AssertionError("native reached")):
             with self.assertRaisesRegex(RuntimeError, "held"):
                 O.qualify(Path("/missing"), Path("/missing"), [], current_public=True)
 
