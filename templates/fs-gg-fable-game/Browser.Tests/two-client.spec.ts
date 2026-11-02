@@ -1310,6 +1310,183 @@ test("FourD reference focus and native editing text survive a retained update an
   expect(await identities(page)).toEqual(expectedIdentities);
 });
 
+// The camera group carries the retained scene's pan and zoom as a transform attribute.
+const cameraTransform = (target: Locator): Promise<string | null> =>
+  target.evaluate(element => element.closest("g[transform]")?.getAttribute("transform") ?? null);
+
+const centre = async (target: Locator): Promise<{ x: number; y: number; width: number }> => {
+  await target.scrollIntoViewIfNeeded();
+  const bounds = await target.boundingBox();
+  expect(bounds).not.toBeNull();
+  return { x: bounds!.x + bounds!.width / 2, y: bounds!.y + bounds!.height / 2, width: bounds!.width };
+};
+
+test("FourD reference pointer hit testing inverts a wheel zoom and a narrow viewport and still selects the painted target", async ({ page }) => {
+  test.skip(!hasFourDReference || isLegacySvgPreview, "selected composition has no FourD reference");
+  await page.goto("/");
+  const reference = page.locator("#fourd-reference");
+  await expect(reference).toHaveAttribute("data-fixture-id", "fourd-reference-encounter");
+  const origin = page.locator('[data-scene-object-id="full-cell:0:0:0:0"]');
+  const destination = page.locator('[data-scene-object-id="full-cell:1:1:1:1"]');
+  const staleDestination = await centre(destination);
+  const originBefore = await centre(origin);
+  const transformBefore = await cameraTransform(destination);
+
+  // Real wheel events zoom the retained camera about the pointer, here out and anchored on the origin cell, so the origin stays
+  // under the pointer while the destination's paint moves toward it and shrinks.
+  await page.mouse.move(originBefore.x, originBefore.y);
+  for (let step = 0; step < 4; step++) await page.mouse.wheel(0, 100);
+  await expect.poll(() => cameraTransform(destination)).not.toBe(transformBefore);
+  const zoomed = await centre(destination);
+  expect(zoomed.width).toBeLessThan(staleDestination.width * 0.8);
+  expect(Math.hypot(zoomed.x - staleDestination.x, zoomed.y - staleDestination.y)).toBeGreaterThan(zoomed.width / 2);
+
+  // Causal control: the destination's pre-zoom screen point no longer lies on its paint, and a click there selects nothing
+  // that moves gameplay. A hit test that ignored the new camera would still resolve the destination there.
+  await page.mouse.click(staleDestination.x, staleDestination.y);
+  await expect(reference).not.toHaveAttribute("data-hit", "full-cell:1:1:1:1");
+  await expect(reference).toHaveAttribute("data-command-order", "");
+
+  // The pointer lands on the zoomed paint of each cell, so the hit test inverted the new camera. The origin cell selects no
+  // gameplay command; only the destination admits one.
+  const originPoint = await centre(origin);
+  await page.mouse.click(originPoint.x, originPoint.y);
+  await expect(reference).toHaveAttribute("data-hit", "full-cell:0:0:0:0");
+  await expect(reference).toHaveAttribute("data-command-order", "");
+  const destinationPoint = await centre(destination);
+  await page.mouse.click(destinationPoint.x, destinationPoint.y);
+  await expect(reference).toHaveAttribute("data-hit", "full-cell:1:1:1:1");
+  await expect(reference).toHaveAttribute("data-command-order", "1");
+
+  // A retained scene update keeps the user's camera, so the painted target and its hit test stay where the user left them.
+  const zoomedTransform = await cameraTransform(destination);
+  expect(zoomedTransform).not.toBe(transformBefore);
+  const appliedBefore = await appliedCount(reference);
+  await pressWithoutFocus(page, "Complete current projection");
+  await expect.poll(() => appliedCount(reference)).toBeGreaterThan(appliedBefore);
+  expect(await cameraTransform(destination)).toBe(zoomedTransform);
+
+  // The same camera in a narrow viewport moves the paint again; the pointer still resolves the painted cell.
+  await page.setViewportSize({ width: 320, height: 568 });
+  const narrowOrigin = await centre(origin);
+  await page.mouse.click(narrowOrigin.x, narrowOrigin.y);
+  await expect(reference).toHaveAttribute("data-hit", "full-cell:0:0:0:0");
+  const narrowDestination = await centre(destination);
+  await page.mouse.click(narrowDestination.x, narrowDestination.y);
+  await expect(reference).toHaveAttribute("data-hit", "full-cell:1:1:1:1");
+  await expect(reference).toHaveAttribute("data-command-order", "1,2");
+});
+
+test("FourD reference held input is released by hidden visibility, focus leaving the reference and disposal", async ({ page }) => {
+  test.skip(!hasFourDReference || isLegacySvgPreview, "selected composition has no FourD reference");
+  await page.goto("/");
+  const reference = page.locator("#fourd-reference");
+  await expect(reference).toHaveAttribute("data-fixture-id", "fourd-reference-encounter");
+  const hold = async () => {
+    await reference.focus();
+    await page.keyboard.down("h");
+    await expect(reference).toHaveAttribute("data-held", "true");
+  };
+
+  // A visibilitychange while the document is still visible is not a loss of input.
+  await hold();
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(reference).toHaveAttribute("data-held", "true");
+  // A hidden document releases the held action; the late keyup does not hold it again.
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, get: () => true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(reference).toHaveAttribute("data-held", "false");
+  await page.evaluate(() => { delete (document as unknown as { hidden?: boolean }).hidden; });
+  await page.keyboard.up("h");
+  await expect(reference).toHaveAttribute("data-held", "false");
+
+  // Focus moving between the reference's own controls keeps the hold; focus leaving the reference releases it.
+  await hold();
+  await reference.getByRole("textbox", { name: "Encounter note", exact: true }).focus();
+  await expect(reference).toHaveAttribute("data-held", "true");
+  await page.evaluate(() => (document.activeElement as HTMLElement).blur());
+  await expect(reference).toHaveAttribute("data-held", "false");
+  await page.keyboard.up("h");
+
+  // Input still works after a release, and disposal while held releases and leaves the disposed element neutral.
+  await hold();
+  const disposed = await reference.elementHandle();
+  await page.getByRole("button", { name: "Dispose FourD reference", exact: true }).click();
+  await expect(reference).toHaveCount(0);
+  expect(await disposed!.getAttribute("data-held")).toBe("false");
+  expect(await disposed!.getAttribute("data-input-owned")).toBe("0");
+  await page.keyboard.up("h");
+  expect(await disposed!.getAttribute("data-held")).toBe("false");
+  expect(await disposed!.getAttribute("data-command-order")).toBe("");
+});
+
+test("external authority reference note, caret and focus survive snapshot application, reconnect and authority replacement", async ({ page }) => {
+  test.skip(!hasExternalAuthorityReference, "selected composition has no external authority reference");
+  await page.goto("/");
+  await page.getByRole("button", { name: "Mount external authority reference", exact: true }).click();
+  const reference = page.locator("#external-authority-reference");
+  const note = reference.getByRole("textbox", { name: "External reference note", exact: true });
+  // Click through the DOM without moving focus, so a focus steal by the reference cannot be hidden by the click itself.
+  const quiet = (label: string) => reference.evaluate((root, name) => {
+    const button = [...root.querySelectorAll<HTMLButtonElement>(":scope > button")].find(candidate => candidate.textContent === name);
+    if (button === undefined) throw new Error("missing reference control: " + name);
+    button.click();
+  }, label);
+  await note.evaluate(element => ((element as unknown as { __identity: string }).__identity = "external-note"));
+  await note.focus();
+  await note.fill("editable 四");
+  await note.evaluate(element => (element as HTMLInputElement).setSelectionRange(3, 9));
+
+  const survives = async (stage: string) => {
+    await expect(note, stage).toBeFocused();
+    await expect(note, stage).toHaveValue("editable 四");
+    expect(await note.evaluate(element => [(element as HTMLInputElement).selectionStart, (element as HTMLInputElement).selectionEnd]), stage).toEqual([3, 9]);
+    expect(await note.evaluate(element => (element as unknown as { __identity?: string }).__identity), stage).toBe("external-note");
+  };
+  await quiet("Connect sample authority");
+  await quiet("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-applied-revision", "1");
+  await survives("first snapshot");
+  await quiet("Increment external value");
+  await quiet("Request external burst");
+  await quiet("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-applied-revision", "2");
+  await survives("second snapshot");
+  await expect(reference).toHaveAttribute("data-command-order", "sample:1:external.increment");
+
+  // An active composition suspends command admission for the whole reference; the same invocation is inert until it ends.
+  await note.dispatchEvent("compositionstart");
+  await quiet("Increment external value");
+  await expect(reference).toHaveAttribute("data-command-order", "sample:1:external.increment");
+  await survives("composing");
+  await quiet("Disconnect sample authority");
+  await quiet("Connect sample authority");
+  await expect(reference).toHaveAttribute("data-preserved-baseline", "true");
+  await quiet("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-pending", "false");
+  await survives("reconnect");
+  await quiet("Replace sample authority");
+  await quiet("Complete current external snapshot");
+  await expect(reference).toHaveAttribute("data-applied-epoch", "epoch-B");
+  await survives("authority replacement");
+
+  // Enter in the focused, composing note stays with the note; the island never reaches the command stream.
+  await page.keyboard.press("Enter");
+  await note.dispatchEvent("compositionend");
+  await expect(reference).toHaveAttribute("data-command-order", "sample:1:external.increment");
+  await survives("keypress");
+
+  // After disposal the note is still an ordinary editable textbox and the disposed reference admits nothing from it.
+  await quiet("Dispose external reference");
+  await expect(reference).toHaveAttribute("data-disposed", "true");
+  await note.fill("still editable");
+  await note.press("Enter");
+  await expect(note).toHaveValue("still editable");
+  await expect(reference).toHaveAttribute("data-command-order", "sample:1:external.increment");
+});
+
 test("current player and Studio remain operable at 320 CSS pixels with reduced motion", async ({ page }) => {
   test.skip(!hasAnySvgPlayer || isLegacySvgPreview, "selected composition has no current SVG UI");
   await page.emulateMedia({ reducedMotion: "reduce" });
