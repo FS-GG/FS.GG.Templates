@@ -64,6 +64,17 @@ def pinned_tools():
     return json.loads(match.group(1))
 
 
+def checkout_template_sdk():
+    """The SDK the checked-out fable-game template pins. Source-built mode builds that template, whose
+    global.json disables roll-forward, so it needs this SDK rather than the published reference's."""
+    data = json.loads((WORKSPACE / 'templates/fs-gg-fable-game/global.json').read_text())
+    sdk = data.get('sdk') if isinstance(data, dict) else None
+    version = sdk.get('version') if isinstance(sdk, dict) else None
+    require(isinstance(version, str) and re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version) is not None
+            and sdk.get('rollForward') == 'disable', 'checked-out template SDK pin absent or not exact')
+    return version
+
+
 def fable_sha():
     match = re.search(r'^\s*FABLE_SHA = "([0-9a-f]{64})"$', (WORKSPACE / '.github/workflows/fable-reference-public.yml').read_text(), re.M)
     require(match is not None, 'declared Fable core identity absent')
@@ -314,9 +325,13 @@ def main(argv=None):
         node = subprocess.check_output(['node', '--version'], env=env, text=True).strip()
         npm = subprocess.check_output(['npm', '--version'], env=env, text=True).strip()
         dotnet = subprocess.check_output(['dotnet', '--version'], env=env, text=True, cwd=str(WORKSPACE)).strip()
-        require(node == 'v' + tools['node'] and npm == tools['npm'] and dotnet == tools['sdk'],
+        # The published route builds the published archive with the hosted caller's SDK; source-built mode
+        # builds the checked-out template, whose own global.json pin (roll-forward disabled) decides.
+        sdk = checkout_template_sdk() if args.source_built else tools['sdk']
+        require(node == 'v' + tools['node'] and npm == tools['npm'] and dotnet == sdk,
                 'declared tool versions differ: node %s npm %s sdk %s' % (node, npm, dotnet))
-        summary['tools'] = {'node': node, 'npm': npm, 'sdk': dotnet}
+        summary['tools'] = {'node': node, 'npm': npm, 'sdk': dotnet,
+                            'sdkSource': 'checkout-template-global-json' if args.source_built else 'hosted-caller'}
 
         project = WORKSPACE / 'src/FS.GG.Templates.ProviderTool/FS.GG.Templates.ProviderTool.fsproj'
         artifacts = root / 'validator-artifacts'

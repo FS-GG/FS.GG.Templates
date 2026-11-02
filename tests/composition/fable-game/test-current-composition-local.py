@@ -158,7 +158,7 @@ class Controls(unittest.TestCase):
           'rendering':{'version':'2.0.0','sourceCommit':'c'*40,'packages':[{'id':'Fixture.UI','sha256':'u'*64}]},
           'browsers':{'families':['chromium'],'workers':1,'retries':0,'cases':[{'file':'one.spec.ts','suite':[],'title':'case one'}]}}
 
-    def run_main(self,root,*,listing_title='case one',report_status='expected',report_skipped=0,dirty='',extra=(),env=None,node='v24.20.0',stage='source-passed',stage_origin='source-built'):
+    def run_main(self,root,*,listing_title='case one',report_status='expected',report_skipped=0,dirty='',extra=(),env=None,node='v24.20.0',stage='source-passed',stage_origin='source-built',sdk='10.0.401'):
         """Drive main() with fake processes; returns the recorded child calls."""
         plan=self.PLAN;calls=[];self.plan_commands=[];tests=root/'product/complete/Browser.Tests'
         def spec(title,results):
@@ -185,7 +185,7 @@ class Controls(unittest.TestCase):
             if argv[:3]==['podman','image','inspect']:return 'sha256:fixtureimage\n'
             if argv[0]=='node':return node+'\n'
             if argv[0]=='npm':return '11.19.0\n'
-            if argv[:2]==['dotnet','--version']:return '10.0.401\n'
+            if argv[:2]==['dotnet','--version']:return sdk+'\n'
             if argv[0]=='dotnet':self.plan_commands.append(argv[2]);return json.dumps(self.source_built_plan if argv[2]=='source-built-composition-plan' else plan)
             raise AssertionError(argv)
         def fake_fetch(url,expected,maximum,destination):destination.write_bytes(b'archive')
@@ -332,12 +332,32 @@ class Controls(unittest.TestCase):
             self.run_main(root,extra=['--custody-evidence','/retained','--rendering-source','/rendering','--published-all'])
         self.assertEqual(seen,[['a.nupkg']])
 
+    def test_source_built_needs_the_checked_out_template_sdk_and_the_published_route_the_hosted_one(self):
+        pin=json.loads((L.WORKSPACE/'templates/fs-gg-fable-game/global.json').read_text())['sdk']
+        self.assertEqual((L.checkout_template_sdk(),pin['rollForward']),(pin['version'],'disable'))
+        type(self).source_built_plan={**self.PLAN,'template':{'origin':'source-built','id':'FS.GG.Workspace.Template'}}
+        hosted=L.pinned_tools()['sdk'];checkout=L.checkout_template_sdk();built=['--source-built','--coordination-source',str(HERE)]
+        root=self.fresh_root();self.run_main(root,extra=built,sdk=checkout)
+        self.assertEqual(json.loads((root/'local-summary.json').read_text())['tools'],{'node':'v24.20.0','npm':'11.19.0','sdk':checkout,'sdkSource':'checkout-template-global-json'})
+        root=self.fresh_root();self.run_main(root,sdk=hosted)
+        self.assertEqual(json.loads((root/'local-summary.json').read_text())['tools']['sdkSource'],'hosted-caller')
+        if checkout!=hosted:
+            root=self.fresh_root()
+            with self.assertRaisesRegex(ValueError,'declared tool versions differ'):self.run_main(root,extra=built,sdk=hosted)
+            self.assertEqual(self.calls,[],'no process runs when the SDK does not build the checked-out template')
+            root=self.fresh_root()
+            with self.assertRaisesRegex(ValueError,'declared tool versions differ'):self.run_main(root,sdk=checkout)
+            self.assertEqual(self.calls,[],'the published route keeps the hosted caller SDK')
+        for bad in ({'sdk':{'version':'10.0.403','rollForward':'latestPatch'}},{'sdk':{'version':'10.0'}},{'sdk':'10.0.403'},[]):
+            with mock.patch.object(L.Path,'read_text',lambda self,*a,**k:json.dumps(bad)):
+                with self.assertRaisesRegex(ValueError,'template SDK pin'):L.checkout_template_sdk()
+
     def test_source_built_packs_the_checkout_and_is_labelled_source_built_never_published(self):
         type(self).source_built_plan={**self.PLAN,'template':{'origin':'source-built','id':'FS.GG.Workspace.Template'}}
         with self.assertRaisesRegex(ValueError,'go together'):L.main(['--root',str(self.fresh_root()),'--source-built'])
         with self.assertRaisesRegex(ValueError,'go together'):L.main(['--root',str(self.fresh_root()),'--coordination-source',str(HERE)])
         with self.assertRaisesRegex(ValueError,'existing local directory'):L.main(['--root',str(self.fresh_root()),'--source-built','--coordination-source','https://example.invalid/coordination.git'])
-        root=self.fresh_root();calls=self.run_main(root,extra=['--source-built','--coordination-source',str(HERE)])
+        root=self.fresh_root();calls=self.run_main(root,extra=['--source-built','--coordination-source',str(HERE)],sdk=L.checkout_template_sdk())
         self.assertEqual(self.plan_commands,['source-built-composition-plan'])
         stage=[c for c in calls if c[0][0]=='bash'][0][0]
         self.assertTrue(stage[1].endswith('verify-source-built-composition.sh'));self.assertEqual(stage[-1],'a'*64)
@@ -347,7 +367,7 @@ class Controls(unittest.TestCase):
         self.assertEqual((summary['sourceBuilt']['sourceCommit'],summary['sourceBuilt']['packageSha256'],summary['sourceBuilt']['onLocalOriginMain']),('a'*40,'a'*64,True))
         root=self.fresh_root()
         with self.assertRaisesRegex(ValueError,'not labelled source-built'):
-            self.run_main(root,extra=['--source-built','--coordination-source',str(HERE)],stage_origin='published')
+            self.run_main(root,extra=['--source-built','--coordination-source',str(HERE)],stage_origin='published',sdk=L.checkout_template_sdk())
         # The published route is unchanged: it asks for the published plan and the published stage.
         root=self.fresh_root();calls=self.run_main(root)
         self.assertEqual(self.plan_commands,['current-composition-plan']);self.assertTrue([c for c in calls if c[0][0]=='bash'][0][0][1].endswith('verify-external-reference-candidate.sh'))
