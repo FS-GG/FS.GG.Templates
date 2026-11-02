@@ -88,4 +88,14 @@ CASES = {
     "56b-directory-build-targets-relative-managed": (OK_ONLY, {"Directory.Build.targets": '<Project><ItemGroup><Compile Include="Ok.fs"/></ItemGroup></Project>'}, ("P/Gen.fs",), False),
     "57-directory-build-targets-property": (group(condition="'$(Late)' == '1'"), {"Directory.Build.targets": "<Project><PropertyGroup><Late>1</Late></PropertyGroup></Project>"}, (), True),
     "58-managed-everything": (OK_ONLY, {}, ("P/Gen.fs",), False),
+    # Out-of-tree items and the shapes an evaluation cannot see (#849).
+    "60-compile-outside-the-tree": ('<ItemGroup><Compile Include="Ok.fs"/><Compile Include="../../Outside.fs"/></ItemGroup>', {}, (), True),
+    "61-project-reference-outside-the-tree": ('<ItemGroup><ProjectReference Include="../../Other/Other.fsproj"/></ItemGroup>', {}, (), True),
+    "62-multi-targeted-project": ("<PropertyGroup><TargetFrameworks>net10.0;net9.0</TargetFrameworks></PropertyGroup>" + OK_ONLY, {}, (), True),
+    "63-create-item-task-in-a-target": ('<Target Name="T" BeforeTargets="CoreCompile"><CreateItem Include="Gen.fs"><Output TaskParameter="Include" ItemName="Compile"/></CreateItem></Target>', {}, (), True),
+    "64-target-without-items": ('<Target Name="T"><Message Text="hello"/></Target>' + OK_ONLY, {}, (), False),
+    # Directories the tree observation ignores are not exempt from the closure.
+    "68-closure-item-under-vendor": ('<ItemGroup><Compile Include="vendor/V.fs"/></ItemGroup>', {"P/vendor/V.fs": "x"}, ("P/vendor/V.fs",), True),
+    "69-closure-item-under-output": ('<ItemGroup><Compile Include="output/O.fs"/><Compile Include="dist/D.fs"/></ItemGroup>', {"P/output/O.fs": "x", "P/dist/D.fs": "x"}, ("P/output/O.fs", "P/dist/D.fs"), True),
+    "70-managed-file-under-an-ignored-directory": ('<ItemGroup><Compile Include="output/O.fs"/></ItemGroup>', {"P/output/O.fs": "x"}, (), False),
 }

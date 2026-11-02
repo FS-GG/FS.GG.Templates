@@ -55,7 +55,7 @@
     {
       "path": "manage.py",
       "producerPath": "scripts/apply-svg-complete-workspace.py",
-      "sha256": "d9894d30316631b5376ab5275740c336d4433b50d3ea52024f89d57389bb817e"
+      "sha256": "509ef0415fbcfe99cc7055f6d72b908cc2962885634acbeddc4f662ebb480e95"
     }
   ],
   "managedPaths": [

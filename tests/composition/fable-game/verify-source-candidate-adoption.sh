@@ -109,9 +109,11 @@ jq -e '[.conflicts[] | select(.reason|test("only part of the optional set"))] | 
 grep -F 'Retained0100' "$out/retained/Client/Renderers.fs" >/dev/null || fail 'the adopted renderers carry the receiver namespace'
 
 # Every project of the adopted receiver restores locked and compiles: not only the solution's, but SvgFoundation, Studio,
-# TacticalCompatibility.Tests and both codec probes too. The Fable applications (their Protocol sources compile against
-# Thoth.Json only under FABLE_COMPILER) are compiled to JavaScript the way their own builds do; every other project is
-# built with `dotnet build`. A project in neither list fails the gate, so a new project cannot go unbuilt.
+# TacticalCompatibility.Tests and both codec probes too. The loop is over every *.fsproj found, so a new project is built
+# without being listed anywhere. Only the Fable applications are named, because their Protocol sources compile against
+# Thoth.Json only under FABLE_COMPILER: those are compiled to JavaScript the way their own builds do, and every other
+# project is built with `dotnet build`. The Fable list is checked against the projects found, so a Fable application that
+# is renamed or removed fails the gate instead of silently moving to `dotnet build`.
 fable_projects=(
   Client/Client.fsproj
   Protocol.Tests/cross-runtime/CodecProbe.Fable/CodecProbe.Fable.fsproj
