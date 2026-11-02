@@ -384,13 +384,13 @@ with tempfile.TemporaryDirectory() as directory:
     path=Path(directory);log=path/'provider-composition.log'
     previous=os.environ.copy();os.environ.clear();os.environ.update(INERT_ENV);os.environ['RUNNER_TEMP']=directory
     try:
-        for count in [249,250,253,259,400,248,247,246,243,242,244,241,240,239,229,228,230,209,208,210,203,192,0]:
+        for count in [263,264,270,400,262,261,259,253,250,249,248,243,229,209,192,0]:
             log.write_text('build diagnostics\n'+'PASS assertion\n'*count+' PASS indented\nPASS\twrong delimiter\n')
             try: exec(compile(provider_code,'actual-provider-count','exec'),{})
-            except AssertionError: assert count<249
-            else: assert count>=249
+            except AssertionError: assert count<263
+            else: assert count>=263
         for failure in ('FAIL assertion','FAIL','Unhandled exception. System.Exception: boom'):
-            log.write_text('PASS assertion\n'*259+failure+'\n')
+            log.write_text('PASS assertion\n'*263+failure+'\n')
             try: exec(compile(provider_code,'actual-provider-count','exec'),{})
             except AssertionError: pass
             else: raise AssertionError('Provider failure line accepted: '+failure)
@@ -403,7 +403,7 @@ with tempfile.TemporaryDirectory() as directory:
         result=subprocess.run(['bash','-euo','pipefail','-c',provider_prefix],env=env,text=True,capture_output=True,timeout=5)
         assert result.returncode==7 and 'ProviderComposition: verified' not in result.stdout, 'failed Provider command must stop before count'
     finally: os.environ.clear();os.environ.update(previous)
-print('PASS actual stdlib Provider floor249: 249/250/253/259/400 accepted; 248/247/246/243/242/244/241/240/239/229/228/230/209/208/210/203/192/empty, FAIL and unhandled-exception lines and missing evidence refused; native command exit7 preserved')
+print('PASS actual stdlib Provider floor263: 263/264/270/400 accepted; 262/261/259/253/250/249/248/243/229/209/192/empty, FAIL and unhandled-exception lines and missing evidence refused; native command exit7 preserved')
 
 # Execute the actual final receipt binder, including its report reads and writeback.
 # A good receipt must describe all eight cases in each of the three families.
