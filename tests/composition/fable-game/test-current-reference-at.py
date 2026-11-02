@@ -119,6 +119,18 @@ class LocalFixture:
                                      lambda start, end: O.speech_range(self.log, start, end)[0])
 
 
+def template_archive(ui_default, projects=None):
+    """A minimal published-template archive whose SvgFoundation and Studio projects default the given FS.GG.UI version."""
+    import io, zipfile
+    buffer = io.BytesIO()
+    members = (('content/templates/fs-gg-fable-game/SvgFoundation/SvgFoundation.fsproj', 'FsGgSvgInputVersion'),
+               ('content/templates/fs-gg-fable-game/SvgFoundation/Studio/Studio.fsproj', 'FsGgSvgAuthoringVersion'))
+    with zipfile.ZipFile(buffer, 'w') as package:
+        for member, key in members:
+            package.writestr(member, '<Project><PropertyGroup><%s Condition="\'$(%s)\' == \'\'">%s</%s></PropertyGroup></Project>' % (key, key, ui_default, key))
+    return buffer.getvalue()
+
+
 class CurrentAtTests(unittest.TestCase):
     def caller(self):
         spec = importlib.util.spec_from_file_location('current_at_caller', Path(__file__).with_name('current-reference-at-caller.py'))
@@ -199,7 +211,7 @@ class CurrentAtTests(unittest.TestCase):
             self.assertEqual(argv[-1], 'current-composition-plan')
             return raw
         def fetch(url, expected, maximum, destination):
-            calls.append(['public-template', url]); destination.write_bytes(b'archive fixture')
+            calls.append(['public-template', url]); destination.write_bytes(template_archive(caller.public.VERSION))
         def acquire(original, destination):
             self.assertEqual(original.read_bytes(), b'original verified custody')
             calls.append(['public-payload-compare']); destination.mkdir()
@@ -225,6 +237,112 @@ class CurrentAtTests(unittest.TestCase):
             self.assertIn('published-tool-check', run.call_args.args[0])
             self.assertEqual(calls[-1], ['public-payload-compare'])
             self.assertFalse((root / 'external-reference').exists())
+
+    def run_prepare(self, ui_default, spy=False):
+        """Drive the real prepare() with a template archive defaulting `ui_default`; returns (calls, root files, check spy)."""
+        caller = self.caller()
+        packet, preflight, controller = inputs()
+        preflight.update(schema='fsgg.external-reference-native-preflight/1', qualification='not-run', requestedPhase='preflight')
+        plan = packet['currentCompositionPlan']
+        plan['template']['id'] = 'FS.GG.Workspace.Template'
+        plan['rendering'].update(sourceCommit=caller.public.SOURCE, custodySha256=caller.public.CUSTODY_SHA256,
+                                  version=caller.public.VERSION, packages=[{'id': k, 'sha256': v} for k, v in caller.public.PUBLIC_SHA256.items()])
+        preflight['producer'].update(revision=caller.public.SOURCE, custodySha256=caller.public.CUSTODY_SHA256)
+        raw = (json.dumps(plan) + '\n').encode()
+        calls = []
+        def output(argv, **kwargs):
+            calls.append(list(map(str, argv)))
+            return controller['tree' if argv[-1] == 'HEAD^{tree}' else 'revision'] if argv[0] == 'git' else raw
+        def fetch(url, expected, maximum, destination):
+            calls.append(['public-template']); destination.write_bytes(template_archive(ui_default))
+        def acquire(original, destination):
+            calls.append(['public-payload-compare']); destination.mkdir()
+            (destination / 'public-readback.json').write_text(json.dumps({'custodySha256': caller.public.CUSTODY_SHA256,
+                'records': [{'id': k, 'rawSha256': v, 'state': 'matched', 'payloadMatched': True, 'source': caller.public.SOURCE}
+                            for k, v in caller.public.PUBLIC_SHA256.items()]}))
+        def tool_check(argv, **kwargs):
+            calls.append(['published-tool-check'])
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'rendering-packet').mkdir()
+            (root / 'rendering-packet/release-custody.json').write_bytes(b'original verified custody')
+            O.write(root / 'external-reference-preflight.json', preflight)
+            before = (root / 'external-reference-preflight.json').read_bytes()
+            check = patch.object(caller, 'template_ui_defaults', wraps=caller.template_ui_defaults)
+            try:
+                with patch.object(caller.subprocess, 'check_output', side_effect=output), \
+                     patch.object(caller.subprocess, 'run', side_effect=tool_check), patch.object(caller.local, 'fetch', side_effect=fetch), \
+                     patch.object(caller.public, 'acquire', side_effect=acquire), check as spied:
+                    caller.prepare(root, Path('/typed-owner.dll'))
+                error = None
+            except RuntimeError as exc:
+                error = exc
+            return calls, error, spied, (root / 'external-reference-preflight.json').read_bytes() == before, caller.public.VERSION
+
+    def test_prepare_itself_checks_the_downloaded_template_after_the_package_check_and_before_custody_readback(self):
+        calls, error, spied, unchanged, version = self.run_prepare('0.32.3')
+        self.assertIn('published template defaults FS.GG.UI', str(error))
+        self.assertEqual(1, spied.call_count)
+        self.assertEqual(version, spied.call_args.args[1])
+        # order: typed package identity, then the UI-default check, and nothing after it ran
+        names = [c[0] for c in calls if c[0] in ('public-template', 'published-tool-check', 'public-payload-compare')]
+        self.assertEqual(['public-template', 'published-tool-check'], names)
+        self.assertTrue(unchanged, 'a refused prepare must not rewrite the authenticated preflight')
+        calls, error, spied, unchanged, version = self.run_prepare(version)
+        self.assertIsNone(error)
+        self.assertEqual(1, spied.call_count)
+        self.assertEqual(['public-template', 'published-tool-check', 'public-payload-compare'],
+                         [c[0] for c in calls if c[0] in ('public-template', 'published-tool-check', 'public-payload-compare')])
+        self.assertFalse(unchanged)
+
+    def test_template_default_check_refuses_an_absent_or_ambiguous_default(self):
+        caller = self.caller()
+        import io, zipfile
+        version = caller.public.VERSION
+        def archive(project_one, project_two):
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, 'w') as package:
+                package.writestr(caller.UI_DEFAULTS[0][0], project_one)
+                package.writestr(caller.UI_DEFAULTS[1][0], project_two)
+            return buffer.getvalue()
+        good = lambda key: '<Project><%s Condition="x">%s</%s></Project>' % (key, version, key)
+        keys = [key for _, key in caller.UI_DEFAULTS]
+        cases = {'default absent from SvgFoundation': archive('<Project/>', good(keys[1])),
+                 'default absent from Studio': archive(good(keys[0]), '<Project/>'),
+                 'default declared twice': archive(good(keys[0]) + good(keys[0]), good(keys[1])),
+                 'unconditioned element only': archive('<Project><%s>%s</%s></Project>' % (keys[0], version, keys[0]), good(keys[1]))}
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / 'template.nupkg'
+            for label, content in cases.items():
+                path.write_bytes(content)
+                with self.subTest(label), self.assertRaisesRegex(RuntimeError, 'template default absent/ambiguous'):
+                    caller.template_ui_defaults(path, version)
+            path.write_bytes(archive(good(keys[0]), good(keys[1])))
+            self.assertEqual({keys[0]: version, keys[1]: version}, caller.template_ui_defaults(path, version))
+
+    def test_prepare_refuses_a_published_template_whose_ui_defaults_differ_from_the_public_producer(self):
+        caller = self.caller()
+        with tempfile.TemporaryDirectory() as tmp:
+            archive = Path(tmp) / 'template.nupkg'
+            archive.write_bytes(template_archive(caller.public.VERSION))
+            self.assertEqual({'FsGgSvgInputVersion': caller.public.VERSION, 'FsGgSvgAuthoringVersion': caller.public.VERSION},
+                             caller.template_ui_defaults(archive, caller.public.VERSION))
+            for label, content in {'0.20.0 default 0.32.3': template_archive('0.32.3'), 'newer default': template_archive('0.32.5')}.items():
+                archive.write_bytes(content)
+                with self.subTest(label), self.assertRaisesRegex(RuntimeError, 'published template defaults FS.GG.UI'):
+                    caller.template_ui_defaults(archive, caller.public.VERSION)
+            # one project right, the other stale
+            import io, zipfile
+            mixed = io.BytesIO()
+            with zipfile.ZipFile(mixed, 'w') as package:
+                for (member, key), version in zip(caller.UI_DEFAULTS, [caller.public.VERSION, '0.32.3']):
+                    package.writestr(member, '<Project><%s Condition="x">%s</%s></Project>' % (key, version, key))
+            archive.write_bytes(mixed.getvalue())
+            with self.assertRaisesRegex(RuntimeError, 'published template defaults FS.GG.UI'):
+                caller.template_ui_defaults(archive, caller.public.VERSION)
+            archive.write_bytes(b'not a zip')
+            with self.assertRaises(Exception):
+                caller.template_ui_defaults(archive, caller.public.VERSION)
 
     def test_actual_full_prepare_cannot_bypass_gate_with_supplied_receipt(self):
         caller = self.caller()

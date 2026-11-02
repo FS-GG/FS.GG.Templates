@@ -388,11 +388,17 @@ jobs:
           python3 - <<'PYPROVIDER'
           import os
           from pathlib import Path
+          # The suite fails fast (a failed assertion throws and the command above exits non-zero), so this
+          # guards a truncated or partly skipped run: at least the natively confirmed merged total (263), and no
+          # failure line. New controls raise the count without editing this gate.
+          floor=263
           with (Path(os.environ['RUNNER_TEMP'])/'provider-composition.log').open(encoding='utf-8') as log:
-              count=sum(1 for line in log if line.startswith('PASS '))
-          # Source-derived: 229 native-confirmed baseline + 20 current-composition selector assertions; actual CI must confirm.
-          assert count==249, f'ProviderComposition requires exactly249 PASS lines; observed{count}'
-          print(f'ProviderComposition: verified{count} PASS lines after successful command exit')
+              lines=log.read().splitlines()
+          count=sum(1 for line in lines if line.startswith('PASS '))
+          failures=[line for line in lines if line.startswith(('FAIL','Unhandled exception'))]
+          assert not failures, f'ProviderComposition reported a failure: {failures[0][:200]}'
+          assert count>=floor, f'ProviderComposition requires at least {floor} PASS lines; observed {count}'
+          print(f'ProviderComposition: verified {count} PASS lines (floor {floor}), no failure line, after successful command exit')
           PYPROVIDER
           if [[ "$RENDERING_INPUT_SOURCE" == current-public-composition ]]; then
             owner="$RUNNER_TEMP/current-public-tools/bin/FS.GG.Templates.ProviderTool/release/FS.GG.Templates.ProviderTool.dll"
