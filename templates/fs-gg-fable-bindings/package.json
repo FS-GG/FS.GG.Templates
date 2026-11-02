@@ -8,7 +8,7 @@
     "@babylonjs/core": "9.33.1",
     "@babylonjs/loaders": "9.33.1"
   },
-  "devDependencies": { "typescript": "6.0.3" },
+  "devDependencies": { "typescript": "7.0.2" },
   "scripts": {
     "build": "bash build.sh",
     "lock:declarations": "node scripts/lock-declarations.mjs --write",
