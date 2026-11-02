@@ -53,6 +53,14 @@ def native_input_helper(expected_sha=None):
     return module
 
 
+def composition_observations():
+    """The shared mechanical-observation helper; it derives the storage label from the typed plan's selected cases."""
+    spec = importlib.util.spec_from_file_location("current_composition_observations", Path(__file__).with_name("current-composition-observations.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 def current_public_at_admission(environment):
     if CURRENT_PUBLIC_AT_ADMISSION is None:
         spec = importlib.util.spec_from_file_location("current_at_admission", Path(__file__).with_name("current-reference-at-admission.py"))
@@ -1390,9 +1398,11 @@ def validate(receipt, packet, preflight, directory):
                 "current typed plan changed")
         require(receipt.get("journey") == LOCAL_SAVE_JOURNEY and receipt.get("firstCause") is None,
                 "current local journey incomplete")
-        require(receipt.get("localSaveStorage") == "synthetic-in-memory" and all(receipt.get(key) is False for key in
+        storage = composition_observations().local_save_storage(packet["currentCompositionPlan"])
+        require(receipt.get("localSaveStorage") == storage and packet.get("localSaveStorage") == storage and
+                receipt.get("atLocalSaveStorage") == "synthetic-in-memory" and all(receipt.get(key) is False for key in
                 ["durableSaveAcceptance", "providerMatrixAcceptance", "nativeImeAcceptance", "whole4817Acceptance"]),
-                "local AT receipt claims unsupported broader acceptance")
+                "local AT receipt storage label or acceptance claim differs from what the plan and journey exercised")
         for name in ["current-public-at.json", "current-composition-plan.json"]:
             require(name in receipt["evidenceSha256"], "current identity evidence unbound")
     else:
@@ -3503,7 +3513,8 @@ def qualify(out, preflight_path, termination, current_public=False):
                                          ["current-public-at.json", "current-composition-plan.json"]})
         receipt['evidenceSha256']['native-input-runtime.json'] = digest(directory / 'native-input-runtime.json')
         receipt['evidenceSha256']['native-input-facility.json'] = digest(directory / 'native-input-facility.json')
-        receipt.update(localSaveStorage="synthetic-in-memory", durableSaveAcceptance=False,
+        receipt.update(localSaveStorage=composition_observations().local_save_storage(packet["currentCompositionPlan"]),
+                       atLocalSaveStorage="synthetic-in-memory", durableSaveAcceptance=False,
                        providerMatrixAcceptance=False, nativeImeAcceptance=False, whole4817Acceptance=False)
     try:
         validate(receipt, packet, preflight, directory)
