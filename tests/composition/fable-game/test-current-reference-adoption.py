@@ -15,6 +15,21 @@ SPEC = importlib.util.spec_from_file_location('reference_harness', Path(__file__
 harness = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(harness)
 adopter = harness.adopter
+# Preserve the actual first refusal before TemporaryDirectory cleanup removes
+# its inventory. Expected negative controls remain buffered by unittest; a
+# failing test reports the original reasons without retrying or changing them.
+_classify = adopter.classify
+
+
+def classify_with_diagnostics(*args, **kwargs):
+    observation = _classify(*args, **kwargs)
+    if not observation['ready']:
+        print('current-reference inventory conflicts: '
+              + json.dumps(observation['conflicts'], sort_keys=True), file=sys.stderr)
+    return observation
+
+
+adopter.classify = classify_with_diagnostics
 # The production manifest authenticates one immutable published source. Source
 # development must not rewrite its hashes or pretend the new checkout is that source.
 FIXTURE_ROOT = Path(os.environ.get('FSGG_CURRENT_REFERENCE_FIXTURE_ROOT', ROOT)).resolve()
