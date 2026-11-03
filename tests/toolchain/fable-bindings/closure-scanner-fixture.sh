@@ -3,7 +3,7 @@
 # Usage: closure-scanner-fixture.sh <path-to-lock-declarations.mjs>
 #
 # The scanner follows the module specifiers in the TypeScript syntax tree and the triple-slash
-# references the pre-processor reports. The fixture
+# references the native source metadata reports. The fixture
 # reproduces the shapes the regex tracer could not lock in pixi.js@8 and pins each outcome:
 #   - `/// <reference path>` mixins and `/// <reference types>` inside the artifact are followed;
 #   - an extensionless folder import resolves to `dir/index.d.ts`;
@@ -18,6 +18,7 @@
 #   - a genuinely missing declaration still fails the lock.
 set -euo pipefail
 lock_script="$1"
+node "$(dirname "${BASH_SOURCE[0]}")/native-parser-fixture.mjs" "$(dirname "$lock_script")/declaration-parser.mjs"
 fixture="$(mktemp -d)"
 trap 'rm -rf "$fixture"' EXIT
 lib="$fixture/node_modules/example/lib"

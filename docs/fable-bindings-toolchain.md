@@ -17,7 +17,7 @@ findings are now enforced by the generated workspace and composition gate.
 | Node / npm | 26.13.0 / 12.2.1 |
 | Fable tool / Fable.Core | 5.26.0 / 5.6.1 |
 | Fable.Package.SDK | 1.4.1 |
-| TypeScript declaration parser | 6.0.3 |
+| TypeScript declaration parser | 7.0.2 (native sync API) |
 | Glutinum template | `Glutinum.Template@1.1.1` |
 | npm corpus | `@babylonjs/core@9.33.1`, `@babylonjs/loaders@9.33.1`; `pixi.js@8.22.0` |
 | core artifact integrity | `sha512-NoIfREw4QeoXzRPpXnbUpmxxPIjuRi9iS4xFDbPgXHiLwCeHSI13DJHF8YB2gKHp6rA6T5R7BAevPvWHklvXWQ==` |
@@ -117,7 +117,7 @@ The machinery was moved to current supported tools and re-qualified on the uncha
 | Node / npm | 26.10.0 / 12.1.0 | 26.13.0 / 12.2.1 | 26.13.0 is the first Node 26 Active LTS release (`lts: Lithium`); npm 12.2.1 is the current `latest`. The `composition` and `release` gates install the same pair. |
 | Fable tool / Fable.Core | 5.18.0 / 5.3.0 | 5.26.0 / 5.6.1 | Latest stable. Fable.Core 5.6.1 still floors FSharp.Core at 4.7.2, so the netstandard2.1 lock shape is unchanged. |
 | Fable.Package.SDK | 1.4.1 | 1.4.1 | Already current. |
-| TypeScript declaration parser | 5.9.3 | 6.0.3 | Latest JavaScript-API TypeScript. TypeScript 7 is the native compiler and remains only Xantham's pinned compiler. `declaration-analysis.json` and the candidate proposal are byte-identical under 5.9.3 and 6.0.3. |
+| TypeScript declaration parser | 5.9.3 | 6.0.3 | At this qualification, the scanner used the JavaScript compiler API. `declaration-analysis.json` and the candidate proposal were byte-identical under 5.9.3 and 6.0.3. The later native API migration is described below. |
 | Glutinum | `Glutinum.Template@1.1.1` | `Glutinum.Template@1.1.1` | Still the latest template. It remains a comparison input, not a closure-scoped generator. |
 | Xantham candidate | `0.1.0-alpha.2` | `0.1.0-alpha.2` (retained) | `Xantham.Fable.Core.TS` still publishes only `net8.0`, so 0.1.0 remains blocked (see `xantham/release-assessments.json`). Upstream source movement is tracked by the FBX-07 watch (#751, signal #805). |
 
@@ -171,11 +171,37 @@ mapping ledger, coverage and the runtime/browser smokes stay per corpus and are 
 
 The closure scanner was replaced in Templates#809; see "Closure scanner" below.
 
+## TypeScript 7 native parser (Templates#852)
+
+The maintained scanner and template candidate generator use TypeScript 7.0.2's
+`typescript/unstable/sync` and `typescript/unstable/ast` exports through
+[`declaration-parser.mjs`](../templates/fs-gg-fable-bindings/scripts/declaration-parser.mjs).
+One native API instance serves each invocation. Each snapshot contains one caller-supplied
+declaration in a virtual project with `noResolve`, `noLib` and empty `types`; undeclared
+filesystem reads return absence. The existing bounded resolver still owns the declaration
+closure. Snapshots are disposed after each callback and the API closes in `finally`.
+
+Each new input invalidates both native and client caches and checks exact source-text equality:
+a changed-file notification alone retained stale AST text in the compatibility fixture.
+Source metadata supplies triple-slash references and cross-checks AST module edges. Identifier
+augmentations such as `declare global` are not module edges; string-literal augmentations are.
+The lifecycle fixture also checks source replacement, callback refusal and closed-state behavior.
+
+On Node 26.13.0/npm 12.2.1, both scanner projections passed the closure fixtures. Babylon and
+Pixi declaration locks stayed unchanged; analysis, generated F# candidates and proposals were
+byte-identical to actual TypeScript 6.0.3 baseline runs and deterministic on repeated native runs.
+The maintained composition lane also passed with the actual packed template: generated-product
+compile/import/runtime and side-effect controls, clean packed consumers, lifecycle/drift controls,
+and Pixi's 1,000-sprite Node workload and Chromium WebGL journey. The browser reported SwiftShader;
+this does not establish hardware GPU, Game adoption, publication or fleet acceptance.
+Curated bindings match Game's existing pinned source hashes. The separately pinned Xantham backend
+is unchanged.
+
 ## Closure scanner and Babylon 9.33.1 re-lock (2026-10-30, Templates#809)
 
 `scripts/lock-declarations.mjs` (identical in the spike and the template) no longer uses a
-regular expression. It reads every declaration file in the closure with the pinned TypeScript
-6.0.3, in two passes. Comments and JSDoc are never edges in either pass.
+regular expression. At the #809 revision it read every declaration file in the closure with
+TypeScript 6.0.3 in two passes. Comments and JSDoc were never edges in either pass.
 
 - A syntax-tree pass (`ts.createSourceFile`) collects module specifiers from `import` and `export`
   declarations, including `export * as ns from` and `export type * as ns from`; from

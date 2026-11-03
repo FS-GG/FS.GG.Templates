@@ -16,7 +16,7 @@ if (process.argv.length > 2) {
   if (child.error) throw child.error;
   process.exit(child.status ?? 1);
 }
-const { default: ts } = await import("typescript");
+const { ast: ts, createDeclarationParser } = await import("./declaration-parser.mjs");
 const { candidateStem } = await loadCorpus(resolve(root, "corpus.json"));
 const lockBytes = await readFile(resolve(root, "declaration-lock.json"));
 const lock = JSON.parse(lockBytes);
@@ -41,22 +41,27 @@ const addDeclaration = (name, path) => {
   declarations.set(name, paths);
 };
 
-for (const { path } of lock.files) {
-  const sourceText = await readFile(resolve(root, "node_modules", path), "utf8");
-  const source = ts.createSourceFile(path, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
-  const preprocessed = ts.preProcessFile(sourceText, true, true);
-  for (const imported of preprocessed.importedFiles) {
-    if (!imported.fileName.startsWith(".")) bareImports.add(imported.fileName);
+const parser = createDeclarationParser();
+try {
+  for (const { path } of lock.files) {
+    const sourceText = await readFile(resolve(root, "node_modules", path), "utf8");
+    parser.withSource(sourceText, source => {
+      for (const imported of source.imports) {
+        if (!imported.text.startsWith(".")) bareImports.add(imported.text);
+      }
+      const visit = node => {
+        const hazard = hazardKinds.get(node.kind);
+        if (hazard) hazardCounts[hazard] += 1;
+        if (ts.isInterfaceDeclaration(node) || ts.isClassDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isEnumDeclaration(node) || (ts.isModuleDeclaration(node) && ts.isIdentifier(node.name))) {
+          addDeclaration(node.name?.getText(source), path);
+        }
+        node.forEachChild(visit);
+      };
+      visit(source);
+    });
   }
-  const visit = node => {
-    const hazard = hazardKinds.get(node.kind);
-    if (hazard) hazardCounts[hazard] += 1;
-    if (ts.isInterfaceDeclaration(node) || ts.isClassDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isEnumDeclaration(node) || (ts.isModuleDeclaration(node) && ts.isIdentifier(node.name))) {
-      addDeclaration(node.name?.getText(source), path);
-    }
-    ts.forEachChild(node, visit);
-  };
-  visit(source);
+} finally {
+  parser.close();
 }
 
 const mergedDeclarations = [...declarations]

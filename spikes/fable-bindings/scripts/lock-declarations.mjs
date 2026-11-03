@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { dirname, extname, normalize, relative, resolve } from "node:path";
-import ts from "typescript";
+import { ast as ts, createDeclarationParser } from "./declaration-parser.mjs";
 import { loadCorpus, lockIdentity } from "./corpus.mjs";
 
 const args = process.argv.slice(2);
@@ -100,14 +100,14 @@ const inRootPath = path => {
   return normalized;
 };
 
-// Module specifiers are read from the syntax tree, because ts.preProcessFile does not report
-// `export * as ns from` or `export type * as ns from`. A node that carries a module reference
+// Module specifiers are read from the syntax tree, including namespace exports.
+// A node that carries a module reference
 // in a form this scanner does not follow is an error, never a silent omission.
 const moduleSpecifiers = (path, source) => {
   const found = new Set();
   const take = (node, literal) => {
-    if (literal === undefined || !ts.isStringLiteralLike(literal)) {
-      throw new Error(`${path}: unsupported module specifier syntax (${ts.SyntaxKind[node.kind]}) at offset ${node.getStart()}`);
+    if (literal === undefined || !ts.isStringLiteralLikeNode(literal)) {
+      throw new Error(`${path}: unsupported module specifier syntax (${ts.SyntaxKind[node.kind]}) at offset ${node.getStart(source)}`);
     }
     found.add(literal.text);
   };
@@ -115,25 +115,26 @@ const moduleSpecifiers = (path, source) => {
     if (node.moduleSpecifier !== undefined) take(node, node.moduleSpecifier); // import / export declarations
     else if (ts.isExternalModuleReference(node)) take(node, node.expression); // import x = require("m")
     else if (ts.isImportTypeNode(node)) take(node, ts.isLiteralTypeNode(node.argument) ? node.argument.literal : undefined); // import("m").T
-    else if (ts.isModuleDeclaration(node) && ts.isStringLiteralLike(node.name)) found.add(node.name.text); // declare module "m"
+    else if (ts.isModuleDeclaration(node) && ts.isStringLiteralLikeNode(node.name)) found.add(node.name.text); // declare module "m"
     else if (ts.isCallExpression(node) && (node.expression.kind === ts.SyntaxKind.ImportKeyword || (ts.isIdentifier(node.expression) && node.expression.text === "require"))) {
-      throw new Error(`${path}: unsupported module specifier syntax (call to ${node.expression.getText()}) at offset ${node.getStart()}`);
+      throw new Error(`${path}: unsupported module specifier syntax (call to ${node.expression.getText(source)}) at offset ${node.getStart(source)}`);
     }
-    ts.forEachChild(node, visit);
+    node.forEachChild(visit);
   };
-  visit(ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS));
+  visit(source);
   return found;
 };
 
-// TypeScript's own pre-processor reads triple-slash references and skips comments, so JSDoc
-// examples are not edges. It is also a cross-check: every module specifier it reports must have
-// been found in the syntax tree.
+// Native reference metadata cross-checks the explicit AST scanner. Neither project
+// loading nor ambient discovery can add files to the authoritative resolver below.
 const references = async (path, source) => {
-  const info = ts.preProcessFile(source, true, false);
-  const specifiers = moduleSpecifiers(path, source);
-  for (const reference of info.importedFiles) {
-    if (!specifiers.has(reference.fileName)) throw new Error(`${path}: module specifier ${reference.fileName} was not found in the syntax tree`);
-  }
+  const { info, specifiers } = parser.withSource(source, parsed => {
+    const specifiers = moduleSpecifiers(path, parsed);
+    for (const reference of [...parsed.imports, ...parsed.moduleAugmentations.filter(ts.isStringLiteralLikeNode)]) {
+      if (!specifiers.has(reference.text)) throw new Error(`${path}: module specifier ${reference.text} was not found in the syntax tree`);
+    }
+    return { info: { referencedFiles: parsed.referencedFiles, typeReferenceDirectives: parsed.typeReferenceDirectives }, specifiers };
+  });
   const edges = [
     ...[...specifiers].map(specifier => resolveModule(path, specifier)),
     ...info.referencedFiles.map(reference => resolvePath(inRootPath(resolve(dirname(resolve(root, path)), reference.fileName)), path, reference.fileName)),
@@ -144,13 +145,18 @@ const references = async (path, source) => {
 
 const seen = new Set();
 const pending = [...entryPoints].sort();
-while (pending.length > 0) {
-  const path = pending.shift();
-  if (seen.has(path)) continue;
-  const source = await readFile(resolve(root, path), "utf8");
-  seen.add(path);
-  pending.push(...await references(path, source));
-  pending.sort();
+const parser = createDeclarationParser();
+try {
+  while (pending.length > 0) {
+    const path = pending.shift();
+    if (seen.has(path)) continue;
+    const source = await readFile(resolve(root, path), "utf8");
+    seen.add(path);
+    pending.push(...await references(path, source));
+    pending.sort();
+  }
+} finally {
+  parser.close();
 }
 
 const files = await Promise.all([...seen].sort().map(async path => ({
