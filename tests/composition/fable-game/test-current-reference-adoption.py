@@ -653,6 +653,43 @@ class ClosureRuntimeControls(unittest.TestCase):
             with self.assertRaises(adopter._EvaluationUnavailable):
                 adopter._ClosureRuntime(Path('relative-runtime-must-not-be-created'))
 
+    def test_non_posix_keeps_original_environment_and_missing_uid_refuses_typed(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as scratch:
+            runtime_path = Path(scratch) / 'runtime'
+            with patch.object(os, 'name', 'nt'), patch.object(adopter, '_ClosureRuntime') as constructor:
+                self.assertIsNone(adopter._tool_closure_runtime())
+                with patch.dict(os.environ, {'XDG_RUNTIME_DIR': '/ambient/not-inherited'}):
+                    environment = adopter._msbuild_environment(None)
+                self.assertNotIn('XDG_RUNTIME_DIR', environment)
+                constructor.assert_not_called()
+            # No native Windows result is claimed: this probes only the original
+            # environment path and deterministic refusal without UID support.
+            with patch.object(adopter, 'os') as platform:
+                del platform.getuid
+                with self.assertRaises(adopter._EvaluationUnavailable):
+                    adopter._ClosureRuntime(runtime_path)
+            self.assertFalse(runtime_path.exists())
+
+    def test_valid_pin_runtime_loss_stays_typed_without_pin_removal_or_launch(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch) / 'candidate'
+            managed = CurrentReference.closure_tree(root, '',
+                {'global.json': json.dumps({'sdk': {'version': '10.0.403'}})}, ())
+            runtime = adopter._ClosureRuntime(Path(scratch) / 'runtime')
+            original_image = adopter._closure_image
+            def lose_after_copy(*args):
+                original_image(*args)
+                runtime.path.rmdir()
+            with patch.dict(adopter._closure_memo, {}, clear=True), patch.object(adopter, '_tool_closure_runtime', return_value=runtime), patch.object(adopter, '_closure_image', side_effect=lose_after_copy), patch.object(subprocess, 'run') as process:
+                rows = adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')
+                self.assertEqual(rows[0]['kind'], 'evaluation-unavailable')
+                self.assertTrue((root / 'global.json').is_file())
+                self.assertEqual(adopter._closure_memo, {})
+                process.assert_not_called()
+                self.assertFalse(runtime.path.exists())
+
     def test_runtime_loss_permissions_symlink_and_replacement_refuse_without_recreation(self):
         for control in ('missing', 'inaccessible', 'shared', 'symlink', 'replacement'):
             with self.subTest(control=control), tempfile.TemporaryDirectory() as scratch:

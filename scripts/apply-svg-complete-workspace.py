@@ -515,6 +515,8 @@ class _ClosureRuntime:
     """One tool-owned runtime directory outside the copied candidate, shared by its closure batch."""
     def __init__(self, path: Path):
         self.path = path
+        if not hasattr(os, "getuid"):
+            raise _EvaluationUnavailable("POSIX runtime ownership is unavailable on this platform")
         if not path.is_absolute():
             raise _EvaluationUnavailable("closure runtime directory must be absolute")
         try:
@@ -542,9 +544,13 @@ _runtime_context: _ClosureRuntime | None = None
 _runtime_lock = threading.Lock()
 
 
-def _tool_closure_runtime() -> _ClosureRuntime:
+def _tool_closure_runtime() -> _ClosureRuntime | None:
     """One private context for this tool invocation, never recreated after loss or replacement."""
     global _runtime_home, _runtime_context
+    # XDG/Unix mutex storage is a POSIX runtime concern. Other platforms retain
+    # the original sanitized environment; this adds no platform qualification.
+    if os.name != "posix":
+        return None
     with _runtime_lock:
         if _runtime_home is None:
             _runtime_home = tempfile.TemporaryDirectory(prefix="fsgg-closure-runtime-")
@@ -631,6 +637,8 @@ def _drop_unresolvable_pin(image: Path, runtime: _ClosureRuntime | None = None) 
         if version in {row.split()[0] for row in rows}:
             return "global.json SDK resolution failed despite an installed pin"
         pin.unlink()
+    except _EvaluationUnavailable:
+        raise
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         return f"cannot resolve global.json SDK pin: {type(error).__name__}"
     return None
@@ -760,7 +768,8 @@ def _compile_closure_conflicts(candidate: Path, managed: list[str], solution: Pa
     environment variables (cleared on purpose), and property or item values that only a build computes.
     Source verdicts are memoised on the image's bytes and on what `dotnet` resolves in it. Runtime/evaluation
     unavailability fails closed without memoisation or retry. Each batch gives all SDK/MSBuild children one validated,
-    tool-owned XDG runtime directory outside the candidate image, retained for this tool invocation; ambient runtime directories are never inherited."""
+    tool-owned XDG runtime directory outside the candidate image on POSIX, retained for this tool invocation;
+    other platforms keep the original sanitized environment. Ambient runtime directories are never inherited."""
     conflicts: list[dict] = []
     with tempfile.TemporaryDirectory(prefix="fsgg-closure-") as scratch:
         image = Path(scratch) / "tree"
@@ -779,7 +788,8 @@ def _compile_closure_conflicts(candidate: Path, managed: list[str], solution: Pa
                     for configuration in _CLOSURE_CONFIGURATIONS] or [
                         {"path": "dotnet", "kind": "evaluation-unavailable", "reason": stamp}]
         key = _closure_key(image, delivered, stamp, runtime)
-        runtime.validate()
+        if runtime is not None:
+            runtime.validate()
         if key in _closure_memo:
             return [dict(row) for row in _closure_memo[key]]
         # Only managed projects reach a receiver, so only they are evaluated.
@@ -791,7 +801,8 @@ def _compile_closure_conflicts(candidate: Path, managed: list[str], solution: Pa
                 for row in rows:
                     if row not in conflicts:
                         conflicts.append(row)
-        runtime.validate()
+        if runtime is not None:
+            runtime.validate()
     conflicts.sort(key=lambda row: (row["path"], row["reason"]))
     if not any(row.get("kind") == "evaluation-unavailable" for row in conflicts):
         _closure_memo[key] = [dict(row) for row in conflicts]
