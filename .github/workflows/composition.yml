@@ -179,7 +179,7 @@ jobs:
             templates/fs-gg-fable-game
             template/skill-manifest
             template/product-skills
-      - name: Check retaining reference transaction controls
+      - name: Check retained reference and polyglot source controls
         if: steps.scope.outputs.run == 'true'
         env:
           PYTHONDONTWRITEBYTECODE: '1'
@@ -187,8 +187,6 @@ jobs:
           FSGG_MANAGED_GROUP_OWNER: ${{ github.workspace }}/.tmp/retained-canonical-owner/eng/managed_group_owner.py
         run: |
           set -euo pipefail
-          python3 tests/composition/fable-game/test-current-reference-adoption.py
-          python3 tests/composition/fable-game/test-portal-adoption.py
           python3 tests/composition/fable-game/test-retained-reference-rehearsal.py
           python3 tests/composition/polyglot/test-source.py
           python3 tests/composition/polyglot/test-release-gate.py
@@ -218,6 +216,17 @@ jobs:
           # Generated candidate workspaces select 10.0.403 exactly. Public receiver
           # workflows install 10.0.400 and 10.0.401 as well for earlier published workspaces.
           dotnet-version: '10.0.403'
+      # These transaction controls evaluate actual projects with dotnet MSBuild.
+      - name: Check retaining reference transaction controls
+        if: steps.scope.outputs.run == 'true'
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+          FSGG_CURRENT_REFERENCE_FIXTURE_ROOT: ${{ github.workspace }}/.tmp/current-reference-fixture
+          FSGG_MANAGED_GROUP_OWNER: ${{ github.workspace }}/.tmp/retained-canonical-owner/eng/managed_group_owner.py
+        run: |
+          set -euo pipefail
+          python3 tests/composition/fable-game/test-current-reference-adoption.py
+          python3 tests/composition/fable-game/test-portal-adoption.py
       - uses: actions/setup-node@v6
         if: steps.scope.outputs.run == 'true'
         with:
