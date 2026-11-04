@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Pure synthetic controls. No template engine, public archive or runtime proof."""
+"""Synthetic transaction controls with real MSBuild; no template engine, public archive or product runtime proof."""
 import importlib.util
 import json
 import sys
@@ -544,7 +544,7 @@ class CurrentReference(unittest.TestCase):
         self.assertEqual(self.tree(), before)
         self.assertFalse((self.root / 'outside-output').exists())
 
-    def test_ci_runs_pure_controls_before_tool_setup_and_fails_closed(self):
+    def test_ci_installs_sdk_before_msbuild_controls_and_fails_closed(self):
         workflow = (ROOT / '.github/workflows/composition.yml').read_text()
         title = '      - name: Check retaining reference transaction controls'
         begin = workflow.index(title)
@@ -556,7 +556,13 @@ class CurrentReference(unittest.TestCase):
             finish = text.index('\n      - ', start + len(title))
             block = text[start:finish]
             self.assertLess(text.index('      - uses: actions/checkout@v7'), start)
-            self.assertLess(start, text.index('      - uses: actions/setup-dotnet@v6'))
+            sdk_start = text.index('      - uses: actions/setup-dotnet@v6')
+            sdk_end = text.index('\n      - ', sdk_start + 1)
+            sdk = text[sdk_start:sdk_end]
+            self.assertLess(sdk_start, start)
+            self.assertLess(start, text.index('      - uses: actions/setup-node@v6'))
+            self.assertIn("        if: steps.scope.outputs.run == 'true'", sdk)
+            self.assertIn("          dotnet-version: '10.0.403'", sdk)
             self.assertIn("        if: steps.scope.outputs.run == 'true'", block)
             self.assertIn("          PYTHONDONTWRITEBYTECODE: '1'", block)
             self.assertIn('          FSGG_CURRENT_REFERENCE_FIXTURE_ROOT: ${{ github.workspace }}/.tmp/current-reference-fixture', block)
@@ -573,9 +579,14 @@ class CurrentReference(unittest.TestCase):
         check(workflow)
         bad = [workflow.replace(step, step.replace("        if: steps.scope.outputs.run == 'true'", '')),
                workflow.replace(step, step.replace('          set -euo pipefail', ''))]
-        moved = workflow.replace(step + '\n', '')
+        sdk_start = workflow.index('      - uses: actions/setup-dotnet@v6')
+        sdk_end = workflow.index('\n      - ', sdk_start + 1)
+        sdk = workflow[sdk_start:sdk_end]
+        moved = workflow.replace(sdk + '\n', '')
         insertion = moved.index('      - uses: actions/setup-node@v6')
-        bad.append(moved[:insertion] + step + '\n' + moved[insertion:])
+        bad.append(moved[:insertion] + sdk + '\n' + moved[insertion:])
+        bad.append(workflow.replace(sdk, sdk.replace("        if: steps.scope.outputs.run == 'true'", '')))
+        bad.append(workflow.replace(sdk, sdk.replace("dotnet-version: '10.0.403'", "dotnet-version: '10.0.x'")))
         for text in bad:
             with self.assertRaises(AssertionError):
                 check(text)
