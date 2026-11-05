@@ -14,6 +14,7 @@ import shutil
 import stat
 import sys
 import tempfile
+import threading
 import xml.etree.ElementTree as ET
 
 TEMPLATE_PRODUCT = "FableGame" + "Workspace"
@@ -506,12 +507,69 @@ _CLOSURE_PROJECTS = (".fsproj", ".csproj", ".vbproj")
 _closure_memo: dict[str, list[dict]] = {}
 
 
-def _msbuild_environment() -> dict[str, str]:
+class _EvaluationUnavailable(ValueError):
+    """The evaluator could not establish a source verdict; never a memoised conflict."""
+
+
+class _ClosureRuntime:
+    """One tool-owned runtime directory outside the copied candidate, shared by its closure batch."""
+    def __init__(self, path: Path):
+        self.path = path
+        if not hasattr(os, "getuid"):
+            raise _EvaluationUnavailable("POSIX runtime ownership is unavailable on this platform")
+        if not path.is_absolute():
+            raise _EvaluationUnavailable("closure runtime directory must be absolute")
+        try:
+            self.path.mkdir(mode=0o700)
+            observed = self.path.lstat()
+            self.identity = (observed.st_dev, observed.st_ino)
+            self.validate()
+        except OSError as error:
+            raise _EvaluationUnavailable("cannot create private closure runtime directory") from error
+
+    def validate(self) -> None:
+        try:
+            reject_symlink_chain(Path(self.path.anchor), self.path, "closure runtime")
+            observed = self.path.lstat()
+            if (not self.path.is_absolute() or not stat.S_ISDIR(observed.st_mode)
+                    or observed.st_uid != os.getuid() or stat.S_IMODE(observed.st_mode) != 0o700
+                    or (observed.st_dev, observed.st_ino) != self.identity):
+                raise ValueError("runtime ownership, permissions or identity changed")
+        except (OSError, ValueError, SystemExit) as error:
+            raise _EvaluationUnavailable("closure runtime directory unavailable or changed") from error
+
+
+_runtime_home: tempfile.TemporaryDirectory | None = None
+_runtime_context: _ClosureRuntime | None = None
+_runtime_lock = threading.Lock()
+
+
+def _tool_closure_runtime() -> _ClosureRuntime | None:
+    """One private context for this tool invocation, never recreated after loss or replacement."""
+    global _runtime_home, _runtime_context
+    # XDG/Unix mutex storage is a POSIX runtime concern. Other platforms retain
+    # the original sanitized environment; this adds no platform qualification.
+    if os.name != "posix":
+        return None
+    with _runtime_lock:
+        if _runtime_home is None:
+            _runtime_home = tempfile.TemporaryDirectory(prefix="fsgg-closure-runtime-")
+            _runtime_context = _ClosureRuntime(Path(_runtime_home.name) / "runtime")
+        if _runtime_context is None:
+            raise _EvaluationUnavailable("closure runtime initialization unavailable")
+        _runtime_context.validate()
+        return _runtime_context
+
+
+def _msbuild_environment(runtime: _ClosureRuntime | None = None) -> dict[str, str]:
     """The environment of an evaluation: the tool's own variables and nothing ambient, so a project cannot name a file
     through a variable of the machine that happens to run the check."""
     keep = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT")
     environment = {key: value for key, value in os.environ.items()
                    if key in keep or key.startswith(("DOTNET_", "NUGET_", "MSBUILD"))}
+    if runtime is not None:
+        runtime.validate()
+        environment["XDG_RUNTIME_DIR"] = str(runtime.path)
     environment.update({"DOTNET_NOLOGO": "1", "DOTNET_CLI_TELEMETRY_OPTOUT": "1", "MSBUILDDISABLENODEREUSE": "1"})
     return environment
 
@@ -538,19 +596,19 @@ def _closure_image(candidate: Path, image: Path, managed: list[str], solution: P
             shutil.copyfile(source, image / logical)
 
 
-def _dotnet_stamp(image: Path) -> str:
+def _dotnet_stamp(image: Path, runtime: _ClosureRuntime | None = None) -> str:
     """What `dotnet` resolves in the image: its exit status and version, or that it is missing. It is part of the memo key,
     so a cached verdict cannot outlive a change of SDK or of the candidate's pin."""
     import subprocess
     try:
-        result = subprocess.run(["dotnet", "--version"], cwd=image, env=_msbuild_environment(), capture_output=True,
+        result = subprocess.run(["dotnet", "--version"], cwd=image, env=_msbuild_environment(runtime), capture_output=True,
                                 text=True, timeout=120)
-    except (OSError, subprocess.SubprocessError) as error:
+    except (OSError, subprocess.SubprocessError, _EvaluationUnavailable) as error:
         return f"dotnet unavailable: {type(error).__name__}"
     return f"{result.returncode}|{result.stdout.strip()}|{(result.stderr.strip().splitlines() or [''])[0][:120]}"
 
 
-def _drop_unresolvable_pin(image: Path) -> str | None:
+def _drop_unresolvable_pin(image: Path, runtime: _ClosureRuntime | None = None) -> str | None:
     """Fall back only after the resolver confirms a valid pin's SDK is absent. Uncertain resolution fails closed."""
     import subprocess
     pin = image / "global.json"
@@ -562,7 +620,7 @@ def _drop_unresolvable_pin(image: Path) -> str | None:
         version = sdk.get("version") if isinstance(sdk, dict) else None
         if not isinstance(version, str) or not re.fullmatch(r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?", version):
             return "invalid global.json SDK pin"
-        result = subprocess.run(["dotnet", "--version"], cwd=image, env=_msbuild_environment(),
+        result = subprocess.run(["dotnet", "--version"], cwd=image, env=_msbuild_environment(runtime),
                                 capture_output=True, text=True, timeout=120)
         if result.returncode == 0:
             return None
@@ -571,7 +629,7 @@ def _drop_unresolvable_pin(image: Path) -> str | None:
         if (result.returncode != 155 or "A compatible .NET SDK was not found." not in result.stderr
                 or f"Requested SDK version: {version}\n" not in result.stderr):
             return "cannot resolve global.json SDK pin"
-        listed = subprocess.run(["dotnet", "--list-sdks"], cwd=image, env=_msbuild_environment(),
+        listed = subprocess.run(["dotnet", "--list-sdks"], cwd=image, env=_msbuild_environment(runtime),
                                 capture_output=True, text=True, timeout=120)
         rows = listed.stdout.strip().splitlines()
         if listed.returncode != 0 or not rows or any(not re.fullmatch(r"\S+ \[.+\]", row) for row in rows):
@@ -579,14 +637,20 @@ def _drop_unresolvable_pin(image: Path) -> str | None:
         if version in {row.split()[0] for row in rows}:
             return "global.json SDK resolution failed despite an installed pin"
         pin.unlink()
+    except _EvaluationUnavailable:
+        raise
     except (OSError, ValueError, subprocess.SubprocessError) as error:
         return f"cannot resolve global.json SDK pin: {type(error).__name__}"
     return None
 
 
-def _closure_key(image: Path, managed: set[str]) -> str:
+def _closure_key(image: Path, managed: set[str], stamp: str | None = None,
+                 runtime: _ClosureRuntime | None = None) -> str:
     digests = hashlib.sha256()
-    digests.update(f"{_dotnet_stamp(image)}\0".encode())
+    if runtime is not None:
+        runtime.validate()
+        digests.update(f"{runtime.path}|{runtime.identity}\0".encode())
+    digests.update(f"{_dotnet_stamp(image) if stamp is None else stamp}\0".encode())
     for path in sorted(image.rglob("*")):
         if path.is_file():
             digests.update(f"{path.relative_to(image).as_posix()}\0{digest(path.read_bytes())}\0".encode())
@@ -594,7 +658,8 @@ def _closure_key(image: Path, managed: set[str]) -> str:
     return digests.hexdigest()
 
 
-def _evaluate_project(image: Path, managed: set[str], logical: str, configuration: str) -> list[dict]:
+def _evaluate_project(image: Path, managed: set[str], logical: str, configuration: str,
+                      runtime: _ClosureRuntime | None = None) -> list[dict]:
     """Ask MSBuild for the items and imports of one project in one configuration."""
     import subprocess
 
@@ -602,10 +667,10 @@ def _evaluate_project(image: Path, managed: set[str], logical: str, configuratio
         return subprocess.run(["dotnet", "msbuild", str(image / logical), "-nologo", "-nodeReuse:false",
                                f"-p:Configuration={configuration}", "-p:EnableDefaultNoneItems=false",
                                "-p:EnableDefaultContentItems=false", *arguments],
-                              cwd=image, env=_msbuild_environment(), capture_output=True, text=True, timeout=600)
+                              cwd=image, env=_msbuild_environment(runtime), capture_output=True, text=True, timeout=600)
 
-    def refuse(reason: str) -> list[dict]:
-        return [{"path": logical, "reason": f"candidate project cannot be evaluated by MSBuild ({configuration}): {reason}"}]
+    def refuse(reason: str, unavailable: bool = True) -> list[dict]:
+        return [{"path": logical, **({"kind": "evaluation-unavailable"} if unavailable else {}), "reason": f"candidate project cannot be evaluated by MSBuild ({configuration}): {reason}"}]
 
     found: list[dict] = []
     def said(result) -> str:
@@ -614,7 +679,7 @@ def _evaluate_project(image: Path, managed: set[str], logical: str, configuratio
 
     try:
         items = run(f"-getItem:{_CLOSURE_ITEM_TYPES}", "-getProperty:TargetFrameworks")
-    except (OSError, subprocess.SubprocessError) as error:
+    except (OSError, subprocess.SubprocessError, _EvaluationUnavailable) as error:
         return refuse(f"{type(error).__name__}: {error}"[:300])
     try:
         value = json.loads(items.stdout) if items.returncode == 0 else None
@@ -624,7 +689,7 @@ def _evaluate_project(image: Path, managed: set[str], logical: str, configuratio
         return refuse(said(items))
     if str(value.get("Properties", {}).get("TargetFrameworks", "")).strip():
         # The outer build of a multi-targeted project has no items of its own: its inner builds are not evaluated.
-        return refuse("multi-targeted projects (TargetFrameworks) are not modelled")
+        return refuse("multi-targeted projects (TargetFrameworks) are not modelled", unavailable=False)
     for kind, rows in value["Items"].items():
         for row in rows:
             full = Path(row.get("FullPath", ""))
@@ -650,7 +715,7 @@ def _evaluate_project(image: Path, managed: set[str], logical: str, configuratio
             return refuse(said(result))
         loaded = {Path(line.strip()) for line in preprocessed.read_text(errors="replace").splitlines()
                   if line.strip().startswith("/") and Path(line.strip()).is_file()}
-    except (OSError, subprocess.SubprocessError) as error:
+    except (OSError, subprocess.SubprocessError, _EvaluationUnavailable) as error:
         return refuse(f"{type(error).__name__}: {error}"[:300])
     finally:
         preprocessed.unlink(missing_ok=True)
@@ -682,6 +747,13 @@ def _evaluate_project(image: Path, managed: set[str], logical: str, configuratio
 
 
 def compile_closure_conflicts(candidate: Path, managed: list[str], solution: Path) -> list[dict]:
+    try:
+        return _compile_closure_conflicts(candidate, managed, solution)
+    except _EvaluationUnavailable as error:
+        return [{"path": "runtime", "kind": "evaluation-unavailable", "reason": str(error)}]
+
+
+def _compile_closure_conflicts(candidate: Path, managed: list[str], solution: Path) -> list[dict]:
     """Refuse a candidate whose managed MSBuild projects name a file the manifest does not manage.
 
     Adoption replaces a receiver's managed files with the candidate's, so an item that names a file the transaction
@@ -694,17 +766,30 @@ def compile_closure_conflicts(candidate: Path, managed: list[str], solution: Pat
     The check fails closed on what an evaluation cannot see: closure items a target adds (`ItemGroup` or `CreateItem`) and
     multi-targeted projects (`TargetFrameworks`, whose inner builds are not evaluated). Not modelled, and so a limit:
     environment variables (cleared on purpose), and property or item values that only a build computes.
-    Results are memoised on the image's bytes and on what `dotnet` resolves in it."""
+    Source verdicts are memoised on the image's bytes and on what `dotnet` resolves in it. Runtime/evaluation
+    unavailability fails closed without memoisation or retry. Each batch gives all SDK/MSBuild children one validated,
+    tool-owned XDG runtime directory outside the candidate image on POSIX, retained for this tool invocation;
+    other platforms keep the original sanitized environment. Ambient runtime directories are never inherited."""
     conflicts: list[dict] = []
     with tempfile.TemporaryDirectory(prefix="fsgg-closure-") as scratch:
         image = Path(scratch) / "tree"
         image.mkdir()
+        runtime = _tool_closure_runtime()
         _closure_image(candidate, image, managed, solution)
-        pin_error = _drop_unresolvable_pin(image)
+        pin_error = _drop_unresolvable_pin(image, runtime)
         if pin_error:
             return [{"path": "global.json", "reason": pin_error}]
         delivered = {value for value in managed if (image / value).is_file()}
-        key = _closure_key(image, delivered)
+        stamp = _dotnet_stamp(image, runtime)
+        if not stamp.startswith("0|"):
+            return [{"path": logical, "kind": "evaluation-unavailable",
+                     "reason": f"candidate project cannot be evaluated by MSBuild ({configuration}): {stamp}"}
+                    for logical in sorted(delivered) if logical.endswith(_CLOSURE_PROJECTS)
+                    for configuration in _CLOSURE_CONFIGURATIONS] or [
+                        {"path": "dotnet", "kind": "evaluation-unavailable", "reason": stamp}]
+        key = _closure_key(image, delivered, stamp, runtime)
+        if runtime is not None:
+            runtime.validate()
         if key in _closure_memo:
             return [dict(row) for row in _closure_memo[key]]
         # Only managed projects reach a receiver, so only they are evaluated.
@@ -712,12 +797,15 @@ def compile_closure_conflicts(candidate: Path, managed: list[str], solution: Pat
         import concurrent.futures
         jobs = [(logical, configuration) for logical in projects for configuration in _CLOSURE_CONFIGURATIONS]
         with concurrent.futures.ThreadPoolExecutor(max_workers=min(6, (os.cpu_count() or 2))) as pool:
-            for rows in pool.map(lambda job: _evaluate_project(image, delivered, *job), jobs):
+            for rows in pool.map(lambda job: _evaluate_project(image, delivered, *job, runtime), jobs):
                 for row in rows:
                     if row not in conflicts:
                         conflicts.append(row)
+        if runtime is not None:
+            runtime.validate()
     conflicts.sort(key=lambda row: (row["path"], row["reason"]))
-    _closure_memo[key] = [dict(row) for row in conflicts]
+    if not any(row.get("kind") == "evaluation-unavailable" for row in conflicts):
+        _closure_memo[key] = [dict(row) for row in conflicts]
     return conflicts
 
 

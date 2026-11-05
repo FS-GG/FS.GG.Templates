@@ -339,8 +339,8 @@ class CurrentReference(unittest.TestCase):
 
         process.run = counting
         try:
-            for stamp, evaluates in [('0|10.0.1|', True), ('0|10.0.1|', False), ('0|10.0.2|', True), ('dotnet unavailable: FileNotFoundError', True)]:
-                adopter._dotnet_stamp = lambda image, stamp=stamp: stamp
+            for stamp, evaluates in [('0|10.0.1|', True), ('0|10.0.1|', False), ('0|10.0.2|', True), ('dotnet unavailable: FileNotFoundError', False)]:
+                adopter._dotnet_stamp = lambda image, runtime=None, stamp=stamp: stamp
                 before = len(calls)
                 adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')
                 self.assertEqual(len(calls) > before, evaluates, stamp)
@@ -638,6 +638,147 @@ class CurrentCompilerUpgrade(unittest.TestCase):
         extra['tools']['fable']['extra'] = True
         with self.assertRaises(SystemExit):
             adopter.current_reference_tools(json.dumps(extra).encode(), None)
+
+
+class ClosureRuntimeControls(unittest.TestCase):
+    def test_runtime_is_owned_private_absolute_and_does_not_inherit_ambient(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as scratch:
+            runtime = adopter._ClosureRuntime(Path(scratch) / 'runtime')
+            with patch.dict(os.environ, {'XDG_RUNTIME_DIR': '/ambient/untrusted'}):
+                environment = adopter._msbuild_environment(runtime)
+            self.assertEqual(environment['XDG_RUNTIME_DIR'], str(runtime.path))
+            self.assertEqual(runtime.path.stat().st_mode & 0o777, 0o700)
+            self.assertEqual(runtime.path.stat().st_uid, os.getuid())
+            with self.assertRaises(adopter._EvaluationUnavailable):
+                adopter._ClosureRuntime(Path('relative-runtime-must-not-be-created'))
+
+    def test_non_posix_keeps_original_environment_and_missing_uid_refuses_typed(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as scratch:
+            runtime_path = Path(scratch) / 'runtime'
+            with patch.object(os, 'name', 'nt'), patch.object(adopter, '_ClosureRuntime') as constructor:
+                self.assertIsNone(adopter._tool_closure_runtime())
+                with patch.dict(os.environ, {'XDG_RUNTIME_DIR': '/ambient/not-inherited'}):
+                    environment = adopter._msbuild_environment(None)
+                self.assertNotIn('XDG_RUNTIME_DIR', environment)
+                constructor.assert_not_called()
+            # No native Windows result is claimed: this probes only the original
+            # environment path and deterministic refusal without UID support.
+            with patch.object(adopter, 'os') as platform:
+                del platform.getuid
+                with self.assertRaises(adopter._EvaluationUnavailable):
+                    adopter._ClosureRuntime(runtime_path)
+            self.assertFalse(runtime_path.exists())
+
+    def test_valid_pin_runtime_loss_stays_typed_without_pin_removal_or_launch(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch) / 'candidate'
+            managed = CurrentReference.closure_tree(root, '',
+                {'global.json': json.dumps({'sdk': {'version': '10.0.403'}})}, ())
+            runtime = adopter._ClosureRuntime(Path(scratch) / 'runtime')
+            original_image = adopter._closure_image
+            def lose_after_copy(*args):
+                original_image(*args)
+                runtime.path.rmdir()
+            with patch.dict(adopter._closure_memo, {}, clear=True), patch.object(adopter, '_tool_closure_runtime', return_value=runtime), patch.object(adopter, '_closure_image', side_effect=lose_after_copy), patch.object(subprocess, 'run') as process:
+                rows = adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')
+                self.assertEqual(rows[0]['kind'], 'evaluation-unavailable')
+                self.assertTrue((root / 'global.json').is_file())
+                self.assertEqual(adopter._closure_memo, {})
+                process.assert_not_called()
+                self.assertFalse(runtime.path.exists())
+
+    def test_runtime_loss_permissions_symlink_and_replacement_refuse_without_recreation(self):
+        for control in ('missing', 'inaccessible', 'shared', 'symlink', 'replacement'):
+            with self.subTest(control=control), tempfile.TemporaryDirectory() as scratch:
+                runtime = adopter._ClosureRuntime(Path(scratch) / 'runtime')
+                if control in ('missing', 'symlink'):
+                    runtime.path.rmdir()
+                if control == 'inaccessible':
+                    runtime.path.chmod(0)
+                elif control == 'shared':
+                    runtime.path.chmod(0o755)
+                elif control == 'symlink':
+                    target = Path(scratch) / 'other'
+                    target.mkdir(mode=0o700)
+                    runtime.path.symlink_to(target, target_is_directory=True)
+                elif control == 'replacement':
+                    # Keep the old inode allocated so a replacement cannot accidentally reuse it.
+                    runtime.path.rename(Path(scratch) / 'original-runtime')
+                    runtime.path.mkdir(mode=0o700)
+                with self.assertRaises(adopter._EvaluationUnavailable):
+                    adopter._msbuild_environment(runtime)
+                if control == 'missing':
+                    self.assertFalse(runtime.path.exists())
+
+    def test_unavailable_is_not_memoised_or_retried_but_recovered_source_verdict_is(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch) / 'candidate'
+            managed = CurrentReference.closure_tree(root, '<ItemGroup><Compile Include="Ok.fs"/></ItemGroup>', {}, ())
+            calls = []
+            unavailable = True
+            def evaluate(image, delivered, logical, configuration, runtime):
+                calls.append((logical, configuration))
+                runtime.validate()
+                return ([{'path': logical, 'kind': 'evaluation-unavailable', 'reason': 'synthetic runtime fault'}]
+                        if unavailable else [])
+            with patch.dict(adopter._closure_memo, {}, clear=True), patch.object(adopter, '_dotnet_stamp', return_value='0|test-sdk|'), patch.object(adopter, '_evaluate_project', side_effect=evaluate):
+                rows = adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')
+                self.assertTrue(rows)
+                self.assertTrue(all(row['kind'] == 'evaluation-unavailable' for row in rows))
+                self.assertEqual(len(calls), 2)  # One evaluation per configuration; no automatic retry.
+                self.assertEqual(adopter._closure_memo, {})
+                unavailable = False
+                self.assertEqual(adopter.compile_closure_conflicts(root, managed, root / 'X.slnx'), [])
+                self.assertEqual(len(calls), 4)
+                self.assertEqual(adopter.compile_closure_conflicts(root, managed, root / 'X.slnx'), [])
+                self.assertEqual(len(calls), 4)
+
+    def test_disappearance_during_evaluation_is_typed_unavailable_not_cached(self):
+        from unittest.mock import patch
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch) / 'candidate'
+            managed = CurrentReference.closure_tree(root, '', {}, ())
+            runtime = adopter._ClosureRuntime(Path(scratch) / 'runtime')
+            def disappear(*args):
+                runtime.path.rmdir() if runtime.path.exists() else None
+                return []
+            with patch.dict(adopter._closure_memo, {}, clear=True), patch.object(adopter, '_tool_closure_runtime', return_value=runtime), patch.object(adopter, '_dotnet_stamp', return_value='0|test-sdk|'), patch.object(adopter.os, 'cpu_count', return_value=1), patch.object(adopter, '_evaluate_project', side_effect=disappear) as evaluator:
+                rows = adopter.compile_closure_conflicts(root, managed, root / 'X.slnx')
+                self.assertEqual(rows[0]['kind'], 'evaluation-unavailable')
+                self.assertEqual(adopter._closure_memo, {})
+                self.assertEqual(evaluator.call_count, 2)
+                self.assertFalse(runtime.path.exists())
+
+    def test_cold_real_parallel_msbuild_uses_one_validated_context_outside_candidate(self):
+        from unittest.mock import patch
+        import threading
+        with tempfile.TemporaryDirectory() as scratch:
+            root = Path(scratch) / 'candidate'
+            managed = CurrentReference.closure_tree(root, '<ItemGroup><Compile Include="Ok.fs"/></ItemGroup>', {}, ())
+            other = root / 'Q'
+            other.mkdir()
+            (other / 'Q.fsproj').write_bytes((root / 'P/P.fsproj').read_bytes())
+            (other / 'Ok.fs').write_text('module Ok\n')
+            managed += ['Q/Q.fsproj', 'Q/Ok.fs']
+            original = subprocess.run
+            observed = []
+            def run(arguments, **options):
+                runtime = Path(options['env']['XDG_RUNTIME_DIR'])
+                self.assertTrue(runtime.is_absolute())
+                self.assertFalse(runtime.is_relative_to(Path(options['cwd'])))
+                self.assertEqual(runtime.stat().st_mode & 0o777, 0o700)
+                if 'msbuild' in arguments:
+                    observed.append((str(runtime), threading.get_ident()))
+                return original(arguments, **options)
+            with patch.dict(adopter._closure_memo, {}, clear=True), patch.object(subprocess, 'run', side_effect=run):
+                self.assertEqual(adopter.compile_closure_conflicts(root, managed, root / 'X.slnx'), [])
+            self.assertEqual(len(observed), 8)
+            self.assertEqual(len({row[0] for row in observed}), 1)
+            self.assertGreater(len({row[1] for row in observed}), 1)
 
 
 if __name__ == '__main__':
